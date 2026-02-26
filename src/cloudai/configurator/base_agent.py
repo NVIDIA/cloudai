@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -28,7 +28,7 @@ class BaseAgentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     random_seed: int = 42
-    seed_parameters: Optional[dict[str, Any]] = None
+    start_action: Literal["random", "first"] = "random"
 
 
 class BaseAgent(ABC):

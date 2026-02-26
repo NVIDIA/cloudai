@@ -34,8 +34,10 @@ class GridSearchAgent(BaseAgent):
 
         Args:
              env (CloudAIGymEnv): The environment instance to query the action space from.
-             config (BaseAgentConfig): Implementing the interface, not used.
+             config (BaseAgentConfig): Agent configuration
         """
+        self.env = env
+        self.config = config
         self.action_space = env.define_action_space()
         self.action_combinations = []
         self.index = 0

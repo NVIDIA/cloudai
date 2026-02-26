@@ -93,13 +93,13 @@ def test_dse_run_does_not_support_dependencies(
         (
             {
                 "random_seed": 123,
-                "seed_parameters": {"from": "test"},
+                "start_action": "first",
                 "knob": 7,
                 "payload": {"alpha": 1, "beta": "value"},
             },
             {
                 "random_seed": 123,
-                "seed_parameters": {"from": "test"},
+                "start_action": "first",
                 "knob": 7,
                 "payload": {"alpha": 1, "beta": "value"},
             },
@@ -107,7 +107,8 @@ def test_dse_run_does_not_support_dependencies(
         (
             None,
             {
-                "seed_parameters": None,
+                "random_seed": 42,
+                "start_action": "random",
                 "knob": 0,
                 "payload": {},
             },
@@ -129,9 +130,9 @@ def test_dse_run_uses_agent_config(
 
     assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
     assert len(StubAgent.received_configs) == 1
+
     recorded = StubAgent.received_configs[0]
-    assert recorded.seed_parameters == expected["seed_parameters"]
+    assert recorded.start_action == expected["start_action"]
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
-    if "random_seed" in expected:
-        assert recorded.random_seed == expected["random_seed"]
+    assert recorded.random_seed == expected["random_seed"]

@@ -47,8 +47,13 @@ class CloudAIGymEnv(BaseGym):
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         super().__init__()
 
-    def define_action_space(self) -> Dict[str, Any]:
+    def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
+
+    @property
+    def action_first(self) -> dict[str, Any]:
+        """Builds an action using first elements of each explorable parameter."""
+        return {k: v[0] for k, v in self.define_action_space().items()}
 
     def define_observation_space(self) -> list:
         """
