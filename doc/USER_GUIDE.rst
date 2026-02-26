@@ -422,8 +422,8 @@ Example:
      random_seed = 123
      start_action = "first"
 
-When an agent honors ``start_action = "first"``, it should start from ``CloudAIGymEnv.action_first`` (the "sweep zero"
-action built from first values of each sweep parameter). ``start_action = "random"`` means starting from a random
+When an agent honors ``start_action = "first"``, it should start from ``CloudAIGymEnv.first_sweep`` (the sweep
+is built from first values of each sweep parameter). ``start_action = "random"`` means starting from a random
 action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
