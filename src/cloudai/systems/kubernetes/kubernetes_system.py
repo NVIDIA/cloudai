@@ -397,12 +397,7 @@ class KubernetesSystem(System):
         report_path = job.test_run.output_path / tdef.cmd_args.genai_perf.report_name
         if not report_path.exists():
             logging.error(f"Genai-perf report not found at {report_path}")
-            report_path = job.test_run.output_path / "genai-perf" / tdef.cmd_args.genai_perf.report_name
-            if not report_path.exists():
-                logging.error(f"Genai-perf report not found at {report_path}")
-                return
-
-        shutil.copy(str(report_path), str(job.test_run.output_path / tdef.cmd_args.genai_perf.report_name))
+            return
 
         (job.test_run.output_path / tdef.success_marker).touch()
         logging.debug(f"Success marker touched at {job.test_run.output_path / tdef.success_marker}")
