@@ -145,7 +145,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
         env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent_config_data = test_run.test.agent_config or {}
-        agent_config = agent_class.get_config_class().model_validate(agent_config_data)
+        agent_config = agent_class.get_config_class()(**agent_config_data)
         agent = agent_class(env, agent_config)
 
         for step in range(agent.max_steps):

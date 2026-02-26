@@ -574,7 +574,7 @@ class TestInScenario:
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.agent_config == {"random_seed": 101, "start_action": "first"}
 
-    def test_agent_config_is_deep_merged_with_scenario_override(
+    def test_agent_config_is_merged_with_scenario_override(
         self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
     ):
         test_scenario_parser.test_mapping = {
