@@ -43,6 +43,9 @@ class StubAgent(BaseAgent):
     def get_config_class() -> type[StubAgentConfig]:
         return StubAgentConfig
 
+    def configure(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
+
     def select_action(self) -> tuple[int, dict[str, Any]]:
         raise NotImplementedError
 

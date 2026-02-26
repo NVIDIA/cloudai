@@ -556,10 +556,7 @@ class TestInScenario:
                 agent="grid_search",
                 agent_config={
                     "random_seed": 101,
-                    "seed_parameters": {
-                        "from_test": "test-value",
-                        "nested": {"keep": "base", "override_me": "base"},
-                    },
+                    "start_action": "first",
                 },
             )
         }
@@ -575,13 +572,7 @@ class TestInScenario:
             )
         )
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
-        assert tdef.agent_config == {
-            "random_seed": 101,
-            "seed_parameters": {
-                "from_test": "test-value",
-                "nested": {"keep": "base", "override_me": "base"},
-            },
-        }
+        assert tdef.agent_config == {"random_seed": 101, "start_action": "first"}
 
     def test_agent_config_is_deep_merged_with_scenario_override(
         self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
@@ -595,10 +586,7 @@ class TestInScenario:
                 agent="grid_search",
                 agent_config={
                     "random_seed": 101,
-                    "seed_parameters": {
-                        "from_test": "test-value",
-                        "nested": {"keep": "base", "override_me": "base"},
-                    },
+                    "start_action": "first",
                 },
             )
         }
@@ -614,24 +602,14 @@ class TestInScenario:
 
               [Tests.agent_config]
               random_seed = 202
-
-                [Tests.agent_config.seed_parameters]
-                from_scenario = "scenario-value"
-
-                  [Tests.agent_config.seed_parameters.nested]
-                  override_me = "scenario"
-                  new_key = "scenario"
+              start_action = "random"
             """
             )
         )
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.agent_config == {
             "random_seed": 202,
-            "seed_parameters": {
-                "from_test": "test-value",
-                "from_scenario": "scenario-value",
-                "nested": {"keep": "base", "override_me": "scenario", "new_key": "scenario"},
-            },
+            "start_action": "random",
         }
 
 

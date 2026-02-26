@@ -58,6 +58,16 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
+    def configure(self, config: dict[str, Any]) -> None:
+        """
+        Configure the agent with additional settings.
+
+        Args:
+            config (Dict[str, Any]): Configuration settings for the agent.
+        """
+        pass
+
+    @abstractmethod
     def select_action(self) -> tuple[int, dict[str, Any]]:
         """
         Select an action from the action space.
