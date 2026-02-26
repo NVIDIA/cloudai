@@ -43,7 +43,7 @@ class BaseAgent(ABC):
         Initialize the agent with the environment.
 
         Args:
-            env (CloudAIGymEnv): The environment instance for the agent.
+            env (BaseGym): The environment instance for the agent.
             config (BaseAgentConfig): The agent configuration. Class is defined by `get_config_class` static method.
         """
         self.env = env
