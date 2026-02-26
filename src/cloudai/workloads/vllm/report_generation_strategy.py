@@ -101,15 +101,14 @@ class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
         if results is None:
             return METRIC_ERROR
 
-        if metric in ("default", "throughput"):
-            return results.throughput
         if metric == "tps-per-user":
             return results.tps_per_user if results.tps_per_user is not None else METRIC_ERROR
         if metric == "tps-per-gpu":
             used_gpus = self.used_gpus_count()
             return results.throughput / used_gpus
 
-        return METRIC_ERROR
+        # "default", "throughput"
+        return results.throughput
 
     def generate_report(self) -> None:
         results = parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE)
