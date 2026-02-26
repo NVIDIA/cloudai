@@ -54,9 +54,9 @@ class StubAgent(BaseAgent):
 
 
 @pytest.fixture
-def recording_agent_name() -> Iterator[str]:
+def stub_agent_name() -> Iterator[str]:
     registry = Registry()
-    agent_name = "test_handlers_recording_agent"
+    agent_name = "test_handlers_stub_agent"
     old_agent = registry.agents_map.get(agent_name)
     registry.update_agent(agent_name, StubAgent)
     StubAgent.received_configs.clear()
@@ -122,11 +122,11 @@ def test_dse_run_does_not_support_dependencies(
 def test_dse_run_uses_agent_config(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
-    recording_agent_name: str,
+    stub_agent_name: str,
     agent_config: dict[str, Any] | None,
     expected: dict[str, Any],
 ) -> None:
-    dse_tr.test.agent = recording_agent_name
+    dse_tr.test.agent = stub_agent_name
     dse_tr.test.agent_config = agent_config
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)

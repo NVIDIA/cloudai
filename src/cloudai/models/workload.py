@@ -146,8 +146,11 @@ class TestDefinition(BaseModel, ABC):
     @field_validator("agent", mode="after")
     @staticmethod
     def validate_agent(agent: str) -> str:
-        if agent not in Registry().agents_map:
-            raise ValueError(f"Agent {agent} is not registered")
+        registry = Registry()
+        if agent not in registry.agents_map:
+            raise ValueError(
+                f"Agent {agent} is not registered. Available agents are: {', '.join(registry.agents_map.keys())}"
+            )
         return agent
 
     @model_validator(mode="after")

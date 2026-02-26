@@ -51,8 +51,8 @@ class CloudAIGymEnv(BaseGym):
         return self.test_run.param_space
 
     @property
-    def action_first(self) -> dict[str, Any]:
-        """Builds an action using first elements of each explorable parameter."""
+    def first_sweep(self) -> dict[str, Any]:
+        """Builds a sweep using first elements of each explorable parameter."""
         return {k: v[0] for k, v in self.define_action_space().items()}
 
     def define_observation_space(self) -> list:

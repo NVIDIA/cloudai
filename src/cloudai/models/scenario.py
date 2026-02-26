@@ -143,8 +143,11 @@ class TestRunModel(BaseModel):
     @field_validator("agent", mode="after")
     @staticmethod
     def validate_agent(agent: str | None) -> str | None:
-        if agent is not None and agent not in Registry().agents_map:
-            raise ValueError(f"Agent {agent} is not registered")
+        registry = Registry()
+        if agent is not None and agent not in registry.agents_map:
+            raise ValueError(
+                f"Agent {agent} is not registered. Available agents are: {', '.join(registry.agents_map.keys())}"
+            )
         return agent
 
     @model_validator(mode="after")
