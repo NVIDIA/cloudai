@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "dynamo_vllm_kvbm"
+
+[[Tests]]
+id = "vLLM-Qwen3-0.6B"
+test_name = "vLLM"
+time_limit = "20:00:00"
+
+  [Tests.cmd_args]
+  storage_cache_dir = "/mnt/vast"
+
+    [Tests.cmd_args.dynamo]
+    model = "Qwen/Qwen3-0.6B"
+    node-setup-cmd = "hostname"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 1
+
+        [Tests.cmd_args.dynamo.prefill_worker.args]
+        tensor-parallel-size = 2
+        connector = "kvbm nixl"
+
+      [Tests.cmd_args.dynamo.decode_worker]
+      num-nodes = 1
+
+        [Tests.cmd_args.dynamo.decode_worker.args]
+        tensor-parallel-size = 2
+        connector = "nixl"
+
+  [Tests.extra_env_vars]
+  # Both variants needed for cross-version CUFile compatibility
+  CUFILE_LOG_LEVEL = "INFO"
+  CUFILE_LOGGING_LEVEL = "INFO"
+  PYTHONHASHSEED = "0"
+
+  # Dynamo Flags
+  DYN_LOG = "info"
+  DYN_SYSTEM_PORT = "8081" # Enable system metrics
+
+  # KVBM Flags
+  DYN_KVBM_METRICS = "1"
+  DYN_KVBM_METRICS_PORT = "6880" # Default port
+
+  # set a large timeout for allocating the disk
+  DYN_KVBM_LEADER_WORKER_INIT_TIMEOUT_SECS = "1200"
+  DYN_KVBM_DISABLE_DISK_OFFLOAD_FILTER = "1"        # Force KV cache write on first request
+
+  # Use it only on vast.
+  #DYN_KVBM_DISK_ZEROFILL_FALLBACK="true"
+
+  # set a relatively small CPU cache, so we can do quick disk onboarding
+  DYN_KVBM_CPU_CACHE_GB = "50"
+  # set a large disk cache, so we are actually testing the NIXL with onboarding
+  #DYN_KVBM_DISK_CACHE_GB="100"
+
+  DYN_KVBM_NIXL_BACKEND_UCX = "True"
+  DYN_KVBM_NIXL_BACKEND_GDS = "True"
+
+  # vLLM Flags
+  VLLM_SERVER_DEV_MODE = "1"
+
+  DYN_KVBM_LEADER_ZMQ_PUB_PORT = "57001"
+  DYN_KVBM_LEADER_ZMQ_ACK_PORT = "57002"

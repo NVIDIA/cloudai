@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -102,6 +103,14 @@ class SlurmInstaller(BaseInstaller):
             shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
             return InstallStatusResult(True)
         elif isinstance(item, HFModel):
+            if not self._is_hf_home_accessible():
+                item.installed_path = self.system.hf_home_path
+                return InstallStatusResult(
+                    True,
+                    f"HF home path '{self.system.hf_home_path}' is not accessible locally, "
+                    f"skipping download of {item.model_name}. "
+                    "Ensure the model is available on compute nodes.",
+                )
             return self.hf_model_manager.download_model(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
@@ -149,6 +158,9 @@ class SlurmInstaller(BaseInstaller):
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"File {item.installed_path} does not exist")
         elif isinstance(item, HFModel):
+            if not self._is_hf_home_accessible():
+                item.installed_path = self.system.hf_home_path
+                return InstallStatusResult(True)
             return self.hf_model_manager.is_model_downloaded(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
@@ -173,6 +185,15 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(True)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def _is_hf_home_accessible(self) -> bool:
+        """Check if hf_home_path is accessible locally (parent directory exists and is writable)."""
+        try:
+            parent = self.system.hf_home_path.resolve().parent
+            return parent.exists() and parent.is_dir() and os.access(parent, os.W_OK | os.X_OK)
+
+        except (OSError, RuntimeError):
+            return False
 
     def _install_docker_image(self, item: DockerImage) -> DockerImageCacheResult:
         res = self.docker_image_cache_manager.ensure_docker_image(item.url, item.cache_filename)

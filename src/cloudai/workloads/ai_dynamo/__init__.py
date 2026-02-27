@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,11 @@ from .ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
+    GenAIPerf,
+    LMCache,
+    LMCacheArgs,
+    WorkerBaseArgs,
+    WorkerConfig,
 )
 from .kubernetes_json_gen_strategy import AIDynamoKubernetesJsonGenStrategy
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
@@ -33,7 +35,9 @@ __all__ = [
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
-    "DecodeWorkerArgs",
-    "GenAIPerfArgs",
-    "PrefillWorkerArgs",
+    "GenAIPerf",
+    "LMCache",
+    "LMCacheArgs",
+    "WorkerBaseArgs",
+    "WorkerConfig",
 ]

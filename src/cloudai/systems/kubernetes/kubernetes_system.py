@@ -49,12 +49,12 @@ class KubernetesSystem(System):
         state = self.model_dump(exclude={"_core_v1", "_batch_v1", "_custom_objects_api"})
         return state
 
-    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":  # noqa: Vulture
+    def __deepcopy__(self, _memo: dict[int, Any] | None = None) -> "KubernetesSystem":
         """
         Create a deep copy of the KubernetesSystem instance.
 
         Args:
-            memo: Dictionary to keep track of objects that have already been copied.
+            _memo: Dictionary to keep track of objects that have already been copied.
 
         Returns:
             A new KubernetesSystem instance with reinitialized Kubernetes clients.
@@ -64,7 +64,7 @@ class KubernetesSystem(System):
         new_instance.model_post_init(None)
         return new_instance
 
-    def model_post_init(self, __context: Any = None) -> None:  # noqa: Vulture
+    def model_post_init(self, _context: Any = None) -> None:
         """Initialize the KubernetesSystem instance."""
         kube_config_path = self.kube_config_path
         if not kube_config_path.is_file():
@@ -293,24 +293,75 @@ class KubernetesSystem(System):
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        tdef = job.test_run.test
-        if not isinstance(tdef, AIDynamoTestDefinition):
+        if not isinstance(job.test_run.test, AIDynamoTestDefinition):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
+        tdef = cast(AIDynamoTestDefinition, job.test_run.test)
 
         genai_perf_results_path = "/tmp/cloudai/genai-perf"
-
-        genai_perf_cmd = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
-        for k, v in tdef.cmd_args.genai_perf.model_dump(
-            exclude={"extra_args", "extra-args"}, exclude_none=True
-        ).items():
-            genai_perf_cmd.append(f"--{k}={v}")
-        if extra_args := tdef.cmd_args.genai_perf.extra_args:
-            genai_perf_cmd.extend(extra_args.split())
-        logging.debug(f"GenAI perf arguments: {genai_perf_cmd=}")
-
         frontend_pod = self._get_dynamo_pod_by_role(role="frontend")
 
-        kubectl_exec_cmd = ["kubectl", "exec", "-n", self.default_namespace, frontend_pod, "--", *genai_perf_cmd]
+        wrapper_script_path = tdef.cmd_args.genai_perf.script.installed_path
+
+        pod_wrapper_path = "/tmp/genai_perf.sh"
+
+        logging.debug(f"Copying wrapper script {wrapper_script_path} to pod {frontend_pod}")
+        cp_wrapper_cmd = [
+            "kubectl",
+            "cp",
+            str(wrapper_script_path),
+            f"{self.default_namespace}/{frontend_pod}:{pod_wrapper_path}",
+        ]
+        subprocess.run(cp_wrapper_cmd, capture_output=True, text=True, check=True)
+
+        chmod_cmd = ["chmod", "+x", pod_wrapper_path]
+        kubectl_exec_cmd = ["kubectl", "exec", "-n", self.default_namespace, frontend_pod, "--", *chmod_cmd]
+        logging.debug(f"Making wrapper script executable in pod={frontend_pod}")
+        try:
+            result = subprocess.run(kubectl_exec_cmd, capture_output=True, text=True, timeout=60 * 10, check=True)
+            logging.debug(f"chmod exited {result.returncode}: {result.stdout} {result.stderr}")
+        except Exception as e:
+            logging.debug(f"Error making wrapper script executable in pod '{frontend_pod}': {e}")
+
+        genai_perf_config: list[str] = [
+            "--cmd",
+            tdef.cmd_args.genai_perf.cmd,
+            "--report-name",
+            tdef.cmd_args.genai_perf.report_name,
+        ]
+
+        extra_args = tdef.cmd_args.genai_perf.extra_args
+        if isinstance(extra_args, list):
+            extra_args = " ".join(extra_args)
+        if extra_args:
+            genai_perf_config.extend(["--extra-args", extra_args])
+
+        # Build genai-perf arguments as --key value pairs for parse_genai_perf_args
+        genai_perf_cmd_parts: list[str] = []
+        if tdef.cmd_args.genai_perf.args:
+            for k, v in tdef.cmd_args.genai_perf.args.model_dump(exclude_none=True).items():
+                genai_perf_cmd_parts.extend([f"--{k}", str(v)])
+
+        wrapper_cmd = [
+            "/bin/bash",
+            pod_wrapper_path,
+            "--result-dir",
+            genai_perf_results_path,
+            "--gpus-per-node",
+            str(self.gpus_per_node),
+            "--model",
+            tdef.cmd_args.dynamo.model,
+            "--url",
+            "http://localhost",
+            "--port",
+            str(tdef.cmd_args.dynamo.port),
+            "--endpoint",
+            tdef.cmd_args.dynamo.endpoint,
+            *genai_perf_config,
+            "--",
+            *genai_perf_cmd_parts,
+        ]
+
+        kubectl_exec_cmd = ["kubectl", "exec", "-n", self.default_namespace, frontend_pod, "--", *wrapper_cmd]
         logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={kubectl_exec_cmd}")
         try:
             result = subprocess.run(kubectl_exec_cmd, capture_output=True, text=True, timeout=60 * 10)
@@ -323,17 +374,32 @@ class KubernetesSystem(System):
         except Exception as e:
             logging.debug(f"Error executing genai-perf command in pod '{frontend_pod}': {e}")
 
-        cp_logs_cmd = " ".join(
-            [
-                "kubectl",
-                "cp",
-                f"{self.default_namespace}/{frontend_pod}:{genai_perf_results_path}",
-                str(job.test_run.output_path / "genai-perf"),
-            ]
-        )
-        logging.debug(f"Copying genai-perf results with command: {cp_logs_cmd}")
-        p = subprocess.run(cp_logs_cmd, shell=True, capture_output=True, text=True)
-        logging.debug(f"Returned code {p.returncode}, stdout: {p.stdout}, stderr: {p.stderr}")
+        self._copy_genai_perf_results(job, frontend_pod, genai_perf_results_path)
+
+    def _copy_genai_perf_results(self, job: KubernetesJob, frontend_pod: str, genai_perf_results_path: str) -> None:
+        from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
+
+        tdef = cast(AIDynamoTestDefinition, job.test_run.test)
+        assert isinstance(tdef, AIDynamoTestDefinition)
+        cmd = [
+            "kubectl",
+            "cp",
+            f"{self.default_namespace}/{frontend_pod}:{genai_perf_results_path}",
+            str(job.test_run.output_path),
+        ]
+        logging.debug(f"Copying results with command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logging.error(f"Error copying results with command: {' '.join(cmd)}: {result.stderr}")
+            return
+
+        report_path = job.test_run.output_path / tdef.cmd_args.genai_perf.report_name
+        if not report_path.exists():
+            logging.error(f"Genai-perf report not found at {report_path}")
+            return
+
+        (job.test_run.output_path / tdef.success_marker).touch()
+        logging.debug(f"Success marker touched at {job.test_run.output_path / tdef.success_marker}")
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
         logging.debug(f"Checking deployment conditions: {conditions}")

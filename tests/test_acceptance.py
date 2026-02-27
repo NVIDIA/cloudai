@@ -33,9 +33,11 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
+    GenAIPerf,
+    LMCache,
+    LMCacheArgs,
+    WorkerBaseArgs,
+    WorkerConfig,
 )
 from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.deepep import (
@@ -445,7 +447,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="ai-dynamo",
                 description="AI Dynamo test",
                 test_template_name="ai-dynamo",
-                dynamo_repo=GitRepo(
+                repo=GitRepo(
                     url="https://github.com/ai-dynamo/dynamo.git",
                     commit="f7e468c7e8ff0d1426db987564e60572167e8464",
                     installed_path=slurm_system.install_path,
@@ -455,21 +457,26 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     dynamo=AIDynamoArgs(
                         model="model",
                         backend="vllm",
+                        endpoint="v1/chat/completions",
                         workspace_path="/workspace",
-                        prefill_worker=PrefillWorkerArgs(
+                        prefill_worker=WorkerConfig(
+                            cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                            worker_initialized_regex="VllmWorker.*has.been.initialized",
                             **{
                                 "num-nodes": 1,
-                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                            }
+                                "args": WorkerBaseArgs(),
+                            },
                         ),
-                        decode_worker=DecodeWorkerArgs(
+                        decode_worker=WorkerConfig(
+                            cmd="python3 -m dynamo.vllm",
+                            worker_initialized_regex="VllmWorker.*has.been.initialized",
                             **{
                                 "num-nodes": 1,
-                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                            }
+                                "args": WorkerBaseArgs(),
+                            },
                         ),
                     ),
-                    genai_perf=GenAIPerfArgs(
+                    genai_perf=GenAIPerf(
                         **{
                             "streaming": True,
                             "extra-inputs": '{"temperature": 0.7, "max_tokens": 128}',
@@ -479,6 +486,14 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "synthetic-input-tokens-mean": 550,
                             "warmup-request-count": 10,
                         }
+                    ),
+                    lmcache=LMCache(
+                        args=LMCacheArgs(),
+                        repo=GitRepo(
+                            url="https://github.com/LMCache/LMCache.git",
+                            commit="ab8530993992db873869ba882320953582d94309",
+                            installed_path=slurm_system.install_path,
+                        ),
                     ),
                 ),
             ),
@@ -546,9 +561,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
-            hf_home = tr.output_path / "hf_home"
-            hf_home.mkdir(parents=True, exist_ok=True)
-            tr.test.cmd_args.huggingface_home_host_path = str(hf_home)
         if request.param == "deepep-benchmark":
             tr.num_nodes = 2
         return tr, f"{request.param}.sbatch", None

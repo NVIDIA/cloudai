@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import List, cast
 
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .ai_dynamo import AIDynamoTestDefinition, BaseModel
+from .ai_dynamo import AIDynamoTestDefinition
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -28,31 +32,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
 
-        dynamo_repo_path = td.dynamo_repo.installed_path
-        if dynamo_repo_path is None:
-            raise ValueError("dynamo_repo_path is not set - repo may not be installed")
-        dynamo_repo_path = dynamo_repo_path.absolute()
+        result = [f"{self.system.hf_home_path.absolute()}:{self.CONTAINER_MOUNT_HF_HOME}"]
 
-        mounts = [
-            f"{dynamo_repo_path}:{dynamo_repo_path}",
-            f"{self.system.hf_home_path.absolute()}:{td.cmd_args.huggingface_home_container_path}",
-            f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
-        ]
+        logging.info(f"storage_cache_dir: {td.cmd_args.storage_cache_dir}")
+        if td.cmd_args.storage_cache_dir:
+            result.append(f"{td.cmd_args.storage_cache_dir}:{td.cmd_args.storage_cache_dir}")
 
-        if td.cmd_args.dynamo.backend == "sglang":
-            deepep_path = (
-                dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
-            ).absolute()
-            sgl_http_server_path = (
-                dynamo_repo_path / "components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
-            ).absolute()
-            mounts.extend(
-                [
-                    f"{deepep_path!s}:{deepep_path!s}",
-                    f"{sgl_http_server_path!s}:{sgl_http_server_path!s}",
-                ]
-            )
-        return mounts
+        return result
 
     def image_path(self) -> str | None:
         tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test)
@@ -63,16 +49,57 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
         exclude = exclude or []
+        git_repo_adapter = TypeAdapter(GitRepo)
+        file_adapter = TypeAdapter(File)
         toml_args = base_model.model_dump(by_alias=True, exclude=set(exclude), exclude_none=True)
-        args = [f'{prefix}{k} "{v}"' for k, v in toml_args.items()]
+        for k, v in toml_args.items():
+            if isinstance(v, dict):
+                try:
+                    repo = git_repo_adapter.validate_python(v)
+                    if repo.installed_path:
+                        args.extend([f'{prefix}{k} "{self.CONTAINER_MOUNT_INSTALL}/{repo.repo_name}"'])
+                    continue
+                except ValidationError:
+                    pass
+                try:
+                    file_obj = file_adapter.validate_python(v)
+                    if file_obj.installed_path:
+                        args.extend([f'{prefix}{k} "{self.CONTAINER_MOUNT_INSTALL}/{file_obj.src.name}"'])
+                    continue
+                except ValidationError:
+                    pass
+            str_v = str(v)
+            if str_v.startswith("{") and str_v.endswith("}"):
+                args.append(f"{prefix}{k} '{str_v}'")
+            else:
+                args.append(f'{prefix}{k} "{v}"')
 
         return args
 
+    def _get_nested_toml_args(self, base_model: BaseModel, prefix: str) -> List[str]:
+        result = self._get_toml_args(base_model, prefix, exclude=["args"])
+
+        if (nested_args := getattr(base_model, "args", None)) is not None:
+            result.extend(self._get_toml_args(nested_args, prefix + "args-"))
+
+        return result
+
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
+        assert td.repo.installed_path
         args = [
-            f"--huggingface-home {td.cmd_args.huggingface_home_container_path}",
-            "--results-dir /cloudai_run_results",
+            "--user $USER",
+            f"--install-dir {self.CONTAINER_MOUNT_INSTALL}",
+            f"--results-dir {self.CONTAINER_MOUNT_OUTPUT}",
+            f"--dynamo-repo {self.CONTAINER_MOUNT_INSTALL}/{td.repo.repo_name}",
+            f"--hf-home {self.CONTAINER_MOUNT_HF_HOME}",
+            f"--workloads {td.cmd_args.workloads}",
+            f"--failure-marker {self.CONTAINER_MOUNT_OUTPUT}/{td.failure_marker}",
+            f"--success-marker {self.CONTAINER_MOUNT_OUTPUT}/{td.success_marker}",
         ]
+
+        if td.cmd_args.storage_cache_dir:
+            args.append(f"--storage-cache-dir {td.cmd_args.storage_cache_dir}")
+
         args.extend(
             self._get_toml_args(
                 td.cmd_args.dynamo,
@@ -80,43 +107,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 exclude=[
                     "prefill_worker",
                     "decode_worker",
-                    "genai_perf",
-                    "workspace_path",
-                    "decode_cmd",
-                    "prefill_cmd",
                 ],
             )
         )
 
-        # Add backend-specific args
-        if td.cmd_args.dynamo.backend == "sglang":
-            dynamo_repo_path = td.dynamo_repo.installed_path
-            if dynamo_repo_path is None:
-                raise ValueError("dynamo_repo_path is not set - repo may not be installed")
-
-            deepep_path = getattr(td.cmd_args.dynamo, "deepep_path", None)
-            if not deepep_path:
-                deepep_path = (
-                    dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
-                ).absolute()
-            else:
-                deepep_path = Path(deepep_path).absolute()
-
-            sgl_http_server_path = (
-                dynamo_repo_path / "components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
-            ).absolute()
-
-            args.extend(
-                [
-                    f'--dynamo-sgl-http-server-script "{sgl_http_server_path!s}"',
-                    f'--dynamo-deepep-config "{deepep_path!s}"',
-                ]
-            )
-
         if td.cmd_args.dynamo.prefill_worker:
-            args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
-        args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
-        args.extend(self._get_toml_args(td.cmd_args.genai_perf, "--genai-perf-"))
+            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
+        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
+
+        args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
+        args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
 
         return args
 
@@ -124,9 +124,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         td = cast(AIDynamoTestDefinition, self.test_run.test)
         num_nodes, node_list = self.get_cached_nodes_spec()
 
-        fatal_file_name = "fatal_error.marker"
-        out_dir = self.test_run.output_path.absolute()
-        fatal_path = f"{out_dir}/{fatal_file_name}"
+        out_dir = str(self.test_run.output_path.absolute())
 
         srun_cmd = self.gen_srun_prefix()
         srun_cmd.extend(
@@ -135,35 +133,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
-                f"--export=ALL,DYNAMO_FATAL_ERROR_FILE={fatal_file_name}",
-                f"--output={out_dir / 'node-%n-stdout.txt'}",
-                f"--error={out_dir / 'node-%n-stderr.txt'}",
+                f"--output={out_dir}/node-%n-stdout.txt",
+                f"--error={out_dir}/node-%n-stderr.txt",
                 "bash",
-                f"{td.script.installed_path.absolute()!s}",
+                f"{self.CONTAINER_MOUNT_INSTALL}/{td.script.src.name}",
             ]
         )
         srun_cmd.extend(self._gen_script_args(td))
-        srun_line = " \\\n  ".join(srun_cmd)
-
-        wrapper = [
-            "num_retries=${DYNAMO_NUM_RETRY_ON_FAILURE:-0}",
-            "for try in $(seq 0 $num_retries); do",
-            '  echo "Try $try of $num_retries"',
-            f"  rm -f {fatal_path} 2>/dev/null || true",
-            f"  {srun_line}",
-            f"  if [ $try -eq $num_retries ] || [ ! -f {fatal_path} ]; then",
-            "    break",
-            "  fi",
-            '  echo "Fatal error detected. Archiving logs then retrying..."',
-            f"  mkdir -p {out_dir}/error.$try",
-            f"  mv {out_dir}/*.log {out_dir}/error.$try/ 2>/dev/null || true",
-            f"  mv {out_dir}/node-*-stdout.txt {out_dir}/error.$try/ 2>/dev/null || true",
-            f"  mv {out_dir}/node-*-stderr.txt {out_dir}/error.$try/ 2>/dev/null || true",
-            f"  mv {fatal_path} {out_dir}/error.$try/ 2>/dev/null || true",
-            "  sleep ${DYNAMO_RETRY_BACKOFF_SEC:-10}",
-            "done",
-        ]
-        return "\n".join(wrapper)
+        return " \\\n  ".join(srun_cmd) + "\n"
 
     def _validate_worker_nodes(
         self, node_list: list[str], worker_nodes: str | None, num_nodes: int, worker_type: str
@@ -221,6 +198,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.test_run.num_nodes = prefill_n + decode_n
 
         total_nodes = prefill_n + decode_n
+
+        logging.info("Setting num_nodes from %d to %d", self.test_run.num_nodes, total_nodes)
+
+        self.test_run.num_nodes = total_nodes
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
 

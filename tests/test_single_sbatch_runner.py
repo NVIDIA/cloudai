@@ -16,14 +16,14 @@
 
 import copy
 import re
-from typing import Generator, cast
+from typing import Generator, Optional, cast
 from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 import toml
 
-from cloudai.core import Registry, TestRun, TestScenario
+from cloudai.core import Registry, System, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
@@ -31,7 +31,7 @@ from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 
 
 class MyNCCL(NCCLTestDefinition):
-    def constraint_check(self, tr: TestRun) -> bool:
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         return "CONSTRAINT" not in tr.test.extra_env_vars
 
 
@@ -274,7 +274,7 @@ class TestAuxCommands:
             f"{mounts} --no-container-mount-home --ntasks=2 --ntasks-per-node=1 "
             f"--output={runner.scenario_root}/metadata/node-%N.toml "
             f"--error={runner.scenario_root}/metadata/nodes.err "
-            "bash /cloudai_install/slurm-metadata.sh"
+            f"bash /cloudai_install/slurm-metadata.sh"
         )
         assert aux_cmds[0] == metadata_cmd
 
