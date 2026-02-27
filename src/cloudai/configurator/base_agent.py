@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,20 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Literal
+
+from pydantic import BaseModel, ConfigDict
 
 from .base_gym import BaseGym
+
+
+class BaseAgentConfig(BaseModel):
+    """Base config class for all agents in the CloudAI framework."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    random_seed: int = 42
+    start_action: Literal["random", "first"] = "random"
 
 
 class BaseAgent(ABC):
@@ -25,21 +36,29 @@ class BaseAgent(ABC):
     Base class for all agents in the CloudAI framework.
 
     Provides a unified interface and parameter management for action spaces.
-    Automatically infers parameter types from TestRun's cmd_args.
     """
 
-    def __init__(self, env: BaseGym):
+    def __init__(self, env: BaseGym, config: BaseAgentConfig):
         """
         Initialize the agent with the environment.
 
         Args:
             env (BaseGym): The environment instance for the agent.
+            config (BaseAgentConfig): The agent configuration. Class is defined by `get_config_class` static method.
         """
+        self.env = env
+        self.config = config
+
         self.action_space = {}
         self.max_steps = 0
 
+    @staticmethod
     @abstractmethod
-    def configure(self, config: Dict[str, Any]) -> None:
+    def get_config_class() -> type[BaseAgentConfig]:
+        pass
+
+    @abstractmethod
+    def configure(self, config: dict[str, Any]) -> None:
         """
         Configure the agent with additional settings.
 
@@ -49,7 +68,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self) -> Tuple[int, Dict[str, Any]]:
+    def select_action(self) -> tuple[int, dict[str, Any]]:
         """
         Select an action from the action space.
 

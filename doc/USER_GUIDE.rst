@@ -396,6 +396,38 @@ Dependencies of a test can be described as a subsection of the test. It requires
 - ``start_post_comp`` means the test starts after the prior test completes.
 - ``end_post_comp`` means the test ends when the prior test completes.
 
+Configuring Agents
+------------------------------
+
+For DSE workloads, you can pass agent configuration via ``agent_config`` in the scenario.
+
+``BaseAgentConfig`` includes:
+
+- ``random_seed``: controls deterministic random behavior in agents.
+- ``start_action``: controls the very first action strategy (``"random"`` or ``"first"``).
+
+Example:
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "Tests.1"
+   test_name = "nccl_test_all_reduce"
+   agent = "grid_search"
+   agent_steps = 10
+   agent_metrics = ["default"]
+   agent_reward_function = "inverse"
+
+     [Tests.agent_config]
+     random_seed = 123
+     start_action = "first"
+
+When an agent honors ``start_action = "first"``, it should start from ``CloudAIGymEnv.first_sweep`` (the sweep
+is built from first values of each sweep parameter). ``start_action = "random"`` means starting from a random
+action, typically seeded by ``random_seed``.
+
+Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
+
 Configuring HTTP Data Repository
 --------------------------------
 
@@ -733,4 +765,3 @@ To determine whether an issue is due to system infrastructure or a CloudAI bug, 
    - Execute the command manually to debug further.
 
 If the problem persists, please report the issue at https://github.com/NVIDIA/cloudai/issues/new/choose. When you report an issue, ensure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
-

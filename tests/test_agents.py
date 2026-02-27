@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,7 @@ def test_grid_search_agent(mock_env):
     """
     Test the GridSearchAgent's ability to traverse the action space.
     """
-    agent = GridSearchAgent(mock_env)
+    agent = GridSearchAgent(mock_env, GridSearchAgent.get_config_class()())
     agent.configure(config=mock_env.define_action_space.return_value)
 
     combinations = agent.get_all_combinations()

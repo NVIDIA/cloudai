@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -149,7 +149,7 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     test_run.test.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
-    agent = GridSearchAgent(env)
+    agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
     _, action = agent.select_action()
     env.test_run.step = 42
