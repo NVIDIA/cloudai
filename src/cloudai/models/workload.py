@@ -18,9 +18,10 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import Self
 
-from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
+from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
 
 
 class CmdArgs(BaseModel):
@@ -103,10 +104,12 @@ class TestDefinition(BaseModel, ABC):
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
     predictor: Optional[PredictorConfig] = None
+
     agent: str = "grid_search"
     agent_steps: int = 1
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
+    agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
@@ -139,3 +142,21 @@ class TestDefinition(BaseModel, ABC):
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         return JobStatusResult(is_successful=True)
+
+    @field_validator("agent", mode="after")
+    @staticmethod
+    def validate_agent(agent: str) -> str:
+        registry = Registry()
+        if agent not in registry.agents_map:
+            raise ValueError(
+                f"Agent {agent} is not registered. Available agents are: {', '.join(registry.agents_map.keys())}"
+            )
+        return agent
+
+    @model_validator(mode="after")
+    def validate_agent_config(self) -> Self:
+        if self.agent_config is not None:
+            agent_class = Registry().agents_map[self.agent]
+            agent_config_class = agent_class.get_config_class()
+            agent_config_class.model_validate(self.agent_config)
+        return self

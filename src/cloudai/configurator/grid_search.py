@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
 import itertools
 from typing import Any, Dict, List, Tuple
 
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, BaseAgentConfig
 from .cloudai_gym import CloudAIGymEnv
 
 
@@ -28,18 +28,24 @@ class GridSearchAgent(BaseAgent):
     Iterates through all possible parameter combinations.
     """
 
-    def __init__(self, env: CloudAIGymEnv):
+    def __init__(self, env: CloudAIGymEnv, config: BaseAgentConfig):
         """
         Initialize the GridSearchAgent with the TestRun object.
 
         Args:
              env (CloudAIGymEnv): The environment instance to query the action space from.
+             config (BaseAgentConfig): Agent configuration
         """
         self.action_space = env.define_action_space()
         self.env = env
+        self.config = config
         self.action_combinations = []
         self.index = 0
         self.configure(self.action_space)
+
+    @staticmethod
+    def get_config_class() -> type[BaseAgentConfig]:
+        return BaseAgentConfig
 
     def configure(self, config: Dict[str, Any]) -> None:
         """

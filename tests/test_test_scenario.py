@@ -518,6 +518,100 @@ class TestInScenario:
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.agent_metrics == ["iteration-time"]
 
+    def test_agent_config_is_none_when_not_defined(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config is None
+
+    def test_agent_config_preserved_from_test_definition(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+                agent_config={
+                    "random_seed": 101,
+                    "start_action": "first",
+                },
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config == {"random_seed": 101, "start_action": "first"}
+
+    def test_agent_config_is_merged_with_scenario_override(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+                agent_config={
+                    "random_seed": 101,
+                    "start_action": "first",
+                },
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            agent = "grid_search"
+
+              [Tests.agent_config]
+              random_seed = 202
+              start_action = "random"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config == {
+            "random_seed": 202,
+            "start_action": "random",
+        }
+
 
 class TestReporters:
     def test_default(self):
