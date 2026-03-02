@@ -137,7 +137,6 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def generate_wait_for_health_function(self) -> str:
-
         return f"""\
 wait_for_health() {{
     local endpoint="$1"
