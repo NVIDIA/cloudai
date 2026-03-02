@@ -90,8 +90,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return merged
 
     def _format_custom_env_vars_comma_sep(self, env: dict[str, str]) -> str:
-        """Format env dict as KEY1=val1,KEY2=val2 for the --custom_env_vars launcher flag."""
-        return ",".join(f"{k}={v}" for k, v in sorted(env.items()))
+        """Format env dict as 'KEY1=val1,KEY2=val2' for the --custom_env_vars launcher flag.
+
+        Single-quoted so values containing $SLURM_* references are passed as
+        literals to the launcher (expanded inside the job, not on the submit node).
+        """
+        inner = ",".join(f"{k}={v}" for k, v in sorted(env.items()))
+        return f"'{inner}'"
 
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
@@ -127,7 +132,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         script_lines = [
             "#!/usr/bin/env bash",
-            "set -uo pipefail",
+            "set -o pipefail",
             "",
             f'export NEMORUN_HOME="{output_dir}"',
             'mkdir -p "$NEMORUN_HOME"',
