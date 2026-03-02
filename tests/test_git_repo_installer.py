@@ -196,6 +196,24 @@ class TestGitRepoInstaller:
         assert not res.success
         assert "Failed to verify" in res.message
 
+    def test_verify_commit_oserror(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / "nonexistent"
+        with patch("subprocess.run", side_effect=OSError("No such file or directory")):
+            res = installer._verify_commit(git.commit, repo_path)
+        assert not res.success
+        assert "Failed to verify" in res.message
+
+    def test_verify_commit_overlong_hash(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        actual = "a" * 40
+        overlong = actual + "extragarbage"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0, stdout=f"{actual}\n", stderr="")
+            res = installer._verify_commit(overlong, repo_path)
+        assert not res.success
+        assert "expected" in res.message
+
     def test_all_good_flow(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))

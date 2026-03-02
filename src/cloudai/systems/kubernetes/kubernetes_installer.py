@@ -238,10 +238,19 @@ class KubernetesInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _verify_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
-        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(path), capture_output=True, text=True)
+        try:
+            result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(path), capture_output=True, text=True)
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {result.stderr}")
         actual_commit = result.stdout.strip()
+        if len(commit_hash) > len(actual_commit):
+            return InstallStatusResult(
+                False,
+                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
+                "Please uninstall and reinstall.",
+            )
         if not actual_commit.startswith(commit_hash) and not commit_hash.startswith(actual_commit):
             return InstallStatusResult(
                 False,
