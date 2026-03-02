@@ -99,13 +99,29 @@ def git() -> GitRepo:
 
 
 class TestGitRepoInstaller:
-    def test_repo_exists(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+    def test_repo_exists_with_correct_commit(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
         repo_path = installer.system.install_path / git.repo_name
         repo_path.mkdir()
+        installer._verify_commit = Mock(return_value=InstallStatusResult(True))
         res = installer._install_one_git_repo(git)
         assert res.success
         assert res.message == f"Git repository already exists at {repo_path}."
         assert git.installed_path == repo_path
+        installer._verify_commit.assert_called_once_with(git.commit, repo_path)
+
+    def test_repo_exists_with_wrong_commit(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        installer._verify_commit = Mock(
+            return_value=InstallStatusResult(False, "wrong commit")
+        )
+        res = installer._install_one_git_repo(git)
+        assert not res.success
+        assert res.message == "wrong commit"
 
     def test_repo_cloned(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         repo_path = installer.system.install_path / git.repo_name
@@ -141,7 +157,54 @@ class TestGitRepoInstaller:
             mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
             res = installer._checkout_commit(git.commit, repo_path)
         assert not res.success
-        assert res.message == "Failed to checkout commit: err"
+        assert res.message == f"Failed to checkout commit {git.commit}: err"
+
+    def test_checkout_failure_cleans_up_repo(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        repo_path = installer.system.install_path / git.repo_name
+        installer._clone_repository = Mock(
+            side_effect=lambda url, path: (path.mkdir(parents=True, exist_ok=True), InstallStatusResult(True))[1]
+        )
+        installer._checkout_commit = Mock(
+            return_value=InstallStatusResult(False, f"Failed to checkout commit {git.commit}: err")
+        )
+        res = installer._install_one_git_repo(git)
+        assert not res.success
+        assert not repo_path.exists()
+
+    def test_verify_commit_correct(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(
+                args=[], returncode=0, stdout=f"{git.commit}abcdef1234567890\n", stderr=""
+            )
+            res = installer._verify_commit(git.commit, repo_path)
+        assert res.success
+
+    def test_verify_commit_wrong(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(
+                args=[], returncode=0, stdout="deadbeef1234567890abcdef\n", stderr=""
+            )
+            res = installer._verify_commit(git.commit, repo_path)
+        assert not res.success
+        assert "expected" in res.message
+        assert git.commit in res.message
+
+    def test_verify_commit_git_failure(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(
+                args=[], returncode=1, stdout="", stderr="not a git repo"
+            )
+            res = installer._verify_commit(git.commit, repo_path)
+        assert not res.success
+        assert "Failed to verify" in res.message
 
     def test_all_good_flow(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
