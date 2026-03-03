@@ -28,8 +28,8 @@ mount_as = "/opt/Megatron-Bridge"
 [cmd_args]
 gpu_type = "gb300"
 container_image = "nvcr.io#nvidia/nemo:25.11.01"
-model_name = "qwen3"
-model_size = "30b_a3b"
+model_family_name = "qwen3"
+model_recipe_name = "30b_a3b"
 gpus_per_node = 4
 num_gpus = 8
 domain = "llm"
