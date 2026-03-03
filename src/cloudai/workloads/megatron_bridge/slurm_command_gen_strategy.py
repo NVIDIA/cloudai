@@ -220,14 +220,16 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 container_path = _installed_container_path()
 
-        # Pass -cm only when the test has non-empty extra_container_mounts. Otherwise omit -cm.
-        # Do not add the Megatron-Bridge repo (repo_path) here; the container uses its built-in repo.
-        mounts: list[str] = list(tdef.extra_container_mounts or [])
-        if mounts and logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(
-                "MegatronBridge -cm mounts (from extra_container_mounts only): %s",
-                mounts,
-            )
+        # Merge cmd_args.custom_mounts with test-level extra_container_mounts; only pass -cm when non-empty.
+        # Never mount the Megatron-Bridge repo via -cm; the container uses its built-in copy.
+        mounts: list[str] = []
+        if args.custom_mounts is not None:
+            if isinstance(args.custom_mounts, str):
+                mounts.extend(m.strip() for m in args.custom_mounts.split(",") if m.strip())
+            else:
+                mounts.extend(str(m).strip() for m in args.custom_mounts if str(m).strip())
+        mounts.extend(tdef.extra_container_mounts or [])
+        mounts = [m for m in mounts if "/opt/Megatron-Bridge" not in m and "Megatron-Bridge" not in m.split(":")[0].split("/")[-1]]
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
         python_bin = (venv_path / "bin" / "python").absolute()
