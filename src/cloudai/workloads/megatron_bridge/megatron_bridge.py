@@ -166,7 +166,10 @@ class MegatronBridgeCmdArgs(CmdArgs):
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
         token = (v or "").strip() or os.environ.get("HF_TOKEN", "")
         if not token:
-            raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
+            raise ValueError(
+                "cmd_args.hf_token is required. Please set HF_TOKEN environment variable (recommended) or "
+                "cmd_args.hf_token with your actual HF token value."
+            )
         return token
 
     @field_validator("model_family_name", "model_recipe_name", mode="after")
