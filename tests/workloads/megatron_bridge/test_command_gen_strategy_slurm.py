@@ -13,9 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, cast, Iterable
 
 import pytest
 
@@ -108,6 +108,16 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         return make_test_run()
 
     @pytest.fixture
+    def hf_token_env(self) -> Iterable[str]:
+        old_hf_token = os.environ.get("HF_TOKEN")
+        os.environ["HF_TOKEN"] = "dummy_token"
+        yield "dummy_token"
+        if old_hf_token:
+            os.environ["HF_TOKEN"] = old_hf_token
+        else:
+            del os.environ["HF_TOKEN"]
+
+    @pytest.fixture
     def cmd_gen(
         self,
         configured_slurm_system: SlurmSystem,
@@ -120,6 +130,12 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             MegatronBridgeCmdArgs.model_validate(
                 {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
             )
+
+    def test_hf_token_may_be_taken_from_env(self, hf_token_env: str) -> None:
+        cmd_args = MegatronBridgeCmdArgs.model_validate(
+            {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
+        )
+        assert cmd_args.hf_token == hf_token_env
 
     @pytest.mark.parametrize(
         ("field_name", "value", "match"),
