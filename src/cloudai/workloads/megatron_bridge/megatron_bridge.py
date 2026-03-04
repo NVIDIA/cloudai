@@ -17,9 +17,9 @@
 import logging
 from typing import List, Optional, Union, cast
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable
+from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable, System
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -33,18 +33,24 @@ class MegatronBridgeCmdArgs(CmdArgs):
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
-    custom_mounts: Optional[Union[str, List[str]]] = Field(
+    custom_mounts: str | list[str] | None = Field(
         default=None,
-        description="Comma-separated or list of host_path:container_path mounts; merged with test-level extra_container_mounts for -cm.",
+        description=(
+            "Comma-separated or list of host_path:container_path mounts; merged with test-level extra_container_mounts "
+            "for -cm."
+        ),
     )
-    custom_env_vars: Optional[dict[str, Union[str, List[str]]]] = Field(
+    custom_env_vars: dict[str, str | list[str]] | None = Field(
         default=None,
-        description="Optional env vars for the launcher; merged with test-level extra_env_vars (extra_env_vars first, then custom_env_vars).",
+        description=(
+            "Optional env vars for the launcher; merged with test-level extra_env_vars (extra_env_vars first, then "
+            "custom_env_vars)."
+        ),
     )
-    enable_vboost: Optional[bool] = Field(default=False)
-    dryrun: Optional[bool] = Field(default=False)
-    enable_nsys: Optional[bool] = Field(default=False)
-    detach: Optional[bool] = Field(default=None)
+    enable_vboost: bool | None = Field(default=False)
+    dryrun: bool | None = Field(default=False)
+    enable_nsys: bool | None = Field(default=False)
+    detach: bool | None = Field(default=None)
 
     # Domain / model overrides (argument_parser main + model)
     domain: Optional[str] = Field(default=None, description="Domain: llm, vlm, or qwen3vl (default llm).")
@@ -162,16 +168,13 @@ class MegatronBridgeCmdArgs(CmdArgs):
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token
 
-    @model_validator(mode="after")
-    def validate_model_fields_non_empty(self) -> "MegatronBridgeCmdArgs":
-        """Ensure model_family_name and model_recipe_name are non-empty and stripped."""
-        for name in ("model_family_name", "model_recipe_name"):
-            val = getattr(self, name, "") or ""
-            s = str(val).strip()
-            if not s:
-                raise ValueError(f"cmd_args.{name} cannot be empty.")
-            setattr(self, name, s)
-        return self
+    @field_validator("model_family_name", "model_recipe_name", mode="after")
+    @classmethod
+    def validate_model_fields(cls, v: str, info: ValidationInfo) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError(f"cmd_args.{info.field_name} cannot be empty.")
+        return s
 
 
 class MegatronBridgeTestDefinition(TestDefinition):
@@ -244,8 +247,8 @@ class MegatronBridgeTestDefinition(TestDefinition):
             items.insert(0, self.docker_image)
         return items
 
-    def constraint_check(self, tr) -> bool:  # type: ignore[override]  # noqa: C901
-        num_gpus = cast(int, self.cmd_args.num_gpus)
+    def constraint_check(self, tr, system: Optional[System]) -> bool:  # type: ignore[override]  # noqa: C901
+        num_gpus = self.cmd_args.num_gpus
 
         def _as_int(val: Optional[Union[int, List[int]]]) -> Optional[int]:
             return cast(Optional[int], val)
@@ -329,7 +332,8 @@ class MegatronBridgeTestDefinition(TestDefinition):
             constraint4 = True
 
         # Determine CUDA graphs enabled from impl/scope (normalized)
-        cgi = (self.cmd_args.cuda_graph_impl or "").strip().lower()
+        cuda_graph_impl = cast(str, self.cmd_args.cuda_graph_impl)
+        cgi = (cuda_graph_impl or "").strip().lower()
         scopes = _normalize_str_list(self.cmd_args.cuda_graph_scope)
         cuda_graphs = (cgi not in {"", "none", "null"}) and len(scopes) > 0
 
@@ -515,7 +519,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
         # Only specific (pp, vp) pairs are supported by DeepSeek v3's pipeline layout mapping
         model_recipe = (self.cmd_args.model_recipe_name or "").lower()
         is_deepseek_v3 = "deepseek_v3" in model_recipe or "deepseekv3" in model_recipe
-        
+
         if is_deepseek_v3:
             valid_pp_vp_combinations = {(1, 1), (4, 1), (8, 1), (4, 2), (16, 1), (8, 2), (4, 4)}
             current_vp = vp if vp is not None else 1

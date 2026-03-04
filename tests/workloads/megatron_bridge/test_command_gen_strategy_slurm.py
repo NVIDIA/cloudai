@@ -15,11 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
+from typing import Any, Callable, cast
 
 import pytest
 
-from cloudai.core import TestRun
+from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
@@ -27,138 +27,128 @@ from cloudai.workloads.megatron_bridge import (
     MegatronBridgeTestDefinition,
 )
 
+WRAPPER_SCRIPT_NAME = "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
+
 
 class TestMegatronBridgeSlurmCommandGenStrategy:
-    @pytest.fixture
-    def test_run(self, tmp_path: Path) -> TestRun:
-        # Create a fake local sqsh so container path selection can use it verbatim.
-        sqsh = tmp_path / "img.sqsh"
-        sqsh.write_text("x")
-
-        args = MegatronBridgeCmdArgs(
-            container_image=str(sqsh),
-            hf_token="dummy_token",
-            model_name="qwen3",
-            model_size="30b_a3b",
-            cuda_graph_scope="[moe_router,moe_preprocess]",
-            compute_dtype="fp8_mx",
-            num_gpus=8,
-            gpus_per_node=4,
-        )
-        tdef = MegatronBridgeTestDefinition(
-            name="mb",
-            description="desc",
-            test_template_name="MegatronBridge",
-            cmd_args=args,
-            extra_container_mounts=[],
-            git_repos=[
-                {
-                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
-                    "commit": "r0.2.0",
-                    "mount_as": "/opt/Megatron-Bridge",
-                }
-            ],  # type: ignore[arg-type]
-        )
-
+    @staticmethod
+    def _configure_fake_installs(tdef: MegatronBridgeTestDefinition, tmp_path: Path) -> None:
         # Fake installed paths for installables so command-gen doesn't depend on real installs.
-        (tmp_path / "run_repo").mkdir()
-        (tmp_path / "run_venv").mkdir()
-        (tmp_path / "mbridge_repo").mkdir()
+        (tmp_path / "run_repo").mkdir(exist_ok=True)
+        (tmp_path / "run_venv").mkdir(exist_ok=True)
+        (tmp_path / "mbridge_repo").mkdir(exist_ok=True)
         tdef.python_executable.git_repo.installed_path = tmp_path / "run_repo"
         tdef.python_executable.venv_path = tmp_path / "run_venv"
         tdef.megatron_bridge_repo.installed_path = tmp_path / "mbridge_repo"
         tdef.docker_image.installed_path = tmp_path / "cached.sqsh"
 
-        return TestRun(
-            test=tdef,
-            name="tr",
-            num_nodes=2,
-            nodes=[],
-            output_path=tmp_path / "out",
-        )
+    @staticmethod
+    def _wrapper_content(cmd_gen: MegatronBridgeSlurmCommandGenStrategy) -> str:
+        cmd_gen.gen_exec_command()
+        wrapper = cmd_gen.test_run.output_path / WRAPPER_SCRIPT_NAME
+        assert wrapper.exists()
+        return wrapper.read_text()
 
     @pytest.fixture
-    def cmd_gen(self, slurm_system: SlurmSystem, test_run: TestRun) -> MegatronBridgeSlurmCommandGenStrategy:
+    def configured_slurm_system(self, slurm_system: SlurmSystem) -> SlurmSystem:
         slurm_system.account = "acct"
         slurm_system.default_partition = "gb300"
-        return MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
+        return slurm_system
+
+    @pytest.fixture
+    def make_test_run(self, tmp_path: Path) -> Callable[..., TestRun]:
+        sqsh = tmp_path / "img.sqsh"
+        sqsh.write_text("x")
+
+        def _make(
+            *,
+            cmd_args_overrides: dict[str, Any] | None = None,
+            git_commit: str = "r0.2.0",
+            output_subdir: str = "out",
+            num_nodes: int = 2,
+        ) -> TestRun:
+            cmd_args_data = {
+                "container_image": str(sqsh),
+                "hf_token": "dummy_token",
+                "model_family_name": "qwen3",
+                "model_recipe_name": "30b_a3b",
+                "num_gpus": 8,
+                "gpus_per_node": 4,
+            }
+            if cmd_args_overrides:
+                cmd_args_data.update(cmd_args_overrides)
+
+            tdef = MegatronBridgeTestDefinition(
+                name="mb",
+                description="desc",
+                test_template_name="MegatronBridge",
+                cmd_args=MegatronBridgeCmdArgs.model_validate(cmd_args_data),
+                extra_container_mounts=[],
+                git_repos=[
+                    GitRepo(
+                        url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                        commit=git_commit,
+                        mount_as="/opt/Megatron-Bridge",
+                    )
+                ],
+            )
+            self._configure_fake_installs(tdef, tmp_path)
+            return TestRun(
+                test=tdef,
+                name="tr",
+                num_nodes=num_nodes,
+                nodes=[],
+                output_path=tmp_path / output_subdir,
+            )
+
+        return _make
+
+    @pytest.fixture
+    def test_run(self, make_test_run: Callable[..., TestRun]) -> TestRun:
+        return make_test_run()
+
+    @pytest.fixture
+    def cmd_gen(
+        self,
+        configured_slurm_system: SlurmSystem,
+        test_run: TestRun,
+    ) -> MegatronBridgeSlurmCommandGenStrategy:
+        return MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, test_run)
 
     def test_hf_token_empty_is_rejected_by_schema(self) -> None:
         with pytest.raises(Exception, match=r"hf_token"):
-            MegatronBridgeCmdArgs.model_validate({"hf_token": "", "model_name": "qwen3", "model_size": "30b_a3b"})
+            MegatronBridgeCmdArgs.model_validate(
+                {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
+            )
 
-    @pytest.mark.parametrize("field_name", ["model_name", "model_size"])
-    def test_model_fields_empty_string_rejected(self, field_name: str) -> None:
-        data = {"hf_token": "dummy_token", "model_name": "qwen3", "model_size": "30b_a3b"}
-        data[field_name] = ""
-        with pytest.raises(Exception, match=field_name):
+    @pytest.mark.parametrize(
+        ("field_name", "value", "match"),
+        (
+            ("model_family_name", "", "model_family_name"),
+            ("model_recipe_name", "", "model_recipe_name"),
+            ("model_family_name", "  \t   ", r"cmd_args\.model_family_name cannot be empty\."),
+            ("model_recipe_name", "  \t   ", r"cmd_args\.model_recipe_name cannot be empty\."),
+        ),
+    )
+    def test_model_fields_validation(self, field_name: str, value: str, match: str) -> None:
+        data = {
+            "hf_token": "dummy_token",
+            "model_family_name": "qwen3",
+            "model_recipe_name": "30b_a3b",
+        } | {field_name: value}
+        with pytest.raises(Exception, match=match):
             MegatronBridgeCmdArgs.model_validate(data)
 
-    @pytest.mark.parametrize("field_name", ["model_name", "model_size"])
-    def test_model_fields_whitespace_only_rejected(self, field_name: str) -> None:
-        data = {"hf_token": "dummy_token", "model_name": "qwen3", "model_size": "30b_a3b"}
-        data[field_name] = "   \t  "
-        with pytest.raises(Exception, match=rf"cmd_args\.{field_name} cannot be empty\."):
-            MegatronBridgeCmdArgs.model_validate(data)
-
-    def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
-        args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
-        tdef = MegatronBridgeTestDefinition(
-            name="mb",
-            description="desc",
-            test_template_name="MegatronBridge",
-            cmd_args=args,
-            extra_container_mounts=[],
-            git_repos=[
-                {
-                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
-                    "commit": "abcdef1234567890",
-                    "mount_as": "/opt/Megatron-Bridge",
-                }
-            ],  # type: ignore[arg-type]
-        )
+    def test_git_repos_can_pin_megatron_bridge_commit(self, make_test_run: Callable[..., TestRun]) -> None:
+        tr = make_test_run(git_commit="abcdef1234567890")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
         assert tdef.megatron_bridge_repo.commit == "abcdef1234567890"
 
-    def test_defaults_not_emitted_when_not_set_in_toml(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
-        sqsh = tmp_path / "img.sqsh"
-        sqsh.write_text("x")
-
-        args = MegatronBridgeCmdArgs(
-            container_image=str(sqsh),
-            hf_token="dummy_token",
-            model_name="qwen3",
-            model_size="30b_a3b",
-            num_gpus=8,
-            gpus_per_node=4,
-        )
-        tdef = MegatronBridgeTestDefinition(
-            name="mb",
-            description="desc",
-            test_template_name="MegatronBridge",
-            cmd_args=args,
-            extra_container_mounts=[],
-            git_repos=[
-                {
-                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
-                    "commit": "r0.2.0",
-                    "mount_as": "/opt/Megatron-Bridge",
-                }
-            ],  # type: ignore[arg-type]
-        )
-
-        (tmp_path / "run_repo").mkdir()
-        (tmp_path / "run_venv").mkdir()
-        (tmp_path / "mbridge_repo").mkdir()
-        tdef.python_executable.git_repo.installed_path = tmp_path / "run_repo"
-        tdef.python_executable.venv_path = tmp_path / "run_venv"
-        tdef.megatron_bridge_repo.installed_path = tmp_path / "mbridge_repo"
-        tdef.docker_image.installed_path = tmp_path / "cached.sqsh"
-
-        tr = TestRun(test=tdef, name="tr", num_nodes=1, nodes=[], output_path=tmp_path / "out")
-        slurm_system.account = "acct"
-        slurm_system.default_partition = "gb300"
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, tr)
-
+    def test_defaults_not_emitted_when_not_set_in_toml(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(num_nodes=1)
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         cmd = cmd_gen.gen_exec_command()
         assert "--use_tokendrop" not in cmd
         assert "--use_megatron_fsdp" not in cmd
@@ -172,57 +162,42 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         local_img = Path(tdef.cmd_args.container_image)
         assert local_img.exists()
 
-        cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
-        assert wrapper.exists()
-        wrapper_content = wrapper.read_text()
+        wrapper_content = self._wrapper_content(cmd_gen)
         assert f"-i {local_img.absolute()}" in wrapper_content
         assert str(tdef.docker_image.installed_path) not in wrapper_content
 
-    def test_cuda_graph_scope_normalization(self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy) -> None:
-        cmd_gen.gen_exec_command()
-        wrapper = cmd_gen.test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
-        wrapper_content = wrapper.read_text()
+    def test_cuda_graph_scope_normalization(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(cmd_args_overrides={"cuda_graph_scope": "[moe_router,moe_preprocess]"})
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
         assert "--cuda_graph_scope moe_router,moe_preprocess" in wrapper_content
 
     @pytest.mark.parametrize(
-        "detach, expected, not_expected",
+        "detach, expected",
         [
-            (True, "--detach", "--no-detach"),
-            (False, "--no-detach", "--detach"),
-            (None, None, "--detach"),
+            (True, "--detach true"),
+            (False, "--detach false"),
+            (None, None),
         ],
     )
     def test_detach_flags(
         self,
-        slurm_system: SlurmSystem,
-        test_run: TestRun,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
         detach: bool | None,
         expected: str | None,
-        not_expected: str,
     ) -> None:
-        tdef = cast(MegatronBridgeTestDefinition, test_run.test)
-
-        data = tdef.cmd_args.model_dump(exclude_none=True)
-        if detach is not None:
-            data["detach"] = detach
-        else:
-            data.pop("detach", None)
-        tdef.cmd_args = MegatronBridgeCmdArgs.model_validate(data)
-
-        slurm_system.account = "acct"
-        slurm_system.default_partition = "gb300"
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
-        cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
-        wrapper_content = wrapper.read_text()
+        overrides = {} if detach is None else {"detach": detach}
+        tr = make_test_run(cmd_args_overrides=overrides)
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
         if detach is None:
             assert "--detach" not in wrapper_content
-            assert "--no-detach" not in wrapper_content
         else:
             assert expected is not None
             assert expected in wrapper_content
-            assert not_expected not in wrapper_content
 
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
@@ -235,3 +210,24 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert cmd in content
         assert content.startswith("bash ")
         assert "cloudai_megatron_bridge_submit_and_parse_jobid.sh" in content
+
+    @pytest.mark.parametrize(
+        "use_recipes, expected_in_wrapper",
+        [
+            (True, True),
+            (None, False),
+        ],
+    )
+    def test_use_recipes_emitted_only_when_true(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+        use_recipes: bool | None,
+        expected_in_wrapper: bool,
+    ) -> None:
+        overrides = {} if use_recipes is None else {"use_recipes": use_recipes}
+        output_subdir = "out_true" if expected_in_wrapper else "out_none"
+        tr = make_test_run(cmd_args_overrides=overrides, output_subdir=output_subdir, num_nodes=1)
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert ("--use_recipes" in wrapper_content) is expected_in_wrapper

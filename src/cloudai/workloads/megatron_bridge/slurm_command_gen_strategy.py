@@ -90,7 +90,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return merged
 
     def _format_custom_env_vars_comma_sep(self, env: dict[str, str]) -> str:
-        """Format env dict as 'KEY1=val1,KEY2=val2' for the --custom_env_vars launcher flag.
+        """
+        Format env dict as 'KEY1=val1,KEY2=val2' for the --custom_env_vars launcher flag.
 
         Single-quoted so values containing $SLURM_* references are passed as
         literals to the launcher (expanded inside the job, not on the submit node).
@@ -146,13 +147,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             ': >"$LOG"',
             "LAUNCH_RC=0",
-            f"{launcher_cmd} >>\"$LOG\" 2>&1 || LAUNCH_RC=$?",
+            f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
             "",
             # Parse job id from Megatron-Bridge output (multiple possible formats)
             # Patterns: "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
             "",
             'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "(Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
+            'JOB_ID=$(grep -Eio "(Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
             "",
             # Emit a canonical line for CloudAI to parse
             "",
@@ -178,15 +179,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return f"bash {wrapper_path}"
 
-    def _list_or_comma_str(self, val: Any) -> Optional[str]:
-        """Normalize list or comma-separated string; return None if empty or val is None."""
+    def _list_or_comma_str(self, val: str | list[str] | None) -> Optional[str]:
+        """Normalize list or comma-separated string; return None if `val` is empty or None."""
         if val is None:
             return None
-        if isinstance(val, str):
-            s = val.strip()
+        elif isinstance(val, str):
+            return val.strip() or None
         else:
-            s = ",".join(str(x) for x in val).strip()
-        return s if s else None
+            raise RuntimeError("Unexpected sweeps list. At this point code expects scalars only")
 
     def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
@@ -229,7 +229,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 mounts.extend(str(m).strip() for m in args.custom_mounts if str(m).strip())
         mounts.extend(tdef.extra_container_mounts or [])
-        mounts = [m for m in mounts if "/opt/Megatron-Bridge" not in m and "Megatron-Bridge" not in m.split(":")[0].split("/")[-1]]
+        mounts = [
+            m
+            for m in mounts
+            if "/opt/Megatron-Bridge" not in m and "Megatron-Bridge" not in m.split(":")[0].split("/")[-1]
+        ]
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
         python_bin = (venv_path / "bin" / "python").absolute()
@@ -289,7 +293,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # custom_env_vars: merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars; M-Bridge adds these to the generated sbatch
+        # custom_env_vars: merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars; M-Bridge adds these to
+        # the generated sbatch
         merged_env = self._get_merged_env_vars(args)
         if merged_env:
             parts.extend(["--custom_env_vars", self._format_custom_env_vars_comma_sep(merged_env)])
@@ -308,7 +313,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("model_recipe_name", "-mr", args.model_recipe_name)
         add_field("hidden_size", "--hidden_size", args.hidden_size)
         add_field("num_layers", "--num_layers", args.num_layers)
-        add_field("pipeline_model_parallel_layout", "--pipeline_model_parallel_layout", args.pipeline_model_parallel_layout)
+        add_field(
+            "pipeline_model_parallel_layout", "--pipeline_model_parallel_layout", args.pipeline_model_parallel_layout
+        )
         add_field("first_k_dense_replace", "--first_k_dense_replace", args.first_k_dense_replace)
         if args.enable_nsys and "enable_nsys" in fields_set:
             parts.append("-en")
