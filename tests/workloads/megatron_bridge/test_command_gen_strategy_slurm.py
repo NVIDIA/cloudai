@@ -15,7 +15,7 @@
 # limitations under the License.
 import os
 from pathlib import Path
-from typing import Any, Callable, cast, Iterable
+from typing import Any, Callable, Iterable, cast
 
 import pytest
 
