@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
@@ -66,7 +67,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
     fp8_recipe: Optional[str] = Field(default=None)
-    hf_token: Optional[str] = Field(default=None)
+    hf_token: str = ""
     nemo_home: Optional[str] = Field(default=None)
     wandb_key: Optional[str] = Field(default=None)
     wandb_project_name: Optional[str] = Field(default=None)
@@ -163,7 +164,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
-        token = (v or "").strip()
+        token = (v or "").strip() or os.environ.get("HF_TOKEN", "")
         if not token:
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token

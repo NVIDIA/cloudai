@@ -3,6 +3,13 @@ MegatronBridge
 
 This workload (`test_template_name` is ``MegatronBridge``) submits training and finetuning tasks based on Megatron-Bridge framework.
 
+.. note::
+
+   This workload has a hard requirement for the HuggingFace Hub token. There are two options:
+
+   - (recommended) define ``HF_TOKEN`` environment variable
+   - set `cmd_args.hf_token` either in Test or Scenario config
+
 
 Usage Examples
 --------------
@@ -24,8 +31,6 @@ Test TOML example:
    task = "pretrain"
    domain = "llm"
    compute_dtype = "fp8_mx"
-
-   hf_token = "hf_xxx"
 
 Test Scenario example:
 
@@ -60,8 +65,6 @@ Test-in-Scenario example:
      task = "pretrain"
      domain = "llm"
      compute_dtype = "fp8_mx"
-     hf_token = "hf_xxx"
-
 
 API Documentation
 -----------------
