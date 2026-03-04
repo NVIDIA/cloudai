@@ -19,7 +19,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable, System
+from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -247,7 +247,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
             items.insert(0, self.docker_image)
         return items
 
-    def constraint_check(self, tr, system: Optional[System]) -> bool:  # type: ignore[override]  # noqa: C901
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:  # noqa: C901
         num_gpus = self.cmd_args.num_gpus
 
         def _as_int(val: Optional[Union[int, List[int]]]) -> Optional[int]:
