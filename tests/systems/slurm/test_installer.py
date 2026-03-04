@@ -199,7 +199,7 @@ class TestInstallOnePythonExecutable:
         pyproject_file.write_text("[tool.poetry]\nname = 'dummy_project'")
 
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            mock_run.return_value = CompletedProcess(args=[], returncode=0, stdout=f"{git.commit}\n", stderr="")
             res = installer._install_python_executable(py)
 
         assert res.success

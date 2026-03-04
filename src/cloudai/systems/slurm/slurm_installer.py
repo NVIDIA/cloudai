@@ -143,11 +143,7 @@ class SlurmInstaller(BaseInstaller):
                 item.installed_path = res.docker_image_path
             return InstallStatusResult(res.success, res.message)
         elif isinstance(item, GitRepo):
-            repo_path = self.system.install_path / item.repo_name
-            if repo_path.exists():
-                item.installed_path = repo_path
-                return InstallStatusResult(True)
-            return InstallStatusResult(False, f"Git repository {item.url} not cloned")
+            return self._is_git_repo_installed(item)
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
         elif isinstance(item, File):
@@ -210,6 +206,9 @@ class SlurmInstaller(BaseInstaller):
     def _install_one_git_repo(self, item: GitRepo) -> InstallStatusResult:
         repo_path = self.system.install_path / item.repo_name
         if repo_path.exists():
+            verify_res = self._verify_commit(item.commit, repo_path)
+            if not verify_res.success:
+                return verify_res
             item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
             logging.debug(msg)
@@ -221,6 +220,9 @@ class SlurmInstaller(BaseInstaller):
 
         res = self._checkout_commit(item.commit, repo_path)
         if not res.success:
+            logging.error(f"Checkout failed, removing cloned repository at {repo_path}")
+            if repo_path.exists():
+                rmtree(repo_path)
             return res
 
         item.installed_path = repo_path
@@ -285,7 +287,29 @@ class SlurmInstaller(BaseInstaller):
         checkout_cmd = ["git", "checkout", commit_hash]
         result = subprocess.run(checkout_cmd, cwd=str(path), capture_output=True, text=True)
         if result.returncode != 0:
-            return InstallStatusResult(False, f"Failed to checkout commit: {result.stderr}")
+            return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _verify_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
+        try:
+            result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(path), capture_output=True, text=True)
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {result.stderr}")
+        actual_commit = result.stdout.strip()
+        if len(commit_hash) > len(actual_commit):
+            return InstallStatusResult(
+                False,
+                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
+                "Please uninstall and reinstall.",
+            )
+        if not actual_commit.startswith(commit_hash) and not commit_hash.startswith(actual_commit):
+            return InstallStatusResult(
+                False,
+                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
+                "Please uninstall and reinstall.",
+            )
         return InstallStatusResult(True)
 
     def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
@@ -368,6 +392,16 @@ class SlurmInstaller(BaseInstaller):
         rmtree(venv_path)
         item.venv_path = None
 
+        return InstallStatusResult(True)
+
+    def _is_git_repo_installed(self, item: GitRepo) -> InstallStatusResult:
+        repo_path = self.system.install_path / item.repo_name
+        if not repo_path.exists():
+            return InstallStatusResult(False, f"Git repository {item.url} not cloned")
+        verify_res = self._verify_commit(item.commit, repo_path)
+        if not verify_res.success:
+            return verify_res
+        item.installed_path = repo_path
         return InstallStatusResult(True)
 
     def _is_python_executable_installed(self, item: PythonExecutable) -> InstallStatusResult:
