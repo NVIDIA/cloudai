@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 import stat
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -89,15 +90,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             merged.update({k: str(v) for k, v in args.custom_env_vars.items()})
         return merged
 
-    def _format_custom_env_vars_comma_sep(self, env: dict[str, str]) -> str:
+    def _build_custom_bash_env_exports(self, env: dict[str, str]) -> list[str]:
         """
-        Format env dict as 'KEY1=val1,KEY2=val2' for the --custom_env_vars launcher flag.
+        Build repeated -cb entries that export env vars inside the launched Slurm job shell.
 
-        Single-quoted so values containing $SLURM_* references are passed as
-        literals to the launcher (expanded inside the job, not on the submit node).
+        We quote each full `export KEY=value` command so `$SLURM_*` and commas survive
+        argument parsing on the submit node and are expanded/interpreted in the job shell.
         """
-        inner = ",".join(f"{k}={v}" for k, v in sorted(env.items()))
-        return f"'{inner}'"
+        exports: list[str] = []
+        for key, value in sorted(env.items()):
+            exports.extend(["-cb", shlex.quote(f"export {key}={value}")])
+        return exports
 
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
@@ -293,11 +296,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # custom_env_vars: merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars; M-Bridge adds these to
-        # the generated sbatch
+        # Merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars.
+        # Pass them as `-cb export KEY=value` commands to avoid Megatron-Bridge's
+        # --custom_env_vars parser limitation for comma-containing values.
         merged_env = self._get_merged_env_vars(args)
         if merged_env:
-            parts.extend(["--custom_env_vars", self._format_custom_env_vars_comma_sep(merged_env)])
+            parts.extend(self._build_custom_bash_env_exports(merged_env))
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)

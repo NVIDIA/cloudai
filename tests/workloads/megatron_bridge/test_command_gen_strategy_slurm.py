@@ -174,6 +174,20 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "--cuda_graph_scope moe_router,moe_preprocess" in wrapper_content
 
+    def test_env_vars_are_forwarded_via_custom_bash_cmds(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run()
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tdef.cmd_args.custom_env_vars = {"NCCL_DEBUG": "INFO"}
+
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--custom_env_vars" not in wrapper_content
+        assert "-cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3'" in wrapper_content
+        assert "-cb 'export NCCL_DEBUG=INFO'" in wrapper_content
+
     @pytest.mark.parametrize(
         "detach, expected",
         [
