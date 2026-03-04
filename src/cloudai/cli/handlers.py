@@ -147,7 +147,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         agent_config_data = test_run.test.agent_config or {}
         agent_config = agent_class.get_config_class()(**agent_config_data)
         if agent_config.start_action == "first":
-            logging.warning(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
+            logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
         agent = agent_class(env, agent_config)
 
