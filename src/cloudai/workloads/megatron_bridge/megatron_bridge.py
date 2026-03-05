@@ -20,7 +20,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable, System, TestRun
+from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -560,3 +560,34 @@ class MegatronBridgeTestDefinition(TestDefinition):
             and constraint17
             and constraint18
         )
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        log_path = tr.output_path / "cloudai_megatron_bridge_launcher.log"
+        if not log_path.is_file():
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
+            )
+
+        content = log_path.read_text(encoding="utf-8", errors="ignore")
+        failure_markers = [
+            "finished: FAILED",
+            "status: FAILED",
+            "status: CANCELLED",
+            "status: TIMEOUT",
+            "Exception: Experiment failed for",
+            "Traceback (most recent call last):",
+            "Failed to retrieve job ID.",
+        ]
+        for marker in failure_markers:
+            if marker in content:
+                tail_lines = "\n".join(content.splitlines()[-40:])
+                return JobStatusResult(
+                    is_successful=False,
+                    error_message=(
+                        f"Megatron-Bridge launcher reported failure marker '{marker}' in {log_path}.\n"
+                        f"Last log lines:\n{tail_lines}"
+                    ),
+                )
+
+        return JobStatusResult(is_successful=True)

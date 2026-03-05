@@ -84,10 +84,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f.write(f"{command}\n")
 
     def _get_merged_env_vars(self, args: MegatronBridgeCmdArgs) -> dict[str, str]:
-        """Merge system.global_env_vars + test.extra_env_vars + cmd_args.custom_env_vars."""
+        """Merge system.global_env_vars + test.extra_env_vars + optional cmd_args.custom_env_vars."""
         merged: dict[str, str] = {k: str(v) for k, v in self.final_env_vars.items()}
-        if args.custom_env_vars:
-            merged.update({k: str(v) for k, v in args.custom_env_vars.items()})
+        custom_env_vars = getattr(args, "custom_env_vars", None)
+        if isinstance(custom_env_vars, dict) and custom_env_vars:
+            merged.update({k: str(v) for k, v in custom_env_vars.items()})
         return merged
 
     def _build_custom_bash_env_exports(self, env: dict[str, str]) -> list[str]:
@@ -164,6 +165,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
             '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
             '    tail -n 200 "$LOG" >&2 || true',
+            '    exit "${LAUNCH_RC}"',
             "  fi",
             '  echo "Submitted batch job ${JOB_ID}"',
             "else",

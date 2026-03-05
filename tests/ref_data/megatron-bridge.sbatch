@@ -22,6 +22,7 @@ if [ -n "${JOB_ID}" ]; then
   if [ "${LAUNCH_RC}" -ne 0 ]; then
     echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2
     tail -n 200 "$LOG" >&2 || true
+    exit "${LAUNCH_RC}"
   fi
   echo "Submitted batch job ${JOB_ID}"
 else

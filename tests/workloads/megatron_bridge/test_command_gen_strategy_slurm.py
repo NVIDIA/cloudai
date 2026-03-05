@@ -204,6 +204,27 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "-cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3'" in wrapper_content
         assert "-cb 'export NCCL_DEBUG=INFO'" in wrapper_content
 
+    def test_wrapper_exits_non_zero_when_launcher_fails_after_job_submission(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run()
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert 'if [ "${LAUNCH_RC}" -ne 0 ]; then' in wrapper_content
+        assert 'exit "${LAUNCH_RC}"' in wrapper_content
+
+    def test_was_run_successful_detects_launcher_failure_marker(self, make_test_run: Callable[..., TestRun]) -> None:
+        tr = make_test_run()
+        tr.output_path.mkdir(parents=True, exist_ok=True)
+        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
+            "Job 4818718 finished: FAILED\nException: Experiment failed for test with status: FAILED.\n"
+        )
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        result = tdef.was_run_successful(tr)
+        assert not result.is_successful
+        assert result.error_message is not None
+        assert "status: FAILED" in result.error_message
+
     @pytest.mark.parametrize(
         "detach, expected",
         [
