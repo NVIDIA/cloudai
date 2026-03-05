@@ -46,7 +46,7 @@ class TestNIXLBenchCommand:
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
         cmd = strategy.gen_nixlbench_command()
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
-        assert cmd == ["./nixlbench", f"--etcd-endpoints {tdef.cmd_args.etcd_endpoints}"]
+        assert cmd == ["./nixlbench", f"--etcd-endpoints={tdef.cmd_args.etcd_endpoints}"]
 
     def test_can_set_any_cmd_arg(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         in_args = {"backend": "MPI", "dashed-opt": "DRAM", "under_score_opt": "VRAM"}
@@ -63,7 +63,7 @@ class TestNIXLBenchCommand:
         cmd = " ".join(strategy.gen_nixlbench_command())
 
         for k, v in in_args.items():
-            assert f"--{k} {v}" in cmd
+            assert f"--{k}={v}" in cmd
 
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):

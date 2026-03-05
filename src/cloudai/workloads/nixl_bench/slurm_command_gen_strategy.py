@@ -58,6 +58,6 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         for k, v in tdef.cmd_args_dict.items():
             if k == "etcd_endpoints":
                 k = "etcd-endpoints"
-            cmd.append(f"--{k} {v}")
+            cmd.append(f"--{k}={v}")
 
         return cmd
