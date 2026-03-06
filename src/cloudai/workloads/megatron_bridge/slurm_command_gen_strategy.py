@@ -400,6 +400,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("nsys_trace", "--nsys_trace", self._list_or_comma_str(args.nsys_trace))
         add_field("nsys_extra_args", "--nsys_extra_args", self._list_or_comma_str(args.nsys_extra_args))
 
+        # Node placement (pass resolved nodelist to Megatron-Bridge via --additional_slurm_params)
+        _, node_list = self.get_cached_nodes_spec()
+        if node_list:
+            nodelist_str = ",".join(node_list)
+            parts.extend(["--additional_slurm_params", shlex.quote(f"nodelist={nodelist_str}")])
+
         # Config variant
         add_field("config_variant", "-cv", args.config_variant)
         if args.list_config_variants and "list_config_variants" in fields_set:
