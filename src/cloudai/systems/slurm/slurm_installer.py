@@ -323,8 +323,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
         actual_branch = branch_resolved.stdout.strip() if branch_resolved.returncode == 0 else ""
 
-        git_status_ok = actual_commit == expected_commit or ref == actual_branch
-        if git_status_ok:
+        if actual_commit == expected_commit or ref == actual_branch:
             return InstallStatusResult(True)
 
         return InstallStatusResult(
