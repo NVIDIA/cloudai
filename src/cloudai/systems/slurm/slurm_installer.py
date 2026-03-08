@@ -300,7 +300,7 @@ class SlurmInstaller(BaseInstaller):
         actual_commit = result.stdout.strip()
 
         try:
-            resolved = subprocess.run(
+            commit_resolved = subprocess.run(
                 ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
                 cwd=str(path),
                 capture_output=True,
@@ -308,12 +308,12 @@ class SlurmInstaller(BaseInstaller):
             )
         except OSError as e:
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
-        if resolved.returncode != 0:
-            return InstallStatusResult(False, f"Failed to verify commit in {path}: {resolved.stderr}")
-        expected_commit = resolved.stdout.strip()
+        if commit_resolved.returncode != 0:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {commit_resolved.stderr}")
+        expected_commit = commit_resolved.stdout.strip()
 
         try:
-            branch_result = subprocess.run(
+            branch_resolved = subprocess.run(
                 ["git", "symbolic-ref", "--short", "-q", "HEAD"],
                 cwd=str(path),
                 capture_output=True,
@@ -321,24 +321,16 @@ class SlurmInstaller(BaseInstaller):
             )
         except OSError as e:
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
-        current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+        actual_branch = branch_resolved.stdout.strip() if branch_resolved.returncode == 0 else ""
 
-        if actual_commit == expected_commit or ref == current_branch:
+        git_status_ok = actual_commit == expected_commit or ref == actual_branch
+        if git_status_ok:
             return InstallStatusResult(True)
 
-        if len(ref) > len(actual_commit):
-            return InstallStatusResult(
-                False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {ref} ({expected_commit}). "
-                "Please uninstall and reinstall.",
-            )
-        if not actual_commit.startswith(ref) and not ref.startswith(actual_commit):
-            return InstallStatusResult(
-                False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {ref} ({expected_commit}). "
-                "Please uninstall and reinstall.",
-            )
-        return InstallStatusResult(True)
+        return InstallStatusResult(
+            success=False,
+            message=f"Failed to verify commit in {path}: {actual_commit=}, {branch_resolved=}, expected was {ref}",
+        )
 
     def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
         venv_path = self.system.install_path / item.venv_name
