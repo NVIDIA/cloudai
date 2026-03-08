@@ -290,7 +290,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
         return InstallStatusResult(True)
 
-    def _verify_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
+    def _verify_commit(self, ref: str, path: Path) -> InstallStatusResult:
         try:
             result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(path), capture_output=True, text=True)
         except OSError as e:
@@ -298,16 +298,44 @@ class SlurmInstaller(BaseInstaller):
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {result.stderr}")
         actual_commit = result.stdout.strip()
-        if len(commit_hash) > len(actual_commit):
+
+        try:
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+                cwd=str(path),
+                capture_output=True,
+                text=True,
+            )
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
+        if resolved.returncode != 0:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {resolved.stderr}")
+        expected_commit = resolved.stdout.strip()
+
+        try:
+            branch_result = subprocess.run(
+                ["git", "symbolic-ref", "--short", "-q", "HEAD"],
+                cwd=str(path),
+                capture_output=True,
+                text=True,
+            )
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
+        current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+
+        if actual_commit == expected_commit or ref == current_branch:
+            return InstallStatusResult(True)
+
+        if len(ref) > len(actual_commit):
             return InstallStatusResult(
                 False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
+                f"Git repository at {path} is on commit {actual_commit}, expected {ref} ({expected_commit}). "
                 "Please uninstall and reinstall.",
             )
-        if not actual_commit.startswith(commit_hash) and not commit_hash.startswith(actual_commit):
+        if not actual_commit.startswith(ref) and not ref.startswith(actual_commit):
             return InstallStatusResult(
                 False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
+                f"Git repository at {path} is on commit {actual_commit}, expected {ref} ({expected_commit}). "
                 "Please uninstall and reinstall.",
             )
         return InstallStatusResult(True)
