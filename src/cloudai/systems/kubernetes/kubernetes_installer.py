@@ -237,7 +237,7 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
         return InstallStatusResult(True)
 
-    def _verify_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
+    def _verify_commit(self, ref: str, path: Path) -> InstallStatusResult:
         try:
             result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(path), capture_output=True, text=True)
         except OSError as e:
@@ -245,19 +245,41 @@ class KubernetesInstaller(BaseInstaller):
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to verify commit in {path}: {result.stderr}")
         actual_commit = result.stdout.strip()
-        if len(commit_hash) > len(actual_commit):
-            return InstallStatusResult(
-                False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
-                "Please uninstall and reinstall.",
+
+        try:
+            commit_resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+                cwd=str(path),
+                capture_output=True,
+                text=True,
             )
-        if not actual_commit.startswith(commit_hash) and not commit_hash.startswith(actual_commit):
-            return InstallStatusResult(
-                False,
-                f"Git repository at {path} is on commit {actual_commit}, expected {commit_hash}. "
-                "Please uninstall and reinstall.",
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
+        if commit_resolved.returncode != 0:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {commit_resolved.stderr}")
+        expected_commit = commit_resolved.stdout.strip()
+
+        try:
+            branch_resolved = subprocess.run(
+                ["git", "symbolic-ref", "--short", "-q", "HEAD"],
+                cwd=str(path),
+                capture_output=True,
+                text=True,
             )
-        return InstallStatusResult(True)
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to verify commit in {path}: {e}")
+        actual_branch = branch_resolved.stdout.strip() if branch_resolved.returncode == 0 else ""
+
+        if actual_commit == expected_commit or ref == actual_branch:
+            return InstallStatusResult(True)
+
+        return InstallStatusResult(
+            success=False,
+            message=(
+                f"Failed to verify commit in {path}: {actual_commit=}, {actual_branch=}, expected was {ref} or "
+                f"{expected_commit=}"
+            ),
+        )
 
     def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
         venv_path = self.system.install_path / item.venv_name
