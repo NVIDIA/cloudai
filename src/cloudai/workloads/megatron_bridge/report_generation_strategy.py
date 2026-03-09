@@ -43,8 +43,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         data = {k: v for k, v in data.items() if k.isdigit()}
         steps = sorted(list(map(int, data.keys())))
 
-        step_times_s: list[float] = [data[step]["elapsed time per iteration (ms)"] for step in steps]
-        gpu_tflops: list[float] = [data[step]["GPU utilization"] for step in steps]
+        step_times_s: list[float] = [data[str(step)]["elapsed time per iteration (ms)"] for step in steps]
+        gpu_tflops: list[float] = [data[str(step)]["GPU utilization"] for step in steps]
 
         if len(step_times_s) > 10:
             step_times_s = step_times_s[-10:]
