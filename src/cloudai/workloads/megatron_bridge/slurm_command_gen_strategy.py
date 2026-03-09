@@ -374,8 +374,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
         if args.recompute_modules and "recompute_modules" in fields_set:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
-        if "detach" in fields_set and args.detach is not None:
-            parts.extend(["--detach", "true" if args.detach else "false"])
+
+        # The workload is implemented to work only with non-detached MBridge run to obtain perf metrics
+        parts.extend(["--detach", "false"])
 
         # Optimizer
         add_field("lr", "--lr", args.lr)

@@ -51,7 +51,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     enable_vboost: bool | None = Field(default=False)
     dryrun: bool | None = Field(default=False)
     enable_nsys: bool | None = Field(default=False)
-    detach: bool | None = Field(default=None)
 
     # Domain / model overrides (argument_parser main + model)
     domain: Optional[str] = Field(default=None, description="Domain: llm, vlm, or qwen3vl (default llm).")
@@ -562,6 +561,15 @@ class MegatronBridgeTestDefinition(TestDefinition):
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        """
+        Ensure that the MBridge script finished correctly.
+
+        The current state of Megatron-Bridge performance scripts makes us running their tool until the very specific
+            failure. Right before the failure the M-Bridge script saves output metrics as JSON.
+
+        - At the point of failure the script asks for reference golden values, that we don't have
+        - Then the script will perform convergence test between provided golden and actual golden - we don't need it
+        """
         log_path = tr.output_path / "cloudai_megatron_bridge_launcher.log"
         if not log_path.is_file():
             return JobStatusResult(
@@ -570,17 +578,8 @@ class MegatronBridgeTestDefinition(TestDefinition):
             )
 
         content = log_path.read_text(encoding="utf-8", errors="ignore")
-        stderr_path = tr.output_path / "cloudai_megatron_bridge_wrapper.stderr"
-        stderr_content = stderr_path.read_text(encoding="utf-8", errors="ignore") if stderr_path.is_file() else ""
-        stderr_lines = [line.strip() for line in stderr_content.splitlines() if line.strip()]
-        stderr_last_line = stderr_lines[-1] if stderr_lines else ""
 
-        if (
-            "Convergence check failed due to missing golden values." in content
-            and "This is expected if it is the first time running this model." in content
-            and stderr_last_line.startswith("You will need to add the golden values (")
-            and stderr_last_line.endswith(") into the repository before the next run.")
-        ):
+        if "Convergence check failed due to missing golden values." in content:
             return JobStatusResult(is_successful=True)
 
-        return JobStatusResult(is_successful=False, error_message=stderr_last_line or "stderr was empty")
+        return JobStatusResult(is_successful=False, error_message="\n".join(content.splitlines()[-40:]))
