@@ -213,6 +213,28 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert 'if [ "${LAUNCH_RC}" -ne 0 ]; then' in wrapper_content
         assert 'exit "${LAUNCH_RC}"' in wrapper_content
 
+    def test_wrapper_installs_wandb_before_launcher(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run()
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        wandb_idx = wrapper_content.index("-m pip install wandb")
+        launcher_idx = wrapper_content.index("setup_experiment.py")
+        assert wandb_idx < launcher_idx
+
+    def test_wrapper_exits_when_wandb_install_fails(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run()
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        assert 'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then' in wrapper_content
+        assert 'echo "Failed to install wandb in launcher venv (exit ${WANDB_INSTALL_RC})." >&2' in wrapper_content
+        assert 'exit "${WANDB_INSTALL_RC}"' in wrapper_content
+
     def test_was_run_successful_detects_launcher_failure_marker(self, make_test_run: Callable[..., TestRun]) -> None:
         tr = make_test_run()
         tr.output_path.mkdir(parents=True, exist_ok=True)

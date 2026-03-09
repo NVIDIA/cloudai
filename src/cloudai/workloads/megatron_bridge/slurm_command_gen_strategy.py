@@ -66,7 +66,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
         parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
-        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(" ".join(parts))
+        launcher_python = str((venv_path / "bin" / "python").absolute())
+        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(" ".join(parts), launcher_python)
 
         self._write_command_to_file(full_cmd, self.test_run.output_path)
         return full_cmd
@@ -122,7 +123,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
         return ",".join(parts)
 
-    def _wrap_launcher_for_job_id_and_quiet_output(self, launcher_cmd: str) -> str:
+    def _wrap_launcher_for_job_id_and_quiet_output(self, launcher_cmd: str, launcher_python: str) -> str:
         """
         Run the Megatron-Bridge launcher quietly and ensure CloudAI can parse a job ID.
 
@@ -150,6 +151,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Launch Megatron-Bridge (log stdout/stderr to file)
             "",
             ': >"$LOG"',
+            "WANDB_INSTALL_RC=0",
+            f'{shlex.quote(launcher_python)} -m pip install wandb >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
+            'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then',
+            '  echo "Failed to install wandb in launcher venv (exit ${WANDB_INSTALL_RC})." >&2',
+            '  tail -n 200 "$LOG" >&2 || true',
+            '  exit "${WANDB_INSTALL_RC}"',
+            "fi",
+            "",
             "LAUNCH_RC=0",
             f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
             "",
