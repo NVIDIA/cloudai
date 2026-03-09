@@ -152,9 +152,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             ': >"$LOG"',
             "WANDB_INSTALL_RC=0",
-            f'{shlex.quote(launcher_python)} -m pip install wandb >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
+            f'{shlex.quote(launcher_python)} -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
             'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then',
-            '  echo "Failed to install wandb in launcher venv (exit ${WANDB_INSTALL_RC})." >&2',
+            '  echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2',  # noqa: E501
             '  tail -n 200 "$LOG" >&2 || true',
             '  exit "${WANDB_INSTALL_RC}"',
             "fi",

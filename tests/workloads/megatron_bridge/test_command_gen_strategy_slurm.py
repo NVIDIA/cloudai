@@ -220,6 +220,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
 
+        assert "-m pip install wandb numpy==1.26.4" in wrapper_content
         wandb_idx = wrapper_content.index("-m pip install wandb")
         launcher_idx = wrapper_content.index("setup_experiment.py")
         assert wandb_idx < launcher_idx
@@ -232,7 +233,10 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         wrapper_content = self._wrapper_content(cmd_gen)
 
         assert 'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then' in wrapper_content
-        assert 'echo "Failed to install wandb in launcher venv (exit ${WANDB_INSTALL_RC})." >&2' in wrapper_content
+        assert (
+            'echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit '
+            '${WANDB_INSTALL_RC})." >&2'
+        ) in wrapper_content
         assert 'exit "${WANDB_INSTALL_RC}"' in wrapper_content
 
     def test_was_run_successful_detects_launcher_failure_marker(self, make_test_run: Callable[..., TestRun]) -> None:

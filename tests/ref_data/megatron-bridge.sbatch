@@ -11,9 +11,9 @@ exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)
 
 : >"$LOG"
 WANDB_INSTALL_RC=0
-__INSTALL_DIR__/Run__main-venv/bin/python -m pip install wandb >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?
+__INSTALL_DIR__/Run__main-venv/bin/python -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?
 if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
-  echo "Failed to install wandb in launcher venv (exit ${WANDB_INSTALL_RC})." >&2
+  echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2
   tail -n 200 "$LOG" >&2 || true
   exit "${WANDB_INSTALL_RC}"
 fi
