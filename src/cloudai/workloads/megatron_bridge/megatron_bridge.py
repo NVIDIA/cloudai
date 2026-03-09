@@ -23,6 +23,8 @@ from pydantic import Field, ValidationInfo, field_validator
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
+GOLDEN_VALUES_FILENAME = "cloudai_megatron_bridge_golden_values.json"
+
 
 class MegatronBridgeCmdArgs(CmdArgs):
     """Megatron-Bridge launcher arguments (translated into `setup_experiment.py` flags)."""

@@ -13,16 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from __future__ import annotations
-
+import json
 import logging
-import re
 from pathlib import Path
 from statistics import mean, median, pstdev
 from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+
+from .slurm_command_gen_strategy import GOLDEN_VALUES_FILENAME
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
@@ -30,46 +29,35 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
 
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
-    def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
-        return log if log.is_file() else None
-
     @property
-    def results_file(self) -> Path:
-        return self.get_log_file() or (self.test_run.output_path / "cloudai_megatron_bridge_launcher.log")
+    def metrics_file(self) -> Path | None:
+        for path in Path(self.test_run.output_path).rglob(GOLDEN_VALUES_FILENAME):
+            return path
+        return None
 
     def can_handle_directory(self) -> bool:
-        return self.get_log_file() is not None
+        return self.metrics_file is not None
 
-    def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
-        step_times_s: list[float] = []
-        gpu_tflops: list[float] = []
-        step_line_re = re.compile(
-            r"Step Time\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*s.*?"
-            r"GPU utilization:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:MODEL_)?TFLOP/s/GPU",
-            re.IGNORECASE,
-        )
-        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                m = step_line_re.search(line)
-                if m:
-                    try:
-                        step_times_s.append(float(m.group(1)))
-                        gpu_tflops.append(float(m.group(2)))
-                    except (ValueError, TypeError):
-                        logging.debug("Failed to parse step metrics line: %s", line.rstrip("\n"))
+    def _extract(self, metrics_file: Path) -> tuple[list[float], list[float]]:
+        data: dict[str, dict[str, float]] = json.loads(metrics_file.read_text())
+        data = {k: v for k, v in data.items() if k.isdigit()}
+        steps = sorted(list(map(int, data.keys())))
+
+        step_times_s: list[float] = [data[step]["elapsed time per iteration (ms)"] for step in steps]
+        gpu_tflops: list[float] = [data[step]["GPU utilization"] for step in steps]
 
         if len(step_times_s) > 10:
             step_times_s = step_times_s[-10:]
             gpu_tflops = gpu_tflops[-10:]
+
         return step_times_s, gpu_tflops
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
-        log_file = self.get_log_file()
-        if not log_file:
+        metrics_file = self.metrics_file
+        if not metrics_file:
             return None, [], []
-        step_times_s, gpu_tflops = self._extract(log_file)
-        return log_file, step_times_s, gpu_tflops
+        step_times_s, gpu_tflops = self._extract(metrics_file)
+        return metrics_file, step_times_s, gpu_tflops
 
     def generate_report(self) -> None:
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
