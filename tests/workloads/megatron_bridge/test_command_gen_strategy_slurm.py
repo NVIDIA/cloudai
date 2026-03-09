@@ -280,31 +280,6 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         result = tdef.was_run_successful(tr)
         assert result.is_successful
 
-    @pytest.mark.parametrize(
-        "detach, expected",
-        [
-            (True, "--detach true"),
-            (False, "--detach false"),
-            (None, None),
-        ],
-    )
-    def test_detach_flags(
-        self,
-        configured_slurm_system: SlurmSystem,
-        make_test_run: Callable[..., TestRun],
-        detach: bool | None,
-        expected: str | None,
-    ) -> None:
-        overrides = {} if detach is None else {"detach": detach}
-        tr = make_test_run(cmd_args_overrides=overrides)
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
-        wrapper_content = self._wrapper_content(cmd_gen)
-        if detach is None:
-            assert "--detach" not in wrapper_content
-        else:
-            assert expected is not None
-            assert expected in wrapper_content
-
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:

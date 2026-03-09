@@ -36,4 +36,3 @@ domain = "llm"
 task = "pretrain"
 compute_dtype = "fp8_cs"
 enable_vboost = true
-detach = false
