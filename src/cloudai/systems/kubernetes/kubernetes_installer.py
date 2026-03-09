@@ -275,7 +275,10 @@ class KubernetesInstaller(BaseInstaller):
 
         return InstallStatusResult(
             success=False,
-            message=f"Failed to verify commit in {path}: {actual_commit=}, {actual_branch=}, expected was {ref}",
+            message=(
+                f"Failed to verify commit in {path}: {actual_commit=}, {actual_branch=}, expected was {ref} or "
+                f"{expected_commit=}"
+            ),
         )
 
     def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
