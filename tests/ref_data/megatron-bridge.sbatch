@@ -14,7 +14,7 @@ WANDB_INSTALL_RC=0
 __INSTALL_DIR__/Run__main-venv/bin/python -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?
 if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
   echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2
-  tail -n 200 "$LOG" >&2 || true
+  tail -n 40 "$LOG" >&2 || true
   exit "${WANDB_INSTALL_RC}"
 fi
 
@@ -23,14 +23,13 @@ NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python _
 
 
 JOB_ID=""
-JOB_ID=$(grep -Eio "(Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)
+JOB_ID=$(grep -Eio "(Submitted batch job[ ]+[0-9]+|Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+|Job ID[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)
 
 
 if [ -n "${JOB_ID}" ]; then
   if [ "${LAUNCH_RC}" -ne 0 ]; then
     echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2
-    tail -n 200 "$LOG" >&2 || true
-    exit "${LAUNCH_RC}"
+    tail -n 40 "$LOG" >&2 || true
   fi
   echo "Submitted batch job ${JOB_ID}"
 else
@@ -38,6 +37,6 @@ else
   if [ "${LAUNCH_RC}" -ne 0 ]; then
     echo "Launcher exit code: ${LAUNCH_RC}" >&2
   fi
-  tail -n 200 "$LOG" >&2 || true
+  tail -n 40 "$LOG" >&2 || true
   exit 1
 fi

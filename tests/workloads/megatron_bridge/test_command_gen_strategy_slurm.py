@@ -212,14 +212,16 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "-cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3'" in wrapper_content
         assert "-cb 'export NCCL_DEBUG=INFO'" in wrapper_content
 
-    def test_wrapper_exits_non_zero_when_launcher_fails_after_job_submission(
+    def test_wrapper_emits_job_id_even_when_launcher_non_zero(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run()
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert 'if [ "${LAUNCH_RC}" -ne 0 ]; then' in wrapper_content
-        assert 'exit "${LAUNCH_RC}"' in wrapper_content
+        assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
+        assert 'exit "${LAUNCH_RC}"' not in wrapper_content
+        assert "Submitted batch job[ ]+[0-9]+" in wrapper_content
 
     def test_wrapper_installs_wandb_before_launcher(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]

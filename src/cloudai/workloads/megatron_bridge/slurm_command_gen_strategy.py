@@ -155,7 +155,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'{shlex.quote(launcher_python)} -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
             'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then',
             '  echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2',  # noqa: E501
-            '  tail -n 200 "$LOG" >&2 || true',
+            '  tail -n 40 "$LOG" >&2 || true',
             '  exit "${WANDB_INSTALL_RC}"',
             "fi",
             "",
@@ -163,18 +163,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
             "",
             # Parse job id from Megatron-Bridge output (multiple possible formats)
-            # Patterns: "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
+            # Patterns: "Submitted batch job 694112", "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
             "",
             'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "(Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
+            'JOB_ID=$(grep -Eio "(Submitted batch job[ ]+[0-9]+|Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+|Job ID[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
             "",
             # Emit a canonical line for CloudAI to parse
             "",
             'if [ -n "${JOB_ID}" ]; then',
             '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
             '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
-            '    tail -n 200 "$LOG" >&2 || true',
-            '    exit "${LAUNCH_RC}"',
+            '    tail -n 40 "$LOG" >&2 || true',
             "  fi",
             '  echo "Submitted batch job ${JOB_ID}"',
             "else",
@@ -182,7 +181,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
             '    echo "Launcher exit code: ${LAUNCH_RC}" >&2',
             "  fi",
-            '  tail -n 200 "$LOG" >&2 || true',
+            '  tail -n 40 "$LOG" >&2 || true',
             "  exit 1",
             "fi",
             "",
