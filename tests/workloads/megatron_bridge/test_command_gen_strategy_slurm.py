@@ -171,6 +171,14 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "--cuda_graph_impl" not in cmd
         assert " -ms " not in cmd
 
+    def test_golden_values_path_is_always_provided(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(num_nodes=1)
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--golden_values_path cloudai_megatron_bridge_golden_values.json" in wrapper_content
+
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
@@ -249,7 +257,26 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         result = tdef.was_run_successful(tr)
         assert not result.is_successful
         assert result.error_message is not None
-        assert "status: FAILED" in result.error_message
+
+    def test_was_run_successful_accepts_expected_missing_golden_values_failure(
+        self, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run()
+        tr.output_path.mkdir(parents=True, exist_ok=True)
+        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
+            "Convergence check failed due to missing golden values.\n"
+            "This is expected if it is the first time running this model.\n"
+            "Job 123 finished: FAILED\n"
+        )
+        (tr.output_path / "cloudai_megatron_bridge_wrapper.stderr").write_text(
+            "Some previous stderr line\n"
+            "You will need to add the golden values "
+            "(/tmp/golden_values/cloudai_megatron_bridge_golden_values.json) "
+            "into the repository before the next run.\n"
+        )
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        result = tdef.was_run_successful(tr)
+        assert result.is_successful
 
     @pytest.mark.parametrize(
         "detach, expected",

@@ -304,6 +304,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
         add_field("gpus_per_node", "-gn", args.gpus_per_node)
+        # Always provide a stable golden values filename so Megatron-Bridge writes parsed metrics to disk.
+        add("--golden_values_path", "cloudai_megatron_bridge_golden_values.json")
         if mounts:
             add("-cm", ",".join(mounts))
 

@@ -30,7 +30,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Slurm/launcher-level
     gpu_type: str = Field(default="gb200")
     log_dir: str = Field(default="")
-    time_limit: str = Field(default="00:30:00")
+    time_limit: str = Field(default="00:05:00")
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
@@ -76,7 +76,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     wandb_save_dir: Optional[str] = Field(default=None)
 
     # Retries
-    max_retries: Optional[int] = Field(default=None)
+    max_retries: Optional[int] = Field(default=1)
 
     # Feature flags (allow sweeps)
     use_tokendrop: Optional[Union[bool, List[bool]]] = Field(default=None)
@@ -143,7 +143,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
 
     # Perf/tuning
     moe_a2a_overlap: Optional[Union[bool, List[bool]]] = Field(default=None)
-    max_steps: Optional[int] = Field(default=50)
+    max_steps: Optional[int] = Field(default=10)
     recompute_num_layers: Optional[Union[int, List[int]]] = Field(default=None)
     activation_offload_layers: Optional[Union[int, List[int]]] = Field(default=None)
     recompute_modules: Optional[Union[str, List[str]]] = Field(default=None)
@@ -570,24 +570,17 @@ class MegatronBridgeTestDefinition(TestDefinition):
             )
 
         content = log_path.read_text(encoding="utf-8", errors="ignore")
-        failure_markers = [
-            "finished: FAILED",
-            "status: FAILED",
-            "status: CANCELLED",
-            "status: TIMEOUT",
-            "Exception: Experiment failed for",
-            "Traceback (most recent call last):",
-            "Failed to retrieve job ID.",
-        ]
-        for marker in failure_markers:
-            if marker in content:
-                tail_lines = "\n".join(content.splitlines()[-40:])
-                return JobStatusResult(
-                    is_successful=False,
-                    error_message=(
-                        f"Megatron-Bridge launcher reported failure marker '{marker}' in {log_path}.\n"
-                        f"Last log lines:\n{tail_lines}"
-                    ),
-                )
+        stderr_path = tr.output_path / "cloudai_megatron_bridge_wrapper.stderr"
+        stderr_content = stderr_path.read_text(encoding="utf-8", errors="ignore") if stderr_path.is_file() else ""
+        stderr_lines = [line.strip() for line in stderr_content.splitlines() if line.strip()]
+        stderr_last_line = stderr_lines[-1] if stderr_lines else ""
 
-        return JobStatusResult(is_successful=True)
+        if (
+            "Convergence check failed due to missing golden values." in content
+            and "This is expected if it is the first time running this model." in content
+            and stderr_last_line.startswith("You will need to add the golden values (")
+            and stderr_last_line.endswith(") into the repository before the next run.")
+        ):
+            return JobStatusResult(is_successful=True)
+
+        return JobStatusResult(is_successful=False, error_message=stderr_last_line or "stderr was empty")
