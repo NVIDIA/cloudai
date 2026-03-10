@@ -41,9 +41,11 @@ def autodoc_skip_member(app, what, name, obj, skip, options):
 
     # On the systems page, skip all methods and properties from pydantic models —
     # only TOML-configurable fields are relevant. Pydantic fields bypass this hook entirely.
-    if what == "pydantic_model" and app.env.docname == "systems":
-        if inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (classmethod, staticmethod, property)):
-            return True
+    non_attr = (
+        inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (classmethod, staticmethod, property))
+    )
+    if what == "pydantic_model" and app.env.docname == "systems" and non_attr:
+        return True
 
     return skip
 
