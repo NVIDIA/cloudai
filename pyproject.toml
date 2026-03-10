@@ -157,6 +157,7 @@ root_package = "cloudai"
   source_modules = ["cloudai.util"]
 
 [tool.vulture]
+paths = ["src/", "tests/"]
 ignore_names = ["mock_datetime_now"]
 min_confidence = 100
 

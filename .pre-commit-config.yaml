@@ -17,40 +17,39 @@ repos:
       - id: trailing-whitespace
         exclude: ^tests/ref_data/
 
-  - repo: local
+  # https://github.com/microsoft/pyright/blob/main/docs/ci-integration.md#running-pyright-as-a-pre-commit-hook
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.408
+    hooks:
+    - id: pyright
+      entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off pyright
+      language: system
+
+  # https://docs.astral.sh/ruff/integrations/#pre-commit
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5
     hooks:
       - id: ruff-check
-        name: ruff check
-        entry: ruff check
+        args: [ --fix ]
         language: system
-        types_or: [python, pyi]
-
-      - id: ruff-format-check
-        name: ruff format --check --diff
-        entry: ruff format --check --diff
+      - id: ruff-format
         language: system
-        types_or: [python, pyi]
 
-      - id: pyright
-        name: pyright
-        entry: pyright
-        language: system
-        pass_filenames: false
-
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
       - id: vulture
-        name: vulture src/ tests/
-        entry: vulture src/ tests/
         language: system
-        pass_filenames: false
 
-      - id: lint-imports
-        name: lint-imports
-        entry: env PYTHONPATH=src lint-imports
-        language: system
-        pass_filenames: false
+  - repo: https://github.com/seddonym/import-linter/
+    rev: v2.11
+    hooks:
+      - id: import-linter
 
+  - repo: local
+    hooks:
+      # There's no officially supported pre-commit hook for taplo
       - id: taplo-fmt
-        name: taplo fmt --check --diff
+        name: taplo
         entry: taplo fmt --check --diff
         language: system
-        pass_filenames: false

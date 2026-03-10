@@ -24,7 +24,7 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
   - Aim for multiple small commits rather than a large one for easier code reviews and rebasing.
 
 - **Linting and Testing:**
-  - Ensure your code passes all linters set up in `.github/workflows/ci.yml` (`ruff check`, `ruff format --check --diff`, `pyright`, `vulture`, `lint-imports`, and `taplo fmt --check --diff`).
+  - Ensure your changes pass the pre-commit checks defined in `.pre-commit-config.yaml`.
   - Install and run pre-commit hooks locally:
     ```bash
     uv sync --extra dev
