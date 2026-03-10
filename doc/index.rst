@@ -173,5 +173,6 @@ CloudAI
    USER_GUIDE
    reporting
    DEV
+   systems
    workloads/index
    workloads_requirements_installation

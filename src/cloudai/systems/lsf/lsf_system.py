@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,26 +50,11 @@ class LSFQueue(BaseModel):
 
 
 class LSFSystem(System):
-    """
-    Represents an LSF system.
+    """Represents an LSF system."""
 
-    Attributes:
-        name (str): Name of the system.
-        install_path (Path): Path to the installation directory.
-        output_path (Path): Path to the output directory.
-        queues (List[LSFQueue]): List of queues in the system.
-        account (Optional[str]): Account name for resource usage.
-        global_env_vars (Dict[str, Any]): Global environment variables for the system.
-        scheduler (str): Scheduler type, default is "lsf".
-        project_name (Optional[str]): Project name associated with the system.
-        default_queue (Optional[str]): The default queue for job submission.
-        monitor_interval (int): Interval for monitoring jobs, in seconds.
-        app (Optional[str]): Application name associated with the system.
-        os_version (Optional[str]): Operating system version.
-        cmd_shell (CommandShell): Command shell for executing system commands.
-    """
-
-    queues: List[LSFQueue] = Field(default_factory=list)
+    queues: List[LSFQueue] = Field(
+        default_factory=list, description="A list of queues in the LSF system, filled in automatically"
+    )
     account: Optional[str] = None
     scheduler: str = "lsf"
     project_name: Optional[str] = None

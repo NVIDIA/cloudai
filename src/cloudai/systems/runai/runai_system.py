@@ -32,20 +32,7 @@ from .runai_training import ActualPhase, RunAITraining
 
 
 class RunAISystem(System):
-    """
-    RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes.
-
-    Attributes:
-        name (str): The name of the RunAI system.
-        install_path (Path): The installation path for RunAI.
-        output_path (Path): The path where output is stored.
-        base_url (str): The base URL for the RunAI API.
-        app_id (str): The application ID for authentication.
-        app_secret (str): The application secret for authentication.
-        scheduler (str): The scheduler type, default is "runai".
-        global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
-        nodes (List[RunAINode]): List of nodes in the RunAI cluster.
-    """
+    """RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes."""
 
     scheduler: str = "runai"
     monitor_interval: int = 60
