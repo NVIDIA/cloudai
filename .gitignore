@@ -90,4 +90,5 @@ Thumbs.db
 install/
 results/
 .*
+!.pre-commit-config.yaml
 .cloudai.toml

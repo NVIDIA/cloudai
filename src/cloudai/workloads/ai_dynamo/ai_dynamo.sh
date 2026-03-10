@@ -184,7 +184,7 @@ _parse_cli_pairs() {
 
 _populate_nodelist() {
   local num_nodes="$1"
-  local exclude_nodelist="$2" 
+  local exclude_nodelist="$2"
 
   # Handle zero nodes case
   if [[ -z "$num_nodes" || "$num_nodes" -eq 0 ]]; then

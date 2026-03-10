@@ -33,7 +33,7 @@ Test TOML example:
    num_gpus = 8
    # Container can be an NGC/enroot URL (nvcr.io#...) or a local .sqsh path.
    container_image = "nvcr.io#nvidia/nemo:26.02.00"
-   
+
    model_family_name = "qwen"
    model_recipe_name = "qwen3_30b_a3b"
    task = "pretrain"

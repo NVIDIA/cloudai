@@ -24,7 +24,13 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
   - Aim for multiple small commits rather than a large one for easier code reviews and rebasing.
 
 - **Linting and Testing:**
-  - Ensure your code passes all linters set up in `.github/workflows/ci.yml`, including flake8, black, and isort. Linters run automatically when you push changes to the remote repository, but you can also run them locally.
+  - Ensure your code passes all linters set up in `.github/workflows/ci.yml` (`ruff check`, `ruff format --check --diff`, `pyright`, `vulture`, `lint-imports`, and `taplo fmt --check --diff`).
+  - Install and run pre-commit hooks locally:
+    ```bash
+    uv sync --extra dev
+    uv run pre-commit install
+    uv run pre-commit run --all-files
+    ```
   - Whenever you create a new Python file under the cloudai directory, you must create a mirror of the file in the tests directory with the prefix `test_`. Otherwise, linting will fail.
 
 - **Signing Your Work:**

@@ -1,0 +1,56 @@
+minimum_pre_commit_version: "3.7.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+        exclude: ^tests/ref_data/
+      - id: mixed-line-ending
+        exclude: ^tests/ref_data/
+      - id: trailing-whitespace
+        exclude: ^tests/ref_data/
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-format-check
+        name: ruff format --check --diff
+        entry: ruff format --check --diff
+        language: system
+        types_or: [python, pyi]
+
+      - id: pyright
+        name: pyright
+        entry: pyright
+        language: system
+        pass_filenames: false
+
+      - id: vulture
+        name: vulture src/ tests/
+        entry: vulture src/ tests/
+        language: system
+        pass_filenames: false
+
+      - id: lint-imports
+        name: lint-imports
+        entry: env PYTHONPATH=src lint-imports
+        language: system
+        pass_filenames: false
+
+      - id: taplo-fmt
+        name: taplo fmt --check --diff
+        entry: taplo fmt --check --diff
+        language: system
+        pass_filenames: false

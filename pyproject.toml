@@ -38,6 +38,7 @@ requires-python = ">=3.10"
 
   [project.optional-dependencies]
   dev = [
+    "pre-commit~=4.0",
     "ruff~=0.15",
     "pandas-stubs~=2.3",
     "pyright~=1.1",

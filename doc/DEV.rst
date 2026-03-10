@@ -88,4 +88,3 @@ Installables are shared among all tests. So if any number of tests use the same 
 
        BaseInstaller <|-- SlurmInstaller
        BaseInstaller <|-- StandaloneInstaller
-
