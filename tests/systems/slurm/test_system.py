@@ -363,7 +363,7 @@ class TestGetNodesBySpec:
 
         num_nodes, node_list = slurm_system.get_nodes_by_spec(in_nnodes, in_nodes)
 
-        mock_parse_nodes.assert_called_once_with(in_nodes)
+        mock_parse_nodes.assert_called_once_with(in_nodes, exclude_nodes=None)
         assert num_nodes == exp_nnodes
         assert node_list == exp_nodes
 
