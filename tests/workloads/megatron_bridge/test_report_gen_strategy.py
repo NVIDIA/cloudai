@@ -30,8 +30,8 @@ def mb_tr(tmp_path: Path) -> TestRun:
     tr = TestRun(name="megatron_bridge", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
     metrics = {
         "some_other_data": 1.23,
-        "1": {"elapsed time per iteration (ms)": 1, "GPU utilization": 1.23},
-        "0": {"elapsed time per iteration (ms)": 1, "GPU utilization": 1.23},
+        "1": {"elapsed time per iteration (ms)": 1000, "GPU utilization": 1.23},
+        "0": {"elapsed time per iteration (ms)": 1000, "GPU utilization": 1.23},
     }
     metrics_folder = tr.output_path / "experiments" / "some_experiment"
     metrics_folder.mkdir(parents=True)
@@ -56,10 +56,10 @@ def test_megatron_bridge_extract_and_generate_report(slurm_system: SlurmSystem, 
 Source log: {mb_tr.output_path}/experiments/some_experiment/{GOLDEN_VALUES_FILENAME}
 
 Step Time (s)
-  avg: 1
+  avg: 1.0
   median: 1.0
-  min: 1
-  max: 1
+  min: 1.0
+  max: 1.0
   std: 0.0
 
 TFLOP/s per GPU

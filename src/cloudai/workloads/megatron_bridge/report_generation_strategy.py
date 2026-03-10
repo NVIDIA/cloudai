@@ -21,7 +21,7 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 
-from .slurm_command_gen_strategy import GOLDEN_VALUES_FILENAME
+from .megatron_bridge import GOLDEN_VALUES_FILENAME
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
@@ -39,12 +39,19 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         return self.metrics_file is not None
 
     def _extract(self, metrics_file: Path) -> tuple[list[float], list[float]]:
-        data: dict[str, dict[str, float]] = json.loads(metrics_file.read_text())
+        try:
+            data: dict[str, dict[str, float]] = json.loads(metrics_file.read_text())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Corrupted JSON metrics file at {metrics_file}") from e
+
         data = {k: v for k, v in data.items() if k.isdigit()}
         steps = sorted(list(map(int, data.keys())))
 
-        step_times_s: list[float] = [data[str(step)]["elapsed time per iteration (ms)"] for step in steps]
-        gpu_tflops: list[float] = [data[str(step)]["GPU utilization"] for step in steps]
+        try:
+            step_times_s: list[float] = [data[str(step)]["elapsed time per iteration (ms)"] / 1000.0 for step in steps]
+            gpu_tflops: list[float] = [data[str(step)]["GPU utilization"] for step in steps]
+        except KeyError as e:
+            raise ValueError(f"Cannot parse JSON metrics file at {metrics_file} with {e}") from e
 
         if len(step_times_s) > 10:
             step_times_s = step_times_s[-10:]
