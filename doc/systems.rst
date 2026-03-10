@@ -41,6 +41,7 @@ RunAI
 -----
 
 .. autopydantic_model:: cloudai.systems.runai.runai_system.RunAISystem
+   :exclude-members: nodes
 
 .. _lsf-system:
 
