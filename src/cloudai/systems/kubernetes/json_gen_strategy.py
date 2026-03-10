@@ -15,13 +15,15 @@
 # limitations under the License.
 
 import re
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, final
 
 import toml
 
-from .system import System
-from .test_scenario import TestRun
+from cloudai.core import JobStatusResult, System, TestRun
+
+from .kubernetes_job import KubernetesJob
 
 
 class JsonGenStrategy(ABC):
@@ -32,6 +34,12 @@ class JsonGenStrategy(ABC):
     """
 
     TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
+
+    def start(self) -> KubernetesJob: ...
+    def stop(self) -> None: ...
+    def status(self) -> JobStatusResult: ...
+    def is_running(self) -> bool: ...
+    def is_completed(self) -> bool: ...
 
     def __init__(self, system: System, test_run: TestRun) -> None:
         self.system = system
@@ -83,3 +91,26 @@ class JsonGenStrategy(ABC):
             Dict[Any, Any]: The generated Kubernetes job specification in JSON format.
         """
         pass
+
+    def start_job(self) -> KubernetesJob:
+        job_name = self.create_job()
+        job = KubernetesJob(self.test_run, id=job_name, name=job_name, kind="job_kind")
+        return job
+
+    def _create_job(self) -> str: ...
+    def _is_job_observable(self) -> bool: ...
+
+    @final
+    def create_job(self, timeout: int = 60) -> str:
+        job_name = self._create_job()
+
+        # Wait for the job to be observable by Kubernetes
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self._is_job_observable():
+                return job_name
+            time.sleep(self.system.monitor_interval)
+
+        raise TimeoutError(f"Job '{job_name}' was not observable within {timeout} seconds.")
+
+    def delete_job(self) -> None: ...

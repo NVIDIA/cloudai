@@ -17,7 +17,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
-from cloudai.core import JsonGenStrategy
+from cloudai.systems.kubernetes.json_gen_strategy import JsonGenStrategy
 from cloudai.systems.runai.runai_system import RunAISystem
 
 from .nccl import NCCLTestDefinition

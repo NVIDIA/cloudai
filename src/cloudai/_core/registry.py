@@ -23,11 +23,11 @@ if TYPE_CHECKING:
     from ..models.scenario import ReportConfig
     from ..models.workload import TestDefinition
     from ..reporter import Reporter
+    from ..systems.kubernetes.json_gen_strategy import JsonGenStrategy
     from .base_installer import BaseInstaller
     from .base_runner import BaseRunner
     from .command_gen_strategy import CommandGenStrategy
     from .grading_strategy import GradingStrategy
-    from .json_gen_strategy import JsonGenStrategy
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
 

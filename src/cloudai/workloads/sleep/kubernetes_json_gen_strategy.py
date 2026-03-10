@@ -16,8 +16,8 @@
 
 from typing import Any, Dict, cast
 
-from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.kubernetes.json_gen_strategy import JsonGenStrategy
 
 from .sleep import SleepTestDefinition
 

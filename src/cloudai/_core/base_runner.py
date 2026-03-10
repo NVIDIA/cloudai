@@ -18,16 +18,56 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List, Protocol, runtime_checkable
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
-from .json_gen_strategy import JsonGenStrategy
+
+# from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .system import System
 from .test_scenario import TestRun, TestScenario
+
+
+@runtime_checkable
+class Strategy(Protocol):
+    def start(self) -> BaseJob: ...
+    def stop(self) -> None: ...
+    # def status(self) -> JobStatusResult: ...
+    def is_running(self) -> bool: ...
+    def is_completed(self) -> bool: ...
+
+
+class FallBackStrategy(Strategy):
+    def __init__(self, system: System, tr: TestRun, submit_test: Callable[[TestRun], BaseJob]) -> None:
+        self.system = system
+        self.test_run = tr
+        self.submit_test = submit_test
+        self._job: BaseJob | None = None
+
+    @property
+    def job(self) -> BaseJob:
+        if self._job is None:
+            raise ValueError("Job has not been started yet.")
+        return self._job
+
+    def start(self) -> BaseJob:
+        self._job = self.submit_test(self.test_run)
+        return self._job
+
+    def stop(self) -> None:
+        self.system.kill(self.job)
+
+    # def status(self) -> JobStatusResult:
+    #     return self.system.status(self.test_run)
+
+    def is_running(self) -> bool:
+        return self.system.is_job_running(self.job)
+
+    def is_completed(self) -> bool:
+        return self.system.is_job_completed(self.job)
 
 
 class BaseRunner(ABC):
@@ -69,6 +109,7 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
+        self.strat_map: dict[int, Strategy] = {}
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -76,7 +117,8 @@ class BaseRunner(ABC):
         logging.info("Terminating all jobs...")
         for job in self.jobs:
             logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
-            self.system.kill(job)
+            # self.system.kill(job)
+            self.get_strategy(job.test_run).stop()
         logging.info("Waiting for all jobs to be killed.")
 
     def run(self):
@@ -96,6 +138,24 @@ class BaseRunner(ABC):
             logging.debug(f"sleeping for {self.monitor_interval} seconds")
             time.sleep(self.monitor_interval)
 
+    def get_strategy(self, tr: TestRun) -> Strategy:
+        if hash(tr) in self.strat_map:
+            return self.strat_map[hash(tr)]
+
+        strategy_cls = Registry().get_json_gen_strategy(type(self.system), type(tr.test))
+        strat = strategy_cls(self.system, tr)
+        if isinstance(strat, Strategy):
+            logging.debug(f"Using {strategy_cls.__name__} for test {tr.name}")
+        else:
+            logging.debug(
+                f"{strategy_cls.__name__} does not implement Strategy protocol, "
+                f"using FallBackStrategy for test {tr.name}"
+            )
+            strat = FallBackStrategy(self.system, tr, self._submit_test)
+
+        self.strat_map[hash(tr)] = strat
+        return strat
+
     def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
@@ -107,7 +167,7 @@ class BaseRunner(ABC):
         logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
         try:
-            job = self._submit_test(tr)
+            job = self.get_strategy(tr).start()
             self.jobs.append(job)
             self.testrun_to_job_map[tr] = job
         except JobSubmissionError as e:
@@ -157,8 +217,10 @@ class BaseRunner(ABC):
                 is_running, is_completed = True, True
             else:
                 is_running, is_completed = (
-                    self.system.is_job_running(job),
-                    self.system.is_job_completed(job),
+                    self.get_strategy(tr).is_running(),
+                    self.get_strategy(tr).is_completed(),
+                    # self.system.is_job_running(job),
+                    # self.system.is_job_completed(job),
                 )
 
             logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
@@ -239,7 +301,8 @@ class BaseRunner(ABC):
 
         logging.debug(f"Monitoring {len(self.jobs)} jobs")
         for job in list(self.jobs):
-            is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
+            # is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
+            is_completed = True if self.mode == "dry-run" else self.get_strategy(job.test_run).is_completed()
 
             if is_completed:
                 logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
@@ -368,6 +431,6 @@ class BaseRunner(ABC):
         strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test))
         return strategy_cls(system, test_run)
 
-    def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
-        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
-        return strategy_cls(system, test_run)
+    # def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
+    #     strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
+    #     return strategy_cls(system, test_run)

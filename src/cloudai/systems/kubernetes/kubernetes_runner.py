@@ -17,8 +17,10 @@
 import logging
 from typing import cast
 
+from cloudai import Registry
 from cloudai.core import BaseJob, BaseRunner, TestRun
 
+from .json_gen_strategy import JsonGenStrategy
 from .kubernetes_job import KubernetesJob
 from .kubernetes_system import KubernetesSystem
 
@@ -26,24 +28,24 @@ from .kubernetes_system import KubernetesSystem
 class KubernetesRunner(BaseRunner):
     """Implementation of the Runner for a system using Kubernetes."""
 
+    def get_json_gen_strategy(self, test_run: TestRun) -> JsonGenStrategy:
+        system = cast(KubernetesSystem, self.system)
+        test_run = cast(TestRun, test_run)
+        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
+        return strategy_cls(system, test_run)
+
     def _submit_test(self, tr: TestRun) -> KubernetesJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         job_name = tr.name.replace(".", "-").lower()
-        job_spec = self.get_json_gen_strategy(self.system, tr).gen_json()
-        job_kind = job_spec.get("kind", "").lower()
-        logging.debug(f"Generated JSON string for test {tr.name}: {job_spec}")
-
+        strat = self.get_json_gen_strategy(tr)
         if self.mode == "run":
-            k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
-            job_name = k8s_system.create_job(job_spec)
+            return strat.start_job()
 
-        job = KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
-
-        return job
+        return KubernetesJob(tr, id=job_name, name=job_name, kind="job_kind")
 
     def on_job_submit(self, tr: TestRun) -> None:
-        json_gen = self.get_json_gen_strategy(self.system, tr)
+        json_gen = self.get_json_gen_strategy(tr)
         json_gen.store_test_run()
 
     def on_job_completion(self, job: BaseJob) -> None:
@@ -59,4 +61,6 @@ class KubernetesRunner(BaseRunner):
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
         k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
-        k8s_system.delete_job(k_job.name, k_job.kind)
+        # k8s_system.delete_job(k_job.name, k_job.kind)
+        strat = self.get_json_gen_strategy(job.test_run)
+        strat.delete_job()
