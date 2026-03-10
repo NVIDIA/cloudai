@@ -68,7 +68,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
     fp8_recipe: Optional[str] = Field(default=None)
-    hf_token: str = ""
+    hf_token: str = Field(default="", validate_default=True)
     nemo_home: Optional[str] = Field(default=None)
     wandb_key: Optional[str] = Field(default=None)
     wandb_project_name: Optional[str] = Field(default=None)
@@ -165,7 +165,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
-        token = (v or "").strip() or os.environ.get("HF_TOKEN", "")
+        token = (v or "").strip() or os.environ.get("HF_TOKEN", "").strip()
         if not token:
             raise ValueError(
                 "cmd_args.hf_token is required. Please set HF_TOKEN environment variable (recommended) or "
@@ -525,6 +525,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
         model_recipe = (self.cmd_args.model_recipe_name or "").lower()
         is_deepseek_v3 = "deepseek_v3" in model_recipe or "deepseekv3" in model_recipe
 
+        constraint18 = True
         if is_deepseek_v3:
             valid_pp_vp_combinations = {(1, 1), (4, 1), (8, 1), (4, 2), (16, 1), (8, 2), (4, 4)}
             current_vp = vp if vp is not None else 1
@@ -538,8 +539,6 @@ class MegatronBridgeTestDefinition(TestDefinition):
                     current_vp,
                     sorted(valid_pp_vp_combinations),
                 )
-        else:
-            constraint18 = True  # Skip this constraint for non-DeepSeek v3 models
 
         return bool(
             constraint1

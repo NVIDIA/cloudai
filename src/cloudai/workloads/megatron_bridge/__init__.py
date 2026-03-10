@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import GOLDEN_VALUES_FILENAME, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 from .report_generation_strategy import MegatronBridgeReportGenerationStrategy
 from .slurm_command_gen_strategy import MegatronBridgeSlurmCommandGenStrategy
 
 __all__ = [
+    "GOLDEN_VALUES_FILENAME",
     "MegatronBridgeCmdArgs",
     "MegatronBridgeReportGenerationStrategy",
     "MegatronBridgeSlurmCommandGenStrategy",

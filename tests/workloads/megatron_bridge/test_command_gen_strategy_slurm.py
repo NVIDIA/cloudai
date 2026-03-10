@@ -118,6 +118,15 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             del os.environ["HF_TOKEN"]
 
     @pytest.fixture
+    def no_hf_token_env(self) -> Iterable[None]:
+        old_hf_token = os.environ.get("HF_TOKEN")
+        if old_hf_token:
+            del os.environ["HF_TOKEN"]
+        yield
+        if old_hf_token:
+            os.environ["HF_TOKEN"] = old_hf_token
+
+    @pytest.fixture
     def cmd_gen(
         self,
         configured_slurm_system: SlurmSystem,
@@ -125,11 +134,14 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> MegatronBridgeSlurmCommandGenStrategy:
         return MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, test_run)
 
+    @pytest.mark.usefixtures("no_hf_token_env")
     def test_hf_token_empty_is_rejected_by_schema(self) -> None:
         with pytest.raises(Exception, match=r"hf_token"):
             MegatronBridgeCmdArgs.model_validate(
                 {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
             )
+        with pytest.raises(Exception, match=r"hf_token"):
+            MegatronBridgeCmdArgs.model_validate({"model_family_name": "qwen3", "model_recipe_name": "30b_a3b"})
 
     def test_hf_token_may_be_taken_from_env(self, hf_token_env: str) -> None:
         cmd_args = MegatronBridgeCmdArgs.model_validate(
@@ -269,12 +281,6 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             "Convergence check failed due to missing golden values.\n"
             "This is expected if it is the first time running this model.\n"
             "Job 123 finished: FAILED\n"
-        )
-        (tr.output_path / "cloudai_megatron_bridge_wrapper.stderr").write_text(
-            "Some previous stderr line\n"
-            "You will need to add the golden values "
-            "(/tmp/golden_values/cloudai_megatron_bridge_golden_values.json) "
-            "into the repository before the next run.\n"
         )
         tdef = cast(MegatronBridgeTestDefinition, tr.test)
         result = tdef.was_run_successful(tr)

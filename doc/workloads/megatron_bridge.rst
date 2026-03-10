@@ -8,7 +8,7 @@ This workload (`test_template_name` is ``MegatronBridge``) submits training and 
    This workload has a hard requirement for the HuggingFace Hub token. There are two options:
 
    - (recommended) define ``HF_TOKEN`` environment variable
-   - set `cmd_args.hf_token` either in Test or Scenario config
+   - set ``cmd_args.hf_token`` either in Test or Scenario config
 
 
 Usage Examples
