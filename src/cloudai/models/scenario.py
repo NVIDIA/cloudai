@@ -80,6 +80,10 @@ class TestRunModel(BaseModel):
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
     extra_srun_args: str | None = None
+    exclude_nodes: str | None = Field(
+        default=None,
+        description="Comma-separated hostnames to exclude from the resolved node list.",
+    )
 
     # test definition fields
     name: Optional[str] = None
