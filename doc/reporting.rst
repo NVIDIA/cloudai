@@ -74,4 +74,3 @@ And use it in a test scenario:
 
    [reports]
    custom = { enable = true, greeting = "Hello, world!" }
-

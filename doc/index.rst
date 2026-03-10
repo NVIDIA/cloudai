@@ -175,4 +175,3 @@ CloudAI
    DEV
    workloads/index
    workloads_requirements_installation
-
