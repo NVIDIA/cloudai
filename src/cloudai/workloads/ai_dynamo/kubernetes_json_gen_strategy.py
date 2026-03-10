@@ -149,7 +149,54 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         if cast(int, worker.num_nodes) > 1:
             cfg["multinode"] = {"nodeCount": worker.num_nodes}
 
-    ###########################
+    ### ↓ RunStrategy interface methods ↓ ###
+    def start(self) -> KubernetesJob:
+        return self.start_job()
+
+    def stop(self) -> None:
+        self.delete_job()
+
+    def is_running(self) -> bool:
+        if self._genai_perf_completed:
+            return False
+
+        job_name = self.gen_json()["metadata"]["name"]
+
+        if self.are_vllm_pods_ready():
+            self._run_genai_perf()
+            self._genai_perf_completed = True
+
+            for pod_role in {"decode", "prefill", "frontend"}:
+                try:
+                    pod_name = self._get_dynamo_pod_by_role(pod_role)
+                    logging.debug(f"Fetching logs for {pod_role=} {pod_name=}")
+                    logs = self.system.core_v1.read_namespaced_pod_log(
+                        name=pod_name, namespace=self.system.default_namespace
+                    )
+                    with (self.test_run.output_path / f"{pod_role}_pod.log").open("w") as f:
+                        f.write(logs)
+                except Exception as e:
+                    logging.debug(f"Error fetching logs for role '{pod_role}': {e}")
+
+            return False
+
+        deployment = cast(
+            dict,
+            self.custom_objects_api.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.system.default_namespace,
+                plural="dynamographdeployments",
+                name=job_name,
+            ),
+        )
+        status: dict = cast(dict, deployment.get("status", {}))
+        return self._check_deployment_conditions(status.get("conditions", []))
+
+    def is_completed(self) -> bool:
+        return self._genai_perf_completed
+
+    ### ↑ RunStrategy interface methods ↑ ###
 
     @property
     def custom_objects_api(self) -> "k8s.client.CustomObjectsApi":
@@ -159,7 +206,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def _create_job(self) -> str:
         return self._create_dynamo_graph_deployment()
 
-    def _is_job_observable(self) -> bool:
+    def is_job_observable(self) -> bool:
         return self._is_dynamo_graph_deployment_observable()
 
     def _create_dynamo_graph_deployment(self) -> str:
@@ -227,51 +274,6 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def delete_job(self) -> None:
         self._delete_dynamo_graph_deployment()
-
-    def start(self) -> KubernetesJob:
-        return self.start_job()
-
-    def stop(self) -> None:
-        self.delete_job()
-
-    def status(self) -> JobStatusResult: ...
-
-    def is_running(self) -> bool:
-        if self._genai_perf_completed:
-            return False
-
-        job_name = self.gen_json()["metadata"]["name"]
-
-        if self.are_vllm_pods_ready():
-            self._run_genai_perf()
-            self._genai_perf_completed = True
-
-            for pod_role in {"decode", "prefill", "frontend"}:
-                try:
-                    pod_name = self._get_dynamo_pod_by_role(pod_role)
-                    logging.debug(f"Fetching logs for {pod_role=} {pod_name=}")
-                    logs = self.system.core_v1.read_namespaced_pod_log(
-                        name=pod_name, namespace=self.system.default_namespace
-                    )
-                    with (self.test_run.output_path / f"{pod_role}_pod.log").open("w") as f:
-                        f.write(logs)
-                except Exception as e:
-                    logging.debug(f"Error fetching logs for role '{pod_role}': {e}")
-
-            return False
-
-        deployment = cast(
-            dict,
-            self.custom_objects_api.get_namespaced_custom_object(
-                group="nvidia.com",
-                version="v1alpha1",
-                namespace=self.system.default_namespace,
-                plural="dynamographdeployments",
-                name=job_name,
-            ),
-        )
-        status: dict = cast(dict, deployment.get("status", {}))
-        return self._check_deployment_conditions(status.get("conditions", []))
 
     def are_vllm_pods_ready(self) -> bool:
         job_name = self.gen_json()["metadata"]["name"]
@@ -456,6 +458,3 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 return False
 
         return True
-
-    def is_completed(self) -> bool:
-        return self._genai_perf_completed
