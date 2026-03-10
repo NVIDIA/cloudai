@@ -22,14 +22,14 @@ extra_container_mounts = []
 
 [[git_repos]]
 url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
-commit = "r0.2.0"
+commit = "v0.3.0"
 mount_as = "/opt/Megatron-Bridge"
 
 [cmd_args]
 gpu_type = "gb300"
-container_image = "nvcr.io#nvidia/nemo:25.11.01"
-model_name = "qwen3"
-model_size = "30b_a3b"
+container_image = "nvcr.io#nvidia/nemo:26.02.00"
+model_family_name = "qwen"
+model_recipe_name = "qwen3_30b_a3b"
 gpus_per_node = 4
 num_gpus = 8
 domain = "llm"
@@ -37,4 +37,3 @@ task = "pretrain"
 compute_dtype = "fp8_mx"
 hf_token = ""
 enable_vboost = true
-detach = false
