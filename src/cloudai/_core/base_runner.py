@@ -33,19 +33,20 @@ from .test_scenario import TestRun, TestScenario
 
 
 @runtime_checkable
-class Strategy(Protocol):
+class RunStrategy(Protocol):
+    """Custom execution flow interface for cmd/json gen strategies."""
+
     def start(self) -> BaseJob: ...
     def stop(self) -> None: ...
-    # def status(self) -> JobStatusResult: ...
     def is_running(self) -> bool: ...
     def is_completed(self) -> bool: ...
 
 
-class FallBackStrategy(Strategy):
-    def __init__(self, system: System, tr: TestRun, submit_test: Callable[[TestRun], BaseJob]) -> None:
+class FallbackRunStrategy(RunStrategy):
+    def __init__(self, system: System, tr: TestRun, start_fn: Callable[[TestRun], BaseJob]) -> None:
         self.system = system
         self.test_run = tr
-        self.submit_test = submit_test
+        self.start_fn = start_fn
         self._job: BaseJob | None = None
 
     @property
@@ -55,14 +56,11 @@ class FallBackStrategy(Strategy):
         return self._job
 
     def start(self) -> BaseJob:
-        self._job = self.submit_test(self.test_run)
+        self._job = self.start_fn(self.test_run)
         return self._job
 
     def stop(self) -> None:
         self.system.kill(self.job)
-
-    # def status(self) -> JobStatusResult:
-    #     return self.system.status(self.test_run)
 
     def is_running(self) -> bool:
         return self.system.is_job_running(self.job)
@@ -110,7 +108,7 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
-        self.strat_map: dict[int, Strategy] = {}
+        self.strat_map: dict[int, RunStrategy] = {}
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -139,7 +137,7 @@ class BaseRunner(ABC):
             logging.debug(f"sleeping for {self.monitor_interval} seconds")
             time.sleep(self.monitor_interval)
 
-    def get_strategy(self, tr: TestRun) -> Strategy:
+    def get_strategy(self, tr: TestRun) -> RunStrategy:
         if hash(tr) in self.strat_map:
             return self.strat_map[hash(tr)]
 
@@ -152,7 +150,7 @@ class BaseRunner(ABC):
         if cmd_gen is None and json_gen is None:
             err = (
                 f"No command or json gen strategy found for system {type(self.system).__name__} "
-                f"and test {type(tr.test).__name__}, using FallBackStrategy for test {tr.name}"
+                f"and test {type(tr.test).__name__}"
             )
             logging.error(err)
             raise ValueError(err)
@@ -160,7 +158,7 @@ class BaseRunner(ABC):
             err = (
                 f"Both command and json gen strategies found for system {type(self.system).__name__} "
                 f"and test {type(tr.test).__name__}, which is not supported. Please ensure only one strategy is "
-                f"registered for this combination. Using FallBackStrategy for test {tr.name}"
+                f"registered for this combination."
             )
             logging.error(err)
             raise ValueError(err)
@@ -169,14 +167,14 @@ class BaseRunner(ABC):
         assert strategy_cls is not None  # for type checker, it doesn't correctly resolve type narrowing here
 
         strategy_obj = strategy_cls(self.system, tr)
-        if isinstance(strategy_obj, Strategy):
+        if isinstance(strategy_obj, RunStrategy):
             logging.debug(f"Using {strategy_cls.__name__} for test {tr.name}")
         else:
             logging.debug(
                 f"{strategy_cls.__name__} does not implement Strategy protocol, "
                 f"using FallBackStrategy for test {tr.name}"
             )
-            strategy_obj = FallBackStrategy(self.system, tr, self._submit_test)
+            strategy_obj = FallbackRunStrategy(self.system, tr, self._submit_test)
 
         self.strat_map[hash(tr)] = strategy_obj
         return strategy_obj
