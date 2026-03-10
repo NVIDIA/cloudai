@@ -25,54 +25,59 @@ test_name = "nccl_base_test"
 num_nodes = 2
 time_limit = "00:10:00"
   [Tests.cmd_args]
-  subtest_name = "all_reduce_perf_mpi"
-
-[[Tests]]
-id = "Tests.all_gather"
-test_name = "nccl_test_all_gather"
-num_nodes = 2
-time_limit = "00:10:00"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.all_reduce"
-
-[[Tests]]
-id = "Tests.reduce_scatter"
-test_name = "nccl_base_test"
-num_nodes = 2
-time_limit = "00:10:00"
-  [Tests.cmd_args]
-  subtest_name = "reduce_scatter_perf_mpi"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.all_gather"
-
-[[Tests]]
-id = "Tests.alltoall"
-test_name = "nccl_base_test"
-num_nodes = 2
-time_limit = "00:10:00"
-  [Tests.cmd_args]
-  subtest_name = "alltoall_perf_mpi"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.reduce_scatter"
-
-[[Tests]]
-id = "nccl.scatter_perf"
-num_nodes = 2
-time_limit = "00:20:00"
-
-name = "nccl-scatter_perf"
-description = "scatter_perf"
-test_template_name = "NcclTest"
-
-  [Tests.cmd_args]
-  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
-  subtest_name = "scatter_perf_mpi"
-  ngpus = 1
   minbytes = "128"
   maxbytes = "512"
-  iters = 50
-  warmup_iters = 10
   stepfactor = 2
+  warmup_iters = 1
+  iters = 10
+  subtest_name = "all_reduce_perf_mpi"
+
+  # [[Tests]]
+  # id = "Tests.all_gather"
+  # test_name = "nccl_test_all_gather"
+  # num_nodes = 2
+  # time_limit = "00:10:00"
+  #   [[Tests.dependencies]]
+  #   type = "start_post_comp"
+  #   id = "Tests.all_reduce"
+
+  # [[Tests]]
+  # id = "Tests.reduce_scatter"
+  # test_name = "nccl_base_test"
+  # num_nodes = 2
+  # time_limit = "00:10:00"
+  #   [Tests.cmd_args]
+  #   subtest_name = "reduce_scatter_perf_mpi"
+  #   [[Tests.dependencies]]
+  #   type = "start_post_comp"
+  #   id = "Tests.all_gather"
+
+  # [[Tests]]
+  # id = "Tests.alltoall"
+  # test_name = "nccl_base_test"
+  # num_nodes = 2
+  # time_limit = "00:10:00"
+  #   [Tests.cmd_args]
+  #   subtest_name = "alltoall_perf_mpi"
+  #   [[Tests.dependencies]]
+  #   type = "start_post_comp"
+  #   id = "Tests.reduce_scatter"
+
+  # [[Tests]]
+  # id = "nccl.scatter_perf"
+  # num_nodes = 2
+  # time_limit = "00:20:00"
+
+  # name = "nccl-scatter_perf"
+  # description = "scatter_perf"
+  # test_template_name = "NcclTest"
+
+  #   [Tests.cmd_args]
+  #   docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+  #   subtest_name = "scatter_perf_mpi"
+  #   ngpus = 1
+  #   minbytes = "128"
+  #   maxbytes = "512"
+  #   iters = 50
+  #   warmup_iters = 10
+  #   stepfactor = 2

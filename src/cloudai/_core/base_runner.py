@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -142,19 +143,43 @@ class BaseRunner(ABC):
         if hash(tr) in self.strat_map:
             return self.strat_map[hash(tr)]
 
-        strategy_cls = Registry().get_json_gen_strategy(type(self.system), type(tr.test))
-        strat = strategy_cls(self.system, tr)
-        if isinstance(strat, Strategy):
+        cmd_gen, json_gen = None, None
+        with contextlib.suppress(KeyError):
+            cmd_gen = Registry().get_command_gen_strategy(type(self.system), type(tr.test))
+        with contextlib.suppress(KeyError):
+            json_gen = Registry().get_json_gen_strategy(type(self.system), type(tr.test))
+
+        if cmd_gen is None and json_gen is None:
+            err = (
+                f"No command or json gen strategy found for system {type(self.system).__name__} "
+                f"and test {type(tr.test).__name__}, using FallBackStrategy for test {tr.name}"
+            )
+            logging.error(err)
+            raise ValueError(err)
+        elif cmd_gen is not None and json_gen is not None:
+            err = (
+                f"Both command and json gen strategies found for system {type(self.system).__name__} "
+                f"and test {type(tr.test).__name__}, which is not supported. Please ensure only one strategy is "
+                f"registered for this combination. Using FallBackStrategy for test {tr.name}"
+            )
+            logging.error(err)
+            raise ValueError(err)
+
+        strategy_cls = cmd_gen if cmd_gen is not None else json_gen
+        assert strategy_cls is not None  # for type checker, it doesn't correctly resolve type narrowing here
+
+        strategy_obj = strategy_cls(self.system, tr)
+        if isinstance(strategy_obj, Strategy):
             logging.debug(f"Using {strategy_cls.__name__} for test {tr.name}")
         else:
             logging.debug(
                 f"{strategy_cls.__name__} does not implement Strategy protocol, "
                 f"using FallBackStrategy for test {tr.name}"
             )
-            strat = FallBackStrategy(self.system, tr, self._submit_test)
+            strategy_obj = FallBackStrategy(self.system, tr, self._submit_test)
 
-        self.strat_map[hash(tr)] = strat
-        return strat
+        self.strat_map[hash(tr)] = strategy_obj
+        return strategy_obj
 
     def submit_test(self, tr: TestRun):
         """
