@@ -84,8 +84,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("w") as f:
             f.write(f"{command}\n")
 
-    @staticmethod
-    def _build_custom_bash_env_exports(env: dict[str, str | list[str]]) -> list[str]:
+    def _build_custom_bash_env_exports(self) -> list[str]:
         """
         Build repeated -cb entries that export env vars inside the launched Slurm job shell.
 
@@ -93,7 +92,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         argument parsing on the submit node and are expanded/interpreted in the job shell.
         """
         exports: list[str] = []
-        for key, value in sorted(env.items()):
+        for key, value in sorted(self.final_env_vars.items()):
             exports.extend(["-cb", shlex.quote(f"export {key}={value}")])
         return exports
 
@@ -298,7 +297,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Pass extra env variables as `-cb export KEY=value` commands to avoid Megatron-Bridge's
         # --custom_env_vars parser limitation for comma-containing values.
         if self.final_env_vars:
-            parts.extend(self._build_custom_bash_env_exports(self.final_env_vars))
+            parts.extend(self._build_custom_bash_env_exports())
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)
