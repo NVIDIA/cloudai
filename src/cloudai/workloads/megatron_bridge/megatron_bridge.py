@@ -36,20 +36,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
-    custom_mounts: str | list[str] | None = Field(
-        default=None,
-        description=(
-            "Comma-separated or list of host_path:container_path mounts; merged with test-level extra_container_mounts "
-            "for -cm."
-        ),
-    )
-    custom_env_vars: dict[str, str | list[str]] | None = Field(
-        default=None,
-        description=(
-            "Optional env vars for the launcher; merged with test-level extra_env_vars (extra_env_vars first, then "
-            "custom_env_vars)."
-        ),
-    )
     enable_vboost: bool | None = Field(default=False)
     dryrun: bool | None = Field(default=False)
     enable_nsys: bool | None = Field(default=False)

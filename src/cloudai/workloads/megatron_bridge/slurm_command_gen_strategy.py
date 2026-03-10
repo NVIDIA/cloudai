@@ -84,15 +84,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("w") as f:
             f.write(f"{command}\n")
 
-    def _get_merged_env_vars(self, args: MegatronBridgeCmdArgs) -> dict[str, str]:
-        """Merge system.global_env_vars + test.extra_env_vars + optional cmd_args.custom_env_vars."""
-        merged: dict[str, str] = {k: str(v) for k, v in self.final_env_vars.items()}
-        custom_env_vars = getattr(args, "custom_env_vars", None)
-        if isinstance(custom_env_vars, dict) and custom_env_vars:
-            merged.update({k: str(v) for k, v in custom_env_vars.items()})
-        return merged
-
-    def _build_custom_bash_env_exports(self, env: dict[str, str]) -> list[str]:
+    @staticmethod
+    def _build_custom_bash_env_exports(env: dict[str, str | list[str]]) -> list[str]:
         """
         Build repeated -cb entries that export env vars inside the launched Slurm job shell.
 
@@ -233,15 +226,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 container_path = _installed_container_path()
 
-        # Merge cmd_args.custom_mounts with test-level extra_container_mounts; only pass -cm when non-empty.
-        # Never mount the Megatron-Bridge repo via -cm; the container uses its built-in copy.
-        mounts: list[str] = []
-        if args.custom_mounts is not None:
-            if isinstance(args.custom_mounts, str):
-                mounts.extend(m.strip() for m in args.custom_mounts.split(",") if m.strip())
-            else:
-                mounts.extend(str(m).strip() for m in args.custom_mounts if str(m).strip())
-        mounts.extend(tdef.extra_container_mounts or [])
+        # Use only test-level extra_container_mounts; never mount the Megatron-Bridge repo via -cm
+        # because the container uses its built-in copy.
+        mounts = [str(m).strip() for m in (tdef.extra_container_mounts or []) if str(m).strip()]
         mounts = [
             m
             for m in mounts
@@ -308,12 +295,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # Merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars.
-        # Pass them as `-cb export KEY=value` commands to avoid Megatron-Bridge's
+        # Pass extra env variables as `-cb export KEY=value` commands to avoid Megatron-Bridge's
         # --custom_env_vars parser limitation for comma-containing values.
-        merged_env = self._get_merged_env_vars(args)
-        if merged_env:
-            parts.extend(self._build_custom_bash_env_exports(merged_env))
+        if self.final_env_vars:
+            parts.extend(self._build_custom_bash_env_exports(self.final_env_vars))
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)

@@ -215,8 +215,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         tr = make_test_run()
         tdef = cast(MegatronBridgeTestDefinition, tr.test)
-        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        tdef.cmd_args.custom_env_vars = {"NCCL_DEBUG": "INFO"}
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"}
 
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
