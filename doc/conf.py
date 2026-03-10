@@ -17,6 +17,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import inspect
 import os
 import re
 import sys
@@ -37,6 +38,12 @@ def autodoc_skip_member(app, what, name, obj, skip, options):
     # Skip private methods starting with underscore (except __init__)
     if name.startswith("_") and name != "__init__":
         return True
+
+    # On the systems page, skip all methods and properties from pydantic models —
+    # only TOML-configurable fields are relevant. Pydantic fields bypass this hook entirely.
+    if what == "pydantic_model" and app.env.docname == "systems":
+        if inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (classmethod, staticmethod, property)):
+            return True
 
     return skip
 
