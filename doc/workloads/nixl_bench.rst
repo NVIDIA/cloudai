@@ -21,6 +21,7 @@ Test TOML example:
    initiator_seg_type = "VRAM"
    target_seg_type = "VRAM"
    op_type = "READ"
+   filepath = "/data"
 
 Test Scenario example:
 

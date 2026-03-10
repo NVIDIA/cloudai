@@ -89,6 +89,22 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
     def image_path(self) -> str | None:
         return self._current_image_url
 
+    def _container_mounts(self) -> list[str]:
+        mounts = []
+        if filepath_raw := self.test_run.test.cmd_args_dict.get("filepath"):
+            filepath = Path(f"{filepath_raw}")
+            if not filepath.is_absolute():
+                logging.warning(
+                    f"Provided {filepath=} is not absolute. Prepending '/' to make it absolute within the container."
+                )
+                filepath = "/" / filepath
+
+            local_dir = self.test_run.output_path / filepath.name
+            local_dir.mkdir(exist_ok=True)
+
+            mounts.append(f"{local_dir.absolute()}:{filepath}")
+        return mounts
+
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars

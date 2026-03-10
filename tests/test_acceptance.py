@@ -405,6 +405,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                         "docker_image_url": "url.com/docker:2",
                         "path_to_benchmark": "./nixlbench",
                         "backend": "UCX",
+                        "filepath": "/data",
                     }
                 ),
             ),
@@ -441,6 +442,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                         "backend": "UCX",
                         "kvbench_script": "path/to/kvbench_script.sh",
                         "python_executable": "path/to/python",
+                        "filepath": "/data",
                     }
                 ),
             ),
