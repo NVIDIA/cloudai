@@ -25,7 +25,7 @@ from .megatron_bridge import GOLDEN_VALUES_FILENAME
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
-    """Parse Megatron-Bridge logs for step time and GPU TFLOP/s per GPU."""
+    """Parse Megatron-Bridge JSON metrics file for step time and GPU TFLOP/s per GPU."""
 
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
@@ -123,8 +123,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     def get_metric(self, metric: str) -> float:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
             return METRIC_ERROR
-        log_file, step_times_s, gpu_tflops = self._get_extracted_data()
-        if not log_file:
+        metrics_file, step_times_s, gpu_tflops = self._get_extracted_data()
+        if not metrics_file:
             logging.error(
                 "No Megatron-Bridge launcher metrics file found in: %s",
                 self.test_run.output_path,
