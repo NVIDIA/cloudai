@@ -43,6 +43,8 @@ RunAI
 .. autopydantic_model:: cloudai.systems.runai.runai_system.RunAISystem
    :exclude-members: nodes
 
+.. autopydantic_model:: cloudai.systems.runai.runai_node.RunAINode
+
 .. _lsf-system:
 
 LSF

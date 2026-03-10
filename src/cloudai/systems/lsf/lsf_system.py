@@ -52,7 +52,9 @@ class LSFQueue(BaseModel):
 class LSFSystem(System):
     """Represents an LSF system."""
 
-    queues: List[LSFQueue] = Field(default_factory=list)
+    queues: List[LSFQueue] = Field(
+        default_factory=list, description="A list of queues in the LSF system, filled in automatically"
+    )
     account: Optional[str] = None
     scheduler: str = "lsf"
     project_name: Optional[str] = None
