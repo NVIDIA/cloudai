@@ -179,9 +179,11 @@ class TestGitRepoInstaller:
         repo_path = installer.system.install_path / git.repo_name
         repo_path.mkdir()
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(
-                args=[], returncode=0, stdout="deadbeef1234567890abcdef\n", stderr=""
-            )
+            mock_run.side_effect = [
+                CompletedProcess(args=[], returncode=0, stdout="deadbeef1234567890abcdef\n", stderr=""),
+                CompletedProcess(args=[], returncode=0, stdout="cafebabe1234567890abcdef\n", stderr=""),
+                CompletedProcess(args=[], returncode=0, stdout="main\n", stderr=""),
+            ]
             res = installer._verify_commit(git.commit, repo_path)
         assert not res.success
         assert "expected" in res.message
@@ -209,10 +211,26 @@ class TestGitRepoInstaller:
         actual = "a" * 40
         overlong = actual + "extragarbage"
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(args=[], returncode=0, stdout=f"{actual}\n", stderr="")
+            mock_run.side_effect = [
+                CompletedProcess(args=[], returncode=0, stdout=f"{actual}\n", stderr=""),
+                CompletedProcess(args=[], returncode=1, stdout="", stderr="unknown revision"),
+            ]
             res = installer._verify_commit(overlong, repo_path)
         assert not res.success
-        assert "expected" in res.message
+        assert "Failed to verify" in res.message
+
+    def test_verify_commit_branch_name_match(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        ref = "release-1.2"
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                CompletedProcess(args=[], returncode=0, stdout="deadbeef1234567890abcdef\n", stderr=""),
+                CompletedProcess(args=[], returncode=0, stdout="cafebabe1234567890abcdef\n", stderr=""),
+                CompletedProcess(args=[], returncode=0, stdout=f"{ref}\n", stderr=""),
+            ]
+            res = installer._verify_commit(ref, repo_path)
+        assert res.success
 
     def test_all_good_flow(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))

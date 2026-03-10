@@ -50,6 +50,10 @@ from cloudai.workloads.jax_toolbox import (
     GrokCmdArgs,
     GrokTestDefinition,
 )
+from cloudai.workloads.megatron_bridge import (
+    MegatronBridgeCmdArgs,
+    MegatronBridgeTestDefinition,
+)
 from cloudai.workloads.megatron_run import (
     MegatronRunCmdArgs,
     MegatronRunTestDefinition,
@@ -258,6 +262,7 @@ def build_special_test_run(
         "nemo-run-vboost",
         "slurm_container",
         "megatron-run",
+        "megatron-bridge",
         "triton-inference",
         "nixl_bench",
         "ai-dynamo",
@@ -508,6 +513,32 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=DeepEPCmdArgs(
                     docker_image_url="docker/image:url",
                 ),
+            ),
+        ),
+        "megatron-bridge": lambda: create_test_run(
+            partial_tr,
+            "megatron-bridge",
+            MegatronBridgeTestDefinition(
+                name="megatron-bridge",
+                description="Megatron-Bridge benchmark",
+                test_template_name="MegatronBridge",
+                cmd_args=MegatronBridgeCmdArgs(
+                    container_image=str(slurm_system.output_path / "megatron_bridge_image.sqsh"),
+                    hf_token="dummy_token",
+                    model_family_name="qwen3",
+                    model_recipe_name="30b_a3b",
+                    num_gpus=8,
+                    gpus_per_node=4,
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
+                extra_container_mounts=[],
+                git_repos=[
+                    GitRepo(
+                        url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                        commit="main",
+                        mount_as="/opt/Megatron-Bridge",
+                    )
+                ],
             ),
         ),
         "vllm": lambda: create_test_run(

@@ -20,27 +20,8 @@ jobs:
       - name: Install dependencies
         run: pip install '.[dev,docs]'
 
-      - name: Run ruff linter
-        run: ruff check
-
-      - name: Run ruff formatter
-        run: ruff format --check --diff
-
-      - name: Run pyright
-        run: pyright
-
-      - name: Run vulture check
-        run: vulture src/ tests/
-
-      - name: Import linter
-        run: PYTHONPATH=src lint-imports
-
-      - name: Check TOML formatting
-        run: |
-          set -eE
-          set -o pipefail
-
-          taplo fmt --check --diff
+      - name: Run linting via pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
 
       - name: Build documentation
         run: |

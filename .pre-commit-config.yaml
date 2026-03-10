@@ -1,0 +1,55 @@
+minimum_pre_commit_version: "3.7.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+        exclude: ^tests/ref_data/
+      - id: mixed-line-ending
+        exclude: ^tests/ref_data/
+      - id: trailing-whitespace
+        exclude: ^tests/ref_data/
+
+  # https://github.com/microsoft/pyright/blob/main/docs/ci-integration.md#running-pyright-as-a-pre-commit-hook
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.408
+    hooks:
+    - id: pyright
+      entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off pyright
+      language: system
+
+  # https://docs.astral.sh/ruff/integrations/#pre-commit
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+        language: system
+      - id: ruff-format
+        language: system
+
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        language: system
+
+  - repo: https://github.com/seddonym/import-linter/
+    rev: v2.11
+    hooks:
+      - id: import-linter
+
+  - repo: local
+    hooks:
+      # There's no officially supported pre-commit hook for taplo
+      - id: taplo-fmt
+        name: taplo
+        entry: taplo fmt --check --diff
+        language: system

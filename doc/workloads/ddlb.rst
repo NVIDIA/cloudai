@@ -74,4 +74,3 @@ Test Definition
 .. autoclass:: cloudai.workloads.ddlb.ddlb.DDLBTestDefinition
    :members:
    :show-inheritance:
-

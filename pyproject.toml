@@ -38,6 +38,7 @@ requires-python = ">=3.10"
 
   [project.optional-dependencies]
   dev = [
+    "pre-commit~=4.0",
     "ruff~=0.15",
     "pandas-stubs~=2.3",
     "pyright~=1.1",
@@ -156,6 +157,7 @@ root_package = "cloudai"
   source_modules = ["cloudai.util"]
 
 [tool.vulture]
+paths = ["src/", "tests/"]
 ignore_names = ["mock_datetime_now"]
 min_confidence = 100
 

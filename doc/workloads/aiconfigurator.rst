@@ -110,5 +110,3 @@ Report Generation Strategy
 .. autoclass:: cloudai.workloads.aiconfig.report_generation_strategy.AiconfiguratorReportGenerationStrategy
    :members:
    :show-inheritance:
-
-
