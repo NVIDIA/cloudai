@@ -31,6 +31,7 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
     uv run pre-commit install
     uv run pre-commit run --all-files
     ```
+
   - Whenever you create a new Python file under the cloudai directory, you must create a mirror of the file in the tests directory with the prefix `test_`. Otherwise, linting will fail.
 
 - **Signing Your Work:**
