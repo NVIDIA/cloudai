@@ -340,3 +340,12 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "-cm" not in wrapper_content
         assert "/opt/Megatron-Bridge" not in wrapper_content
+
+    def test_gpus_per_node_passed_as_additional_slurm_param(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(cmd_args_overrides={"gpus_per_node": 4}, output_subdir="out_gpus")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--additional_slurm_params" in wrapper_content
+        assert "gpus-per-node=4" in wrapper_content
