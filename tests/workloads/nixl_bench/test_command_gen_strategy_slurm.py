@@ -16,6 +16,7 @@
 
 from typing import cast
 
+import pydantic
 import pytest
 
 from cloudai.core import TestRun
@@ -25,11 +26,14 @@ from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlu
 
 
 @pytest.fixture
-def nixl_bench_tr() -> TestRun:
+def nixl_bench_tr(tmp_path) -> TestRun:
+    output_path = tmp_path / "nixl-bench"
+    output_path.mkdir(parents=True, exist_ok=True)
     return TestRun(
         name="nixl-bench",
         num_nodes=2,
         nodes=[],
+        output_path=output_path,
         test=NIXLBenchTestDefinition(
             cmd_args=NIXLBenchCmdArgs(
                 docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
@@ -64,6 +68,58 @@ class TestNIXLBenchCommand:
 
         for k, v in in_args.items():
             assert f"--{k}={v}" in cmd
+
+    def test_container_mounts(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/library/ubuntu:22.04",
+                "path_to_benchmark": "/nixlbench",
+                "backend": "GUSLI",
+                "device_list": "11:K:/dev/nvme0n1,12:F:/p1/store0.bin,13:F:/p2/store0.bin",
+                "total_buffer_size": "1kb",
+                "filepath": "/data",
+            }
+        )
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+        assert strategy.gen_nixlbench_command() == [
+            "/nixlbench",
+            "--filepath=/data",
+            "--total_buffer_size=1024",
+            "--device_list=11:K:/dev/nvme0n1,12:F:/p1/store0.bin,13:F:/p2/store0.bin",
+            f"--etcd-endpoints={nixl_bench_tr.test.cmd_args.etcd_endpoints}",
+            "--backend=GUSLI",
+        ]
+
+        assert strategy.container_mounts() == [
+            f"{nixl_bench_tr.output_path}:/cloudai_run_results",
+            f"{nixl_bench_tr.output_path.parent}/install:/cloudai_install",
+            f"{nixl_bench_tr.output_path}",
+            f"{nixl_bench_tr.output_path}/filepath_mount/data:/data",
+            f"{nixl_bench_tr.output_path}/device_list_mounts/store0.bin:/p1/store0.bin",
+            f"{nixl_bench_tr.output_path}/device_list_mounts/store0_1.bin:/p2/store0.bin",
+        ]
+
+        assert (nixl_bench_tr.output_path / "filepath_mount" / "data").is_dir()
+
+        for local_device_filename in ("store0.bin", "store0_1.bin"):
+            assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).is_file()
+            assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
+
+    def test_device_list_validation(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        args = {
+            "docker_image_url": "docker.io/library/ubuntu:22.04",
+            "path_to_benchmark": "/p",
+            "backend": "GUSLI",
+            "device_list": "11:K:/store0.bin",
+        }
+        NIXLBenchCmdArgs.model_validate(args)
+
+        args["device_list"] = "11:F:/store0.bin"
+        with pytest.raises(pydantic.ValidationError, match="total_buffer_size"):
+            NIXLBenchCmdArgs.model_validate(args)
+
+        args["total_buffer_size"] = "8gb"
+        NIXLBenchCmdArgs.model_validate(args)
 
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):

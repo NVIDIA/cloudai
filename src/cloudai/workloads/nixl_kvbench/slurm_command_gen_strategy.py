@@ -63,8 +63,6 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         for k, v in self.test_run.test.cmd_args_dict.items():
             if v is None:
                 continue
-            if k == "filepath":
-                continue
 
             key = "model_config" if k == "model_cfg" else k
 
