@@ -78,7 +78,7 @@ class NIXLExtendedCmdArgs(BaseModel):
         if not v:
             return None
 
-        multipliers: dict[str, int] = {"b": 1, "kb": 2**10, "mb": 2**20, "gb": 2**30}
+        multipliers: dict[str, int] = {"": 1, "b": 1, "kb": 2**10, "mb": 2**20, "gb": 2**30}
 
         match = re.fullmatch(BUFFER_SIZE_FORMAT, v)
         if match is None:

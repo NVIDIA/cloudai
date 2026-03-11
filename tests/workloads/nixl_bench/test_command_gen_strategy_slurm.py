@@ -121,6 +121,9 @@ class TestNIXLBenchCommand:
         args["total_buffer_size"] = "8gb"
         NIXLBenchCmdArgs.model_validate(args)
 
+        args["total_buffer_size"] = "1024"
+        NIXLBenchCmdArgs.model_validate(args)
+
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
