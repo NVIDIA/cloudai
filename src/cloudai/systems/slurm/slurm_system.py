@@ -744,12 +744,20 @@ class SlurmSystem(System):
 
         Returns:
             Tuple[int, list[str]]: The number of nodes and a list of node names.
+
+        Raises:
+            ValueError: If node specifications were provided but resolved to an empty list after applying exclusions.
         """
         num_nodes, node_list = num_nodes, []
         parsed_nodes = self.parse_nodes(nodes, exclude_nodes=exclude_nodes)
         if parsed_nodes:
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
+        elif nodes:
+            raise ValueError(
+                f"Node specifications {nodes} resolved to an empty node list after applying "
+                f"exclude_nodes={exclude_nodes}. Cannot fall back to unconstrained allocation."
+            )
         return num_nodes, sorted(node_list)
 
     def system_installables(self) -> list[Installable]:

@@ -424,6 +424,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         content.append(f"#SBATCH -N {num_nodes}")
 
+        if self.test_run.exclude_nodes:
+            content.append(f"#SBATCH --exclude={self.test_run.exclude_nodes}")
+
         return None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
