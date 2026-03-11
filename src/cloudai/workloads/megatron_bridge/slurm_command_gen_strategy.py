@@ -409,6 +409,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if node_list:
             nodelist_str = ",".join(node_list)
             additional_slurm_params.append(f"nodelist={nodelist_str}")
+        elif self.test_run.exclude_nodes:
+            additional_slurm_params.append(f"exclude={self.test_run.exclude_nodes}")
 
         if additional_slurm_params:
             parts.extend(["--additional_slurm_params", shlex.quote(" ".join(additional_slurm_params))])
