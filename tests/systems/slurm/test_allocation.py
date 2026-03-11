@@ -120,17 +120,15 @@ class TestGroupAllocation:
         self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
     ):
         """Excluding a node from a group should still yield the requested count from the remaining pool."""
-        system, all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
+        system, _all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
         nnodes, nodes_list = system.get_nodes_by_spec(1, ["main:group1:4"], exclude_nodes={"node03"})
         assert nnodes == 4
         assert "node03" not in nodes_list
         assert len(nodes_list) == 4
 
-    def test_exclude_multiple_nodes_from_group(
-        self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_exclude_multiple_nodes_from_group(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
         """Excluding multiple nodes still selects the requested count from remaining nodes."""
-        system, all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
+        system, _all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
         nnodes, nodes_list = system.get_nodes_by_spec(1, ["main:group1:3"], exclude_nodes={"node01", "node05"})
         assert nnodes == 3
         assert "node01" not in nodes_list
