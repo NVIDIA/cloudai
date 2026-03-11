@@ -52,9 +52,9 @@ Step 2: Prepare Configuration Files
 
 CloudAI is fully configurable via a set of TOML configuration files. You can find examples of these files under ``conf/common``. In this guide, we will use the following configuration files:
 
-#. ``myconfig/system.toml`` - Describes the system configuration.
-#. ``myconfig/tests/nccl_test.toml`` - Describes the test to run.
-#. ``myconfig/scenario.toml`` - Describes the test scenario configuration.
+#. ``CONFIGS_DIR/system.toml`` - Describes the system configuration.
+#. ``CONFIGS_DIR/tests/nccl_test.toml`` - Describes the test to run.
+#. ``CONFIGS_DIR/scenario.toml`` - Describes the test scenario configuration.
 
 Step 3: Test Definition
 -----------------------
@@ -98,7 +98,7 @@ Relevant Test Configs should specify ``test_template_name = MyTest`` to use the 
 Step 4: System Configuration
 ----------------------------
 
-System configuration describes the system configuration. You can find more examples of system configs under ``conf/common/system/``. Our example will be small for demonstration purposes. Below is the ``myconfig/system.toml`` file:
+System configuration describes the system configuration. You can find more examples of system configs under ``conf/common/system/``. Our example will be small for demonstration purposes. Below is the ``CONFIGS_DIR/system.toml`` file:
 
 .. code-block:: toml
 
@@ -122,7 +122,7 @@ Replace ``<YOUR PARTITION NAME>`` with the name of the partition you want to use
 Step 5: Test Configuration
 --------------------------
 
-Test configuration describes a particular test configuration to be run. It is based on test definition and will be used in a test scenario. Below is the ``myconfig/tests/nccl_test.toml`` file, definition is based on the built-in ``NcclTest`` definition:
+Test configuration describes a particular test configuration to be run. It is based on test definition and will be used in a test scenario. Below is the ``CONFIGS_DIR/tests/nccl_test.toml`` file, definition is based on the built-in ``NcclTest`` definition:
 
 .. code-block:: toml
 
@@ -144,7 +144,7 @@ You can find more examples under ``conf/common/test``. In a test schema file, yo
 Step 6: Run Experiments
 -----------------------
 
-Test Scenario uses test description from Step 5. Below is the ``myconfig/scenario.toml`` file:
+Test Scenario uses test description from Step 5. Below is the ``CONFIGS_DIR/scenario.toml`` file:
 
 .. code-block:: toml
 
@@ -183,18 +183,18 @@ To generate NCCL test commands without actual execution, use the ``dry-run`` mod
 .. code-block:: bash
 
    cloudai dry-run \
-       --test-scenario myconfig/scenario.toml \
-       --system-config myconfig/system.toml \
-       --tests-dir myconfig/tests/
+       --test-scenario CONFIGS_DIR/scenario.toml \
+       --system-config CONFIGS_DIR/system.toml \
+       --tests-dir CONFIGS_DIR/tests/
 
 You can run NCCL test experiments with the following command. Whenever you run CloudAI in the ``run`` mode, a new directory will be created under the results directory with the timestamp. In the directory, you can find the results from the test scenario including stdout and stderr. Once completed successfully, you can find generated reports under the directories as well.
 
 .. code-block:: bash
 
    cloudai run \
-       --test-scenario myconfig/scenario.toml \
-       --system-config myconfig/system.toml \
-       --tests-dir myconfig/tests/
+       --test-scenario CONFIGS_DIR/scenario.toml \
+       --system-config CONFIGS_DIR/system.toml \
+       --tests-dir CONFIGS_DIR/tests/
 
 Test-in-Scenario
 ----------------
@@ -246,9 +246,9 @@ Once the test scenario is completed, you can generate reports using the followin
 .. code-block:: bash
 
    cloudai generate-report \
-      --test-scenario myconfig/scenario.toml \
-      --system-config myconfig/system.toml \
-      --tests-dir myconfig/tests/ \
+      --test-scenario CONFIGS_DIR/scenario.toml \
+      --system-config CONFIGS_DIR/system.toml \
+      --tests-dir CONFIGS_DIR/tests/ \
       --result-dir results/2024-06-18_17-40-13/
 
 ``--result-dir`` accepts one scenario run result directory.
