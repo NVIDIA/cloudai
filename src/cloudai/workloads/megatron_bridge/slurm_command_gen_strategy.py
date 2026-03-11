@@ -225,14 +225,15 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 container_path = _installed_container_path()
 
-        # Use only test-level extra_container_mounts; never mount the Megatron-Bridge repo via -cm
-        # because the container uses its built-in copy.
-        mounts = [str(m).strip() for m in (tdef.extra_container_mounts or []) if str(m).strip()]
-        mounts = [
-            m
-            for m in mounts
-            if "/opt/Megatron-Bridge" not in m and "Megatron-Bridge" not in m.split(":")[0].split("/")[-1]
-        ]
+        mounts: list[str] = []
+        mounts.extend(tdef.extra_container_mounts or [])
+
+        # When the user sets mount_as on the Megatron-Bridge git repo, bind-mount the
+        # installed clone into the container to override the image's built-in copy.
+        mb_repo = tdef.megatron_bridge_repo
+        if mb_repo.mount_as:
+            mb_host = mb_repo.installed_path.absolute() if mb_repo.installed_path else repo_path
+            mounts.append(f"{mb_host}:{mb_repo.mount_as}")
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
         python_bin = (venv_path / "bin" / "python").absolute()
