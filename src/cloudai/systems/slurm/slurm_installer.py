@@ -225,6 +225,13 @@ class SlurmInstaller(BaseInstaller):
                 rmtree(repo_path)
             return res
 
+        res = self._init_submodules(repo_path)
+        if not res.success:
+            logging.error(f"Submodule init failed, removing cloned repository at {repo_path}")
+            if repo_path.exists():
+                rmtree(repo_path)
+            return res
+
         item.installed_path = repo_path
         return InstallStatusResult(True)
 
@@ -288,6 +295,14 @@ class SlurmInstaller(BaseInstaller):
         result = subprocess.run(checkout_cmd, cwd=str(path), capture_output=True, text=True)
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _init_submodules(self, path: Path) -> InstallStatusResult:
+        logging.debug(f"Initializing submodules in {path}")
+        submodule_cmd = ["git", "submodule", "update", "--init", "--recursive"]
+        result = subprocess.run(submodule_cmd, cwd=str(path), capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to initialize submodules: {result.stderr}")
         return InstallStatusResult(True)
 
     def _verify_commit(self, ref: str, path: Path) -> InstallStatusResult:
