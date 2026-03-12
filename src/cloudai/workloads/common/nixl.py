@@ -374,7 +374,7 @@ def extract_nixlbench_data(stdout_file: Path) -> pd.DataFrame:
 
 def get_files_from_device_list(device_list: str) -> list[Path]:
     """
-    Filter device_list into files and return list of (device_id, file_path).
+    Filter device_list into files and return their container paths.
 
     Expects validated device_list here
     """
