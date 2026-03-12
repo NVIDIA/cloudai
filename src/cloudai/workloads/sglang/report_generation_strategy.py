@@ -24,7 +24,7 @@ from rich.table import Table
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 
-from .sglang import SGLANG_BENCH_JSONL_FILE, parse_sglang_bench_jsonl, SglangTestDefinition
+from .sglang import SGLANG_BENCH_JSONL_FILE, SglangTestDefinition, parse_sglang_bench_jsonl
 from .slurm_command_gen_strategy import sglang_all_gpu_ids
 
 
@@ -59,21 +59,15 @@ def parse_sglang_bench_output(jsonl_file: Path, default_concurrency: int) -> SGL
     if summary is None:
         return None
 
-    successful_requests = summary.completed
-    request_throughput = summary.request_throughput
-    max_concurrency = summary.max_concurrency or default_concurrency
-    mean_ttft_ms = summary.mean_ttft_ms
-    mean_tpot_ms = summary.mean_tpot_ms
-
-    if successful_requests is None or successful_requests <= 0 or request_throughput is None:
+    if summary.completed is None or summary.completed <= 0 or summary.request_throughput is None:
         return None
 
     return SGLangBenchReport(
-        successful_requests=successful_requests,
-        request_throughput=request_throughput,
-        max_concurrency=max_concurrency,
-        mean_ttft_ms=mean_ttft_ms,
-        mean_tpot_ms=mean_tpot_ms,
+        successful_requests=summary.completed,
+        request_throughput=summary.request_throughput,
+        max_concurrency=summary.max_concurrency or default_concurrency,
+        mean_ttft_ms=summary.mean_ttft_ms,
+        mean_tpot_ms=summary.mean_tpot_ms,
     )
 
 

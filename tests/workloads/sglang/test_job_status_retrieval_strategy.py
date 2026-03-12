@@ -53,6 +53,5 @@ class TestSglangSuccessCheck:
 
         assert not result.is_successful
         assert (
-            result.error_message
-            == f"SGLang bench jsonl does not contain successful requests in {base_tr.output_path}."
+            result.error_message == f"SGLang bench jsonl does not contain successful requests in {base_tr.output_path}."
         )
