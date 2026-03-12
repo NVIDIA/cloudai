@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from pathlib import Path
+
+import pytest
+
+from cloudai import TestRun
+from cloudai.core import METRIC_ERROR
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.sglang import (
+    SGLangBenchReportGenerationStrategy,
+    SglangCmdArgs,
+    SglangTestDefinition,
+)
+from cloudai.workloads.sglang.sglang import SGLANG_BENCH_LOG_FILE
+
+
+@pytest.fixture
+def sglang_tr(tmp_path: Path) -> TestRun:
+    tdef = SglangTestDefinition(
+        name="sglang_test",
+        description="SGLang benchmark",
+        test_template_name="sglang",
+        cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
+    )
+    tr = TestRun(name="sglang", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    (tr.output_path / SGLANG_BENCH_LOG_FILE).write_text(
+        """
+Successful requests: 30
+Request throughput (req/s): 2400.0
+Max concurrency: 16
+Mean TTFT (ms): 120.0
+Mean TPOT (ms): 12.0
+""",
+        encoding="utf-8",
+    )
+    return tr
+
+
+def test_sglang_can_handle_directory(slurm_system: SlurmSystem, sglang_tr: TestRun) -> None:
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
+    assert strategy.can_handle_directory() is True
+
+
+@pytest.mark.parametrize(
+    "metric,expected",
+    [
+        ("default", 2400.0),
+        ("throughput", 2400.0),
+        ("tps-per-user", 150.0),
+        ("tps-per-gpu", 300.0),
+    ],
+)
+def test_sglang_metrics(slurm_system: SlurmSystem, sglang_tr: TestRun, metric: str, expected: float) -> None:
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
+    assert strategy.get_metric(metric) == expected
+
+
+@pytest.mark.parametrize("metric", ["tps_per_user", "tps_per_gpu", "bw", "nonexistent"])
+def test_sglang_invalid_metric_returns_error(slurm_system: SlurmSystem, sglang_tr: TestRun, metric: str) -> None:
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
+    assert strategy.get_metric(metric) == METRIC_ERROR
+
+
+def test_sglang_tps_per_gpu(slurm_system: SlurmSystem, sglang_tr: TestRun) -> None:
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
+    strategy.used_gpus_count = lambda: 4
+
+    metric = strategy.get_metric("tps-per-gpu")
+
+    assert metric == 600.0

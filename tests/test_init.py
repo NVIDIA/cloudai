@@ -83,6 +83,7 @@ from cloudai.workloads.osu_bench import (
     OSUBenchSlurmCommandGenStrategy,
     OSUBenchTestDefinition,
 )
+from cloudai.workloads.sglang import SglangSlurmCommandGenStrategy, SglangTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -149,6 +150,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
     (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
+    (SlurmSystem, SglangTestDefinition): SglangSlurmCommandGenStrategy,
     (SlurmSystem, VllmTestDefinition): VllmSlurmCommandGenStrategy,
 }
 JSON_GEN_STRATEGIES = {
@@ -223,7 +225,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 23
+    assert len(test_defs) == 24
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -247,6 +249,7 @@ def test_definitions():
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
         ("OSUBench", OSUBenchTestDefinition),
+        ("sglang", SglangTestDefinition),
         ("vllm", VllmTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]

@@ -72,6 +72,7 @@ from cloudai.workloads.nemo_run import (
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NIXLKVBenchDummyReport, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import OSUBenchReportGenerationStrategy, OSUBenchTestDefinition
+from cloudai.workloads.sglang import SGLangBenchReportGenerationStrategy, SglangTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
@@ -622,7 +623,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 18
+        assert len(Registry().reports_map) == 19
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -644,6 +645,7 @@ class TestReporters:
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
             (OSUBenchTestDefinition, {OSUBenchReportGenerationStrategy}),
+            (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),

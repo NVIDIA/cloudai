@@ -142,6 +142,11 @@ def register_all():
         OSUBenchSlurmCommandGenStrategy,
         OSUBenchTestDefinition,
     )
+    from cloudai.workloads.sglang import (
+        SGLangBenchReportGenerationStrategy,
+        SglangSlurmCommandGenStrategy,
+        SglangTestDefinition,
+    )
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -224,6 +229,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, OSUBenchTestDefinition, OSUBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, SglangTestDefinition, SglangSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, VllmTestDefinition, VllmSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
@@ -260,6 +266,7 @@ def register_all():
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
     Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
+    Registry().add_test_definition("sglang", SglangTestDefinition)
     Registry().add_test_definition("vllm", VllmTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
@@ -283,6 +290,7 @@ def register_all():
     Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
     Registry().add_report(OSUBenchTestDefinition, OSUBenchReportGenerationStrategy)
+    Registry().add_report(SglangTestDefinition, SGLangBenchReportGenerationStrategy)
     Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
