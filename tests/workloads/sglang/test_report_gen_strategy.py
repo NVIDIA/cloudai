@@ -43,11 +43,16 @@ def sglang_tr(tmp_path: Path) -> TestRun:
     (tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
         json.dumps(
             {
+                "num_prompts": 30,
                 "completed": 30,
                 "request_throughput": 2400.0,
                 "max_concurrency": 16,
                 "mean_ttft_ms": 120.0,
+                "median_ttft_ms": 100.0,
+                "p99_ttft_ms": 200.0,
                 "mean_tpot_ms": 12.0,
+                "median_tpot_ms": 10.0,
+                "p99_tpot_ms": 20.0,
             }
         )
         + "\n",

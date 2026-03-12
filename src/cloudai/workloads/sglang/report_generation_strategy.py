@@ -14,28 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from functools import cache
 from pathlib import Path
 from typing import ClassVar, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 
-from .sglang import SGLANG_BENCH_JSONL_FILE, SglangTestDefinition, parse_sglang_bench_jsonl
+from .sglang import SGLANG_BENCH_JSONL_FILE, SglangTestDefinition
 from .slurm_command_gen_strategy import sglang_all_gpu_ids
 
 
 class SGLangBenchReport(BaseModel):
     """Parsed benchmark data from SGLang bench_serving output."""
 
-    successful_requests: int
+    model_config = ConfigDict(extra="ignore")
+
+    num_prompts: int
+    completed: int
     request_throughput: float
     max_concurrency: int
-    mean_ttft_ms: float | None = None
-    mean_tpot_ms: float | None = None
+    mean_ttft_ms: float
+    median_ttft_ms: float
+    p99_ttft_ms: float
+    mean_tpot_ms: float
+    median_tpot_ms: float
+    p99_tpot_ms: float
 
     @property
     def throughput(self) -> float:
@@ -53,22 +61,19 @@ class SGLangBenchReport(BaseModel):
 
 
 @cache
-def parse_sglang_bench_output(jsonl_file: Path, default_concurrency: int) -> SGLangBenchReport | None:
+def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
     """Parse SGLang benchmark output from JSONL file."""
-    summary = parse_sglang_bench_jsonl(jsonl_file)
-    if summary is None:
+    if not jsonl_file.is_file():
         return None
 
-    if summary.completed is None or summary.completed <= 0 or summary.request_throughput is None:
-        return None
+    for line in jsonl_file.open("r", encoding="utf-8", errors="ignore"):
+        try:
+            return SGLangBenchReport.model_validate_json(line)
+        except Exception as e:
+            logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
+            continue
 
-    return SGLangBenchReport(
-        successful_requests=summary.completed,
-        request_throughput=summary.request_throughput,
-        max_concurrency=summary.max_concurrency or default_concurrency,
-        mean_ttft_ms=summary.mean_ttft_ms,
-        mean_tpot_ms=summary.mean_tpot_ms,
-    )
+    return None
 
 
 class SGLangBenchReportGenerationStrategy(ReportGenerationStrategy):
@@ -81,15 +86,8 @@ class SGLangBenchReportGenerationStrategy(ReportGenerationStrategy):
         "tps-per-gpu",
     ]
 
-    def _parse(self) -> SGLangBenchReport | None:
-        tdef = cast(SglangTestDefinition, self.test_run.test)
-        return parse_sglang_bench_output(
-            self.test_run.output_path / SGLANG_BENCH_JSONL_FILE,
-            default_concurrency=tdef.bench_cmd_args.max_concurrency,
-        )
-
     def can_handle_directory(self) -> bool:
-        return self._parse() is not None
+        return parse_sglang_bench_output(self.test_run.output_path / SGLANG_BENCH_JSONL_FILE) is not None
 
     def used_gpus_count(self) -> int:
         return len(
@@ -102,7 +100,7 @@ class SGLangBenchReportGenerationStrategy(ReportGenerationStrategy):
         if metric not in self.metrics:
             return METRIC_ERROR
 
-        results = self._parse()
+        results = parse_sglang_bench_output(self.test_run.output_path / SGLANG_BENCH_JSONL_FILE)
         if results is None:
             return METRIC_ERROR
 
@@ -115,23 +113,27 @@ class SGLangBenchReportGenerationStrategy(ReportGenerationStrategy):
         return results.throughput
 
     def generate_report(self) -> None:
-        results = self._parse()
+        results = parse_sglang_bench_output(self.test_run.output_path / SGLANG_BENCH_JSONL_FILE)
         if results is None:
             return
 
         console = Console()
         table = Table(title=f"SGLang Benchmark Results ({self.test_run.output_path})", title_justify="left")
-        table.add_column("Successful requests", justify="right")
-        table.add_column("Request throughput (req/s)", justify="right")
-        table.add_column("Concurrency", justify="right")
-        table.add_column("Mean TTFT (ms)", justify="right")
-        table.add_column("Mean TPOT (ms)", justify="right")
+        table.add_column("Successful prompts", justify="right")
+        table.add_column("TTFT Mean, ms", justify="right")
+        table.add_column("TTFT Median, ms", justify="right")
+        table.add_column("TTFT P99, ms", justify="right")
+        table.add_column("TPOT Mean, ms", justify="right")
+        table.add_column("TPOT Median, ms", justify="right")
+        table.add_column("TPOT P99, ms", justify="right")
 
         table.add_row(
-            str(results.successful_requests),
-            f"{results.request_throughput:.4f}",
-            str(results.max_concurrency),
-            f"{results.mean_ttft_ms:.4f}" if results.mean_ttft_ms is not None else "-",
-            f"{results.mean_tpot_ms:.4f}" if results.mean_tpot_ms is not None else "-",
+            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
+            f"{results.mean_ttft_ms:.4f}",
+            f"{results.median_ttft_ms:.4f}",
+            f"{results.p99_ttft_ms:.4f}",
+            f"{results.mean_tpot_ms:.4f}",
+            f"{results.median_tpot_ms:.4f}",
+            f"{results.p99_tpot_ms:.4f}",
         )
         console.print(table)

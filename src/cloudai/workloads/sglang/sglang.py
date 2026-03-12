@@ -18,9 +18,8 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from cloudai.core import DockerImage, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -137,45 +136,24 @@ class SglangTestDefinition(TestDefinition):
                 is_successful=False, error_message=f"SGLang bench jsonl not found in {tr.output_path}."
             )
 
-        record = parse_sglang_bench_jsonl(jsonl_path)
-        if record is not None and record.completed > 0:
+        completed_requests: int | None = None
+        with jsonl_path.open("r", encoding="utf-8", errors="ignore") as file:
+            lines = file.readlines()
+
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+                completed_requests = int(record.get("completed"))
+                break
+            except Exception as e:
+                logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
+
+        if completed_requests is not None and completed_requests > 0:
             return JobStatusResult(is_successful=True)
 
         return JobStatusResult(
             is_successful=False,
             error_message=f"SGLang bench jsonl does not contain successful requests in {tr.output_path}.",
         )
-
-
-class SGLangBenchResult(BaseModel):
-    """Single benchmark result record from sglang-bench.jsonl."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    completed: int
-    request_throughput: float | None = None
-    max_concurrency: int | None = None
-    mean_ttft_ms: float | None = None
-    mean_tpot_ms: float | None = None
-
-
-def parse_sglang_bench_jsonl(jsonl_path: Path) -> SGLangBenchResult | None:
-    """Parse the latest JSON object from sglang-bench.jsonl using a typed model."""
-    if not jsonl_path.is_file():
-        return None
-
-    try:
-        lines = jsonl_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-    except Exception as e:
-        logging.debug(f"Error reading SGLang benchmark jsonl: {e}")
-        return None
-
-    for line in reversed(lines):
-        if not line.strip():
-            continue
-        try:
-            return SGLangBenchResult.model_validate(json.loads(line))
-        except Exception as e:
-            logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
-
-    return None

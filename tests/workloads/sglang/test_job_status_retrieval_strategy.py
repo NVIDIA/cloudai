@@ -37,7 +37,22 @@ class TestSglangSuccessCheck:
     def test_successful_job(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         log_file = base_tr.output_path / SGLANG_BENCH_JSONL_FILE
-        log_file.write_text(json.dumps({"completed": 3}) + "\n")
+        log_file.write_text(
+            json.dumps(
+                {
+                    "completed": 3,
+                    "request_throughput": 1.0,
+                    "max_concurrency": 16,
+                    "mean_ttft_ms": 1.0,
+                    "median_ttft_ms": 1.0,
+                    "p99_ttft_ms": 1.0,
+                    "mean_tpot_ms": 1.0,
+                    "median_tpot_ms": 1.0,
+                    "p99_tpot_ms": 1.0,
+                }
+            )
+            + "\n"
+        )
 
         result = self.sglang_tdef.was_run_successful(base_tr)
 
@@ -47,7 +62,22 @@ class TestSglangSuccessCheck:
     def test_failed_job_no_successful_requests(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         log_file = base_tr.output_path / SGLANG_BENCH_JSONL_FILE
-        log_file.write_text(json.dumps({"completed": 0}) + "\n")
+        log_file.write_text(
+            json.dumps(
+                {
+                    "completed": 0,
+                    "request_throughput": 0.0,
+                    "max_concurrency": 16,
+                    "mean_ttft_ms": 1.0,
+                    "median_ttft_ms": 1.0,
+                    "p99_ttft_ms": 1.0,
+                    "mean_tpot_ms": 1.0,
+                    "median_tpot_ms": 1.0,
+                    "p99_tpot_ms": 1.0,
+                }
+            )
+            + "\n"
+        )
 
         result = self.sglang_tdef.was_run_successful(base_tr)
 
