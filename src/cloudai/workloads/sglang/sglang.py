@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from functools import cache
-from zipfile import Path
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
