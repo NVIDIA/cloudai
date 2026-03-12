@@ -19,7 +19,7 @@ from functools import cache
 from pathlib import Path
 from typing import ClassVar, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from rich.console import Console
 from rich.table import Table
 
@@ -59,6 +59,16 @@ class SGLangBenchReport(BaseModel):
             return None
         return self.throughput / self.concurrency
 
+    @model_validator(mode="before")
+    @classmethod
+    def derive_num_prompts(cls, data):
+        if isinstance(data, dict) and "num_prompts" not in data:
+            input_lens = data.get("input_lens")
+            if isinstance(input_lens, list):
+                data = dict(data)
+                data["num_prompts"] = len(input_lens)
+        return data
+
 
 @cache
 def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
@@ -66,7 +76,7 @@ def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
     if not jsonl_file.is_file():
         return None
 
-    for line in jsonl_file.open("r", encoding="utf-8", errors="ignore"):
+    for line in jsonl_file.open(encoding="utf-8", errors="ignore"):
         try:
             return SGLangBenchReport.model_validate_json(line)
         except Exception as e:

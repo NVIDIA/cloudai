@@ -93,3 +93,36 @@ def test_sglang_tps_per_gpu(slurm_system: SlurmSystem, sglang_tr: TestRun) -> No
     metric = strategy.get_metric("tps-per-gpu")
 
     assert metric == 600.0
+
+
+def test_sglang_parses_num_prompts_from_input_lens(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+    tdef = SglangTestDefinition(
+        name="sglang_test_missing_num_prompts",
+        description="SGLang benchmark",
+        test_template_name="sglang",
+        cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
+    )
+    tr = TestRun(name="sglang", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    (tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
+        json.dumps(
+            {
+                "completed": 30,
+                "request_throughput": 2400.0,
+                "max_concurrency": 16,
+                "mean_ttft_ms": 120.0,
+                "median_ttft_ms": 100.0,
+                "p99_ttft_ms": 200.0,
+                "mean_tpot_ms": 12.0,
+                "median_tpot_ms": 10.0,
+                "p99_tpot_ms": 20.0,
+                "input_lens": [16] * 30,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, tr)
+    assert strategy.can_handle_directory() is True
+    assert strategy.get_metric("throughput") == 2400.0
