@@ -76,9 +76,18 @@ def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
     if not jsonl_file.is_file():
         return None
 
-    for line in jsonl_file.open(encoding="utf-8", errors="ignore"):
+    try:
+        lines = jsonl_file.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception as e:
+        logging.debug(f"Error reading SGLang benchmark jsonl: {e}")
+        return None
+
+    for line in reversed(lines):
         try:
-            return SGLangBenchReport.model_validate_json(line)
+            parsed = SGLangBenchReport.model_validate_json(line)
+            if parsed.completed <= 0:
+                return None
+            return parsed
         except Exception as e:
             logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
             continue
