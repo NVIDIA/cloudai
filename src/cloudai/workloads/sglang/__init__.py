@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import SGLangBenchReport, SGLangBenchReportGenerationStrategy
+from .report_generation_strategy import SGLangBenchReportGenerationStrategy
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
     SGLANG_BENCH_LOG_FILE,
     SglangArgs,
     SglangBenchCmdArgs,
+    SGLangBenchReport,
     SglangCmdArgs,
     SglangTestDefinition,
 )

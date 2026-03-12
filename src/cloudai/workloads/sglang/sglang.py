@@ -16,10 +16,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
+from functools import cache
+from zipfile import Path
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cloudai.core import DockerImage, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -130,30 +131,72 @@ class SglangTestDefinition(TestDefinition):
         return self
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        jsonl_path = tr.output_path / SGLANG_BENCH_JSONL_FILE
-        if not jsonl_path.is_file():
-            return JobStatusResult(
-                is_successful=False, error_message=f"SGLang bench jsonl not found in {tr.output_path}."
-            )
-
-        completed_requests: int | None = None
-        with jsonl_path.open("r", encoding="utf-8", errors="ignore") as file:
-            lines = file.readlines()
-
-        for line in reversed(lines):
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-                completed_requests = int(record.get("completed"))
-                break
-            except Exception as e:
-                logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
-
-        if completed_requests is not None and completed_requests > 0:
+        res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
+        if res and res.completed > 0:
             return JobStatusResult(is_successful=True)
 
         return JobStatusResult(
             is_successful=False,
             error_message=f"SGLang bench jsonl does not contain successful requests in {tr.output_path}.",
         )
+
+
+class SGLangBenchReport(BaseModel):
+    """Parsed benchmark data from SGLang bench_serving output."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    num_prompts: int
+    completed: int
+    request_throughput: float
+    max_concurrency: int
+    mean_ttft_ms: float
+    median_ttft_ms: float
+    p99_ttft_ms: float
+    mean_tpot_ms: float
+    median_tpot_ms: float
+    p99_tpot_ms: float
+
+    @property
+    def throughput(self) -> float:
+        return self.request_throughput
+
+    @property
+    def concurrency(self) -> int:
+        return self.max_concurrency
+
+    @property
+    def tps_per_user(self) -> float | None:
+        if self.concurrency <= 0:
+            return None
+        return self.throughput / self.concurrency
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_num_prompts(cls, data):
+        if isinstance(data, dict) and "num_prompts" not in data:
+            input_lens = data.get("input_lens")
+            if isinstance(input_lens, list):
+                data = dict(data)
+                data["num_prompts"] = len(input_lens)
+        return data
+
+
+@cache
+def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
+    """Parse SGLang benchmark output from JSONL file."""
+    if not jsonl_file.is_file():
+        return None
+
+    with jsonl_file.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            try:
+                parsed = SGLangBenchReport.model_validate_json(line)
+                if parsed.completed <= 0:
+                    return None
+                return parsed
+            except Exception as e:
+                logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
+                continue
+
+    return None
