@@ -77,7 +77,7 @@ class TestNIXLBenchCommand:
                 "backend": "GUSLI",
                 "device_list": "11:K:/dev/nvme0n1,12:F:/p1/store0.bin,13:F:/p2/store0.bin",
                 "total_buffer_size": "1kb",
-                "filepath": "/data",
+                "filepath": "data",  # also tests this path normalization
             }
         )
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)

@@ -72,6 +72,20 @@ class NIXLExtendedCmdArgs(BaseModel):
         description="Device specs in format 'id:type:path' (e.g., '11:F:./store0.bin,27:K:/dev/nvme0n1')",
     )
 
+    @field_validator("filepath", mode="after")
+    @classmethod
+    def validate_filepath(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if not Path(v).is_absolute():
+            logging.warning(
+                f"Provided container path {v!s} is not absolute. Prepending '/' to make it absolute within container."
+            )
+            return "/" + v
+
+        return v
+
     @field_validator("total_buffer_size", mode="after")
     @classmethod
     def validate_total_buffer_size(cls, v: str | None) -> str | None:
@@ -164,12 +178,6 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             return []
 
         filepath = Path(filepath_raw)
-        if not filepath.is_absolute():
-            logging.warning(
-                f"Provided container path {filepath!s} is not absolute. "
-                "Prepending '/' to make it absolute within container."
-            )
-            filepath = Path("/") / filepath
 
         local_dir = self.test_run.output_path / "filepath_mount" / filepath.name
         if local_dir.exists() and not local_dir.is_dir():
