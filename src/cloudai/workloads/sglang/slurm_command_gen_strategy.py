@@ -30,6 +30,13 @@ def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | N
     return list(range(system_gpus_per_node or 1))
 
 
+def sglang_gpu_mask(gpu_ids: list[int]) -> str:
+    mask = 0
+    for gpu_id in gpu_ids:
+        mask |= 1 << gpu_id
+    return hex(mask)
+
+
 class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for SGLang on Slurm systems."""
 
@@ -192,6 +199,7 @@ wait_for_health() {{
             return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
 
     def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
+        serve_gpu_mask = sglang_gpu_mask(self.gpu_ids)
         return f"""\
 cleanup() {{
     echo "Cleaning up PIDs: SGLANG_PID=$SGLANG_PID"
@@ -202,7 +210,7 @@ trap cleanup EXIT
 {health_func}
 
 echo "Starting SGLang instances..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 --gpu-bind=mask_gpu:{serve_gpu_mask} \\
     --output={(self.test_run.output_path / SGLANG_SERVE_LOG_FILE).absolute()} \\
     {" ".join(serve_cmd)} &
 SGLANG_PID=$!
@@ -223,6 +231,8 @@ echo "Running benchmark..."
         router_cmd = self.get_router_command()
         prefill_gpus = ",".join(str(gpu_id) for gpu_id in self.prefill_gpu_ids)
         decode_gpus = ",".join(str(gpu_id) for gpu_id in self.decode_gpu_ids)
+        prefill_gpu_mask = sglang_gpu_mask(self.prefill_gpu_ids)
+        decode_gpu_mask = sglang_gpu_mask(self.decode_gpu_ids)
 
         return f"""\
 cleanup() {{
@@ -237,13 +247,13 @@ trap cleanup EXIT
 
 echo "Starting SGLang instances..."
 export CUDA_VISIBLE_DEVICES="{prefill_gpus}"
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 --gpu-bind=mask_gpu:{prefill_gpu_mask} \\
     --output={self.test_run.output_path.absolute()}/sglang-prefill.log \\
     {" ".join(prefill_cmd)} &
 PREFILL_PID=$!
 
 export CUDA_VISIBLE_DEVICES="{decode_gpus}"
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 --gpu-bind=mask_gpu:{decode_gpu_mask} \\
     --output={self.test_run.output_path.absolute()}/sglang-decode.log \\
     {" ".join(decode_cmd)} &
 DECODE_PID=$!

@@ -42,13 +42,13 @@ wait_for_health() {
 
 echo "Starting SGLang instances..."
 export CUDA_VISIBLE_DEVICES="0,1"
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
+srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --gpu-bind=mask_gpu:0x3 \
     --output=__OUTPUT_DIR__/output/sglang-prefill.log \
     python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8100 --disaggregation-mode prefill --disaggregation-transfer-backend nixl &
 PREFILL_PID=$!
 
 export CUDA_VISIBLE_DEVICES="2,3"
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
+srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --gpu-bind=mask_gpu:0xc \
     --output=__OUTPUT_DIR__/output/sglang-decode.log \
     python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8200 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
 DECODE_PID=$!
