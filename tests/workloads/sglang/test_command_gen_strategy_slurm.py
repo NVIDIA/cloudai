@@ -21,7 +21,7 @@ import pytest
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.sglang import SglangArgs, SglangCmdArgs, SglangSlurmCommandGenStrategy, SglangTestDefinition
-from cloudai.workloads.sglang.sglang import SGLANG_BENCH_LOG_FILE
+from cloudai.workloads.sglang.sglang import SGLANG_BENCH_JSONL_FILE, SGLANG_BENCH_LOG_FILE
 
 
 @pytest.fixture
@@ -110,6 +110,15 @@ def test_get_sglang_bench_command_adds_pd_separated_in_disagg(
     command = strategy.get_sglang_bench_command()
 
     assert "--pd-separated" in command
+
+
+def test_get_sglang_bench_command_writes_jsonl(
+    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
+) -> None:
+    command = sglang_cmd_gen_strategy.get_sglang_bench_command()
+    output_file_args = [part for part in command if part.startswith("--output-file ")]
+    assert len(output_file_args) == 1
+    assert output_file_args[0].endswith(f"/{SGLANG_BENCH_JSONL_FILE}")
 
 
 def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:

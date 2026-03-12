@@ -26,6 +26,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
 SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
+SGLANG_BENCH_JSONL_FILE = "sglang-bench.jsonl"
 
 
 class SglangArgs(CmdArgs):

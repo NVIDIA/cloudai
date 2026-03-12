@@ -18,7 +18,14 @@ from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .sglang import SGLANG_BENCH_LOG_FILE, SGLANG_SERVE_LOG_FILE, SglangArgs, SglangBenchCmdArgs, SglangTestDefinition
+from .sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_BENCH_LOG_FILE,
+    SGLANG_SERVE_LOG_FILE,
+    SglangArgs,
+    SglangBenchCmdArgs,
+    SglangTestDefinition,
+)
 
 
 def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
@@ -156,6 +163,7 @@ class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--random-output {bench_args.random_output}",
             f"--warmup-requests {bench_args.warmup_requests}",
             f"--random-range-ratio {bench_args.random_range_ratio}",
+            f"--output-file {(self.test_run.output_path / SGLANG_BENCH_JSONL_FILE).absolute()}",
             *extras,
         ]
 

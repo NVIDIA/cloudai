@@ -67,4 +67,4 @@ ROUTER_PID=$!
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
-    python3 -m sglang.bench_serving --backend sglang --base-url http://0.0.0.0:8000 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-details --pd-separated
+    python3 -m sglang.bench_serving --backend sglang --base-url http://0.0.0.0:8000 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated

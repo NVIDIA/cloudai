@@ -15,10 +15,18 @@
 # limitations under the License.
 
 from .report_generation_strategy import SGLangBenchReport, SGLangBenchReportGenerationStrategy
-from .sglang import SGLANG_BENCH_LOG_FILE, SglangArgs, SglangBenchCmdArgs, SglangCmdArgs, SglangTestDefinition
+from .sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_BENCH_LOG_FILE,
+    SglangArgs,
+    SglangBenchCmdArgs,
+    SglangCmdArgs,
+    SglangTestDefinition,
+)
 from .slurm_command_gen_strategy import SglangSlurmCommandGenStrategy
 
 __all__ = [
+    "SGLANG_BENCH_JSONL_FILE",
     "SGLANG_BENCH_LOG_FILE",
     "SGLangBenchReport",
     "SGLangBenchReportGenerationStrategy",
