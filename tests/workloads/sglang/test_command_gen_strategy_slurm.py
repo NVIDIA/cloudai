@@ -128,11 +128,13 @@ def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slur
 
     assert "Starting SGLang instances" in srun_command
     assert "Starting router" in srun_command
-    assert "--gpu-bind=mask_gpu:0x3" in srun_command
-    assert "--gpu-bind=mask_gpu:0xc" in srun_command
+    assert 'env CUDA_VISIBLE_DEVICES="0,1"' in srun_command
+    assert 'env CUDA_VISIBLE_DEVICES="2,3"' in srun_command
     assert f"--output={strategy.test_run.output_path.absolute()}/{SGLANG_BENCH_LOG_FILE}" in srun_command
 
 
-def test_gen_srun_command_contains_gpu_bind_for_aggregated(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
+def test_gen_srun_command_contains_cuda_visible_devices_for_aggregated(
+    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
+) -> None:
     srun_command = sglang_cmd_gen_strategy._gen_srun_command()
-    assert "--gpu-bind=mask_gpu:0x1" in srun_command
+    assert 'env CUDA_VISIBLE_DEVICES="0"' in srun_command
