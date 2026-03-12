@@ -69,6 +69,7 @@ from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefiniti
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
+from cloudai.workloads.sglang import SglangArgs, SglangCmdArgs, SglangTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -270,6 +271,8 @@ def build_special_test_run(
         "nixl-kvbench",
         "deepep-benchmark",
         "osu-bench",
+        "sglang",
+        "sglang-disagg",
         "vllm",
         "vllm-disagg",
     ]
@@ -554,6 +557,37 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     port=8000,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
+            ),
+        ),
+        "sglang": lambda: create_test_run(
+            partial_tr,
+            "sglang",
+            SglangTestDefinition(
+                name="sglang",
+                description="SGLang benchmark",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(
+                    docker_image_url="docker.io/lmsysorg/sglang:dev",
+                    model="Qwen/Qwen3-8B",
+                    port=8000,
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
+            ),
+        ),
+        "sglang-disagg": lambda: create_test_run(
+            partial_tr,
+            "sglang-disagg",
+            SglangTestDefinition(
+                name="sglang-disagg",
+                description="SGLang disaggregated benchmark",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(
+                    docker_image_url="docker.io/lmsysorg/sglang:dev",
+                    model="Qwen/Qwen3-8B",
+                    port=8000,
+                    prefill=SglangArgs(),
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),
         ),
         "vllm-disagg": lambda: create_test_run(

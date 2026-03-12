@@ -26,6 +26,7 @@ Available Workloads
    ":doc:`nixl_kvbench`", "✅", "❌", "❌", "❌"
    ":doc:`nixl_perftest`", "✅", "❌", "❌", "❌"
    ":doc:`sleep`", "✅", "✅", "❌", "✅"
+   ":doc:`sglang`", "✅", "❌", "❌", "❌"
    ":doc:`slurm_container`", "✅", "❌", "❌", "❌"
    "Triton Inference", "✅", "❌", "❌", "❌"
    ":doc:`ucc`", "✅", "❌", "❌", "❌"
