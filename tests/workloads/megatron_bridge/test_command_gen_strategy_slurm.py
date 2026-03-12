@@ -64,6 +64,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             *,
             cmd_args_overrides: dict[str, Any] | None = None,
             git_commit: str = "r0.2.0",
+            mount_as: str | None = "/opt/Megatron-Bridge",
             output_subdir: str = "out",
             num_nodes: int = 2,
         ) -> TestRun:
@@ -78,19 +79,20 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             if cmd_args_overrides:
                 cmd_args_data.update(cmd_args_overrides)
 
+            repo_kwargs: dict[str, Any] = {
+                "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                "commit": git_commit,
+            }
+            if mount_as is not None:
+                repo_kwargs["mount_as"] = mount_as
+
             tdef = MegatronBridgeTestDefinition(
                 name="mb",
                 description="desc",
                 test_template_name="MegatronBridge",
                 cmd_args=MegatronBridgeCmdArgs.model_validate(cmd_args_data),
                 extra_container_mounts=[],
-                git_repos=[
-                    GitRepo(
-                        url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
-                        commit=git_commit,
-                        mount_as="/opt/Megatron-Bridge",
-                    )
-                ],
+                git_repos=[GitRepo(**repo_kwargs)],
             )
             self._configure_fake_installs(tdef, tmp_path)
             return TestRun(
@@ -317,3 +319,33 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert ("--use_recipes" in wrapper_content) is expected_in_wrapper
+
+    def test_mount_as_adds_repo_to_container_mounts(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        tr = make_test_run(mount_as="/opt/custom-megatron", output_subdir="out_mount")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        repo_path = tdef.megatron_bridge_repo.installed_path
+        assert repo_path is not None
+
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert f"-cm {repo_path.absolute()}:/opt/custom-megatron" in wrapper_content
+
+    def test_no_mount_as_skips_repo_container_mount(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(mount_as=None, output_subdir="out_no_mount")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "-cm" not in wrapper_content
+        assert "/opt/Megatron-Bridge" not in wrapper_content
+
+    def test_gpus_per_node_passed_as_additional_slurm_param(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(cmd_args_overrides={"gpus_per_node": 2}, output_subdir="out_gpus")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--additional_slurm_params" in wrapper_content
+        assert "gpus-per-node=2" in wrapper_content

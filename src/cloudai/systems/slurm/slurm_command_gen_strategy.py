@@ -26,7 +26,7 @@ import toml
 from cloudai.core import CommandGenStrategy, Registry, System, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 
-from .slurm_system import SlurmSystem
+from .slurm_system import SlurmSystem, parse_node_list
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):
@@ -424,6 +424,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         content.append(f"#SBATCH -N {num_nodes}")
 
+        if self.test_run.exclude_nodes:
+            content.append(f"#SBATCH --exclude={self.test_run.exclude_nodes}")
+
         return None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
@@ -465,6 +468,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 str(self.test_run.step),
                 str(self.test_run.nnodes),
                 ",".join(self.test_run.nodes),
+                self.test_run.exclude_nodes or "",
             ]
         )
 
@@ -472,5 +476,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
             return self._node_spec_cache[cache_key]
 
-        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        excluded = set(parse_node_list(self.test_run.exclude_nodes)) if self.test_run.exclude_nodes else None
+        num_nodes, node_list = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=excluded
+        )
+
+        self._node_spec_cache[cache_key] = (num_nodes, node_list)
         return self._node_spec_cache[cache_key]

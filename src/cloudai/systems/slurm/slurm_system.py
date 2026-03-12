@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -443,7 +443,11 @@ class SlurmSystem(System):
         return ", ".join(formatted_ranges)
 
     def get_available_nodes_from_group(
-        self, partition_name: str, group_name: str, number_of_nodes: Union[int, str]
+        self,
+        partition_name: str,
+        group_name: str,
+        number_of_nodes: Union[int, str],
+        exclude_nodes: set[str] | None = None,
     ) -> List[SlurmNode]:
         """
         Retrieve a specific number of potentially available nodes from a group within a partition.
@@ -456,6 +460,7 @@ class SlurmSystem(System):
             group_name (str): The name of the group.
             number_of_nodes (Union[int,str]): The number of nodes to retrieve.
                 Could also be 'all' to retrieve all the nodes from the group.
+            exclude_nodes (set[str] | None): Node names to exclude from the pool before selection.
 
         Returns:
             List[SlurmNode]: Objects that are potentially available for use.
@@ -468,7 +473,7 @@ class SlurmSystem(System):
 
         self.validate_partition_and_group(partition_name, group_name)
 
-        grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
+        grouped_nodes = self.group_nodes_by_state(partition_name, group_name, exclude_nodes=exclude_nodes)
 
         try:
             allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
@@ -505,14 +510,19 @@ class SlurmSystem(System):
         if group_name not in self.groups[partition_name]:
             raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
 
-    def group_nodes_by_state(self, partition_name: str, group_name: str) -> Dict[SlurmNodeState, List[SlurmNode]]:
+    def group_nodes_by_state(
+        self,
+        partition_name: str,
+        group_name: str,
+        exclude_nodes: set[str] | None = None,
+    ) -> Dict[SlurmNodeState, List[SlurmNode]]:
         """
         Group nodes by their states, excluding nodes allocated to the current user.
 
         Args:
             partition_name (str): The name of the partition.
             group_name (str): The name of the group.
-            current_user (str): The username of the current user.
+            exclude_nodes (set[str] | None): Node names to exclude from the pool before grouping.
 
         Returns:
             Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
@@ -524,6 +534,8 @@ class SlurmSystem(System):
         }
 
         for node in self.groups[partition_name][group_name]:
+            if exclude_nodes and node.name in exclude_nodes:
+                continue
             if node.state in grouped_nodes:
                 grouped_nodes[node.state].append(node)
 
@@ -671,7 +683,7 @@ class SlurmSystem(System):
                 logging.debug(f"Unknown node state: {core_state}")
                 return SlurmNodeState.UNKNOWN_STATE
 
-    def parse_nodes(self, nodes: List[str]) -> List[str]:
+    def parse_nodes(self, nodes: List[str], exclude_nodes: set[str] | None = None) -> List[str]:
         """
         Parse a list of node specifications into individual node names.
 
@@ -684,6 +696,7 @@ class SlurmSystem(System):
                 "partition:group:num_nodes", where "partition" is the partition name, "group" is a group within that
                 partition, and "num_nodes" is the number of nodes requested. Node ranges should be specified with
                 square brackets and dashes, e.g., "node[01-03]" for "node01", "node02", "node03".
+            exclude_nodes (set[str] | None): Node names to exclude from group pools before selection.
 
         Returns:
             List[str]: A list of node names. For specifications, it includes names of allocated nodes based on the
@@ -701,17 +714,23 @@ class SlurmSystem(System):
                     raise ValueError("Format should be partition:group:num_nodes")
                 partition_name, group_name, num_nodes_spec = parts
                 num_nodes = int(num_nodes_spec) if num_nodes_spec != "max_avail" else num_nodes_spec
-                group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+                group_nodes = self.get_available_nodes_from_group(
+                    partition_name, group_name, num_nodes, exclude_nodes=exclude_nodes
+                )
                 parsed_nodes += [node.name for node in group_nodes]
             else:
                 expanded_nodes = parse_node_list(node_spec)
+                if exclude_nodes:
+                    expanded_nodes = [n for n in expanded_nodes if n not in exclude_nodes]
                 parsed_nodes += expanded_nodes
 
         # Remove duplicates while preserving order
         parsed_nodes = list(dict.fromkeys(parsed_nodes))
         return parsed_nodes
 
-    def get_nodes_by_spec(self, num_nodes: int, nodes: list[str]) -> Tuple[int, list[str]]:
+    def get_nodes_by_spec(
+        self, num_nodes: int, nodes: list[str], exclude_nodes: set[str] | None = None
+    ) -> Tuple[int, list[str]]:
         """
         Retrieve a list of node names based on specifications.
 
@@ -721,15 +740,24 @@ class SlurmSystem(System):
         Args:
             num_nodes (int): The number of nodes, can't be `0`.
             nodes (list[str]): A list of node names specifications, slurm format or `PARTITION:GROUP:NUM_NODES`.
+            exclude_nodes (set[str] | None): Node names to exclude from group pools before selection.
 
         Returns:
             Tuple[int, list[str]]: The number of nodes and a list of node names.
+
+        Raises:
+            ValueError: If node specifications were provided but resolved to an empty list after applying exclusions.
         """
         num_nodes, node_list = num_nodes, []
-        parsed_nodes = self.parse_nodes(nodes)
+        parsed_nodes = self.parse_nodes(nodes, exclude_nodes=exclude_nodes)
         if parsed_nodes:
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
+        elif nodes:
+            raise ValueError(
+                f"Node specifications {nodes} resolved to an empty node list after applying "
+                f"exclude_nodes={exclude_nodes}. Cannot fall back to unconstrained allocation."
+            )
         return num_nodes, sorted(node_list)
 
     def system_installables(self) -> list[Installable]:
