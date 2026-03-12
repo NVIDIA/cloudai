@@ -32,7 +32,9 @@ class TestSglangSuccessCheck:
     def test_no_bench_log_file(self, base_tr: TestRun) -> None:
         result = self.sglang_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert result.error_message == f"SGLang bench jsonl not found in {base_tr.output_path}."
+        assert (
+            result.error_message == f"SGLang bench jsonl does not contain successful requests in {base_tr.output_path}."
+        )
 
     def test_successful_job(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -41,6 +43,7 @@ class TestSglangSuccessCheck:
             json.dumps(
                 {
                     "completed": 3,
+                    "num_prompts": 3,
                     "request_throughput": 1.0,
                     "max_concurrency": 16,
                     "mean_ttft_ms": 1.0,
@@ -66,6 +69,7 @@ class TestSglangSuccessCheck:
             json.dumps(
                 {
                     "completed": 0,
+                    "num_prompts": 3,
                     "request_throughput": 0.0,
                     "max_concurrency": 16,
                     "mean_ttft_ms": 1.0,
