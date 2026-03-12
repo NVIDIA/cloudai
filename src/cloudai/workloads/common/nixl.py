@@ -19,7 +19,7 @@ import logging
 import re
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
@@ -85,6 +85,11 @@ class NIXLExtendedCmdArgs(BaseModel):
             return "/" + v
 
         return v
+
+    @field_validator("total_buffer_size", mode="before")
+    @classmethod
+    def prevalidate_total_buffer_size(cls, v: Any) -> Any:
+        return str(v) if isinstance(v, int) else v
 
     @field_validator("total_buffer_size", mode="after")
     @classmethod

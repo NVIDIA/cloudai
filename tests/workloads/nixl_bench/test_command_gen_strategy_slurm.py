@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import contextlib
 from typing import cast
 
 import pydantic
@@ -105,24 +105,40 @@ class TestNIXLBenchCommand:
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).is_file()
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
 
-    def test_device_list_validation(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
-        args = {
-            "docker_image_url": "docker.io/library/ubuntu:22.04",
-            "path_to_benchmark": "/p",
-            "backend": "GUSLI",
-            "device_list": "11:K:/store0.bin",
-        }
-        NIXLBenchCmdArgs.model_validate(args)
+    @pytest.mark.parametrize(
+        ("override", "expected_error_match"),
+        (
+            ({}, None),
+            ({"device_list": "11:F:/store0.bin"}, "One must provide total_buffer_size"),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8gb"}, None),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8ggb"}, "total_buffer_size"),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "1024"}, None),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": 1024}, None),
+            ({"device_list": "11:FF:/store0.bin"}, "Invalid device spec"),
+            ({"device_list": "11:K:/store0.bin,12:K:/store0.bin"}, None),
+        ),
+    )
+    def test_device_list_validation(
+        self,
+        nixl_bench_tr: TestRun,
+        slurm_system: SlurmSystem,
+        override: dict,
+        expected_error_match: str | None,
+    ):
+        if expected_error_match is None:
+            context = contextlib.nullcontext()
+        else:
+            context = pytest.raises(pydantic.ValidationError, match=expected_error_match)
 
-        args["device_list"] = "11:F:/store0.bin"
-        with pytest.raises(pydantic.ValidationError, match="total_buffer_size"):
-            NIXLBenchCmdArgs.model_validate(args)
-
-        args["total_buffer_size"] = "8gb"
-        NIXLBenchCmdArgs.model_validate(args)
-
-        args["total_buffer_size"] = "1024"
-        NIXLBenchCmdArgs.model_validate(args)
+        with context:
+            NIXLBenchCmdArgs.model_validate(
+                {
+                    "docker_image_url": "docker.io/library/ubuntu:22.04",
+                    "path_to_benchmark": "/p",
+                    "backend": "GUSLI",
+                }
+                | override
+            )
 
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
