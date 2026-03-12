@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ from cloudai.workloads.sglang import (
     SglangCmdArgs,
     SglangTestDefinition,
 )
-from cloudai.workloads.sglang.sglang import SGLANG_BENCH_LOG_FILE
+from cloudai.workloads.sglang.sglang import SGLANG_BENCH_JSONL_FILE
 
 
 @pytest.fixture
@@ -39,14 +40,17 @@ def sglang_tr(tmp_path: Path) -> TestRun:
     )
     tr = TestRun(name="sglang", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
 
-    (tr.output_path / SGLANG_BENCH_LOG_FILE).write_text(
-        """
-Successful requests: 30
-Request throughput (req/s): 2400.0
-Max concurrency: 16
-Mean TTFT (ms): 120.0
-Mean TPOT (ms): 12.0
-""",
+    (tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
+        json.dumps(
+            {
+                "completed": 30,
+                "request_throughput": 2400.0,
+                "max_concurrency": 16,
+                "mean_ttft_ms": 120.0,
+                "mean_tpot_ms": 12.0,
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     return tr

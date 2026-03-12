@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-import re
 from functools import cache
 from pathlib import Path
 from typing import ClassVar, cast
@@ -26,7 +24,7 @@ from rich.table import Table
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 
-from .sglang import SGLANG_BENCH_LOG_FILE, SglangTestDefinition
+from .sglang import SGLANG_BENCH_JSONL_FILE, parse_sglang_bench_jsonl, SglangTestDefinition
 from .slurm_command_gen_strategy import sglang_all_gpu_ids
 
 
@@ -54,73 +52,18 @@ class SGLangBenchReport(BaseModel):
         return self.throughput / self.concurrency
 
 
-def _extract_first_int(content: str, patterns: list[str]) -> int | None:
-    for pattern in patterns:
-        match = re.search(pattern, content, flags=re.IGNORECASE | re.MULTILINE)
-        if not match:
-            continue
-        try:
-            return int(match.group(1))
-        except Exception:
-            continue
-    return None
-
-
-def _extract_first_float(content: str, patterns: list[str]) -> float | None:
-    for pattern in patterns:
-        match = re.search(pattern, content, flags=re.IGNORECASE | re.MULTILINE)
-        if not match:
-            continue
-        try:
-            return float(match.group(1))
-        except Exception:
-            continue
-    return None
-
-
 @cache
-def parse_sglang_bench_output(log_file: Path, default_concurrency: int) -> SGLangBenchReport | None:
-    """Parse SGLang benchmark output from log file."""
-    if not log_file.is_file():
+def parse_sglang_bench_output(jsonl_file: Path, default_concurrency: int) -> SGLangBenchReport | None:
+    """Parse SGLang benchmark output from JSONL file."""
+    summary = parse_sglang_bench_jsonl(jsonl_file)
+    if summary is None:
         return None
 
-    try:
-        content = log_file.read_text(encoding="utf-8", errors="ignore")
-    except Exception as e:
-        logging.debug(f"Error reading SGLang benchmark log: {e}")
-        return None
-
-    successful_requests = _extract_first_int(content, [r"Successful requests\s*:\s*(\d+)"])
-    if successful_requests is None:
-        successful_requests = _extract_first_int(content, [r"Completed requests\s*:\s*(\d+)"])
-
-    request_throughput = _extract_first_float(
-        content,
-        [
-            r"Request throughput\s*\(req/s\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-            r"Request throughput\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-            r"Output throughput\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-        ],
-    )
-
-    max_concurrency = _extract_first_int(content, [r"Max concurrency\s*:\s*(\d+)"])
-    if max_concurrency is None:
-        max_concurrency = default_concurrency
-
-    mean_ttft_ms = _extract_first_float(
-        content,
-        [
-            r"Mean TTFT\s*\(ms\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-            r"Average TTFT\s*\(ms\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-        ],
-    )
-    mean_tpot_ms = _extract_first_float(
-        content,
-        [
-            r"Mean TPOT\s*\(ms\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-            r"Average TPOT\s*\(ms\)\s*:\s*([0-9]+(?:\.[0-9]+)?)",
-        ],
-    )
+    successful_requests = summary.completed
+    request_throughput = summary.request_throughput
+    max_concurrency = summary.max_concurrency or default_concurrency
+    mean_ttft_ms = summary.mean_ttft_ms
+    mean_tpot_ms = summary.mean_tpot_ms
 
     if successful_requests is None or successful_requests <= 0 or request_throughput is None:
         return None
@@ -147,7 +90,7 @@ class SGLangBenchReportGenerationStrategy(ReportGenerationStrategy):
     def _parse(self) -> SGLangBenchReport | None:
         tdef = cast(SglangTestDefinition, self.test_run.test)
         return parse_sglang_bench_output(
-            self.test_run.output_path / SGLANG_BENCH_LOG_FILE,
+            self.test_run.output_path / SGLANG_BENCH_JSONL_FILE,
             default_concurrency=tdef.bench_cmd_args.max_concurrency,
         )
 

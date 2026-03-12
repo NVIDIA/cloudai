@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 from cloudai.core import TestRun
-from cloudai.workloads.sglang import SGLANG_BENCH_LOG_FILE, SglangCmdArgs, SglangTestDefinition
+from cloudai.workloads.sglang import SGLANG_BENCH_JSONL_FILE, SglangCmdArgs, SglangTestDefinition
 
 
 class TestSglangSuccessCheck:
@@ -30,12 +32,12 @@ class TestSglangSuccessCheck:
     def test_no_bench_log_file(self, base_tr: TestRun) -> None:
         result = self.sglang_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert result.error_message == f"SGLang bench log not found in {base_tr.output_path}."
+        assert result.error_message == f"SGLang bench jsonl not found in {base_tr.output_path}."
 
     def test_successful_job(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
-        log_file = base_tr.output_path / SGLANG_BENCH_LOG_FILE
-        log_file.write_text("Successful requests: 3\n")
+        log_file = base_tr.output_path / SGLANG_BENCH_JSONL_FILE
+        log_file.write_text(json.dumps({"completed": 3}) + "\n")
 
         result = self.sglang_tdef.was_run_successful(base_tr)
 
@@ -44,12 +46,13 @@ class TestSglangSuccessCheck:
 
     def test_failed_job_no_successful_requests(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
-        log_file = base_tr.output_path / SGLANG_BENCH_LOG_FILE
-        log_file.write_text("Successful requests: 0\n")
+        log_file = base_tr.output_path / SGLANG_BENCH_JSONL_FILE
+        log_file.write_text(json.dumps({"completed": 0}) + "\n")
 
         result = self.sglang_tdef.was_run_successful(base_tr)
 
         assert not result.is_successful
         assert (
-            result.error_message == f"SGLang bench log does not contain successful requests in {base_tr.output_path}."
+            result.error_message
+            == f"SGLang bench jsonl does not contain successful requests in {base_tr.output_path}."
         )
