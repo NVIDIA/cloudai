@@ -20,10 +20,11 @@ import logging
 from functools import cache
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from cloudai.core import DockerImage, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.workloads.common.llm_serving import LLMServingBenchReport
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
 SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
@@ -141,35 +142,14 @@ class SglangTestDefinition(TestDefinition):
         )
 
 
-class SGLangBenchReport(BaseModel):
+class SGLangBenchReport(LLMServingBenchReport):
     """Parsed benchmark data from SGLang bench_serving output."""
 
-    model_config = ConfigDict(extra="ignore")
-
-    num_prompts: int
-    completed: int
     request_throughput: float
-    max_concurrency: int
-    mean_ttft_ms: float
-    median_ttft_ms: float
-    p99_ttft_ms: float
-    mean_tpot_ms: float
-    median_tpot_ms: float
-    p99_tpot_ms: float
 
     @property
     def throughput(self) -> float:
         return self.request_throughput
-
-    @property
-    def concurrency(self) -> int:
-        return self.max_concurrency
-
-    @property
-    def tps_per_user(self) -> float | None:
-        if self.concurrency <= 0:
-            return None
-        return self.throughput / self.concurrency
 
     @model_validator(mode="before")
     @classmethod

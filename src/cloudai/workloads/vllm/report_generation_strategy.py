@@ -18,47 +18,21 @@ import json
 import logging
 from functools import cache
 from pathlib import Path
-from typing import ClassVar, cast
 
-from pydantic import BaseModel, ConfigDict
-from rich.console import Console
-from rich.table import Table
-
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy
 from cloudai.workloads.vllm.slurm_command_gen_strategy import vllm_all_gpu_ids
 
 from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition
 
 
-class VLLMBenchReport(BaseModel):
+class VLLMBenchReport(LLMServingBenchReport):
     """Report for vLLM benchmark results."""
 
-    model_config = ConfigDict(extra="ignore")
-
-    num_prompts: int
-    completed: int
-    mean_ttft_ms: float
-    median_ttft_ms: float
-    p99_ttft_ms: float
-    mean_tpot_ms: float
-    median_tpot_ms: float
-    p99_tpot_ms: float
     output_throughput: float
-    max_concurrency: int
 
     @property
     def throughput(self) -> float:
         return self.output_throughput
-
-    @property
-    def concurrency(self) -> int:
-        return self.max_concurrency
-
-    @property
-    def tps_per_user(self) -> float | None:
-        if self.concurrency <= 0:
-            return None
-        return self.throughput / self.concurrency
 
 
 @cache
@@ -75,63 +49,19 @@ def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
         return None
 
 
-class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
+class VLLMBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[VllmTestDefinition, VLLMBenchReport]):
     """Generate a report for vLLM benchmark results."""
 
-    metrics: ClassVar[list[str]] = [
-        "default",
-        "throughput",
-        "tps-per-user",
-        "tps-per-gpu",
-    ]
+    @property
+    def result_file_name(self) -> str:
+        return VLLM_BENCH_JSON_FILE
 
-    def can_handle_directory(self) -> bool:
-        return parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE) is not None
+    @property
+    def report_title(self) -> str:
+        return "vLLM Benchmark Results"
 
-    def used_gpus_count(self) -> int:
-        return len(
-            vllm_all_gpu_ids(cast(VllmTestDefinition, self.test_run.test), getattr(self.system, "gpus_per_node", None))
-        )
+    def parse_output(self, path: Path) -> VLLMBenchReport | None:
+        return parse_vllm_bench_output(path)
 
-    def get_metric(self, metric: str) -> float:
-        if metric not in self.metrics:
-            return METRIC_ERROR
-
-        results = parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE)
-        if results is None:
-            return METRIC_ERROR
-
-        if metric == "tps-per-user":
-            return results.tps_per_user if results.tps_per_user is not None else METRIC_ERROR
-        if metric == "tps-per-gpu":
-            used_gpus = self.used_gpus_count()
-            return results.throughput / used_gpus
-
-        # "default", "throughput"
-        return results.throughput
-
-    def generate_report(self) -> None:
-        results = parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE)
-        if results is None:
-            return
-
-        console = Console()
-        table = Table(title=f"vLLM Benchmark Results ({self.test_run.output_path})", title_justify="left")
-        table.add_column("Successful prompts", justify="right")
-        table.add_column("TTFT Mean, ms", justify="right")
-        table.add_column("TTFT Median, ms", justify="right")
-        table.add_column("TTFT P99, ms", justify="right")
-        table.add_column("TPOT Mean, ms", justify="right")
-        table.add_column("TPOT Median, ms", justify="right")
-        table.add_column("TPOT P99, ms", justify="right")
-        table.add_row(
-            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
-            f"{results.mean_ttft_ms:.4f}",
-            f"{results.median_ttft_ms:.4f}",
-            f"{results.p99_ttft_ms:.4f}",
-            f"{results.mean_tpot_ms:.4f}",
-            f"{results.median_tpot_ms:.4f}",
-            f"{results.p99_tpot_ms:.4f}",
-        )
-
-        console.print(table)
+    def all_gpu_ids(self, tdef: VllmTestDefinition, gpus_per_node: int | None) -> list[int]:
+        return vllm_all_gpu_ids(tdef, gpus_per_node)
