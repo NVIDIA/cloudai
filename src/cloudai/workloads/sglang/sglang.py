@@ -39,10 +39,6 @@ SGLANG_BENCH_JSONL_FILE = "sglang-bench.jsonl"
 class SglangArgs(LLMServingArgs):
     """Base command arguments for SGLang instances."""
 
-    gpu_ids: str | list[str] | None = Field(
-        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
-    )
-
     disaggregation_transfer_backend: str | list[str] | None = Field(
         default=None,
         description=(
@@ -61,7 +57,6 @@ class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
 
     model_config = ConfigDict(extra="forbid")
 
-    docker_image_url: str
     model: str = "Qwen/Qwen3-8B"
     port: int = 8000
     health_endpoint: str = "/health"

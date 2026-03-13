@@ -32,10 +32,6 @@ VLLM_BENCH_JSON_FILE = "vllm-bench.json"
 class VllmArgs(LLMServingArgs):
     """Base command arguments for vLLM instances."""
 
-    gpu_ids: str | list[str] | None = Field(
-        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
-    )
-
     nixl_threads: int | list[int] | None = Field(
         default=None,
         description="Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument.",
@@ -51,7 +47,6 @@ class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
 
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
 
-    docker_image_url: str
     port: int = 8000
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
 

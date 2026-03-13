@@ -16,7 +16,7 @@
 
 from typing import cast
 
-from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy, all_gpu_ids
+from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
 
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
@@ -27,10 +27,6 @@ from .sglang import (
     SglangCmdArgs,
     SglangTestDefinition,
 )
-
-
-def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
-    return all_gpu_ids(tdef, system_gpus_per_node)
 
 
 class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdArgs]):
@@ -197,13 +193,15 @@ PREFILL_PID=$!
     {decode_cmd_with_env} &
 DECODE_PID=$!
 
-{self.generate_wait_for_health_block(
-    "SGLang",
-    [
-        f"http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}",
-        f"http://${{NODE}}:{self.decode_port}{self.healthcheck_path}",
-    ],
-)}
+{
+            self.generate_wait_for_health_block(
+                "SGLang",
+                [
+                    f"http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}",
+                    f"http://${{NODE}}:{self.decode_port}{self.healthcheck_path}",
+                ],
+            )
+        }
 
 echo "Starting router..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\

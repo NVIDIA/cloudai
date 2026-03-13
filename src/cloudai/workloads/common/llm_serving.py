@@ -47,7 +47,9 @@ def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgsT], system_gpus_
 class LLMServingArgs(CmdArgs):
     """Shared serve-argument serialization for LLM serving workloads."""
 
-    gpu_ids: str | list[str] | None = None
+    gpu_ids: str | list[str] | None = Field(
+        default=None, description="Comma-separated GPU IDs. If not set, all available GPUs will be used."
+    )
 
     @property
     def serve_args_exclude(self) -> set[str]:

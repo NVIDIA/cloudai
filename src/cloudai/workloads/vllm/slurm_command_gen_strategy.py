@@ -17,7 +17,7 @@
 import json
 from typing import Any, cast
 
-from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy, all_gpu_ids
+from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
 
 from .vllm import (
     VLLM_BENCH_JSON_FILE,
@@ -26,10 +26,6 @@ from .vllm import (
     VllmCmdArgs,
     VllmTestDefinition,
 )
-
-
-def vllm_all_gpu_ids(tdef: VllmTestDefinition, system_gpus_per_node: int | None) -> list[int]:
-    return all_gpu_ids(tdef, system_gpus_per_node)
 
 
 class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]):
@@ -172,13 +168,15 @@ export VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT
     {" ".join(decode_cmd)} &
 DECODE_PID=$!
 
-{self.generate_wait_for_health_block(
-    "vLLM",
-    [
-        f"http://${{NODE}}:{prefill_port}/health",
-        f"http://${{NODE}}:{decode_port}/health",
-    ],
-)}
+{
+            self.generate_wait_for_health_block(
+                "vLLM",
+                [
+                    f"http://${{NODE}}:{prefill_port}/health",
+                    f"http://${{NODE}}:{decode_port}/health",
+                ],
+            )
+        }
 
 echo "Starting proxy..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\

@@ -19,8 +19,7 @@ import logging
 from functools import cache
 from pathlib import Path
 
-from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy
-from cloudai.workloads.vllm.slurm_command_gen_strategy import vllm_all_gpu_ids
+from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy, all_gpu_ids
 
 from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition
 
@@ -64,4 +63,4 @@ class VLLMBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[VllmT
         return parse_vllm_bench_output(path)
 
     def all_gpu_ids(self, tdef: VllmTestDefinition, gpus_per_node: int | None) -> list[int]:
-        return vllm_all_gpu_ids(tdef, gpus_per_node)
+        return all_gpu_ids(tdef, gpus_per_node)
