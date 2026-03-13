@@ -20,22 +20,24 @@ import logging
 from functools import cache
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
-from cloudai.core import DockerImage, HFModel, Installable, JobStatusResult, TestRun
-from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.core import JobStatusResult, TestRun
+from cloudai.models.workload import CmdArgs
+from cloudai.workloads.common.llm_serving import (
+    LLMServingArgs,
+    LLMServingBenchReport,
+    LLMServingCmdArgs,
+    LLMServingTestDefinition,
+)
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
 SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
 SGLANG_BENCH_JSONL_FILE = "sglang-bench.jsonl"
 
 
-class SglangArgs(CmdArgs):
+class SglangArgs(LLMServingArgs):
     """Base command arguments for SGLang instances."""
-
-    gpu_ids: str | list[str] | None = Field(
-        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
-    )
 
     disaggregation_transfer_backend: str | list[str] | None = Field(
         default=None,
@@ -46,29 +48,17 @@ class SglangArgs(CmdArgs):
     )
 
     @property
-    def serve_args(self) -> list[str]:
-        """Convert cmd_args_dict to command-line arguments list for SGLang serve command."""
-        args: list[str] = []
-        for key, value in self.model_dump(
-            exclude={"gpu_ids", "disaggregation_transfer_backend"}, exclude_none=True
-        ).items():
-            opt = f"--{key.replace('_', '-')}"
-            if value == "":
-                args.append(opt)
-            else:
-                args.extend([opt, str(value)])
-        return args
+    def serve_args_exclude(self) -> set[str]:
+        return {"gpu_ids", "disaggregation_transfer_backend"}
 
 
-class SglangCmdArgs(CmdArgs):
+class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
     """SGLang serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")
 
-    docker_image_url: str
     model: str = "Qwen/Qwen3-8B"
     port: int = 8000
-    serve_wait_seconds: int = 300
     health_endpoint: str = "/health"
 
     serve_module: str = "sglang.launch_server"
@@ -96,39 +86,10 @@ class SglangBenchCmdArgs(CmdArgs):
     output_details: bool = True
 
 
-class SglangTestDefinition(TestDefinition):
+class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
     """Test object for SGLang."""
 
-    cmd_args: SglangCmdArgs
     bench_cmd_args: SglangBenchCmdArgs = SglangBenchCmdArgs()
-
-    _docker_image: DockerImage | None = None
-    _hf_model: HFModel | None = None
-
-    @property
-    def docker_image(self) -> DockerImage:
-        if not self._docker_image:
-            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._docker_image
-
-    @property
-    def hf_model(self) -> HFModel:
-        if not self._hf_model:
-            self._hf_model = HFModel(model_name=self.cmd_args.model)
-        return self._hf_model
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [*self.git_repos, self.docker_image, self.hf_model]
-
-    @model_validator(mode="after")
-    def check_gpu_ids_setup(self) -> SglangTestDefinition:
-        if self.cmd_args.prefill:
-            prefill_set = bool(self.cmd_args.prefill.gpu_ids)
-            decode_set = bool(self.cmd_args.decode.gpu_ids)
-            if prefill_set != decode_set:
-                raise ValueError("Both prefill and decode gpu_ids must be set or both must be None.")
-        return self
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
@@ -141,35 +102,14 @@ class SglangTestDefinition(TestDefinition):
         )
 
 
-class SGLangBenchReport(BaseModel):
+class SGLangBenchReport(LLMServingBenchReport):
     """Parsed benchmark data from SGLang bench_serving output."""
 
-    model_config = ConfigDict(extra="ignore")
-
-    num_prompts: int
-    completed: int
     request_throughput: float
-    max_concurrency: int
-    mean_ttft_ms: float
-    median_ttft_ms: float
-    p99_ttft_ms: float
-    mean_tpot_ms: float
-    median_tpot_ms: float
-    p99_tpot_ms: float
 
     @property
     def throughput(self) -> float:
         return self.request_throughput
-
-    @property
-    def concurrency(self) -> int:
-        return self.max_concurrency
-
-    @property
-    def tps_per_user(self) -> float | None:
-        if self.concurrency <= 0:
-            return None
-        return self.throughput / self.concurrency
 
     @model_validator(mode="before")
     @classmethod

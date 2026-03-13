@@ -14,47 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
+from cloudai.core import GitRepo
 from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmTestDefinition
 
 
-@pytest.mark.parametrize(
-    "prefill_gpu_ids, decode_gpu_ids",
-    [("0,1", "0,1"), (None, None), (None, "11,42")],
-)
-def test_valid_gpu_ids_configuration(prefill_gpu_ids: str | None, decode_gpu_ids: str | None):
-    # When cmd_args.prefill is None, decode.gpu_ids can be set, this is a non-disagg mode
-    prefill = None
-    if prefill_gpu_ids is not None:
-        prefill = VllmArgs(gpu_ids=prefill_gpu_ids)
+def test_vllm_serve_args_exclude_internal_fields() -> None:
+    assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
 
-    decode = VllmArgs(gpu_ids=decode_gpu_ids)
+
+def test_installables_include_proxy_script_repo() -> None:
+    proxy_script_repo = GitRepo(url="./proxy_script_repo", commit="commit")
     tdef = VllmTestDefinition(
         name="test",
         description="test",
         test_template_name="vllm",
-        cmd_args=VllmCmdArgs(docker_image_url="test_url", prefill=prefill, decode=decode),
+        cmd_args=VllmCmdArgs(docker_image_url="test_url"),
+        proxy_script_repo=proxy_script_repo,
     )
 
-    if prefill_gpu_ids is not None:
-        assert tdef.cmd_args.prefill
-        assert tdef.cmd_args.prefill.gpu_ids == prefill_gpu_ids
-
-    assert tdef.cmd_args.decode.gpu_ids == decode_gpu_ids
-
-
-@pytest.mark.parametrize(
-    "prefill_gpu_ids, decode_gpu_ids",
-    [("0,1", None), (None, "0,1")],
-)
-def test_invalid_gpu_ids_configuration(prefill_gpu_ids: str | None, decode_gpu_ids: str | None):
-    prefill = VllmArgs(gpu_ids=prefill_gpu_ids)
-    decode = VllmArgs(gpu_ids=decode_gpu_ids)
-    with pytest.raises(ValueError):
-        VllmTestDefinition(
-            name="test",
-            description="test",
-            test_template_name="vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="test_url", prefill=prefill, decode=decode),
-        )
+    assert tdef.installables == [tdef.docker_image, tdef.hf_model, proxy_script_repo]
