@@ -64,7 +64,6 @@ class SglangCmdArgs(LLMServingCmdArgs):
     docker_image_url: str
     model: str = "Qwen/Qwen3-8B"
     port: int = 8000
-    serve_wait_seconds: int = 300
     health_endpoint: str = "/health"
 
     serve_module: str = "sglang.launch_server"

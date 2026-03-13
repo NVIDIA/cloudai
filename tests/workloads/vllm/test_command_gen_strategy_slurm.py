@@ -188,7 +188,7 @@ class TestVllmAggregatedMode:
         expected = f"""\
 wait_for_health() {{
     local endpoint="$1"
-    local timeout={cmd_args.vllm_serve_wait_seconds}
+    local timeout={cmd_args.serve_wait_seconds}
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 

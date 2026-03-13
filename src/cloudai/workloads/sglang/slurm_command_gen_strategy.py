@@ -139,26 +139,6 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangTest
 
         return command
 
-    def generate_wait_for_health_function(self) -> str:
-        return f"""\
-wait_for_health() {{
-    local endpoint="$1"
-    local timeout={self.tdef.cmd_args.serve_wait_seconds}
-    local interval=5
-    local end_time=$(($(date +%s) + timeout))
-
-    while [ "$(date +%s)" -lt "$end_time" ]; do
-        if curl -sf "$endpoint" > /dev/null 2>&1; then
-            echo "Health check passed: $endpoint"
-            return 0
-        fi
-        sleep "$interval"
-    done
-
-    echo "Timeout waiting for: $endpoint"
-    return 1
-}}"""
-
     def _gen_srun_command(self) -> str:
         srun_prefix = " ".join(self.gen_srun_prefix())
         serve_commands = self.get_sglang_serve_commands()

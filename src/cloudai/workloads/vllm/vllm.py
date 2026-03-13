@@ -53,7 +53,6 @@ class VllmCmdArgs(LLMServingCmdArgs):
 
     docker_image_url: str
     port: int = 8000
-    vllm_serve_wait_seconds: int = 300
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
 
     model: str = "Qwen/Qwen3-0.6B"

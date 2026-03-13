@@ -69,6 +69,7 @@ class LLMServingCmdArgs(CmdArgs):
 
     docker_image_url: str
     model: str
+    serve_wait_seconds: int = 300
     prefill: LLMServingArgs | None = Field(default=None)
     decode: LLMServingArgs = Field(default_factory=LLMServingArgs)
 
@@ -255,3 +256,24 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
             return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[mid:]
+
+    def generate_wait_for_health_function(self) -> str:
+        timeout = self.tdef.cmd_args.serve_wait_seconds
+        return f"""\
+wait_for_health() {{
+    local endpoint="$1"
+    local timeout={timeout}
+    local interval=5
+    local end_time=$(($(date +%s) + timeout))
+
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        if curl -sf "$endpoint" > /dev/null 2>&1; then
+            echo "Health check passed: $endpoint"
+            return 0
+        fi
+        sleep "$interval"
+    done
+
+    echo "Timeout waiting for: $endpoint"
+    return 1
+}}"""
