@@ -131,9 +131,7 @@ echo "Starting vLLM instances..."
     {" ".join(serve_cmd)} &
 VLLM_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{self.tdef.cmd_args.port}/health" || exit 1
+{self.generate_wait_for_health_block("vLLM", [f"http://${{NODE}}:{self.tdef.cmd_args.port}/health"])}
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -174,10 +172,13 @@ export VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT
     {" ".join(decode_cmd)} &
 DECODE_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{prefill_port}/health" || exit 1
-wait_for_health "http://${{NODE}}:{decode_port}/health" || exit 1
+{self.generate_wait_for_health_block(
+    "vLLM",
+    [
+        f"http://${{NODE}}:{prefill_port}/health",
+        f"http://${{NODE}}:{decode_port}/health",
+    ],
+)}
 
 echo "Starting proxy..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\

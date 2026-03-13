@@ -164,9 +164,7 @@ echo "Starting SGLang instances..."
     {serve_cmd_with_env} &
 SGLANG_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{self.tdef.cmd_args.port}{self.healthcheck_path}" || exit 1
+{self.generate_wait_for_health_block("SGLang", [f"http://${{NODE}}:{self.tdef.cmd_args.port}{self.healthcheck_path}"])}
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -199,10 +197,13 @@ PREFILL_PID=$!
     {decode_cmd_with_env} &
 DECODE_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}" || exit 1
-wait_for_health "http://${{NODE}}:{self.decode_port}{self.healthcheck_path}" || exit 1
+{self.generate_wait_for_health_block(
+    "SGLang",
+    [
+        f"http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}",
+        f"http://${{NODE}}:{self.decode_port}{self.healthcheck_path}",
+    ],
+)}
 
 echo "Starting router..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\

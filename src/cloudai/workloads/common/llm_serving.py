@@ -291,6 +291,14 @@ cleanup() {{
 }}
 trap cleanup EXIT"""
 
+    @staticmethod
+    def generate_wait_for_health_block(service_name: str, endpoints: list[str]) -> str:
+        waits = "\n".join(f'wait_for_health "{endpoint}" || exit 1' for endpoint in endpoints)
+        return f"""\
+NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+echo "Waiting for {service_name} on $NODE to be ready..."
+{waits}"""
+
     def _gen_llm_serving_srun_command(
         self,
         serve_commands: list[list[str]],
