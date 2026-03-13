@@ -17,6 +17,7 @@
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.workloads.common.llm_serving import all_gpu_ids
 
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
@@ -29,12 +30,7 @@ from .sglang import (
 
 
 def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
-    cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
-    if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
-        cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
-    if cuda_devices:
-        return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
-    return list(range(system_gpus_per_node or 1))
+    return all_gpu_ids(tdef, system_gpus_per_node)
 
 
 class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
