@@ -18,26 +18,24 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
+from typing import Any, ClassVar, Generic, TypeVar, cast
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console
 from rich.table import Table
 from typing_extensions import Self
 
 from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, ReportGenerationStrategy
 from cloudai.models.workload import CmdArgs, TestDefinition
-
-if TYPE_CHECKING:
-    from cloudai.workloads.sglang.sglang import SglangTestDefinition
-    from cloudai.workloads.vllm.vllm import VllmTestDefinition
+from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 TestDefT = TypeVar("TestDefT")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
-CmdArgsT = TypeVar("CmdArgsT", bound=CmdArgs)
+CmdArgsT = TypeVar("CmdArgsT", bound="LLMServingCmdArgs")
+LLMServingTestDefT = TypeVar("LLMServingTestDefT", bound="LLMServingTestDefinition[LLMServingCmdArgs]")
 
 
-def all_gpu_ids(tdef: VllmTestDefinition | SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
+def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgs], system_gpus_per_node: int | None) -> list[int]:
     cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
     if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
         cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
@@ -64,6 +62,15 @@ class LLMServingArgs(CmdArgs):
             else:
                 args.extend([opt, str(value)])
         return args
+
+
+class LLMServingCmdArgs(CmdArgs):
+    """Shared command-argument shape for LLM serving workloads."""
+
+    docker_image_url: str
+    model: str
+    prefill: LLMServingArgs | None = Field(default=None)
+    decode: LLMServingArgs = Field(default_factory=LLMServingArgs)
 
 
 class LLMServingTestDefinition(TestDefinition, Generic[CmdArgsT]):
@@ -215,3 +222,36 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
             f"{results.p99_tpot_ms:.4f}",
         )
         console.print(table)
+
+
+class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServingTestDefT], ABC):
+    """Shared Slurm helpers for LLM serving workloads."""
+
+    @property
+    @abstractmethod
+    def tdef(self) -> LLMServingTestDefT:
+        """Typed access to the workload test definition."""
+
+    def _container_mounts(self) -> list[str]:
+        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
+
+    def image_path(self) -> str | None:
+        return str(self.tdef.docker_image.installed_path)
+
+    @property
+    def gpu_ids(self) -> list[int]:
+        return all_gpu_ids(self.tdef, self.system.gpus_per_node)
+
+    @property
+    def prefill_gpu_ids(self) -> list[int]:
+        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
+        mid = len(self.gpu_ids) // 2
+        return self.gpu_ids[:mid]
+
+    @property
+    def decode_gpu_ids(self) -> list[int]:
+        if self.tdef.cmd_args.decode.gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
+        mid = len(self.gpu_ids) // 2
+        return self.gpu_ids[mid:]

@@ -17,8 +17,7 @@
 import json
 from typing import Any, cast
 
-from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.common.llm_serving import all_gpu_ids
+from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy, all_gpu_ids
 
 from .vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
 
@@ -27,36 +26,12 @@ def vllm_all_gpu_ids(tdef: VllmTestDefinition, system_gpus_per_node: int | None)
     return all_gpu_ids(tdef, system_gpus_per_node)
 
 
-class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmTestDefinition]):
     """Command generation strategy for vLLM on Slurm systems."""
-
-    def _container_mounts(self) -> list[str]:
-        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
-
-    def image_path(self) -> str | None:
-        return str(self.tdef.docker_image.installed_path)
 
     @property
     def tdef(self) -> VllmTestDefinition:
         return cast(VllmTestDefinition, self.test_run.test)
-
-    @property
-    def gpu_ids(self) -> list[int]:
-        return vllm_all_gpu_ids(self.tdef, self.system.gpus_per_node)
-
-    @property
-    def prefill_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[:mid]
-
-    @property
-    def decode_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.decode.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[mid:]
 
     @staticmethod
     def _to_json_str_arg(config: dict) -> str:

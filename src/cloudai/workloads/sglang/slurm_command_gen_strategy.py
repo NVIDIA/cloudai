@@ -16,8 +16,7 @@
 
 from typing import cast
 
-from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.common.llm_serving import all_gpu_ids
+from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy, all_gpu_ids
 
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
@@ -33,36 +32,12 @@ def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | N
     return all_gpu_ids(tdef, system_gpus_per_node)
 
 
-class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangTestDefinition]):
     """Command generation strategy for SGLang on Slurm systems."""
-
-    def _container_mounts(self) -> list[str]:
-        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
-
-    def image_path(self) -> str | None:
-        return str(self.tdef.docker_image.installed_path)
 
     @property
     def tdef(self) -> SglangTestDefinition:
         return cast(SglangTestDefinition, self.test_run.test)
-
-    @property
-    def gpu_ids(self) -> list[int]:
-        return sglang_all_gpu_ids(self.tdef, self.system.gpus_per_node)
-
-    @property
-    def prefill_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[:mid]
-
-    @property
-    def decode_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.decode.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[mid:]
 
     @property
     def healthcheck_path(self) -> str:

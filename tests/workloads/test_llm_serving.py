@@ -22,10 +22,10 @@ from pydantic import Field
 from rich.table import Table
 
 from cloudai.core import GitRepo, TestRun
-from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
     LLMServingArgs,
     LLMServingBenchReport,
+    LLMServingCmdArgs,
     LLMServingReportGenerationStrategy,
     LLMServingTestDefinition,
     all_gpu_ids,
@@ -41,7 +41,7 @@ class FakeLLMArgs(LLMServingArgs):
         return {"gpu_ids", "internal_only"}
 
 
-class FakeLLMCmdArgs(CmdArgs):
+class FakeLLMCmdArgs(LLMServingCmdArgs):
     docker_image_url: str = "image:latest"
     model: str = "test/model"
     prefill: FakeLLMArgs | None = None

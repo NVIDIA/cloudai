@@ -22,7 +22,7 @@ from pydantic import ConfigDict, Field
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs
-from cloudai.workloads.common.llm_serving import LLMServingArgs, LLMServingTestDefinition
+from cloudai.workloads.common.llm_serving import LLMServingArgs, LLMServingCmdArgs, LLMServingTestDefinition
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
@@ -46,7 +46,7 @@ class VllmArgs(LLMServingArgs):
         return {"gpu_ids", "nixl_threads"}
 
 
-class VllmCmdArgs(CmdArgs):
+class VllmCmdArgs(LLMServingCmdArgs):
     """vLLM serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here

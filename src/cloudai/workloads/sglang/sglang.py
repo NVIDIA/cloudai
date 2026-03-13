@@ -24,7 +24,12 @@ from pydantic import ConfigDict, Field, model_validator
 
 from cloudai.core import JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs
-from cloudai.workloads.common.llm_serving import LLMServingArgs, LLMServingBenchReport, LLMServingTestDefinition
+from cloudai.workloads.common.llm_serving import (
+    LLMServingArgs,
+    LLMServingBenchReport,
+    LLMServingCmdArgs,
+    LLMServingTestDefinition,
+)
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
 SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
@@ -51,7 +56,7 @@ class SglangArgs(LLMServingArgs):
         return {"gpu_ids", "disaggregation_transfer_backend"}
 
 
-class SglangCmdArgs(CmdArgs):
+class SglangCmdArgs(LLMServingCmdArgs):
     """SGLang serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")
