@@ -116,6 +116,18 @@ class TestNIXLBenchCommand:
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": 1024}, None),
             ({"device_list": "11:FF:/store0.bin"}, "Invalid device spec"),
             ({"device_list": "11:K:/store0.bin,12:K:/store0.bin"}, None),
+            (
+                {"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"], "total_buffer_size": "8gb"},
+                None,
+            ),
+            ({"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"]}, "total_buffer_size"),
+            (
+                {
+                    "device_list": ["11:K:/store0.bin", "11:F:/store0.bin"],
+                    "total_buffer_size": ["8gb", 8000000, 1],
+                },
+                None,
+            ),
         ),
     )
     def test_device_list_validation(
