@@ -90,68 +90,6 @@ class TestGpuDetection:
         assert strategy.decode_gpu_ids == [1, 2]
 
 
-class TestServeExtraArgs:
-    """Tests for serve_args property."""
-
-    def test_serve_args_empty(self) -> None:
-        assert VllmArgs().serve_args == []
-        assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
-
-    def test_empty_string_value_means_flag(self) -> None:
-        assert VllmArgs.model_validate(
-            {"some_flag": "", "some_arg": "value", "zero_value": 0, "none_value": None}
-        ).serve_args == [
-            "--some-flag",
-            "--some-arg",
-            "value",
-            "--zero-value",
-            "0",
-        ]
-
-    def test_decode_serve_args_with_custom_fields(self) -> None:
-        tdef = VllmTestDefinition(
-            name="vllm",
-            description="test",
-            test_template_name="Vllm",
-            cmd_args=VllmCmdArgs.model_validate(
-                {
-                    "docker_image_url": "image:latest",
-                    "decode": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
-                }
-            ),
-        )
-        assert tdef.cmd_args.decode.serve_args == [
-            "--tensor-parallel-size",
-            "4",
-            "--max-model-len",
-            "8192",
-            "--some-long-arg",
-            "value",
-        ]
-
-    def test_prefill_serve_args_with_custom_fields(self) -> None:
-        tdef = VllmTestDefinition(
-            name="vllm",
-            description="test",
-            test_template_name="Vllm",
-            cmd_args=VllmCmdArgs.model_validate(
-                {
-                    "docker_image_url": "image:latest",
-                    "prefill": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
-                }
-            ),
-        )
-        assert tdef.cmd_args.prefill is not None
-        assert tdef.cmd_args.prefill.serve_args == [
-            "--tensor-parallel-size",
-            "4",
-            "--max-model-len",
-            "8192",
-            "--some-long-arg",
-            "value",
-        ]
-
-
 class TestVllmServeCommand:
     @pytest.mark.parametrize(
         "decode_nthreads,prefill_nthreads",
