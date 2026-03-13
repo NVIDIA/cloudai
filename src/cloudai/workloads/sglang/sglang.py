@@ -1,0 +1,202 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+import logging
+from functools import cache
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from cloudai.core import DockerImage, HFModel, Installable, JobStatusResult, TestRun
+from cloudai.models.workload import CmdArgs, TestDefinition
+
+SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
+SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
+SGLANG_BENCH_JSONL_FILE = "sglang-bench.jsonl"
+
+
+class SglangArgs(CmdArgs):
+    """Base command arguments for SGLang instances."""
+
+    gpu_ids: str | list[str] | None = Field(
+        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
+    )
+
+    disaggregation_transfer_backend: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Transfer backend used in disaggregated mode. It is consumed by command generation and not emitted "
+            "as a generic serve argument."
+        ),
+    )
+
+    @property
+    def serve_args(self) -> list[str]:
+        """Convert cmd_args_dict to command-line arguments list for SGLang serve command."""
+        args: list[str] = []
+        for key, value in self.model_dump(
+            exclude={"gpu_ids", "disaggregation_transfer_backend"}, exclude_none=True
+        ).items():
+            opt = f"--{key.replace('_', '-')}"
+            if value == "":
+                args.append(opt)
+            else:
+                args.extend([opt, str(value)])
+        return args
+
+
+class SglangCmdArgs(CmdArgs):
+    """SGLang serve command arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    docker_image_url: str
+    model: str = "Qwen/Qwen3-8B"
+    port: int = 8000
+    serve_wait_seconds: int = 300
+    health_endpoint: str = "/health"
+
+    serve_module: str = "sglang.launch_server"
+    router_module: str = "sglang_router.launch_router"
+    bench_module: str = "sglang.bench_serving"
+
+    prefill: SglangArgs | None = Field(
+        default=None,
+        description="Prefill instance arguments. If not set, a single instance without disaggregation is used.",
+    )
+    decode: SglangArgs = Field(default_factory=SglangArgs, description="Decode instance arguments.")
+
+
+class SglangBenchCmdArgs(CmdArgs):
+    """SGLang bench_serving command arguments."""
+
+    backend: str = "sglang"
+    dataset_name: str = "random"
+    num_prompts: int = 30
+    max_concurrency: int = 16
+    random_input: int = 16
+    random_output: int = 128
+    warmup_requests: int = 2
+    random_range_ratio: float = 1.0
+    output_details: bool = True
+
+
+class SglangTestDefinition(TestDefinition):
+    """Test object for SGLang."""
+
+    cmd_args: SglangCmdArgs
+    bench_cmd_args: SglangBenchCmdArgs = SglangBenchCmdArgs()
+
+    _docker_image: DockerImage | None = None
+    _hf_model: HFModel | None = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def hf_model(self) -> HFModel:
+        if not self._hf_model:
+            self._hf_model = HFModel(model_name=self.cmd_args.model)
+        return self._hf_model
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [*self.git_repos, self.docker_image, self.hf_model]
+
+    @model_validator(mode="after")
+    def check_gpu_ids_setup(self) -> SglangTestDefinition:
+        if self.cmd_args.prefill:
+            prefill_set = bool(self.cmd_args.prefill.gpu_ids)
+            decode_set = bool(self.cmd_args.decode.gpu_ids)
+            if prefill_set != decode_set:
+                raise ValueError("Both prefill and decode gpu_ids must be set or both must be None.")
+        return self
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
+        if res and res.completed > 0:
+            return JobStatusResult(is_successful=True)
+
+        return JobStatusResult(
+            is_successful=False,
+            error_message=f"SGLang bench jsonl does not contain successful requests in {tr.output_path}.",
+        )
+
+
+class SGLangBenchReport(BaseModel):
+    """Parsed benchmark data from SGLang bench_serving output."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    num_prompts: int
+    completed: int
+    request_throughput: float
+    max_concurrency: int
+    mean_ttft_ms: float
+    median_ttft_ms: float
+    p99_ttft_ms: float
+    mean_tpot_ms: float
+    median_tpot_ms: float
+    p99_tpot_ms: float
+
+    @property
+    def throughput(self) -> float:
+        return self.request_throughput
+
+    @property
+    def concurrency(self) -> int:
+        return self.max_concurrency
+
+    @property
+    def tps_per_user(self) -> float | None:
+        if self.concurrency <= 0:
+            return None
+        return self.throughput / self.concurrency
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_num_prompts(cls, data):
+        if isinstance(data, dict) and "num_prompts" not in data:
+            input_lens = data.get("input_lens")
+            if isinstance(input_lens, list):
+                data = dict(data)
+                data["num_prompts"] = len(input_lens)
+        return data
+
+
+@cache
+def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
+    """Parse SGLang benchmark output from JSONL file."""
+    if not jsonl_file.is_file():
+        return None
+
+    with jsonl_file.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            try:
+                parsed = SGLangBenchReport.model_validate_json(line)
+                if parsed.completed <= 0:
+                    return None
+                return parsed
+            except Exception as e:
+                logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
+                continue
+
+    return None
