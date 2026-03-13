@@ -18,13 +18,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from rich.console import Console
 from rich.table import Table
+from typing_extensions import Self
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, ReportGenerationStrategy
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 if TYPE_CHECKING:
     from cloudai.workloads.sglang.sglang import SglangTestDefinition
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 
 TestDefT = TypeVar("TestDefT")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
+CmdArgsT = TypeVar("CmdArgsT", bound=CmdArgs)
 
 
 def all_gpu_ids(tdef: VllmTestDefinition | SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
@@ -41,6 +44,68 @@ def all_gpu_ids(tdef: VllmTestDefinition | SglangTestDefinition, system_gpus_per
     if cuda_devices:
         return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
     return list(range(system_gpus_per_node or 1))
+
+
+class LLMServingArgs(CmdArgs):
+    """Shared serve-argument serialization for LLM serving workloads."""
+
+    @property
+    def serve_args_exclude(self) -> set[str]:
+        """Fields consumed internally and excluded from generic serve args."""
+        return set()
+
+    @property
+    def serve_args(self) -> list[str]:
+        args: list[str] = []
+        for key, value in self.model_dump(exclude=self.serve_args_exclude, exclude_none=True).items():
+            opt = f"--{key.replace('_', '-')}"
+            if value == "":
+                args.append(opt)
+            else:
+                args.extend([opt, str(value)])
+        return args
+
+
+class LLMServingTestDefinition(TestDefinition, Generic[CmdArgsT]):
+    """Shared test-definition behavior for LLM serving workloads."""
+
+    cmd_args: CmdArgsT
+    _docker_image: DockerImage | None = None
+    _hf_model: HFModel | None = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def hf_model(self) -> HFModel:
+        if not self._hf_model:
+            self._hf_model = HFModel(model_name=self.cmd_args.model)
+        return self._hf_model
+
+    @property
+    def extra_installables(self) -> list[Installable]:
+        return []
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [*self.git_repos, self.docker_image, self.hf_model, *self.extra_installables]
+
+    def model_post_init(self, __context: Any) -> None:
+        super().model_post_init(__context)
+        self._docker_image = None
+        self._hf_model = None
+
+    @model_validator(mode="after")
+    def check_gpu_ids_setup(self) -> Self:
+        if self.cmd_args.prefill:
+            prefill_set = bool(self.cmd_args.prefill.gpu_ids)
+            decode_set = bool(self.cmd_args.decode.gpu_ids)
+            if prefill_set != decode_set:
+                raise ValueError("Both prefill and decode gpu_ids must be set or both must be None.")
+        return self
 
 
 class LLMServingBenchReport(BaseModel, ABC):
@@ -83,6 +148,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         "tps-per-user",
         "tps-per-gpu",
     ]
+
     @property
     @abstractmethod
     def result_file_name(self) -> str:

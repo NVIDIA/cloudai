@@ -112,7 +112,9 @@ def test_sglang_invalid_metric_returns_error(slurm_system: SlurmSystem, sglang_t
     assert strategy.get_metric(metric) == METRIC_ERROR
 
 
-def test_sglang_metric_returns_error_when_report_cannot_be_parsed(slurm_system: SlurmSystem, sglang_tr: TestRun) -> None:
+def test_sglang_metric_returns_error_when_report_cannot_be_parsed(
+    slurm_system: SlurmSystem, sglang_tr: TestRun
+) -> None:
     (sglang_tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text("{invalid}\n", encoding="utf-8")
 
     strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
