@@ -382,7 +382,7 @@ def extract_nixlbench_data(stdout_file: Path) -> pd.DataFrame:
 
 def parse_device(v: str) -> str:
     for device in v.split(","):
-        if not re.fullmatch(re.compile(DEVICE_FORMAT), device):
+        if not re.fullmatch(DEVICE_FORMAT, device):
             raise ValueError(f"Invalid device spec: {device}, must be in format 'id:type:path'")
 
     return v
