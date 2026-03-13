@@ -27,6 +27,7 @@ from cloudai.workloads.vllm import (
     VllmCmdArgs,
     VllmTestDefinition,
 )
+from cloudai.workloads.vllm.report_generation_strategy import parse_vllm_bench_output
 from cloudai.workloads.vllm.vllm import VLLM_BENCH_JSON_FILE
 
 BENCH_DATA = VLLMBenchReport(
@@ -62,6 +63,17 @@ def test_vllm_can_handle_directory(slurm_system: SlurmSystem, vllm_tr: TestRun) 
     assert strategy.can_handle_directory() is True
 
 
+def test_parse_vllm_bench_output_missing_file(tmp_path: Path) -> None:
+    assert parse_vllm_bench_output(tmp_path / VLLM_BENCH_JSON_FILE) is None
+
+
+def test_parse_vllm_bench_output_invalid_json(tmp_path: Path) -> None:
+    report_path = tmp_path / VLLM_BENCH_JSON_FILE
+    report_path.write_text("{invalid", encoding="utf-8")
+
+    assert parse_vllm_bench_output(report_path) is None
+
+
 @pytest.mark.parametrize(
     "metric,expected",
     [
@@ -85,6 +97,14 @@ def test_vllm_tps_per_user__concurrency_is_zero() -> None:
 def test_vllm_invalid_metric_returns_error(slurm_system: SlurmSystem, vllm_tr: TestRun, metric: str) -> None:
     strategy = VLLMBenchReportGenerationStrategy(slurm_system, vllm_tr)
     assert strategy.get_metric(metric) == METRIC_ERROR
+
+
+def test_vllm_metric_returns_error_when_report_cannot_be_parsed(slurm_system: SlurmSystem, vllm_tr: TestRun) -> None:
+    (vllm_tr.output_path / VLLM_BENCH_JSON_FILE).write_text("{invalid", encoding="utf-8")
+
+    strategy = VLLMBenchReportGenerationStrategy(slurm_system, vllm_tr)
+
+    assert strategy.get_metric("throughput") == METRIC_ERROR
 
 
 @pytest.mark.parametrize("ngpus", [1, 2, 4, 8])
