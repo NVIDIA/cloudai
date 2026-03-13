@@ -280,6 +280,17 @@ wait_for_health() {{
     return 1
 }}"""
 
+    @staticmethod
+    def generate_cleanup_function(pid_vars: list[str]) -> str:
+        pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
+        kill_lines = "\n".join(f'    [ -n "${pid_var}" ] && kill -9 ${pid_var} 2>/dev/null' for pid_var in pid_vars)
+        return f"""\
+cleanup() {{
+    echo "Cleaning up PIDs: {pid_values}"
+{kill_lines}
+}}
+trap cleanup EXIT"""
+
     def _gen_llm_serving_srun_command(
         self,
         serve_commands: list[list[str]],

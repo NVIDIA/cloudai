@@ -121,11 +121,7 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
     def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: VLLM_PID=$VLLM_PID"
-    [ -n "$VLLM_PID" ] && kill -9 $VLLM_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["VLLM_PID"])}
 
 {health_func}
 
@@ -155,13 +151,7 @@ echo "Running benchmark..."
         decode_gpus = ",".join(str(g) for g in self.decode_gpu_ids)
 
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID PROXY_PID=$PROXY_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$PROXY_PID" ] && kill -9 $PROXY_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["PREFILL_PID", "DECODE_PID", "PROXY_PID"])}
 
 {health_func}
 

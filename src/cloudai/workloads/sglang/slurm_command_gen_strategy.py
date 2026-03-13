@@ -154,11 +154,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
         serve_gpus = ",".join(str(gpu_id) for gpu_id in self.gpu_ids)
         serve_cmd_with_env = self._with_cuda_visible_devices(serve_cmd, serve_gpus)
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: SGLANG_PID=$SGLANG_PID"
-    [ -n "$SGLANG_PID" ] && kill -9 $SGLANG_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["SGLANG_PID"])}
 
 {health_func}
 
@@ -188,13 +184,7 @@ echo "Running benchmark..."
         decode_cmd_with_env = self._with_cuda_visible_devices(decode_cmd, decode_gpus)
 
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID ROUTER_PID=$ROUTER_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$ROUTER_PID" ] && kill -9 $ROUTER_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["PREFILL_PID", "DECODE_PID", "ROUTER_PID"])}
 
 {health_func}
 
