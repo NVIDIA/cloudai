@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 
 BUFFER_SIZE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^(?P<num>\d+)(?P<unit>(b|kb|mb|gb)?)$")
-DEVICE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^\d+:[A-Z]:/[/\da-zA-Z.]+$")
+DEVICE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^\d+:[A-Z]:/[/\da-zA-Z._-]+$")
 
 
 class NIXLBaseCmdArgs(CmdArgs):
@@ -109,7 +109,7 @@ class NIXLExtendedCmdArgs(BaseModel):
 
     @field_validator("device_list", mode="after")
     @classmethod
-    def validate_device_list(cls, v: str | None) -> str | list[str] | None:
+    def validate_device_list(cls, v: str | list[str] | None) -> str | list[str] | None:
         if not v:
             return None
         elif isinstance(v, list):

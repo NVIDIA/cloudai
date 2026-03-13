@@ -106,37 +106,42 @@ class TestNIXLBenchCommand:
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
 
     @pytest.mark.parametrize(
-        ("override", "expected_error_match"),
+        ("override", "expected_error_match", "expected_total_buffer_size"),
         (
-            ({}, None),
-            ({"device_list": "11:F:/store0.bin"}, "One must provide total_buffer_size"),
-            ({"device_list": "11:F:/store0.bin", "total_buffer_size": None}, "One must provide total_buffer_size"),
-            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8gb"}, None),
-            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8ggb"}, "total_buffer_size"),
-            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "1024"}, None),
-            ({"device_list": "11:F:/store0.bin", "total_buffer_size": 1024}, None),
-            ({"device_list": "11:FF:/store0.bin"}, "Invalid device spec"),
-            ({"device_list": "11:K:/store0.bin,12:K:/store0.bin"}, None),
+            ({}, None, None),
+            ({"device_list": "11:F:/store0.bin"}, "One must provide total_buffer_size", None),
+            (
+                {"device_list": "11:F:/store0.bin", "total_buffer_size": None},
+                "One must provide total_buffer_size",
+                None,
+            ),
+            ({"device_list": "11:F:/store-_0.bin", "total_buffer_size": "8gb"}, None, str(8 * 2**30)),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8ggb"}, "total_buffer_size", None),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": "1024"}, None, "1024"),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": 1024}, None, "1024"),
+            ({"device_list": "11:FF:/store0.bin"}, "Invalid device spec", None),
+            ({"device_list": "11:K:/store0.bin,12:K:/store0.bin"}, None, None),
             (
                 {"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"], "total_buffer_size": "8gb"},
                 None,
+                str(8 * 2**30),
             ),
-            ({"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"]}, "total_buffer_size"),
+            ({"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"]}, "total_buffer_size", None),
             (
                 {
                     "device_list": ["11:K:/store0.bin", "11:F:/store0.bin"],
                     "total_buffer_size": ["8gb", 8000000, 1],
                 },
                 None,
+                [str(8 * 2**30), "8000000", "1"],
             ),
         ),
     )
     def test_device_list_validation(
         self,
-        nixl_bench_tr: TestRun,
-        slurm_system: SlurmSystem,
         override: dict,
         expected_error_match: str | None,
+        expected_total_buffer_size: str | list[str] | None,
     ):
         if expected_error_match is None:
             context = contextlib.nullcontext()
@@ -144,7 +149,7 @@ class TestNIXLBenchCommand:
             context = pytest.raises(pydantic.ValidationError, match=expected_error_match)
 
         with context:
-            NIXLBenchCmdArgs.model_validate(
+            cmd_args = NIXLBenchCmdArgs.model_validate(
                 {
                     "docker_image_url": "docker.io/library/ubuntu:22.04",
                     "path_to_benchmark": "/p",
@@ -152,6 +157,7 @@ class TestNIXLBenchCommand:
                 }
                 | override
             )
+            assert cmd_args.total_buffer_size == expected_total_buffer_size
 
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
