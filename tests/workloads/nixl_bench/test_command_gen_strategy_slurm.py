@@ -110,6 +110,7 @@ class TestNIXLBenchCommand:
         (
             ({}, None),
             ({"device_list": "11:F:/store0.bin"}, "One must provide total_buffer_size"),
+            ({"device_list": "11:F:/store0.bin", "total_buffer_size": None}, "One must provide total_buffer_size"),
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8gb"}, None),
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8ggb"}, "total_buffer_size"),
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": "1024"}, None),

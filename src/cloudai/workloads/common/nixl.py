@@ -90,9 +90,12 @@ class NIXLExtendedCmdArgs(BaseModel):
     @classmethod
     def prevalidate_total_buffer_size(cls, v: Any) -> Any:
         """Handle integers."""
-        if isinstance(v, list):
+        if v is None:
+            return v
+        elif isinstance(v, list):
             return list(map(str, v))
-        return str(v)
+        else:
+            return str(v)
 
     @field_validator("total_buffer_size", mode="after")
     @classmethod
