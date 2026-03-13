@@ -24,6 +24,7 @@ from .sglang import (
     SGLANG_SERVE_LOG_FILE,
     SglangArgs,
     SglangBenchCmdArgs,
+    SglangCmdArgs,
     SglangTestDefinition,
 )
 
@@ -32,7 +33,7 @@ def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | N
     return all_gpu_ids(tdef, system_gpus_per_node)
 
 
-class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangTestDefinition]):
+class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdArgs]):
     """Command generation strategy for SGLang on Slurm systems."""
 
     @property

@@ -46,7 +46,7 @@ class VllmArgs(LLMServingArgs):
         return {"gpu_ids", "nixl_threads"}
 
 
-class VllmCmdArgs(LLMServingCmdArgs):
+class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
     """vLLM serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
@@ -75,7 +75,6 @@ class VllmBenchCmdArgs(CmdArgs):
 class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     """Test object for vLLM."""
 
-    cmd_args: VllmCmdArgs
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
     proxy_script_repo: GitRepo | None = None
 

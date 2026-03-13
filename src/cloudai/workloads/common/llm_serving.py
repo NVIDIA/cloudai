@@ -31,11 +31,11 @@ from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 TestDefT = TypeVar("TestDefT")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
-CmdArgsT = TypeVar("CmdArgsT", bound="LLMServingCmdArgs")
-LLMServingTestDefT = TypeVar("LLMServingTestDefT", bound="LLMServingTestDefinition[LLMServingCmdArgs]")
+LLMServingArgsT = TypeVar("LLMServingArgsT", bound="LLMServingArgs")
+LLMServingCmdArgsT = TypeVar("LLMServingCmdArgsT", bound="LLMServingCmdArgs")
 
 
-def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgs], system_gpus_per_node: int | None) -> list[int]:
+def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgsT], system_gpus_per_node: int | None) -> list[int]:
     cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
     if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
         cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
@@ -46,6 +46,8 @@ def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgs], system_gpus_p
 
 class LLMServingArgs(CmdArgs):
     """Shared serve-argument serialization for LLM serving workloads."""
+
+    gpu_ids: str | list[str] | None = None
 
     @property
     def serve_args_exclude(self) -> set[str]:
@@ -64,20 +66,20 @@ class LLMServingArgs(CmdArgs):
         return args
 
 
-class LLMServingCmdArgs(CmdArgs):
+class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
     """Shared command-argument shape for LLM serving workloads."""
 
     docker_image_url: str
     model: str
     serve_wait_seconds: int = 300
-    prefill: LLMServingArgs | None = Field(default=None)
-    decode: LLMServingArgs = Field(default_factory=LLMServingArgs)
+    prefill: LLMServingArgsT | None = Field(default=None)
+    decode: LLMServingArgsT
 
 
-class LLMServingTestDefinition(TestDefinition, Generic[CmdArgsT]):
+class LLMServingTestDefinition(TestDefinition, Generic[LLMServingCmdArgsT]):
     """Shared test-definition behavior for LLM serving workloads."""
 
-    cmd_args: CmdArgsT
+    cmd_args: LLMServingCmdArgsT
     _docker_image: DockerImage | None = None
     _hf_model: HFModel | None = None
 
@@ -225,12 +227,12 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         console.print(table)
 
 
-class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServingTestDefT], ABC):
+class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServingCmdArgsT], ABC):
     """Shared Slurm helpers for LLM serving workloads."""
 
     @property
     @abstractmethod
-    def tdef(self) -> LLMServingTestDefT:
+    def tdef(self) -> LLMServingTestDefinition[LLMServingCmdArgsT]:
         """Typed access to the workload test definition."""
 
     def _container_mounts(self) -> list[str]:

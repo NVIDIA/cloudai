@@ -56,7 +56,7 @@ class SglangArgs(LLMServingArgs):
         return {"gpu_ids", "disaggregation_transfer_backend"}
 
 
-class SglangCmdArgs(LLMServingCmdArgs):
+class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
     """SGLang serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")
@@ -94,7 +94,6 @@ class SglangBenchCmdArgs(CmdArgs):
 class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
     """Test object for SGLang."""
 
-    cmd_args: SglangCmdArgs
     bench_cmd_args: SglangBenchCmdArgs = SglangBenchCmdArgs()
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

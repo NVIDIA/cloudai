@@ -19,14 +19,20 @@ from typing import Any, cast
 
 from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy, all_gpu_ids
 
-from .vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
+from .vllm import (
+    VLLM_BENCH_JSON_FILE,
+    VLLM_BENCH_LOG_FILE,
+    VLLM_SERVE_LOG_FILE,
+    VllmCmdArgs,
+    VllmTestDefinition,
+)
 
 
 def vllm_all_gpu_ids(tdef: VllmTestDefinition, system_gpus_per_node: int | None) -> list[int]:
     return all_gpu_ids(tdef, system_gpus_per_node)
 
 
-class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmTestDefinition]):
+class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]):
     """Command generation strategy for vLLM on Slurm systems."""
 
     @property

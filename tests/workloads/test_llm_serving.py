@@ -33,7 +33,7 @@ from cloudai.workloads.common.llm_serving import (
 
 
 class FakeLLMArgs(LLMServingArgs):
-    gpu_ids: str | None = None
+    gpu_ids: str | list[str] | None = None
     internal_only: str | None = None
 
     @property
@@ -41,7 +41,7 @@ class FakeLLMArgs(LLMServingArgs):
         return {"gpu_ids", "internal_only"}
 
 
-class FakeLLMCmdArgs(LLMServingCmdArgs):
+class FakeLLMCmdArgs(LLMServingCmdArgs[FakeLLMArgs]):
     docker_image_url: str = "image:latest"
     model: str = "test/model"
     prefill: FakeLLMArgs | None = None
@@ -49,7 +49,7 @@ class FakeLLMCmdArgs(LLMServingCmdArgs):
 
 
 class FakeLLMTestDefinition(LLMServingTestDefinition[FakeLLMCmdArgs]):
-    cmd_args: FakeLLMCmdArgs
+    pass
 
 
 class PlainLLMArgs(LLMServingArgs):
