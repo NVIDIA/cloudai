@@ -277,3 +277,24 @@ wait_for_health() {{
     echo "Timeout waiting for: $endpoint"
     return 1
 }}"""
+
+    def _gen_llm_serving_srun_command(
+        self,
+        serve_commands: list[list[str]],
+        bench_cmd: str,
+        health_func: str,
+    ) -> str:
+        srun_prefix = " ".join(self.gen_srun_prefix())
+        if len(serve_commands) == 1:
+            return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
+        return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
+
+    @abstractmethod
+    def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
+        """Render the aggregated-mode srun script."""
+
+    @abstractmethod
+    def _gen_disaggregated_script(
+        self, srun_prefix: str, serve_commands: list[list[str]], bench_cmd: str, health_func: str
+    ) -> str:
+        """Render the disaggregated-mode srun script."""

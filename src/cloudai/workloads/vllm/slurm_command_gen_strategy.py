@@ -108,15 +108,10 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmTestDefi
         ]
 
     def _gen_srun_command(self) -> str:
-        srun_prefix = " ".join(self.gen_srun_prefix())
         serve_commands = self.get_vllm_serve_commands()
         bench_cmd = " ".join(self.get_vllm_bench_command())
         health_func = self.generate_wait_for_health_function()
-
-        if len(serve_commands) == 1:
-            return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
-        else:
-            return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
+        return self._gen_llm_serving_srun_command(serve_commands, bench_cmd, health_func)
 
     def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
         return f"""\
