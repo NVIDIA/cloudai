@@ -21,6 +21,10 @@ Test TOML example:
    initiator_seg_type = "VRAM"
    target_seg_type = "VRAM"
    op_type = "READ"
+   filepath = "/data"
+   device_list = "11:F:/store0.bin"
+   # one could also use <num>kb, <num>mb, <num>gb shortcuts
+   total_buffer_size = 8000000000
 
 Test Scenario example:
 

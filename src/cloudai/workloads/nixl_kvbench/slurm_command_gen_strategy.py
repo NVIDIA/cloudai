@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import cast
 
 from cloudai.workloads.common.nixl import NIXLCmdGenBase
@@ -24,14 +23,6 @@ from .nixl_kvbench import NIXLKVBenchTestDefinition
 
 class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
     """Command generation strategy for NIXLKVBench tests."""
-
-    def _container_mounts(self) -> list[str]:
-        mounts = []
-        if filepath := self.tdef.cmd_args_dict.get("filepath"):
-            local_dir = self.test_run.output_path / Path(f"{filepath}").name
-            local_dir.mkdir(exist_ok=True)
-            mounts.append(f"{local_dir.absolute()}:/{filepath}")
-        return mounts
 
     @property
     def tdef(self) -> NIXLKVBenchTestDefinition:

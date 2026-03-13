@@ -16,11 +16,13 @@
 from __future__ import annotations
 
 import logging
+import re
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
 
-from pydantic import Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing_extensions import Self
 
 from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -30,6 +32,10 @@ from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+BUFFER_SIZE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^(?P<num>\d+)(?P<unit>(b|kb|mb|gb)?)$")
+DEVICE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^\d+:[A-Z]:/[/\da-zA-Z._-]+$")
 
 
 class NIXLBaseCmdArgs(CmdArgs):
@@ -45,6 +51,87 @@ class NIXLBaseCmdArgs(CmdArgs):
             "as the benchmark."
         ),
     )
+
+
+class NIXLExtendedCmdArgs(BaseModel):
+    """Extended CLI for NIXL workloads. Used by nixl-bench and nixl-kvbench but not by nixl-perftest."""
+
+    filepath: str | None = Field(
+        default=None,
+        description="Directory path (in container) for storage operations. Example: /data",
+    )
+    total_buffer_size: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Total buffer size in bytes. Examples: 1024, 1kb, 1mb, 1gb. Use with device_list. The size will be passed "
+            "into NIXL as integer (bytes)"
+        ),
+    )
+    device_list: str | list[str] | None = Field(
+        default=None,
+        description="Device specs in format 'id:type:path' (e.g., '11:F:/store0.bin,27:K:/dev/nvme0n1')",
+    )
+
+    @field_validator("filepath", mode="after")
+    @classmethod
+    def validate_filepath(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if not Path(v).is_absolute():
+            logging.warning(
+                f"Provided container path {v!s} is not absolute. Prepending '/' to make it absolute within container."
+            )
+            return "/" + v
+
+        return v
+
+    @field_validator("total_buffer_size", mode="before")
+    @classmethod
+    def prevalidate_total_buffer_size(cls, v: Any) -> Any:
+        """Handle integers."""
+        if v is None:
+            return v
+        elif isinstance(v, list):
+            return list(map(str, v))
+        else:
+            return str(v)
+
+    @field_validator("total_buffer_size", mode="after")
+    @classmethod
+    def validate_total_buffer_size(cls, v: str | list[str] | None) -> str | list[str] | None:
+        if not v:
+            return None
+        elif isinstance(v, list):
+            return list(map(parse_total_buffer_size, v))
+        else:
+            return parse_total_buffer_size(v)
+
+    @field_validator("device_list", mode="after")
+    @classmethod
+    def validate_device_list(cls, v: str | list[str] | None) -> str | list[str] | None:
+        if not v:
+            return None
+        elif isinstance(v, list):
+            return list(map(parse_device, v))
+        else:
+            return parse_device(v)
+
+    @model_validator(mode="after")
+    def validate_model(self) -> Self:
+        require_total_buffer_size = False
+
+        if isinstance(self.device_list, list):
+            if any(map(get_files_from_device_list, self.device_list)):
+                require_total_buffer_size = True
+
+        elif self.device_list and get_files_from_device_list(self.device_list):
+            require_total_buffer_size = True
+
+        if require_total_buffer_size and not self.total_buffer_size:
+            raise ValueError("One must provide total_buffer_size if using device_list with file-backed devices.")
+
+        return self
 
 
 NIXLCmdArgsT = TypeVar("NIXLCmdArgsT", bound=NIXLBaseCmdArgs)
@@ -88,6 +175,73 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
     def image_path(self) -> str | None:
         return self._current_image_url
+
+    def _container_mounts(self) -> list[str]:
+        mounts = []
+        mounts.extend(self._filepath_mounts())
+        mounts.extend(self._device_list_mounts())
+        return mounts
+
+    def _filepath_mounts(self) -> list[str]:
+        filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
+        if not filepath_raw:
+            return []
+
+        filepath = Path(filepath_raw)
+
+        local_dir = self.test_run.output_path / "filepath_mount" / filepath.name
+        if local_dir.exists() and not local_dir.is_dir():
+            raise ValueError(f"Expected a directory for filepath mount, but found file at {local_dir}.")
+        local_dir.mkdir(parents=True, exist_ok=True)
+        return [f"{local_dir.absolute()}:{filepath}"]
+
+    def _device_list_mounts(self) -> list[str]:
+        device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
+        if not device_list_raw:
+            return []
+
+        file_devices = get_files_from_device_list(device_list_raw)
+        if not file_devices:
+            return []
+
+        # total_buffer_size is enforced with device_list on the pydantic model level thus using ["..."]
+        total_buffer_size = int(cast(str, self.test_run.test.cmd_args_dict["total_buffer_size"]))
+
+        mounts = []
+        used_filenames: set[str] = set()
+        for device_path in file_devices:
+            unique_device_filename = self._unique_file_name(device_path.name, used_filenames)
+            local_device_path = self.test_run.output_path / "device_list_mounts" / unique_device_filename
+            self._ensure_device_file(local_device_path, total_buffer_size)
+            mounts.append(f"{local_device_path.absolute()}:{device_path}")
+        return mounts
+
+    def _ensure_device_file(self, file_path: Path, size: int) -> None:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        if file_path.exists() and file_path.is_dir():
+            raise ValueError(f"Expected a file for device_list: {file_path.name}, but found directory at {file_path}.")
+
+        if file_path.exists() and file_path.stat().st_size == size:
+            return
+
+        with file_path.open("wb") as f:
+            f.truncate(size)
+
+    def _unique_file_name(self, file_name: str, used_filenames: set[str]) -> str:
+        if file_name not in used_filenames:
+            used_filenames.add(file_name)
+            return file_name
+
+        base = Path(file_name).stem
+        suffix = Path(file_name).suffix
+        idx = 1
+        candidate = f"{base}_{idx}{suffix}"
+        while candidate in used_filenames:
+            idx += 1
+            candidate = f"{base}_{idx}{suffix}"
+
+        used_filenames.add(candidate)
+        return candidate
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
@@ -224,3 +378,44 @@ def extract_nixlbench_data(stdout_file: Path) -> pd.DataFrame:
     df["bw_gb_sec"] = df["bw_gb_sec"].astype(float)
 
     return df
+
+
+def parse_device(v: str) -> str:
+    for device in v.split(","):
+        if not re.fullmatch(DEVICE_FORMAT, device):
+            raise ValueError(f"Invalid device spec: {device}, must be in format 'id:type:path'")
+
+    return v
+
+
+def parse_total_buffer_size(v: str) -> str:
+    multipliers: dict[str, int] = {"": 1, "b": 1, "kb": 2**10, "mb": 2**20, "gb": 2**30}
+
+    match = re.fullmatch(BUFFER_SIZE_FORMAT, v)
+    if match is None:
+        raise ValueError(f"Could not parse total_buffer_size={v!r}.")
+
+    amount = int(match.group("num"))
+    unit = match.group("unit").lower()
+
+    return str(amount * multipliers[unit])
+
+
+def get_files_from_device_list(device_list: str) -> list[Path]:
+    """
+    Filter device_list into files and return their container paths.
+
+    Expects validated device_list here
+    """
+    parsed: list[Path] = []
+
+    for device_str in device_list.split(","):
+        device_parts = device_str.split(":", 2)
+
+        _, device_type, device_path = device_parts
+        if device_type != "F":
+            continue
+
+        parsed.append(Path(device_path))
+
+    return parsed

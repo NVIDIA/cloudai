@@ -24,9 +24,6 @@ from .nixl_bench import NIXLBenchTestDefinition
 class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
     """Command generation strategy for NIXL Bench tests."""
 
-    def _container_mounts(self) -> list[str]:
-        return []
-
     @property
     def tdef(self) -> NIXLBenchTestDefinition:
         return cast(NIXLBenchTestDefinition, self.test_run.test)
