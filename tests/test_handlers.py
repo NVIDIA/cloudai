@@ -15,13 +15,24 @@
 # limitations under the License.
 
 import argparse
+import csv
 from typing import Any, ClassVar, Iterator
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import Field
 
 from cloudai.cli.handlers import handle_dse_job
-from cloudai.core import BaseAgent, BaseAgentConfig, Registry, Runner, TestDependency, TestRun, TestScenario
+from cloudai.core import (
+    BaseAgent,
+    BaseAgentConfig,
+    CloudAIGymEnv,
+    Registry,
+    Runner,
+    TestDependency,
+    TestRun,
+    TestScenario,
+)
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -33,10 +44,11 @@ class StubAgentConfig(BaseAgentConfig):
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
 
-    def __init__(self, env, config: StubAgentConfig):
+    def __init__(self, env: CloudAIGymEnv, config: StubAgentConfig):
         self.env = env
         self.config = config
-        self.max_steps = 0
+        self.max_steps = env.max_steps
+        self._step = 0
         StubAgent.received_configs.append(config)
 
     @staticmethod
@@ -44,10 +56,11 @@ class StubAgent(BaseAgent):
         return StubAgentConfig
 
     def configure(self, config: dict[str, Any]) -> None:
-        raise NotImplementedError
+        self.action_space = config
 
     def select_action(self) -> tuple[int, dict[str, Any]]:
-        raise NotImplementedError
+        self._step += 1
+        return self._step, {"candidate": 1}
 
     def update_policy(self, _feedback: dict[str, Any]) -> None:
         return
@@ -139,3 +152,44 @@ def test_dse_run_uses_agent_config(
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
     assert recorded.random_seed == expected["random_seed"]
+
+
+def test_dse_run_skips_repeated_actions_via_trajectory_cache(
+    base_tr: TestRun, tmp_path, stub_agent_name: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    base_tr.test.cmd_args.candidate = [1, 2]
+    base_tr.test.agent = stub_agent_name
+    base_tr.test.agent_steps = 3
+
+    inner_runner = MagicMock()
+    inner_runner.system = MagicMock()
+    inner_runner.scenario_root = tmp_path / "scenario"
+    inner_runner.test_scenario = TestScenario(name="test_scenario", test_runs=[base_tr])
+    inner_runner.jobs = {}
+    inner_runner.testrun_to_job_map = {}
+
+    def _job_output_path(tr: TestRun):
+        output_path = inner_runner.scenario_root / tr.name / f"{tr.current_iteration}" / f"{tr.step}"
+        output_path.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    inner_runner.get_job_output_path.side_effect = _job_output_path
+
+    runner = MagicMock()
+    runner.runner = inner_runner
+
+    trajectory_dir = inner_runner.scenario_root / base_tr.name / f"{base_tr.current_iteration}"
+    trajectory_dir.mkdir(parents=True, exist_ok=True)
+
+    with caplog.at_level("INFO"):
+        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+
+    assert inner_runner.run.call_count == 1
+
+    trajectory_path = trajectory_dir / "trajectory.csv"
+    with trajectory_path.open(newline="") as file:
+        rows = list(csv.DictReader(file))
+
+    assert len(rows) == 1
+    assert rows[0]["action"] == "{'candidate': 1}"
+    assert caplog.text.count("Retrieved cached result from") == 2

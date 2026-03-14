@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import copy
 import csv
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
@@ -103,13 +105,20 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         self.test_run = self.test_run.apply_params_set(action)
+        self.test_run.output_path = self.runner.get_job_output_path(self.test_run)
+
+        cached_result = self.get_cached_trajectory_result(action)
+        if cached_result is not None:
+            observation, reward = cached_result
+            logging.info("Retrieved cached result from %s with reward %s", self.trajectory_file_path, reward)
+            return observation, reward, False, {}
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
 
         new_tr = copy.deepcopy(self.test_run)
-        new_tr.output_path = self.runner.get_job_output_path(new_tr)
+        new_tr.output_path = self.test_run.output_path
         self.runner.test_scenario.test_runs = [new_tr]
 
         self.runner.shutting_down = False
@@ -198,15 +207,80 @@ class CloudAIGymEnv(BaseGym):
             reward (float): The reward received for the action.
             observation (list): The observation after taking the action.
         """
-        trajectory_file_path = (
-            self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
-        )
+        file_exists = self.trajectory_file_path.exists()
+        logging.debug(f"Writing trajectory into {self.trajectory_file_path} (exists: {file_exists})")
 
-        file_exists = trajectory_file_path.exists()
-        logging.debug(f"Writing trajectory into {trajectory_file_path} (exists: {file_exists})")
-
-        with open(trajectory_file_path, mode="a", newline="") as file:
+        with open(self.trajectory_file_path, mode="a", newline="") as file:
             writer = csv.writer(file)
             if not file_exists:
                 writer.writerow(["step", "action", "reward", "observation"])
             writer.writerow([step, action, reward, observation])
+
+    @property
+    def trajectory_file_path(self) -> Path:
+        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
+
+    def get_cached_trajectory_result(self, action: Any) -> Optional[Tuple[list, float]]:
+        if not self.trajectory_file_path.exists():
+            return None
+
+        try:
+            with open(self.trajectory_file_path, newline="") as file:
+                reader = csv.DictReader(file)
+                required_columns = {"step", "action", "reward", "observation"}
+                if reader.fieldnames is None or not required_columns.issubset(reader.fieldnames):
+                    raise ValueError(
+                        f"Malformed trajectory file {self.trajectory_file_path}: "
+                        f"expected columns {sorted(required_columns)}, got {reader.fieldnames}"
+                    )
+
+                for row_number, row in enumerate(reader, start=2):
+                    parsed_action, reward, observation = self._parse_trajectory_row(row, row_number)
+                    if self._values_match_exact(parsed_action, action):
+                        return observation, reward
+        except OSError as exc:
+            raise RuntimeError(f"Unable to read trajectory file {self.trajectory_file_path}: {exc}") from exc
+
+        return None
+
+    def _parse_trajectory_row(self, row: dict[str, str], row_number: int) -> tuple[dict[Any, Any], float, list]:
+        try:
+            action = ast.literal_eval(row["action"])
+            if not isinstance(action, dict):
+                raise ValueError(f"action is not a dict: {type(action).__name__}")
+
+            reward = float(row["reward"])
+            observation = ast.literal_eval(row["observation"])
+            if not isinstance(observation, list):
+                raise ValueError(f"observation is not a list: {type(observation).__name__}")
+        except (KeyError, SyntaxError, ValueError, TypeError) as exc:
+            raise ValueError(
+                f"Malformed trajectory file {self.trajectory_file_path}: invalid row {row_number}: {exc}"
+            ) from exc
+
+        return action, reward, observation
+
+    @classmethod
+    def _values_match_exact(cls, left: Any, right: Any) -> bool:
+        if type(left) is not type(right):
+            return False
+
+        if isinstance(left, dict):
+            left_keys = set(left.keys())
+            right_keys = set(right.keys())
+            if left_keys != right_keys:
+                return False
+
+            return all(cls._values_match_exact(left[key], right[key]) for key in left_keys)
+
+        if isinstance(left, (list, tuple)):
+            if len(left) != len(right):
+                return False
+
+            for left_item, right_item in zip(left, right, strict=True):
+                if not cls._values_match_exact(left_item, right_item):
+                    return False
+
+            return True
+
+        return left == right
