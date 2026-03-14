@@ -332,12 +332,12 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
         (
             (
                 "step,action,reward,observation\n"
-                "1,\"{'disagg.p_pp': 1, 'disagg.p_dp': 1, 'disagg.d_pp': 1, 'disagg.d_dp': 1, "
+                "1,\"{'disagg.p_pp': 1.0, 'disagg.p_dp': 1, 'disagg.d_pp': 1, 'disagg.d_dp': 1, "
                 "'disagg.p_tp': 4, 'disagg.p_workers': 2, 'disagg.d_tp': 4, 'disagg.d_bs': 8, "
                 '\'disagg.d_workers\': 4}",0.8276527145310523,"[202.016, 11.125, 120.08333333333333, 89.887]"\n'
             ),
             {
-                "disagg.p_pp": 1,
+                "disagg.p_pp": 1.0,
                 "disagg.p_dp": 1,
                 "disagg.d_pp": 1,
                 "disagg.d_dp": 1,
@@ -356,6 +356,12 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
             nullcontext(),
             None,
         ),
+        (
+            'step,action,reward,observation\n1,"{\'x\': 1.1234567894}",0.5,"[1.0]"\n',
+            {"x": 1.12345678949},
+            nullcontext(),
+            ([1.0], 0.5),
+        ),
     ],
     ids=[
         "missing-file",
@@ -365,6 +371,7 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
         "corrupt-observation",
         "exact-match-hit",
         "type-sensitive-miss",
+        "float-match-9-decimals",
     ],
 )
 def test_get_cached_trajectory_result(

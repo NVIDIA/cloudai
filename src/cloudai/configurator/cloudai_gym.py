@@ -19,12 +19,14 @@ import copy
 import csv
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Final, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_gym import BaseGym
+
+TRAJECTORY_DECIMAL_PRECISION: Final[int] = 9
 
 
 class CloudAIGymEnv(BaseGym):
@@ -265,7 +267,10 @@ class CloudAIGymEnv(BaseGym):
         if type(left) is not type(right):
             return False
 
-        if isinstance(left, dict):
+        if isinstance(left, float):
+            return round(left, TRAJECTORY_DECIMAL_PRECISION) == round(right, TRAJECTORY_DECIMAL_PRECISION)
+
+        elif isinstance(left, dict):
             left_keys = set(left.keys())
             right_keys = set(right.keys())
             if left_keys != right_keys:
@@ -273,7 +278,7 @@ class CloudAIGymEnv(BaseGym):
 
             return all(cls._values_match_exact(left[key], right[key]) for key in left_keys)
 
-        if isinstance(left, (list, tuple)):
+        elif isinstance(left, (list, tuple)):
             if len(left) != len(right):
                 return False
 
@@ -283,4 +288,5 @@ class CloudAIGymEnv(BaseGym):
 
             return True
 
-        return left == right
+        else:
+            return left == right
