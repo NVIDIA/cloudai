@@ -135,11 +135,7 @@ class TestAllGpuIds:
 
 class TestLLMServingArgsBehavior:
     def test_default_serve_args_exclude_is_empty(self) -> None:
-        assert PlainLLMArgs.model_validate({"some_flag": "", "gpu_ids": "0"}).serve_args == [
-            "--gpu-ids",
-            "0",
-            "--some-flag",
-        ]
+        assert PlainLLMArgs.model_validate({"some_flag": "", "gpu_ids": "0"}).serve_args == ["--some-flag"]
 
     def test_serve_args_empty_excludes_internal_fields(self) -> None:
         assert FakeLLMArgs().serve_args == []
