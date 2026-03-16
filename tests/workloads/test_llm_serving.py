@@ -37,7 +37,7 @@ class FakeLLMArgs(LLMServingArgs):
 
     @property
     def serve_args_exclude(self) -> set[str]:
-        return {"gpu_ids", "internal_only"}
+        return super().serve_args_exclude | {"internal_only"}
 
 
 class FakeLLMCmdArgs(LLMServingCmdArgs[FakeLLMArgs]):
@@ -140,7 +140,7 @@ class TestAllGpuIds:
 
 
 class TestLLMServingArgsBehavior:
-    def test_default_serve_args_exclude_is_empty(self) -> None:
+    def test_default_serve_args(self) -> None:
         assert PlainLLMArgs.model_validate({"some_flag": "", "gpu_ids": "0"}).serve_args == ["--some-flag"]
 
     def test_serve_args_empty_excludes_internal_fields(self) -> None:
