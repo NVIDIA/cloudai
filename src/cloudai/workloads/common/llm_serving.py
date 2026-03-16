@@ -54,7 +54,7 @@ class LLMServingArgs(CmdArgs):
     @property
     def serve_args_exclude(self) -> set[str]:
         """Fields consumed internally and excluded from generic serve args."""
-        return set()
+        return {"gpu_ids"}
 
     @property
     def serve_args(self) -> list[str]:
@@ -186,7 +186,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         return self.parse_results() is not None
 
     def used_gpus_count(self) -> int:
-        return len(self.all_gpu_ids(cast(TestDefT, self.test_run.test), getattr(self.system, "gpus_per_node", None)))
+        return len(self.all_gpu_ids(cast(TestDefT, self.test_run.test), getattr(self.system, "gpus_per_node", 1)))
 
     def get_metric(self, metric: str) -> float:
         if metric not in self.metrics:

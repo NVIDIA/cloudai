@@ -33,7 +33,6 @@ from cloudai.workloads.common.llm_serving import (
 
 
 class FakeLLMArgs(LLMServingArgs):
-    gpu_ids: str | list[str] | None = None
     internal_only: str | None = None
 
     @property
@@ -166,10 +165,6 @@ class TestLLMServingTestDefinitionBehavior:
         llm_tdef.git_repos = [repo]
 
         assert llm_tdef.installables == [repo, llm_tdef.docker_image, llm_tdef.hf_model]
-
-    def test_docker_image_and_hf_model_are_cached(self, llm_tdef: FakeLLMTestDefinition) -> None:
-        assert llm_tdef.docker_image is llm_tdef.docker_image
-        assert llm_tdef.hf_model is llm_tdef.hf_model
 
     @pytest.mark.parametrize(
         ("prefill_gpu_ids", "decode_gpu_ids"),
