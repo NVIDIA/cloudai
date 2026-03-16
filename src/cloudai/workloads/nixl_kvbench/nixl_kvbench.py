@@ -19,10 +19,15 @@ from __future__ import annotations
 from typing import Literal
 
 from cloudai.core import JobStatusResult, TestRun
-from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition, extract_nixlbench_data
+from cloudai.workloads.common.nixl import (
+    NIXLBaseCmdArgs,
+    NIXLBaseTestDefinition,
+    NIXLExtendedCmdArgs,
+    extract_nixlbench_data,
+)
 
 
-class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs):
+class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs, NIXLExtendedCmdArgs):
     """Command line arguments for NIXL KVBench."""
 
     command: Literal["profile"] = "profile"
@@ -51,6 +56,7 @@ class NIXLKVBenchTestDefinition(NIXLBaseTestDefinition[NIXLKVBenchCmdArgs]):
                 "command",
                 "etcd_image_url",
             },
+            exclude_none=True,
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

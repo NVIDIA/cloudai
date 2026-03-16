@@ -17,10 +17,15 @@
 from __future__ import annotations
 
 from cloudai.core import JobStatusResult, TestRun
-from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition, extract_nixlbench_data
+from cloudai.workloads.common.nixl import (
+    NIXLBaseCmdArgs,
+    NIXLBaseTestDefinition,
+    NIXLExtendedCmdArgs,
+    extract_nixlbench_data,
+)
 
 
-class NIXLBenchCmdArgs(NIXLBaseCmdArgs):
+class NIXLBenchCmdArgs(NIXLBaseCmdArgs, NIXLExtendedCmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
     path_to_benchmark: str
@@ -40,7 +45,8 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
                 "etcd_path",
                 "wait_etcd_for",
                 "etcd_image_url",
-            }
+            },
+            exclude_none=True,
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
