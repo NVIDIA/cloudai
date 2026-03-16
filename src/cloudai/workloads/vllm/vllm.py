@@ -39,7 +39,7 @@ class VllmArgs(LLMServingArgs):
 
     @property
     def serve_args_exclude(self) -> set[str]:
-        return {"gpu_ids", "nixl_threads"}
+        return super().serve_args_exclude | {"nixl_threads"}
 
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):

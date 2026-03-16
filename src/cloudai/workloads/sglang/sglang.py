@@ -49,7 +49,7 @@ class SglangArgs(LLMServingArgs):
 
     @property
     def serve_args_exclude(self) -> set[str]:
-        return {"gpu_ids", "disaggregation_transfer_backend"}
+        return super().serve_args_exclude | {"disaggregation_transfer_backend"}
 
 
 class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
