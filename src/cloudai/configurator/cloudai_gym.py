@@ -116,7 +116,6 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         self.test_run = self.test_run.apply_params_set(action)
-        self.test_run.output_path = self.runner.get_job_output_path(self.test_run, create=False)
 
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:

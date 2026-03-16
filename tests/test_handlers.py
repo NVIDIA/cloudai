@@ -27,7 +27,6 @@ from cloudai.cli.handlers import handle_dse_job
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
-    CloudAIGymEnv,
     Registry,
     Runner,
     TestDependency,
@@ -47,11 +46,10 @@ class StubAgentConfig(BaseAgentConfig):
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
 
-    def __init__(self, env: CloudAIGymEnv, config: StubAgentConfig):
+    def __init__(self, env, config: StubAgentConfig):
         self.env = env
         self.config = config
-        self.max_steps = env.max_steps
-        self._step = 0
+        self.max_steps = 0
         StubAgent.received_configs.append(config)
 
     @staticmethod
@@ -59,11 +57,10 @@ class StubAgent(BaseAgent):
         return StubAgentConfig
 
     def configure(self, config: dict[str, Any]) -> None:
-        self.action_space = config
+        raise NotImplementedError
 
     def select_action(self) -> tuple[int, dict[str, Any]]:
-        self._step += 1
-        return self._step, {"candidate": 1}
+        raise NotImplementedError
 
     def update_policy(self, _feedback: dict[str, Any]) -> None:
         return
@@ -157,9 +154,7 @@ def test_dse_run_uses_agent_config(
     assert recorded.random_seed == expected["random_seed"]
 
 
-def test_dse_run_skips_repeated_actions_via_trajectory_cache(
-    base_tr: TestRun, tmp_path, stub_agent_name: str, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixture):
     base_tr.test.cmd_args.candidate = [1, 1, 2]
     base_tr.test.agent = "grid_search"
     base_tr.test.agent_steps = 3

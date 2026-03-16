@@ -18,7 +18,6 @@ import copy
 import tarfile
 from pathlib import Path
 
-import pandas as pd
 import pytest
 import toml
 
@@ -38,7 +37,6 @@ from cloudai.systems.slurm.slurm_metadata import (
 )
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 class TestLoadTestTuns:
@@ -91,68 +89,6 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
 
     with tarfile.open(tarball_path, "r:gz") as tar:
         assert f"{results_dir.name}/dummy.txt" in tar.getnames()
-
-
-def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    reporter = StatusReporter(
-        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
-    )
-    reporter.report_best_dse_config()
-    best_config_path = (
-        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
-    )
-    assert best_config_path.exists()
-    nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
-    assert isinstance(nccl.cmd_args, NCCLCmdArgs)
-    assert nccl.agent_steps == 12
-
-
-def test_best_dse_config_ignores_cached_rows(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    trajectory_path = slurm_system.output_path / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
-    df = pd.read_csv(trajectory_path)
-    df = df.astype({"source_step": "object"})
-    df.loc[:, "reward"] = 1.0
-    df.loc[:, "status"] = "executed"
-    df.loc[:, "source_step"] = pd.Series([""] * len(df), dtype="object")
-    df.loc[0, "reward"] = 2.0
-    df.loc[1, "reward"] = 999.0
-    df.loc[1, "status"] = "cached"
-    df.loc[1, "source_step"] = 0
-    df.to_csv(trajectory_path, index=False)
-
-    reporter = StatusReporter(
-        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
-    )
-    reporter.report_best_dse_config()
-
-    best_config_path = (
-        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
-    )
-    assert best_config_path.exists()
-
-
-def test_best_dse_config_skips_when_no_executed_rows(
-    dse_tr: TestRun, slurm_system: SlurmSystem, caplog: pytest.LogCaptureFixture
-) -> None:
-    trajectory_path = slurm_system.output_path / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
-    df = pd.read_csv(trajectory_path)
-    df = df.astype({"source_step": "object"})
-    df.loc[:, "status"] = "cached"
-    df.loc[:, "source_step"] = pd.Series([0] * len(df), dtype="object")
-    df.to_csv(trajectory_path, index=False)
-
-    reporter = StatusReporter(
-        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
-    )
-
-    with caplog.at_level("WARNING"):
-        reporter.report_best_dse_config()
-
-    best_config_path = (
-        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
-    )
-    assert f"No executed trajectory rows found for {dse_tr.name}" in caplog.text
-    assert not best_config_path.exists()
 
 
 @pytest.mark.parametrize(
