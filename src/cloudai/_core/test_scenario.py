@@ -62,6 +62,7 @@ class TestRun:
     test: TestDefinition
     num_nodes: Union[int, list[int]]
     nodes: List[str]
+    exclude_nodes: List[str] = field(default_factory=list)
     output_path: Path = Path("")
     iterations: int = 1
     current_iteration: int = 0
@@ -75,7 +76,6 @@ class TestRun:
     post_test: Optional[TestScenario] = None
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
     extra_srun_args: str | None = None
-    exclude_nodes: str | None = None
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

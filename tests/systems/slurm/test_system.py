@@ -370,7 +370,7 @@ class TestGetNodesBySpec:
     @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.parse_nodes")
     def test_raises_when_all_nodes_excluded(self, mock_parse_nodes: Mock, slurm_system: SlurmSystem):
         mock_parse_nodes.return_value = []
-        exclude = {"node01", "node02"}
+        exclude = ["node01", "node02"]
 
         with pytest.raises(ValueError, match="after excluding nodes"):
             slurm_system.get_nodes_by_spec(2, ["node0[1-2]"], exclude_nodes=exclude)
@@ -385,7 +385,7 @@ class TestGetNodesBySpec:
             slurm_system.get_nodes_by_spec(1, ["main:group1:3"])
 
     def test_empty_nodes_with_exclude_still_returns_unconstrained(self, slurm_system: SlurmSystem):
-        num_nodes, node_list = slurm_system.get_nodes_by_spec(3, [], exclude_nodes={"node01"})
+        num_nodes, node_list = slurm_system.get_nodes_by_spec(3, [], exclude_nodes=["node01"])
         assert num_nodes == 3
         assert node_list == []
 
