@@ -91,6 +91,7 @@ class GitRepo(Installable, BaseModel):
 
     url: str
     commit: str
+    init_submodules: bool = False
     installed_path: Optional[Path] = None
     mount_as: Optional[str] = None
 
