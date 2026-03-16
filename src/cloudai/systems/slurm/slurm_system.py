@@ -447,7 +447,7 @@ class SlurmSystem(System):
         partition_name: str,
         group_name: str,
         number_of_nodes: Union[int, str],
-        exclude_nodes: set[str] | None = None,
+        exclude_nodes: list[str] | None = None,
     ) -> List[SlurmNode]:
         """
         Retrieve a specific number of potentially available nodes from a group within a partition.
@@ -460,7 +460,7 @@ class SlurmSystem(System):
             group_name (str): The name of the group.
             number_of_nodes (Union[int,str]): The number of nodes to retrieve.
                 Could also be 'all' to retrieve all the nodes from the group.
-            exclude_nodes (set[str] | None): Node names to exclude from the pool before selection.
+            exclude_nodes (list[str] | None): Node names to exclude from the pool before selection.
 
         Returns:
             List[SlurmNode]: Objects that are potentially available for use.
@@ -514,7 +514,7 @@ class SlurmSystem(System):
         self,
         partition_name: str,
         group_name: str,
-        exclude_nodes: set[str] | None = None,
+        exclude_nodes: list[str] | None = None,
     ) -> Dict[SlurmNodeState, List[SlurmNode]]:
         """
         Group nodes by their states, excluding nodes allocated to the current user.
@@ -522,7 +522,7 @@ class SlurmSystem(System):
         Args:
             partition_name (str): The name of the partition.
             group_name (str): The name of the group.
-            exclude_nodes (set[str] | None): Node names to exclude from the pool before grouping.
+            exclude_nodes (list[str] | None): Node names to exclude from the pool before grouping.
 
         Returns:
             Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
@@ -683,7 +683,7 @@ class SlurmSystem(System):
                 logging.debug(f"Unknown node state: {core_state}")
                 return SlurmNodeState.UNKNOWN_STATE
 
-    def parse_nodes(self, nodes: List[str], exclude_nodes: set[str] | None = None) -> List[str]:
+    def parse_nodes(self, nodes: List[str], exclude_nodes: list[str] | None = None) -> List[str]:
         """
         Parse a list of node specifications into individual node names.
 
@@ -696,7 +696,8 @@ class SlurmSystem(System):
                 "partition:group:num_nodes", where "partition" is the partition name, "group" is a group within that
                 partition, and "num_nodes" is the number of nodes requested. Node ranges should be specified with
                 square brackets and dashes, e.g., "node[01-03]" for "node01", "node02", "node03".
-            exclude_nodes (set[str] | None): Node names to exclude from group pools before selection.
+            exclude_nodes (list[str] | None): Node names (or Slurm range expressions) to exclude from group pools
+                before selection. Ranges are expanded internally.
 
         Returns:
             List[str]: A list of node names. For specifications, it includes names of allocated nodes based on the
@@ -706,6 +707,9 @@ class SlurmSystem(System):
             ValueError: If a specification is malformed, a specified node is not found, or a node range cannot be
                 parsed. This ensures users are aware of incorrect inputs.
         """
+        if exclude_nodes:
+            exclude_nodes = [n for spec in exclude_nodes for n in parse_node_list(spec)]
+
         parsed_nodes = []
         for node_spec in nodes:
             if ":" in node_spec:
@@ -729,7 +733,7 @@ class SlurmSystem(System):
         return parsed_nodes
 
     def get_nodes_by_spec(
-        self, num_nodes: int, nodes: list[str], exclude_nodes: set[str] | None = None
+        self, num_nodes: int, nodes: list[str], exclude_nodes: list[str] | None = None
     ) -> Tuple[int, list[str]]:
         """
         Retrieve a list of node names based on specifications.
@@ -740,7 +744,7 @@ class SlurmSystem(System):
         Args:
             num_nodes (int): The number of nodes, can't be `0`.
             nodes (list[str]): A list of node names specifications, slurm format or `PARTITION:GROUP:NUM_NODES`.
-            exclude_nodes (set[str] | None): Node names to exclude from group pools before selection.
+            exclude_nodes (list[str] | None): Node names to exclude from group pools before selection.
 
         Returns:
             Tuple[int, list[str]]: The number of nodes and a list of node names.

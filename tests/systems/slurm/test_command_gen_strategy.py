@@ -364,7 +364,7 @@ def test_distribution_fallback_when_no_nodes(strategy_fixture: SlurmCommandGenSt
 def test_exclude_nodes_directive_when_no_nodelist(strategy_fixture: SlurmCommandGenStrategy) -> None:
     strategy_fixture.test_run.nodes = []
     strategy_fixture.test_run.num_nodes = 3
-    strategy_fixture.test_run.exclude_nodes = "node01,node02"
+    strategy_fixture.test_run.exclude_nodes = ["node01", "node02"]
     content: List[str] = []
     strategy_fixture._append_nodes_related_directives(content)
 
@@ -374,7 +374,7 @@ def test_exclude_nodes_directive_when_no_nodelist(strategy_fixture: SlurmCommand
 
 def test_no_exclude_directive_when_nodelist_present(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
     testrun_fixture.nodes = ["node3", "node4"]
-    testrun_fixture.exclude_nodes = "node01,node02"
+    testrun_fixture.exclude_nodes = ["node01", "node02"]
     strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
     content: List[str] = []
     strategy._append_nodes_related_directives(content)
@@ -386,7 +386,7 @@ def test_no_exclude_directive_when_nodelist_present(slurm_system: SlurmSystem, t
 def test_no_exclude_directive_when_exclude_nodes_unset(strategy_fixture: SlurmCommandGenStrategy) -> None:
     strategy_fixture.test_run.nodes = []
     strategy_fixture.test_run.num_nodes = 2
-    strategy_fixture.test_run.exclude_nodes = None
+    strategy_fixture.test_run.exclude_nodes = []
     content: List[str] = []
     strategy_fixture._append_nodes_related_directives(content)
 

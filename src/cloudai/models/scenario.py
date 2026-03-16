@@ -73,6 +73,13 @@ class TestRunModel(BaseModel):
     test_name: Optional[str] = None
     num_nodes: int | list[int] | None = None
     nodes: list[str] = Field(default_factory=list)
+    exclude_nodes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Hostnames to exclude from the resolved node list. "
+            "Supports Slurm range syntax, e.g. ['node-048', 'node-[101-104]']."
+        ),
+    )
     weight: int = 0
     iterations: int = 1
     sol: Optional[float] = None
@@ -80,10 +87,6 @@ class TestRunModel(BaseModel):
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
     extra_srun_args: str | None = None
-    exclude_nodes: str | None = Field(
-        default=None,
-        description="Comma-separated hostnames to exclude from the resolved node list.",
-    )
 
     # test definition fields
     name: Optional[str] = None
