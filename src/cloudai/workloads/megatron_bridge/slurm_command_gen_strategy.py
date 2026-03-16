@@ -413,7 +413,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             additional_slurm_params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
 
         if additional_slurm_params:
-            parts.extend(["--additional_slurm_params", shlex.quote(" ".join(additional_slurm_params))])
+            parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])
 
         # Config variant
         add_field("config_variant", "-cv", args.config_variant)
