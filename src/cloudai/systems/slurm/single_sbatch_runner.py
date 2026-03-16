@@ -212,7 +212,7 @@ class SingleSbatchRunner(SlurmRunner):
                 gym = CloudAIGymEnv(next_tr, self)
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)
-                gym.write_trajectory(idx, combination, reward, observation)
+                gym.write_trajectory(idx, combination, reward, observation, status="executed")
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:

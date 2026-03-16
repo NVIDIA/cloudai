@@ -173,6 +173,12 @@ class StatusReporter(Reporter):
                 continue
 
             df = lazy.pd.read_csv(trajectory_file)
+            if "status" in df.columns:
+                df = df[df["status"] == "executed"]
+            if df.empty:
+                logging.warning(f"No executed trajectory rows found for {tr.name} at {trajectory_file}")
+                continue
+
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             with best_step_details.open() as f:

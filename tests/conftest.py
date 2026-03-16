@@ -145,13 +145,13 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
         if test_run.is_dse_job:
             with open(folder / "trajectory.csv", "w") as _f_csv:
                 csw_writer = csv.writer(_f_csv)
-                csw_writer.writerow(["step", "action", "reward", "observation"])
+                csw_writer.writerow(["step", "action", "reward", "observation", "status", "source_step"])
 
                 for step in range(test_run.test.agent_steps):
                     step_folder = folder / str(step)
                     step_folder.mkdir(exist_ok=True, parents=True)
                     trd = TestRunDetails.from_test_run(test_run, "", "")
-                    csw_writer.writerow([step, {}, step * 2.1, [step]])
+                    csw_writer.writerow([step, {}, step * 2.1, [step], "executed", ""])
                     with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
                         toml.dump(trd.model_dump(), _f_trd)
 

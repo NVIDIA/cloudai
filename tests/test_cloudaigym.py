@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import nullcontext
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -22,6 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
+from cloudai.configurator.cloudai_gym import TrajectoryEntry
 from cloudai.core import BaseRunner, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
@@ -302,85 +302,32 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
 
 
 @pytest.mark.parametrize(
-    ("trajectory_content", "action", "expectation", "expected_result"),
+    ("trajectory", "action", "expected"),
     [
-        ("", {"x": 1}, nullcontext(), None),
+        ([], {"x": 1}, None),
         (
-            "not,csv\nat,all\n",
+            [{"action": {"x": 1}, "observation": [1], "reward": 1, "status": "executed"}],
             {"x": 1},
-            pytest.raises(ValueError, match=r"Malformed trajectory file .*expected columns"),
-            None,
+            {"action": {"x": 1}, "observation": [1], "reward": 1, "status": "executed"},
         ),
         (
-            'step,action,reward,observation\n1,not-a-dict,0.5,"[1.0]"\n',
+            [{"action": {"x": 1}, "observation": [1], "reward": 1, "status": "cached"}],
             {"x": 1},
-            pytest.raises(ValueError, match=r"Malformed trajectory file .*invalid row 2"),
             None,
         ),
         (
-            'step,action,reward,observation\n1,"{\'x\': 1}",oops,"[1.0]"\n',
+            [{"action": {"x": 1.0}, "observation": [1], "reward": 1, "status": "executed"}],
             {"x": 1},
-            pytest.raises(ValueError, match=r"Malformed trajectory file .*invalid row 2"),
             None,
         ),
-        (
-            "step,action,reward,observation\n1,\"{'x': 1}\",0.5,not-a-list\n",
-            {"x": 1},
-            pytest.raises(ValueError, match=r"Malformed trajectory file .*invalid row 2"),
-            None,
-        ),
-        (
-            (
-                "step,action,reward,observation\n"
-                "1,\"{'disagg.p_pp': 1.0, 'disagg.p_dp': 1, 'disagg.d_pp': 1, 'disagg.d_dp': 1, "
-                "'disagg.p_tp': 4, 'disagg.p_workers': 2, 'disagg.d_tp': 4, 'disagg.d_bs': 8, "
-                '\'disagg.d_workers\': 4}",0.8276527145310523,"[202.016, 11.125, 120.08333333333333, 89.887]"\n'
-            ),
-            {
-                "disagg.p_pp": 1.0,
-                "disagg.p_dp": 1,
-                "disagg.d_pp": 1,
-                "disagg.d_dp": 1,
-                "disagg.p_tp": 4,
-                "disagg.p_workers": 2,
-                "disagg.d_tp": 4,
-                "disagg.d_bs": 8,
-                "disagg.d_workers": 4,
-            },
-            nullcontext(),
-            ([202.016, 11.125, 120.08333333333333, 89.887], 0.8276527145310523),
-        ),
-        (
-            'step,action,reward,observation\n1,"{\'x\': 1}",0.5,"[1.0]"\n',
-            {"x": 1.0},
-            nullcontext(),
-            None,
-        ),
-        (
-            'step,action,reward,observation\n1,"{\'x\': 1.1234567894}",0.5,"[1.0]"\n',
-            {"x": 1.12345678949},
-            nullcontext(),
-            ([1.0], 0.5),
-        ),
-    ],
-    ids=[
-        "missing-file",
-        "corrupt-missing-columns",
-        "corrupt-action",
-        "corrupt-reward",
-        "corrupt-observation",
-        "exact-match-hit",
-        "type-sensitive-miss",
-        "float-match-9-decimals",
     ],
 )
 def test_get_cached_trajectory_result(
     base_tr: TestRun,
     tmp_path: Path,
-    trajectory_content: str,
+    trajectory: list[TrajectoryEntry],
     action: dict[str, object],
-    expectation,
-    expected_result: tuple[list[float], float] | None,
+    expected: TrajectoryEntry | None,
 ) -> None:
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
@@ -391,9 +338,7 @@ def test_get_cached_trajectory_result(
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner)
-    if trajectory_content:
-        env.trajectory_file_path.parent.mkdir(parents=True, exist_ok=True)
-        env.trajectory_file_path.write_text(trajectory_content)
+    env.trajectory = trajectory
 
-    with expectation:
-        assert env.get_cached_trajectory_result(action) == expected_result
+    actual = env.get_cached_trajectory_result(action)
+    assert actual == expected

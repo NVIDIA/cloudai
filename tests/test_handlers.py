@@ -15,10 +15,11 @@
 # limitations under the License.
 
 import argparse
-import csv
 from typing import Any, ClassVar, Iterator
 from unittest.mock import MagicMock
 
+import numpy as np
+import pandas as pd
 import pytest
 from pydantic import Field
 
@@ -33,6 +34,8 @@ from cloudai.core import (
     TestRun,
     TestScenario,
 )
+from cloudai.models.scenario import ReportConfig
+from cloudai.reporter import StatusReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -157,8 +160,8 @@ def test_dse_run_uses_agent_config(
 def test_dse_run_skips_repeated_actions_via_trajectory_cache(
     base_tr: TestRun, tmp_path, stub_agent_name: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    base_tr.test.cmd_args.candidate = [1, 2]
-    base_tr.test.agent = stub_agent_name
+    base_tr.test.cmd_args.candidate = [1, 1, 2]
+    base_tr.test.agent = "grid_search"
     base_tr.test.agent_steps = 3
 
     inner_runner = MagicMock()
@@ -168,9 +171,10 @@ def test_dse_run_skips_repeated_actions_via_trajectory_cache(
     inner_runner.jobs = {}
     inner_runner.testrun_to_job_map = {}
 
-    def _job_output_path(tr: TestRun):
+    def _job_output_path(tr: TestRun, create: bool = True):
         output_path = inner_runner.scenario_root / tr.name / f"{tr.current_iteration}" / f"{tr.step}"
-        output_path.mkdir(parents=True, exist_ok=True)
+        if create:
+            output_path.mkdir(parents=True, exist_ok=True)
         return output_path
 
     inner_runner.get_job_output_path.side_effect = _job_output_path
@@ -179,17 +183,34 @@ def test_dse_run_skips_repeated_actions_via_trajectory_cache(
     runner.runner = inner_runner
 
     trajectory_dir = inner_runner.scenario_root / base_tr.name / f"{base_tr.current_iteration}"
-    trajectory_dir.mkdir(parents=True, exist_ok=True)
 
+    # run test
     with caplog.at_level("INFO"):
         assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
 
-    assert inner_runner.run.call_count == 1
+    reporter = StatusReporter(
+        inner_runner.system,
+        TestScenario(name="test_scenario", test_runs=[base_tr]),
+        inner_runner.scenario_root,
+        ReportConfig(),
+    )
+    reporter.load_test_runs()
 
-    trajectory_path = trajectory_dir / "trajectory.csv"
-    with trajectory_path.open(newline="") as file:
-        rows = list(csv.DictReader(file))
+    assert inner_runner.run.call_count == 2
+    assert (trajectory_dir / "1").exists()
+    assert not (trajectory_dir / "2").exists()
+    assert (trajectory_dir / "3").exists()
+    assert caplog.text.count("Retrieved cached result from") == 1
 
-    assert len(rows) == 1
-    assert rows[0]["action"] == "{'candidate': 1}"
-    assert caplog.text.count("Retrieved cached result from") == 2
+    actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
+    expected_trajectory = pd.DataFrame(
+        data=[
+            [1, "{'candidate': 1}", -1.0, "[-1.0]", "executed", np.nan],
+            [2, "{'candidate': 1}", -1.0, "[-1.0]", "cached", np.nan],
+            [3, "{'candidate': 2}", -1.0, "[-1.0]", "executed", np.nan],
+        ],
+        columns=["step", "action", "reward", "observation", "status", "source_step"],
+    )
+    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory, check_dtype=False)
+
+    assert [tr.step for tr in reporter.trs] == [1, 3]

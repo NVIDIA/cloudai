@@ -194,15 +194,16 @@ class BaseRunner(ABC):
 
         return dependency_free_tests
 
-    def get_job_output_path(self, tr: TestRun) -> Path:
+    def get_job_output_path(self, tr: TestRun, create: bool = True) -> Path:
         """
-        Generate and ensure the existence of the output directory for a given test.
+        Generate the output directory path for a given test, optionally creating it.
 
         It constructs the path based on the test's section name and current iteration,
-        creating the directories if they do not exist.
+        creating the directories if requested.
 
         Args:
             tr (TestRun): The test run object.
+            create (bool): Whether to create the output directory if it does not exist.
 
         Returns:
             Path: The path to the job's output directory.
@@ -212,7 +213,7 @@ class BaseRunner(ABC):
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        if not self.scenario_root.exists():
+        if create and not self.scenario_root.exists():
             self.scenario_root.mkdir()
 
         job_output_path = self.scenario_root / tr.name / str(tr.current_iteration)
@@ -220,7 +221,7 @@ class BaseRunner(ABC):
         if tr.step > 0:
             job_output_path = job_output_path / str(tr.step)
 
-        if not job_output_path.exists():
+        if create and not job_output_path.exists():
             try:
                 job_output_path.mkdir(parents=True, exist_ok=True)
             except PermissionError as e:

@@ -544,3 +544,5 @@ def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     df = pd.read_csv(trajectory_path)
     assert df.shape[0] == len(dse_tr.all_combinations)
     assert df["step"].tolist() == list(range(1, len(dse_tr.all_combinations) + 1))
+    assert df["status"].tolist() == ["executed"] * len(dse_tr.all_combinations)
+    assert df["source_step"].fillna("").tolist() == [""] * len(dse_tr.all_combinations)
