@@ -746,7 +746,7 @@ class SlurmSystem(System):
             Tuple[int, list[str]]: The number of nodes and a list of node names.
 
         Raises:
-            ValueError: If node specifications were provided but resolved to an empty list after applying exclusions.
+            ValueError: If node specifications were provided but resolved to an empty list.
         """
         num_nodes, node_list = num_nodes, []
         parsed_nodes = self.parse_nodes(nodes, exclude_nodes=exclude_nodes)
@@ -754,9 +754,14 @@ class SlurmSystem(System):
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
         elif nodes:
+            reason = (
+                f"after excluding nodes {exclude_nodes}"
+                if exclude_nodes
+                else "— no nodes are available (all may be DRAIN/DOWN)"
+            )
             raise ValueError(
-                f"Node specifications {nodes} resolved to an empty node list after applying "
-                f"exclude_nodes={exclude_nodes}. Cannot fall back to unconstrained allocation."
+                f"Node specifications {nodes} resolved to an empty node list {reason}. "
+                "Cannot fall back to unconstrained allocation."
             )
         return num_nodes, sorted(node_list)
 
