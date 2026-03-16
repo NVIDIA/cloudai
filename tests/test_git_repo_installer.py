@@ -258,6 +258,7 @@ class TestGitRepoInstaller:
     def test_submodule_failure_cleans_up_repo(
         self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
     ):
+        git.init_submodules = True
         repo_path = installer.system.install_path / git.repo_name
         installer._clone_repository = Mock(
             side_effect=lambda url, path: (path.mkdir(parents=True, exist_ok=True), InstallStatusResult(True))[1]
@@ -273,10 +274,30 @@ class TestGitRepoInstaller:
     def test_all_good_flow(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
-        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
         res = installer._install_one_git_repo(git)
         assert res.success
         assert git.installed_path == installer.system.install_path / git.repo_name
+
+    def test_submodules_skipped_when_not_requested(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        installer._clone_repository = Mock(return_value=InstallStatusResult(True))
+        installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
+        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
+        res = installer._install_one_git_repo(git)
+        assert res.success
+        installer._init_submodules.assert_not_called()
+
+    def test_submodules_run_when_requested(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        git.init_submodules = True
+        installer._clone_repository = Mock(return_value=InstallStatusResult(True))
+        installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
+        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
+        res = installer._install_one_git_repo(git)
+        assert res.success
+        installer._init_submodules.assert_called_once()
 
     def test_uninstall_no_repo(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         res = installer._uninstall_git_repo(git)

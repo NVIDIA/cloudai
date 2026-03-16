@@ -172,12 +172,13 @@ class KubernetesInstaller(BaseInstaller):
                 rmtree(repo_path)
             return res
 
-        res = self._init_submodules(repo_path)
-        if not res.success:
-            logging.error(f"Submodule init failed, removing cloned repository at {repo_path}")
-            if repo_path.exists():
-                rmtree(repo_path)
-            return res
+        if item.init_submodules:
+            res = self._init_submodules(repo_path)
+            if not res.success:
+                logging.error(f"Submodule init failed, removing cloned repository at {repo_path}")
+                if repo_path.exists():
+                    rmtree(repo_path)
+                return res
 
         item.installed_path = repo_path
         return InstallStatusResult(True)
