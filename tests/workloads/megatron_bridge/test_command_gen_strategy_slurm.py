@@ -336,10 +336,14 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(mount_as=None, output_subdir="out_no_mount")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        repo_path = tdef.megatron_bridge_repo.installed_path
+        assert repo_path is not None
+
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
-        assert "-cm" not in wrapper_content
-        assert "/opt/Megatron-Bridge" not in wrapper_content
+        assert f"{repo_path.absolute()}:" not in wrapper_content
+        assert ":/opt/Megatron-Bridge" not in wrapper_content
 
     def test_gpus_per_node_passed_as_additional_slurm_param(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
