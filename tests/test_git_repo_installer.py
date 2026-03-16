@@ -288,9 +288,7 @@ class TestGitRepoInstaller:
         assert res.success
         installer._init_submodules.assert_not_called()
 
-    def test_submodules_run_when_requested(
-        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
-    ):
+    def test_submodules_run_when_requested(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         git.init_submodules = True
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
