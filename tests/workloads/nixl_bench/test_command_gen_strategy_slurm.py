@@ -109,12 +109,6 @@ class TestNIXLBenchCommand:
         ("override", "expected_error_match", "expected_total_buffer_size"),
         (
             ({}, None, None),
-            ({"device_list": "11:F:/store0.bin"}, "One must provide total_buffer_size", None),
-            (
-                {"device_list": "11:F:/store0.bin", "total_buffer_size": None},
-                "One must provide total_buffer_size",
-                None,
-            ),
             ({"device_list": "11:F:/store-_0.bin", "total_buffer_size": "8gb"}, None, str(8 * 2**30)),
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": "8ggb"}, "total_buffer_size", None),
             ({"device_list": "11:F:/store0.bin", "total_buffer_size": "1024"}, None, "1024"),
@@ -126,7 +120,6 @@ class TestNIXLBenchCommand:
                 None,
                 str(8 * 2**30),
             ),
-            ({"device_list": ["11:K:/store0.bin", "11:F:/store0.bin"]}, "total_buffer_size", None),
             (
                 {
                     "device_list": ["11:K:/store0.bin", "11:F:/store0.bin"],

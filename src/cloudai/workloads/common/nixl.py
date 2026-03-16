@@ -21,8 +21,7 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing_extensions import Self
+from pydantic import BaseModel, Field, field_validator
 
 from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -36,6 +35,9 @@ if TYPE_CHECKING:
 
 BUFFER_SIZE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^(?P<num>\d+)(?P<unit>(b|kb|mb|gb)?)$")
 DEVICE_FORMAT: Final[re.Pattern[str]] = re.compile(r"^\d+:[A-Z]:/[/\da-zA-Z._-]+$")
+# 8gb is the default value in the nixl itself
+# it's not set as a default in the model below to not propagate it into the srun if the user didn't explicitly set it
+DEFAULT_TOTAL_BUFFER_SIZE = 8 * 1024 * 1024 * 1024
 
 
 class NIXLBaseCmdArgs(CmdArgs):
@@ -117,22 +119,6 @@ class NIXLExtendedCmdArgs(BaseModel):
         else:
             return parse_device(v)
 
-    @model_validator(mode="after")
-    def validate_model(self) -> Self:
-        require_total_buffer_size = False
-
-        if isinstance(self.device_list, list):
-            if any(map(get_files_from_device_list, self.device_list)):
-                require_total_buffer_size = True
-
-        elif self.device_list and get_files_from_device_list(self.device_list):
-            require_total_buffer_size = True
-
-        if require_total_buffer_size and not self.total_buffer_size:
-            raise ValueError("One must provide total_buffer_size if using device_list with file-backed devices.")
-
-        return self
-
 
 NIXLCmdArgsT = TypeVar("NIXLCmdArgsT", bound=NIXLBaseCmdArgs)
 
@@ -204,8 +190,10 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         if not file_devices:
             return []
 
-        # total_buffer_size is enforced with device_list on the pydantic model level thus using ["..."]
-        total_buffer_size = int(cast(str, self.test_run.test.cmd_args_dict["total_buffer_size"]))
+        if "total_buffer_size" in self.test_run.test.cmd_args_dict:
+            total_buffer_size = int(cast(str, self.test_run.test.cmd_args_dict["total_buffer_size"]))
+        else:
+            total_buffer_size = DEFAULT_TOTAL_BUFFER_SIZE
 
         mounts = []
         used_filenames: set[str] = set()
