@@ -531,6 +531,7 @@ class SlurmSystem(System):
             SlurmNodeState.IDLE: [],
             SlurmNodeState.COMPLETING: [],
             SlurmNodeState.ALLOCATED: [],
+            SlurmNodeState.RESERVED: [],
         }
 
         for node in self.groups[partition_name][group_name]:
@@ -566,6 +567,7 @@ class SlurmSystem(System):
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.IDLE])
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.COMPLETING])
+            allocated_nodes.extend(grouped_nodes[SlurmNodeState.RESERVED])
 
             if len(allocated_nodes) == 0:
                 raise ValueError(
