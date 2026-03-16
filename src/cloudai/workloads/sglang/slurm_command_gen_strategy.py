@@ -16,7 +16,7 @@
 
 from typing import cast
 
-from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
 
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
@@ -24,49 +24,17 @@ from .sglang import (
     SGLANG_SERVE_LOG_FILE,
     SglangArgs,
     SglangBenchCmdArgs,
+    SglangCmdArgs,
     SglangTestDefinition,
 )
 
 
-def sglang_all_gpu_ids(tdef: SglangTestDefinition, system_gpus_per_node: int | None) -> list[int]:
-    cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
-    if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
-        cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
-    if cuda_devices:
-        return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
-    return list(range(system_gpus_per_node or 1))
-
-
-class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdArgs]):
     """Command generation strategy for SGLang on Slurm systems."""
-
-    def _container_mounts(self) -> list[str]:
-        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
-
-    def image_path(self) -> str | None:
-        return str(self.tdef.docker_image.installed_path)
 
     @property
     def tdef(self) -> SglangTestDefinition:
         return cast(SglangTestDefinition, self.test_run.test)
-
-    @property
-    def gpu_ids(self) -> list[int]:
-        return sglang_all_gpu_ids(self.tdef, self.system.gpus_per_node)
-
-    @property
-    def prefill_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[:mid]
-
-    @property
-    def decode_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.decode.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[mid:]
 
     @property
     def healthcheck_path(self) -> str:
@@ -168,36 +136,11 @@ class SglangSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return command
 
-    def generate_wait_for_health_function(self) -> str:
-        return f"""\
-wait_for_health() {{
-    local endpoint="$1"
-    local timeout={self.tdef.cmd_args.serve_wait_seconds}
-    local interval=5
-    local end_time=$(($(date +%s) + timeout))
-
-    while [ "$(date +%s)" -lt "$end_time" ]; do
-        if curl -sf "$endpoint" > /dev/null 2>&1; then
-            echo "Health check passed: $endpoint"
-            return 0
-        fi
-        sleep "$interval"
-    done
-
-    echo "Timeout waiting for: $endpoint"
-    return 1
-}}"""
-
     def _gen_srun_command(self) -> str:
-        srun_prefix = " ".join(self.gen_srun_prefix())
         serve_commands = self.get_sglang_serve_commands()
         bench_cmd = " ".join(self.get_sglang_bench_command())
         health_func = self.generate_wait_for_health_function()
-
-        if len(serve_commands) == 1:
-            return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
-        else:
-            return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
+        return self._gen_llm_serving_srun_command(serve_commands, bench_cmd, health_func)
 
     @staticmethod
     def _with_cuda_visible_devices(command: list[str], cuda_visible_devices: str) -> str:
@@ -207,11 +150,7 @@ wait_for_health() {{
         serve_gpus = ",".join(str(gpu_id) for gpu_id in self.gpu_ids)
         serve_cmd_with_env = self._with_cuda_visible_devices(serve_cmd, serve_gpus)
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: SGLANG_PID=$SGLANG_PID"
-    [ -n "$SGLANG_PID" ] && kill -9 $SGLANG_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["SGLANG_PID"])}
 
 {health_func}
 
@@ -221,9 +160,7 @@ echo "Starting SGLang instances..."
     {serve_cmd_with_env} &
 SGLANG_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{self.tdef.cmd_args.port}{self.healthcheck_path}" || exit 1
+{self.generate_wait_for_health_block("SGLang", [f"http://${{NODE}}:{self.tdef.cmd_args.port}{self.healthcheck_path}"])}
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -241,13 +178,7 @@ echo "Running benchmark..."
         decode_cmd_with_env = self._with_cuda_visible_devices(decode_cmd, decode_gpus)
 
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID ROUTER_PID=$ROUTER_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$ROUTER_PID" ] && kill -9 $ROUTER_PID 2>/dev/null
-}}
-trap cleanup EXIT
+{self.generate_cleanup_function(["PREFILL_PID", "DECODE_PID", "ROUTER_PID"])}
 
 {health_func}
 
@@ -262,10 +193,15 @@ PREFILL_PID=$!
     {decode_cmd_with_env} &
 DECODE_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}" || exit 1
-wait_for_health "http://${{NODE}}:{self.decode_port}{self.healthcheck_path}" || exit 1
+{
+            self.generate_wait_for_health_block(
+                "SGLang",
+                [
+                    f"http://${{NODE}}:{self.prefill_port}{self.healthcheck_path}",
+                    f"http://${{NODE}}:{self.decode_port}{self.healthcheck_path}",
+                ],
+            )
+        }
 
 echo "Starting router..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\

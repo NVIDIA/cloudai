@@ -75,35 +75,6 @@ def test_sweep_detection(vllm: VllmTestDefinition) -> None:
 class TestGpuDetection:
     """Tests for GPU detection logic."""
 
-    @pytest.mark.parametrize("cuda_visible_devices", ["0", "0,1,2,3", "0,1,2,3,4,5,6,7"])
-    def test_gpu_ids_from_cuda_visible_devices_single(
-        self, cuda_visible_devices: str, vllm_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": cuda_visible_devices}
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
-        assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
-
-    @pytest.mark.parametrize("gpus_per_node", [None, 1, 8])
-    def test_gpu_ids_fallback_to_system(
-        self, gpus_per_node: int | None, vllm_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        vllm_tr.test.extra_env_vars = {}
-        slurm_system.gpus_per_node = gpus_per_node
-
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
-
-        assert strategy.gpu_ids == list(range(gpus_per_node or 1))
-
-    def test_gpu_ids_use_prefill_and_decode_gpu_ids(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        slurm_system.gpus_per_node = 4
-        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.prefill = VllmArgs(gpu_ids="4")
-        vllm_tr.test.cmd_args.decode.gpu_ids = "5"
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
-        assert strategy.gpu_ids == [4, 5]
-        assert strategy.prefill_gpu_ids == [4]
-        assert strategy.decode_gpu_ids == [5]
-
     def test_prefill_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
         vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
@@ -117,68 +88,6 @@ class TestGpuDetection:
         vllm_tr.test.cmd_args.decode.gpu_ids = "1,2"
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.decode_gpu_ids == [1, 2]
-
-
-class TestServeExtraArgs:
-    """Tests for serve_args property."""
-
-    def test_serve_args_empty(self) -> None:
-        assert VllmArgs().serve_args == []
-        assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
-
-    def test_empty_string_value_means_flag(self) -> None:
-        assert VllmArgs.model_validate(
-            {"some_flag": "", "some_arg": "value", "zero_value": 0, "none_value": None}
-        ).serve_args == [
-            "--some-flag",
-            "--some-arg",
-            "value",
-            "--zero-value",
-            "0",
-        ]
-
-    def test_decode_serve_args_with_custom_fields(self) -> None:
-        tdef = VllmTestDefinition(
-            name="vllm",
-            description="test",
-            test_template_name="Vllm",
-            cmd_args=VllmCmdArgs.model_validate(
-                {
-                    "docker_image_url": "image:latest",
-                    "decode": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
-                }
-            ),
-        )
-        assert tdef.cmd_args.decode.serve_args == [
-            "--tensor-parallel-size",
-            "4",
-            "--max-model-len",
-            "8192",
-            "--some-long-arg",
-            "value",
-        ]
-
-    def test_prefill_serve_args_with_custom_fields(self) -> None:
-        tdef = VllmTestDefinition(
-            name="vllm",
-            description="test",
-            test_template_name="Vllm",
-            cmd_args=VllmCmdArgs.model_validate(
-                {
-                    "docker_image_url": "image:latest",
-                    "prefill": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
-                }
-            ),
-        )
-        assert tdef.cmd_args.prefill is not None
-        assert tdef.cmd_args.prefill.serve_args == [
-            "--tensor-parallel-size",
-            "4",
-            "--max-model-len",
-            "8192",
-            "--some-long-arg",
-            "value",
-        ]
 
 
 class TestVllmServeCommand:
@@ -279,7 +188,7 @@ class TestVllmAggregatedMode:
         expected = f"""\
 wait_for_health() {{
     local endpoint="$1"
-    local timeout={cmd_args.vllm_serve_wait_seconds}
+    local timeout={cmd_args.serve_wait_seconds}
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 

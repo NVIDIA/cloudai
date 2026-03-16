@@ -58,16 +58,6 @@ def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy
     ]
 
 
-class TestGpuDetection:
-    @pytest.mark.parametrize("cuda_visible_devices", ["0", "0,1,2,3", "0,1,2,3,4,5,6,7"])
-    def test_gpu_ids_from_cuda_visible_devices(
-        self, cuda_visible_devices: str, sglang_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        sglang_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": cuda_visible_devices}
-        strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
-        assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
-
-
 def test_get_sglang_serve_commands_aggregated(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
     cmd_args = sglang_cmd_gen_strategy.test_run.test.cmd_args
     commands = sglang_cmd_gen_strategy.get_sglang_serve_commands()

@@ -14,46 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
-from cloudai.workloads.sglang import SglangArgs, SglangCmdArgs, SglangTestDefinition
+from cloudai.workloads.sglang import SglangArgs
 
 
-@pytest.mark.parametrize(
-    "prefill_gpu_ids, decode_gpu_ids",
-    [("0,1", "0,1"), (None, None), (None, "11,42")],
-)
-def test_valid_gpu_ids_configuration(prefill_gpu_ids: str | None, decode_gpu_ids: str | None) -> None:
-    prefill = None
-    if prefill_gpu_ids is not None:
-        prefill = SglangArgs(gpu_ids=prefill_gpu_ids)
-
-    decode = SglangArgs(gpu_ids=decode_gpu_ids)
-    tdef = SglangTestDefinition(
-        name="test",
-        description="test",
-        test_template_name="sglang",
-        cmd_args=SglangCmdArgs(docker_image_url="test_url", prefill=prefill, decode=decode),
-    )
-
-    if prefill_gpu_ids is not None:
-        assert tdef.cmd_args.prefill
-        assert tdef.cmd_args.prefill.gpu_ids == prefill_gpu_ids
-
-    assert tdef.cmd_args.decode.gpu_ids == decode_gpu_ids
-
-
-@pytest.mark.parametrize(
-    "prefill_gpu_ids, decode_gpu_ids",
-    [("0,1", None), (None, "0,1")],
-)
-def test_invalid_gpu_ids_configuration(prefill_gpu_ids: str | None, decode_gpu_ids: str | None) -> None:
-    prefill = SglangArgs(gpu_ids=prefill_gpu_ids)
-    decode = SglangArgs(gpu_ids=decode_gpu_ids)
-    with pytest.raises(ValueError):
-        SglangTestDefinition(
-            name="test",
-            description="test",
-            test_template_name="sglang",
-            cmd_args=SglangCmdArgs(docker_image_url="test_url", prefill=prefill, decode=decode),
-        )
+def test_sglang_serve_args_exclude_internal_fields() -> None:
+    assert SglangArgs(gpu_ids="0", disaggregation_transfer_backend="nccl").serve_args == []

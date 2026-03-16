@@ -18,22 +18,19 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
-from cloudai.core import DockerImage, GitRepo, HFModel, Installable, JobStatusResult, TestRun
-from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.core import GitRepo, Installable, JobStatusResult, TestRun
+from cloudai.models.workload import CmdArgs
+from cloudai.workloads.common.llm_serving import LLMServingArgs, LLMServingCmdArgs, LLMServingTestDefinition
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
 
 
-class VllmArgs(CmdArgs):
+class VllmArgs(LLMServingArgs):
     """Base command arguments for vLLM instances."""
-
-    gpu_ids: str | list[str] | None = Field(
-        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
-    )
 
     nixl_threads: int | list[int] | None = Field(
         default=None,
@@ -41,26 +38,16 @@ class VllmArgs(CmdArgs):
     )
 
     @property
-    def serve_args(self) -> list[str]:
-        """Convert cmd_args_dict to command-line arguments list for vllm serve."""
-        args = []
-        for k, v in self.model_dump(exclude={"gpu_ids", "nixl_threads"}, exclude_none=True).items():
-            opt = f"--{k.replace('_', '-')}"
-            if v == "":
-                args.append(opt)
-            else:
-                args.extend([opt, str(v)])
-        return args
+    def serve_args_exclude(self) -> set[str]:
+        return super().serve_args_exclude | {"nixl_threads"}
 
 
-class VllmCmdArgs(CmdArgs):
+class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
     """vLLM serve command arguments."""
 
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
 
-    docker_image_url: str
     port: int = 8000
-    vllm_serve_wait_seconds: int = 300
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
 
     model: str = "Qwen/Qwen3-0.6B"
@@ -80,43 +67,18 @@ class VllmBenchCmdArgs(CmdArgs):
     num_prompts: int = 30
 
 
-class VllmTestDefinition(TestDefinition):
+class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     """Test object for vLLM."""
 
-    cmd_args: VllmCmdArgs
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
     proxy_script_repo: GitRepo | None = None
 
-    _docker_image: DockerImage | None = None
-    _hf_model: HFModel | None = None
-
     @property
-    def docker_image(self) -> DockerImage:
-        if not self._docker_image:
-            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._docker_image
-
-    @property
-    def hf_model(self) -> HFModel:
-        if not self._hf_model:
-            self._hf_model = HFModel(model_name=self.cmd_args.model)
-        return self._hf_model
-
-    @property
-    def installables(self) -> list[Installable]:
-        installables = [*self.git_repos, self.docker_image, self.hf_model]
+    def extra_installables(self) -> list[Installable]:
+        installables: list[Installable] = []
         if self.proxy_script_repo:
             installables.append(self.proxy_script_repo)
         return installables
-
-    @model_validator(mode="after")
-    def check_gpu_ids_setup(self) -> VllmTestDefinition:
-        if self.cmd_args.prefill:
-            prefill_set = bool(self.cmd_args.prefill.gpu_ids)
-            decode_set = bool(self.cmd_args.decode.gpu_ids)
-            if prefill_set != decode_set:
-                raise ValueError("Both prefill and decode gpu_ids must be set or both must be None.")
-        return self
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         log_path = tr.output_path / VLLM_BENCH_LOG_FILE
