@@ -140,6 +140,7 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
             SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.COMPLETING)
         ],
         SlurmNodeState.ALLOCATED: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.ALLOCATED)],
+        SlurmNodeState.RESERVED: [SlurmNode(name="node06", partition=partition_name, state=SlurmNodeState.RESERVED)],
     }
 
     return grouped_nodes
@@ -166,6 +167,7 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
         grouped_nodes[SlurmNodeState.IDLE][0].name,
         grouped_nodes[SlurmNodeState.IDLE][1].name,
         grouped_nodes[SlurmNodeState.COMPLETING][0].name,
+        grouped_nodes[SlurmNodeState.RESERVED][0].name,
     ]
     returned_node_names = [node.name for node in available_nodes]
 
@@ -193,8 +195,8 @@ def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
     group_name = "group_name"
-    num_nodes = 5
-    available_nodes = 4
+    num_nodes = 6
+    available_nodes = 5
 
     with pytest.raises(
         ValueError,
