@@ -110,7 +110,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @staticmethod
     def _parse_srun_args_as_slurm_params(srun_args: str) -> list[str]:
-        """Convert ``--key value`` pairs from extra_srun_args into ``key=value`` for --additional_slurm_params."""
+        """
+        Convert ``--key value`` pairs from extra_srun_args into ``key=value`` for --additional_slurm_params.
+
+        Standalone boolean flags (e.g. ``--exclusive``) are emitted as bare
+        key names without a ``=value`` suffix.
+        """
         params: list[str] = []
         tokens = srun_args.split()
         i = 0
@@ -122,6 +127,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             elif tok.startswith("--") and i + 1 < len(tokens) and not tokens[i + 1].startswith("--"):
                 params.append(f"{tok[2:]}={tokens[i + 1]}")
                 i += 1
+            elif tok.startswith("--"):
+                params.append(tok[2:])
             i += 1
         return params
 
