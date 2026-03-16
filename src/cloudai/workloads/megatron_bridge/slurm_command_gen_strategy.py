@@ -108,6 +108,23 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         joined = ",".join(items)
         return f'"{joined}"'
 
+    @staticmethod
+    def _parse_srun_args_as_slurm_params(srun_args: str) -> list[str]:
+        """Convert ``--key value`` pairs from extra_srun_args into ``key=value`` for --additional_slurm_params."""
+        params: list[str] = []
+        tokens = srun_args.split()
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok.startswith("--") and "=" in tok:
+                key, val = tok[2:].split("=", 1)
+                params.append(f"{key}={val}")
+            elif tok.startswith("--") and i + 1 < len(tokens) and not tokens[i + 1].startswith("--"):
+                params.append(f"{tok[2:]}={tokens[i + 1]}")
+                i += 1
+            i += 1
+        return params
+
     def _normalize_cuda_graph_scope_arg(self, val: Any) -> str:
         s = str(val).strip().strip("\"'")
         if s.startswith("[") and s.endswith("]"):
@@ -411,6 +428,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             additional_slurm_params.append(f"nodelist={nodelist_str}")
         elif self.test_run.exclude_nodes:
             additional_slurm_params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
+
+        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
+            if source:
+                additional_slurm_params.extend(self._parse_srun_args_as_slurm_params(source))
 
         if additional_slurm_params:
             parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])

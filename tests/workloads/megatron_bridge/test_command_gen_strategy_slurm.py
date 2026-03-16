@@ -349,3 +349,27 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "--additional_slurm_params" in wrapper_content
         assert "gpus-per-node=2" in wrapper_content
+
+    def test_system_extra_srun_args_forwarded(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        configured_slurm_system.extra_srun_args = "--reservation my_reserv"
+        tr = make_test_run(output_subdir="out_srun")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "reservation=my_reserv" in wrapper_content
+
+    def test_test_run_extra_srun_args_forwarded(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(output_subdir="out_tr_srun")
+        tr.extra_srun_args = "--exclusive"
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--additional_slurm_params" in wrapper_content
+
+    def test_parse_srun_args_as_slurm_params(self) -> None:
+        result = MegatronBridgeSlurmCommandGenStrategy._parse_srun_args_as_slurm_params(
+            "--reservation my_reserv --constraint=gpu"
+        )
+        assert result == ["reservation=my_reserv", "constraint=gpu"]
