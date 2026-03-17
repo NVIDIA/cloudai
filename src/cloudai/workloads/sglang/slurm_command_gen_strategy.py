@@ -77,16 +77,16 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
         return commands
 
-    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
+    def get_helper_command(self) -> list[str]:
         return [
             "python3",
             "-m",
             self.tdef.cmd_args.router_module,
             "--pd-disaggregation",
             "--prefill",
-            f"http://{prefill_host}:{self.prefill_port}",
+            f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}",
             "--decode",
-            f"http://{decode_host}:{self.decode_port}",
+            f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}",
             "--host",
             "0.0.0.0",
             "--port",

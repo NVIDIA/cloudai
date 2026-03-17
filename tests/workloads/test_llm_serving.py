@@ -104,8 +104,8 @@ class FakeLLMSlurmStrategy(LLMServingSlurmCommandGenStrategy[FakeLLMCmdArgs]):
     def get_bench_command(self) -> list[str]:
         return ["bench", "127.0.0.1"]
 
-    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
-        return ["helper", prefill_host, decode_host]
+    def get_helper_command(self) -> list[str]:
+        return ["helper", "${PREFILL_NODE}", "${DECODE_NODE}"]
 
     def _gen_aggregated_script(self, serve_cmd: list[str], bench_cmd: str) -> str:
         return ""
@@ -241,13 +241,12 @@ class TestLLMServingSlurmHelpers:
         assert strategy.decode_port == 8200
         assert strategy.disaggregated_role_host("prefill") == "${PREFILL_NODE}"
         assert strategy.disaggregated_role_host("decode") == "${DECODE_NODE}"
-        assert strategy.disaggregated_bench_host() == "127.0.0.1"
         assert strategy.prefill_log_file == "fake-llm-prefill.log"
         assert strategy.decode_log_file == "fake-llm-decode.log"
         assert strategy.proxy_router_log_file == "fake-llm-helper.log"
         assert strategy.bench_log_file == "fake-llm-bench.log"
         assert strategy.serve_log_file == "fake-llm-serve.log"
-        assert strategy.get_proxy_router_command() == ["helper", "${PREFILL_NODE}", "${DECODE_NODE}"]
+        assert strategy.get_helper_command() == ["helper", "${PREFILL_NODE}", "${DECODE_NODE}"]
         assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
         assert "Expected 2 allocated nodes for disaggregated Fake LLM" in strategy.generate_disaggregated_node_setup()
 

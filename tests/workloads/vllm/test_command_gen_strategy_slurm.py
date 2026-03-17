@@ -306,7 +306,7 @@ class TestVllmDisaggregatedMode:
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
         cmd_args = vllm_disagg_tr.test.cmd_args
 
-        command = strategy.get_helper_command(prefill_host="prefill-host", decode_host="decode-host")
+        command = strategy.get_helper_command()
 
         assert command == [
             "python3",
@@ -314,11 +314,11 @@ class TestVllmDisaggregatedMode:
             "--port",
             str(cmd_args.port),
             "--prefiller-hosts",
-            "prefill-host",
+            "${PREFILL_NODE}",
             "--prefiller-ports",
             str(cmd_args.port + 100),
             "--decoder-hosts",
-            "decode-host",
+            "${DECODE_NODE}",
             "--decoder-ports",
             str(cmd_args.port + 200),
         ]
@@ -330,7 +330,7 @@ class TestVllmDisaggregatedMode:
         output_path = vllm_disagg_tr.output_path.absolute()
         srun_prefix = " ".join(strategy.gen_srun_prefix())
         prefill_cmd, decode_cmd = strategy.get_serve_commands()
-        helper_cmd = strategy.get_helper_command(prefill_host="${PREFILL_NODE}", decode_host="${DECODE_NODE}")
+        helper_cmd = strategy.get_helper_command()
         bench_cmd = " ".join(strategy.get_bench_command())
         health_func = strategy.generate_wait_for_health_function()
         prefill_gpus = ",".join(str(g) for g in strategy.prefill_gpu_ids)

@@ -83,18 +83,18 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         env["VLLM_NIXL_SIDE_CHANNEL_PORT"] = "$PREFILL_NIXL_PORT" if role == "prefill" else "$DECODE_NIXL_PORT"
         return env
 
-    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
+    def get_helper_command(self) -> list[str]:
         return [
             "python3",
             self.tdef.cmd_args.proxy_script,
             "--port",
             str(self.serve_port),
             "--prefiller-hosts",
-            prefill_host,
+            self.disaggregated_role_host("prefill"),
             "--prefiller-ports",
             str(self.prefill_port),
             "--decoder-hosts",
-            decode_host,
+            self.disaggregated_role_host("decode"),
             "--decoder-ports",
             str(self.decode_port),
         ]

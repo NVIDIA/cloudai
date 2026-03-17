@@ -311,9 +311,6 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
             return "${DECODE_NODE}"
         raise ValueError(f"Unknown disaggregated role: {role}")
 
-    def disaggregated_bench_host(self) -> str:
-        return "127.0.0.1"
-
     def generate_disaggregated_node_setup(self) -> str:
         if not self.is_disaggregated:
             return ""
@@ -455,14 +452,8 @@ trap cleanup EXIT"""
         """Return workload benchmark command."""
 
     @abstractmethod
-    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
+    def get_helper_command(self) -> list[str]:
         """Return the helper process command for disaggregated mode."""
-
-    def get_proxy_router_command(self) -> list[str]:
-        return self.get_helper_command(
-            prefill_host=self.disaggregated_role_host("prefill"),
-            decode_host=self.disaggregated_role_host("decode"),
-        )
 
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
@@ -508,7 +499,7 @@ echo "Running benchmark..."
         prefill_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
         decode_srun_prefix = self._disagg_srun_prefix(1 if self.is_two_node_disaggregated else None)
         prefill_local_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
-        helper_cmd = self.get_proxy_router_command()
+        helper_cmd = self.get_helper_command()
         bench_cmd = " ".join(self.get_bench_command())
         node_setup = self.generate_disaggregated_node_setup()
         wait_block = self.generate_wait_for_health_block(
