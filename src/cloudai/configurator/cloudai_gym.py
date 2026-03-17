@@ -125,7 +125,7 @@ class CloudAIGymEnv(BaseGym):
                 cached_result["reward"],
                 cached_result["observation"],
                 status="cached",
-                source_step=cached_result["source_step"],
+                source_step=cached_result["step"],
             )
             logging.info(
                 "Retrieved cached result from trajectory with reward %s",
