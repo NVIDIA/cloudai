@@ -38,8 +38,9 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
     def workload_name(self) -> str:
         return "SGLang"
 
-    def get_serve_commands(self, prefill_host: str = "0.0.0.0", decode_host: str = "0.0.0.0") -> list[list[str]]:
+    def get_serve_commands(self) -> list[list[str]]:
         cmd_args = self.tdef.cmd_args
+        bind_host = "0.0.0.0"
 
         base_cmd = ["python3", "-m", cmd_args.serve_module, "--model-path", cmd_args.model]
         if not cmd_args.prefill:
@@ -47,7 +48,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
                 [
                     *base_cmd,
                     "--host",
-                    decode_host,
+                    bind_host,
                     "--port",
                     str(self.serve_port),
                     *cmd_args.decode.serve_args,
@@ -56,8 +57,8 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
         commands: list[list[str]] = []
         for host, port, mode, args in [
-            (prefill_host, self.prefill_port, "prefill", cast(SglangArgs, cmd_args.prefill)),
-            (decode_host, self.decode_port, "decode", cmd_args.decode),
+            (bind_host, self.prefill_port, "prefill", cast(SglangArgs, cmd_args.prefill)),
+            (bind_host, self.decode_port, "decode", cmd_args.decode),
         ]:
             commands.append(
                 [
