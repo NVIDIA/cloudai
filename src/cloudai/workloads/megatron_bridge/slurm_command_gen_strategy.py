@@ -117,7 +117,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         key names without a ``=value`` suffix.
         """
         params: list[str] = []
-        tokens = srun_args.split()
+        tokens = shlex.split(srun_args)
         i = 0
         while i < len(tokens):
             tok = tokens[i]
