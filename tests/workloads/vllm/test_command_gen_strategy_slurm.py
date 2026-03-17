@@ -335,6 +335,16 @@ class TestVllmDisaggregatedMode:
         health_func = strategy.generate_wait_for_health_function()
         prefill_gpus = ",".join(str(g) for g in strategy.prefill_gpu_ids)
         decode_gpus = ",".join(str(g) for g in strategy.decode_gpu_ids)
+        prefill_env = (
+            f'env CUDA_VISIBLE_DEVICES="{prefill_gpus}" '
+            'VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" '
+            'VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"'
+        )
+        decode_env = (
+            f'env CUDA_VISIBLE_DEVICES="{decode_gpus}" '
+            'VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" '
+            'VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT"'
+        )
 
         srun_command = strategy._gen_srun_command()
 
@@ -365,12 +375,12 @@ echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
 echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/vllm-prefill.log \\
-    env CUDA_VISIBLE_DEVICES="{prefill_gpus}" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" {" ".join(prefill_cmd)} &
+    {prefill_env} {" ".join(prefill_cmd)} &
 PREFILL_PID=$!
 
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/vllm-decode.log \\
-    env CUDA_VISIBLE_DEVICES="{decode_gpus}" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" {" ".join(decode_cmd)} &
+    {decode_env} {" ".join(decode_cmd)} &
 DECODE_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
@@ -401,8 +411,14 @@ echo "Running benchmark..."
         assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
         assert srun_command.count("--relative=0 -N1") == 3
         assert srun_command.count("--relative=1 -N1") == 1
-        assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"' in srun_command
-        assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT"' in srun_command
+        assert (
+            'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" '
+            'VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"'
+        ) in srun_command
+        assert (
+            'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" '
+            'VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT"'
+        ) in srun_command
         assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
         assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
         assert "--prefiller-hosts ${PREFILL_NODE}" in srun_command

@@ -60,12 +60,12 @@ echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
 echo "Starting vLLM instances..."
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-prefill.log \
-    env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
+    env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
 PREFILL_PID=$!
 
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=1 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-decode.log \
-    env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
+    env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
 DECODE_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."

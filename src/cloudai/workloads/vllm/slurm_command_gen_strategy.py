@@ -80,6 +80,7 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
     def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:
         env = super().disaggregated_role_env(role, gpu_ids)
+        env["VLLM_NIXL_SIDE_CHANNEL_HOST"] = self.disaggregated_role_host(role)
         env["VLLM_NIXL_SIDE_CHANNEL_PORT"] = "$PREFILL_NIXL_PORT" if role == "prefill" else "$DECODE_NIXL_PORT"
         return env
 
