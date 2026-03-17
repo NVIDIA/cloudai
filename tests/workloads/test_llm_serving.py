@@ -101,13 +101,13 @@ class FakeLLMSlurmStrategy(LLMServingSlurmCommandGenStrategy[FakeLLMCmdArgs]):
     def get_serve_commands(self) -> list[list[str]]:
         return [["serve"]]
 
-    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
-        return ["bench", base_url_host]
+    def get_bench_command(self) -> list[str]:
+        return ["bench", "127.0.0.1"]
 
     def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
         return ["helper", prefill_host, decode_host]
 
-    def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
+    def _gen_aggregated_script(self, serve_cmd: list[str], bench_cmd: str) -> str:
         return ""
 
 

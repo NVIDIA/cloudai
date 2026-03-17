@@ -159,7 +159,7 @@ class TestVllmBenchCommand:
             "bench",
             "serve",
             f"--model {cmd_args.model}",
-            f"--base-url http://0.0.0.0:{cmd_args.port}",
+            f"--base-url http://127.0.0.1:{cmd_args.port}",
             f"--random-input-len {bench_args.random_input_len}",
             f"--random-output-len {bench_args.random_output_len}",
             f"--max-concurrency {bench_args.max_concurrency}",
@@ -331,7 +331,7 @@ class TestVllmDisaggregatedMode:
         srun_prefix = " ".join(strategy.gen_srun_prefix())
         prefill_cmd, decode_cmd = strategy.get_serve_commands()
         helper_cmd = strategy.get_helper_command(prefill_host="${PREFILL_NODE}", decode_host="${DECODE_NODE}")
-        bench_cmd = " ".join(strategy.get_bench_command("127.0.0.1"))
+        bench_cmd = " ".join(strategy.get_bench_command())
         health_func = strategy.generate_wait_for_health_function()
         prefill_gpus = ",".join(str(g) for g in strategy.prefill_gpu_ids)
         decode_gpus = ",".join(str(g) for g in strategy.decode_gpu_ids)

@@ -99,7 +99,7 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             str(self.decode_port),
         ]
 
-    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
+    def get_bench_command(self) -> list[str]:
         bench_args = self.tdef.bench_cmd_args
         extra_args = self.tdef.bench_cmd_args.model_extra or {}
         extras = ["--" + k.replace("_", "-") + " " + str(v) for k, v in extra_args.items()]
@@ -108,7 +108,7 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             "bench",
             "serve",
             f"--model {self.tdef.cmd_args.model}",
-            f"--base-url http://{base_url_host}:{self.serve_port}",
+            f"--base-url http://127.0.0.1:{self.serve_port}",
             f"--random-input-len {bench_args.random_input_len}",
             f"--random-output-len {bench_args.random_output_len}",
             f"--max-concurrency {bench_args.max_concurrency}",

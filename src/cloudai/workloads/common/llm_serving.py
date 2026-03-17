@@ -444,7 +444,6 @@ trap cleanup EXIT"""
         return {}
 
     def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:
-        del role
         return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in gpu_ids)}
 
     @abstractmethod
@@ -452,7 +451,7 @@ trap cleanup EXIT"""
         """Return workload serve commands."""
 
     @abstractmethod
-    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
+    def get_bench_command(self) -> list[str]:
         """Return workload benchmark command."""
 
     @abstractmethod
@@ -465,24 +464,24 @@ trap cleanup EXIT"""
             decode_host=self.disaggregated_role_host("decode"),
         )
 
-    def get_disaggregated_bench_command(self) -> list[str]:
-        return self.get_bench_command(self.disaggregated_bench_host())
-
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
+        return self._gen_llm_serving_srun_command(serve_commands)
+
+    def _gen_llm_serving_srun_command(self, serve_commands: list[list[str]]) -> str:
         bench_cmd = " ".join(self.get_bench_command())
-        health_func = self.generate_wait_for_health_function()
-        return self._gen_llm_serving_srun_command(serve_commands, bench_cmd, health_func)
-
-    def _gen_llm_serving_srun_command(self, serve_commands: list[list[str]], bench_cmd: str, health_func: str) -> str:
-        srun_prefix = " ".join(self.gen_srun_prefix())
         if len(serve_commands) == 1:
-            return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
+            return self._gen_aggregated_script(serve_commands[0], bench_cmd)
         _ = self.is_two_node_disaggregated
-        return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
+        return self._gen_disaggregated_script(serve_commands)
 
-    def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
+    def _gen_aggregated_script(self, serve_cmd: list[str], bench_cmd: str) -> str:
+        srun_prefix = " ".join(self.gen_srun_prefix())
         serve_cmd_with_env = self._with_env(serve_cmd, self.aggregated_serve_env())
+        health_func = self.generate_wait_for_health_function()
+        wait_block = self.generate_wait_for_health_block(
+            self.workload_name, [f"http://${{NODE}}:{self.serve_port}/health"]
+        )
         return f"""\
 {self.generate_cleanup_function([self.serve_pid_var])}
 
@@ -494,33 +493,25 @@ echo "Starting {self.workload_name} instances..."
     {serve_cmd_with_env} &
 {self.serve_pid_var}=$!
 
-{
-            self.generate_wait_for_health_block(
-                self.workload_name,
-                [f"http://${{NODE}}:{self.serve_port}/health"],
-            )
-        }
+{wait_block}
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
     {bench_cmd}"""
 
-    def _gen_disaggregated_script(
-        self, srun_prefix: str, serve_commands: list[list[str]], bench_cmd: str, health_func: str
-    ) -> str:
-        del srun_prefix, bench_cmd
-
+    def _gen_disaggregated_script(self, serve_commands: list[list[str]]) -> str:
         prefill_cmd, decode_cmd = serve_commands
+        health_func = self.generate_wait_for_health_function()
         prefill_cmd_with_env = self._with_env(prefill_cmd, self.disaggregated_role_env("prefill", self.prefill_gpu_ids))
         decode_cmd_with_env = self._with_env(decode_cmd, self.disaggregated_role_env("decode", self.decode_gpu_ids))
         prefill_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
         decode_srun_prefix = self._disagg_srun_prefix(1 if self.is_two_node_disaggregated else None)
         prefill_local_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
         helper_cmd = self.get_proxy_router_command()
-        bench_cmd_to_run = " ".join(self.get_disaggregated_bench_command())
+        bench_cmd = " ".join(self.get_bench_command())
         node_setup = self.generate_disaggregated_node_setup()
-        health_checks = self.generate_wait_for_health_block(
+        wait_block = self.generate_wait_for_health_block(
             self.workload_name,
             [
                 f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}/health",
@@ -548,7 +539,7 @@ PREFILL_PID=$!
     {decode_cmd_with_env} &
 DECODE_PID=$!
 
-{health_checks}
+{wait_block}
 
 echo "Starting {self.proxy_router_name}..."
 {prefill_local_srun_prefix} \\
@@ -559,4 +550,4 @@ echo "Starting {self.proxy_router_name}..."
 echo "Running benchmark..."
 {prefill_local_srun_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd_to_run}"""
+    {bench_cmd}"""

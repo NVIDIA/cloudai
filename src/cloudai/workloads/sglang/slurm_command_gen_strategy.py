@@ -93,7 +93,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             str(self.serve_port),
         ]
 
-    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
+    def get_bench_command(self) -> list[str]:
         bench_args: SglangBenchCmdArgs = self.tdef.bench_cmd_args
         extra_args = bench_args.model_extra or {}
         extras = ["--" + key.replace("_", "-") + " " + str(value) for key, value in extra_args.items()]
@@ -103,7 +103,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             "-m",
             self.tdef.cmd_args.bench_module,
             f"--backend {bench_args.backend}",
-            f"--base-url http://{base_url_host}:{self.serve_port}",
+            f"--base-url http://127.0.0.1:{self.serve_port}",
             f"--model {self.tdef.cmd_args.model}",
             f"--dataset-name {bench_args.dataset_name}",
             f"--num-prompts {bench_args.num_prompts}",
