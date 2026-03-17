@@ -20,8 +20,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
-from cloudai.configurator.cloudai_gym import TrajectoryEntry
+from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
 from cloudai.core import BaseRunner, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
@@ -302,23 +301,18 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
 
 
 @pytest.mark.parametrize(
-    ("trajectory", "action", "expected"),
+    ("trajectory", "action", "expected_step"),
     [
         ([], {"x": 1}, None),
+        ([TrajectoryEntry(1, {"x": 1}, 1, [1])], {"x": 1}, 1),
+        ([TrajectoryEntry(1, {"x": 1.0}, 1, [1])], {"x": 1}, None),
         (
-            [{"action": {"x": 1}, "observation": [1], "reward": 1, "status": "executed"}],
+            [
+                TrajectoryEntry(1, {"x": 1.0}, 1, [1]),
+                TrajectoryEntry(2, {"x": 1}, 1, [1]),
+            ],
             {"x": 1},
-            {"action": {"x": 1}, "observation": [1], "reward": 1, "status": "executed"},
-        ),
-        (
-            [{"action": {"x": 1}, "observation": [1], "reward": 1, "status": "cached"}],
-            {"x": 1},
-            None,
-        ),
-        (
-            [{"action": {"x": 1.0}, "observation": [1], "reward": 1, "status": "executed"}],
-            {"x": 1},
-            None,
+            2,
         ),
     ],
 )
@@ -327,7 +321,7 @@ def test_get_cached_trajectory_result(
     tmp_path: Path,
     trajectory: list[TrajectoryEntry],
     action: dict[str, object],
-    expected: TrajectoryEntry | None,
+    expected_step: int | None,
 ) -> None:
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
@@ -341,4 +335,7 @@ def test_get_cached_trajectory_result(
     env.trajectory = trajectory
 
     actual = env.get_cached_trajectory_result(action)
-    assert actual == expected
+    if actual is None:
+        assert expected_step is None
+    else:
+        assert actual.step == expected_step

@@ -18,7 +18,6 @@ import argparse
 from typing import Any, ClassVar, Iterator
 from unittest.mock import MagicMock
 
-import numpy as np
 import pandas as pd
 import pytest
 from pydantic import Field
@@ -200,12 +199,11 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
     expected_trajectory = pd.DataFrame(
         data=[
-            [1, "{'candidate': 1}", -1.0, "[-1.0]", "executed", np.nan],
-            [2, "{'candidate': 1}", -1.0, "[-1.0]", "cached", 1],
-            [3, "{'candidate': 2}", -1.0, "[-1.0]", "executed", np.nan],
+            [1, "{'candidate': 1}", -1.0, "[-1.0]"],
+            [3, "{'candidate': 2}", -1.0, "[-1.0]"],
         ],
-        columns=["step", "action", "reward", "observation", "status", "source_step"],
+        columns=["step", "action", "reward", "observation"],
     )
-    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory, check_dtype=False)
+    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
 
     assert [tr.step for tr in reporter.trs] == [1, 3]

@@ -21,7 +21,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
 
-from cloudai.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai.configurator import CloudAIGymEnv, TrajectoryEntry
 from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
@@ -212,7 +212,14 @@ class SingleSbatchRunner(SlurmRunner):
                 gym = CloudAIGymEnv(next_tr, self)
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)
-                gym.write_trajectory(idx, combination, reward, observation, status="executed")
+                gym.write_trajectory(
+                    TrajectoryEntry(
+                        step=idx,
+                        action=combination,
+                        reward=reward,
+                        observation=observation,
+                    )
+                )
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:

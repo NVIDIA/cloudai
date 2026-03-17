@@ -16,9 +16,10 @@
 
 import copy
 import csv
+import dataclasses
 import logging
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
@@ -26,15 +27,14 @@ from cloudai.util.lazy_imports import lazy
 from .base_gym import BaseGym
 
 
-class TrajectoryEntry(TypedDict):
+@dataclasses.dataclass(frozen=True)
+class TrajectoryEntry:
     """Represents a trajectory entry."""
 
     step: int
     action: dict[str, Any]
     reward: float
     observation: list
-    status: Literal["executed", "cached"]
-    source_step: int | None
 
 
 class CloudAIGymEnv(BaseGym):
@@ -60,7 +60,7 @@ class CloudAIGymEnv(BaseGym):
         self.trajectory: list[TrajectoryEntry] = []
         super().__init__()
 
-    def define_action_space(self) -> dict[str, list[Any]]:
+    def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
 
     @property
@@ -79,15 +79,15 @@ class CloudAIGymEnv(BaseGym):
 
     def reset(
         self,
-        seed: int | None = None,
-        options: dict[str, Any] | None = None,  # noqa: Vulture
-    ) -> tuple[list, dict[str, Any]]:
+        seed: Optional[int] = None,
+        options: Optional[dict[str, Any]] = None,  # noqa: Vulture
+    ) -> Tuple[list, dict[str, Any]]:
         """
         Reset the environment and reinitialize the TestRun.
 
         Args:
-            seed (int | None): Seed for the environment's random number generator.
-            options (dict | None): Additional options for reset.
+            seed (Optional[int]): Seed for the environment's random number generator.
+            options (Optional[dict]): Additional options for reset.
 
         Returns:
             Tuple: A tuple containing:
@@ -101,7 +101,7 @@ class CloudAIGymEnv(BaseGym):
         info = {}
         return observation, info
 
-    def step(self, action: Any) -> tuple[list, float, bool, dict]:
+    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
@@ -119,28 +119,18 @@ class CloudAIGymEnv(BaseGym):
 
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:
-            self.write_trajectory(
-                self.test_run.step,
-                action,
-                cached_result["reward"],
-                cached_result["observation"],
-                status="cached",
-                source_step=cached_result["step"],
-            )
             logging.info(
-                "Retrieved cached result from trajectory with reward %s",
-                cached_result["reward"],
+                "Retrieved cached result from trajectory with reward %s. Skipping step.",
+                cached_result.reward,
             )
-            return cached_result["observation"], cached_result["reward"], False, {}
+            return cached_result.observation, cached_result.reward, False, {}
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
 
-        self.test_run.output_path = self.runner.get_job_output_path(self.test_run)
-
         new_tr = copy.deepcopy(self.test_run)
-        new_tr.output_path = self.test_run.output_path
+        new_tr.output_path = self.runner.get_job_output_path(new_tr)
         self.runner.test_scenario.test_runs = [new_tr]
 
         self.runner.shutting_down = False
@@ -163,12 +153,12 @@ class CloudAIGymEnv(BaseGym):
         reward = self.compute_reward(observation)
 
         self.write_trajectory(
-            self.test_run.step,
-            action,
-            reward,
-            observation,
-            status="executed",
-            source_step=None,
+            TrajectoryEntry(
+                step=self.test_run.step,
+                action=action,
+                reward=reward,
+                observation=observation,
+            )
         )
 
         return observation, reward, False, {}
@@ -182,12 +172,12 @@ class CloudAIGymEnv(BaseGym):
         """
         print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
 
-    def seed(self, seed: int | None = None):
+    def seed(self, seed: Optional[int] = None):
         """
         Set the seed for the environment's random number generator.
 
         Args:
-            seed (int | None): Seed for the environment's random number generator.
+            seed (Optional[int]): Seed for the environment's random number generator.
         """
         if seed is not None:
             lazy.np.random.seed(seed)
@@ -226,34 +216,8 @@ class CloudAIGymEnv(BaseGym):
             observation.append(v)
         return observation
 
-    def write_trajectory(
-        self,
-        step: int,
-        action: Any,
-        reward: float,
-        observation: list,
-        status: Literal["executed", "cached"],
-        source_step: int | None = None,
-    ):
-        """
-        Append the trajectory to the CSV file and to the local attribute.
-
-        Args:
-            step (int): The current step number.
-            action (Any): The action taken by the agent.
-            reward (float): The reward received for the action.
-            observation (list): The observation after taking the action.
-            status (str): Whether the trajectory row was executed or retrieved from cache.
-            source_step (int | None): The executed step that supplied the cached result.
-        """
-        entry: TrajectoryEntry = {
-            "step": step,
-            "action": action,
-            "reward": reward,
-            "observation": observation,
-            "status": status,
-            "source_step": source_step,
-        }
+    def write_trajectory(self, entry: TrajectoryEntry):
+        """Append the trajectory to the CSV file and to the local attribute."""
         self.trajectory.append(entry)
 
         file_exists = self.trajectory_file_path.exists()
@@ -263,8 +227,8 @@ class CloudAIGymEnv(BaseGym):
         with open(self.trajectory_file_path, mode="a", newline="") as file:
             writer = csv.writer(file)
             if not file_exists:
-                writer.writerow(list(TrajectoryEntry.__annotations__.keys()))
-            writer.writerow(list(entry.values()))
+                writer.writerow(["step", "action", "reward", "observation"])
+            writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
     @property
     def trajectory_file_path(self) -> Path:
@@ -272,7 +236,7 @@ class CloudAIGymEnv(BaseGym):
 
     def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
         for entry in self.trajectory:
-            if entry["status"] == "executed" and self._values_match_exact(entry["action"], action):
+            if self._values_match_exact(entry.action, action):
                 return entry
 
         return None

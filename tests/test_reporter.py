@@ -37,6 +37,7 @@ from cloudai.systems.slurm.slurm_metadata import (
 )
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 class TestLoadTestTuns:
@@ -89,6 +90,20 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
 
     with tarfile.open(tarball_path, "r:gz") as tar:
         assert f"{results_dir.name}/dummy.txt" in tar.getnames()
+
+
+def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    reporter = StatusReporter(
+        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
+    )
+    reporter.report_best_dse_config()
+    best_config_path = (
+        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
+    )
+    assert best_config_path.exists()
+    nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
+    assert isinstance(nccl.cmd_args, NCCLCmdArgs)
+    assert nccl.agent_steps == 12
 
 
 @pytest.mark.parametrize(
