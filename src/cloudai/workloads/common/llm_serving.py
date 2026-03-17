@@ -73,6 +73,7 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
 
     docker_image_url: str
     model: str
+    port: int = 8000
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
     decode: LLMServingArgsT
@@ -237,6 +238,16 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     def tdef(self) -> LLMServingTestDefinition[LLMServingCmdArgsT]:
         """Typed access to the workload test definition."""
 
+    @property
+    @abstractmethod
+    def workload_name(self) -> str:
+        """User-facing workload name for diagnostics."""
+
+    @property
+    def workload_slug(self) -> str:
+        """Filesystem-friendly workload identifier used for generated artifact names."""
+        return self.workload_name.lower().replace(" ", "-")
+
     def _container_mounts(self) -> list[str]:
         return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
 
@@ -248,9 +259,25 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         return all_gpu_ids(self.tdef, self.system.gpus_per_node)
 
     @property
+    def is_disaggregated(self) -> bool:
+        return self.tdef.cmd_args.prefill is not None
+
+    @property
+    def is_two_node_disaggregated(self) -> bool:
+        if not self.is_disaggregated:
+            return False
+
+        num_nodes, _ = self.get_cached_nodes_spec()
+        if num_nodes not in (1, 2):
+            raise ValueError(f"Disaggregated {self.workload_name} supports only 1 or 2 nodes, got {num_nodes}.")
+        return num_nodes == 2
+
+    @property
     def prefill_gpu_ids(self) -> list[int]:
         if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
             return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
+        if self.is_two_node_disaggregated:
+            return self.gpu_ids
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[:mid]
 
@@ -258,8 +285,58 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     def decode_gpu_ids(self) -> list[int]:
         if self.tdef.cmd_args.decode.gpu_ids:
             return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
+        if self.is_two_node_disaggregated:
+            return self.gpu_ids
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[mid:]
+
+    def _disagg_srun_prefix(self, relative: int | None = None) -> str:
+        srun_command_parts = self.gen_srun_prefix(with_num_nodes=(relative is None))
+        srun_command_parts.extend(["--overlap", "--ntasks-per-node=1", "--ntasks=1"])
+        if relative is not None:
+            srun_command_parts.extend([f"--relative={relative}", "-N1"])
+        return " ".join(srun_command_parts)
+
+    @staticmethod
+    def _with_env(command: list[str], env_vars: dict[str, str]) -> str:
+        if not env_vars:
+            return " ".join(command)
+        env_parts = ["env", *[f'{key}="{value}"' for key, value in env_vars.items()], *command]
+        return " ".join(env_parts)
+
+    def disaggregated_role_host(self, role: str) -> str:
+        if role == "prefill":
+            return "${PREFILL_NODE}"
+        if role == "decode":
+            return "${DECODE_NODE}"
+        raise ValueError(f"Unknown disaggregated role: {role}")
+
+    def disaggregated_bench_host(self) -> str:
+        return "127.0.0.1"
+
+    def generate_disaggregated_node_setup(self) -> str:
+        if not self.is_disaggregated:
+            return ""
+        decode_node_check = ""
+        if self.is_two_node_disaggregated:
+            decode_node_check = f"""\
+if [ -z "${{NODES[1]}}" ]; then
+    echo "Expected 2 allocated nodes for disaggregated {self.workload_name}, got: ${{NODES[*]}}"
+    exit 1
+fi
+"""
+        return f"""\
+NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
+PREFILL_NODE=${{NODES[0]}}
+DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
+if [ -z "$PREFILL_NODE" ]; then
+    echo "Failed to resolve allocated nodes for disaggregated {self.workload_name}"
+    exit 1
+fi
+{decode_node_check}\
+echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
+
+"""
 
     def generate_wait_for_health_function(self) -> str:
         timeout = self.tdef.cmd_args.serve_wait_seconds
@@ -294,30 +371,192 @@ cleanup() {{
 trap cleanup EXIT"""
 
     @staticmethod
-    def generate_wait_for_health_block(service_name: str, endpoints: list[str]) -> str:
+    def generate_wait_for_health_block(
+        service_name: str,
+        endpoints: list[str],
+        *,
+        host_setup: str = "NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)\n",
+        host_display: str = "$NODE",
+    ) -> str:
         waits = "\n".join(f'wait_for_health "{endpoint}" || exit 1' for endpoint in endpoints)
         return f"""\
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for {service_name} on $NODE to be ready..."
+{host_setup}echo "Waiting for {service_name} on {host_display} to be ready..."
 {waits}"""
 
-    def _gen_llm_serving_srun_command(
-        self,
-        serve_commands: list[list[str]],
-        bench_cmd: str,
-        health_func: str,
-    ) -> str:
+    @property
+    def prefill_port(self) -> int:
+        """Prefill service port in disaggregated mode."""
+        return self.tdef.cmd_args.port + 100
+
+    @property
+    def decode_port(self) -> int:
+        """Decode service port in disaggregated mode."""
+        return self.tdef.cmd_args.port + 200
+
+    @property
+    def prefill_log_file(self) -> str:
+        """Prefill log file name in disaggregated mode."""
+        return f"{self.workload_slug}-prefill.log"
+
+    @property
+    def decode_log_file(self) -> str:
+        """Decode log file name in disaggregated mode."""
+        return f"{self.workload_slug}-decode.log"
+
+    @property
+    def proxy_router_name(self) -> str:
+        return "router"
+
+    @property
+    def proxy_router_pid_var(self) -> str:
+        """Shell variable holding helper PID."""
+        return "HELPER_PID"
+
+    @property
+    def proxy_router_log_file(self) -> str:
+        """Helper process log file name."""
+        return f"{self.workload_slug}-{self.proxy_router_name}.log"
+
+    @property
+    def bench_log_file(self) -> str:
+        """Benchmark log file name."""
+        return f"{self.workload_slug}-bench.log"
+
+    @property
+    def serve_pid_var(self) -> str:
+        """Shell variable holding the aggregated serve PID."""
+        return "SERVE_PID"
+
+    @property
+    def serve_log_file(self) -> str:
+        """Serve log file name in aggregated mode."""
+        return f"{self.workload_slug}-serve.log"
+
+    @property
+    def serve_port(self) -> int:
+        """Serve port in aggregated mode."""
+        return self.tdef.cmd_args.port
+
+    def disaggregated_script_preamble(self) -> str:
+        return ""
+
+    def aggregated_serve_env(self) -> dict[str, str]:
+        return {}
+
+    def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:
+        del role
+        return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in gpu_ids)}
+
+    @abstractmethod
+    def get_serve_commands(self) -> list[list[str]]:
+        """Return workload serve commands."""
+
+    @abstractmethod
+    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
+        """Return workload benchmark command."""
+
+    @abstractmethod
+    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
+        """Return the helper process command for disaggregated mode."""
+
+    def get_proxy_router_command(self) -> list[str]:
+        return self.get_helper_command(
+            prefill_host=self.disaggregated_role_host("prefill"),
+            decode_host=self.disaggregated_role_host("decode"),
+        )
+
+    def get_disaggregated_bench_command(self) -> list[str]:
+        return self.get_bench_command(self.disaggregated_bench_host())
+
+    def _gen_srun_command(self) -> str:
+        serve_commands = self.get_serve_commands()
+        bench_cmd = " ".join(self.get_bench_command())
+        health_func = self.generate_wait_for_health_function()
+        return self._gen_llm_serving_srun_command(serve_commands, bench_cmd, health_func)
+
+    def _gen_llm_serving_srun_command(self, serve_commands: list[list[str]], bench_cmd: str, health_func: str) -> str:
         srun_prefix = " ".join(self.gen_srun_prefix())
         if len(serve_commands) == 1:
             return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
+        _ = self.is_two_node_disaggregated
         return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
 
-    @abstractmethod
     def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
-        """Render the aggregated-mode srun script."""
+        serve_cmd_with_env = self._with_env(serve_cmd, self.aggregated_serve_env())
+        return f"""\
+{self.generate_cleanup_function([self.serve_pid_var])}
 
-    @abstractmethod
+{health_func}
+
+echo "Starting {self.workload_name} instances..."
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={(self.test_run.output_path / self.serve_log_file).absolute()} \\
+    {serve_cmd_with_env} &
+{self.serve_pid_var}=$!
+
+{
+            self.generate_wait_for_health_block(
+                self.workload_name,
+                [f"http://${{NODE}}:{self.serve_port}/health"],
+            )
+        }
+
+echo "Running benchmark..."
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
+    {bench_cmd}"""
+
     def _gen_disaggregated_script(
         self, srun_prefix: str, serve_commands: list[list[str]], bench_cmd: str, health_func: str
     ) -> str:
-        """Render the disaggregated-mode srun script."""
+        del srun_prefix, bench_cmd
+
+        prefill_cmd, decode_cmd = serve_commands
+        prefill_cmd_with_env = self._with_env(prefill_cmd, self.disaggregated_role_env("prefill", self.prefill_gpu_ids))
+        decode_cmd_with_env = self._with_env(decode_cmd, self.disaggregated_role_env("decode", self.decode_gpu_ids))
+        prefill_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
+        decode_srun_prefix = self._disagg_srun_prefix(1 if self.is_two_node_disaggregated else None)
+        prefill_local_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
+        helper_cmd = self.get_proxy_router_command()
+        bench_cmd_to_run = " ".join(self.get_disaggregated_bench_command())
+        node_setup = self.generate_disaggregated_node_setup()
+        health_checks = self.generate_wait_for_health_block(
+            self.workload_name,
+            [
+                f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}/health",
+                f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}/health",
+            ],
+            host_setup="",
+            host_display="$PREFILL_NODE and $DECODE_NODE",
+        )
+        preamble = self.disaggregated_script_preamble()
+
+        return f"""\
+{self.generate_cleanup_function(["PREFILL_PID", "DECODE_PID", self.proxy_router_pid_var])}
+
+{health_func}
+
+{preamble}{node_setup}\
+echo "Starting {self.workload_name} instances..."
+{prefill_srun_prefix} \\
+    --output={self.test_run.output_path.absolute()}/{self.prefill_log_file} \\
+    {prefill_cmd_with_env} &
+PREFILL_PID=$!
+
+{decode_srun_prefix} \\
+    --output={self.test_run.output_path.absolute()}/{self.decode_log_file} \\
+    {decode_cmd_with_env} &
+DECODE_PID=$!
+
+{health_checks}
+
+echo "Starting {self.proxy_router_name}..."
+{prefill_local_srun_prefix} \\
+    --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
+    {" ".join(helper_cmd)} &
+{self.proxy_router_pid_var}=$!
+
+echo "Running benchmark..."
+{prefill_local_srun_prefix} \\
+    --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
+    {bench_cmd_to_run}"""

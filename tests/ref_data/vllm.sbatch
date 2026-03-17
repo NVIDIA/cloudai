@@ -15,8 +15,8 @@ srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    echo "Cleaning up PIDs: VLLM_PID=$VLLM_PID"
-    [ -n "$VLLM_PID" ] && kill -9 $VLLM_PID 2>/dev/null
+    echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
+    [ -n "$SERVE_PID" ] && kill -9 $SERVE_PID 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -42,7 +42,7 @@ echo "Starting vLLM instances..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-serve.log \
     vllm serve Qwen/Qwen3-0.6B --port 8000 &
-VLLM_PID=$!
+SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."

@@ -22,11 +22,13 @@ from pydantic import Field
 from rich.table import Table
 
 from cloudai.core import GitRepo, TestRun
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.llm_serving import (
     LLMServingArgs,
     LLMServingBenchReport,
     LLMServingCmdArgs,
     LLMServingReportGenerationStrategy,
+    LLMServingSlurmCommandGenStrategy,
     LLMServingTestDefinition,
     all_gpu_ids,
 )
@@ -81,6 +83,32 @@ class FakeReportStrategy(LLMServingReportGenerationStrategy[FakeLLMTestDefinitio
 
     def all_gpu_ids(self, tdef, gpus_per_node: int | None) -> list[int]:  # type: ignore[override]
         return [0]
+
+
+class FakeLLMSlurmStrategy(LLMServingSlurmCommandGenStrategy[FakeLLMCmdArgs]):
+    @property
+    def tdef(self) -> FakeLLMTestDefinition:
+        return cast(FakeLLMTestDefinition, self.test_run.test)
+
+    @property
+    def workload_name(self) -> str:
+        return "Fake LLM"
+
+    @property
+    def proxy_router_name(self) -> str:
+        return "helper"
+
+    def get_serve_commands(self) -> list[list[str]]:
+        return [["serve"]]
+
+    def get_bench_command(self, base_url_host: str = "0.0.0.0") -> list[str]:
+        return ["bench", base_url_host]
+
+    def get_helper_command(self, prefill_host: str, decode_host: str) -> list[str]:
+        return ["helper", prefill_host, decode_host]
+
+    def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
+        return ""
 
 
 @pytest.fixture
@@ -196,6 +224,64 @@ class TestLLMServingTestDefinitionBehavior:
             match=r"Both prefill and decode gpu_ids must be set or both must be None\.",
         ):
             make_tdef(prefill_gpu_ids, decode_gpu_ids, True)
+
+
+class TestLLMServingSlurmHelpers:
+    def test_two_node_disagg_uses_shared_gpu_ids_and_role_hosts(self, slurm_system: SlurmSystem, tmp_path) -> None:
+        tdef = make_tdef(create_prefill=True)
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(name="llm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        assert strategy.workload_slug == "fake-llm"
+        assert strategy.serve_port == 8000
+        assert strategy.prefill_gpu_ids == [0, 1, 2, 3]
+        assert strategy.decode_gpu_ids == [0, 1, 2, 3]
+        assert strategy.prefill_port == 8100
+        assert strategy.decode_port == 8200
+        assert strategy.disaggregated_role_host("prefill") == "${PREFILL_NODE}"
+        assert strategy.disaggregated_role_host("decode") == "${DECODE_NODE}"
+        assert strategy.disaggregated_bench_host() == "127.0.0.1"
+        assert strategy.prefill_log_file == "fake-llm-prefill.log"
+        assert strategy.decode_log_file == "fake-llm-decode.log"
+        assert strategy.proxy_router_log_file == "fake-llm-helper.log"
+        assert strategy.bench_log_file == "fake-llm-bench.log"
+        assert strategy.serve_log_file == "fake-llm-serve.log"
+        assert strategy.get_proxy_router_command() == ["helper", "${PREFILL_NODE}", "${DECODE_NODE}"]
+        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
+        assert "Expected 2 allocated nodes for disaggregated Fake LLM" in strategy.generate_disaggregated_node_setup()
+
+    def test_single_node_disagg_wait_block_uses_role_hosts(self, slurm_system: SlurmSystem, tmp_path) -> None:
+        tdef = make_tdef(create_prefill=True)
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(name="llm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        assert (
+            strategy.generate_wait_for_health_block(
+                "Fake LLM",
+                [
+                    "http://${PREFILL_NODE}:8100/health",
+                    "http://${DECODE_NODE}:8200/health",
+                ],
+                host_setup="",
+                host_display="$PREFILL_NODE and $DECODE_NODE",
+            )
+            == """\
+echo "Waiting for Fake LLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
+wait_for_health "http://${PREFILL_NODE}:8100/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8200/health" || exit 1"""
+        )
+        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
+
+    def test_more_than_two_disagg_nodes_are_rejected(self, slurm_system: SlurmSystem, tmp_path) -> None:
+        tdef = make_tdef(create_prefill=True)
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(name="llm", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
+            _ = strategy.is_two_node_disaggregated
 
 
 def test_generate_report_uses_shared_table_builder(

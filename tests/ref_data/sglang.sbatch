@@ -15,8 +15,8 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    echo "Cleaning up PIDs: SGLANG_PID=$SGLANG_PID"
-    [ -n "$SGLANG_PID" ] && kill -9 $SGLANG_PID 2>/dev/null
+    echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
+    [ -n "$SERVE_PID" ] && kill -9 $SERVE_PID 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -42,7 +42,7 @@ echo "Starting SGLang instances..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-serve.log \
     env CUDA_VISIBLE_DEVICES="0" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8000 &
-SGLANG_PID=$!
+SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for SGLang on $NODE to be ready..."

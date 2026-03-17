@@ -40,7 +40,7 @@ class SglangArgs(LLMServingArgs):
     """Base command arguments for SGLang instances."""
 
     disaggregation_transfer_backend: str | list[str] | None = Field(
-        default=None,
+        default="nixl",
         description=(
             "Transfer backend used in disaggregated mode. It is consumed by command generation and not emitted "
             "as a generic serve argument."
@@ -59,7 +59,6 @@ class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
 
     model: str = "Qwen/Qwen3-8B"
     port: int = 8000
-    health_endpoint: str = "/health"
 
     serve_module: str = "sglang.launch_server"
     router_module: str = "sglang_router.launch_router"

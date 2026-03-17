@@ -15,10 +15,10 @@ srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID PROXY_PID=$PROXY_PID"
+    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
     [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
     [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$PROXY_PID" ] && kill -9 $PROXY_PID 2>/dev/null
+    [ -n "$HELPER_PID" ] && kill -9 $HELPER_PID 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -44,33 +44,37 @@ PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
 DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 4))
 
+NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
+PREFILL_NODE=${NODES[0]}
+DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}
+if [ -z "$PREFILL_NODE" ]; then
+    echo "Failed to resolve allocated nodes for disaggregated vLLM"
+    exit 1
+fi
+echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
+
 echo "Starting vLLM instances..."
-export CUDA_VISIBLE_DEVICES="0,1"
-export VLLM_NIXL_SIDE_CHANNEL_PORT=$PREFILL_NIXL_PORT
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-prefill.log \
-    vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
+    env CUDA_VISIBLE_DEVICES="0,1" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
 PREFILL_PID=$!
 
-export CUDA_VISIBLE_DEVICES="2,3"
-export VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-decode.log \
-    vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
+    env CUDA_VISIBLE_DEVICES="2,3" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
 DECODE_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${NODE}:8100/health" || exit 1
-wait_for_health "http://${NODE}:8200/health" || exit 1
+echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
+wait_for_health "http://${PREFILL_NODE}:8100/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8200/health" || exit 1
 
-echo "Starting proxy..."
+echo "Starting router..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
-    --output=__OUTPUT_DIR__/output/vllm-proxy.log \
-    python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --port 8000 --prefiller-hosts 0.0.0.0 --prefiller-ports 8100 --decoder-hosts 0.0.0.0 --decoder-ports 8200 &
-PROXY_PID=$!
+    --output=__OUTPUT_DIR__/output/vllm-router.log \
+    python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --port 8000 --prefiller-hosts ${PREFILL_NODE} --prefiller-ports 8100 --decoder-hosts ${DECODE_NODE} --decoder-ports 8200 &
+HELPER_PID=$!
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-bench.log \
-    vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://0.0.0.0:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30 --result-dir __OUTPUT_DIR__/output --result-filename vllm-bench.json --save-result
+    vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://127.0.0.1:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30 --result-dir __OUTPUT_DIR__/output --result-filename vllm-bench.json --save-result
