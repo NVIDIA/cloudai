@@ -156,11 +156,23 @@ class KubernetesInstaller(BaseInstaller):
             verify_res = self._verify_commit(item.commit, repo_path)
             if not verify_res.success:
                 return verify_res
+            if item.init_submodules:
+                res = self._init_submodules(repo_path)
+                if not res.success:
+                    return res
             item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
             logging.debug(msg)
             return InstallStatusResult(True, msg)
 
+        res = self._clone_and_setup_repo(item, repo_path)
+        if not res.success:
+            return res
+
+        item.installed_path = repo_path
+        return InstallStatusResult(True)
+
+    def _clone_and_setup_repo(self, item: GitRepo, repo_path: Path) -> InstallStatusResult:
         res = self._clone_repository(item.url, repo_path)
         if not res.success:
             return res
@@ -180,7 +192,6 @@ class KubernetesInstaller(BaseInstaller):
                     rmtree(repo_path)
                 return res
 
-        item.installed_path = repo_path
         return InstallStatusResult(True)
 
     def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
