@@ -297,6 +297,19 @@ class TestGitRepoInstaller:
         assert res.success
         installer._init_submodules.assert_called_once()
 
+    def test_existing_repo_inits_submodules_when_requested(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        git.init_submodules = True
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        installer._verify_commit = Mock(return_value=InstallStatusResult(True))
+        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
+        res = installer._install_one_git_repo(git)
+        assert res.success
+        assert git.installed_path == repo_path
+        installer._init_submodules.assert_called_once_with(repo_path)
+
     def test_uninstall_no_repo(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         res = installer._uninstall_git_repo(git)
         assert res.success
