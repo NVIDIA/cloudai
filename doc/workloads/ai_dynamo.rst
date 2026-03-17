@@ -4,10 +4,10 @@ AI Dynamo
 This workload (`test_template_name` is ``AIDynamo``) runs AI inference benchmarks using the Dynamo framework with distributed prefill and decode workers.
 
 
-Run using Kubernetes
+Run Using Kubernetes
 --------------------
 
-Prepare cluster
+Prepare Cluster
 ~~~~~~~~~~~~~~~
 Before running the AI Dynamo workload on a Kubernetes cluster, ensure that the cluster is set up according to the instructions in the `official documentation`_. Below is a short summary of the required steps:
 
@@ -51,7 +51,7 @@ AI Dynamo jobs use three distinct types of nodes:
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of required nodes must be:
+The total number of the required nodes must be:
 
 ::
 
@@ -72,7 +72,7 @@ To run the job:
       --tests-dir conf/experimental/ai_dynamo/test \
       --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_slurm.toml
 
-One can monitor job progress using either of the following options:
+The job progress monitoring can be done using either of the following options:
 
 .. code-block:: bash
 
@@ -84,7 +84,7 @@ One can monitor job progress using either of the following options:
 
 The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch ``genai-perf``, which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
 
-Review genai-perf benchmark results
+Review genai-perf Benchmark Results
 -----------------------------------
 
 After job completion, CloudAI will place the output logs and result files in the designated results directory. To analyze performance metrics and validate inference outcomes:

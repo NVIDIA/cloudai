@@ -1,10 +1,29 @@
 CloudAI User Guide
 ==================
 
-The purpose of this guide is to help users use CloudAI. The guide covers topics such as adding new tests and downloading datasets for running NeMo-launcher.
+The purpose of this guide is to help users utilize CloudAI. The guide covers topics such as adding new tests and downloading datasets for running NeMo-launcher.
 
-Step 1: Create a Docker Image
------------------------------
+The following steps outline tutorial on how to create CloudAI framework:
+
+- [Step 1: Create a Docker Image]
+
+- [Step 2: Prepare Configuration Files]
+
+- [Step 3: Test Definition]
+
+- [Step 4: System Configuration]
+
+- [Step 5: Test Configuration]
+
+- [Step 6: Run Experiments]
+
+- [Step 7: Generate Reports]
+
+- [Step 8: Describing a System in the System Schema]
+
+- [Step 9: Describing a System for RunAI Scheduler]
+
+**Step 1: Create a Docker Image**
 
 #. **Set Up the GitLab Repository:** Start by setting up a repository on GitLab to host your docker image. For this example, use ``gitlab-url.com/cloudai/nccl-test``.
 
@@ -47,8 +66,7 @@ Step 1: Create a Docker Image
          --cudagraph 0 \
          --stepfactor 2
 
-Step 2: Prepare Configuration Files
------------------------------------
+**Step 2: Prepare Configuration Files**
 
 CloudAI is fully configurable via a set of TOML configuration files. You can find examples of these files under ``conf/common``. In this guide, we will use the following configuration files:
 
@@ -56,8 +74,7 @@ CloudAI is fully configurable via a set of TOML configuration files. You can fin
 #. ``CONFIGS_DIR/tests/nccl_test.toml`` - Describes the test to run.
 #. ``CONFIGS_DIR/scenario.toml`` - Describes the test scenario configuration.
 
-Step 3: Test Definition
------------------------
+**Step 3: Test Definition**
 
 Test definition is a Pydantic model that describes the arguments of a test. Such models should be inherited from the ``TestDefinition`` class:
 
@@ -95,10 +112,9 @@ A custom test definition should be registered to handle relevant Test Configs. F
 
 Relevant Test Configs should specify ``test_template_name = MyTest`` to use the custom test definition.
 
-Step 4: System Configuration
-----------------------------
+**Step 4: System Configuration**
 
-System configuration describes the system configuration. You can find more examples of system configs under ``conf/common/system/``. Our example will be small for demonstration purposes. Below is the ``CONFIGS_DIR/system.toml`` file:
+System configuration describes how the system configuration works. You can find more examples of system configuration under ``conf/common/system/``. The example below is for demonstration purposes. The following is the ``CONFIGS_DIR/system.toml`` file:
 
 .. code-block:: toml
 
@@ -119,8 +135,7 @@ System configuration describes the system configuration. You can find more examp
 
 Replace ``<YOUR PARTITION NAME>`` with the name of the partition you want to use. You can find the partition name by running ``sinfo`` on the cluster.
 
-Step 5: Test Configuration
---------------------------
+**Step 5: Test Configuration**
 
 Test configuration describes a particular test configuration to be run. It is based on test definition and will be used in a test scenario. Below is the ``CONFIGS_DIR/tests/nccl_test.toml`` file, definition is based on the built-in ``NcclTest`` definition:
 
@@ -141,8 +156,7 @@ Test configuration describes a particular test configuration to be run. It is ba
 
 You can find more examples under ``conf/common/test``. In a test schema file, you can adjust arguments as shown above. In the ``cmd_args`` section, you can provide different values other than the default values for each argument. In ``extra_cmd_args``, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the ``extra_env_vars`` section.
 
-Step 6: Run Experiments
------------------------
+**Step 6: Run Experiments**
 
 Test Scenario uses test description from Step 5. Below is the ``CONFIGS_DIR/scenario.toml`` file:
 
@@ -196,10 +210,9 @@ You can run NCCL test experiments with the following command. Whenever you run C
        --system-config CONFIGS_DIR/system.toml \
        --tests-dir CONFIGS_DIR/tests/
 
-Test-in-Scenario
-----------------
+**Test-in-Scenario**
 
-One can override some args or even fully define a workload inside a scenario file:
+It is possible to override some args or even fully define a workload inside a scenario file:
 
 .. code-block:: toml
 
@@ -238,10 +251,9 @@ One can override some args or even fully define a workload inside a scenario fil
 
 If a scenario contains only fully defined tests, ``--tests-dir`` arg is not required.
 
-Step 7: Generate Reports
-------------------------
+**Step 7: Generate Reports**
 
-Once the test scenario is completed, you can generate reports using the following command:
+Once the test scenario is completed, it is possible to generate reports using the following command:
 
 .. code-block:: bash
 
