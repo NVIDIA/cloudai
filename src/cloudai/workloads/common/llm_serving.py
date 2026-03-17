@@ -29,18 +29,26 @@ from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, Report
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-TestDefT = TypeVar("TestDefT")
+TestDefT = TypeVar("TestDefT", bound="LLMServingTestDefinition[Any]")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
 LLMServingArgsT = TypeVar("LLMServingArgsT", bound="LLMServingArgs")
 LLMServingCmdArgsT = TypeVar("LLMServingCmdArgsT", bound="LLMServingCmdArgs")
 
 
+def parse_gpu_ids(gpu_ids: str | list[str] | None) -> list[int]:
+    if not gpu_ids:
+        return []
+    if isinstance(gpu_ids, list):
+        return [int(gpu_id) for gpu_id in gpu_ids]
+    return [int(gpu_id) for gpu_id in gpu_ids.split(",")]
+
+
 def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgsT], system_gpus_per_node: int | None) -> list[int]:
     cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
     if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
-        cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
+        return parse_gpu_ids(tdef.cmd_args.prefill.gpu_ids) + parse_gpu_ids(tdef.cmd_args.decode.gpu_ids)
     if cuda_devices:
-        return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
+        return parse_gpu_ids(cuda_devices)
     return list(range(system_gpus_per_node or 1))
 
 
@@ -73,10 +81,16 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
 
     docker_image_url: str
     model: str
-    port: int = 8000
+    port: int = Field(default=8000, ge=1, le=65535)
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
     decode: LLMServingArgsT
+
+    @model_validator(mode="after")
+    def validate_disaggregated_port(self) -> Self:
+        if self.prefill is not None and self.port > 65335:
+            raise ValueError("Disaggregated mode requires port <= 65335 because prefill/decode add 100/200.")
+        return self
 
 
 class LLMServingTestDefinition(TestDefinition, Generic[LLMServingCmdArgsT]):
@@ -187,7 +201,18 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         return self.parse_results() is not None
 
     def used_gpus_count(self) -> int:
-        return len(self.all_gpu_ids(cast(TestDefT, self.test_run.test), getattr(self.system, "gpus_per_node", 1)))
+        tdef = cast(TestDefT, self.test_run.test)
+        gpu_ids = self.all_gpu_ids(tdef, getattr(self.system, "gpus_per_node", 1))
+        num_nodes = self.test_run.nnodes
+        if tdef.cmd_args.prefill is None or num_nodes <= 1:
+            return len(gpu_ids)
+
+        prefill_gpu_ids = tdef.cmd_args.prefill.gpu_ids
+        decode_gpu_ids = tdef.cmd_args.decode.gpu_ids
+        if prefill_gpu_ids and decode_gpu_ids:
+            return len(parse_gpu_ids(prefill_gpu_ids)) + len(parse_gpu_ids(decode_gpu_ids))
+
+        return len(gpu_ids) * num_nodes
 
     def get_metric(self, metric: str) -> float:
         if metric not in self.metrics:
@@ -275,7 +300,7 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     @property
     def prefill_gpu_ids(self) -> list[int]:
         if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
+            return parse_gpu_ids(self.tdef.cmd_args.prefill.gpu_ids)
         if self.is_two_node_disaggregated:
             return self.gpu_ids
         mid = len(self.gpu_ids) // 2
@@ -284,7 +309,7 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     @property
     def decode_gpu_ids(self) -> list[int]:
         if self.tdef.cmd_args.decode.gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
+            return parse_gpu_ids(self.tdef.cmd_args.decode.gpu_ids)
         if self.is_two_node_disaggregated:
             return self.gpu_ids
         mid = len(self.gpu_ids) // 2
@@ -463,8 +488,7 @@ trap cleanup EXIT"""
         bench_cmd = " ".join(self.get_bench_command())
         if len(serve_commands) == 1:
             return self._gen_aggregated_script(serve_commands[0], bench_cmd)
-        _ = self.is_two_node_disaggregated
-        return self._gen_disaggregated_script(serve_commands)
+        return self._gen_disaggregated_script(serve_commands, bench_cmd)
 
     def _gen_aggregated_script(self, serve_cmd: list[str], bench_cmd: str) -> str:
         srun_prefix = " ".join(self.gen_srun_prefix())
@@ -491,16 +515,14 @@ echo "Running benchmark..."
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
     {bench_cmd}"""
 
-    def _gen_disaggregated_script(self, serve_commands: list[list[str]]) -> str:
+    def _gen_disaggregated_script(self, serve_commands: list[list[str]], bench_cmd: str) -> str:
         prefill_cmd, decode_cmd = serve_commands
         health_func = self.generate_wait_for_health_function()
         prefill_cmd_with_env = self._with_env(prefill_cmd, self.disaggregated_role_env("prefill", self.prefill_gpu_ids))
         decode_cmd_with_env = self._with_env(decode_cmd, self.disaggregated_role_env("decode", self.decode_gpu_ids))
         prefill_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
         decode_srun_prefix = self._disagg_srun_prefix(1 if self.is_two_node_disaggregated else None)
-        prefill_local_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
         helper_cmd = self.get_helper_command()
-        bench_cmd = " ".join(self.get_bench_command())
         node_setup = self.generate_disaggregated_node_setup()
         wait_block = self.generate_wait_for_health_block(
             self.workload_name,
@@ -533,12 +555,12 @@ DECODE_PID=$!
 {wait_block}
 
 echo "Starting {self.proxy_router_name}..."
-{prefill_local_srun_prefix} \\
+{prefill_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
     {" ".join(helper_cmd)} &
 {self.proxy_router_pid_var}=$!
 
 echo "Running benchmark..."
-{prefill_local_srun_prefix} \\
+{prefill_srun_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
     {bench_cmd}"""

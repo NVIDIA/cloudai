@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -31,6 +32,7 @@ from cloudai.workloads.common.llm_serving import (
     LLMServingSlurmCommandGenStrategy,
     LLMServingTestDefinition,
     all_gpu_ids,
+    parse_gpu_ids,
 )
 
 
@@ -82,7 +84,7 @@ class FakeReportStrategy(LLMServingReportGenerationStrategy[FakeLLMTestDefinitio
         return self._result
 
     def all_gpu_ids(self, tdef, gpus_per_node: int | None) -> list[int]:  # type: ignore[override]
-        return [0]
+        return all_gpu_ids(tdef, gpus_per_node)
 
 
 class FakeLLMSlurmStrategy(LLMServingSlurmCommandGenStrategy[FakeLLMCmdArgs]):
@@ -167,6 +169,19 @@ class TestAllGpuIds:
         assert all_gpu_ids(cast(Any, llm_tdef), 4) == [4, 5]
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("0", [0]),
+        ("0,1,2", [0, 1, 2]),
+        (["3", "4"], [3, 4]),
+        (None, []),
+    ],
+)
+def test_parse_gpu_ids(value: str | list[str] | None, expected: list[int]) -> None:
+    assert parse_gpu_ids(value) == expected
+
+
 class TestLLMServingArgsBehavior:
     def test_default_serve_args(self) -> None:
         assert PlainLLMArgs.model_validate({"some_flag": "", "gpu_ids": "0"}).serve_args == ["--some-flag"]
@@ -224,6 +239,16 @@ class TestLLMServingTestDefinitionBehavior:
             match=r"Both prefill and decode gpu_ids must be set or both must be None\.",
         ):
             make_tdef(prefill_gpu_ids, decode_gpu_ids, True)
+
+    def test_disaggregated_port_requires_room_for_role_offsets(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"Disaggregated mode requires port <= 65335 because prefill/decode add 100/200\.",
+        ):
+            FakeLLMCmdArgs(port=65336, prefill=FakeLLMArgs(), decode=FakeLLMArgs())
+
+    def test_aggregated_port_allows_full_valid_range(self) -> None:
+        assert FakeLLMCmdArgs(port=65535).port == 65535
 
 
 class TestLLMServingSlurmHelpers:
@@ -314,3 +339,27 @@ def test_generate_report_uses_shared_table_builder(
 
     assert len(printed) == 1
     assert printed[0].title == f"Fake LLM Results ({tmp_path})"
+
+
+def test_used_gpus_count_counts_all_cluster_gpus_for_two_node_disaggregated_run(tmp_path: Path) -> None:
+    tdef = make_tdef(create_prefill=True)
+    tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+    tr = TestRun(name="llm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    strategy = FakeReportStrategy(
+        SimpleNamespace(gpus_per_node=4),
+        tr,
+        FakeBenchReport(
+            num_prompts=1,
+            completed=1,
+            mean_ttft_ms=1.0,
+            median_ttft_ms=1.0,
+            p99_ttft_ms=1.0,
+            mean_tpot_ms=1.0,
+            median_tpot_ms=1.0,
+            p99_tpot_ms=1.0,
+            max_concurrency=1,
+            request_throughput=1.0,
+        ),
+    )
+
+    assert strategy.used_gpus_count() == 8

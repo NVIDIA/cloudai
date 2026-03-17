@@ -58,7 +58,6 @@ class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
     model_config = ConfigDict(extra="forbid")
 
     model: str = "Qwen/Qwen3-8B"
-    port: int = 8000
 
     serve_module: str = "sglang.launch_server"
     router_module: str = "sglang_router.launch_router"
