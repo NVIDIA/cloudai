@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
@@ -230,6 +231,41 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
         used_filenames.add(candidate)
         return candidate
+
+    def gen_cleanup_srun_command(self) -> list[str]:
+        cleanup_cmds = self._container_cleanup_commands()
+        if not cleanup_cmds:
+            return []
+
+        return [
+            *self.gen_srun_prefix(with_num_nodes=False),
+            "--overlap",
+            "--nodelist=$SLURM_JOB_MASTER_NODE",
+            "--ntasks-per-node=1",
+            "--ntasks=1",
+            "-N1",
+            "bash",
+            "-c",
+            f'"{"; ".join(cleanup_cmds)}"',
+        ]
+
+    def _container_cleanup_commands(self) -> list[str]:
+        cleanup_cmds: list[str] = []
+
+        filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
+        if filepath_raw:
+            filepath = Path(filepath_raw)
+            if filepath == Path("/"):
+                logging.warning("Skipping filepath cleanup for '/': refusing to delete container root contents.")
+            else:
+                cleanup_cmds.append(f"rm -rf {shlex.quote(str(filepath))}")
+
+        device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
+        if device_list_raw:
+            for device_path in get_files_from_device_list(device_list_raw):
+                cleanup_cmds.append(f"rm -rf {shlex.quote(str(device_path))}")
+
+        return cleanup_cmds
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:

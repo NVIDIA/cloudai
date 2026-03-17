@@ -39,6 +39,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         kvbench_commands = self.gen_nixlbench_srun_commands(
             self.gen_kvbench_command(), str(self.tdef.cmd_args.backend or "unset")
         )
+        cleanup_command = self.gen_cleanup_srun_command()
         self._current_image_url = None
 
         self.create_env_vars_file()
@@ -51,6 +52,8 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(kvbench_commands[-1]),
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
         ]
+        if cleanup_command:
+            final_cmd.insert(-1, " ".join(cleanup_command))
         return "\n".join(final_cmd)
 
     def gen_kvbench_command(self) -> list[str]:

@@ -105,6 +105,25 @@ class TestNIXLBenchCommand:
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).is_file()
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
 
+    def test_cleanup_srun_command(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/library/ubuntu:22.04",
+                "path_to_benchmark": "/nixlbench",
+                "backend": "GUSLI",
+                "device_list": "11:K:/dev/nvme0n1,12:F:/p1/store0.bin,13:F:/p2/store0.bin",
+                "filepath": "/data",
+            }
+        )
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+        strategy._current_image_url = str(cast(NIXLBenchTestDefinition, nixl_bench_tr.test).docker_image.installed_path)
+
+        cleanup_cmd = " ".join(strategy.gen_cleanup_srun_command())
+
+        assert "rm -rf /data" in cleanup_cmd
+        assert "rm -rf /p1/store0.bin" in cleanup_cmd
+        assert "rm -rf /p2/store0.bin" in cleanup_cmd
+
     @pytest.mark.parametrize(
         ("override", "expected_error_match", "expected_total_buffer_size"),
         (
