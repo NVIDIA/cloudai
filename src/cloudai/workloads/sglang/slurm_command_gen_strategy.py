@@ -59,7 +59,6 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             (prefill_host, self.prefill_port, "prefill", cast(SglangArgs, cmd_args.prefill)),
             (decode_host, self.decode_port, "decode", cmd_args.decode),
         ]:
-            backend = args.disaggregation_transfer_backend or "nixl"
             commands.append(
                 [
                     *base_cmd,
@@ -70,7 +69,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
                     "--disaggregation-mode",
                     mode,
                     "--disaggregation-transfer-backend",
-                    str(backend),
+                    str(args.disaggregation_transfer_backend),
                     *args.serve_args,
                 ]
             )
