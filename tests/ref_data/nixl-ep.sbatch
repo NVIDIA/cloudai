@@ -20,12 +20,12 @@ echo Num Nodes: ${#nodes[@]}
 echo Master Node: $master_node
 echo Master IP: $master_ip
 
-export NIXL_PLUGIN_DIR=/workspace/nixl/lib/x86_64-linux-gnu/plugins
-export LD_LIBRARY_PATH=/workspace/rdma_core/lib:$LD_LIBRARY_PATH
-export PYTHONPATH=/workspace/nixl/examples/device/ep
-srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__,__INSTALL_DIR__/nixl__main:/workspace/nixl --no-container-mount-home --output=__OUTPUT_DIR__/mapping-stdout.txt --error=__OUTPUT_DIR__/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+export LD_LIBRARY_PATH=/usr/local/nixl/lib:/workspace/rdma_core/lib:$LD_LIBRARY_PATH
+export NIXL_PLUGIN_DIR=/usr/local/nixl/lib/x86_64-linux-gnu/plugins
+export PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages
+srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --output=__OUTPUT_DIR__/mapping-stdout.txt --error=__OUTPUT_DIR__/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__,__INSTALL_DIR__/nixl__main:/workspace/nixl --no-container-mount-home --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/metadata/node-%N.toml --error=__OUTPUT_DIR__/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/metadata/node-%N.toml --error=__OUTPUT_DIR__/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 wait_for_master_services() {
     local timeout=90
@@ -48,16 +48,16 @@ wait_for_master_services() {
 worker_pids=()
 
 echo "Starting NIXL EP on the master node..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__,__INSTALL_DIR__/nixl__main:/workspace/nixl --no-container-mount-home --overlap --nodelist=$SLURM_JOB_MASTER_NODE --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-0.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 4 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --disable-ll-nvlink --kineto" &
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --overlap --nodelist=$SLURM_JOB_MASTER_NODE --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-0.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 4 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --disable-ll-nvlink --kineto" &
 worker_pids+=($!)
 
 echo "Waiting for NIXL EP master services..."
 wait_for_master_services || exit 1
 
 echo "Starting NIXL EP follower nodes..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__,__INSTALL_DIR__/nixl__main:/workspace/nixl --no-container-mount-home --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-1.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 4 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --tcp-server $master_ip --disable-ll-nvlink --kineto" &
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-1.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 4 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --tcp-server $master_ip --disable-ll-nvlink --kineto" &
 worker_pids+=($!)
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__,__INSTALL_DIR__/nixl__main:/workspace/nixl --no-container-mount-home --overlap --relative=2 --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-2.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 2 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --tcp-server $master_ip --disable-ll-nvlink --kineto" &
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --overlap --relative=2 --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/nixl-ep-node-2.log bash -c "source __OUTPUT_DIR__/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan /workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json --num-processes 2 --num-tokens 256 --num-experts-per-rank 4 --hidden-dim 8192 --num-topk 6 --tcp-server $master_ip --disable-ll-nvlink --kineto" &
 worker_pids+=($!)
 
 rc=0

@@ -29,16 +29,19 @@ class NixlEPCmdArgs(CmdArgs):
 
     docker_image_url: str = Field(description="URL of the Docker image that contains the NIXL EP benchmark.")
     elastic_script: str = Field(
-        default="examples/device/ep/tests/elastic/elastic.py",
+        default="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
         description=(
-            "Path to the benchmark entrypoint, relative to the benchmark repo mount "
+            "Path to the benchmark entrypoint, relative to the container's NIXL runtime root "
             "or absolute in the container."
         ),
     )
     python_executable: str = Field(default="python3", description="Python executable to use inside the container.")
     input_json: str = Field(
         validation_alias=AliasChoices("input_json", "plan"),
-        description="Path to the phase plan JSON, relative to the benchmark repo mount or absolute in the container.",
+        description=(
+            "Path to the phase plan JSON. Relative paths resolve against the mounted config repo when present, "
+            "otherwise against the container's NIXL runtime root."
+        ),
     )
     num_processes_per_node: int | list[int] = Field(
         description="Number of local worker processes to spawn on each allocated node.",
@@ -69,7 +72,11 @@ class NixlEPCmdArgs(CmdArgs):
 class NixlEPTestDefinition(TestDefinition):
     """Test definition for the NIXL Elastic EP benchmark."""
 
-    benchmark_repo_mount: ClassVar[str] = "/workspace/nixl"
+    container_runtime_root: ClassVar[str] = "/workspace/nixl"
+    container_plugin_dir: ClassVar[str] = "/usr/local/nixl/lib/x86_64-linux-gnu/plugins"
+    container_python_path: ClassVar[str] = "/usr/local/nixl/lib/python3/dist-packages"
+    container_library_dir: ClassVar[str] = "/usr/local/nixl/lib"
+    config_repo_default_mount: ClassVar[str] = "/workspace/nixl-ep-configs"
     launcher_failure_patterns: ClassVar[tuple[tuple[str, str], ...]] = (
         ("python3: can't open file", "The benchmark entrypoint could not be opened."),
         ("Traceback (most recent call last):", "The benchmark launcher raised a Python traceback."),
@@ -80,46 +87,23 @@ class NixlEPTestDefinition(TestDefinition):
     cmd_args: NixlEPCmdArgs
     _docker_image: Optional[DockerImage] = None
 
-    @staticmethod
-    def _is_nixl_repo(repo: GitRepo) -> bool:
-        return "nixl" in repo.url.lower()
-
     @classmethod
-    def _normalize_benchmark_repo(cls, repos: list[GitRepo]) -> list[GitRepo]:
-        if not repos:
-            raise ValueError(
-                "NixlEP requires the benchmark repository via `[[git_repos]]` so the launcher and input JSON are "
-                "available inside the container."
-            )
-
+    def _normalize_config_repos(cls, repos: list[GitRepo]) -> list[GitRepo]:
         normalized = list(repos)
-        benchmark_idx = next(
-            (
-                idx
-                for idx, repo in enumerate(normalized)
-                if (repo.mount_as or "").rstrip("/") == cls.benchmark_repo_mount.rstrip("/")
-            ),
-            None,
-        )
-        if benchmark_idx is None and len(normalized) == 1:
-            benchmark_idx = 0
-        if benchmark_idx is None:
-            benchmark_idx = next((idx for idx, repo in enumerate(normalized) if cls._is_nixl_repo(repo)), None)
-        if benchmark_idx is None:
-            raise ValueError(
-                "NixlEP requires one benchmark repo in `[[git_repos]]`. When multiple repos are present, set "
-                "mount_as='/workspace/nixl' on the NIXL benchmark repo."
-            )
-
-        repo = normalized[benchmark_idx]
-        if (repo.mount_as or "").rstrip("/") != cls.benchmark_repo_mount.rstrip("/"):
-            normalized[benchmark_idx] = repo.model_copy(update={"mount_as": cls.benchmark_repo_mount})
+        for repo in normalized:
+            if (repo.mount_as or "").rstrip("/") == cls.container_runtime_root.rstrip("/"):
+                raise ValueError(
+                    "NixlEP git_repos must not mount to '/workspace/nixl' because that shadows the container's "
+                    "prebuilt runtime."
+                )
+        if len(normalized) == 1 and not normalized[0].mount_as:
+            normalized[0] = normalized[0].model_copy(update={"mount_as": cls.config_repo_default_mount})
 
         return normalized
 
     @model_validator(mode="after")
     def validate_git_repos(self) -> "NixlEPTestDefinition":
-        self.git_repos = self._normalize_benchmark_repo(self.git_repos)
+        self.git_repos = self._normalize_config_repos(self.git_repos)
         return self
 
     @property
@@ -129,15 +113,31 @@ class NixlEPTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
-    def benchmark_repo(self) -> GitRepo:
+    def config_repo(self) -> GitRepo | None:
+        if len(self.git_repos) == 1:
+            return self.git_repos[0]
         for repo in self.git_repos:
-            if (repo.mount_as or "").rstrip("/") == self.benchmark_repo_mount.rstrip("/"):
+            if (repo.mount_as or "").rstrip("/") == self.config_repo_default_mount.rstrip("/"):
                 return repo
-        raise ValueError("NixlEP benchmark repo was not normalized to the expected mount path.")
+        return None
 
     @property
-    def benchmark_repo_root(self) -> PurePosixPath:
-        return PurePosixPath(self.benchmark_repo.container_mount)
+    def container_runtime_root_path(self) -> PurePosixPath:
+        return PurePosixPath(self.container_runtime_root)
+
+    def resolve_elastic_script_path(self) -> str:
+        path = PurePosixPath(self.cmd_args.elastic_script)
+        if path.is_absolute():
+            return str(path)
+        return str(self.container_runtime_root_path / path)
+
+    def resolve_input_json_path(self) -> str:
+        path = PurePosixPath(self.cmd_args.input_json)
+        if path.is_absolute():
+            return str(path)
+        if config_repo := self.config_repo:
+            return str(PurePosixPath(config_repo.container_mount) / path)
+        return str(self.container_runtime_root_path / path)
 
     @property
     def installables(self) -> list[Installable]:

@@ -35,6 +35,29 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        env_vars = super().final_env_vars
+
+        plugin_dir = str(env_vars.get("NIXL_PLUGIN_DIR", "")).strip()
+        if not plugin_dir or plugin_dir.startswith(f"{self.tdef.container_runtime_root}/"):
+            env_vars["NIXL_PLUGIN_DIR"] = self.tdef.container_plugin_dir
+
+        python_path = str(env_vars.get("PYTHONPATH", "")).strip()
+        if not python_path:
+            env_vars["PYTHONPATH"] = self.tdef.container_python_path
+        elif self.tdef.container_python_path not in python_path.split(":"):
+            env_vars["PYTHONPATH"] = f"{self.tdef.container_python_path}:{python_path}"
+
+        library_dir = self.tdef.container_library_dir
+        ld_library_path = str(env_vars.get("LD_LIBRARY_PATH", "")).strip()
+        if not ld_library_path:
+            env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:$LD_LIBRARY_PATH"
+        elif library_dir not in ld_library_path.split(":"):
+            env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:{ld_library_path}"
+
+        return env_vars
+
+    @property
     def processes_per_node(self) -> list[int]:
         raw = self.tdef.cmd_args.num_processes_per_node
         num_nodes, _ = self.get_cached_nodes_spec()
@@ -64,18 +87,13 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ]
         )
 
-    def _resolve_repo_path(self, path: str) -> str:
-        if path.startswith("/"):
-            return path
-        return str(self.tdef.benchmark_repo_root / path)
-
     def build_elastic_command(self, num_processes: int, include_tcp_server: bool = False) -> list[str]:
         cmd_args: NixlEPCmdArgs = self.tdef.cmd_args
         command = [
             cmd_args.python_executable,
-            self._resolve_repo_path(cmd_args.elastic_script),
+            self.tdef.resolve_elastic_script_path(),
             "--plan",
-            self._resolve_repo_path(cmd_args.input_json),
+            self.tdef.resolve_input_json_path(),
             "--num-processes",
             str(num_processes),
             "--num-tokens",

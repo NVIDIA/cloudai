@@ -11,7 +11,8 @@ The Slurm launch model is:
 - one ``elastic.py`` launcher per node
 - the master node starts first
 - follower nodes connect with ``--tcp-server $master_ip``
-- the benchmark repo is provided via ``[[git_repos]]`` and mounted inside the container
+- the benchmark runtime comes from the container image
+- optional ``[[git_repos]]`` mounts are for custom input JSON files only
 
 Usage Examples
 --------------
@@ -26,24 +27,14 @@ Test TOML example:
 
    [cmd_args]
    docker_image_url = "<docker container url here>"
-   elastic_script = "examples/device/ep/tests/elastic/elastic.py"
-   input_json = "examples/device/ep/tests/elastic/expansion_contraction.json"
+   elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
+   input_json = "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
    num_processes_per_node = [4, 4, 2]
    num_tokens = 256
    num_experts_per_rank = 4
    hidden_dim = 8192
    num_topk = 6
    disable_ll_nvlink = true
-
-   [extra_env_vars]
-   NIXL_PLUGIN_DIR = "/workspace/nixl/lib/x86_64-linux-gnu/plugins"
-   LD_LIBRARY_PATH = "/workspace/rdma_core/lib:$LD_LIBRARY_PATH"
-   PYTHONPATH = "/workspace/nixl/examples/device/ep"
-
-   [[git_repos]]
-   url = "https://github.com/NVIDIA/nixl.git"
-   commit = "main"
-   mount_as = "/workspace/nixl"
 
 Test-in-Scenario example:
 
@@ -62,8 +53,8 @@ Test-in-Scenario example:
 
      [Tests.cmd_args]
      docker_image_url = "<docker container url here>"
-     elastic_script = "examples/device/ep/tests/elastic/elastic.py"
-     input_json = "examples/device/ep/tests/elastic/expansion_contraction.json"
+     elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
+     input_json = "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
      num_processes_per_node = [4, 4, 2]
      num_tokens = 256
      num_experts_per_rank = 4
@@ -71,15 +62,17 @@ Test-in-Scenario example:
      num_topk = 6
      disable_ll_nvlink = true
 
-     [Tests.extra_env_vars]
-     NIXL_PLUGIN_DIR = "/workspace/nixl/lib/x86_64-linux-gnu/plugins"
-     LD_LIBRARY_PATH = "/workspace/rdma_core/lib:$LD_LIBRARY_PATH"
-     PYTHONPATH = "/workspace/nixl/examples/device/ep"
+Optional config repo example:
 
-     [[Tests.git_repos]]
-     url = "https://github.com/NVIDIA/nixl.git"
-     commit = "main"
-     mount_as = "/workspace/nixl"
+.. code-block:: toml
+
+   [[git_repos]]
+   url = "https://github.com/NVIDIA/nixl-configs.git"
+   commit = "main"
+   mount_as = "/workspace/nixl-ep-configs"
+
+   [cmd_args]
+   input_json = "/workspace/nixl-ep-configs/plans/custom_plan.json"
 
 API Documentation
 -----------------

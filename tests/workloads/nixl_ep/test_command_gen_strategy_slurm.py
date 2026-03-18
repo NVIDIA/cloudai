@@ -33,7 +33,7 @@ def nixl_ep() -> NixlEPTestDefinition:
         test_template_name="NixlEP",
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            elastic_script="examples/device/ep/tests/elastic/elastic.py",
+            elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
             input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
             num_processes_per_node=[4, 4, 2],
             num_tokens=256,
@@ -45,16 +45,8 @@ def nixl_ep() -> NixlEPTestDefinition:
             service_startup_timeout_seconds=90,
         ),
         extra_env_vars={
-            "NIXL_PLUGIN_DIR": "/workspace/nixl/lib/x86_64-linux-gnu/plugins",
             "LD_LIBRARY_PATH": "/workspace/rdma_core/lib:$LD_LIBRARY_PATH",
-            "PYTHONPATH": "/workspace/nixl/examples/device/ep",
         },
-        git_repos=[
-            GitRepo(
-                url="https://github.com/NVIDIA/nixl.git",
-                commit="main",
-            )
-        ],
     )
 
 
@@ -80,32 +72,42 @@ def test_processes_per_node_expands_scalar(nixl_ep: NixlEPTestDefinition, slurm_
     assert strategy.processes_per_node == [5, 5]
 
 
-def test_benchmark_repo_is_required_and_normalized() -> None:
-    with pytest.raises(ValueError, match="requires the benchmark repository"):
+def test_config_repo_is_optional_and_single_repo_is_normalized() -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            input_json="plans/custom_plan.json",
+            num_processes_per_node=4,
+        ),
+        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl.git", commit="main")],
+    )
+
+    assert tdef.git_repos[0].mount_as == "/workspace/nixl-ep-configs"
+    assert tdef.resolve_input_json_path() == "/workspace/nixl-ep-configs/plans/custom_plan.json"
+
+
+def test_config_repo_must_not_shadow_container_runtime() -> None:
+    with pytest.raises(ValueError, match="must not mount to '/workspace/nixl'"):
         NixlEPTestDefinition(
             name="nixl_ep",
             description="NIXL Elastic EP benchmark",
             test_template_name="NixlEP",
             cmd_args=NixlEPCmdArgs(
                 docker_image_url="docker.io/nvidia/nixl-ep:latest",
-                input_json="examples/device/ep/tests/elastic/no_expansion.json",
+                input_json="plans/custom_plan.json",
                 num_processes_per_node=4,
             ),
+            git_repos=[
+                GitRepo(
+                    url="https://github.com/NVIDIA/nixl-configs.git",
+                    commit="main",
+                    mount_as="/workspace/nixl",
+                )
+            ],
         )
-
-    tdef = NixlEPTestDefinition(
-        name="nixl_ep",
-        description="NIXL Elastic EP benchmark",
-        test_template_name="NixlEP",
-            cmd_args=NixlEPCmdArgs(
-                docker_image_url="docker.io/nvidia/nixl-ep:latest",
-                input_json="examples/device/ep/tests/elastic/no_expansion.json",
-                num_processes_per_node=4,
-            ),
-        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl.git", commit="main")],
-    )
-
-    assert tdef.git_repos[0].mount_as == "/workspace/nixl"
 
 
 def test_processes_per_node_rejects_wrong_length(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
@@ -142,6 +144,27 @@ def test_build_elastic_command(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -
     ]
     assert "--tcp-server" not in master_cmd
     assert follower_cmd[-4:] == ["--tcp-server", "$master_ip", "--disable-ll-nvlink", "--kineto"]
+
+
+def test_build_elastic_command_resolves_input_json_from_config_repo(slurm_system: SlurmSystem) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            input_json="plans/custom_plan.json",
+            num_processes_per_node=4,
+        ),
+        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl-configs.git", commit="main")],
+    )
+    test_run = TestRun(name="nixl-ep", num_nodes=1, nodes=[], test=tdef, output_path=slurm_system.output_path)
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    command = strategy.build_elastic_command(4)
+
+    assert command[1] == "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
+    assert command[3] == "/workspace/nixl-ep-configs/plans/custom_plan.json"
 
 
 def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:

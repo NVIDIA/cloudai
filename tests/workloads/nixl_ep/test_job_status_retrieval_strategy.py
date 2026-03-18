@@ -18,7 +18,7 @@ from textwrap import dedent
 
 import pytest
 
-from cloudai.core import GitRepo, TestRun
+from cloudai.core import TestRun
 from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 
 
@@ -30,11 +30,10 @@ def nixl_ep_tr(tmp_path) -> TestRun:
         test_template_name="NixlEP",
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            elastic_script="examples/device/ep/tests/elastic/elastic.py",
+            elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
             input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
             num_processes_per_node=4,
         ),
-        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl.git", commit="main")],
     )
     return TestRun(name="nixl-ep", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path / "output")
 
