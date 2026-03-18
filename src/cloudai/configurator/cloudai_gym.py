@@ -57,7 +57,7 @@ class CloudAIGymEnv(BaseGym):
         self.runner = runner
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
-        self.trajectory: list[TrajectoryEntry] = []
+        self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         super().__init__()
 
     def define_action_space(self) -> Dict[str, list[Any]]:
@@ -218,7 +218,7 @@ class CloudAIGymEnv(BaseGym):
 
     def write_trajectory(self, entry: TrajectoryEntry):
         """Append the trajectory to the CSV file and to the local attribute."""
-        self.trajectory.append(entry)
+        self.current_trajectory.append(entry)
 
         file_exists = self.trajectory_file_path.exists()
         logging.debug(f"Writing trajectory into {self.trajectory_file_path} (exists: {file_exists})")
@@ -234,8 +234,12 @@ class CloudAIGymEnv(BaseGym):
     def trajectory_file_path(self) -> Path:
         return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
 
+    @property
+    def current_trajectory(self) -> list[TrajectoryEntry]:
+        return self.trajectory.setdefault(self.test_run.current_iteration, [])
+
     def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
-        for entry in self.trajectory:
+        for entry in self.current_trajectory:
             if self._values_match_exact(entry.action, action):
                 return entry
 

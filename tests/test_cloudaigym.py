@@ -301,25 +301,31 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
 
 
 @pytest.mark.parametrize(
-    ("trajectory", "action", "expected_step"),
+    ("trajectory", "current_iteration", "action", "expected_step"),
     [
-        ([], {"x": 1}, None),
-        ([TrajectoryEntry(1, {"x": 1}, 1, [1])], {"x": 1}, 1),
-        ([TrajectoryEntry(1, {"x": 1.0}, 1, [1])], {"x": 1}, None),
+        ({}, 0, {"x": 1}, None),
+        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 0, {"x": 1}, 1),
+        ({0: [TrajectoryEntry(1, {"x": 1.0}, 1, [1])]}, 0, {"x": 1}, None),
         (
-            [
-                TrajectoryEntry(1, {"x": 1.0}, 1, [1]),
-                TrajectoryEntry(2, {"x": 1}, 1, [1]),
-            ],
+            {
+                0: [
+                    TrajectoryEntry(1, {"x": 1.0}, 1, [1]),
+                    TrajectoryEntry(2, {"x": 1}, 1, [1]),
+                ]
+            },
+            0,
             {"x": 1},
             2,
         ),
+        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 1, {"x": 1}, None),
+        ({1: [TrajectoryEntry(3, {"x": 1}, 1, [1])]}, 1, {"x": 1}, 3),
     ],
 )
 def test_get_cached_trajectory_result(
     base_tr: TestRun,
     tmp_path: Path,
-    trajectory: list[TrajectoryEntry],
+    trajectory: dict[int, list[TrajectoryEntry]],
+    current_iteration: int,
     action: dict[str, object],
     expected_step: int | None,
 ) -> None:
@@ -332,6 +338,7 @@ def test_get_cached_trajectory_result(
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner)
+    env.test_run.current_iteration = current_iteration
     env.trajectory = trajectory
 
     actual = env.get_cached_trajectory_result(action)
