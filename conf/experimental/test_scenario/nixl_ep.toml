@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "nixl-ep-expansion-contraction"
+
+[[Tests]]
+id = "nixl_ep.expansion_contraction"
+num_nodes = 3
+time_limit = "00:30:00"
+
+name = "nixl-ep-expansion-contraction"
+description = "NIXL Elastic EP expansion/contraction benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = "<docker container url here>"
+  elastic_script = "tests/elastic/elastic.py"
+  input_json = "tests/elastic/expansion_contraction.json"
+  num_processes_per_node = [4, 4, 2]
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  num_topk = 6
+  disable_ll_nvlink = true
+  kineto = false
+
+  [Tests.extra_env_vars]
+  NIXL_PLUGIN_DIR = "/workspace/nixl/lib/x86_64-linux-gnu/plugins"
+  LD_LIBRARY_PATH = "/workspace/rdma_core/lib:$LD_LIBRARY_PATH"
+  PYTHONPATH = "/workspace/nixl/examples/device/ep"
+
+  [[Tests.git_repos]]
+  url = "https://github.com/NVIDIA/nixl.git"
+  commit = "main"
+  mount_as = "/workspace/nixl"

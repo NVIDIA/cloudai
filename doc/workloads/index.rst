@@ -23,6 +23,7 @@ Available Workloads
    ":doc:`nemo_launcher`", "✅", "❌", "❌", "❌"
    ":doc:`nemo_run`", "✅", "❌", "❌", "❌"
    ":doc:`nixl_bench`", "✅", "❌", "❌", "❌"
+   ":doc:`nixl_ep`", "✅", "❌", "❌", "❌"
    ":doc:`nixl_kvbench`", "✅", "❌", "❌", "❌"
    ":doc:`nixl_perftest`", "✅", "❌", "❌", "❌"
    ":doc:`sleep`", "✅", "✅", "❌", "✅"
