@@ -26,8 +26,8 @@ Test TOML example:
 
    [cmd_args]
    docker_image_url = "<docker container url here>"
-   elastic_script = "tests/elastic/elastic.py"
-   input_json = "tests/elastic/expansion_contraction.json"
+   elastic_script = "examples/device/ep/tests/elastic/elastic.py"
+   input_json = "examples/device/ep/tests/elastic/expansion_contraction.json"
    num_processes_per_node = [4, 4, 2]
    num_tokens = 256
    num_experts_per_rank = 4
@@ -62,8 +62,8 @@ Test-in-Scenario example:
 
      [Tests.cmd_args]
      docker_image_url = "<docker container url here>"
-     elastic_script = "tests/elastic/elastic.py"
-     input_json = "tests/elastic/expansion_contraction.json"
+     elastic_script = "examples/device/ep/tests/elastic/elastic.py"
+     input_json = "examples/device/ep/tests/elastic/expansion_contraction.json"
      num_processes_per_node = [4, 4, 2]
      num_tokens = 256
      num_experts_per_rank = 4

@@ -33,8 +33,8 @@ def nixl_ep() -> NixlEPTestDefinition:
         test_template_name="NixlEP",
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            elastic_script="tests/elastic/elastic.py",
-            input_json="tests/elastic/expansion_contraction.json",
+            elastic_script="examples/device/ep/tests/elastic/elastic.py",
+            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
             num_processes_per_node=[4, 4, 2],
             num_tokens=256,
             num_experts_per_rank=4,
@@ -88,7 +88,7 @@ def test_benchmark_repo_is_required_and_normalized() -> None:
             test_template_name="NixlEP",
             cmd_args=NixlEPCmdArgs(
                 docker_image_url="docker.io/nvidia/nixl-ep:latest",
-                input_json="tests/elastic/no_expansion.json",
+                input_json="examples/device/ep/tests/elastic/no_expansion.json",
                 num_processes_per_node=4,
             ),
         )
@@ -97,11 +97,11 @@ def test_benchmark_repo_is_required_and_normalized() -> None:
         name="nixl_ep",
         description="NIXL Elastic EP benchmark",
         test_template_name="NixlEP",
-        cmd_args=NixlEPCmdArgs(
-            docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            input_json="tests/elastic/no_expansion.json",
-            num_processes_per_node=4,
-        ),
+            cmd_args=NixlEPCmdArgs(
+                docker_image_url="docker.io/nvidia/nixl-ep:latest",
+                input_json="examples/device/ep/tests/elastic/no_expansion.json",
+                num_processes_per_node=4,
+            ),
         git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl.git", commit="main")],
     )
 
@@ -124,9 +124,9 @@ def test_build_elastic_command(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -
 
     assert master_cmd == [
         "python3",
-        "/workspace/nixl/tests/elastic/elastic.py",
+        "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
         "--plan",
-        "/workspace/nixl/tests/elastic/expansion_contraction.json",
+        "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json",
         "--num-processes",
         "4",
         "--num-tokens",
