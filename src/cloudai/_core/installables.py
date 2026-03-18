@@ -77,6 +77,9 @@ class DockerImage(Installable):
         """Return the cached path or URL of the docker image."""
         if self._installed_path:
             return self._installed_path.absolute() if isinstance(self._installed_path, Path) else self._installed_path
+        local_image_path = Path(self.url)
+        if local_image_path.is_absolute() or self.url.startswith("."):
+            return local_image_path.absolute()
         return self.url
 
     @installed_path.setter
