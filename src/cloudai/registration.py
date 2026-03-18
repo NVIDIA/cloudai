@@ -130,6 +130,7 @@ def register_all():
         NIXLBenchSlurmCommandGenStrategy,
         NIXLBenchTestDefinition,
     )
+    from cloudai.workloads.nixl_ep import NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
     from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
     from cloudai.workloads.nixl_perftest import (
         NIXLKVBenchDummyReport,
@@ -210,6 +211,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NeMoRunTestDefinition, NeMoRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLBenchTestDefinition, NIXLBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, NixlEPTestDefinition, NixlEPSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, GPTTestDefinition, JaxToolboxSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, GrokTestDefinition, JaxToolboxSlurmCommandGenStrategy)
@@ -260,6 +262,7 @@ def register_all():
     Registry().add_test_definition("MegatronBridge", MegatronBridgeTestDefinition)
     Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
     Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
+    Registry().add_test_definition("NixlEP", NixlEPTestDefinition)
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
     Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
