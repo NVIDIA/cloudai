@@ -38,6 +38,11 @@ DOUBLE_EXPANSION_PLAN = [
     [0, 1, 2, 3, 4, 5, 6, 7],
 ]
 DOUBLE_EXPANSION_PLAN_STR = json.dumps(DOUBLE_EXPANSION_PLAN)
+SINGLE_EXPANSION_PLAN = [
+    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+]
+SINGLE_EXPANSION_PLAN_STR = json.dumps(SINGLE_EXPANSION_PLAN)
 
 
 @pytest.fixture
@@ -356,6 +361,16 @@ def test_debug_logging_emits_diagnostics_once_per_node(
     assert ".debug.once" in srun_command
 
 
+def test_wait_for_master_services_only_probes_tcpstore(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
+    test_run = TestRun(name="nixl-ep", num_nodes=2, nodes=[], test=nixl_ep, output_path=slurm_system.output_path)
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    wait_function = strategy.generate_wait_for_master_services_function()
+
+    assert f"/dev/tcp/$master_ip/{nixl_ep.cmd_args.store_port}" in wait_function
+    assert f"/dev/tcp/$master_ip/{nixl_ep.cmd_args.rank_server_port}" not in wait_function
+
+
 def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
     nixl_ep.cmd_args.num_processes_per_node = 10
     test_run = TestRun(name="nixl-ep", num_nodes=1, nodes=[], test=nixl_ep, output_path=slurm_system.output_path)
@@ -408,6 +423,25 @@ def test_single_node_launch_waves_follow_double_expansion_public_plan(
     assert strategy.single_node_launch_waves == [(None, 4), (0, 2), (1, 2)]
 
 
+def test_multi_node_scalar_launch_waves_match_public_two_node_single_expansion(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=SINGLE_EXPANSION_PLAN_STR,
+            num_processes_per_node=4,
+        ),
+    )
+    test_run = TestRun(name="nixl-ep", num_nodes=2, nodes=[], test=tdef, output_path=slurm_system.output_path)
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    assert strategy.multi_node_scalar_launch_waves == [(None, [4, 0]), (0, [0, 4])]
+
+
 def test_gen_srun_command_single_node_double_expansion_omits_disable_flag(
     nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem
 ) -> None:
@@ -423,6 +457,35 @@ def test_gen_srun_command_single_node_double_expansion_omits_disable_flag(
     assert "Waiting for phase 1 before starting wave 2" in srun_command
     assert srun_command.count("--num-processes 2") == 2
     assert "--disable-ll-nvlink" not in srun_command
+
+
+def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_before_second_wave(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=SINGLE_EXPANSION_PLAN_STR,
+            num_processes_per_node=4,
+        ),
+    )
+    test_run = TestRun(name="nixl-ep", num_nodes=2, nodes=[], test=tdef, output_path=slurm_system.output_path)
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    srun_command = strategy.gen_srun_command()
+
+    assert "wait_for_master_services()" in srun_command
+    assert "wait_for_phase_completion()" in srun_command
+    assert "Waiting for phase 0 before starting wave 1" in srun_command
+    assert "Starting initial NIXL EP wave on follower nodes..." not in srun_command
+    assert srun_command.count("--num-processes 4") == 2
+    assert srun_command.count("--relative=1") == 1
+    assert srun_command.count("--nodelist=$SLURM_JOB_MASTER_NODE") == 1
+    assert srun_command.count("--tcp-server $master_ip") == 1
+    assert srun_command.count("--open-mode=append") == 1
 
 
 def test_single_node_launch_waves_reject_scalar_mismatch(

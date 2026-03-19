@@ -33,8 +33,7 @@ wait_for_master_services() {
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        if timeout 1 bash -c ": > /dev/tcp/$master_ip/9999" >/dev/null 2>&1 && \
-           timeout 1 bash -c ": > /dev/tcp/$master_ip/10000" >/dev/null 2>&1; then
+        if timeout 1 bash -c ": > /dev/tcp/$master_ip/9999" >/dev/null 2>&1; then
             echo "NIXL EP master services are ready on $master_ip"
             return 0
         fi

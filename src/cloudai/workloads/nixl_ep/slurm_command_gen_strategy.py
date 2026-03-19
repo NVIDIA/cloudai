@@ -124,13 +124,9 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return 600
 
     @property
-    def single_node_launch_waves(self) -> list[tuple[int | None, int]]:
-        raw = self.tdef.cmd_args.num_processes_per_node
-        if not isinstance(raw, int) or self.test_run.num_nodes != 1:
-            return []
-
+    def plan_launch_wave_totals(self) -> list[tuple[int | None, int]]:
         # Negative ranks in the plan encode removals, so only newly introduced
-        # non-negative ranks correspond to fresh local launches.
+        # non-negative ranks correspond to fresh launches.
         positive_phases = [{rank for rank in phase if rank >= 0} for phase in self.inline_plan]
         waves: list[tuple[int | None, int]] = [(None, len(positive_phases[0]))]
         for phase_idx in range(1, len(positive_phases)):
@@ -138,6 +134,15 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if added_positive:
                 waves.append((phase_idx - 1, len(added_positive)))
 
+        return waves
+
+    @property
+    def single_node_launch_waves(self) -> list[tuple[int | None, int]]:
+        raw = self.tdef.cmd_args.num_processes_per_node
+        if not isinstance(raw, int) or self.test_run.num_nodes != 1:
+            return []
+
+        waves = self.plan_launch_wave_totals
         expected_total_processes = sum(num_processes for _, num_processes in waves)
         if raw != expected_total_processes:
             raise ValueError(
@@ -146,6 +151,49 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
 
         return waves
+
+    @property
+    def multi_node_scalar_launch_waves(self) -> list[tuple[int | None, list[int]]]:
+        raw = self.tdef.cmd_args.num_processes_per_node
+        num_nodes = self.test_run.num_nodes
+        if not isinstance(raw, int) or num_nodes <= 1:
+            return []
+
+        wave_totals = self.plan_launch_wave_totals
+        total_requested_processes = sum(total for _, total in wave_totals)
+        total_capacity = raw * num_nodes
+        if total_requested_processes > total_capacity:
+            raise ValueError(
+                "For multi-node scalar NIXL EP runs, the scalar num_processes_per_node defines the maximum "
+                f"number of workers each node can launch across all waves. The plan requires "
+                f"{total_requested_processes} total workers, but {num_nodes} nodes with capacity {raw} only "
+                f"provide {total_capacity}."
+            )
+
+        # Match the upstream multi-node examples by packing each launch wave onto
+        # earlier nodes first, only spilling onto later nodes when needed.
+        remaining_capacity = [raw] * num_nodes
+        packed_waves: list[tuple[int | None, list[int]]] = []
+        for trigger_phase, wave_total in wave_totals:
+            remaining_wave_total = wave_total
+            per_node_wave_sizes = [0] * num_nodes
+            for node_idx in range(num_nodes):
+                if remaining_wave_total == 0:
+                    break
+                assignable = min(remaining_capacity[node_idx], remaining_wave_total)
+                per_node_wave_sizes[node_idx] = assignable
+                remaining_capacity[node_idx] -= assignable
+                remaining_wave_total -= assignable
+
+            if remaining_wave_total != 0:
+                raise ValueError(
+                    "For multi-node scalar NIXL EP runs, the plan-derived launch waves cannot be packed onto "
+                    f"{num_nodes} nodes with per-node capacity {raw}. Remaining wave size: {remaining_wave_total}."
+                )
+
+            packed_waves.append((trigger_phase, per_node_wave_sizes))
+
+        return packed_waves
 
     def build_elastic_command(self, num_processes: int, include_tcp_server: bool = False) -> list[str]:
         cmd_args: NixlEPCmdArgs = self.tdef.cmd_args
@@ -185,6 +233,8 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def generate_wait_for_master_services_function(self) -> str:
         cmd_args = self.tdef.cmd_args
+        # The upstream rank server assigns a rank on any successful TCP
+        # connection, so the readiness probe must not touch that port.
         return f"""\
 wait_for_master_services() {{
     local timeout={cmd_args.service_startup_timeout_seconds}
@@ -192,8 +242,7 @@ wait_for_master_services() {{
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        if timeout 1 bash -c ": > /dev/tcp/$master_ip/{cmd_args.store_port}" >/dev/null 2>&1 && \\
-           timeout 1 bash -c ": > /dev/tcp/$master_ip/{cmd_args.rank_server_port}" >/dev/null 2>&1; then
+        if timeout 1 bash -c ": > /dev/tcp/$master_ip/{cmd_args.store_port}" >/dev/null 2>&1; then
             echo "NIXL EP master services are ready on $master_ip"
             return 0
         fi
@@ -304,6 +353,75 @@ wait_for_phase_completion() {{
             for key, value in self.final_env_vars.items():
                 env_file.write(f"export {key}={value}\n")
 
+    def _gen_multi_node_scalar_wave_command(self, waves: list[tuple[int | None, list[int]]]) -> str:
+        primary_log_file = (self.test_run.output_path / "nixl-ep-node-0.log").absolute()
+        initial_wave = waves[0][1]
+        lines = [
+            self.generate_wait_for_master_services_function(),
+            "",
+            self.generate_wait_for_phase_completion_function(),
+            "",
+            "worker_pids=()",
+            "",
+            'echo "Starting initial NIXL EP wave on the master node..."',
+            self._launch_srun_command(0, initial_wave[0]) + " &",
+            "primary_pid=$!",
+            "worker_pids+=($primary_pid)",
+            "",
+            'echo "Waiting for NIXL EP master services..."',
+            "wait_for_master_services || exit 1",
+        ]
+
+        follower_initial_wave = initial_wave[1:]
+        if any(num_processes > 0 for num_processes in follower_initial_wave):
+            lines.extend(
+                [
+                    "",
+                    'echo "Starting initial NIXL EP wave on follower nodes..."',
+                ]
+            )
+            for node_idx, num_processes in enumerate(follower_initial_wave, start=1):
+                if num_processes <= 0:
+                    continue
+                lines.append(self._launch_srun_command(node_idx, num_processes) + " &")
+                lines.append("worker_pids+=($!)")
+
+        for wave_idx, (trigger_phase, per_node_processes) in enumerate(waves[1:], start=1):
+            lines.extend(
+                [
+                    "",
+                    f'echo "Waiting for phase {trigger_phase} before starting wave {wave_idx}..."',
+                    f'wait_for_phase_completion "{trigger_phase}" "{primary_log_file}" "$primary_pid" || exit 1',
+                    f'echo "Starting NIXL EP wave {wave_idx} across allocated nodes..."',
+                ]
+            )
+            for node_idx, num_processes in enumerate(per_node_processes):
+                if num_processes <= 0:
+                    continue
+                lines.append(
+                    self._launch_srun_command(
+                        node_idx,
+                        num_processes,
+                        include_tcp_server=True,
+                        append_output=True,
+                    )
+                    + " &"
+                )
+                lines.append("worker_pids+=($!)")
+
+        lines.extend(
+            [
+                "",
+                "rc=0",
+                'for pid in "${worker_pids[@]}"; do',
+                '    wait "$pid" || rc=$?',
+                "done",
+                "",
+                "exit $rc",
+            ]
+        )
+        return "\n".join(lines)
+
     def _gen_srun_command(self) -> str:
         self._write_env_vars_file()
         processes_per_node = self.processes_per_node
@@ -361,6 +479,10 @@ wait_for_phase_completion() {{
                 ]
             )
             return "\n".join(lines)
+
+        multi_node_scalar_waves = self.multi_node_scalar_launch_waves
+        if multi_node_scalar_waves:
+            return self._gen_multi_node_scalar_wave_command(multi_node_scalar_waves)
 
         lines = [
             self.generate_wait_for_master_services_function(),

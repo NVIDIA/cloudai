@@ -14,7 +14,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nixl-ep-double-expansion"
+name = "nixl-ep-public-examples"
+
+# Single-node public examples live in this suite.
+# The upstream multi-node single-expansion example is in `nixl_ep_2node.toml`.
+
+[[Tests]]
+id = "nixl_ep.single_rank"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "nixl-ep-single-rank"
+description = "NIXL Elastic EP public single-rank benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  # CloudAI writes each inline plan into a per-run nixl-ep-plan.json.
+  docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
+  plan = "[[0]]"
+  num_processes_per_node = 1
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  # single_rank only has 4 experts total, so top-k must not exceed 4
+  num_topk = 4
+
+[[Tests]]
+id = "nixl_ep.no_expansion"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "nixl-ep-no-expansion"
+description = "NIXL Elastic EP public no-expansion benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
+  plan = "[[0, 1, 2, 3]]"
+  num_processes_per_node = 4
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  num_topk = 6
+
+[[Tests]]
+id = "nixl_ep.single_expansion"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "nixl-ep-single-expansion"
+description = "NIXL Elastic EP public single-expansion benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
+  plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7]]"
+  num_processes_per_node = 8
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  num_topk = 6
 
 [[Tests]]
 id = "nixl_ep.double_expansion"
@@ -22,15 +81,31 @@ num_nodes = 1
 time_limit = "00:10:00"
 
 name = "nixl-ep-double-expansion"
-description = "NIXL Elastic EP double expansion benchmark"
+description = "NIXL Elastic EP public double-expansion benchmark"
 test_template_name = "NixlEP"
 
   [Tests.cmd_args]
-  # This is the working single-node reference case. CloudAI writes the
-  # inline plan into a per-run nixl-ep-plan.json before launch.
   docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
   plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5, 6, 7]]"
   num_processes_per_node = 8
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  num_topk = 6
+
+[[Tests]]
+id = "nixl_ep.expansion_contraction"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "nixl-ep-expansion-contraction"
+description = "NIXL Elastic EP public expansion-contraction benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
+  plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
+  num_processes_per_node = 10
   num_tokens = 256
   num_experts_per_rank = 4
   hidden_dim = 8192
