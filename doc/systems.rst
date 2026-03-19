@@ -1,7 +1,7 @@
 Systems
 =======
 
-This section lists all systems supported by CloudAI. The attributes shown for each system can be set in TOML configuration files.
+This chapter lists all the systems supported by CloudAI. The attributes shown for each system can be set in TOML configuration files.
 
 .. csv-table::
    :header: "System", "Scheduler Value"

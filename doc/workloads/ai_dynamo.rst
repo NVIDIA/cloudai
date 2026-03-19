@@ -1,7 +1,7 @@
 AI Dynamo
 =========
 
-This workload (`test_template_name` is ``AIDynamo``) runs AI inference benchmarks using the Dynamo framework with distributed prefill and decode workers.
+AI Dynamo workload (`test_template_name` is ``AIDynamo``) runs AI inference benchmarks using the Dynamo framework with distributed prefill and decode workers.
 
 
 Run Using Kubernetes

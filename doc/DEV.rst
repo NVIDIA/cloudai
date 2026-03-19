@@ -1,7 +1,7 @@
 Development
 ===========
 
-This section targets developers who want to contribute to the project's core.
+This chapter targets developers who want to contribute to the project's core.
 
 .. mermaid::
 
@@ -31,17 +31,19 @@ This section targets developers who want to contribute to the project's core.
        runners --> _core
        systems --> _core
 
-**Core Modules**
+Core Modules
+------------
 
 We use `import-linter <https://github.com/seddonym/import-linter>`_ to ensure no core modules import higher level modules.
 
 ``Registry`` object is a singleton that holds implementation mappings. Users can register their own implementations to the registry or replace the default implementations.
 
-**Cache**
+Cache
+-----
 
 Some prerequisites can be installed. For example:
 
-Docker images, git repos with executable scripts, etc. All such "installables" are kept under ``install_path`` system.
+Docker images, git repos with executable scripts, etc. All such "installables" are kept under the system's ``install_path``.
 
 Installables are shared among all tests. Therefore, if any number of tests use the same installable, it is installed only once for a particular system TOML.
 

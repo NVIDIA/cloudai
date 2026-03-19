@@ -1,10 +1,44 @@
 CloudAI Benchmark Framework
 ===========================
 
+Update History
+---------------
+
++----------+-----------------+--------------------------------------------------+
+| Version  | Date            | Description                                      |
++==========+=================+==================================================+
+| v1.5.0   | April xx, 2026  | Initial release of this documentation version.   |
++----------+-----------------+--------------------------------------------------+
+
+
+Overview
+--------
+
 CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the cloud. The primary motivation is to provide automated benchmarking on various systems.
 
-Get Started
------------
+This document contains the following chapters:
+
+.. toctree::
+   :hidden:
+
+   Tutorial
+   USER_GUIDE
+   reporting
+   systems
+   workloads/index
+   DEV
+   troubleshooting
+
+- :doc:`Tutorial`
+- :doc:`USER_GUIDE`
+- :doc:`reporting`
+- :doc:`systems`
+- :doc:`workloads/index`
+- :doc:`DEV`
+- :doc:`troubleshooting`
+
+Getting Started
+---------------
 
 .. code-block:: bash
 
@@ -14,12 +48,12 @@ Get Started
 
 .. note::
 
-   For instructions for setting up access for ``enroot``, see :doc:`workloads_requirements_installation`.
+   For more instructions on how to set up access for ``enroot``, see :doc:`workloads/workloads_requirements_installation`.
 
-``pip``-based Installation
---------------------------
+pip-based Installation
+~~~~~~~~~~~~~~~~~~~~~~~
 
-See the required Python version in the ``.python-version`` file and make sure you have it installed (for installation, see :ref:`install-custom-python-version`). Follow these steps:
+See the required Python version in the ``.python-version`` file and make sure you have it installed (For installation, see :ref:`install-custom-python-version`). Follow these steps:
 
 .. code-block:: bash
 
@@ -32,8 +66,8 @@ See the required Python version in the ``.python-version`` file and make sure yo
 
 .. _install-custom-python-version:
 
-Install Custom Python Version
------------------------------
+Custom Python Version Installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If your system Python version is not supported, you can install a custom version using the `uv <https://docs.astral.sh/uv/getting-started/installation/>`_ tool:
 
@@ -50,24 +84,38 @@ Key Concepts
 
 CloudAI operates on three main schemas:
 
-- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.
-- **Test Schema**: An instance of a test template with custom arguments and environment variables.
-- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario.
+- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
+- **Test Schema**: An instance of a test template with custom arguments and environment variables
+- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
 CloudAI Modes Usage Examples
-----------------------------
+-----------------------------
 
-Global options for ``cloudai`` command:
+The following are the global options for the ``cloudai`` command:
 
-- ``--log-file <path>``: specify a file to log output; by default ``debug.log`` in the current directory is used. Contains log entries of level ``DEBUG`` and higher.
-- ``--log-level <level>``: specify logging level for standard output; default is ``INFO``.
+- ``--log-file <path>``: specify a file to log output; by default ``debug.log`` in the current directory is used. Contains log entries of level ``DEBUG`` and higher
+- ``--log-level <level>``: specify logging level for standard output; default is ``INFO``
+
+Available Modes
+~~~~~~~~~~~~~~~~
+
+- :ref:`run`
+- :ref:`dry-run`
+- :ref:`generate-report`
+- :ref:`install`
+- :ref:`uninstall`
+- :ref:`list`
+- :ref:`verify-configs`
+
+Usage Examples
+~~~~~~~~~~~~~~~
 
 .. _run:
 
 run
-~~~
+^^^
 
 This mode runs workloads. It automatically installs prerequisites if they are not met.
 
@@ -81,7 +129,7 @@ This mode runs workloads. It automatically installs prerequisites if they are no
 .. _dry-run:
 
 dry-run
-~~~~~~~
+^^^^^^^
 
 This mode simulates running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
 
@@ -95,7 +143,7 @@ This mode simulates running experiments without actually executing them. This is
 .. _generate-report:
 
 generate-report
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
 This mode generates reports under the scenario directory. It automatically runs as part of the ``run`` mode after experiments are completed.
 
@@ -110,9 +158,9 @@ This mode generates reports under the scenario directory. It automatically runs 
 .. _install:
 
 install
-~~~~~~~
+^^^^^^^
 
-This mode installs test prerequisites. For more details, refer to the :doc:`workloads_requirements_installation` guide. It automatically runs as part of the ``run`` mode if prerequisites are not met.
+This mode installs test prerequisites. For more details, refer to the :doc:`workloads/workloads_requirements_installation` guide. It automatically runs as part of the ``run`` mode if prerequisites are not met.
 
 .. code-block:: bash
 
@@ -124,9 +172,9 @@ This mode installs test prerequisites. For more details, refer to the :doc:`work
 .. _uninstall:
 
 uninstall
-~~~~~~~~~
+^^^^^^^^^
 
-The opposite to the install mode, this mode removes installed test prerequisites.
+This mode is the opposite of the install mode. This mode removes installed test prerequisites.
 
 .. code-block:: bash
 
@@ -138,7 +186,7 @@ The opposite to the install mode, this mode removes installed test prerequisites
 .. _list:
 
 list
-~~~~
+^^^^
 
 This mode lists internal components available within CloudAI.
 
@@ -149,7 +197,7 @@ This mode lists internal components available within CloudAI.
 .. _verify-configs:
 
 verify-configs
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 This mode verifies the correctness of system, test, and test scenario configuration files.
 
@@ -164,15 +212,3 @@ This mode verifies the correctness of system, test, and test scenario configurat
    # verify all scenarios using specific folder with Test TOMLs
    cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
 
-CloudAI
--------
-
-.. toctree::
-   :maxdepth: 1
-
-   USER_GUIDE
-   reporting
-   DEV
-   systems
-   workloads/index
-   workloads_requirements_installation
