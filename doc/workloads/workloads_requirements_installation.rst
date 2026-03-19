@@ -21,18 +21,17 @@ First, make sure you have access to the Docker repository. Proceed as follows:
         .. code-block:: text
 
             machine nvcr.io login $oauthtoken password <api-key>
+            
     - Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.   
 
 
 .. _NGC signin: https://ngc.nvidia.com/signin
 
     
-
 Hugging Face Models
 -------------------
 
 Some workloads require Hugging Face models. CloudAI will download the models from Hugging Face and cache them in the location specified by System's ``hf_home_path`` field. By default, it is set to ``<INSTALL_DIR>/huggingface``, but any other location can be specified. When Slurm is used, this location will be mounted to the container.
-
 
 Authentication with Hugging Face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
