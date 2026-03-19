@@ -53,7 +53,14 @@ class NixlEPCmdArgs(CmdArgs):
     num_experts_per_rank: int = Field(default=2, ge=1, description="Experts per rank.")
     hidden_dim: int = Field(default=7168, ge=1, description="Hidden dimension.")
     num_topk: int = Field(default=8, ge=1, description="Top-K routing value.")
-    disable_ll_nvlink: bool = Field(default=False, description="Disable low-latency NVLink kernels.")
+    disable_ll_nvlink: bool = Field(
+        default=False,
+        description=(
+            "Disable the benchmark's low-latency NVLink path. In the upstream NIXL EP example this also forces "
+            "UCX to exclude CUDA IPC (`UCX_TLS=^cuda_ipc`), so it is best reserved for explicit RDMA-only "
+            "comparisons rather than single-node bring-up."
+        ),
+    )
     kineto: bool = Field(default=False, description="Enable Kineto profiling.")
     debug_logging: bool = Field(
         default=False,
@@ -248,23 +255,15 @@ class NixlEPTestDefinition(TestDefinition):
         )
 
     def _check_benchmark_output(self, expected_node_logs: list[Path]) -> JobStatusResult | None:
-        metric_logs = [path for path in expected_node_logs if parse_nixl_ep_bandwidth_samples(path)]
-        if metric_logs:
+        if any(parse_nixl_ep_bandwidth_samples(path) for path in expected_node_logs):
             return None
 
-        existing_logs = [path for path in expected_node_logs if path.is_file()]
-        if not existing_logs:
-            return JobStatusResult(
-                is_successful=False,
-                error_message="NIXL EP finished without producing any node logs to inspect for benchmark output.",
-            )
-
-        first_log = existing_logs[0]
+        first_log = expected_node_logs[0]
         tail = self._tail(first_log)
         error_message = (
             "NIXL EP completed at the Slurm level, but no benchmark summary lines were found in the node logs. "
             "Expected lines such as '[rank N] Dispatch + combine bandwidth: ...'. "
-            f"Checked logs: {', '.join(path.name for path in existing_logs)}."
+            f"Checked logs: {', '.join(path.name for path in expected_node_logs)}."
         )
         if tail:
             error_message += f"\n{tail}"

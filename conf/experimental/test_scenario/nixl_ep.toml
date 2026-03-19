@@ -14,25 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nixl-ep-expansion-contraction"
+name = "nixl-ep-double-expansion"
 
 [[Tests]]
-id = "nixl_ep.expansion_contraction"
-num_nodes = 2
-time_limit = "00:30:00"
+id = "nixl_ep.double_expansion"
+num_nodes = 1
+time_limit = "00:10:00"
 
-name = "nixl-ep-expansion-contraction"
-description = "NIXL Elastic EP expansion/contraction benchmark"
+name = "nixl-ep-double-expansion"
+description = "NIXL Elastic EP double expansion benchmark"
 test_template_name = "NixlEP"
 
   [Tests.cmd_args]
+  # This is the working single-node reference case. CloudAI writes the
+  # inline plan into a per-run nixl-ep-plan.json before launch.
   docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
-  elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
-  plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
-  num_processes_per_node = 4
+  plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5, 6, 7]]"
+  num_processes_per_node = 8
   num_tokens = 256
   num_experts_per_rank = 4
   hidden_dim = 8192
   num_topk = 6
-  disable_ll_nvlink = true
-  kineto = false

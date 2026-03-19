@@ -17,7 +17,7 @@
 import json
 import shlex
 from pathlib import Path
-from typing import List, cast
+from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util import parse_time_limit
@@ -83,7 +83,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
         return list(raw)
 
-    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
+    def _append_sbatch_directives(self, batch_script_content: list[str]) -> None:
         super()._append_sbatch_directives(batch_script_content)
         batch_script_content.extend(
             [
@@ -108,15 +108,13 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def resolve_plan_path(self) -> str:
         self.generated_plan_path.parent.mkdir(parents=True, exist_ok=True)
         self.generated_plan_path.write_text(
-            json.dumps(self.tdef.cmd_args.parse_plan(), indent=2) + "\n",
+            json.dumps(self.inline_plan, indent=2) + "\n",
             encoding="utf-8",
         )
         return str(self.generated_plan_path.absolute())
 
     @property
-    def inline_plan(self) -> list[list[int]] | None:
-        if self.tdef.cmd_args.plan is None:
-            return None
+    def inline_plan(self) -> list[list[int]]:
         return self.tdef.cmd_args.parse_plan()
 
     @property
@@ -131,11 +129,9 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not isinstance(raw, int) or self.test_run.num_nodes != 1:
             return []
 
-        plan = self.inline_plan
-        if not plan:
-            return [(None, raw)]
-
-        positive_phases = [{rank for rank in phase if rank >= 0} for phase in plan]
+        # Negative ranks in the plan encode removals, so only newly introduced
+        # non-negative ranks correspond to fresh local launches.
+        positive_phases = [{rank for rank in phase if rank >= 0} for phase in self.inline_plan]
         waves: list[tuple[int | None, int]] = [(None, len(positive_phases[0]))]
         for phase_idx in range(1, len(positive_phases)):
             added_positive = positive_phases[phase_idx] - positive_phases[phase_idx - 1]
@@ -315,7 +311,7 @@ wait_for_phase_completion() {{
         if len(processes_per_node) == 1:
             waves = self.single_node_launch_waves
             if len(waves) <= 1:
-                single_wave_processes = waves[0][1] if waves else processes_per_node[0]
+                single_wave_processes = waves[0][1]
                 return "\n".join(
                     [
                         'echo "Starting NIXL EP on the master node..."',
@@ -336,8 +332,6 @@ wait_for_phase_completion() {{
             ]
 
             for wave_idx, (trigger_phase, num_processes) in enumerate(waves[1:], start=1):
-                if trigger_phase is None:
-                    raise ValueError("Only the first single-node NIXL EP launch wave may omit a trigger phase.")
                 lines.extend(
                     [
                         "",

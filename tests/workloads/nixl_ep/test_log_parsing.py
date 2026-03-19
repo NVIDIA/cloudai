@@ -56,3 +56,7 @@ def test_parse_nixl_ep_bandwidth_samples_ignores_unrelated_lines(tmp_path: Path)
     log_path.write_text("GpuFreq=control_disabled\nrun completed\n", encoding="utf-8")
 
     assert parse_nixl_ep_bandwidth_samples(log_path) == []
+
+
+def test_parse_nixl_ep_bandwidth_samples_missing_file_returns_empty_list(tmp_path: Path) -> None:
+    assert parse_nixl_ep_bandwidth_samples(tmp_path / "missing.log") == []

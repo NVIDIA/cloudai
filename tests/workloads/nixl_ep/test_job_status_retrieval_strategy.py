@@ -190,3 +190,32 @@ class TestNixlEPStatusCheck:
         assert not result.is_successful
         assert "state=FAILED" in result.error_message
         assert "Last failing step: 3 (bash), exit_code=2:0." in result.error_message
+
+    def test_invalid_slurm_job_status_toml_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text("state = \n", encoding="utf-8")
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "Failed to parse Slurm job status file" in result.error_message
+
+    def test_failed_slurm_job_without_failed_step_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
+            'state = "FAILED"\nexit_code = "9:0"\n',
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "state=FAILED, exit_code=9:0" in result.error_message
