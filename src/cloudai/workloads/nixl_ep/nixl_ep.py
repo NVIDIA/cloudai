@@ -24,6 +24,8 @@ from pydantic import Field, field_validator, model_validator
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
+from .log_parsing import parse_nixl_ep_bandwidth_samples
+
 
 class NixlEPCmdArgs(CmdArgs):
     """Command line arguments for the NIXL Elastic EP benchmark."""
@@ -37,13 +39,6 @@ class NixlEPCmdArgs(CmdArgs):
         ),
     )
     python_executable: str = Field(default="python3", description="Python executable to use inside the container.")
-    input_json: str | None = Field(
-        default=None,
-        description=(
-            "Path to the phase plan JSON inside the container. Relative paths resolve against the container's "
-            "NIXL runtime root."
-        ),
-    )
     plan: str | list[str] | None = Field(
         default=None,
         description=(
@@ -60,6 +55,18 @@ class NixlEPCmdArgs(CmdArgs):
     num_topk: int = Field(default=8, ge=1, description="Top-K routing value.")
     disable_ll_nvlink: bool = Field(default=False, description="Disable low-latency NVLink kernels.")
     kineto: bool = Field(default=False, description="Enable Kineto profiling.")
+    debug_logging: bool = Field(
+        default=False,
+        description="Enable verbose NIXL EP/UCX logging and launcher-side diagnostics in the node logs.",
+    )
+    ucx_log_level: str | None = Field(
+        default=None,
+        description="Optional UCX log level override. Defaults to DEBUG when debug_logging is enabled.",
+    )
+    nixl_log_level: str | None = Field(
+        default=None,
+        description="Optional NIXL log level override. Defaults to TRACE when debug_logging is enabled.",
+    )
     service_startup_timeout_seconds: int = Field(
         default=60,
         ge=1,
@@ -78,11 +85,11 @@ class NixlEPCmdArgs(CmdArgs):
 
     @model_validator(mode="after")
     def validate_plan_source(self) -> "NixlEPCmdArgs":
-        if self.plan is None and self.input_json is None:
-            raise ValueError("NixlEP requires either `plan` or `input_json`.")
+        if "input_json" in (self.model_extra or {}):
+            raise ValueError("NixlEP does not accept `input_json`; provide `plan` and let CloudAI generate the JSON.")
 
-        if self.plan is not None and self.input_json is not None:
-            raise ValueError("Specify either `plan` or `input_json`, not both.")
+        if self.plan is None:
+            raise ValueError("NixlEP requires `plan` so CloudAI can generate a per-run JSON file.")
 
         if isinstance(self.plan, list):
             if len(self.plan) != 1:
@@ -131,6 +138,10 @@ class NixlEPTestDefinition(TestDefinition):
         ("python3: can't open file", "The benchmark entrypoint could not be opened."),
         ("Traceback (most recent call last):", "The benchmark launcher raised a Python traceback."),
         ("Timed out waiting for NIXL EP master services", "The master services never became ready."),
+        ("no plan phases were found for rank", "A worker was launched for a rank that never appears in the plan."),
+        ("recvValueWithTimeout failed", "A worker lost its TCPStore connection before the benchmark completed."),
+        ("timed out after 300000ms", "A worker timed out waiting on the TCPStore."),
+        ("Failed to prepare remote memory view", "NIXL EP failed to initialize its UCX remote memory view."),
         ("srun: error:", "Slurm reported an srun failure."),
         ("Exited with exit code", "A Slurm step exited with a non-zero status."),
     )
@@ -165,14 +176,6 @@ class NixlEPTestDefinition(TestDefinition):
 
     def resolve_elastic_script_path(self) -> str:
         path = PurePosixPath(self.cmd_args.elastic_script)
-        if path.is_absolute():
-            return str(path)
-        return str(self.container_runtime_root_path / path)
-
-    def resolve_input_json_path(self) -> str:
-        if self.cmd_args.input_json is None:
-            raise ValueError("resolve_input_json_path() requires cmd_args.input_json to be set.")
-        path = PurePosixPath(self.cmd_args.input_json)
         if path.is_absolute():
             return str(path)
         return str(self.container_runtime_root_path / path)
@@ -244,6 +247,30 @@ class NixlEPTestDefinition(TestDefinition):
             ),
         )
 
+    def _check_benchmark_output(self, expected_node_logs: list[Path]) -> JobStatusResult | None:
+        metric_logs = [path for path in expected_node_logs if parse_nixl_ep_bandwidth_samples(path)]
+        if metric_logs:
+            return None
+
+        existing_logs = [path for path in expected_node_logs if path.is_file()]
+        if not existing_logs:
+            return JobStatusResult(
+                is_successful=False,
+                error_message="NIXL EP finished without producing any node logs to inspect for benchmark output.",
+            )
+
+        first_log = existing_logs[0]
+        tail = self._tail(first_log)
+        error_message = (
+            "NIXL EP completed at the Slurm level, but no benchmark summary lines were found in the node logs. "
+            "Expected lines such as '[rank N] Dispatch + combine bandwidth: ...'. "
+            f"Checked logs: {', '.join(path.name for path in existing_logs)}."
+        )
+        if tail:
+            error_message += f"\n{tail}"
+
+        return JobStatusResult(is_successful=False, error_message=error_message)
+
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
         expected_node_logs = self._expected_node_logs(tr)
@@ -268,5 +295,9 @@ class NixlEPTestDefinition(TestDefinition):
         status_result = self._check_slurm_job_status(output_path / "slurm-job.toml")
         if status_result is not None:
             return status_result
+
+        benchmark_output_result = self._check_benchmark_output(expected_node_logs)
+        if benchmark_output_result is not None:
+            return benchmark_output_result
 
         return JobStatusResult(is_successful=True)

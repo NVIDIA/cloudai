@@ -25,6 +25,7 @@ EXPANSION_CONTRACTION_PLAN = (
     "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], "
     "[0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
 )
+SUCCESSFUL_BANDWIDTH_LINE = "[rank 0] Dispatch + combine bandwidth: 12.34 GB/s, avg_t=56.7 us, min_t=50.0 us, max_t=60.0 us\n"
 
 
 @pytest.fixture
@@ -47,7 +48,9 @@ class TestNixlEPStatusCheck:
     def test_successful_job(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         for node_idx in range(nixl_ep_tr.num_nodes):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text("run completed\n", encoding="utf-8")
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
         (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
             'state = "COMPLETED"\nexit_code = "0:0"\n',
             encoding="utf-8",
@@ -76,17 +79,94 @@ class TestNixlEPStatusCheck:
 
     def test_missing_node_logs_is_reported(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text("run completed\n", encoding="utf-8")
+        (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8")
 
         result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "nixl-ep-node-1.log, nixl-ep-node-2.log" in result.error_message
 
-    def test_failed_slurm_job_status_is_reported(self, nixl_ep_tr: TestRun) -> None:
+    def test_plan_mismatch_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "nixl-ep-node-1.log").write_text(
+            "Process 0 -> no plan phases were found for rank 9 after phase None, exiting\n",
+            encoding="utf-8",
+        )
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
+            'state = "COMPLETED"\nexit_code = "0:0"\n',
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "never appears in the plan" in result.error_message
+
+    def test_tcpstore_timeout_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "nixl-ep-node-2.log").write_text(
+            "recvValueWithTimeout failed on SocketImpl(fd=65, addr=[pool0-01876]:11088, remote=[pool0-01873.cm.cluster]:9999)\n",
+            encoding="utf-8",
+        )
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
+            'state = "COMPLETED"\nexit_code = "0:0"\n',
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "lost its TCPStore connection" in result.error_message
+
+    def test_ucx_remote_memory_view_failure_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(
+            "E0319 04:13:25.442619  950677 ucx_backend.cpp:1486] "
+            "Failed to prepare remote memory view: Failed to create device memory list(remote): No such device\n",
+            encoding="utf-8",
+        )
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
+            'state = "COMPLETED"\nexit_code = "0:0"\n',
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "failed to initialize its UCX remote memory view" in result.error_message
+
+    def test_completed_job_without_benchmark_output_is_reported(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         for node_idx in range(nixl_ep_tr.num_nodes):
             (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text("run completed\n", encoding="utf-8")
+        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
+            'state = "COMPLETED"\nexit_code = "0:0"\n',
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "no benchmark summary lines were found" in result.error_message
+
+    def test_failed_slurm_job_status_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(nixl_ep_tr.num_nodes):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
         (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
             dedent(
                 """

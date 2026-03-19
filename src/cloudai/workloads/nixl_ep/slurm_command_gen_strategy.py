@@ -15,10 +15,12 @@
 # limitations under the License.
 
 import json
+import shlex
 from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.util import parse_time_limit
 
 from .nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 
@@ -59,6 +61,14 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif library_dir not in ld_library_path.split(":"):
             env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:{ld_library_path}"
 
+        if self.tdef.cmd_args.debug_logging:
+            env_vars.setdefault("PYTHONUNBUFFERED", "1")
+            env_vars.setdefault("NIXL_DEBUG_LOGGING", "yes")
+            env_vars.setdefault("NIXL_LOG_LEVEL", self.tdef.cmd_args.nixl_log_level or "TRACE")
+            env_vars.setdefault("UCX_LOG_LEVEL", self.tdef.cmd_args.ucx_log_level or "DEBUG")
+            env_vars.setdefault("TORCH_CPP_LOG_LEVEL", "INFO")
+            env_vars.setdefault("TORCH_DISTRIBUTED_DEBUG", "DETAIL")
+
         return env_vars
 
     @property
@@ -96,15 +106,50 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return self.test_run.output_path / self.GENERATED_PLAN_FILE_NAME
 
     def resolve_plan_path(self) -> str:
-        if self.tdef.cmd_args.plan is not None:
-            self.generated_plan_path.parent.mkdir(parents=True, exist_ok=True)
-            self.generated_plan_path.write_text(
-                json.dumps(self.tdef.cmd_args.parse_plan(), indent=2) + "\n",
-                encoding="utf-8",
-            )
-            return str(self.generated_plan_path.absolute())
+        self.generated_plan_path.parent.mkdir(parents=True, exist_ok=True)
+        self.generated_plan_path.write_text(
+            json.dumps(self.tdef.cmd_args.parse_plan(), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return str(self.generated_plan_path.absolute())
 
-        return self.tdef.resolve_input_json_path()
+    @property
+    def inline_plan(self) -> list[list[int]] | None:
+        if self.tdef.cmd_args.plan is None:
+            return None
+        return self.tdef.cmd_args.parse_plan()
+
+    @property
+    def phase_transition_timeout_seconds(self) -> int:
+        if self.test_run.time_limit:
+            return max(int(parse_time_limit(self.test_run.time_limit).total_seconds()), 1)
+        return 600
+
+    @property
+    def single_node_launch_waves(self) -> list[tuple[int | None, int]]:
+        raw = self.tdef.cmd_args.num_processes_per_node
+        if not isinstance(raw, int) or self.test_run.num_nodes != 1:
+            return []
+
+        plan = self.inline_plan
+        if not plan:
+            return [(None, raw)]
+
+        positive_phases = [{rank for rank in phase if rank >= 0} for phase in plan]
+        waves: list[tuple[int | None, int]] = [(None, len(positive_phases[0]))]
+        for phase_idx in range(1, len(positive_phases)):
+            added_positive = positive_phases[phase_idx] - positive_phases[phase_idx - 1]
+            if added_positive:
+                waves.append((phase_idx - 1, len(added_positive)))
+
+        expected_total_processes = sum(num_processes for _, num_processes in waves)
+        if raw != expected_total_processes:
+            raise ValueError(
+                "For single-node NIXL EP runs, num_processes_per_node must match the plan-derived "
+                f"launch waves total ({expected_total_processes}), got {raw}."
+            )
+
+        return waves
 
     def build_elastic_command(self, num_processes: int, include_tcp_server: bool = False) -> list[str]:
         cmd_args: NixlEPCmdArgs = self.tdef.cmd_args
@@ -175,14 +220,87 @@ wait_for_master_services() {{
         ]
         return " ".join(parts)
 
-    def _launch_srun_command(self, node_idx: int, num_processes: int) -> str:
-        command = " ".join(self.build_elastic_command(num_processes, include_tcp_server=node_idx != 0))
+    def _launch_srun_command(
+        self,
+        node_idx: int,
+        num_processes: int,
+        *,
+        include_tcp_server: bool | None = None,
+        append_output: bool = False,
+    ) -> str:
+        if include_tcp_server is None:
+            include_tcp_server = node_idx != 0
+        command = " ".join(self.build_elastic_command(num_processes, include_tcp_server=include_tcp_server))
         env_file = (self.test_run.output_path / "env_vars.sh").absolute()
         log_file = (self.test_run.output_path / f"nixl-ep-node-{node_idx}.log").absolute()
+        open_mode_arg = " --open-mode=append" if append_output else ""
+        script = self._launch_script(node_idx, env_file, command).replace('"', '\\"')
         return (
-            f'{self._launch_srun_prefix(node_idx)} --output={log_file} '
-            f'bash -c "source {env_file}; {command}"'
+            f'{self._launch_srun_prefix(node_idx)}{open_mode_arg} --output={log_file} '
+            f'bash -c "{script}"'
         )
+
+    def _launch_script(self, node_idx: int, env_file: Path, command: str) -> str:
+        source_env = f"source {shlex.quote(str(env_file))}"
+        if not self.tdef.cmd_args.debug_logging:
+            return f"{source_env}; {command}"
+
+        return "; ".join([source_env, self._debug_diagnostics_command(node_idx), "set -x", command])
+
+    def _debug_diagnostics_command(self, node_idx: int) -> str:
+        marker_file = shlex.quote(str((self.test_run.output_path / f"nixl-ep-node-{node_idx}.debug.once").absolute()))
+        plan_file = shlex.quote(str(self.generated_plan_path.absolute()))
+        commands = [
+            "  echo '=== NIXL EP debug diagnostics start ==='",
+            "  date",
+            "  hostname",
+            "  pwd",
+            "  if command -v python3 >/dev/null 2>&1; then python3 -c 'import os; prefixes=(\"CUDA\",\"UCX\",\"NIXL\",\"NCCL\",\"TORCH\"); keep={\"LD_LIBRARY_PATH\",\"PYTHONPATH\",\"NIXL_PLUGIN_DIR\",\"PYTHONUNBUFFERED\"}; [print(f\"{k}={os.environ[k]}\") for k in sorted(os.environ) if k.startswith(prefixes) or k in keep]'; fi",
+            "  if command -v python3 >/dev/null 2>&1; then python3 --version; fi",
+            "  if command -v python3 >/dev/null 2>&1; then python3 -c 'import nixl_ep, torch; print(\"nixl_ep=\", nixl_ep.__file__); print(\"torch=\", torch.__version__)'; fi",
+            "  if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi -L; fi",
+            "  if command -v rdma >/dev/null 2>&1; then rdma link show; fi",
+            "  if [ -e /dev/infiniband ]; then ls -al /dev/infiniband; else echo '/dev/infiniband not present'; fi",
+            "  if command -v ibv_devinfo >/dev/null 2>&1; then ibv_devinfo -l; fi",
+            "  if command -v ucx_info >/dev/null 2>&1; then ucx_info -d; fi",
+            f"  echo '--- Generated NIXL EP plan ({self.GENERATED_PLAN_FILE_NAME}) ---'",
+            f"  if [ -f {plan_file} ]; then cat {plan_file}; fi",
+            f"  touch {marker_file}",
+            "  echo '=== NIXL EP debug diagnostics end ==='",
+        ]
+        body = "; ".join(command.strip() for command in commands)
+        return f"if [ ! -f {marker_file} ]; then {body}; fi"
+
+    def generate_wait_for_phase_completion_function(self) -> str:
+        timeout = self.phase_transition_timeout_seconds
+        return f"""\
+wait_for_phase_completion() {{
+    local phase="$1"
+    local log_file="$2"
+    local primary_pid="$3"
+    local timeout={timeout}
+    local interval=1
+    local end_time=$(($(date +%s) + timeout))
+
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        if [ -f "$log_file" ] && grep -Fq -- "-> end phase $phase" "$log_file"; then
+            echo "Detected completion of phase $phase in $log_file"
+            return 0
+        fi
+        if [ -f "$log_file" ] && grep -Fq -- "no plan phases were found for rank" "$log_file"; then
+            echo "Detected an early NIXL EP failure while waiting for phase $phase"
+            return 1
+        fi
+        if ! kill -0 "$primary_pid" >/dev/null 2>&1; then
+            echo "Primary NIXL EP launch exited before phase $phase completed"
+            return 1
+        fi
+        sleep "$interval"
+    done
+
+    echo "Timed out waiting for phase $phase to complete"
+    return 1
+}}"""
 
     def _write_env_vars_file(self) -> None:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
@@ -195,12 +313,60 @@ wait_for_master_services() {{
         processes_per_node = self.processes_per_node
 
         if len(processes_per_node) == 1:
-            return "\n".join(
+            waves = self.single_node_launch_waves
+            if len(waves) <= 1:
+                single_wave_processes = waves[0][1] if waves else processes_per_node[0]
+                return "\n".join(
+                    [
+                        'echo "Starting NIXL EP on the master node..."',
+                        self._launch_srun_command(0, single_wave_processes),
+                    ]
+                )
+
+            primary_log_file = (self.test_run.output_path / "nixl-ep-node-0.log").absolute()
+            lines = [
+                self.generate_wait_for_phase_completion_function(),
+                "",
+                "worker_pids=()",
+                "",
+                'echo "Starting initial NIXL EP wave on the master node..."',
+                self._launch_srun_command(0, waves[0][1]) + " &",
+                "primary_pid=$!",
+                "worker_pids+=($primary_pid)",
+            ]
+
+            for wave_idx, (trigger_phase, num_processes) in enumerate(waves[1:], start=1):
+                if trigger_phase is None:
+                    raise ValueError("Only the first single-node NIXL EP launch wave may omit a trigger phase.")
+                lines.extend(
+                    [
+                        "",
+                        f'echo "Waiting for phase {trigger_phase} before starting wave {wave_idx}..."',
+                        f'wait_for_phase_completion "{trigger_phase}" "{primary_log_file}" "$primary_pid" || exit 1',
+                        f'echo "Starting NIXL EP wave {wave_idx} on the master node..."',
+                        self._launch_srun_command(
+                            0,
+                            num_processes,
+                            include_tcp_server=True,
+                            append_output=True,
+                        )
+                        + " &",
+                        "worker_pids+=($!)",
+                    ]
+                )
+
+            lines.extend(
                 [
-                    'echo "Starting NIXL EP on the master node..."',
-                    self._launch_srun_command(0, processes_per_node[0]),
+                    "",
+                    "rc=0",
+                    'for pid in "${worker_pids[@]}"; do',
+                    '    wait "$pid" || rc=$?',
+                    "done",
+                    "",
+                    "exit $rc",
                 ]
             )
+            return "\n".join(lines)
 
         lines = [
             self.generate_wait_for_master_services_function(),
