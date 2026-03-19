@@ -37,6 +37,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     The launcher submits the actual training sbatch job; CloudAI tracks that job ID via SlurmRunner parsing.
     """
 
+    CONTAINER_RUNTIME_ENV_VARS: frozenset[str] = frozenset(
+        {
+            "MELLANOX_VISIBLE_DEVICES",
+            "NVIDIA_VISIBLE_DEVICES",
+            "NVIDIA_DRIVER_CAPABILITIES",
+        }
+    )
+
     def _container_mounts(self) -> list[str]:
         # This workload submits its own sbatch job and passes mounts via `-cm`.
         return []
@@ -96,6 +104,25 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             exports.extend(["-cb", shlex.quote(f"export {key}={value}")])
         return exports
 
+    def _container_runtime_env_exports(self) -> list[str]:
+        """
+        Build ``export`` lines for container-runtime env vars.
+
+        Variables like ``MELLANOX_VISIBLE_DEVICES`` and ``NVIDIA_VISIBLE_DEVICES``
+        are consumed by the NVIDIA container toolkit / enroot at container-creation
+        time to decide which devices to mount.  They must be present in the process
+        environment **before** the Megatron-Bridge launcher calls ``sbatch`` so that
+        Slurm inherits them into the job and ``srun`` passes them to the container
+        runtime.  Exporting them in the wrapper script (which runs on the submit
+        node) achieves this.  The same variables are still passed via ``-cb`` as
+        well, so they are also set inside the container for any runtime readers.
+        """
+        lines: list[str] = []
+        for key, value in sorted(self.final_env_vars.items()):
+            if key in self.CONTAINER_RUNTIME_ENV_VARS:
+                lines.append(f"export {key}={shlex.quote(str(value))}")
+        return lines
+
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
             items = [str(x).strip().strip("\"'") for x in val if str(x).strip()]
@@ -152,6 +179,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         wrapper_path = output_dir / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         log_path = output_dir / "cloudai_megatron_bridge_launcher.log"
 
+        container_runtime_exports = self._container_runtime_env_exports()
+
         script_lines = [
             "#!/usr/bin/env bash",
             "set -o pipefail",
@@ -164,7 +193,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Mirror wrapper stdout/stderr to files for debugging while still emitting to the parent process.
             'exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)',
             "",
-            # Launch Megatron-Bridge (log stdout/stderr to file)
+            *container_runtime_exports,
             "",
             ': >"$LOG"',
             "WANDB_INSTALL_RC=0",
