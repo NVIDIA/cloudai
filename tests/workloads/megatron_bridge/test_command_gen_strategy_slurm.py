@@ -380,11 +380,23 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     def test_gpus_per_node_passed_as_additional_slurm_param(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
+        configured_slurm_system.supports_gpu_directives_cache = True
         tr = make_test_run(cmd_args_overrides={"gpus_per_node": 2}, output_subdir="out_gpus")
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "--additional_slurm_params" in wrapper_content
         assert "gpus-per-node=2" in wrapper_content
+        assert "gres=gpu:2" in wrapper_content
+
+    def test_gpus_per_node_skipped_when_gpu_directives_unsupported(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        configured_slurm_system.supports_gpu_directives_cache = False
+        tr = make_test_run(cmd_args_overrides={"gpus_per_node": 2}, output_subdir="out_no_gpu_directives")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "gpus-per-node=2" not in wrapper_content
+        assert "gres=gpu:2" not in wrapper_content
 
     def test_system_extra_srun_args_forwarded(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]

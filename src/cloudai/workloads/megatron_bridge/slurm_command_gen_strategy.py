@@ -455,8 +455,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         additional_slurm_params: list[str] = []
 
-        if args.gpus_per_node:
+        if args.gpus_per_node and self.system.supports_gpu_directives:
             additional_slurm_params.append(f"gpus-per-node={args.gpus_per_node}")
+            additional_slurm_params.append(f"gres=gpu:{args.gpus_per_node}")
 
         _, node_list = self.get_cached_nodes_spec()
         if node_list:
