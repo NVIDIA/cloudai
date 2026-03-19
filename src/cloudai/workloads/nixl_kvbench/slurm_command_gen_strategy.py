@@ -39,7 +39,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         kvbench_commands = self.gen_nixlbench_srun_commands(
             self.gen_kvbench_command(), str(self.tdef.cmd_args.backend or "unset")
         )
-        cleanup_command = self.gen_cleanup_srun_command()
+        cleanup_command = self.gen_cleanup_command()
         self._current_image_url = None
 
         self.create_env_vars_file()

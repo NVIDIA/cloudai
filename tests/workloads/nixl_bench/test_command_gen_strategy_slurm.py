@@ -105,7 +105,7 @@ class TestNIXLBenchCommand:
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).is_file()
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
 
-    def test_cleanup_srun_command(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+    def test_cleanup_command_uses_host_paths(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
             {
                 "docker_image_url": "docker.io/library/ubuntu:22.04",
@@ -116,13 +116,32 @@ class TestNIXLBenchCommand:
             }
         )
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-        strategy._current_image_url = str(cast(NIXLBenchTestDefinition, nixl_bench_tr.test).docker_image.installed_path)
 
-        cleanup_cmd = " ".join(strategy.gen_cleanup_srun_command())
+        cleanup_cmd = " ".join(strategy.gen_cleanup_command())
+        filepath_dir = nixl_bench_tr.output_path / "filepath_mount"
+        device_list_dir = nixl_bench_tr.output_path / "device_list_mounts"
+        assert cleanup_cmd == f"rm -rf {filepath_dir} {device_list_dir}"
 
-        assert "rm -rf /data" in cleanup_cmd
-        assert "rm -rf /p1/store0.bin" in cleanup_cmd
-        assert "rm -rf /p2/store0.bin" in cleanup_cmd
+    def test_gen_cleanup_command_empty_without_storage_args(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+        assert strategy.gen_cleanup_command() == []
+
+    def test_gen_srun_command_includes_host_cleanup(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/library/ubuntu:22.04",
+                "path_to_benchmark": "/nixlbench",
+                "backend": "GUSLI",
+                "device_list": "11:F:/store0.bin",
+                "filepath": "/data",
+            }
+        )
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+
+        cleanup_cmd = " ".join(strategy.gen_cleanup_command())
+        cmd = strategy._gen_srun_command()
+
+        assert cleanup_cmd in cmd
 
     @pytest.mark.parametrize(
         ("override", "expected_error_match", "expected_total_buffer_size"),
@@ -240,7 +259,7 @@ def test_gen_nixl_srun_command(
                 assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd
 
 
-def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+def test_gen_wait_for_etcd_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     cmd = strategy.gen_wait_for_etcd_command()
     assert cmd == [
