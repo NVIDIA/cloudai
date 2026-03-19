@@ -21,13 +21,13 @@ First, make sure you have access to the Docker repository. Proceed as follows:
         .. code-block:: text
 
             machine nvcr.io login $oauthtoken password <api-key>
-            
-    - Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.   
+
+    - Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
 
 .. _NGC signin: https://ngc.nvidia.com/signin
 
-    
+
 Hugging Face Models
 -------------------
 

@@ -47,7 +47,7 @@ In this section, we introduce the concept of the system schema, explain the mean
    MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
    CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 
-   
+
 Field Descriptions
 ------------------
 

@@ -1,4 +1,4 @@
-Workloads 
+Workloads
 =========
 
 This chapter contains automatically generated documentation for all CloudAI workloads. Each workload provides specific functionality for running different types of tests and benchmarks.

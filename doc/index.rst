@@ -211,4 +211,3 @@ This mode verifies the correctness of system, test, and test scenario configurat
 
    # verify all scenarios using specific folder with Test TOMLs
    cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
-
