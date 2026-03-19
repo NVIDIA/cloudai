@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path, PurePosixPath
 from typing import ClassVar, Optional
 
@@ -43,9 +44,12 @@ class NixlEPCmdArgs(CmdArgs):
             "NIXL runtime root."
         ),
     )
-    plan: list[list[int]] | str | None = Field(
+    plan: str | list[str] | None = Field(
         default=None,
-        description="Phase plan to serialize into a per-run JSON file. String values are treated as input_json.",
+        description=(
+            "Serialized phase plan to write into a per-run JSON file. "
+            'Use a single string such as "[[0, 1], [0, 1, 2, 3]]".'
+        ),
     )
     num_processes_per_node: int | list[int] = Field(
         description="Number of local worker processes to spawn on each allocated node.",
@@ -74,22 +78,46 @@ class NixlEPCmdArgs(CmdArgs):
 
     @model_validator(mode="after")
     def validate_plan_source(self) -> "NixlEPCmdArgs":
-        if isinstance(self.plan, str):
-            if self.input_json is not None:
-                raise ValueError("Specify either `plan` or `input_json`, not both.")
-            self.input_json = self.plan
-            self.plan = None
-
         if self.plan is None and self.input_json is None:
             raise ValueError("NixlEP requires either `plan` or `input_json`.")
 
         if self.plan is not None and self.input_json is not None:
             raise ValueError("Specify either `plan` or `input_json`, not both.")
 
-        if isinstance(self.plan, list) and not self.plan:
-            raise ValueError("plan must contain at least one phase.")
+        if isinstance(self.plan, list):
+            if len(self.plan) != 1:
+                raise ValueError("plan must be a single serialized plan string.")
+            self.plan = self.plan[0]
+
+        if isinstance(self.plan, str):
+            self.plan = self.plan.strip()
+            if not self.plan:
+                raise ValueError("plan must not be empty.")
+            self.parse_plan()
 
         return self
+
+    def parse_plan(self) -> list[list[int]]:
+        if self.plan is None:
+            raise ValueError("parse_plan() requires cmd_args.plan to be set.")
+        if not isinstance(self.plan, str):
+            raise ValueError("parse_plan() requires cmd_args.plan to be a serialized string.")
+
+        try:
+            parsed = json.loads(self.plan)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"plan must be valid JSON: {exc}") from exc
+
+        if not isinstance(parsed, list) or not parsed:
+            raise ValueError("plan must decode to a non-empty list of phases.")
+
+        for phase in parsed:
+            if not isinstance(phase, list) or not phase:
+                raise ValueError("Each plan phase must be a non-empty list of ranks.")
+            if any(not isinstance(rank, int) for rank in phase):
+                raise ValueError("Each plan rank must be an integer.")
+
+        return parsed
 
 
 class NixlEPTestDefinition(TestDefinition):

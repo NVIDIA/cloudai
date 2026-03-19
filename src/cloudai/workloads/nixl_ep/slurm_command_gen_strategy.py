@@ -96,10 +96,10 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return self.test_run.output_path / self.GENERATED_PLAN_FILE_NAME
 
     def resolve_plan_path(self) -> str:
-        if isinstance(self.tdef.cmd_args.plan, list):
+        if self.tdef.cmd_args.plan is not None:
             self.generated_plan_path.parent.mkdir(parents=True, exist_ok=True)
             self.generated_plan_path.write_text(
-                json.dumps(self.tdef.cmd_args.plan, indent=2) + "\n",
+                json.dumps(self.tdef.cmd_args.parse_plan(), indent=2) + "\n",
                 encoding="utf-8",
             )
             return str(self.generated_plan_path.absolute())

@@ -21,12 +21,10 @@ import pytest
 from cloudai.core import TestRun
 from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 
-EXPANSION_CONTRACTION_PLAN = [
-    [0, 1, 2, 3],
-    [0, 1, 2, 3, 4, 5, 6, 7],
-    [0, 1, 2, 3, 4, -6, 7],
-    [0, 1, 2, 3, 4, 5, 6, 7],
-]
+EXPANSION_CONTRACTION_PLAN = (
+    "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], "
+    "[0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
+)
 
 
 @pytest.fixture

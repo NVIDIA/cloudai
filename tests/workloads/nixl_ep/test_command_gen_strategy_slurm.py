@@ -31,6 +31,7 @@ EXPANSION_CONTRACTION_PLAN = [
     [0, 1, 2, 3, 4, -6, 7],
     [0, 1, 2, 3, 4, 5, 6, 7],
 ]
+EXPANSION_CONTRACTION_PLAN_STR = json.dumps(EXPANSION_CONTRACTION_PLAN)
 
 
 @pytest.fixture
@@ -42,7 +43,7 @@ def nixl_ep() -> NixlEPTestDefinition:
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
             elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
-            plan=EXPANSION_CONTRACTION_PLAN,
+            plan=EXPANSION_CONTRACTION_PLAN_STR,
             num_processes_per_node=[4, 4, 2],
             num_tokens=256,
             num_experts_per_rank=4,
@@ -96,6 +97,17 @@ def test_resolve_input_json_path_uses_container_runtime_root() -> None:
         tdef.resolve_input_json_path()
         == "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
     )
+
+
+def test_plan_accepts_single_string_list() -> None:
+    cmd_args = NixlEPCmdArgs(
+        docker_image_url="docker.io/nvidia/nixl-ep:latest",
+        plan=[EXPANSION_CONTRACTION_PLAN_STR],
+        num_processes_per_node=4,
+    )
+
+    assert cmd_args.plan == EXPANSION_CONTRACTION_PLAN_STR
+    assert cmd_args.parse_plan() == EXPANSION_CONTRACTION_PLAN
 
 
 def test_config_repo_must_not_shadow_container_runtime() -> None:
