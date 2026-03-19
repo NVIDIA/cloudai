@@ -1,7 +1,7 @@
 Tutorial
 ========
 
-This chapter outlines a tutorial on how to create CloudAI framework. Please follow the steps in the same sequence to ensure successful execution:
+This chapter outlines a tutorial on how to utilize the CloudAI framework. Please follow the steps in the same sequence to ensure successful execution:
 
 - :ref:`Step 1: Creating a Docker Image <step-1-creating-docker-image>`
 - :ref:`Step 2: Preparing Configuration Files <step-2-preparing-configuration-files>`
@@ -17,7 +17,7 @@ This chapter outlines a tutorial on how to create CloudAI framework. Please foll
 Creating a Docker Image
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-To create a Docker image, follow the following steps:
+To create a Docker image, follow these steps:
 
 #. **Set Up the GitLab Repository:** Start by setting up a repository on GitLab to host your docker image. For this example, use ``gitlab-url.com/cloudai/nccl-test``.
 

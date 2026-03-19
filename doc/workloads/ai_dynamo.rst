@@ -51,7 +51,7 @@ AI Dynamo jobs use three distinct types of nodes:
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of the required nodes must be:
+The total number of required nodes must be:
 
 ::
 

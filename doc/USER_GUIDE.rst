@@ -350,7 +350,7 @@ The expected size is approximately 642 GB. If it’s significantly smaller, remo
 Slurm
 -----
 
-The following are sub-items of Slurm-related topics.
+The following are subtopics related to Slurm:
 
 Single sbatch vs Per-case sbatch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -445,7 +445,7 @@ For example (in a system TOML file):
      "--other-arg val"
    ]
 
-Will result in sbatch file content like this:
+It will result in sbatch file content like this:
 
 .. code-block:: bash
 
