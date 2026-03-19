@@ -225,6 +225,38 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "-cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3'" in wrapper_content
         assert "-cb 'export NCCL_DEBUG=INFO'" in wrapper_content
 
+    def test_container_runtime_env_vars_exported_in_wrapper_script(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        configured_slurm_system.global_env_vars = {
+            "MELLANOX_VISIBLE_DEVICES": "0,1,4,5",
+            "NCCL_IB_HCA": "roce_p0_r0,roce_p0_r1,roce_p0_r2,roce_p0_r3",
+            "NCCL_IB_GID_INDEX": "3",
+        }
+        tr = make_test_run(output_subdir="out_container_rt")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef.extra_env_vars = {"NVIDIA_VISIBLE_DEVICES": "all", "NCCL_DEBUG": "INFO"}
+
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        launcher_idx = wrapper_content.index("setup_experiment.py")
+
+        assert "export MELLANOX_VISIBLE_DEVICES=0,1,4,5" in wrapper_content
+        assert "export NVIDIA_VISIBLE_DEVICES=all" in wrapper_content
+        mvd_idx = wrapper_content.index("export MELLANOX_VISIBLE_DEVICES=")
+        nvd_idx = wrapper_content.index("export NVIDIA_VISIBLE_DEVICES=")
+        assert mvd_idx < launcher_idx, "MELLANOX_VISIBLE_DEVICES must be exported before the launcher"
+        assert nvd_idx < launcher_idx, "NVIDIA_VISIBLE_DEVICES must be exported before the launcher"
+
+        assert "-cb 'export MELLANOX_VISIBLE_DEVICES=0,1,4,5'" in wrapper_content
+        assert "-cb 'export NVIDIA_VISIBLE_DEVICES=all'" in wrapper_content
+        assert "-cb 'export NCCL_IB_HCA=roce_p0_r0,roce_p0_r1,roce_p0_r2,roce_p0_r3'" in wrapper_content
+        assert "-cb 'export NCCL_DEBUG=INFO'" in wrapper_content
+
+        assert "export NCCL_IB_HCA=" not in wrapper_content.split("setup_experiment.py")[0]
+        assert "export NCCL_DEBUG=" not in wrapper_content.split("setup_experiment.py")[0]
+
     def test_wrapper_emits_job_id_even_when_launcher_non_zero(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
