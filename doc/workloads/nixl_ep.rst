@@ -29,7 +29,7 @@ Test TOML example:
    docker_image_url = "<docker container url here>"
    elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
    plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
-   num_processes_per_node = [4, 4, 2]
+   num_processes_per_node = 4
    num_tokens = 256
    num_experts_per_rank = 4
    hidden_dim = 8192
@@ -44,7 +44,7 @@ Test-in-Scenario example:
 
    [[Tests]]
    id = "nixl_ep.expansion_contraction"
-   num_nodes = 3
+   num_nodes = 2
    time_limit = "00:30:00"
 
    name = "nixl-ep-expansion-contraction"
@@ -55,7 +55,7 @@ Test-in-Scenario example:
      docker_image_url = "<docker container url here>"
      elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
      plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
-     num_processes_per_node = [4, 4, 2]
+     num_processes_per_node = 4
      num_tokens = 256
      num_experts_per_rank = 4
      hidden_dim = 8192
