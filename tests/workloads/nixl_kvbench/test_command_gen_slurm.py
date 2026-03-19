@@ -166,3 +166,4 @@ def test_kvbench_gen_srun_command_includes_host_cleanup(kvbench_tr: TestRun, slu
     cmd = strategy._gen_srun_command()
 
     assert cleanup_cmd in cmd
+    assert cmd.rfind("kill -TERM $etcd_pid") < cmd.rfind(cleanup_cmd)

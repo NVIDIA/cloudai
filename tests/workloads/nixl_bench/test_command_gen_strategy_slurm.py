@@ -142,6 +142,7 @@ class TestNIXLBenchCommand:
         cmd = strategy._gen_srun_command()
 
         assert cleanup_cmd in cmd
+        assert cmd.rfind("kill -TERM $etcd_pid") < cmd.rfind(cleanup_cmd)
 
     @pytest.mark.parametrize(
         ("override", "expected_error_match", "expected_total_buffer_size"),

@@ -48,7 +48,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
         ]
         if cleanup_command:
-            commands.insert(-1, " ".join(cleanup_command))
+            commands.append(" ".join(cleanup_command))
         return "\n".join(commands)
 
     def gen_nixlbench_command(self) -> list[str]:

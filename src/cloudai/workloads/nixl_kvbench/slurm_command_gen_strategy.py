@@ -53,7 +53,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
         ]
         if cleanup_command:
-            final_cmd.insert(-1, " ".join(cleanup_command))
+            final_cmd.append(" ".join(cleanup_command))
         return "\n".join(final_cmd)
 
     def gen_kvbench_command(self) -> list[str]:
