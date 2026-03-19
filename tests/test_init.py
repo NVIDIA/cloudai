@@ -76,6 +76,7 @@ from cloudai.workloads.nixl_bench import (
     NIXLBenchSlurmCommandGenStrategy,
     NIXLBenchTestDefinition,
 )
+from cloudai.workloads.nixl_ep import NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import (
@@ -136,6 +137,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NemotronTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
+    (SlurmSystem, NixlEPTestDefinition): NixlEPSlurmCommandGenStrategy,
     (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
     (SlurmSystem, DDLBTestDefinition): DDLBTestSlurmCommandGenStrategy,
     (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
@@ -225,7 +227,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 24
+    assert len(test_defs) == 25
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -243,6 +245,7 @@ def test_definitions():
         ("MegatronBridge", MegatronBridgeTestDefinition),
         ("TritonInference", TritonInferenceTestDefinition),
         ("NIXLBench", NIXLBenchTestDefinition),
+        ("NixlEP", NixlEPTestDefinition),
         ("AIDynamo", AIDynamoTestDefinition),
         ("BashCmd", BashCmdTestDefinition),
         ("NixlPerftest", NixlPerftestTestDefinition),

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "nixl-ep-public-multinode-example"
+
+[[Tests]]
+id = "nixl_ep.single_expansion_2node"
+num_nodes = 2
+time_limit = "00:10:00"
+
+name = "nixl-ep-single-expansion-2node"
+description = "NIXL Elastic EP public two-node single-expansion benchmark"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  # Mirrors the upstream elastic README multi-node flow:
+  # node 0 launches phase 0 with 4 ranks, then node 1 joins with 4 more.
+  docker_image_url = "gitlab-master.nvidia.com/ovidium/test:latest"
+  plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7]]"
+  num_processes_per_node = 4
+  num_tokens = 256
+  num_experts_per_rank = 4
+  hidden_dim = 8192
+  num_topk = 6

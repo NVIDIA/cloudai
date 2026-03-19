@@ -71,6 +71,10 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return env_vars
 
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        super().final_env_vars = value
+
     @property
     def processes_per_node(self) -> list[int]:
         raw = self.tdef.cmd_args.num_processes_per_node
@@ -91,7 +95,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
                 "nodes_array=($nodes)",
                 "master_node=${nodes_array[0]}",
-                'master_ip=$(srun --nodes=1 --ntasks=1 -w "$master_node" hostname --ip-address | awk \'{print $1}\')',
+                "master_ip=$(srun --nodes=1 --ntasks=1 -w \"$master_node\" hostname --ip-address | awk '{print $1}')",
                 "",
                 "echo Nodes: $SLURM_JOB_NODELIST",
                 "echo Num Nodes: ${#nodes[@]}",
@@ -139,7 +143,8 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def single_node_launch_waves(self) -> list[tuple[int | None, int]]:
         raw = self.tdef.cmd_args.num_processes_per_node
-        if not isinstance(raw, int) or self.test_run.num_nodes != 1:
+        num_nodes, _ = self.get_cached_nodes_spec()
+        if not isinstance(raw, int) or num_nodes != 1:
             return []
 
         waves = self.plan_launch_wave_totals
@@ -155,7 +160,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def multi_node_scalar_launch_waves(self) -> list[tuple[int | None, list[int]]]:
         raw = self.tdef.cmd_args.num_processes_per_node
-        num_nodes = self.test_run.num_nodes
+        num_nodes, _ = self.get_cached_nodes_spec()
         if not isinstance(raw, int) or num_nodes <= 1:
             return []
 
@@ -280,10 +285,7 @@ wait_for_master_services() {{
         log_file = (self.test_run.output_path / f"nixl-ep-node-{node_idx}.log").absolute()
         open_mode_arg = " --open-mode=append" if append_output else ""
         script = self._launch_script(node_idx, env_file, command).replace('"', '\\"')
-        return (
-            f'{self._launch_srun_prefix(node_idx)}{open_mode_arg} --output={log_file} '
-            f'bash -c "{script}"'
-        )
+        return f'{self._launch_srun_prefix(node_idx)}{open_mode_arg} --output={log_file} bash -c "{script}"'
 
     def _launch_script(self, node_idx: int, env_file: Path, command: str) -> str:
         source_env = f"source {shlex.quote(str(env_file))}"
@@ -295,14 +297,23 @@ wait_for_master_services() {{
     def _debug_diagnostics_command(self, node_idx: int) -> str:
         marker_file = shlex.quote(str((self.test_run.output_path / f"nixl-ep-node-{node_idx}.debug.once").absolute()))
         plan_file = shlex.quote(str(self.generated_plan_path.absolute()))
+        env_dump_python = (
+            "import os; "
+            'prefixes=("CUDA","UCX","NIXL","NCCL","TORCH"); '
+            'keep={"LD_LIBRARY_PATH","PYTHONPATH","NIXL_PLUGIN_DIR","PYTHONUNBUFFERED"}; '
+            '[print(f"{k}={os.environ[k]}") for k in sorted(os.environ) if k.startswith(prefixes) or k in keep]'
+        )
+        module_dump_python = (
+            'import nixl_ep, torch; print("nixl_ep=", nixl_ep.__file__); print("torch=", torch.__version__)'
+        )
         commands = [
             "  echo '=== NIXL EP debug diagnostics start ==='",
             "  date",
             "  hostname",
             "  pwd",
-            "  if command -v python3 >/dev/null 2>&1; then python3 -c 'import os; prefixes=(\"CUDA\",\"UCX\",\"NIXL\",\"NCCL\",\"TORCH\"); keep={\"LD_LIBRARY_PATH\",\"PYTHONPATH\",\"NIXL_PLUGIN_DIR\",\"PYTHONUNBUFFERED\"}; [print(f\"{k}={os.environ[k]}\") for k in sorted(os.environ) if k.startswith(prefixes) or k in keep]'; fi",
+            f"  if command -v python3 >/dev/null 2>&1; then python3 -c {shlex.quote(env_dump_python)}; fi",
             "  if command -v python3 >/dev/null 2>&1; then python3 --version; fi",
-            "  if command -v python3 >/dev/null 2>&1; then python3 -c 'import nixl_ep, torch; print(\"nixl_ep=\", nixl_ep.__file__); print(\"torch=\", torch.__version__)'; fi",
+            f"  if command -v python3 >/dev/null 2>&1; then python3 -c {shlex.quote(module_dump_python)}; fi",
             "  if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi -L; fi",
             "  if command -v rdma >/dev/null 2>&1; then rdma link show; fi",
             "  if [ -e /dev/infiniband ]; then ls -al /dev/infiniband; else echo '/dev/infiniband not present'; fi",

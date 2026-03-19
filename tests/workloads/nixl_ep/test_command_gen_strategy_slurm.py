@@ -94,11 +94,13 @@ def test_processes_per_node_expands_scalar(nixl_ep: NixlEPTestDefinition, slurm_
 
 def test_input_json_is_rejected() -> None:
     with pytest.raises(ValueError, match="does not accept `input_json`"):
-        NixlEPCmdArgs(
-            docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
-            num_processes_per_node=4,
-            plan=EXPANSION_CONTRACTION_PLAN_STR,
+        NixlEPCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/nvidia/nixl-ep:latest",
+                "input_json": "examples/device/ep/tests/elastic/expansion_contraction.json",
+                "num_processes_per_node": 4,
+                "plan": EXPANSION_CONTRACTION_PLAN_STR,
+            }
         )
 
 
@@ -160,10 +162,12 @@ def test_config_repo_must_not_shadow_container_runtime() -> None:
                 num_processes_per_node=4,
             ),
             git_repos=[
-                GitRepo(
-                    url="https://github.com/NVIDIA/nixl-configs.git",
-                    commit="main",
-                    mount_as="/workspace/nixl",
+                GitRepo.model_validate(
+                    {
+                        "url": "https://github.com/NVIDIA/nixl-configs.git",
+                        "commit": "main",
+                        "mount_as": "/workspace/nixl",
+                    }
                 )
             ],
         )
@@ -271,13 +275,15 @@ def test_build_elastic_command_passes_through_extra_flags(slurm_system: SlurmSys
         name="nixl_ep",
         description="NIXL Elastic EP benchmark",
         test_template_name="NixlEP",
-        cmd_args=NixlEPCmdArgs(
-            docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            plan=DOUBLE_EXPANSION_PLAN_STR,
-            num_processes_per_node=8,
-            dry_run=True,
-            custom_arg="value",
-            ignored_arg=None,
+        cmd_args=NixlEPCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/nvidia/nixl-ep:latest",
+                "plan": DOUBLE_EXPANSION_PLAN_STR,
+                "num_processes_per_node": 8,
+                "dry_run": True,
+                "custom_arg": "value",
+                "ignored_arg": None,
+            }
         ),
     )
     test_run = TestRun(name="nixl-ep", num_nodes=1, nodes=[], test=tdef, output_path=slurm_system.output_path)
@@ -361,7 +367,9 @@ def test_debug_logging_emits_diagnostics_once_per_node(
     assert ".debug.once" in srun_command
 
 
-def test_wait_for_master_services_only_probes_tcpstore(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
+def test_wait_for_master_services_only_probes_tcpstore(
+    nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem
+) -> None:
     test_run = TestRun(name="nixl-ep", num_nodes=2, nodes=[], test=nixl_ep, output_path=slurm_system.output_path)
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 

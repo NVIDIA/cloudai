@@ -191,8 +191,16 @@ class NixlEPTestDefinition(TestDefinition):
     def installables(self) -> list[Installable]:
         return [self.docker_image, *self.git_repos]
 
+    @staticmethod
+    def _resolved_num_nodes(tr: TestRun) -> int:
+        if tr.nodes:
+            return len(tr.nodes)
+        if isinstance(tr.num_nodes, int):
+            return tr.num_nodes
+        raise ValueError("NixlEP status checks require a concrete integer num_nodes value.")
+
     def _expected_node_logs(self, tr: TestRun) -> list[Path]:
-        return [tr.output_path / f"nixl-ep-node-{node_idx}.log" for node_idx in range(tr.num_nodes)]
+        return [tr.output_path / f"nixl-ep-node-{node_idx}.log" for node_idx in range(self._resolved_num_nodes(tr))]
 
     @staticmethod
     def _tail(path: Path, num_lines: int = 40) -> str:
@@ -249,8 +257,7 @@ class NixlEPTestDefinition(TestDefinition):
         return JobStatusResult(
             is_successful=False,
             error_message=(
-                f"NIXL EP Slurm job did not complete successfully "
-                f"(state={state}, exit_code={job_exit_code})."
+                f"NIXL EP Slurm job did not complete successfully (state={state}, exit_code={job_exit_code})."
             ),
         )
 

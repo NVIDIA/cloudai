@@ -20,7 +20,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-
 _FLOAT_RE = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
 _COMBINED_BW_RE = re.compile(
     rf"\[rank (?P<rank>\d+)\] Dispatch \+ combine bandwidth: "
@@ -38,6 +37,8 @@ _KINETO_BW_RE = re.compile(
 
 @dataclass(frozen=True)
 class NixlEPBandwidthSample:
+    """A parsed bandwidth sample emitted by the NIXL EP benchmark logs."""
+
     rank: int
     dispatch_combine_bandwidth_gbps: float | None = None
     avg_time_us: float | None = None
