@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import ClassVar, Optional
 
 import toml
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -36,12 +36,16 @@ class NixlEPCmdArgs(CmdArgs):
         ),
     )
     python_executable: str = Field(default="python3", description="Python executable to use inside the container.")
-    input_json: str = Field(
-        validation_alias=AliasChoices("input_json", "plan"),
+    input_json: str | None = Field(
+        default=None,
         description=(
-            "Path to the phase plan JSON. Relative paths resolve against the mounted config repo when present, "
-            "otherwise against the container's NIXL runtime root."
+            "Path to the phase plan JSON inside the container. Relative paths resolve against the container's "
+            "NIXL runtime root."
         ),
+    )
+    plan: list[list[int]] | str | None = Field(
+        default=None,
+        description="Phase plan to serialize into a per-run JSON file. String values are treated as input_json.",
     )
     num_processes_per_node: int | list[int] = Field(
         description="Number of local worker processes to spawn on each allocated node.",
@@ -68,6 +72,25 @@ class NixlEPCmdArgs(CmdArgs):
             raise ValueError("num_processes_per_node must contain only positive integers")
         return value
 
+    @model_validator(mode="after")
+    def validate_plan_source(self) -> "NixlEPCmdArgs":
+        if isinstance(self.plan, str):
+            if self.input_json is not None:
+                raise ValueError("Specify either `plan` or `input_json`, not both.")
+            self.input_json = self.plan
+            self.plan = None
+
+        if self.plan is None and self.input_json is None:
+            raise ValueError("NixlEP requires either `plan` or `input_json`.")
+
+        if self.plan is not None and self.input_json is not None:
+            raise ValueError("Specify either `plan` or `input_json`, not both.")
+
+        if isinstance(self.plan, list) and not self.plan:
+            raise ValueError("plan must contain at least one phase.")
+
+        return self
+
 
 class NixlEPTestDefinition(TestDefinition):
     """Test definition for the NIXL Elastic EP benchmark."""
@@ -76,7 +99,6 @@ class NixlEPTestDefinition(TestDefinition):
     container_plugin_dir: ClassVar[str] = "/usr/local/nixl/lib/x86_64-linux-gnu/plugins"
     container_python_path: ClassVar[str] = "/usr/local/nixl/lib/python3/dist-packages"
     container_library_dir: ClassVar[str] = "/usr/local/nixl/lib"
-    config_repo_default_mount: ClassVar[str] = "/workspace/nixl-ep-configs"
     launcher_failure_patterns: ClassVar[tuple[tuple[str, str], ...]] = (
         ("python3: can't open file", "The benchmark entrypoint could not be opened."),
         ("Traceback (most recent call last):", "The benchmark launcher raised a Python traceback."),
@@ -96,9 +118,6 @@ class NixlEPTestDefinition(TestDefinition):
                     "NixlEP git_repos must not mount to '/workspace/nixl' because that shadows the container's "
                     "prebuilt runtime."
                 )
-        if len(normalized) == 1 and not normalized[0].mount_as:
-            normalized[0] = normalized[0].model_copy(update={"mount_as": cls.config_repo_default_mount})
-
         return normalized
 
     @model_validator(mode="after")
@@ -113,15 +132,6 @@ class NixlEPTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
-    def config_repo(self) -> GitRepo | None:
-        if len(self.git_repos) == 1:
-            return self.git_repos[0]
-        for repo in self.git_repos:
-            if (repo.mount_as or "").rstrip("/") == self.config_repo_default_mount.rstrip("/"):
-                return repo
-        return None
-
-    @property
     def container_runtime_root_path(self) -> PurePosixPath:
         return PurePosixPath(self.container_runtime_root)
 
@@ -132,11 +142,11 @@ class NixlEPTestDefinition(TestDefinition):
         return str(self.container_runtime_root_path / path)
 
     def resolve_input_json_path(self) -> str:
+        if self.cmd_args.input_json is None:
+            raise ValueError("resolve_input_json_path() requires cmd_args.input_json to be set.")
         path = PurePosixPath(self.cmd_args.input_json)
         if path.is_absolute():
             return str(path)
-        if config_repo := self.config_repo:
-            return str(PurePosixPath(config_repo.container_mount) / path)
         return str(self.container_runtime_root_path / path)
 
     @property

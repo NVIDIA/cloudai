@@ -28,7 +28,12 @@ test_template_name = "NixlEP"
   [Tests.cmd_args]
   docker_image_url = "<docker container url here>"
   elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
-  input_json = "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
+  plan = [
+    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+    [0, 1, 2, 3, 4, -6, 7],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+  ]
   num_processes_per_node = [4, 4, 2]
   num_tokens = 256
   num_experts_per_rank = 4

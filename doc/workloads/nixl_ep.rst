@@ -12,7 +12,7 @@ The Slurm launch model is:
 - the master node starts first
 - follower nodes connect with ``--tcp-server $master_ip``
 - the benchmark runtime comes from the container image
-- optional ``[[git_repos]]`` mounts are for custom input JSON files only
+- each test case serializes its own plan JSON into the run output directory
 
 Usage Examples
 --------------
@@ -28,7 +28,12 @@ Test TOML example:
    [cmd_args]
    docker_image_url = "<docker container url here>"
    elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
-   input_json = "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
+   plan = [
+     [0, 1, 2, 3],
+     [0, 1, 2, 3, 4, 5, 6, 7],
+     [0, 1, 2, 3, 4, -6, 7],
+     [0, 1, 2, 3, 4, 5, 6, 7],
+   ]
    num_processes_per_node = [4, 4, 2]
    num_tokens = 256
    num_experts_per_rank = 4
@@ -54,25 +59,18 @@ Test-in-Scenario example:
      [Tests.cmd_args]
      docker_image_url = "<docker container url here>"
      elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
-     input_json = "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
+     plan = [
+       [0, 1, 2, 3],
+       [0, 1, 2, 3, 4, 5, 6, 7],
+       [0, 1, 2, 3, 4, -6, 7],
+       [0, 1, 2, 3, 4, 5, 6, 7],
+     ]
      num_processes_per_node = [4, 4, 2]
      num_tokens = 256
      num_experts_per_rank = 4
      hidden_dim = 8192
      num_topk = 6
      disable_ll_nvlink = true
-
-Optional config repo example:
-
-.. code-block:: toml
-
-   [[git_repos]]
-   url = "https://github.com/NVIDIA/nixl-configs.git"
-   commit = "main"
-   mount_as = "/workspace/nixl-ep-configs"
-
-   [cmd_args]
-   input_json = "/workspace/nixl-ep-configs/plans/custom_plan.json"
 
 API Documentation
 -----------------

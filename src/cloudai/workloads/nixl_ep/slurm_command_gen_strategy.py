@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -23,6 +25,8 @@ from .nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 
 class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for the NIXL Elastic EP benchmark."""
+
+    GENERATED_PLAN_FILE_NAME = "nixl-ep-plan.json"
 
     @property
     def tdef(self) -> NixlEPTestDefinition:
@@ -87,13 +91,28 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ]
         )
 
+    @property
+    def generated_plan_path(self) -> Path:
+        return self.test_run.output_path / self.GENERATED_PLAN_FILE_NAME
+
+    def resolve_plan_path(self) -> str:
+        if isinstance(self.tdef.cmd_args.plan, list):
+            self.generated_plan_path.parent.mkdir(parents=True, exist_ok=True)
+            self.generated_plan_path.write_text(
+                json.dumps(self.tdef.cmd_args.plan, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            return str(self.generated_plan_path.absolute())
+
+        return self.tdef.resolve_input_json_path()
+
     def build_elastic_command(self, num_processes: int, include_tcp_server: bool = False) -> list[str]:
         cmd_args: NixlEPCmdArgs = self.tdef.cmd_args
         command = [
             cmd_args.python_executable,
             self.tdef.resolve_elastic_script_path(),
             "--plan",
-            self.tdef.resolve_input_json_path(),
+            self.resolve_plan_path(),
             "--num-processes",
             str(num_processes),
             "--num-tokens",

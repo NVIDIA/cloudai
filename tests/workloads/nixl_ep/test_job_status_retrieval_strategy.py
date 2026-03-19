@@ -21,6 +21,13 @@ import pytest
 from cloudai.core import TestRun
 from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 
+EXPANSION_CONTRACTION_PLAN = [
+    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+    [0, 1, 2, 3, 4, -6, 7],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+]
+
 
 @pytest.fixture
 def nixl_ep_tr(tmp_path) -> TestRun:
@@ -31,7 +38,7 @@ def nixl_ep_tr(tmp_path) -> TestRun:
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
             elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
-            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
+            plan=EXPANSION_CONTRACTION_PLAN,
             num_processes_per_node=4,
         ),
     )

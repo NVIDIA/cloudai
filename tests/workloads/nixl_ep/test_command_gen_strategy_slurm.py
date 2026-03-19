@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 from importlib.metadata import version
 from pathlib import Path
@@ -23,6 +24,13 @@ import pytest
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
+
+EXPANSION_CONTRACTION_PLAN = [
+    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+    [0, 1, 2, 3, 4, -6, 7],
+    [0, 1, 2, 3, 4, 5, 6, 7],
+]
 
 
 @pytest.fixture
@@ -34,7 +42,7 @@ def nixl_ep() -> NixlEPTestDefinition:
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
             elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
-            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
+            plan=EXPANSION_CONTRACTION_PLAN,
             num_processes_per_node=[4, 4, 2],
             num_tokens=256,
             num_experts_per_rank=4,
@@ -72,21 +80,22 @@ def test_processes_per_node_expands_scalar(nixl_ep: NixlEPTestDefinition, slurm_
     assert strategy.processes_per_node == [5, 5]
 
 
-def test_config_repo_is_optional_and_single_repo_is_normalized() -> None:
+def test_resolve_input_json_path_uses_container_runtime_root() -> None:
     tdef = NixlEPTestDefinition(
         name="nixl_ep",
         description="NIXL Elastic EP benchmark",
         test_template_name="NixlEP",
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            input_json="plans/custom_plan.json",
+            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
             num_processes_per_node=4,
         ),
-        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl.git", commit="main")],
     )
 
-    assert tdef.git_repos[0].mount_as == "/workspace/nixl-ep-configs"
-    assert tdef.resolve_input_json_path() == "/workspace/nixl-ep-configs/plans/custom_plan.json"
+    assert (
+        tdef.resolve_input_json_path()
+        == "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
+    )
 
 
 def test_config_repo_must_not_shadow_container_runtime() -> None:
@@ -123,12 +132,13 @@ def test_build_elastic_command(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -
 
     master_cmd = strategy.build_elastic_command(4)
     follower_cmd = strategy.build_elastic_command(2, include_tcp_server=True)
+    generated_plan_path = nixl_ep_tr.output_path / strategy.GENERATED_PLAN_FILE_NAME
 
     assert master_cmd == [
         "python3",
         "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
         "--plan",
-        "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json",
+        str(generated_plan_path.absolute()),
         "--num-processes",
         "4",
         "--num-tokens",
@@ -144,19 +154,19 @@ def test_build_elastic_command(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -
     ]
     assert "--tcp-server" not in master_cmd
     assert follower_cmd[-4:] == ["--tcp-server", "$master_ip", "--disable-ll-nvlink", "--kineto"]
+    assert json.loads(generated_plan_path.read_text(encoding="utf-8")) == EXPANSION_CONTRACTION_PLAN
 
 
-def test_build_elastic_command_resolves_input_json_from_config_repo(slurm_system: SlurmSystem) -> None:
+def test_build_elastic_command_resolves_input_json_from_container_runtime(slurm_system: SlurmSystem) -> None:
     tdef = NixlEPTestDefinition(
         name="nixl_ep",
         description="NIXL Elastic EP benchmark",
         test_template_name="NixlEP",
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            input_json="plans/custom_plan.json",
+            input_json="examples/device/ep/tests/elastic/expansion_contraction.json",
             num_processes_per_node=4,
         ),
-        git_repos=[GitRepo(url="https://github.com/NVIDIA/nixl-configs.git", commit="main")],
     )
     test_run = TestRun(name="nixl-ep", num_nodes=1, nodes=[], test=tdef, output_path=slurm_system.output_path)
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
@@ -164,7 +174,7 @@ def test_build_elastic_command_resolves_input_json_from_config_repo(slurm_system
     command = strategy.build_elastic_command(4)
 
     assert command[1] == "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
-    assert command[3] == "/workspace/nixl-ep-configs/plans/custom_plan.json"
+    assert command[3] == "/workspace/nixl/examples/device/ep/tests/elastic/expansion_contraction.json"
 
 
 def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
