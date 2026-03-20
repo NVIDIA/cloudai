@@ -140,6 +140,7 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
             SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.COMPLETING)
         ],
         SlurmNodeState.ALLOCATED: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.ALLOCATED)],
+        SlurmNodeState.RESERVED: [SlurmNode(name="node06", partition=partition_name, state=SlurmNodeState.RESERVED)],
     }
 
     return grouped_nodes
@@ -166,6 +167,7 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
         grouped_nodes[SlurmNodeState.IDLE][0].name,
         grouped_nodes[SlurmNodeState.IDLE][1].name,
         grouped_nodes[SlurmNodeState.COMPLETING][0].name,
+        grouped_nodes[SlurmNodeState.RESERVED][0].name,
     ]
     returned_node_names = [node.name for node in available_nodes]
 
@@ -193,8 +195,8 @@ def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
     group_name = "group_name"
-    num_nodes = 5
-    available_nodes = 4
+    num_nodes = 6
+    available_nodes = 5
 
     with pytest.raises(
         ValueError,
@@ -363,9 +365,31 @@ class TestGetNodesBySpec:
 
         num_nodes, node_list = slurm_system.get_nodes_by_spec(in_nnodes, in_nodes)
 
-        mock_parse_nodes.assert_called_once_with(in_nodes)
+        mock_parse_nodes.assert_called_once_with(in_nodes, exclude_nodes=None)
         assert num_nodes == exp_nnodes
         assert node_list == exp_nodes
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.parse_nodes")
+    def test_raises_when_all_nodes_excluded(self, mock_parse_nodes: Mock, slurm_system: SlurmSystem):
+        mock_parse_nodes.return_value = []
+        exclude = ["node01", "node02"]
+
+        with pytest.raises(ValueError, match="after excluding nodes"):
+            slurm_system.get_nodes_by_spec(2, ["node0[1-2]"], exclude_nodes=exclude)
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.parse_nodes")
+    def test_raises_when_parse_nodes_returns_empty_for_nonempty_specs(
+        self, mock_parse_nodes: Mock, slurm_system: SlurmSystem
+    ):
+        mock_parse_nodes.return_value = []
+
+        with pytest.raises(ValueError, match="no nodes are available"):
+            slurm_system.get_nodes_by_spec(1, ["main:group1:3"])
+
+    def test_empty_nodes_with_exclude_still_returns_unconstrained(self, slurm_system: SlurmSystem):
+        num_nodes, node_list = slurm_system.get_nodes_by_spec(3, [], exclude_nodes=["node01"])
+        assert num_nodes == 3
+        assert node_list == []
 
 
 class ConcreteSlurmStrategy(SlurmCommandGenStrategy):

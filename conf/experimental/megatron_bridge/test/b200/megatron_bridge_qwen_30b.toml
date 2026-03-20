@@ -23,7 +23,6 @@ extra_container_mounts = []
 [[git_repos]]
 url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
 commit = "v0.3.0"
-mount_as = "/opt/Megatron-Bridge"
 
 [cmd_args]
 gpu_type = "b200"

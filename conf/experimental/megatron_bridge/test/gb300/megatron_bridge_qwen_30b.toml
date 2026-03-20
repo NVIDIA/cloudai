@@ -23,7 +23,6 @@ extra_container_mounts = []
 [[git_repos]]
 url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
 commit = "v0.3.0"
-mount_as = "/opt/Megatron-Bridge"
 
 [cmd_args]
 gpu_type = "gb300"
@@ -32,6 +31,7 @@ model_family_name = "qwen"
 model_recipe_name = "qwen3_30b_a3b"
 gpus_per_node = 4
 num_gpus = 8
+# mb = 4  # In case OOM, uncomment this for smaller micro-batch size
 domain = "llm"
 task = "pretrain"
 compute_dtype = "fp8_mx"

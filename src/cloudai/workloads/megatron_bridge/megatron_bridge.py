@@ -184,10 +184,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     @staticmethod
     def _select_megatron_bridge_repo(git_repos: list[GitRepo]) -> GitRepo | None:
-        """Return the Megatron-Bridge repo from `git_repos` (normalized to mount_as=/opt/Megatron-Bridge)."""
+        """
+        Return the Megatron-Bridge repo from `git_repos`.
+
+        When the user sets ``mount_as`` (e.g. ``/opt/Megatron-Bridge``), the installed clone will be bind-mounted
+        into the container at that path, overriding whatever the container image ships. When ``mount_as`` is *not*
+        set the container's built-in ``/opt/Megatron-Bridge`` is used.
+        """
         for repo in git_repos:
             if "Megatron-Bridge" in repo.url or (repo.mount_as or "").rstrip("/") == "/opt/Megatron-Bridge":
-                return repo if repo.mount_as else repo.model_copy(update={"mount_as": "/opt/Megatron-Bridge"})
+                return repo
         return None
 
     @field_validator("git_repos", mode="after")

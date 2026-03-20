@@ -424,6 +424,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         content.append(f"#SBATCH -N {num_nodes}")
 
+        if self.test_run.exclude_nodes:
+            content.append(f"#SBATCH --exclude={','.join(self.test_run.exclude_nodes)}")
+
         return None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
@@ -465,6 +468,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 str(self.test_run.step),
                 str(self.test_run.nnodes),
                 ",".join(self.test_run.nodes),
+                ",".join(self.test_run.exclude_nodes),
             ]
         )
 
@@ -472,5 +476,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
             return self._node_spec_cache[cache_key]
 
-        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        num_nodes, node_list = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
+
+        self._node_spec_cache[cache_key] = (num_nodes, node_list)
         return self._node_spec_cache[cache_key]

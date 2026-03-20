@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -208,6 +208,7 @@ class TestScenarioParser:
             post_test=post_test,
             reports=get_reporters(test_info, tdef),
             extra_srun_args=test_info.extra_srun_args,
+            exclude_nodes=test_info.exclude_nodes,
         )
 
         return tr
