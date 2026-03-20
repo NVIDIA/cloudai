@@ -247,7 +247,7 @@ def test_gen_nixl_srun_command(
                 assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd
 
 
-def test_gen_wait_for_etcd_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     cmd = strategy.gen_wait_for_etcd_command()
     assert cmd == [
