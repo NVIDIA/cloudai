@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,10 +77,18 @@ class SlurmRunner(BaseRunner):
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
         cmd_gen.store_test_run()
 
+    def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
+        return [cast(SlurmJob, job).test_run]
+
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
         self.system.complete_job(cast(SlurmJob, job))
         self.store_job_metadata(cast(SlurmJob, job))
+        for tr in self.completed_test_runs(job):
+            try:
+                self.get_cmd_gen_strategy(self.system, tr).cleanup_job_artifacts()
+            except Exception:
+                logging.warning(f"Cleanup failed for test run at {tr.output_path}", exc_info=True)
 
     def _mock_job_metadata(self) -> SlurmStepMetadata:
         return SlurmStepMetadata(

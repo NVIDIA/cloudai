@@ -16,8 +16,9 @@
 
 import copy
 import re
+from pathlib import Path
 from typing import Generator, Optional, cast
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
@@ -504,6 +505,30 @@ def test_store_job_metadata(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None
     assert sjm.job_root == runner.scenario_root.absolute()
 
     assert sjm == SlurmJobMetadata.model_validate(toml.loads(toml.dumps(sjm.model_dump())))
+
+
+def test_on_job_completion_cleans_all_effective_test_runs(
+    dse_tr: TestRun, nccl_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    tc = TestScenario(name="tc", test_runs=[dse_tr, nccl_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    runner.mode = "dry-run"
+    runner.store_job_metadata = Mock()
+
+    cleanup_calls: list[Path] = []
+
+    def _cmd_gen(_, tr: TestRun):
+        return Mock(cleanup_job_artifacts=Mock(side_effect=lambda: cleanup_calls.append(tr.output_path)))
+
+    runner.get_cmd_gen_strategy = Mock(side_effect=_cmd_gen)
+
+    expected_paths = [tr.output_path for tr in runner.all_trs]
+    job = SlurmJob(nccl_tr, id=1)
+
+    with patch.object(SlurmSystem, "complete_job"):
+        runner.on_job_completion(job)
+
+    assert cleanup_calls == expected_paths
 
 
 def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:

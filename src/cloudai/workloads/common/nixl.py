@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
@@ -230,6 +231,25 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
         used_filenames.add(candidate)
         return candidate
+
+    def cleanup_job_artifacts(self) -> None:
+        for cleanup_target in self._cleanup_targets():
+            if cleanup_target.is_dir():
+                shutil.rmtree(cleanup_target)
+                logging.debug(f"Cleaned up job artifact: {cleanup_target}")
+
+    def _cleanup_targets(self) -> list[Path]:
+        cleanup_targets: list[Path] = []
+
+        filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
+        if filepath_raw:
+            cleanup_targets.append(self.test_run.output_path / "filepath_mount")
+
+        device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
+        if device_list_raw and get_files_from_device_list(device_list_raw):
+            cleanup_targets.append(self.test_run.output_path / "device_list_mounts")
+
+        return cleanup_targets
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:

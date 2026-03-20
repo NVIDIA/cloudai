@@ -16,14 +16,14 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 from cloudai.core import JobIdRetrievalError, TestRun, TestScenario
 from cloudai.systems.lsf.lsf_runner import LSFRunner
 from cloudai.systems.lsf.lsf_system import LSFSystem
-from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.systems.slurm import SlurmJob, SlurmRunner, SlurmSystem
 from cloudai.util import CommandShell
 from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
 
@@ -86,6 +86,21 @@ def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
 def test_slurm_get_job_id(slurm_runner: SlurmRunner, stdout: str, stderr: str, expected_job_id: int | None):
     res = slurm_runner.get_job_id(stdout, stderr)
     assert res == expected_job_id
+
+
+def test_slurm_runner_on_job_completion_calls_cleanup(slurm_runner: SlurmRunner):
+    tr = slurm_runner.test_scenario.test_runs[0]
+    job = SlurmJob(tr, id=1)
+    slurm_runner.store_job_metadata = Mock()
+    cleanup = Mock()
+    slurm_runner.get_cmd_gen_strategy = Mock(return_value=Mock(cleanup_job_artifacts=cleanup))
+
+    with patch.object(SlurmSystem, "complete_job") as complete_job:
+        slurm_runner.on_job_completion(job)
+
+    complete_job.assert_called_once_with(job)
+    slurm_runner.store_job_metadata.assert_called_once_with(job)
+    cleanup.assert_called_once()
 
 
 @pytest.mark.parametrize(

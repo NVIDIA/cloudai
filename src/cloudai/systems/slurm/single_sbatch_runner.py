@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Generator, Optional, cast
 
 from cloudai.configurator import CloudAIGymEnv, TrajectoryEntry
-from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.core import BaseJob, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -220,6 +220,9 @@ class SingleSbatchRunner(SlurmRunner):
                         observation=observation,
                     )
                 )
+
+    def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
+        return list(self.all_trs)
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
