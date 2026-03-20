@@ -236,6 +236,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         for cleanup_target in self._cleanup_targets():
             if cleanup_target.exists():
                 shutil.rmtree(cleanup_target)
+                logging.debug(f"Cleaned up job artifact: {cleanup_target}")
 
     def _cleanup_targets(self) -> list[Path]:
         cleanup_targets: list[Path] = []
