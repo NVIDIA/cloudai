@@ -20,9 +20,7 @@ echo Num Nodes: ${#nodes[@]}
 echo Master Node: $master_node
 echo Master IP: $master_ip
 
-export LD_LIBRARY_PATH=/usr/local/nixl/lib:/workspace/rdma_core/lib:$LD_LIBRARY_PATH
-export NIXL_PLUGIN_DIR=/usr/local/nixl/lib/x86_64-linux-gnu/plugins
-export PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages
+export LD_LIBRARY_PATH=/workspace/rdma_core/lib:$LD_LIBRARY_PATH
 srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --output=__OUTPUT_DIR__/mapping-stdout.txt --error=__OUTPUT_DIR__/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
 srun --export=ALL --mpi=pmix -N3 --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__ --no-container-mount-home --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/metadata/node-%N.toml --error=__OUTPUT_DIR__/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh

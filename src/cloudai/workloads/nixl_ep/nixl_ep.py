@@ -15,13 +15,12 @@
 # limitations under the License.
 
 import json
-from pathlib import Path, PurePosixPath
-from typing import ClassVar, Optional
+from pathlib import Path
+from typing import Optional
 
-import toml
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
+from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .log_parsing import parse_nixl_ep_bandwidth_samples
@@ -76,12 +75,6 @@ class NixlEPCmdArgs(CmdArgs):
         cls._parse_plan(value)
         return value
 
-    @model_validator(mode="after")
-    def reject_input_json(self) -> "NixlEPCmdArgs":
-        if "input_json" in (self.model_extra or {}):
-            raise ValueError("NixlEP does not accept `input_json`; provide `plan` and let CloudAI generate the JSON.")
-        return self
-
     @staticmethod
     def _parse_plan(plan: str) -> list[list[int]]:
         try:
@@ -105,59 +98,31 @@ class NixlEPCmdArgs(CmdArgs):
             raise ValueError("parse_plan() requires cmd_args.plan to be a serialized string.")
         return self._parse_plan(self.plan)
 
+    def launch_wave_totals(self) -> list[tuple[int | None, int]]:
+        """Return plan-derived launch waves as (trigger_phase, new_process_count) pairs."""
+        # Negative ranks encode removals, so only newly introduced non-negative
+        # ranks correspond to fresh launches.
+        positive_phases = [{rank for rank in phase if rank >= 0} for phase in self.parse_plan()]
+        waves: list[tuple[int | None, int]] = [(None, len(positive_phases[0]))]
+        for phase_idx in range(1, len(positive_phases)):
+            added_positive = positive_phases[phase_idx] - positive_phases[phase_idx - 1]
+            if added_positive:
+                waves.append((phase_idx - 1, len(added_positive)))
+
+        return waves
+
 
 class NixlEPTestDefinition(TestDefinition):
     """Test definition for the NIXL Elastic EP benchmark."""
 
-    container_runtime_root: ClassVar[str] = "/workspace/nixl"
-    container_plugin_dir: ClassVar[str] = "/usr/local/nixl/lib/x86_64-linux-gnu/plugins"
-    container_python_path: ClassVar[str] = "/usr/local/nixl/lib/python3/dist-packages"
-    container_library_dir: ClassVar[str] = "/usr/local/nixl/lib"
-    launcher_failure_patterns: ClassVar[tuple[tuple[str, str], ...]] = (
-        ("python3: can't open file", "The benchmark entrypoint could not be opened."),
-        ("Traceback (most recent call last):", "The benchmark launcher raised a Python traceback."),
-        ("Timed out waiting for NIXL EP master services", "The master services never became ready."),
-        ("no plan phases were found for rank", "A worker was launched for a rank that never appears in the plan."),
-        ("recvValueWithTimeout failed", "A worker lost its TCPStore connection before the benchmark completed."),
-        ("timed out after 300000ms", "A worker timed out waiting on the TCPStore."),
-        ("Failed to prepare remote memory view", "NIXL EP failed to initialize its UCX remote memory view."),
-        ("srun: error:", "Slurm reported an srun failure."),
-        ("Exited with exit code", "A Slurm step exited with a non-zero status."),
-    )
     cmd_args: NixlEPCmdArgs
     _docker_image: Optional[DockerImage] = None
-
-    @classmethod
-    def _normalize_config_repos(cls, repos: list[GitRepo]) -> list[GitRepo]:
-        normalized = list(repos)
-        for repo in normalized:
-            if (repo.mount_as or "").rstrip("/") == cls.container_runtime_root.rstrip("/"):
-                raise ValueError(
-                    "NixlEP git_repos must not mount to '/workspace/nixl' because that shadows the container's "
-                    "prebuilt runtime."
-                )
-        return normalized
-
-    @model_validator(mode="after")
-    def validate_git_repos(self) -> "NixlEPTestDefinition":
-        self.git_repos = self._normalize_config_repos(self.git_repos)
-        return self
 
     @property
     def docker_image(self) -> DockerImage:
         if not self._docker_image:
             self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
         return self._docker_image
-
-    @property
-    def container_runtime_root_path(self) -> PurePosixPath:
-        return PurePosixPath(self.container_runtime_root)
-
-    def resolve_elastic_script_path(self) -> str:
-        path = PurePosixPath(self.cmd_args.elastic_script)
-        if path.is_absolute():
-            return str(path)
-        return str(self.container_runtime_root_path / path)
 
     @property
     def installables(self) -> list[Installable]:
@@ -183,8 +148,19 @@ class NixlEPTestDefinition(TestDefinition):
         if not path.is_file():
             return None
 
+        launcher_failure_patterns = (
+            ("python3: can't open file", "The benchmark entrypoint could not be opened."),
+            ("Traceback (most recent call last):", "The benchmark launcher raised a Python traceback."),
+            ("Timed out waiting for NIXL EP master services", "The master services never became ready."),
+            ("no plan phases were found for rank", "A worker was launched for a rank that never appears in the plan."),
+            ("recvValueWithTimeout failed", "A worker lost its TCPStore connection before the benchmark completed."),
+            ("timed out after 300000ms", "A worker timed out waiting on the TCPStore."),
+            ("Failed to prepare remote memory view", "NIXL EP failed to initialize its UCX remote memory view."),
+            ("srun: error:", "Slurm reported an srun failure."),
+            ("Exited with exit code", "A Slurm step exited with a non-zero status."),
+        )
         content = path.read_text(encoding="utf-8", errors="ignore")
-        for pattern, description in self.launcher_failure_patterns:
+        for pattern, description in launcher_failure_patterns:
             if pattern in content:
                 tail = self._tail(path)
                 error_message = f"{description} See {path}."
@@ -193,45 +169,6 @@ class NixlEPTestDefinition(TestDefinition):
                 return JobStatusResult(is_successful=False, error_message=error_message)
 
         return None
-
-    def _check_slurm_job_status(self, status_path: Path) -> JobStatusResult | None:
-        if not status_path.is_file():
-            return None
-
-        try:
-            status = toml.loads(status_path.read_text(encoding="utf-8", errors="ignore"))
-        except toml.TomlDecodeError as exc:
-            return JobStatusResult(
-                is_successful=False,
-                error_message=f"Failed to parse Slurm job status file {status_path}: {exc}",
-            )
-
-        state = status.get("state")
-        if state == "COMPLETED":
-            return None
-
-        job_exit_code = status.get("exit_code", "unknown")
-        for step in reversed(status.get("job_steps", [])):
-            if step.get("state") != "COMPLETED":
-                step_id = step.get("step_id", "unknown")
-                step_name = step.get("name", "unknown")
-                step_exit_code = step.get("exit_code", "unknown")
-                submit_line = step.get("submit_line", "")
-                details = (
-                    f"NIXL EP Slurm job did not complete successfully "
-                    f"(state={state}, exit_code={job_exit_code}). "
-                    f"Last failing step: {step_id} ({step_name}), exit_code={step_exit_code}."
-                )
-                if submit_line:
-                    details += f"\nCommand: {submit_line}"
-                return JobStatusResult(is_successful=False, error_message=details)
-
-        return JobStatusResult(
-            is_successful=False,
-            error_message=(
-                f"NIXL EP Slurm job did not complete successfully (state={state}, exit_code={job_exit_code})."
-            ),
-        )
 
     def _check_benchmark_output(self, expected_node_logs: list[Path]) -> JobStatusResult | None:
         if any(parse_nixl_ep_bandwidth_samples(path) for path in expected_node_logs):
@@ -269,10 +206,6 @@ class NixlEPTestDefinition(TestDefinition):
                     f"Existing node logs: {existing_logs_str}."
                 ),
             )
-
-        status_result = self._check_slurm_job_status(output_path / "slurm-job.toml")
-        if status_result is not None:
-            return status_result
 
         benchmark_output_result = self._check_benchmark_output(expected_node_logs)
         if benchmark_output_result is not None:

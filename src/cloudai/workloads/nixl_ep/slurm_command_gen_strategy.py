@@ -16,6 +16,7 @@
 
 import json
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -23,6 +24,14 @@ from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util import parse_time_limit
 
 from .nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
+
+
+@dataclass(frozen=True)
+class NixlEPLaunchWave:
+    """Concrete worker launches that should begin after a given phase completes."""
+
+    trigger_phase: int | None
+    per_node_processes: tuple[int, ...]
 
 
 class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -39,33 +48,6 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self) -> list[str]:
         return []
-
-    @property
-    def final_env_vars(self) -> dict[str, str | list[str]]:
-        env_vars = super().final_env_vars
-
-        plugin_dir = str(env_vars.get("NIXL_PLUGIN_DIR", "")).strip()
-        if not plugin_dir or plugin_dir.startswith(f"{self.tdef.container_runtime_root}/"):
-            env_vars["NIXL_PLUGIN_DIR"] = self.tdef.container_plugin_dir
-
-        python_path = str(env_vars.get("PYTHONPATH", "")).strip()
-        if not python_path:
-            env_vars["PYTHONPATH"] = self.tdef.container_python_path
-        elif self.tdef.container_python_path not in python_path.split(":"):
-            env_vars["PYTHONPATH"] = f"{self.tdef.container_python_path}:{python_path}"
-
-        library_dir = self.tdef.container_library_dir
-        ld_library_path = str(env_vars.get("LD_LIBRARY_PATH", "")).strip()
-        if not ld_library_path:
-            env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:$LD_LIBRARY_PATH"
-        elif library_dir not in ld_library_path.split(":"):
-            env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:{ld_library_path}"
-
-        return env_vars
-
-    @final_env_vars.setter
-    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
-        super().final_env_vars = value
 
     @property
     def processes_per_node(self) -> list[int]:
@@ -120,43 +102,22 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return 600
 
     @property
-    def plan_launch_wave_totals(self) -> list[tuple[int | None, int]]:
-        # Negative ranks in the plan encode removals, so only newly introduced
-        # non-negative ranks correspond to fresh launches.
-        positive_phases = [{rank for rank in phase if rank >= 0} for phase in self.inline_plan]
-        waves: list[tuple[int | None, int]] = [(None, len(positive_phases[0]))]
-        for phase_idx in range(1, len(positive_phases)):
-            added_positive = positive_phases[phase_idx] - positive_phases[phase_idx - 1]
-            if added_positive:
-                waves.append((phase_idx - 1, len(added_positive)))
-
-        return waves
-
-    @property
-    def single_node_launch_waves(self) -> list[tuple[int | None, int]]:
+    def scalar_launch_waves(self) -> list[NixlEPLaunchWave]:
         raw = self.tdef.cmd_args.num_processes_per_node
         num_nodes, _ = self.get_cached_nodes_spec()
-        if not isinstance(raw, int) or num_nodes != 1:
+        if not isinstance(raw, int):
             return []
 
-        waves = self.plan_launch_wave_totals
-        expected_total_processes = sum(num_processes for _, num_processes in waves)
-        if raw != expected_total_processes:
-            raise ValueError(
-                "For single-node NIXL EP runs, num_processes_per_node must match the plan-derived "
-                f"launch waves total ({expected_total_processes}), got {raw}."
-            )
+        wave_totals = self.tdef.cmd_args.launch_wave_totals()
+        if num_nodes == 1:
+            expected_total_processes = sum(num_processes for _, num_processes in wave_totals)
+            if raw != expected_total_processes:
+                raise ValueError(
+                    "For single-node NIXL EP runs, num_processes_per_node must match the plan-derived "
+                    f"launch waves total ({expected_total_processes}), got {raw}."
+                )
+            return [NixlEPLaunchWave(trigger_phase, (num_processes,)) for trigger_phase, num_processes in wave_totals]
 
-        return waves
-
-    @property
-    def multi_node_scalar_launch_waves(self) -> list[tuple[int | None, list[int]]]:
-        raw = self.tdef.cmd_args.num_processes_per_node
-        num_nodes, _ = self.get_cached_nodes_spec()
-        if not isinstance(raw, int) or num_nodes <= 1:
-            return []
-
-        wave_totals = self.plan_launch_wave_totals
         total_requested_processes = sum(total for _, total in wave_totals)
         total_capacity = raw * num_nodes
         if total_requested_processes > total_capacity:
@@ -170,7 +131,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Match the upstream multi-node examples by packing each launch wave onto
         # earlier nodes first, only spilling onto later nodes when needed.
         remaining_capacity = [raw] * num_nodes
-        packed_waves: list[tuple[int | None, list[int]]] = []
+        packed_waves: list[NixlEPLaunchWave] = []
         for trigger_phase, wave_total in wave_totals:
             remaining_wave_total = wave_total
             per_node_wave_sizes = [0] * num_nodes
@@ -188,7 +149,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     f"{num_nodes} nodes with per-node capacity {raw}. Remaining wave size: {remaining_wave_total}."
                 )
 
-            packed_waves.append((trigger_phase, per_node_wave_sizes))
+            packed_waves.append(NixlEPLaunchWave(trigger_phase, tuple(per_node_wave_sizes)))
 
         return packed_waves
 
@@ -196,7 +157,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: NixlEPCmdArgs = self.tdef.cmd_args
         command = [
             cmd_args.python_executable,
-            self.tdef.resolve_elastic_script_path(),
+            cmd_args.elastic_script,
             "--plan",
             self.resolve_plan_path(),
             "--num-processes",
@@ -302,62 +263,28 @@ wait_for_phase_completion() {{
             for key, value in self.final_env_vars.items():
                 env_file.write(f"export {key}={value}\n")
 
-    def _gen_multi_node_scalar_wave_command(self, waves: list[tuple[int | None, list[int]]]) -> str:
-        primary_log_file = (self.test_run.output_path / "nixl-ep-node-0.log").absolute()
-        initial_wave = waves[0][1]
-        lines = [
-            self.generate_wait_for_master_services_function(),
-            "",
-            self.generate_wait_for_phase_completion_function(),
-            "",
-            "worker_pids=()",
-            "",
-            'echo "Starting initial NIXL EP wave on the master node..."',
-            self._launch_srun_command(0, initial_wave[0]) + " &",
-            "primary_pid=$!",
-            "worker_pids+=($primary_pid)",
-            "",
-            'echo "Waiting for NIXL EP master services..."',
-            "wait_for_master_services || exit 1",
-        ]
-
-        follower_initial_wave = initial_wave[1:]
-        if any(num_processes > 0 for num_processes in follower_initial_wave):
-            lines.extend(
-                [
-                    "",
-                    'echo "Starting initial NIXL EP wave on follower nodes..."',
-                ]
+    def _append_background_launch(
+        self,
+        lines: list[str],
+        node_idx: int,
+        num_processes: int,
+        *,
+        include_tcp_server: bool | None = None,
+        append_output: bool = False,
+    ) -> None:
+        lines.append(
+            self._launch_srun_command(
+                node_idx,
+                num_processes,
+                include_tcp_server=include_tcp_server,
+                append_output=append_output,
             )
-            for node_idx, num_processes in enumerate(follower_initial_wave, start=1):
-                if num_processes <= 0:
-                    continue
-                lines.append(self._launch_srun_command(node_idx, num_processes) + " &")
-                lines.append("worker_pids+=($!)")
+            + " &"
+        )
+        lines.append("worker_pids+=($!)")
 
-        for wave_idx, (trigger_phase, per_node_processes) in enumerate(waves[1:], start=1):
-            lines.extend(
-                [
-                    "",
-                    f'echo "Waiting for phase {trigger_phase} before starting wave {wave_idx}..."',
-                    f'wait_for_phase_completion "{trigger_phase}" "{primary_log_file}" "$primary_pid" || exit 1',
-                    f'echo "Starting NIXL EP wave {wave_idx} across allocated nodes..."',
-                ]
-            )
-            for node_idx, num_processes in enumerate(per_node_processes):
-                if num_processes <= 0:
-                    continue
-                lines.append(
-                    self._launch_srun_command(
-                        node_idx,
-                        num_processes,
-                        include_tcp_server=True,
-                        append_output=True,
-                    )
-                    + " &"
-                )
-                lines.append("worker_pids+=($!)")
-
+    @staticmethod
+    def _append_wait_for_workers(lines: list[str]) -> None:
         lines.extend(
             [
                 "",
@@ -369,69 +296,76 @@ wait_for_phase_completion() {{
                 "exit $rc",
             ]
         )
-        return "\n".join(lines)
 
-    def _gen_srun_command(self) -> str:
-        self._write_env_vars_file()
-        processes_per_node = self.processes_per_node
+    def _gen_scalar_wave_command(self, waves: list[NixlEPLaunchWave]) -> str:
+        num_nodes, _ = self.get_cached_nodes_spec()
+        primary_log_file = (self.test_run.output_path / "nixl-ep-node-0.log").absolute()
+        initial_wave = waves[0]
+        lines: list[str] = []
+        if num_nodes > 1:
+            lines.extend([self.generate_wait_for_master_services_function(), ""])
+        if len(waves) > 1:
+            lines.extend([self.generate_wait_for_phase_completion_function(), ""])
 
-        if len(processes_per_node) == 1:
-            waves = self.single_node_launch_waves
-            if len(waves) <= 1:
-                single_wave_processes = waves[0][1]
-                return "\n".join(
-                    [
-                        'echo "Starting NIXL EP on the master node..."',
-                        self._launch_srun_command(0, single_wave_processes),
-                    ]
-                )
-
-            primary_log_file = (self.test_run.output_path / "nixl-ep-node-0.log").absolute()
-            lines = [
-                self.generate_wait_for_phase_completion_function(),
-                "",
+        lines.extend(
+            [
                 "worker_pids=()",
                 "",
                 'echo "Starting initial NIXL EP wave on the master node..."',
-                self._launch_srun_command(0, waves[0][1]) + " &",
+                self._launch_srun_command(0, initial_wave.per_node_processes[0]) + " &",
                 "primary_pid=$!",
                 "worker_pids+=($primary_pid)",
             ]
+        )
 
-            for wave_idx, (trigger_phase, num_processes) in enumerate(waves[1:], start=1):
-                lines.extend(
-                    [
-                        "",
-                        f'echo "Waiting for phase {trigger_phase} before starting wave {wave_idx}..."',
-                        f'wait_for_phase_completion "{trigger_phase}" "{primary_log_file}" "$primary_pid" || exit 1',
-                        f'echo "Starting NIXL EP wave {wave_idx} on the master node..."',
-                        self._launch_srun_command(
-                            0,
-                            num_processes,
-                            include_tcp_server=True,
-                            append_output=True,
-                        )
-                        + " &",
-                        "worker_pids+=($!)",
-                    ]
-                )
-
+        if num_nodes > 1:
             lines.extend(
                 [
                     "",
-                    "rc=0",
-                    'for pid in "${worker_pids[@]}"; do',
-                    '    wait "$pid" || rc=$?',
-                    "done",
-                    "",
-                    "exit $rc",
+                    'echo "Waiting for NIXL EP master services..."',
+                    "wait_for_master_services || exit 1",
                 ]
             )
-            return "\n".join(lines)
+            follower_initial_wave = initial_wave.per_node_processes[1:]
+            if any(num_processes > 0 for num_processes in follower_initial_wave):
+                lines.extend(["", 'echo "Starting initial NIXL EP wave on follower nodes..."'])
+                for node_idx, num_processes in enumerate(follower_initial_wave, start=1):
+                    if num_processes <= 0:
+                        continue
+                    self._append_background_launch(lines, node_idx, num_processes)
 
-        multi_node_scalar_waves = self.multi_node_scalar_launch_waves
-        if multi_node_scalar_waves:
-            return self._gen_multi_node_scalar_wave_command(multi_node_scalar_waves)
+        for wave_idx, wave in enumerate(waves[1:], start=1):
+            scope = "across allocated nodes" if num_nodes > 1 else "on the master node"
+            lines.extend(
+                [
+                    "",
+                    f'echo "Waiting for phase {wave.trigger_phase} before starting wave {wave_idx}..."',
+                    f'wait_for_phase_completion "{wave.trigger_phase}" "{primary_log_file}" "$primary_pid" || exit 1',
+                    f'echo "Starting NIXL EP wave {wave_idx} {scope}..."',
+                ]
+            )
+            for node_idx, num_processes in enumerate(wave.per_node_processes):
+                if num_processes <= 0:
+                    continue
+                self._append_background_launch(
+                    lines,
+                    node_idx,
+                    num_processes,
+                    include_tcp_server=True,
+                    append_output=True,
+                )
+
+        self._append_wait_for_workers(lines)
+        return "\n".join(lines)
+
+    def _gen_fixed_process_layout_command(self, processes_per_node: list[int]) -> str:
+        if len(processes_per_node) == 1:
+            return "\n".join(
+                [
+                    'echo "Starting NIXL EP on the master node..."',
+                    self._launch_srun_command(0, processes_per_node[0]),
+                ]
+            )
 
         lines = [
             self.generate_wait_for_master_services_function(),
@@ -452,15 +386,23 @@ wait_for_phase_completion() {{
             lines.append(self._launch_srun_command(idx, num_processes) + " &")
             lines.append("worker_pids+=($!)")
 
-        lines.extend(
-            [
-                "",
-                "rc=0",
-                'for pid in "${worker_pids[@]}"; do',
-                '    wait "$pid" || rc=$?',
-                "done",
-                "",
-                "exit $rc",
-            ]
-        )
+        self._append_wait_for_workers(lines)
         return "\n".join(lines)
+
+    def _gen_srun_command(self) -> str:
+        self._write_env_vars_file()
+        processes_per_node = self.processes_per_node
+
+        if isinstance(self.tdef.cmd_args.num_processes_per_node, int):
+            waves = self.scalar_launch_waves
+            if len(processes_per_node) == 1 and len(waves) <= 1:
+                single_wave_processes = waves[0].per_node_processes[0]
+                return "\n".join(
+                    [
+                        'echo "Starting NIXL EP on the master node..."',
+                        self._launch_srun_command(0, single_wave_processes),
+                    ]
+                )
+            return self._gen_scalar_wave_command(waves)
+
+        return self._gen_fixed_process_layout_command(processes_per_node)
