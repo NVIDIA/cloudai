@@ -67,6 +67,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
     )
     system.scheduler = "slurm"
     system.monitor_interval = 0
+    system.supports_gpu_directives_cache = True
     return system
 
 
