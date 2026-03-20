@@ -16,7 +16,6 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
@@ -164,7 +163,10 @@ def test_get_available_nodes_exceeding_limit_no_callstack(slurm_system: SlurmSys
         slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
 
     mock_update.assert_called_once()
-    mock_group_nodes_by_state.assert_called_once_with(partition_name, group_name)
+    mock_group_nodes_by_state.assert_called_once()
+    args, kwargs = mock_group_nodes_by_state.call_args
+    assert args == (partition_name, group_name)
+    assert kwargs in ({}, {"exclude_nodes": None})
 
     log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
     assert log_message in caplog.text
