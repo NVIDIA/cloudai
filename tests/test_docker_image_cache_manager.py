@@ -75,7 +75,13 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
     return_value=False,
 )
 def test_cache_docker_image(
-    mock_supports_gpu, mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
+    mock_supports_gpu,  # noqa: Vulture
+    mock_check_prerequisites,
+    mock_run,
+    mock_access,
+    mock_exists,
+    mock_is_file,
+    slurm_system: SlurmSystem,
 ):
     manager = DockerImageCacheManager(slurm_system)
 
