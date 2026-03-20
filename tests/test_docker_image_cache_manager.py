@@ -16,7 +16,7 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
@@ -69,8 +69,13 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
 @patch("os.access")
 @patch("subprocess.run")
 @patch("cloudai.systems.slurm.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
+@patch(
+    "cloudai.systems.slurm.slurm_system.SlurmSystem.supports_gpu_directives",
+    new_callable=PropertyMock,
+    return_value=False,
+)
 def test_cache_docker_image(
-    mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
+    mock_supports_gpu, mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
 ):
     manager = DockerImageCacheManager(slurm_system)
 
