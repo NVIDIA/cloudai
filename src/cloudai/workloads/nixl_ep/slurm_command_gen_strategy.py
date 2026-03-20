@@ -61,14 +61,6 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif library_dir not in ld_library_path.split(":"):
             env_vars["LD_LIBRARY_PATH"] = f"{library_dir}:{ld_library_path}"
 
-        if self.tdef.cmd_args.debug_logging:
-            env_vars.setdefault("PYTHONUNBUFFERED", "1")
-            env_vars.setdefault("NIXL_DEBUG_LOGGING", "yes")
-            env_vars.setdefault("NIXL_LOG_LEVEL", self.tdef.cmd_args.nixl_log_level or "TRACE")
-            env_vars.setdefault("UCX_LOG_LEVEL", self.tdef.cmd_args.ucx_log_level or "DEBUG")
-            env_vars.setdefault("TORCH_CPP_LOG_LEVEL", "INFO")
-            env_vars.setdefault("TORCH_DISTRIBUTED_DEBUG", "DETAIL")
-
         return env_vars
 
     @final_env_vars.setter
@@ -209,23 +201,10 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.resolve_plan_path(),
             "--num-processes",
             str(num_processes),
-            "--num-tokens",
-            str(cmd_args.num_tokens),
-            "--num-experts-per-rank",
-            str(cmd_args.num_experts_per_rank),
-            "--hidden-dim",
-            str(cmd_args.hidden_dim),
-            "--num-topk",
-            str(cmd_args.num_topk),
         ]
 
         if include_tcp_server:
             command.extend(["--tcp-server", "$master_ip"])
-        if cmd_args.disable_ll_nvlink:
-            command.append("--disable-ll-nvlink")
-        if cmd_args.kineto:
-            command.append("--kineto")
-
         for arg, value in sorted((cmd_args.model_extra or {}).items()):
             flag = "--" + arg.replace("_", "-")
             if isinstance(value, bool):
@@ -237,17 +216,16 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return command
 
     def generate_wait_for_master_services_function(self) -> str:
-        cmd_args = self.tdef.cmd_args
         # The upstream rank server assigns a rank on any successful TCP
         # connection, so the readiness probe must not touch that port.
         return f"""\
 wait_for_master_services() {{
-    local timeout={cmd_args.service_startup_timeout_seconds}
+    local timeout={self.tdef.cmd_args.service_startup_timeout_seconds}
     local interval=1
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        if timeout 1 bash -c ": > /dev/tcp/$master_ip/{cmd_args.store_port}" >/dev/null 2>&1; then
+        if timeout 1 bash -c ": > /dev/tcp/$master_ip/{self.tdef.cmd_args.store_port}" >/dev/null 2>&1; then
             echo "NIXL EP master services are ready on $master_ip"
             return 0
         fi
@@ -284,48 +262,8 @@ wait_for_master_services() {{
         env_file = (self.test_run.output_path / "env_vars.sh").absolute()
         log_file = (self.test_run.output_path / f"nixl-ep-node-{node_idx}.log").absolute()
         open_mode_arg = " --open-mode=append" if append_output else ""
-        script = self._launch_script(node_idx, env_file, command).replace('"', '\\"')
+        script = f"source {shlex.quote(str(env_file))}; {command}".replace('"', '\\"')
         return f'{self._launch_srun_prefix(node_idx)}{open_mode_arg} --output={log_file} bash -c "{script}"'
-
-    def _launch_script(self, node_idx: int, env_file: Path, command: str) -> str:
-        source_env = f"source {shlex.quote(str(env_file))}"
-        if not self.tdef.cmd_args.debug_logging:
-            return f"{source_env}; {command}"
-
-        return "; ".join([source_env, self._debug_diagnostics_command(node_idx), "set -x", command])
-
-    def _debug_diagnostics_command(self, node_idx: int) -> str:
-        marker_file = shlex.quote(str((self.test_run.output_path / f"nixl-ep-node-{node_idx}.debug.once").absolute()))
-        plan_file = shlex.quote(str(self.generated_plan_path.absolute()))
-        env_dump_python = (
-            "import os; "
-            'prefixes=("CUDA","UCX","NIXL","NCCL","TORCH"); '
-            'keep={"LD_LIBRARY_PATH","PYTHONPATH","NIXL_PLUGIN_DIR","PYTHONUNBUFFERED"}; '
-            '[print(f"{k}={os.environ[k]}") for k in sorted(os.environ) if k.startswith(prefixes) or k in keep]'
-        )
-        module_dump_python = (
-            'import nixl_ep, torch; print("nixl_ep=", nixl_ep.__file__); print("torch=", torch.__version__)'
-        )
-        commands = [
-            "  echo '=== NIXL EP debug diagnostics start ==='",
-            "  date",
-            "  hostname",
-            "  pwd",
-            f"  if command -v python3 >/dev/null 2>&1; then python3 -c {shlex.quote(env_dump_python)}; fi",
-            "  if command -v python3 >/dev/null 2>&1; then python3 --version; fi",
-            f"  if command -v python3 >/dev/null 2>&1; then python3 -c {shlex.quote(module_dump_python)}; fi",
-            "  if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi -L; fi",
-            "  if command -v rdma >/dev/null 2>&1; then rdma link show; fi",
-            "  if [ -e /dev/infiniband ]; then ls -al /dev/infiniband; else echo '/dev/infiniband not present'; fi",
-            "  if command -v ibv_devinfo >/dev/null 2>&1; then ibv_devinfo -l; fi",
-            "  if command -v ucx_info >/dev/null 2>&1; then ucx_info -d; fi",
-            f"  echo '--- Generated NIXL EP plan ({self.GENERATED_PLAN_FILE_NAME}) ---'",
-            f"  if [ -f {plan_file} ]; then cat {plan_file}; fi",
-            f"  touch {marker_file}",
-            "  echo '=== NIXL EP debug diagnostics end ==='",
-        ]
-        body = "; ".join(command.strip() for command in commands)
-        return f"if [ ! -f {marker_file} ]; then {body}; fi"
 
     def generate_wait_for_phase_completion_function(self) -> str:
         timeout = self.phase_transition_timeout_seconds

@@ -39,8 +39,7 @@ class NixlEPCmdArgs(CmdArgs):
         ),
     )
     python_executable: str = Field(default="python3", description="Python executable to use inside the container.")
-    plan: str | list[str] | None = Field(
-        default=None,
+    plan: str | list[str] = Field(
         description=(
             "Serialized phase plan to write into a per-run JSON file. "
             'Use a single string such as "[[0, 1], [0, 1, 2, 3]]".'
@@ -49,38 +48,12 @@ class NixlEPCmdArgs(CmdArgs):
     num_processes_per_node: int | list[int] = Field(
         description="Number of local worker processes to spawn on each allocated node.",
     )
-    num_tokens: int = Field(default=128, ge=1, description="Tokens per dispatch.")
-    num_experts_per_rank: int = Field(default=2, ge=1, description="Experts per rank.")
-    hidden_dim: int = Field(default=7168, ge=1, description="Hidden dimension.")
-    num_topk: int = Field(default=8, ge=1, description="Top-K routing value.")
-    disable_ll_nvlink: bool = Field(
-        default=False,
-        description=(
-            "Disable the benchmark's low-latency NVLink path. In the upstream NIXL EP example this also forces "
-            "UCX to exclude CUDA IPC (`UCX_TLS=^cuda_ipc`), so it is best reserved for explicit RDMA-only "
-            "comparisons rather than single-node bring-up."
-        ),
-    )
-    kineto: bool = Field(default=False, description="Enable Kineto profiling.")
-    debug_logging: bool = Field(
-        default=False,
-        description="Enable verbose NIXL EP/UCX logging and launcher-side diagnostics in the node logs.",
-    )
-    ucx_log_level: str | None = Field(
-        default=None,
-        description="Optional UCX log level override. Defaults to DEBUG when debug_logging is enabled.",
-    )
-    nixl_log_level: str | None = Field(
-        default=None,
-        description="Optional NIXL log level override. Defaults to TRACE when debug_logging is enabled.",
-    )
     service_startup_timeout_seconds: int = Field(
         default=60,
         ge=1,
-        description="Seconds to wait for the master node's TCPStore and rank server to accept connections.",
+        description="Seconds to wait for the master node's TCPStore to accept connections.",
     )
-    rank_server_port: int = Field(default=10000, ge=1, le=65535, description="Rank server port.")
-    store_port: int = Field(default=9999, ge=1, le=65535, description="TCPStore port.")
+    store_port: int = Field(default=9999, ge=1, le=65535, description="TCPStore port used by the benchmark.")
 
     @field_validator("num_processes_per_node", mode="after")
     @classmethod
@@ -90,35 +63,29 @@ class NixlEPCmdArgs(CmdArgs):
             raise ValueError("num_processes_per_node must contain only positive integers")
         return value
 
+    @field_validator("plan", mode="after")
+    @classmethod
+    def validate_plan(cls, value: str | list[str]) -> str:
+        if isinstance(value, list):
+            if len(value) != 1:
+                raise ValueError("plan must be a single serialized plan string.")
+            value = value[0]
+        value = value.strip()
+        if not value:
+            raise ValueError("plan must not be empty.")
+        cls._parse_plan(value)
+        return value
+
     @model_validator(mode="after")
-    def validate_plan_source(self) -> "NixlEPCmdArgs":
+    def reject_input_json(self) -> "NixlEPCmdArgs":
         if "input_json" in (self.model_extra or {}):
             raise ValueError("NixlEP does not accept `input_json`; provide `plan` and let CloudAI generate the JSON.")
-
-        if self.plan is None:
-            raise ValueError("NixlEP requires `plan` so CloudAI can generate a per-run JSON file.")
-
-        if isinstance(self.plan, list):
-            if len(self.plan) != 1:
-                raise ValueError("plan must be a single serialized plan string.")
-            self.plan = self.plan[0]
-
-        if isinstance(self.plan, str):
-            self.plan = self.plan.strip()
-            if not self.plan:
-                raise ValueError("plan must not be empty.")
-            self.parse_plan()
-
         return self
 
-    def parse_plan(self) -> list[list[int]]:
-        if self.plan is None:
-            raise ValueError("parse_plan() requires cmd_args.plan to be set.")
-        if not isinstance(self.plan, str):
-            raise ValueError("parse_plan() requires cmd_args.plan to be a serialized string.")
-
+    @staticmethod
+    def _parse_plan(plan: str) -> list[list[int]]:
         try:
-            parsed = json.loads(self.plan)
+            parsed = json.loads(plan)
         except json.JSONDecodeError as exc:
             raise ValueError(f"plan must be valid JSON: {exc}") from exc
 
@@ -132,6 +99,11 @@ class NixlEPCmdArgs(CmdArgs):
                 raise ValueError("Each plan rank must be an integer.")
 
         return parsed
+
+    def parse_plan(self) -> list[list[int]]:
+        if not isinstance(self.plan, str):
+            raise ValueError("parse_plan() requires cmd_args.plan to be a serialized string.")
+        return self._parse_plan(self.plan)
 
 
 class NixlEPTestDefinition(TestDefinition):
