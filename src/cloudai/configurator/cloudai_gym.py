@@ -16,13 +16,25 @@
 
 import copy
 import csv
+import dataclasses
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_gym import BaseGym
+
+
+@dataclasses.dataclass(frozen=True)
+class TrajectoryEntry:
+    """Represents a trajectory entry."""
+
+    step: int
+    action: dict[str, Any]
+    reward: float
+    observation: list
 
 
 class CloudAIGymEnv(BaseGym):
@@ -45,6 +57,7 @@ class CloudAIGymEnv(BaseGym):
         self.runner = runner
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
+        self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         super().__init__()
 
     def define_action_space(self) -> Dict[str, list[Any]]:
@@ -104,6 +117,14 @@ class CloudAIGymEnv(BaseGym):
         """
         self.test_run = self.test_run.apply_params_set(action)
 
+        cached_result = self.get_cached_trajectory_result(action)
+        if cached_result is not None:
+            logging.info(
+                "Retrieved cached result from trajectory with reward %s. Skipping step.",
+                cached_result.reward,
+            )
+            return cached_result.observation, cached_result.reward, False, {}
+
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
@@ -131,7 +152,14 @@ class CloudAIGymEnv(BaseGym):
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)
 
-        self.write_trajectory(self.test_run.step, action, reward, observation)
+        self.write_trajectory(
+            TrajectoryEntry(
+                step=self.test_run.step,
+                action=action,
+                reward=reward,
+                observation=observation,
+            )
+        )
 
         return observation, reward, False, {}
 
@@ -188,25 +216,57 @@ class CloudAIGymEnv(BaseGym):
             observation.append(v)
         return observation
 
-    def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
-        """
-        Write the trajectory to a CSV file.
+    def write_trajectory(self, entry: TrajectoryEntry):
+        """Append the trajectory to the CSV file and to the local attribute."""
+        self.current_trajectory.append(entry)
 
-        Args:
-            step (int): The current step number.
-            action (Any): The action taken by the agent.
-            reward (float): The reward received for the action.
-            observation (list): The observation after taking the action.
-        """
-        trajectory_file_path = (
-            self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
-        )
+        file_exists = self.trajectory_file_path.exists()
+        logging.debug(f"Writing trajectory into {self.trajectory_file_path} (exists: {file_exists})")
+        self.trajectory_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        file_exists = trajectory_file_path.exists()
-        logging.debug(f"Writing trajectory into {trajectory_file_path} (exists: {file_exists})")
-
-        with open(trajectory_file_path, mode="a", newline="") as file:
+        with open(self.trajectory_file_path, mode="a", newline="") as file:
             writer = csv.writer(file)
             if not file_exists:
                 writer.writerow(["step", "action", "reward", "observation"])
-            writer.writerow([step, action, reward, observation])
+            writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
+
+    @property
+    def trajectory_file_path(self) -> Path:
+        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
+
+    @property
+    def current_trajectory(self) -> list[TrajectoryEntry]:
+        return self.trajectory.setdefault(self.test_run.current_iteration, [])
+
+    def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
+        for entry in self.current_trajectory:
+            if self._values_match_exact(entry.action, action):
+                return entry
+
+        return None
+
+    @classmethod
+    def _values_match_exact(cls, left: Any, right: Any) -> bool:
+        if type(left) is not type(right):
+            return False
+
+        elif isinstance(left, dict):
+            left_keys = set(left.keys())
+            right_keys = set(right.keys())
+            if left_keys != right_keys:
+                return False
+
+            return all(cls._values_match_exact(left[key], right[key]) for key in left_keys)
+
+        elif isinstance(left, (list, tuple)):
+            if len(left) != len(right):
+                return False
+
+            for left_item, right_item in zip(left, right, strict=True):
+                if not cls._values_match_exact(left_item, right_item):
+                    return False
+
+            return True
+
+        else:
+            return left == right
