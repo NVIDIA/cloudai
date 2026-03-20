@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024, 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,32 +27,14 @@ class CommandShell:
     """
 
     def __init__(self, executable: Path = Path("/bin/bash")):
-        """
-        Initialize the CommandShell with a shell executable.
-
-        Args:
-            executable (Path): The shell executable path. Defaults to Path("/bin/bash").
-
-        Raises:
-            FileNotFoundError: If the specified executable does not exist.
-        """
-        if not executable.exists():
-            raise FileNotFoundError(f"Executable '{executable}' not found.")
+        """Initialize the CommandShell with a shell executable."""
         self.executable = executable
 
     def execute(self, command: str) -> subprocess.Popen:
-        """
-        Execute a shell command and return its process.
+        """Execute a shell command and return its process."""
+        if not self.executable.exists():
+            raise FileNotFoundError(f"Executable '{self.executable}' not found.")
 
-        Args:
-            command (str): The command to be executed.
-
-        Returns:
-            subprocess.Popen: The process object for the executed command.
-
-        Raises:
-            subprocess.CalledProcessError: If command execution fails.
-        """
         process = subprocess.Popen(
             command,
             shell=True,
