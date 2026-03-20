@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import PropertyMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -69,19 +69,8 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
 @patch("os.access")
 @patch("subprocess.run")
 @patch("cloudai.systems.slurm.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-@patch(
-    "cloudai.systems.slurm.slurm_system.SlurmSystem.supports_gpu_directives",
-    new_callable=PropertyMock,
-    return_value=False,
-)
 def test_cache_docker_image(
-    mock_supports_gpu,  # noqa: Vulture
-    mock_check_prerequisites,
-    mock_run,
-    mock_access,
-    mock_exists,
-    mock_is_file,
-    slurm_system: SlurmSystem,
+    mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
 ):
     manager = DockerImageCacheManager(slurm_system)
 
