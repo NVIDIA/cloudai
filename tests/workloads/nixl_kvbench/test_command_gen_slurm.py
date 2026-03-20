@@ -128,7 +128,7 @@ def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system
     assert f"--container-image={tdef.etcd_image.installed_path}" in cmd
 
 
-def test_kvbench_cleanup_command_uses_host_paths(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+def test_kvbench_cleanup_job_artifacts(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
@@ -138,20 +138,23 @@ def test_kvbench_cleanup_command_uses_host_paths(kvbench_tr: TestRun, slurm_syst
         }
     )
     strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-
-    cmd = " ".join(strategy.gen_cleanup_command())
     filepath_dir = kvbench_tr.output_path / "filepath_mount"
     device_list_dir = kvbench_tr.output_path / "device_list_mounts"
-    assert cmd == f"rm -rf {filepath_dir} {device_list_dir}"
+    other_file = kvbench_tr.output_path / "keep.txt"
+    filepath_dir.mkdir(parents=True, exist_ok=True)
+    device_list_dir.mkdir(parents=True, exist_ok=True)
+    (filepath_dir / "a.txt").write_text("x")
+    (device_list_dir / "b.txt").write_text("x")
+    other_file.write_text("keep")
+
+    strategy.cleanup_job_artifacts()
+
+    assert not filepath_dir.exists()
+    assert not device_list_dir.exists()
+    assert other_file.exists()
 
 
-def test_kvbench_gen_cleanup_command_empty_without_storage_args(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-
-    assert strategy.gen_cleanup_command() == []
-
-
-def test_kvbench_gen_srun_command_includes_host_cleanup(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+def test_kvbench_gen_srun_command_excludes_cleanup(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
@@ -161,9 +164,6 @@ def test_kvbench_gen_srun_command_includes_host_cleanup(kvbench_tr: TestRun, slu
         }
     )
     strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-
-    cleanup_cmd = " ".join(strategy.gen_cleanup_command())
     cmd = strategy._gen_srun_command()
 
-    assert cleanup_cmd in cmd
-    assert cmd.rfind("kill -TERM $etcd_pid") < cmd.rfind(cleanup_cmd)
+    assert "rm -rf " not in cmd

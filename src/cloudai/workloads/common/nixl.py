@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-import shlex
+import shutil
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar, cast
@@ -232,23 +232,21 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         used_filenames.add(candidate)
         return candidate
 
-    def gen_cleanup_command(self) -> list[str]:
-        cleanup_targets = self._cleanup_targets()
-        if not cleanup_targets:
-            return []
+    def cleanup_job_artifacts(self) -> None:
+        for cleanup_target in self._cleanup_targets():
+            if cleanup_target.exists():
+                shutil.rmtree(cleanup_target)
 
-        return ["rm", "-rf", *(shlex.quote(path) for path in cleanup_targets)]
-
-    def _cleanup_targets(self) -> list[str]:
-        cleanup_targets: list[str] = []
+    def _cleanup_targets(self) -> list[Path]:
+        cleanup_targets: list[Path] = []
 
         filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
         if filepath_raw:
-            cleanup_targets.append(str((self.test_run.output_path / "filepath_mount").resolve()))
+            cleanup_targets.append((self.test_run.output_path / "filepath_mount").resolve())
 
         device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
         if device_list_raw and get_files_from_device_list(device_list_raw):
-            cleanup_targets.append(str((self.test_run.output_path / "device_list_mounts").resolve()))
+            cleanup_targets.append((self.test_run.output_path / "device_list_mounts").resolve())
 
         return cleanup_targets
 

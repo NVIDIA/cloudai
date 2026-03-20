@@ -49,6 +49,10 @@ class CommandGenStrategy(ABC):
         """
         pass
 
+    def cleanup_job_artifacts(self) -> None:
+        """Best-effort cleanup hook run after the job has fully completed."""
+        return
+
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         if not self._final_env_vars:

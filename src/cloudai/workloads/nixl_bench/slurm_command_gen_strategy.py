@@ -36,7 +36,6 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         nixl_commands = self.gen_nixlbench_srun_commands(
             self.gen_nixlbench_command(), str(self.tdef.cmd_args_dict.get("backend", "unset"))
         )
-        cleanup_command = self.gen_cleanup_command()
         self._current_image_url = None
 
         commands: list[str] = [
@@ -47,8 +46,6 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(nixl_commands[-1]),
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
         ]
-        if cleanup_command:
-            commands.append(" ".join(cleanup_command))
         return "\n".join(commands)
 
     def gen_nixlbench_command(self) -> list[str]:
