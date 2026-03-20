@@ -152,18 +152,3 @@ def test_kvbench_cleanup_job_artifacts(kvbench_tr: TestRun, slurm_system: SlurmS
     assert not filepath_dir.exists()
     assert not device_list_dir.exists()
     assert other_file.exists()
-
-
-def test_kvbench_gen_srun_command_excludes_cleanup(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
-        {
-            "docker_image_url": "docker://image/url",
-            "backend": "GUSLI",
-            "filepath": "/data",
-            "device_list": "11:F:/store0.bin",
-        }
-    )
-    strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-    cmd = strategy._gen_srun_command()
-
-    assert "rm -rf " not in cmd

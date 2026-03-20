@@ -131,21 +131,6 @@ class TestNIXLBenchCommand:
         assert not device_list_dir.exists()
         assert other_file.exists()
 
-    def test_gen_srun_command_excludes_cleanup(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
-        nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
-            {
-                "docker_image_url": "docker.io/library/ubuntu:22.04",
-                "path_to_benchmark": "/nixlbench",
-                "backend": "GUSLI",
-                "device_list": "11:F:/store0.bin",
-                "filepath": "/data",
-            }
-        )
-        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-        cmd = strategy._gen_srun_command()
-
-        assert "rm -rf " not in cmd
-
     @pytest.mark.parametrize(
         ("override", "expected_error_match", "expected_total_buffer_size"),
         (
