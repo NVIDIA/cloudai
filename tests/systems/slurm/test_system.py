@@ -145,14 +145,25 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     return grouped_nodes
 
 
-def test_get_available_nodes_exceeding_limit_no_callstack(
-    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], caplog
-):
+def test_get_available_nodes_exceeding_limit_no_callstack(slurm_system: SlurmSystem, caplog):
     group_name = "group1"
     partition_name = "main"
     num_nodes = 5
+    empty_grouped_nodes = {
+        SlurmNodeState.IDLE: [],
+        SlurmNodeState.COMPLETING: [],
+        SlurmNodeState.ALLOCATED: [],
+    }
 
-    slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+    mod_path = "cloudai.systems.slurm.slurm_system.SlurmSystem"
+    with (
+        patch(f"{mod_path}.update", return_value=None) as mock_update,
+        patch(f"{mod_path}.group_nodes_by_state", return_value=empty_grouped_nodes) as mock_group_nodes_by_state,
+    ):
+        slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+
+    mock_update.assert_called_once()
+    mock_group_nodes_by_state.assert_called_once_with(partition_name, group_name)
 
     log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
     assert log_message in caplog.text
@@ -513,8 +524,25 @@ GresTypes               = cpu,gpu,fpga""",
 def test_supports_gpu_directives(
     mock_fetch_command_output, scontrol_output: str, expected_support: bool, slurm_system: SlurmSystem
 ):
+    slurm_system.supports_gpu_directives_cache = None
     mock_fetch_command_output.return_value = (scontrol_output, "")
     assert slurm_system.supports_gpu_directives == expected_support
+
+
+@patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
+def test_supports_gpu_directives_defaults_to_true_on_probe_error(
+    mock_fetch_command_output, slurm_system: SlurmSystem, caplog: pytest.LogCaptureFixture
+):
+    slurm_system.supports_gpu_directives_cache = None
+    stderr = "scontrol failed"
+    mock_fetch_command_output.return_value = ("", stderr)
+
+    with caplog.at_level("WARNING"):
+        assert slurm_system.supports_gpu_directives is True
+
+    assert slurm_system.supports_gpu_directives_cache is True
+    assert f"Error checking GPU support: {stderr}" in caplog.text
+    mock_fetch_command_output.assert_called_once_with("scontrol show config")
 
 
 @pytest.mark.parametrize(
