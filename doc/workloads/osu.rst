@@ -4,7 +4,7 @@ OSU
 This workload (``test_template_name`` is ``OSUBench``) allows you to execute OSU Micro Benchmarks
 within the CloudAI framework.
 
-Usage example
+Usage Example
 -------------
 
 Test example:
