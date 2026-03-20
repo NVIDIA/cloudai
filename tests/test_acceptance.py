@@ -273,8 +273,10 @@ def build_special_test_run(
         "osu-bench",
         "sglang",
         "sglang-disagg",
+        "sglang-disagg-2nodes",
         "vllm",
         "vllm-disagg",
+        "vllm-disagg-2nodes",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -590,12 +592,44 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),
         ),
+        "sglang-disagg-2nodes": lambda: create_test_run(
+            partial_tr,
+            "sglang-disagg-2nodes",
+            SglangTestDefinition(
+                name="sglang-disagg-2nodes",
+                description="SGLang disaggregated benchmark on 2 nodes",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(
+                    docker_image_url="docker.io/lmsysorg/sglang:dev",
+                    model="Qwen/Qwen3-8B",
+                    port=8000,
+                    prefill=SglangArgs(),
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
+            ),
+        ),
         "vllm-disagg": lambda: create_test_run(
             partial_tr,
             "vllm-disagg",
             VllmTestDefinition(
                 name="vllm-disagg",
                 description="vLLM disaggregated benchmark",
+                test_template_name="Vllm",
+                cmd_args=VllmCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/vllm:latest",
+                    model="Qwen/Qwen3-0.6B",
+                    port=8000,
+                    prefill=VllmArgs(),
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
+            ),
+        ),
+        "vllm-disagg-2nodes": lambda: create_test_run(
+            partial_tr,
+            "vllm-disagg-2nodes",
+            VllmTestDefinition(
+                name="vllm-disagg-2nodes",
+                description="vLLM disaggregated benchmark on 2 nodes",
                 test_template_name="Vllm",
                 cmd_args=VllmCmdArgs(
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
@@ -627,6 +661,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
         if request.param == "deepep-benchmark":
+            tr.num_nodes = 2
+        if request.param in {"sglang-disagg-2nodes", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2
         return tr, f"{request.param}.sbatch", None
 

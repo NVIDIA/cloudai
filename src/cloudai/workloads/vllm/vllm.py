@@ -47,7 +47,6 @@ class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
 
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
 
-    port: int = 8000
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
 
     model: str = "Qwen/Qwen3-0.6B"

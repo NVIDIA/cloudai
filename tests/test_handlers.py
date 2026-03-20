@@ -16,12 +16,24 @@
 
 import argparse
 from typing import Any, ClassVar, Iterator
+from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 from pydantic import Field
 
 from cloudai.cli.handlers import handle_dse_job
-from cloudai.core import BaseAgent, BaseAgentConfig, Registry, Runner, TestDependency, TestRun, TestScenario
+from cloudai.core import (
+    BaseAgent,
+    BaseAgentConfig,
+    Registry,
+    Runner,
+    TestDependency,
+    TestRun,
+    TestScenario,
+)
+from cloudai.models.scenario import ReportConfig
+from cloudai.reporter import StatusReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -139,3 +151,59 @@ def test_dse_run_uses_agent_config(
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
     assert recorded.random_seed == expected["random_seed"]
+
+
+def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixture):
+    base_tr.test.cmd_args.candidate = [1, 1, 2]
+    base_tr.test.agent = "grid_search"
+    base_tr.test.agent_steps = 3
+
+    inner_runner = MagicMock()
+    inner_runner.system = MagicMock()
+    inner_runner.scenario_root = tmp_path / "scenario"
+    inner_runner.test_scenario = TestScenario(name="test_scenario", test_runs=[base_tr])
+    inner_runner.jobs = {}
+    inner_runner.testrun_to_job_map = {}
+
+    def _job_output_path(tr: TestRun, create: bool = True):
+        output_path = inner_runner.scenario_root / tr.name / f"{tr.current_iteration}" / f"{tr.step}"
+        if create:
+            output_path.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    inner_runner.get_job_output_path.side_effect = _job_output_path
+
+    runner = MagicMock()
+    runner.runner = inner_runner
+
+    trajectory_dir = inner_runner.scenario_root / base_tr.name / f"{base_tr.current_iteration}"
+
+    # run test
+    with caplog.at_level("INFO"):
+        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+
+    reporter = StatusReporter(
+        inner_runner.system,
+        TestScenario(name="test_scenario", test_runs=[base_tr]),
+        inner_runner.scenario_root,
+        ReportConfig(),
+    )
+    reporter.load_test_runs()
+
+    assert inner_runner.run.call_count == 2
+    assert (trajectory_dir / "1").exists()
+    assert not (trajectory_dir / "2").exists()
+    assert (trajectory_dir / "3").exists()
+    assert caplog.text.count("Retrieved cached result from") == 1
+
+    actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
+    expected_trajectory = pd.DataFrame(
+        data=[
+            [1, "{'candidate': 1}", -1.0, "[-1.0]"],
+            [3, "{'candidate': 2}", -1.0, "[-1.0]"],
+        ],
+        columns=["step", "action", "reward", "observation"],
+    )
+    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
+
+    assert [tr.step for tr in reporter.trs] == [1, 3]
