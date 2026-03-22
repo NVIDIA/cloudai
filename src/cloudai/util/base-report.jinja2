@@ -3,49 +3,94 @@
     <head>
         <title>{{ name }}</title>
         <style>
+            :root {
+                --nv-green: #76b900;
+                --nv-green-bright: #8cc63f;
+                --nv-green-strong: #5e9c00;
+                --nv-green-soft: #f1f8e6;
+                --nv-ink: #111111;
+                --nv-graphite: #1f2428;
+                --nv-slate: #39424e;
+                --nv-border: #d6e7c3;
+                --nv-surface: #ffffff;
+                --nv-surface-alt: #f6faef;
+                --nv-text: #182026;
+                --nv-muted: #5f6b65;
+                --nv-shadow: 0 16px 42px rgba(17, 17, 17, 0.08);
+                --radius-lg: 22px;
+                --radius-md: 16px;
+                --radius-sm: 12px;
+            }
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
                 line-height: 1.6;
-                max-width: 1200px;
+                max-width: 1440px;
                 margin: 0;
-                padding: 2rem;
-                color: #333;
+                padding: 2.5rem;
+                color: var(--nv-text);
+                background:
+                    radial-gradient(circle at top left, rgba(118, 185, 0, 0.10), transparent 28%),
+                    linear-gradient(180deg, #f8fbf5 0%, #ffffff 22%);
             }
             h1 {
-                color: #2c3e50;
-                border-bottom: 2px solid #eee;
-                padding-bottom: 0.5rem;
-                margin-bottom: 2rem;
+                color: var(--nv-ink);
+                border-bottom: 1px solid rgba(17, 17, 17, 0.08);
+                padding-bottom: 0.85rem;
+                margin: 0 0 2rem;
+                letter-spacing: -0.03em;
+                font-size: clamp(2rem, 2.8vw, 3rem);
             }
             h2 {
-                color: #2c3e50;
+                color: var(--nv-ink);
                 margin-top: 2rem;
                 margin-bottom: 1rem;
+                letter-spacing: -0.03em;
+            }
+            h3 {
+                color: var(--nv-ink);
+                margin: 0 0 0.9rem;
+                letter-spacing: -0.02em;
+            }
+            p {
+                color: var(--nv-muted);
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 1rem;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                background: var(--nv-surface);
+                border-radius: var(--radius-md);
+                overflow: hidden;
+                box-shadow: 0 10px 30px rgba(17, 17, 17, 0.06);
             }
             th, td {
-                padding: 12px 15px;
+                padding: 14px 16px;
                 text-align: left;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid rgba(17, 17, 17, 0.07);
             }
             th {
-                background-color: #f8f9fa;
+                background-color: var(--nv-surface-alt);
                 font-weight: 600;
+                color: var(--nv-ink);
             }
             tr:hover {
-                background-color: #f8f9fa;
+                background-color: rgba(118, 185, 0, 0.06);
             }
             a {
-                color: #3498db;
+                color: var(--nv-green-strong);
                 text-decoration: none;
+                font-weight: 600;
             }
             a:hover {
                 text-decoration: underline;
+            }
+            code, pre {
+                font-family: "SFMono-Regular", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            }
+            @media (max-width: 768px) {
+                body {
+                    padding: 1.25rem;
+                }
             }
         </style>
         {% block extra_head %}{% endblock %}

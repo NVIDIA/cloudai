@@ -1,214 +1,459 @@
 {% extends "base-report.jinja2" %}
 
 {% block extra_head %}
+{% if dse_summaries %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endif %}
 <style>
     .dse-summary {
         margin: 2rem 0 3rem;
-        padding: 1.5rem;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
     }
-    .metrics-grid {
+    .overview-board {
+        position: relative;
+        margin-bottom: 1.5rem;
+        padding: 1.6rem;
+        border: 1px solid rgba(118, 185, 0, 0.28);
+        border-radius: var(--radius-lg);
+        background:
+            linear-gradient(140deg, rgba(118, 185, 0, 0.10), transparent 36%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 252, 233, 0.98));
+        box-shadow: var(--nv-shadow);
+        color: var(--nv-text);
+    }
+    .overview-board::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        background: linear-gradient(90deg, var(--nv-green), var(--nv-green-bright));
+        pointer-events: none;
+    }
+    .overview-topline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.8rem 1rem;
+        margin-bottom: 0.8rem;
+    }
+    .overview-board h2 {
+        margin: 0;
+        color: var(--nv-ink);
+    }
+    .overview-description {
+        max-width: 78ch;
+        margin: 0 0 1.25rem;
+        color: var(--nv-muted);
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.28rem 0.8rem;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: #ffffff;
+        color: var(--nv-ink);
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .status-pill--passed {
+        background: rgba(118, 185, 0, 0.14);
+        border-color: rgba(118, 185, 0, 0.32);
+    }
+    .status-pill--partial {
+        background: rgba(250, 204, 21, 0.16);
+        border-color: rgba(250, 204, 21, 0.34);
+    }
+    .status-pill--failed {
+        background: rgba(244, 63, 94, 0.14);
+        border-color: rgba(244, 63, 94, 0.30);
+    }
+    .overview-summary-line {
+        color: var(--nv-muted);
+        font-size: 0.95rem;
+    }
+    .overview-card-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 12px;
-        margin: 1rem 0 1.5rem;
+        gap: 0.9rem;
     }
     .metric-card {
-        background: #fff;
-        border: 1px solid #dbe5f0;
-        border-radius: 12px;
-        padding: 0.9rem 1rem;
+        padding: 1rem 1.05rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.06);
+        background: rgba(255, 255, 255, 0.96);
+    }
+    .metric-card--hero {
+        background: linear-gradient(180deg, rgba(118, 185, 0, 0.16), rgba(255, 255, 255, 0.98));
+        border-color: rgba(118, 185, 0, 0.34);
+        box-shadow: inset 0 4px 0 var(--nv-green);
+    }
+    .metric-card--muted {
+        background: rgba(255, 255, 255, 0.92);
     }
     .metric-label {
-        color: #64748b;
-        font-size: 0.85rem;
-        margin-bottom: 0.25rem;
+        color: var(--nv-muted);
+        font-size: 0.77rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
     }
     .metric-value {
-        color: #0f172a;
-        font-size: 1.3rem;
-        font-weight: 700;
+        margin-top: 0.3rem;
+        color: var(--nv-ink);
+        font-size: 1.6rem;
+        font-weight: 750;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
     }
-    .dse-section-grid {
-        display: grid;
-        grid-template-columns: 1.2fr 1fr;
-        gap: 18px;
-        align-items: start;
+    .metric-note {
+        margin-top: 0.35rem;
+        color: var(--nv-muted);
+        font-size: 0.84rem;
     }
     .dse-box {
-        background: #fff;
-        border: 1px solid #dbe5f0;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-top: 1rem;
+        margin-top: 1.15rem;
+        padding: 1.2rem 1.3rem;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-md);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 240, 0.96));
+        box-shadow: 0 12px 34px rgba(17, 17, 17, 0.05);
     }
     .context-list {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 8px 16px;
+        gap: 0.85rem 1rem;
         margin: 0.75rem 0 0;
     }
     .context-list div {
         font-size: 0.95rem;
     }
     .label {
-        color: #64748b;
+        color: var(--nv-muted);
         display: block;
-        font-size: 0.82rem;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }
     .value {
-        color: #0f172a;
-        font-weight: 600;
+        color: var(--nv-ink);
+        font-weight: 650;
+    }
+    .best-link-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem 1.2rem;
+        margin-top: 1rem;
     }
     .best-link-list a {
-        margin-right: 1rem;
-        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
     }
     .best-config-preview {
         margin-top: 1rem;
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        border: 1px solid rgba(118, 185, 0, 0.22);
+        background: linear-gradient(180deg, #ffffff, #f8fbf4);
+    }
+    .best-config-preview summary {
+        cursor: pointer;
+        padding: 0.9rem 1rem;
+        color: var(--nv-ink);
+        font-weight: 650;
+        background: linear-gradient(180deg, rgba(118, 185, 0, 0.18), rgba(255, 255, 255, 0.72));
     }
     .best-config-preview pre {
-        max-height: 320px;
+        max-height: 360px;
         overflow: auto;
+        margin: 0;
         padding: 1rem;
-        border-radius: 12px;
-        background: #0f172a;
-        color: #e2e8f0;
+        color: #1f2933;
+        background: #fbfdf8;
+        border-top: 1px solid rgba(118, 185, 0, 0.16);
     }
     .best-value {
         display: inline-block;
-        padding: 0.2rem 0.5rem;
+        padding: 0.22rem 0.62rem;
         border-radius: 999px;
-        background: #dbeafe;
-        color: #1d4ed8;
-        font-weight: 700;
+        background: var(--nv-green-soft);
+        color: var(--nv-green-strong);
+        font-weight: 750;
+        white-space: nowrap;
     }
     .small-note {
-        color: #64748b;
-        font-size: 0.9rem;
+        color: var(--nv-muted);
+        font-size: 0.92rem;
+        margin-top: 0;
     }
-    .dse-chart {
-        width: 100%;
-        height: auto;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-        border-radius: 12px;
-        border: 1px solid #dbe5f0;
+    .viz-card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 243, 0.98));
     }
-    @media (max-width: 900px) {
-        .dse-section-grid {
+    .chart-shell {
+        position: relative;
+        min-height: 260px;
+    }
+    .chart-shell canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+    .chart-fallback {
+        margin-top: 0.75rem;
+        color: var(--nv-muted);
+        font-size: 0.88rem;
+    }
+    .chart-shell.is-enhanced + .chart-fallback,
+    .chart-shell.is-enhanced ~ .chart-fallback {
+        display: none;
+    }
+    .space-table th {
+        background: #f0f9de;
+    }
+    .space-table tbody tr:nth-child(even) {
+        background: rgba(118, 185, 0, 0.05);
+    }
+    .space-table tbody tr:hover {
+        background: rgba(118, 185, 0, 0.10);
+    }
+    @media (max-width: 640px) {
+        .overview-board {
+            padding: 1.2rem;
+        }
+        .metric-value {
+            font-size: 1.35rem;
+        }
+        .context-list {
             grid-template-columns: 1fr;
         }
     }
 </style>
+{% if dse_summaries %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        if (typeof Chart === "undefined") {
+            return;
+        }
+
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif';
+        Chart.defaults.color = "#5f6b65";
+        Chart.defaults.borderColor = "rgba(57, 66, 78, 0.10)";
+
+        const rewardCanvases = document.querySelectorAll(".js-reward-chart");
+        rewardCanvases.forEach((canvas) => {
+            const dataNode = document.getElementById(canvas.dataset.chartDataId);
+            if (!dataNode) {
+                return;
+            }
+            const chartData = JSON.parse(dataNode.textContent);
+            new Chart(canvas, {
+                type: "line",
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: "Observed reward",
+                            data: chartData.rewards,
+                            borderColor: "#39424e",
+                            backgroundColor: "rgba(57, 66, 78, 0.14)",
+                            pointBackgroundColor: "#39424e",
+                            pointRadius: 3,
+                            pointHoverRadius: 4,
+                            borderWidth: 2,
+                            tension: 0.25,
+                            fill: true
+                        },
+                        {
+                            label: "Best so far",
+                            data: chartData.running_best,
+                            borderColor: "#76b900",
+                            backgroundColor: "rgba(118, 185, 0, 0.18)",
+                            pointBackgroundColor: "#76b900",
+                            pointRadius: 0,
+                            pointHoverRadius: 3,
+                            borderWidth: 3,
+                            tension: 0.18,
+                            borderDash: [8, 6],
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: "index",
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function (context) {
+                                    const idx = context[0].dataIndex;
+                                    return "Observation: " + (chartData.observations[idx] || "n/a");
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Step"
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: "Reward"
+                            }
+                        }
+                    }
+                }
+            });
+            canvas.parentElement.classList.add("is-enhanced");
+        });
+
+    });
+</script>
+{% endif %}
 {% endblock %}
 
 {% block content %}
 {% if dse_summaries %}
     {% for summary in dse_summaries %}
     <section class="dse-summary">
-        <h2>{{ summary.display_name }}</h2>
-        <p>{{ summary.description }}</p>
+        <div class="overview-board">
+            <div class="overview-topline">
+                <h2>{{ summary.display_name }}</h2>
+                <span class="status-pill status-pill--{{ summary.status_text | lower }}">{{ summary.status_text }}</span>
+                <span class="overview-summary-line">
+                    {{ summary.executed_steps }} explored out of {{ summary.total_space }} combinations
+                    {% if summary.best_step is not none %} • best step {{ summary.best_step }}{% endif %}
+                    {% if summary.best_reward is not none %} • reward {{ format_float(summary.best_reward, 4) }}{% endif %}
+                </span>
+            </div>
+            <p class="overview-description">{{ summary.description }}</p>
 
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Space</div>
-                <div class="metric-value">{{ summary.total_space }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Ran</div>
-                <div class="metric-value">{{ summary.executed_steps }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Skipped</div>
-                <div class="metric-value">{{ summary.skipped_steps }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Coverage</div>
-                <div class="metric-value">{{ format_percent(summary.coverage_percent) }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Saved Time</div>
-                <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Saved GPU-Hours</div>
-                <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Estimated $ Saved</div>
-                <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
+            <div class="overview-card-grid">
+                <div class="metric-card metric-card--hero">
+                    <div class="metric-label">Saved Time</div>
+                    <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
+                    <div class="metric-note">Projected full search minus observed runtime</div>
+                </div>
+                <div class="metric-card metric-card--hero">
+                    <div class="metric-label">Saved GPU-Hours</div>
+                    <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
+                    <div class="metric-note">Estimated from nodes, GPUs per node, and observed timings</div>
+                </div>
+                <div class="metric-card metric-card--hero">
+                    <div class="metric-label">Estimated $ Saved</div>
+                    <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
+                    <div class="metric-note">Approximate savings using GPU-family hourly assumptions</div>
+                </div>
+                <div class="metric-card metric-card--muted">
+                    <div class="metric-label">Space</div>
+                    <div class="metric-value">{{ summary.total_space }}</div>
+                </div>
+                <div class="metric-card metric-card--muted">
+                    <div class="metric-label">Ran</div>
+                    <div class="metric-value">{{ summary.executed_steps }}</div>
+                </div>
+                <div class="metric-card metric-card--muted">
+                    <div class="metric-label">Skipped</div>
+                    <div class="metric-value">{{ summary.skipped_steps }}</div>
+                </div>
+                <div class="metric-card metric-card--muted">
+                    <div class="metric-label">Coverage</div>
+                    <div class="metric-value">{{ format_percent(summary.coverage_percent) }}</div>
+                </div>
             </div>
         </div>
 
         <div class="dse-box">
             <h3>Execution Context</h3>
             <div class="context-list">
-                <div><span class="label">Status</span><span class="value">{{ summary.status_text }}</span></div>
                 <div><span class="label">GPU Family</span><span class="value">{{ summary.gpu_arch_family or "unknown" }}</span></div>
                 <div><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
                 <div><span class="label">GPUs Per Node</span><span class="value">{{ summary.gpus_per_node or "unknown" }}</span></div>
                 <div><span class="label">Nodes</span><span class="value">{{ summary.num_nodes or "unknown" }}</span></div>
-                <div><span class="label">Step Success/Failure</span><span class="value">{{ summary.success_count }}/{{ summary.failure_count }}</span></div>
+                <div><span class="label">Step Success / Failure</span><span class="value">{{ summary.success_count }} / {{ summary.failure_count }}</span></div>
                 <div><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
                 <div><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
                 <div><span class="label">Projected Full-Space Runtime</span><span class="value">{{ format_duration(summary.projected_runtime_sec) }}</span></div>
             </div>
         </div>
 
-        <div class="dse-section-grid">
-            <div>
-                <div class="dse-box">
-                    <h3>Best Step</h3>
-                    <div class="context-list">
-                        <div><span class="label">Best Step</span><span class="value">{{ summary.best_step }}</span></div>
-                        <div><span class="label">Best Reward</span><span class="value">{{ format_float(summary.best_reward, 4) }}</span></div>
-                        <div><span class="label">Best Observation</span><span class="value">{{ summary.best_observation_display }}</span></div>
-                        <div><span class="label">Run Folder</span><span class="value"><a href="{{ summary.output_root_rel_path }}">open</a></span></div>
-                    </div>
-                    <div class="best-link-list" style="margin-top: 1rem;">
-                        {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
-                        {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
-                    </div>
-                    {% if summary.best_config_toml %}
-                    <details class="best-config-preview">
-                        <summary>Show best config TOML</summary>
-                        <pre>{{ summary.best_config_toml }}</pre>
-                    </details>
-                    {% endif %}
-                </div>
-
-                <div class="dse-box">
-                    <h3>Exploration Space</h3>
-                    <p class="small-note">Each row shows the allowed values for a swept parameter and the selected best value.</p>
-                    <table>
-                        <tr>
-                            <th>Parameter</th>
-                            <th>Allowed Values</th>
-                            <th>Best</th>
-                        </tr>
-                        {% for row in summary.parameter_rows %}
-                        <tr>
-                            <td>{{ row.name }}</td>
-                            <td>{{ row.values | join(", ") }}</td>
-                            <td><span class="best-value">{{ row.best_value }}</span></td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                </div>
+        <div class="dse-box">
+            <h3>Best Step</h3>
+            <div class="context-list">
+                <div><span class="label">Best Step</span><span class="value">{{ summary.best_step }}</span></div>
+                <div><span class="label">Best Reward</span><span class="value">{{ format_float(summary.best_reward, 4) }}</span></div>
+                <div><span class="label">Best Observation</span><span class="value">{{ summary.best_observation_display }}</span></div>
+                <div><span class="label">Run Folder</span><span class="value"><a href="{{ summary.output_root_rel_path }}">open</a></span></div>
             </div>
-
-            <div class="dse-box">
-                <h3>Reward Over Steps</h3>
-                <p class="small-note">Blue shows observed reward per trial. Red dashed shows the best-so-far curve.</p>
-                {% if summary.chart_svg %}
-                    {{ summary.chart_svg | safe }}
-                {% else %}
-                    <p>No reward data available.</p>
-                {% endif %}
+            <div class="best-link-list">
+                {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
+                {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
             </div>
+            {% if summary.best_config_toml %}
+            <details class="best-config-preview">
+                <summary>Show best config TOML</summary>
+                <pre>{{ summary.best_config_toml }}</pre>
+            </details>
+            {% endif %}
+        </div>
+
+        <div class="dse-box">
+            <h3>Exploration Space</h3>
+            <p class="small-note">Each row shows the allowed values for a swept parameter and the selected best value.</p>
+            <table class="space-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Allowed Values</th>
+                        <th>Best</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.parameter_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.values | join(", ") }}</td>
+                        <td><span class="best-value">{{ row.best_value }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="dse-box viz-card">
+            <h3>Reward Over Steps</h3>
+            <p class="small-note">Observed reward is shown as the dark line; the NVIDIA-green dashed line tracks the best-so-far trajectory.</p>
+            {% if summary.reward_chart_data %}
+                <div class="chart-shell">
+                    <canvas
+                        class="js-reward-chart"
+                        data-chart-data-id="reward-chart-data-{{ loop.index0 }}"
+                        aria-label="Line chart of reward over DSE steps"
+                    ></canvas>
+                </div>
+                <script type="application/json" id="reward-chart-data-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
+                <p class="chart-fallback">Interactive chart unavailable. Step count, best reward, and summary metrics remain available above.</p>
+                <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
+            {% else %}
+                <p>No reward data available.</p>
+            {% endif %}
         </div>
     </section>
     {% endfor %}

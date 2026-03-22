@@ -455,7 +455,11 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.gpu_arch_family == "H100"
     assert summary.analysis_rel_path is not None
     assert summary.best_config_rel_path == f"./{dse_tr.name}/0/{dse_tr.name}.toml"
-    assert summary.chart_svg is not None
+    assert summary.reward_chart_data is not None
+    assert summary.reward_chart_data["labels"] == [1, 2, 3]
+    assert summary.reward_chart_data["rewards"] == pytest.approx([1.5, 3.0, 2.0])
+    assert summary.reward_chart_data["running_best"] == pytest.approx([1.5, 3.0, 3.0])
+    assert summary.reward_chart_data["observations"] == ["2.5", "1.2", "1.8"]
 
     best_values = {row.name: row.best_value for row in summary.parameter_rows}
     assert best_values["nthreads"] == "2"
@@ -492,13 +496,19 @@ def test_dse_generate_scenario_report_renders_html(
 
     report_path = slurm_system.output_path / "dse_scenario.html"
     html = report_path.read_text()
+    assert "cdn.jsdelivr.net/npm/chart.js" in html
     assert "Saved GPU-Hours" in html
     assert "Reward Over Steps" in html
     assert "Best Test TOML" in html
     assert "Show best config TOML" in html
     assert "BO Analysis" in html
     assert "dse-report.toml" in html
-    assert "<svg" in html
+    assert "js-reward-chart" in html
+    assert "chart-shell" in html
+    assert "dse-section-grid" not in html
+    assert "Exploration Mix" not in html
+    assert "37.50%" in html
+    assert "1m 40s" in html
 
 
 def test_dse_console_summary_is_compact(

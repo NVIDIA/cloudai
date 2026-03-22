@@ -24,12 +24,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 import toml
+from pydantic import BaseModel
 
 from cloudai.core import CommandGenStrategy, TestRun, case_name
 from cloudai.models.scenario import TestRunDetails
 from cloudai.util.lazy_imports import lazy
-
-from ..systems.slurm import SlurmJobMetadata, SlurmSystemMetadata
 
 GPU_HOURLY_COST_USD = {
     "H100": 4.50,
@@ -110,77 +109,38 @@ def _build_running_best(points: list[tuple[int, float]]) -> list[tuple[int, floa
     return running_best
 
 
-def _chart_points(points: list[tuple[int, float]], width: int, height: int, padding: int) -> list[tuple[float, float]]:
-    if not points:
-        return []
-
-    x_vals = [step for step, _ in points]
-    y_vals = [reward for _, reward in points]
-    min_x, max_x = min(x_vals), max(x_vals)
-    min_y, max_y = min(y_vals), max(y_vals)
-
-    x_span = max(max_x - min_x, 1)
-    y_span = max(max_y - min_y, 1e-9)
-    inner_width = width - 2 * padding
-    inner_height = height - 2 * padding
-
-    result = []
-    for step, reward in points:
-        x = padding + ((step - min_x) / x_span) * inner_width
-        y = height - padding - ((reward - min_y) / y_span) * inner_height
-        result.append((x, y))
-    return result
-
-
-def _polyline(points: list[tuple[float, float]]) -> str:
-    return " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
-
-
-def _build_reward_chart_svg(steps: list["DSEStepData"]) -> str | None:
+def _build_reward_chart_data(steps: list["DSEStepData"]) -> dict[str, list[Any]] | None:
     if not steps:
         return None
 
-    width, height, padding = 720, 260, 34
     reward_points = [(step.step, step.reward) for step in steps]
     running_best = _build_running_best(reward_points)
-    reward_coords = _chart_points(reward_points, width, height, padding)
-    best_coords = _chart_points(running_best, width, height, padding)
-
-    reward_line = _polyline(reward_coords)
-    best_line = _polyline(best_coords)
-    y_vals = [reward for _, reward in reward_points]
-    y_min, y_max = min(y_vals), max(y_vals)
-
-    circles = []
-    for step_data, (x, y) in zip(steps, reward_coords, strict=True):
-        tooltip = (
-            f"Step {step_data.step} | Reward: {format_float(step_data.reward, 4)}"
-            f" | Observation: {step_data.observation_display}"
-        )
-        circles.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4" fill="#1f77b4"><title>{tooltip}</title></circle>')
-
-    return "\n".join(
-        [
-            f'<svg viewBox="0 0 {width} {height}" class="dse-chart" role="img" '
-            f'aria-label="Reward over DSE steps. Min reward {format_float(y_min, 4)}, '
-            f'max reward {format_float(y_max, 4)}.">',
-            f'<line x1="{padding}" y1="{height - padding}" x2="{width - padding}" y2="{height - padding}" '
-            'stroke="#94a3b8" stroke-width="1" />',
-            f'<line x1="{padding}" y1="{padding}" x2="{padding}" y2="{height - padding}" '
-            'stroke="#94a3b8" stroke-width="1" />',
-            f'<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="{reward_line}" />',
-            f'<polyline fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 4" points="{best_line}" />',
-            *circles,
-            f'<text x="{width / 2:.0f}" y="{height - 6}" text-anchor="middle" fill="#475569" '
-            'font-size="12">Step</text>',
-            f'<text x="16" y="{height / 2:.0f}" transform="rotate(-90 16 {height / 2:.0f})" '
-            'text-anchor="middle" fill="#475569" font-size="12">Reward</text>',
-            "</svg>",
-        ]
-    )
+    return {
+        "labels": [step.step for step in steps],
+        "rewards": [step.reward for step in steps],
+        "running_best": [reward for _, reward in running_best],
+        "observations": [step.observation_display for step in steps],
+    }
 
 
-def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:
+class _ReportMetadataSystem(BaseModel):
+    gpu_arch_type: str
+
+
+class _ReportMetadataSlurm(BaseModel):
+    node_list: str
+
+
+class _ReportSystemMetadata(BaseModel):
+    system: _ReportMetadataSystem
+    slurm: _ReportMetadataSlurm
+
+
+class _ReportJobMetadata(BaseModel):
+    elapsed_time_sec: int
+
+
+def load_system_metadata(run_dir: Path, results_root: Path) -> _ReportSystemMetadata | None:
     """Load system metadata from run_dir. At the moment it supports only Slurm."""
     metadata_path = run_dir / "metadata"
     if not metadata_path.exists():
@@ -198,7 +158,7 @@ def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetada
     node_file = node_files[0]
     with node_file.open() as f:
         try:
-            return SlurmSystemMetadata.model_validate(toml.load(f))
+            return _ReportSystemMetadata.model_validate(toml.load(f))
         except Exception as e:
             logging.debug(f"Error validating metadata for {node_file}: {e}")
 
@@ -212,7 +172,7 @@ class ReportItem:
     name: str
     description: str
     logs_path: Optional[str] = None
-    nodes: Optional[SlurmSystemMetadata] = None
+    nodes: Optional[_ReportSystemMetadata] = None
 
     @classmethod
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
@@ -285,7 +245,7 @@ class DSESummary:
     best_config_toml: str | None
     analysis_rel_path: str | None
     parameter_rows: list[DSEParameterRow] = field(default_factory=list)
-    chart_svg: str | None = None
+    reward_chart_data: dict[str, list[Any]] | None = None
 
     @property
     def display_name(self) -> str:
@@ -493,7 +453,7 @@ class DSEReportBuilder:
             best_config_toml=best_config_toml,
             analysis_rel_path=f"./{analysis_file.relative_to(self.results_root)}" if analysis_file.exists() else None,
             parameter_rows=parameter_rows,
-            chart_svg=_build_reward_chart_svg(steps),
+            reward_chart_data=_build_reward_chart_data(steps),
         )
 
     @staticmethod
@@ -503,5 +463,5 @@ class DSEReportBuilder:
             return None
 
         with slurm_job_path.open() as f:
-            metadata = SlurmJobMetadata.model_validate(toml.load(f))
+            metadata = _ReportJobMetadata.model_validate(toml.load(f))
         return metadata.elapsed_time_sec
