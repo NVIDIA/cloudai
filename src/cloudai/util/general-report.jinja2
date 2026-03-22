@@ -170,13 +170,12 @@
                     </div>
                     <div class="best-link-list" style="margin-top: 1rem;">
                         {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
-                        {% if summary.best_scenario_rel_path %}<a href="{{ summary.best_scenario_rel_path }}">Best Scenario TOML</a>{% endif %}
                         {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
                     </div>
-                    {% if summary.best_scenario_toml %}
+                    {% if summary.best_config_toml %}
                     <details class="best-config-preview">
-                        <summary>Show best scenario TOML</summary>
-                        <pre>{{ summary.best_scenario_toml }}</pre>
+                        <summary>Show best config TOML</summary>
+                        <pre>{{ summary.best_config_toml }}</pre>
                     </details>
                     {% endif %}
                 </div>
@@ -219,6 +218,9 @@
         <th>Test</th>
         <th>Description</th>
         <th>Results</th>
+        {% if report_items | selectattr('nodes') | first is not none %}
+          <th>Nodes</th>
+        {% endif %}
     </tr>
     {% for item in report_items %}
     <tr>
@@ -228,6 +230,11 @@
             <td><a href="{{ item.logs_path }}">logs</a></td>
         {% else %}
             <td>no logs</td>
+        {% endif %}
+        {% if item.nodes is not none %}
+            <td>{{ item.nodes }}</td>
+        {% else %}
+            <td>no nodes information</td>
         {% endif %}
     </tr>
     {% endfor %}
