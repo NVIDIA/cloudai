@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import csv
 import tarfile
 from pathlib import Path
 
@@ -23,8 +24,8 @@ import toml
 
 from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
-from cloudai.core import Registry, Reporter, System
-from cloudai.models.scenario import ReportConfig
+from cloudai.core import CommandGenStrategy, Registry, Reporter, System
+from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.reporter import PerTestReporter, SlurmReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -38,6 +39,97 @@ from cloudai.systems.slurm.slurm_metadata import (
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+
+
+def _write_successful_nccl_stdout(step_dir: Path) -> None:
+    (step_dir / "stdout.txt").write_text("# Out of bounds values\n# Avg bus bandwidth\n")
+
+
+def _write_slurm_job_metadata(step_dir: Path, elapsed_time_sec: int) -> None:
+    slurm_job = {
+        "job_id": 123456,
+        "name": "test-job",
+        "state": "COMPLETED",
+        "start_time": "2026-03-21T15:00:00",
+        "end_time": "2026-03-21T15:05:00",
+        "elapsed_time_sec": elapsed_time_sec,
+        "exit_code": "0:0",
+        "srun_cmd": "srun echo test",
+        "test_cmd": "echo test",
+        "is_single_sbatch": False,
+        "job_root": str(step_dir),
+        "job_steps": [],
+    }
+    with (step_dir / "slurm-job.toml").open("w") as f:
+        toml.dump(slurm_job, f)
+
+
+def _write_step_metadata(step_dir: Path, metadata: SlurmSystemMetadata) -> None:
+    metadata_dir = step_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    with (metadata_dir / "node-0.toml").open("w") as f:
+        toml.dump(metadata.model_dump(), f)
+
+
+def _create_dse_report_fixture(
+    slurm_system: SlurmSystem,
+    slurm_metadata: SlurmSystemMetadata,
+    gpu_name: str = "NVIDIA H100 80GB HBM3",
+) -> TestRun:
+    test_definition = NCCLTestDefinition(
+        name="dse-nccl",
+        description="DSE summary sample",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(
+            docker_image_url="fake://url/nccl",
+            subtest_name="all_reduce_perf_mpi",
+            nthreads=[1, 2],
+            datatype=["float", "uint8"],
+            blocking=[0, 1],
+        ),
+        agent_steps=3,
+    )
+    tr = TestRun(
+        name="dse-report",
+        test=test_definition,
+        num_nodes=2,
+        nodes=["node1", "node2"],
+        time_limit="00:05:00",
+    )
+    iter_dir = slurm_system.output_path / tr.name / "0"
+    iter_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = [
+        (1, {"nthreads": 1, "datatype": "float", "blocking": 0}, 1.5, [2.5], 10),
+        (2, {"nthreads": 2, "datatype": "uint8", "blocking": 1}, 3.0, [1.2], 20),
+        (3, {"nthreads": 2, "datatype": "float", "blocking": 1}, 2.0, [1.8], 30),
+    ]
+
+    with (iter_dir / "trajectory.csv").open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "action", "reward", "observation"])
+        for step, action, reward, observation, _elapsed in rows:
+            writer.writerow([step, action, reward, observation])
+
+    for step, action, _reward, _observation, elapsed in rows:
+        step_dir = iter_dir / str(step)
+        step_dir.mkdir(parents=True, exist_ok=True)
+        step_tr = tr.apply_params_set(action)
+        step_tr.step = step
+        step_tr.output_path = step_dir
+
+        with (step_dir / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
+            toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(), f)
+
+        _write_successful_nccl_stdout(step_dir)
+        _write_slurm_job_metadata(step_dir, elapsed)
+
+    metadata = slurm_metadata.model_copy(deep=True)
+    metadata.system.gpu_arch_type = gpu_name
+    _write_step_metadata(iter_dir / "2", metadata)
+    (iter_dir / "analysis.csv").write_text("parameter,sensitivity,importance\nblocking,0.5,0.8\n")
+
+    return tr
 
 
 class TestLoadTestTuns:
@@ -303,3 +395,115 @@ def test_report_order() -> None:
     assert reports[0][0] == "per_test"
     assert reports[-2][0] == "status"
     assert reports[-1][0] == "tarball"
+
+
+def test_dse_summary_and_best_scenario_artifacts(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata
+) -> None:
+    dse_tr = _create_dse_report_fixture(slurm_system, slurm_metadata)
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="dse_scenario", test_runs=[dse_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+
+    reporter.load_test_runs()
+    reporter.report_best_dse_config()
+
+    assert len(reporter.dse_summaries) == 1
+    summary = reporter.dse_summaries[0]
+    assert summary.total_space == 8
+    assert summary.executed_steps == 3
+    assert summary.skipped_steps == 5
+    assert summary.coverage_percent == pytest.approx(37.5)
+    assert summary.best_step == 2
+    assert summary.best_reward == pytest.approx(3.0)
+    assert summary.best_observation_display == "1.2"
+    assert summary.avg_step_duration_sec == pytest.approx(20.0)
+    assert summary.total_runtime_sec == pytest.approx(60.0)
+    assert summary.projected_runtime_sec == pytest.approx(160.0)
+    assert summary.saved_runtime_sec == pytest.approx(100.0)
+    assert summary.saved_gpu_hours == pytest.approx((100.0 / 3600.0) * 16)
+    assert summary.estimated_saved_cost_usd == pytest.approx((summary.saved_gpu_hours or 0) * 4.5)
+    assert summary.gpu_arch_family == "H100"
+    assert summary.analysis_rel_path is not None
+
+    best_config_path = slurm_system.output_path / dse_tr.name / "0" / reporter.best_dse_config_file_name(dse_tr)
+    best_scenario_path = slurm_system.output_path / dse_tr.name / "0" / reporter.best_dse_scenario_file_name(dse_tr)
+    assert best_config_path.exists()
+    assert best_scenario_path.exists()
+
+    old_best = toml.load(best_config_path)
+    assert old_best["agent_steps"] == 3
+
+    best_scenario = toml.load(best_scenario_path)
+    assert best_scenario["Tests"][0]["cmd_args"]["datatype"] == "uint8"
+    assert best_scenario["Tests"][0]["cmd_args"]["blocking"] == 1
+    assert best_scenario["Tests"][0]["cmd_args"]["nthreads"] == 2
+    assert best_scenario["Tests"][0]["num_nodes"] == 2
+    assert "agent" not in best_scenario["Tests"][0]
+    assert "agent_steps" not in best_scenario["Tests"][0]
+
+
+def test_dse_generate_scenario_report_renders_html(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata
+) -> None:
+    dse_tr = _create_dse_report_fixture(slurm_system, slurm_metadata)
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="dse_scenario", test_runs=[dse_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+
+    reporter.generate()
+
+    report_path = slurm_system.output_path / "dse_scenario.html"
+    html = report_path.read_text()
+    assert "Saved GPU-Hours" in html
+    assert "Reward Over Steps" in html
+    assert "Best Scenario TOML" in html
+    assert "BO Analysis" in html
+    assert "dse-report-best-in-scenario.toml" in html
+    assert "<svg" in html
+
+
+def test_dse_console_summary_is_compact(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata, caplog: pytest.LogCaptureFixture
+) -> None:
+    dse_tr = _create_dse_report_fixture(slurm_system, slurm_metadata)
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="dse_scenario", test_runs=[dse_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+
+    reporter.load_test_runs()
+    reporter.report_best_dse_config()
+    with caplog.at_level("INFO"):
+        reporter.print_summary()
+
+    assert "steps=3/8" in caplog.text
+    assert "best_step=2" in caplog.text
+    assert "dse-report-best-in-scenario.toml" in caplog.text
+    assert "step=1" not in caplog.text
+
+
+def test_unknown_gpu_family_omits_estimated_cost(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata
+) -> None:
+    dse_tr = _create_dse_report_fixture(slurm_system, slurm_metadata, gpu_name="Mystery GPU")
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="dse_scenario", test_runs=[dse_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+
+    reporter.load_test_runs()
+    reporter.report_best_dse_config()
+
+    assert reporter.dse_summaries[0].gpu_arch_family is None
+    assert reporter.dse_summaries[0].estimated_saved_cost_usd is None
