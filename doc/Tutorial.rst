@@ -186,7 +186,7 @@ Test Scenario uses test description from Step 5. Below is the ``CONFIGS_DIR/scen
    time_limit = "00:20:00"
      [[Tests.dependencies]]
      type = "start_post_comp"
-     id = "Tests.1"
+     id = "allreduce.1"
 
 Notes on the test scenario:
 
