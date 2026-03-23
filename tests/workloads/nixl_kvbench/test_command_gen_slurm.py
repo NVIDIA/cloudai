@@ -38,8 +38,10 @@ def kvbench() -> NIXLKVBenchTestDefinition:
 
 
 @pytest.fixture
-def kvbench_tr(kvbench: NIXLKVBenchTestDefinition) -> TestRun:
-    return TestRun(name="nixl-bench", num_nodes=2, nodes=[], test=kvbench)
+def kvbench_tr(kvbench: NIXLKVBenchTestDefinition, tmp_path) -> TestRun:
+    output_path = tmp_path / "nixl-kvbench"
+    output_path.mkdir(parents=True, exist_ok=True)
+    return TestRun(name="nixl-bench", num_nodes=2, nodes=[], test=kvbench, output_path=output_path)
 
 
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
@@ -124,3 +126,29 @@ def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system
     cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
     assert tdef.etcd_image is not None
     assert f"--container-image={tdef.etcd_image.installed_path}" in cmd
+
+
+def test_kvbench_cleanup_job_artifacts(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+        {
+            "docker_image_url": "docker://image/url",
+            "backend": "GUSLI",
+            "filepath": "/data",
+            "device_list": "11:F:/store0.bin",
+        }
+    )
+    strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
+    filepath_dir = kvbench_tr.output_path / "filepath_mount"
+    device_list_dir = kvbench_tr.output_path / "device_list_mounts"
+    other_file = kvbench_tr.output_path / "keep.txt"
+    filepath_dir.mkdir(parents=True, exist_ok=True)
+    device_list_dir.mkdir(parents=True, exist_ok=True)
+    (filepath_dir / "a.txt").write_text("x")
+    (device_list_dir / "b.txt").write_text("x")
+    other_file.write_text("keep")
+
+    strategy.cleanup_job_artifacts()
+
+    assert not filepath_dir.exists()
+    assert not device_list_dir.exists()
+    assert other_file.exists()
