@@ -330,7 +330,7 @@
 {% endblock %}
 
 {% block content %}
-{% if dse_summaries %}
+
     {% for summary in dse_summaries %}
     <section class="dse-summary">
         <div class="overview-board">
@@ -457,7 +457,7 @@
         </div>
     </section>
     {% endfor %}
-{% else %}
+
 <table>
     <tr>
         <th>Test</th>
@@ -484,5 +484,5 @@
     </tr>
     {% endfor %}
 </table>
-{% endif %}
+
 {% endblock %}
