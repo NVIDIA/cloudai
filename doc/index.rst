@@ -1,8 +1,8 @@
 CloudAI Benchmark Framework
 ===========================
 
-Update History
----------------
+Documentation Update History
+-----------------------------
 
 +----------+-----------------+--------------------------------------------------+
 | Version  | Date            | Description                                      |
