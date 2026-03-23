@@ -491,7 +491,7 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 Head Node without Shared Storage Available on Compute Nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When compute nodes do not share file system with head node, ``--enable-cache-without-check`` for ``run`` and ``dry-run`` skips the real check for cache existence, but still builds all paths correctly. The flow is like this:
+When compute nodes do not share the file system with head node, ``--enable-cache-without-check`` for ``run`` and ``dry-run`` skips the real check for cache existence, but still builds all paths correctly. The flow is like this:
 
 1. *[on the head node]* run ``cloudai install``.
 2. *[on the head node]* copy cache to compute nodes.

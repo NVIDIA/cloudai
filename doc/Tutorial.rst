@@ -89,7 +89,7 @@ Test definition is a Pydantic model that describes the arguments of a test. Such
 
 Notice that ``cmd_args.docker_image_url`` uses ``nvcr.io/nvidia/pytorch:24.02-py3``, but you can use the Docker image from Step 1.
 
-``an_arg`` has mixed type of ``str | list[str]``, so in a TOML config it can be defined as either:
+``an_arg`` has a mixed type of ``str | list[str]``, so in a TOML config it can be defined as either:
 
 .. code-block:: toml
 
@@ -191,7 +191,7 @@ Test Scenario uses test description from Step 5. Below is the ``CONFIGS_DIR/scen
 Notes on the test scenario:
 
 #. ``id`` is a mandatory field and must be unique for each test.
-#. The ``test_name`` specifies test definition from one of the Test TOML files. Node lists and time limits are optional.
+#. The ``test_name`` specifies the test definition from one of the Test TOML files. Node lists and time limits are optional.
 #. If needed, ``nodes`` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example, ``nodes = ['PARTITION:GROUP:16']`` allocates 16 nodes from group ``GROUP`` and partition ``PARTITION``.
 #. There are three types of dependencies: ``start_post_comp``, ``start_post_init`` and ``end_post_comp``.
 
@@ -199,7 +199,7 @@ Notes on the test scenario:
    - ``start_post_init`` means that the current test should start after the start of the depending test.
    - ``end_post_comp`` means that the current test should be completed after the completion of the depending test.
 
-   All dependencies are described as a pair of the depending test name and a delay. The name should be taken from the test name as set in the test scenario. The delay is described in seconds.
+All dependencies are described as a depending test name. The name should be taken from the test name as set in the test scenario.
 
 To generate NCCL test commands without actual execution, use the ``dry-run`` mode. You can review ``debug.log`` (or other file specified with ``--log-file``) to see the generated commands from CloudAI. Please note that group node allocations are not currently supported in the ``dry-run`` mode.
 
