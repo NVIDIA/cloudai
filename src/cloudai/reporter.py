@@ -183,13 +183,14 @@ class DSEReporter(Reporter):
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
-                return
+                continue
+
             with best_step_details.open() as f:
                 try:
                     trd = TestRunDetails.model_validate(toml.load(f))
                 except Exception as exc:
                     logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
-                    return
+                    continue
 
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
