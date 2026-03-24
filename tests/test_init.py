@@ -76,8 +76,8 @@ from cloudai.workloads.nixl_bench import (
     NIXLBenchSlurmCommandGenStrategy,
     NIXLBenchTestDefinition,
 )
-from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_ep import NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
+from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import (
     OSUBenchComparisonReport,

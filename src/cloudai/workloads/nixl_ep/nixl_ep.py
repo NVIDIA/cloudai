@@ -26,7 +26,6 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .log_parsing import parse_nixl_ep_bandwidth_samples
 
-
 GENERATED_PLAN_FILE_NAME = "nixl-ep-plan.json"
 
 
