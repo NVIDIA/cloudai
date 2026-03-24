@@ -17,6 +17,7 @@
 import contextlib
 import logging
 import tarfile
+from collections import defaultdict
 from pathlib import Path
 
 import jinja2
@@ -79,10 +80,16 @@ class StatusReporter(Reporter):
         template = jinja_env.get_template("general-report.jinja2")
 
         report_items = ReportItem.from_test_runs(self.trs, self.results_root)
+        dse_cases = self._build_dse_cases(dse_summaries, report_items)
+        dse_case_names = {case["name"] for case in dse_cases}
+        dse_report_items = [item for item in report_items if item.group_name in dse_case_names]
+        standard_report_items = [item for item in report_items if item.group_name not in dse_case_names]
         report = template.render(
             name=self.test_scenario.name,
-            report_items=report_items,
+            report_items=standard_report_items,
             dse_summaries=dse_summaries,
+            dse_cases=dse_cases,
+            dse_report_items=dse_report_items,
             format_duration=format_duration,
             format_float=format_float,
             format_percent=format_percent,
@@ -93,6 +100,31 @@ class StatusReporter(Reporter):
             f.write(report)
 
         logging.info(f"Generated scenario report at {report_path}")
+
+    def _build_dse_cases(self, dse_summaries: list[DSESummary], report_items: list[ReportItem]) -> list[dict[str, object]]:
+        summaries_by_name: dict[str, list[DSESummary]] = defaultdict(list)
+        for summary in dse_summaries:
+            summaries_by_name[summary.name].append(summary)
+
+        items_by_name: dict[str, list[ReportItem]] = defaultdict(list)
+        for item in report_items:
+            if item.is_dse:
+                items_by_name[item.group_name].append(item)
+
+        dse_case_names = []
+        for tr in self.test_scenario.test_runs:
+            if tr.is_dse_job and tr.name not in dse_case_names:
+                dse_case_names.append(tr.name)
+
+        return [
+            {
+                "name": case_name,
+                "summaries": summaries_by_name.get(case_name, []),
+                "report_items": items_by_name.get(case_name, []),
+            }
+            for case_name in dse_case_names
+            if summaries_by_name.get(case_name)
+        ]
 
     def to_console(self, dse_summaries: list[DSESummary]):
         if not self.trs:

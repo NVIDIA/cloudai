@@ -76,10 +76,12 @@ def _create_dse_report_fixture(
     slurm_system: SlurmSystem,
     slurm_metadata: SlurmSystemMetadata,
     gpu_name: str = "NVIDIA H100 80GB HBM3",
+    name: str = "dse-report",
+    description: str = "DSE summary sample",
 ) -> TestRun:
     test_definition = NCCLTestDefinition(
         name="dse-nccl",
-        description="DSE summary sample",
+        description=description,
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(
             docker_image_url="fake://url/nccl",
@@ -91,7 +93,7 @@ def _create_dse_report_fixture(
         agent_steps=3,
     )
     tr = TestRun(
-        name="dse-report",
+        name=name,
         test=test_definition,
         num_nodes=2,
         nodes=["node1", "node2"],
@@ -502,6 +504,7 @@ def test_dse_generate_scenario_report_renders_html(
     report_path = slurm_system.output_path / "dse_scenario.html"
     html = report_path.read_text()
     assert "cdn.jsdelivr.net/npm/chart.js" in html
+    assert "js-dse-tab-button" in html
     assert "Saved GPU-Hours" in html
     assert "Exploration Efficiency" in html
     assert "3 / 8 steps" in html
@@ -523,6 +526,32 @@ def test_dse_generate_scenario_report_renders_html(
     assert "<th>Best</th>" not in html
     assert "status-pill--passed" in html
     assert "1m 40s" in html
+
+
+def test_mixed_scenario_renders_dse_tabs_and_standard_table(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata, benchmark_tr: TestRun
+) -> None:
+    dse_tr_a = _create_dse_report_fixture(slurm_system, slurm_metadata, name="dse-report-a", description="DSE A")
+    dse_tr_b = _create_dse_report_fixture(slurm_system, slurm_metadata, name="dse-report-b", description="DSE B")
+
+    benchmark_dir = slurm_system.output_path / benchmark_tr.name / "0"
+    benchmark_dir.mkdir(parents=True, exist_ok=True)
+
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="mixed_scenario", test_runs=[dse_tr_a, benchmark_tr, dse_tr_b]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+
+    reporter.generate()
+
+    html = (slurm_system.output_path / "mixed_scenario.html").read_text()
+    assert "dse-report-a" in html
+    assert "dse-report-b" in html
+    assert html.count('data-tab-target="dse-case-') == 2
+    assert "All Steps" in html
+    assert benchmark_tr.name in html
 
 
 def test_effort_chart_uses_break_for_large_search_space() -> None:

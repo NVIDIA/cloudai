@@ -175,12 +175,14 @@ def load_system_metadata(run_dir: Path, results_root: Path) -> _ReportSystemMeta
 class ReportItem:
     """Basic report item for general systems."""
 
+    group_name: str
     name: str
     description: str
     logs_path: str | None
     nodes: _ReportSystemMetadata | None
     status_text: str
     status_class: str
+    is_dse: bool
 
     @classmethod
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
@@ -190,12 +192,14 @@ class ReportItem:
             status_text = "PASSED" if tr_status.is_successful else "FAILED"
             report_items.append(
                 ReportItem(
+                    group_name=tr.name,
                     name=case_name(tr),
                     description=tr.test.description,
                     logs_path=f"./{tr.output_path.relative_to(results_root)}" if tr.output_path.exists() else None,
                     nodes=load_system_metadata(tr.output_path, results_root),
                     status_text=status_text,
                     status_class=status_text.lower(),
+                    is_dse=tr.is_dse_job,
                 )
             )
         return report_items

@@ -8,6 +8,41 @@
     .dse-summary {
         margin: 2rem 0 3rem;
     }
+    .dse-tabs {
+        margin: 1.25rem 0 2rem;
+    }
+    .dse-tab-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+        margin-bottom: 1.15rem;
+    }
+    .dse-tab-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.58rem 0.95rem;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: #ffffff;
+        color: var(--nv-ink);
+        font-weight: 650;
+        cursor: pointer;
+    }
+    .dse-tab-button:hover {
+        background: #fbfcfa;
+    }
+    .dse-tab-button.is-active {
+        border-color: rgba(118, 185, 0, 0.28);
+        background: rgba(118, 185, 0, 0.10);
+        color: var(--nv-green-strong);
+    }
+    .dse-tab-panel {
+        display: none;
+    }
+    .dse-tab-panel.is-active {
+        display: block;
+    }
     .overview-board,
     .dse-box {
         border: 1px solid var(--nv-border);
@@ -420,6 +455,18 @@
             });
         });
 
+        document.querySelectorAll(".js-dse-tabs").forEach((root) => {
+            const buttons = root.querySelectorAll(".js-dse-tab-button");
+            const panels = root.querySelectorAll(".js-dse-tab-panel");
+            buttons.forEach((button) => {
+                button.addEventListener("click", function () {
+                    const target = button.dataset.tabTarget;
+                    buttons.forEach((candidate) => candidate.classList.toggle("is-active", candidate === button));
+                    panels.forEach((panel) => panel.classList.toggle("is-active", panel.dataset.tabPanel === target));
+                });
+            });
+        });
+
         if (typeof Chart === "undefined") {
             return;
         }
@@ -513,9 +560,29 @@
 {% endblock %}
 
 {% block content %}
-{% if dse_summaries %}
-    {% for summary in dse_summaries %}
-    <section class="dse-summary">
+{% if dse_cases %}
+    <section class="dse-tabs js-dse-tabs">
+        <div class="dse-tab-list" role="tablist" aria-label="DSE test cases">
+            {% for case in dse_cases %}
+            <button
+                type="button"
+                class="dse-tab-button js-dse-tab-button {% if loop.first %}is-active{% endif %}"
+                data-tab-target="dse-case-{{ loop.index0 }}"
+                role="tab"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+            >
+                {{ case.name }}
+            </button>
+            {% endfor %}
+        </div>
+
+        {% for case in dse_cases %}
+        <div
+            class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
+            data-tab-panel="dse-case-{{ loop.index0 }}"
+        >
+            {% for summary in case.summaries %}
+            <section class="dse-summary">
         <div class="overview-board">
             <div class="overview-topline">
                 <h2>DSE: overview</h2>
@@ -625,8 +692,14 @@
             {% endif %}
         </div>
     </section>
-    {% endfor %}
+            {% endfor %}
 
+        </div>
+        {% endfor %}
+    </section>
+{% endif %}
+
+{% if dse_report_items %}
     <div class="dse-box">
         <h3>All Steps</h3>
         <table class="steps-table">
@@ -639,7 +712,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for item in report_items %}
+                {% for item in dse_report_items %}
                 <tr>
                     <td>{{ item.name }}</td>
                     <td>
@@ -668,7 +741,9 @@
             </tbody>
         </table>
     </div>
-{% else %}
+{% endif %}
+
+{% if report_items %}
     <table>
         <tr>
             <th>Test</th>
