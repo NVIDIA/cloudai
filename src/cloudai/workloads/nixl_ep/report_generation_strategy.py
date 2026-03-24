@@ -40,20 +40,21 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
     def can_handle_directory(self) -> bool:
         return any(parse_nixl_ep_bandwidth_samples(path) for path in self._node_logs())
 
-    def _num_phases(self) -> int:
+    def _load_plan(self) -> list[list[int]]:
         plan_path = self.test_run.output_path / GENERATED_PLAN_FILE_NAME
         if not plan_path.is_file():
-            return 0
+            return []
         try:
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
-            return len(plan) if isinstance(plan, list) else 0
+            return plan if isinstance(plan, list) else []
         except (json.JSONDecodeError, OSError):
-            return 0
+            return []
 
     def generate_report(self) -> None:
         console = Console()
         node_logs = self._node_logs()
-        num_phases = self._num_phases()
+        plan = self._load_plan()
+        num_phases = len(plan)
 
         if not node_logs:
             console.print("[yellow]NIXL EP: no node logs found[/yellow]")
@@ -89,12 +90,13 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
             return f"{v:.2f}" if v is not None else "—"
 
         def phase_cell(completed: set[int]) -> str:
-            if not num_phases:
+            if not plan:
                 return "—"
             parts = []
-            for p in range(num_phases):
-                parts.append(f"[green]{p}[/green]" if p in completed else f"[red]{p}[/red]")
-            return " ".join(parts)
+            for p, ranks in enumerate(plan):
+                label = str(ranks)
+                parts.append(f"[green]{label}[/green]" if p in completed else f"[red]{label}[/red]")
+            return "\n".join(parts)
 
         for node_idx in range(len(node_logs)):
             completed = completed_by_node.get(node_idx, set())
