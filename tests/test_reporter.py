@@ -424,6 +424,8 @@ def test_report_item_from_test_runs_includes_logs_and_metadata(
     assert items[0].logs_path == f"./{benchmark_tr.name}/0"
     assert items[0].nodes is not None
     assert items[0].nodes.slurm.node_list == slurm_metadata.slurm.node_list
+    assert items[0].status_text == "FAILED"
+    assert items[0].status_class == "failed"
 
 
 def test_report_order() -> None:
@@ -442,17 +444,13 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.total_space == 8
     assert summary.executed_steps == 3
     assert summary.skipped_steps == 5
-    assert summary.coverage_percent == pytest.approx(37.5)
     assert summary.best_step == 2
     assert summary.best_reward == pytest.approx(3.0)
-    assert summary.best_observation_display == "1.2"
     assert summary.avg_step_duration_sec == pytest.approx(20.0)
     assert summary.total_runtime_sec == pytest.approx(60.0)
-    assert summary.projected_runtime_sec == pytest.approx(160.0)
     assert summary.saved_runtime_sec == pytest.approx(100.0)
     assert summary.saved_gpu_hours == pytest.approx((100.0 / 3600.0) * 16)
     assert summary.estimated_saved_cost_usd == pytest.approx((summary.saved_gpu_hours or 0) * 4.5)
-    assert summary.gpu_arch_family == "H100"
     assert summary.analysis_rel_path is not None
     assert summary.best_config_rel_path == f"./{dse_tr.name}/0/{dse_tr.name}.toml"
     assert summary.reward_chart_data is not None
@@ -460,6 +458,8 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.reward_chart_data["rewards"] == pytest.approx([1.5, 3.0, 2.0])
     assert summary.reward_chart_data["running_best"] == pytest.approx([1.5, 3.0, 3.0])
     assert summary.reward_chart_data["observations"] == ["2.5", "1.2", "1.8"]
+    assert summary.effort_chart_data is not None
+    assert summary.effort_chart_data["explored_ratio"] == pytest.approx(3 / 8)
 
     best_values = {row.name: row.best_value for row in summary.parameter_rows}
     assert best_values["nthreads"] == "2"
@@ -498,16 +498,26 @@ def test_dse_generate_scenario_report_renders_html(
     html = report_path.read_text()
     assert "cdn.jsdelivr.net/npm/chart.js" in html
     assert "Saved GPU-Hours" in html
+    assert "Search Space" in html
+    assert "Explored Steps" in html
+    assert "DSE Savings" in html
     assert "Reward Over Steps" in html
     assert "Best Test TOML" in html
     assert "Show best config TOML" in html
+    assert "Copy TOML" in html
     assert "BO Analysis" in html
+    assert "All Steps" in html
     assert "dse-report.toml" in html
     assert "js-reward-chart" in html
     assert "chart-shell" in html
-    assert "dse-section-grid" not in html
+    assert 'class="value-pill value-pill--selected"' in html
+    assert "Execution Context" not in html
     assert "Exploration Mix" not in html
-    assert "37.50%" in html
+    assert "Skipped" not in html
+    assert "Coverage" not in html
+    assert "GPU Family" not in html
+    assert "<th>Best</th>" not in html
+    assert "status-pill--passed" in html
     assert "1m 40s" in html
 
 
@@ -531,5 +541,4 @@ def test_unknown_gpu_family_omits_estimated_cost(
     dse_tr = _create_dse_report_fixture(slurm_system, slurm_metadata, gpu_name="Mystery GPU")
     _reporter, summaries = _build_dse_summaries(slurm_system, dse_tr)
 
-    assert summaries[0].gpu_arch_family is None
     assert summaries[0].estimated_saved_cost_usd is None

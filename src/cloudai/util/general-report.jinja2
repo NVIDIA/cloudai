@@ -8,17 +8,18 @@
     .dse-summary {
         margin: 2rem 0 3rem;
     }
+    .overview-board,
+    .dse-box {
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-lg);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 252, 233, 0.98));
+        box-shadow: var(--nv-shadow);
+    }
     .overview-board {
         position: relative;
         margin-bottom: 1.5rem;
         padding: 1.6rem;
-        border: 1px solid rgba(118, 185, 0, 0.28);
-        border-radius: var(--radius-lg);
-        background:
-            linear-gradient(140deg, rgba(118, 185, 0, 0.10), transparent 36%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 252, 233, 0.98));
-        box-shadow: var(--nv-shadow);
-        color: var(--nv-text);
+        overflow: hidden;
     }
     .overview-board::before {
         content: "";
@@ -36,7 +37,7 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 0.8rem 1rem;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.85rem;
     }
     .overview-board h2 {
         margin: 0;
@@ -77,10 +78,11 @@
         color: var(--nv-muted);
         font-size: 0.95rem;
     }
-    .overview-card-grid {
+    .summary-stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         gap: 0.9rem;
+        margin-bottom: 1rem;
     }
     .metric-card {
         padding: 1rem 1.05rem;
@@ -93,10 +95,13 @@
         border-color: rgba(118, 185, 0, 0.34);
         box-shadow: inset 0 4px 0 var(--nv-green);
     }
-    .metric-card--muted {
-        background: rgba(255, 255, 255, 0.92);
+    .metric-card--neutral {
+        background: rgba(255, 255, 255, 0.94);
     }
     .metric-label {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
         color: var(--nv-muted);
         font-size: 0.77rem;
         text-transform: uppercase;
@@ -110,27 +115,17 @@
         line-height: 1.1;
         letter-spacing: -0.03em;
     }
-    .metric-note {
-        margin-top: 0.35rem;
-        color: var(--nv-muted);
-        font-size: 0.84rem;
-    }
-    .dse-box {
-        margin-top: 1.15rem;
-        padding: 1.2rem 1.3rem;
-        border: 1px solid var(--nv-border);
-        border-radius: var(--radius-md);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 240, 0.96));
-        box-shadow: 0 12px 34px rgba(17, 17, 17, 0.05);
-    }
-    .context-list {
+    .context-strip {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.85rem 1rem;
-        margin: 0.75rem 0 0;
+        gap: 0.8rem 1rem;
+        margin-bottom: 1rem;
     }
-    .context-list div {
-        font-size: 0.95rem;
+    .context-item {
+        padding: 0.85rem 0.95rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.06);
+        background: rgba(255, 255, 255, 0.90);
     }
     .label {
         color: var(--nv-muted);
@@ -143,19 +138,119 @@
         color: var(--nv-ink);
         font-weight: 650;
     }
-    .best-link-list {
+    .effort-block {
+        padding: 1rem 1.05rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(118, 185, 0, 0.22);
+        background: linear-gradient(180deg, rgba(118, 185, 0, 0.08), rgba(255, 255, 255, 0.92));
+    }
+    .effort-head {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.85rem 1.2rem;
-        margin-top: 1rem;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        margin-bottom: 0.65rem;
     }
-    .best-link-list a {
+    .effort-head h3 {
+        margin: 0;
+    }
+    .effort-caption {
+        color: var(--nv-muted);
+        font-size: 0.92rem;
+    }
+    .effort-bar {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+        min-height: 56px;
+        margin: 0.7rem 0 0.6rem;
+        overflow: hidden;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: rgba(255, 255, 255, 0.86);
+    }
+    .effort-bar__explored {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 86px;
+        background: linear-gradient(90deg, var(--nv-green), var(--nv-green-bright));
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+    .effort-bar__break {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 62px;
+        color: var(--nv-muted);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        background:
+            repeating-linear-gradient(
+                -55deg,
+                rgba(17, 17, 17, 0.06),
+                rgba(17, 17, 17, 0.06) 6px,
+                rgba(255, 255, 255, 0.75) 6px,
+                rgba(255, 255, 255, 0.75) 12px
+            );
+    }
+    .effort-bar__remaining {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 1rem;
+        color: var(--nv-muted);
+        font-weight: 700;
+        background: rgba(17, 17, 17, 0.08);
+    }
+    .effort-scale {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--nv-muted);
+        font-size: 0.9rem;
+    }
+    .dse-box {
+        margin-top: 1.15rem;
+        padding: 1.2rem 1.3rem;
+    }
+    .section-topline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem 1rem;
+        margin-bottom: 0.9rem;
+    }
+    .section-topline h3 {
+        margin: 0;
+    }
+    .best-config-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+    }
+    .action-button {
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(118, 185, 0, 0.28);
+        background: #ffffff;
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .action-button:hover {
+        background: var(--nv-green-soft);
+        text-decoration: none;
     }
     .best-config-preview {
-        margin-top: 1rem;
         border-radius: var(--radius-sm);
         overflow: hidden;
         border: 1px solid rgba(118, 185, 0, 0.22);
@@ -177,14 +272,30 @@
         background: #fbfdf8;
         border-top: 1px solid rgba(118, 185, 0, 0.16);
     }
-    .best-value {
-        display: inline-block;
+    .space-table th,
+    .steps-table th {
+        background: #f0f9de;
+    }
+    .value-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+    .value-pill {
+        display: inline-flex;
+        align-items: center;
         padding: 0.22rem 0.62rem;
         border-radius: 999px;
-        background: var(--nv-green-soft);
-        color: var(--nv-green-strong);
-        font-weight: 750;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        color: var(--nv-text);
+        font-weight: 650;
         white-space: nowrap;
+    }
+    .value-pill--selected {
+        background: var(--nv-green-soft);
+        border-color: rgba(118, 185, 0, 0.30);
+        color: var(--nv-green-strong);
     }
     .small-note {
         color: var(--nv-muted);
@@ -211,30 +322,55 @@
     .chart-shell.is-enhanced ~ .chart-fallback {
         display: none;
     }
-    .space-table th {
-        background: #f0f9de;
-    }
+    .steps-table tbody tr:nth-child(even),
     .space-table tbody tr:nth-child(even) {
         background: rgba(118, 185, 0, 0.05);
     }
+    .steps-table tbody tr:hover,
     .space-table tbody tr:hover {
         background: rgba(118, 185, 0, 0.10);
     }
     @media (max-width: 640px) {
-        .overview-board {
-            padding: 1.2rem;
+        .overview-board,
+        .dse-box {
+            padding: 1.1rem;
         }
         .metric-value {
             font-size: 1.35rem;
         }
-        .context-list {
+        .context-strip {
             grid-template-columns: 1fr;
+        }
+        .effort-bar__break {
+            width: 46px;
         }
     }
 </style>
 {% if dse_summaries %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".js-copy-config").forEach((button) => {
+            button.addEventListener("click", async function () {
+                const target = document.getElementById(button.dataset.copyTarget);
+                if (!target) {
+                    return;
+                }
+                const originalText = button.textContent;
+                try {
+                    await navigator.clipboard.writeText(target.textContent || "");
+                    button.textContent = "Copied";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                } catch (_error) {
+                    button.textContent = "Copy failed";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                }
+            });
+        });
+
         if (typeof Chart === "undefined") {
             return;
         }
@@ -323,14 +459,13 @@
             });
             canvas.parentElement.classList.add("is-enhanced");
         });
-
     });
 </script>
 {% endif %}
 {% endblock %}
 
 {% block content %}
-
+{% if dse_summaries %}
     {% for summary in dse_summaries %}
     <section class="dse-summary">
         <div class="overview-board">
@@ -338,99 +473,103 @@
                 <h2>{{ summary.display_name }}</h2>
                 <span class="status-pill status-pill--{{ summary.status_text | lower }}">{{ summary.status_text }}</span>
                 <span class="overview-summary-line">
-                    {{ summary.executed_steps }} explored out of {{ summary.total_space }} combinations
-                    {% if summary.best_step is not none %} • best step {{ summary.best_step }}{% endif %}
-                    {% if summary.best_reward is not none %} • reward {{ format_float(summary.best_reward, 4) }}{% endif %}
+                    {{ "{:,}".format(summary.executed_steps) }} explored out of {{ "{:,}".format(summary.total_space) }} combinations
                 </span>
             </div>
             <p class="overview-description">{{ summary.description }}</p>
 
-            <div class="overview-card-grid">
+            <div class="summary-stat-grid">
+                <div class="metric-card metric-card--neutral">
+                    <div class="metric-label">Search Space</div>
+                    <div class="metric-value">{{ "{:,}".format(summary.total_space) }}</div>
+                </div>
+                <div class="metric-card metric-card--neutral">
+                    <div class="metric-label">Explored Steps</div>
+                    <div class="metric-value">{{ "{:,}".format(summary.executed_steps) }}</div>
+                </div>
                 <div class="metric-card metric-card--hero">
                     <div class="metric-label">Saved Time</div>
                     <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
-                    <div class="metric-note">Projected full search minus observed runtime</div>
                 </div>
                 <div class="metric-card metric-card--hero">
                     <div class="metric-label">Saved GPU-Hours</div>
                     <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
-                    <div class="metric-note">Estimated from nodes, GPUs per node, and observed timings</div>
                 </div>
                 <div class="metric-card metric-card--hero">
                     <div class="metric-label">Estimated $ Saved</div>
                     <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
-                    <div class="metric-note">Approximate savings using GPU-family hourly assumptions</div>
-                </div>
-                <div class="metric-card metric-card--muted">
-                    <div class="metric-label">Space</div>
-                    <div class="metric-value">{{ summary.total_space }}</div>
-                </div>
-                <div class="metric-card metric-card--muted">
-                    <div class="metric-label">Ran</div>
-                    <div class="metric-value">{{ summary.executed_steps }}</div>
-                </div>
-                <div class="metric-card metric-card--muted">
-                    <div class="metric-label">Skipped</div>
-                    <div class="metric-value">{{ summary.skipped_steps }}</div>
-                </div>
-                <div class="metric-card metric-card--muted">
-                    <div class="metric-label">Coverage</div>
-                    <div class="metric-value">{{ format_percent(summary.coverage_percent) }}</div>
                 </div>
             </div>
+
+            <div class="context-strip">
+                <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
+                <div class="context-item"><span class="label">Step Success / Failure</span><span class="value">{{ summary.success_count }} / {{ summary.failure_count }}</span></div>
+                <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
+                <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
+            </div>
+
+            {% if summary.effort_chart_data %}
+            <div class="effort-block">
+                <div class="effort-head">
+                    <h3>DSE Savings</h3>
+                    <span class="effort-caption">Axis break emphasizes the gap between explored trials and full-space search.</span>
+                </div>
+                <div class="effort-bar">
+                    <div class="effort-bar__explored" style="width: {{ summary.effort_chart_data.explored_display_percent }}%;">
+                        {{ "{:,}".format(summary.executed_steps) }}
+                    </div>
+                    {% if summary.skipped_steps > 0 %}
+                    <div class="effort-bar__break">//</div>
+                    <div class="effort-bar__remaining" style="width: {{ summary.effort_chart_data.remainder_display_percent }}%;">
+                        {{ "{:,}".format(summary.total_space) }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="effort-scale">
+                    <span>Explored</span>
+                    <span>Full space</span>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <div class="dse-box">
-            <h3>Execution Context</h3>
-            <div class="context-list">
-                <div><span class="label">GPU Family</span><span class="value">{{ summary.gpu_arch_family or "unknown" }}</span></div>
-                <div><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
-                <div><span class="label">GPUs Per Node</span><span class="value">{{ summary.gpus_per_node or "unknown" }}</span></div>
-                <div><span class="label">Nodes</span><span class="value">{{ summary.num_nodes or "unknown" }}</span></div>
-                <div><span class="label">Step Success / Failure</span><span class="value">{{ summary.success_count }} / {{ summary.failure_count }}</span></div>
-                <div><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
-                <div><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
-                <div><span class="label">Projected Full-Space Runtime</span><span class="value">{{ format_duration(summary.projected_runtime_sec) }}</span></div>
-            </div>
-        </div>
-
-        <div class="dse-box">
-            <h3>Best Step</h3>
-            <div class="context-list">
-                <div><span class="label">Best Step</span><span class="value">{{ summary.best_step }}</span></div>
-                <div><span class="label">Best Reward</span><span class="value">{{ format_float(summary.best_reward, 4) }}</span></div>
-                <div><span class="label">Best Observation</span><span class="value">{{ summary.best_observation_display }}</span></div>
-                <div><span class="label">Run Folder</span><span class="value"><a href="{{ summary.output_root_rel_path }}">open</a></span></div>
-            </div>
-            <div class="best-link-list">
-                {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
-                {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
+            <div class="section-topline">
+                <h3>Best Config</h3>
+                <div class="best-config-actions">
+                    {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
+                    {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
+                    {% if summary.best_config_toml %}<button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>{% endif %}
+                </div>
             </div>
             {% if summary.best_config_toml %}
             <details class="best-config-preview">
                 <summary>Show best config TOML</summary>
-                <pre>{{ summary.best_config_toml }}</pre>
+                <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
             </details>
             {% endif %}
         </div>
 
         <div class="dse-box">
             <h3>Exploration Space</h3>
-            <p class="small-note">Each row shows the allowed values for a swept parameter and the selected best value.</p>
             <table class="space-table">
                 <thead>
                     <tr>
                         <th>Parameter</th>
                         <th>Allowed Values</th>
-                        <th>Best</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in summary.parameter_rows %}
                     <tr>
                         <td>{{ row.name }}</td>
-                        <td>{{ row.values | join(", ") }}</td>
-                        <td><span class="best-value">{{ row.best_value }}</span></td>
+                        <td>
+                            <div class="value-cloud">
+                                {% for value in row.values %}
+                                <span class="value-pill {% if value == row.best_value %}value-pill--selected{% endif %}">{{ value }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -449,7 +588,7 @@
                     ></canvas>
                 </div>
                 <script type="application/json" id="reward-chart-data-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
-                <p class="chart-fallback">Interactive chart unavailable. Step count, best reward, and summary metrics remain available above.</p>
+                <p class="chart-fallback">Interactive chart unavailable. Step count and summary metrics remain available above.</p>
                 <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
             {% else %}
                 <p>No reward data available.</p>
@@ -458,31 +597,73 @@
     </section>
     {% endfor %}
 
-<table>
-    <tr>
-        <th>Test</th>
-        <th>Description</th>
-        <th>Results</th>
-        {% if report_items | selectattr('nodes') | first is not none %}
-          <th>Nodes</th>
-        {% endif %}
-    </tr>
-    {% for item in report_items %}
-    <tr>
-        <td>{{ item.name }}</td>
-        <td>{{ item.description }}</td>
-        {% if item.logs_path %}
-            <td><a href="{{ item.logs_path }}">logs</a></td>
-        {% else %}
-            <td>no logs</td>
-        {% endif %}
-        {% if item.nodes is not none %}
-            <td>{{ item.nodes }}</td>
-        {% else %}
-            <td>no nodes information</td>
-        {% endif %}
-    </tr>
-    {% endfor %}
-</table>
-
+    <div class="dse-box">
+        <h3>All Steps</h3>
+        <table class="steps-table">
+            <thead>
+                <tr>
+                    <th>Case</th>
+                    <th>Status</th>
+                    <th>Results</th>
+                    <th>Nodes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in report_items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>
+                        {% if item.status_text %}
+                            <span class="status-pill status-pill--{{ item.status_class }}">{{ item.status_text }}</span>
+                        {% else %}
+                            unknown
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.logs_path %}
+                            <a href="{{ item.logs_path }}">logs</a>
+                        {% else %}
+                            no logs
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.nodes is not none %}
+                            {{ item.nodes.slurm.node_list }}
+                        {% else %}
+                            no nodes information
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <table>
+        <tr>
+            <th>Test</th>
+            <th>Description</th>
+            <th>Results</th>
+            {% if report_items | selectattr('nodes') | first is not none %}
+              <th>Nodes</th>
+            {% endif %}
+        </tr>
+        {% for item in report_items %}
+        <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.description }}</td>
+            {% if item.logs_path %}
+                <td><a href="{{ item.logs_path }}">logs</a></td>
+            {% else %}
+                <td>no logs</td>
+            {% endif %}
+            {% if item.nodes is not none %}
+                <td>{{ item.nodes }}</td>
+            {% else %}
+                <td>no nodes information</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+{% endif %}
 {% endblock %}

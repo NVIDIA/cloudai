@@ -21,7 +21,7 @@ import contextlib
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import toml
 from pydantic import BaseModel
@@ -123,6 +123,20 @@ def _build_reward_chart_data(steps: list["DSEStepData"]) -> dict[str, list[Any]]
     }
 
 
+def _build_effort_chart_data(executed_steps: int, total_space: int) -> dict[str, Any] | None:
+    if total_space <= 0:
+        return None
+
+    explored_ratio = min(max(executed_steps / total_space, 0.0), 1.0)
+    explored_display_percent = 100.0 if explored_ratio >= 1.0 else min(max(explored_ratio * 100.0, 14.0), 62.0)
+
+    return {
+        "explored_ratio": explored_ratio,
+        "explored_display_percent": explored_display_percent,
+        "remainder_display_percent": max(100.0 - explored_display_percent, 0.0),
+    }
+
+
 class _ReportMetadataSystem(BaseModel):
     gpu_arch_type: str
 
@@ -171,19 +185,25 @@ class ReportItem:
 
     name: str
     description: str
-    logs_path: Optional[str] = None
-    nodes: Optional[_ReportSystemMetadata] = None
+    logs_path: str | None
+    nodes: _ReportSystemMetadata | None
+    status_text: str
+    status_class: str
 
     @classmethod
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
         for tr in test_runs:
+            tr_status = tr.test.was_run_successful(tr)
+            status_text = "PASSED" if tr_status.is_successful else "FAILED"
             report_items.append(
                 ReportItem(
                     name=case_name(tr),
                     description=tr.test.description,
                     logs_path=f"./{tr.output_path.relative_to(results_root)}" if tr.output_path.exists() else None,
                     nodes=load_system_metadata(tr.output_path, results_root),
+                    status_text=status_text,
+                    status_class=status_text.lower(),
                 )
             )
         return report_items
@@ -223,22 +243,14 @@ class DSESummary:
     total_space: int
     executed_steps: int
     skipped_steps: int
-    coverage_percent: float | None
     best_step: int | None
     best_reward: float | None
-    best_observation_display: str
     avg_step_duration_sec: float | None
     total_runtime_sec: float | None
-    projected_runtime_sec: float | None
     saved_runtime_sec: float | None
     success_count: int
     failure_count: int
     gpu_arch_label: str | None
-    gpu_arch_family: str | None
-    gpus_per_node: int | None
-    num_nodes: int | None
-    total_gpu_hours: float | None
-    projected_gpu_hours: float | None
     saved_gpu_hours: float | None
     estimated_saved_cost_usd: float | None
     best_config_rel_path: str | None
@@ -246,6 +258,7 @@ class DSESummary:
     analysis_rel_path: str | None
     parameter_rows: list[DSEParameterRow] = field(default_factory=list)
     reward_chart_data: dict[str, list[Any]] | None = None
+    effort_chart_data: dict[str, Any] | None = None
 
     @property
     def display_name(self) -> str:
@@ -375,7 +388,6 @@ class DSEReportBuilder:
         total_space = len(original_tr.all_combinations)
         executed_steps = len(steps)
         skipped_steps = max(total_space - executed_steps, 0)
-        coverage_percent = (executed_steps / total_space * 100.0) if total_space else None
         projected_runtime_sec = avg_step_duration_sec * total_space if avg_step_duration_sec is not None else None
         saved_runtime_sec = (
             max(projected_runtime_sec - total_runtime_sec, 0.0)
@@ -431,22 +443,14 @@ class DSEReportBuilder:
             total_space=total_space,
             executed_steps=executed_steps,
             skipped_steps=skipped_steps,
-            coverage_percent=coverage_percent,
             best_step=best_step_data.step,
             best_reward=best_step_data.reward,
-            best_observation_display=best_step_data.observation_display,
             avg_step_duration_sec=avg_step_duration_sec,
             total_runtime_sec=total_runtime_sec,
-            projected_runtime_sec=projected_runtime_sec,
             saved_runtime_sec=saved_runtime_sec,
             success_count=success_count,
             failure_count=failure_count,
             gpu_arch_label=gpu_arch_label,
-            gpu_arch_family=gpu_arch_family,
-            gpus_per_node=gpus_per_node,
-            num_nodes=num_nodes,
-            total_gpu_hours=total_gpu_hours,
-            projected_gpu_hours=projected_gpu_hours,
             saved_gpu_hours=saved_gpu_hours,
             estimated_saved_cost_usd=estimated_saved_cost_usd,
             best_config_rel_path=f"./{best_config_path.relative_to(self.results_root)}",
@@ -454,6 +458,7 @@ class DSEReportBuilder:
             analysis_rel_path=f"./{analysis_file.relative_to(self.results_root)}" if analysis_file.exists() else None,
             parameter_rows=parameter_rows,
             reward_chart_data=_build_reward_chart_data(steps),
+            effort_chart_data=_build_effort_chart_data(executed_steps, total_space),
         )
 
     @staticmethod
