@@ -507,12 +507,10 @@ def test_dse_generate_scenario_report_renders_html(
     assert "3 / 8 steps" in html
     assert "reduction in search space" in html
     assert "Reward Over Steps" in html
-    assert "Best Test TOML" in html
-    assert "Show best config TOML" in html
+    assert "Best Config TOML" in html
     assert "Copy TOML" in html
     assert "BO Analysis" in html
     assert "All Steps" in html
-    assert "dse-report.toml" in html
     assert "efficiency-ratio" in html
     assert "js-reward-chart" in html
     assert "chart-shell" in html

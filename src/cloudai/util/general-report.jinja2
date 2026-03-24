@@ -190,16 +190,7 @@
         font-size: 0.92rem;
     }
     .effort-chart-shell {
-        display: flex;
-        align-items: center;
-        flex: none;
-        min-height: 0;
-        height: auto;
         margin-top: 0.45rem;
-        border-radius: var(--radius-md);
-        border: 1px solid rgba(17, 17, 17, 0.08);
-        background: rgba(255, 255, 255, 0.88);
-        padding: 0.95rem 1rem;
     }
     .efficiency-panel {
         display: flex;
@@ -273,13 +264,33 @@
         overflow: hidden;
         border: 1px solid rgba(118, 185, 0, 0.22);
         background: linear-gradient(180deg, #ffffff, #f8fbf4);
+        margin-top: 1.15rem;
     }
     .best-config-preview summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        list-style: none;
         cursor: pointer;
         padding: 0.9rem 1rem;
         color: var(--nv-ink);
         font-weight: 650;
         background: linear-gradient(180deg, rgba(118, 185, 0, 0.18), rgba(255, 255, 255, 0.72));
+    }
+    .best-config-preview summary::-webkit-details-marker {
+        display: none;
+    }
+    .best-config-summary-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+    .best-config-summary-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-left: auto;
     }
     .best-config-preview pre {
         max-height: 360px;
@@ -374,6 +385,13 @@
         .metric-card--accent .metric-value,
         .efficiency-ratio {
             font-size: 1.45rem;
+        }
+        .best-config-preview summary {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .best-config-summary-actions {
+            margin-left: 0;
         }
     }
 </style>
@@ -539,34 +557,27 @@
                 <div class="effort-block">
                     <div class="effort-head">
                         <h3>Exploration Efficiency</h3>
-                        <span class="effort-caption">{{ format_percent(summary.effort_chart_data["explored_percent"]) }} explored</span>
                     </div>
-                    <div class="effort-chart-shell">
-                        <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
-                            <div class="efficiency-callout">
-                                <div class="efficiency-ratio">~{{ format_float(summary.effort_chart_data["reduction_factor"], 1) }}x</div>
-                                <div class="efficiency-ratio-note">reduction in search space</div>
-                            </div>
-                            <div class="efficiency-steps">{{ "{:,}".format(summary.effort_chart_data["executed_steps"]) }} / {{ "{:,}".format(summary.effort_chart_data["total_space"]) }} steps</div>
+                    <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
+                        <div class="efficiency-callout">
+                            <div class="efficiency-ratio">~{{ format_float(summary.effort_chart_data["reduction_factor"], 1) }}x</div>
+                            <div class="efficiency-ratio-note">reduction in search space</div>
                         </div>
+                        <div class="efficiency-steps">{{ "{:,}".format(summary.effort_chart_data["executed_steps"]) }} / {{ "{:,}".format(summary.effort_chart_data["total_space"]) }} steps</div>
                     </div>
                 </div>
                 {% endif %}
             </div>
-        </div>
 
-        <div class="dse-box">
-            <div class="section-topline">
-                <h3>DSE: Best Config</h3>
-                <div class="best-config-actions">
-                    {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
-                    {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
-                    {% if summary.best_config_toml %}<button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>{% endif %}
-                </div>
-            </div>
             {% if summary.best_config_toml %}
             <details class="best-config-preview">
-                <summary>Show best config TOML</summary>
+                <summary>
+                    <span class="best-config-summary-title">Best Config TOML</span>
+                    <span class="best-config-summary-actions">
+                        {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
+                        <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
+                    </span>
+                </summary>
                 <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
             </details>
             {% endif %}
