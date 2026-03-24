@@ -69,11 +69,69 @@
     .dse-tab-panel.is-active {
         display: block;
     }
+    .overview-board,
     .dse-box {
         border: 1px solid var(--nv-border);
         border-radius: var(--radius-lg);
         background: rgba(255, 255, 255, 0.98);
         box-shadow: var(--nv-shadow);
+    }
+    .overview-board {
+        position: relative;
+        margin-bottom: 1.5rem;
+        padding: 1.6rem;
+        overflow: hidden;
+    }
+    .overview-board::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        background: linear-gradient(90deg, var(--nv-green), var(--nv-green-bright));
+        pointer-events: none;
+    }
+    .overview-topline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.8rem 1rem;
+        margin-bottom: 0.85rem;
+    }
+    .overview-board h2 {
+        margin: 0;
+        color: var(--nv-ink);
+    }
+    .overview-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.95fr);
+        gap: 1rem;
+        align-items: start;
+    }
+    .overview-left {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .summary-stat-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+    }
+    .impact-stat-grid,
+    .context-strip {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .impact-stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .context-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .dse-box {
         margin-bottom: 1.4rem;
         padding: 1.35rem;
     }
@@ -134,6 +192,76 @@
         font-size: 1.8rem;
         color: var(--nv-green-strong);
     }
+    .context-item {
+        padding: 0.85rem 0.95rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: #ffffff;
+    }
+    .context-item--runtime {
+        background: #fbfcfa;
+    }
+    .label {
+        color: var(--nv-muted);
+        display: block;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .value {
+        color: var(--nv-ink);
+        font-weight: 650;
+    }
+    .effort-block {
+        display: flex;
+        flex-direction: column;
+        align-self: start;
+        padding: 1rem 1.05rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: linear-gradient(180deg, #fcfdfb, #ffffff);
+    }
+    .effort-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        margin-bottom: 0.65rem;
+    }
+    .effort-head h3 {
+        margin: 0;
+    }
+    .efficiency-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        width: 100%;
+    }
+    .efficiency-steps {
+        color: var(--nv-muted);
+        font-size: 0.95rem;
+        font-weight: 650;
+    }
+    .efficiency-callout {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        padding: 0;
+    }
+    .efficiency-ratio {
+        color: var(--nv-green-strong);
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+    }
+    .efficiency-ratio-note {
+        color: var(--nv-ink);
+        font-size: 1rem;
+        font-weight: 650;
+        line-height: 1.2;
+    }
     .best-config-preview {
         border-radius: var(--radius-sm);
         overflow: hidden;
@@ -152,9 +280,26 @@
         color: var(--nv-ink);
         font-weight: 650;
         background: #fbfcfa;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
     }
     .best-config-preview summary::-webkit-details-marker {
         display: none;
+    }
+    .best-config-preview summary::before {
+        content: "";
+        width: 0;
+        height: 0;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 7px solid var(--nv-green-strong);
+        margin-right: 0.55rem;
+        transition: transform 0.15s ease;
+    }
+    .best-config-preview summary:hover {
+        background: var(--nv-green-soft);
+    }
+    .best-config-preview[open] summary::before {
+        transform: rotate(90deg);
     }
     .best-config-summary-actions {
         display: inline-flex;
@@ -230,6 +375,13 @@
         display: none;
     }
     @media (max-width: 640px) {
+        .overview-board,
+        .dse-box {
+            padding: 1.1rem;
+        }
+        .overview-layout,
+        .impact-stat-grid,
+        .context-strip,
         .dse-kpi-grid,
         .dse-runtime-grid {
             grid-template-columns: 1fr;
@@ -239,6 +391,9 @@
         }
         .metric-card--accent .metric-value {
             font-size: 1.5rem;
+        }
+        .efficiency-ratio {
+            font-size: 1.45rem;
         }
         .best-config-preview summary {
             align-items: flex-start;
@@ -319,14 +474,14 @@
                             label: "Reward",
                             data: chartData.rewards,
                             borderColor: "#39424e",
-                            backgroundColor: "rgba(57, 66, 78, 0.14)",
+                            backgroundColor: "transparent",
                             pointBackgroundColor: pointBackgroundColors,
                             pointBorderColor: pointBorderColors,
                             pointRadius: pointRadii,
                             pointHoverRadius: 6,
                             borderWidth: 2,
                             tension: 0.25,
-                            fill: true
+                            fill: false
                         }
                     ]
                 },
@@ -405,69 +560,67 @@
                 data-tab-panel="dse-case-{{ loop.index0 }}"
             >
                 <section class="dse-summary">
-                    <div class="dse-box">
-                        <div class="dse-header">
-                            <h2>{{ summary.name }}</h2>
+                    <div class="overview-board">
+                        <div class="overview-topline">
+                            <h2>Overview</h2>
                         </div>
 
-                        <div class="dse-kpi-grid">
-                            <div class="metric-card metric-card--hero">
-                                <div class="metric-label">Saved Time</div>
-                                <div class="metric-value">{{ summary.saved_time }}</div>
+                        <div class="overview-layout">
+                            <div class="overview-left">
+                                <div class="summary-stat-grid">
+                                    <div class="impact-stat-grid">
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved Time</div>
+                                            <div class="metric-value">{{ summary.saved_time }}</div>
+                                        </div>
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved GPU-Hours</div>
+                                            <div class="metric-value">{{ summary.saved_gpu_hours }}</div>
+                                        </div>
+                                        <div class="metric-card metric-card--accent">
+                                            <div class="metric-label">Estimated Savings</div>
+                                            <div class="metric-value">{{ summary.estimated_savings }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="context-strip">
+                                        <div class="context-item">
+                                            <span class="label">GPU Label</span>
+                                            <span class="value">{{ summary.gpu_label }}</span>
+                                        </div>
+                                        <div class="context-item context-item--runtime">
+                                            <span class="label">Avg Step Runtime</span>
+                                            <span class="value">{{ summary.avg_step_runtime }}</span>
+                                        </div>
+                                        <div class="context-item context-item--runtime">
+                                            <span class="label">Observed Runtime</span>
+                                            <span class="value">{{ summary.observed_runtime }}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="metric-card metric-card--hero">
-                                <div class="metric-label">Saved GPU-Hours</div>
-                                <div class="metric-value">{{ summary.saved_gpu_hours }}</div>
-                            </div>
-                            <div class="metric-card metric-card--accent">
-                                <div class="metric-label">Estimated Savings</div>
-                                <div class="metric-value">{{ summary.estimated_savings }}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">GPU Label</div>
-                                <div class="metric-value">{{ summary.gpu_label }}</div>
+                            <div class="effort-block">
+                                <div class="effort-head">
+                                    <h3>Exploration Efficiency</h3>
+                                </div>
+                                <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
+                                    <div class="efficiency-callout">
+                                        <div class="efficiency-ratio">{{ summary.efficiency_ratio }}</div>
+                                        <div class="efficiency-ratio-note">reduction in search space</div>
+                                    </div>
+                                    <div class="efficiency-steps">{{ summary.efficiency_steps }}</div>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="dse-runtime-grid">
-                            <div class="metric-card">
-                                <div class="metric-label">Avg Step Runtime</div>
-                                <div class="metric-value">{{ summary.avg_step_runtime }}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Observed Runtime</div>
-                                <div class="metric-value">{{ summary.observed_runtime }}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Exploration Efficiency</div>
-                                <div class="metric-value">{{ summary.efficiency_ratio }}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Explored Steps</div>
-                                <div class="metric-value">{{ summary.efficiency_steps }}</div>
-                            </div>
-                        </div>
-
-                        {% if summary.best_config_toml %}
-                        <details class="best-config-preview">
-                            <summary>
-                                <span>Best Config TOML</span>
-                                <span class="best-config-summary-actions">
-                                    <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
-                                </span>
-                            </summary>
-                            <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
-                        </details>
-                        {% endif %}
                     </div>
 
                     <div class="dse-box">
-                        <h3>DSE: Exploration Space</h3>
+                        <h3>Exploration Space</h3>
                         <table class="space-table">
                             <thead>
                                 <tr>
                                     <th>Parameter</th>
-                                    <th>Allowed Values</th>
+                                    <th>Values</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -485,10 +638,21 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+                        {% if summary.best_config_toml %}
+                        <details class="best-config-preview">
+                            <summary>
+                                <span>Best Config TOML</span>
+                                <span class="best-config-summary-actions">
+                                    <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
+                                </span>
+                            </summary>
+                            <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
+                        </details>
+                        {% endif %}
                     </div>
 
                     <div class="dse-box">
-                        <h3>DSE: Reward Over Steps</h3>
+                        <h3>Reward Over Steps</h3>
                         {% if summary.reward_chart_data %}
                             <div class="chart-shell">
                                 <canvas
