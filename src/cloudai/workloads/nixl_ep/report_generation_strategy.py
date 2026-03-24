@@ -66,11 +66,12 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
         has_kineto = any(s.dispatch_bandwidth_gbps is not None for ss in samples_by_node.values() for s in ss)
 
         passed = sum(1 for p in range(num_phases) if p in completed_by_node.get(0, set()))
-        title = f"NIXL EP — {passed}/{num_phases} phases passed" if num_phases else "NIXL EP"
+        case_id = self.test_run.name
+        phases_summary = f"{passed}/{num_phases} phases passed" if num_phases else ""
+        title = f"NIXL EP — {case_id}" + (f" — {phases_summary}" if phases_summary else "")
 
         table = Table(title=title, show_lines=True)
         table.add_column("Node", justify="right")
-        table.add_column("Rank", justify="right")
         table.add_column("Phases", justify="center")
         if has_combined:
             table.add_column("Dispatch+Combine BW (GB/s)", justify="right")
@@ -80,6 +81,9 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
         if has_kineto:
             table.add_column("Dispatch BW (GB/s)", justify="right")
             table.add_column("Combine BW (GB/s)", justify="right")
+
+        def mean(vals: list[float]) -> float | None:
+            return sum(vals) / len(vals) if vals else None
 
         def fmt(v: float | None) -> str:
             return f"{v:.2f}" if v is not None else "—"
@@ -97,22 +101,20 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
             samples = samples_by_node.get(node_idx, [])
             phases_str = phase_cell(completed)
 
-            if samples:
-                for sample in samples:
-                    row = [str(node_idx), str(sample.rank), phases_str]
-                    if has_combined:
-                        row += [
-                            fmt(sample.dispatch_combine_bandwidth_gbps),
-                            fmt(sample.avg_time_us),
-                            fmt(sample.min_time_us),
-                            fmt(sample.max_time_us),
-                        ]
-                    if has_kineto:
-                        row += [fmt(sample.dispatch_bandwidth_gbps), fmt(sample.combine_bandwidth_gbps)]
-                    table.add_row(*row)
-            else:
-                n_bw_cols = (4 if has_combined else 0) + (2 if has_kineto else 0)
-                table.add_row(str(node_idx), "—", phases_str, *["—"] * n_bw_cols)
+            row = [str(node_idx), phases_str]
+            if has_combined:
+                row += [
+                    fmt(mean([s.dispatch_combine_bandwidth_gbps for s in samples if s.dispatch_combine_bandwidth_gbps is not None])),
+                    fmt(mean([s.avg_time_us for s in samples if s.avg_time_us is not None])),
+                    fmt(mean([s.min_time_us for s in samples if s.min_time_us is not None])),
+                    fmt(mean([s.max_time_us for s in samples if s.max_time_us is not None])),
+                ]
+            if has_kineto:
+                row += [
+                    fmt(mean([s.dispatch_bandwidth_gbps for s in samples if s.dispatch_bandwidth_gbps is not None])),
+                    fmt(mean([s.combine_bandwidth_gbps for s in samples if s.combine_bandwidth_gbps is not None])),
+                ]
+            table.add_row(*row)
 
         console.print(table)
 
