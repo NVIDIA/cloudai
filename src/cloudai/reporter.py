@@ -176,7 +176,7 @@ class DSEReporter(Reporter):
         jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
         template = jinja_env.get_template("dse-report.jinja2")
 
-        report = template.render(scenario_name=self.test_scenario.name, dse_cases=dse_cases)
+        report = template.render(name=self.test_scenario.name, dse_cases=dse_cases)
         report_path = self.results_root / f"{self.test_scenario.name}-dse-report.html"
         with report_path.open("w") as f:
             f.write(report)
