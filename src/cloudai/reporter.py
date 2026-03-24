@@ -144,7 +144,6 @@ class DSEReporter(Reporter):
 
     def generate(self) -> None:
         self.load_test_runs()
-        self.report_best_dse_config()
 
         dse_cases = build_dse_summaries(
             system=self.system,
@@ -152,6 +151,11 @@ class DSEReporter(Reporter):
             loaded_test_runs=self.trs,
             test_cases=self.test_scenario.test_runs,
         )
+
+        if not dse_cases:
+            return
+
+        self.report_best_dse_config()
 
         jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
         template = jinja_env.get_template("dse-report.jinja2")
