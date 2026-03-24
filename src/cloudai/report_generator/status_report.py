@@ -100,26 +100,16 @@ def _normalize_gpu_family(gpu_name: str | None) -> str | None:
     return None
 
 
-def _build_running_best(points: list[tuple[int, float]]) -> list[tuple[int, float]]:
-    running_best: list[tuple[int, float]] = []
-    best = None
-    for step, reward in points:
-        best = reward if best is None else max(best, reward)
-        running_best.append((step, best))
-    return running_best
-
-
 def _build_reward_chart_data(steps: list["DSEStepData"]) -> dict[str, list[Any]] | None:
     if not steps:
         return None
 
-    reward_points = [(step.step, step.reward) for step in steps]
-    running_best = _build_running_best(reward_points)
+    best_index = max(range(len(steps)), key=lambda idx: steps[idx].reward)
     return {
         "labels": [step.step for step in steps],
         "rewards": [step.reward for step in steps],
-        "running_best": [reward for _, reward in running_best],
         "observations": [step.observation_display for step in steps],
+        "best_index": best_index,
     }
 
 

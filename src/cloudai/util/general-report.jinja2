@@ -435,6 +435,15 @@
                 return;
             }
             const chartData = JSON.parse(dataNode.textContent);
+            const pointBackgroundColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointBorderColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointRadii = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? 5 : 3
+            );
             new Chart(canvas, {
                 type: "line",
                 data: {
@@ -445,25 +454,13 @@
                             data: chartData.rewards,
                             borderColor: "#39424e",
                             backgroundColor: "rgba(57, 66, 78, 0.14)",
-                            pointBackgroundColor: "#39424e",
-                            pointRadius: 3,
-                            pointHoverRadius: 4,
+                            pointBackgroundColor: pointBackgroundColors,
+                            pointBorderColor: pointBorderColors,
+                            pointRadius: pointRadii,
+                            pointHoverRadius: 6,
                             borderWidth: 2,
                             tension: 0.25,
                             fill: true
-                        },
-                        {
-                            label: "Best so far",
-                            data: chartData.running_best,
-                            borderColor: "#76b900",
-                            backgroundColor: "rgba(118, 185, 0, 0.18)",
-                            pointBackgroundColor: "#76b900",
-                            pointRadius: 0,
-                            pointHoverRadius: 3,
-                            borderWidth: 3,
-                            tension: 0.18,
-                            borderDash: [8, 6],
-                            fill: false
                         }
                     ]
                 },
@@ -476,16 +473,17 @@
                     },
                     plugins: {
                         legend: {
-                            labels: {
-                                usePointStyle: true,
-                                boxWidth: 8
-                            }
+                            display: false
                         },
                         tooltip: {
                             callbacks: {
                                 afterBody: function (context) {
                                     const idx = context[0].dataIndex;
-                                    return "Observation: " + (chartData.observations[idx] || "n/a");
+                                    const lines = ["Observation: " + (chartData.observations[idx] || "n/a")];
+                                    if (idx === chartData.best_index) {
+                                        lines.push("Best step");
+                                    }
+                                    return lines;
                                 }
                             }
                         }
@@ -611,7 +609,6 @@
 
         <div class="dse-box viz-card">
             <h3>DSE: Reward Over Steps</h3>
-            <p class="small-note">Observed reward is shown as the dark line; the NVIDIA-green dashed line tracks the best-so-far trajectory.</p>
             {% if summary.reward_chart_data %}
                 <div class="chart-shell">
                     <canvas

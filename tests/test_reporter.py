@@ -456,8 +456,8 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.reward_chart_data is not None
     assert summary.reward_chart_data["labels"] == [1, 2, 3]
     assert summary.reward_chart_data["rewards"] == pytest.approx([1.5, 3.0, 2.0])
-    assert summary.reward_chart_data["running_best"] == pytest.approx([1.5, 3.0, 3.0])
     assert summary.reward_chart_data["observations"] == ["2.5", "1.2", "1.8"]
+    assert summary.reward_chart_data["best_index"] == 1
     assert summary.effort_chart_data is not None
     assert summary.effort_chart_data["explored_ratio"] == pytest.approx(3 / 8)
     assert summary.effort_chart_data["explored_percent"] == pytest.approx(37.5)
