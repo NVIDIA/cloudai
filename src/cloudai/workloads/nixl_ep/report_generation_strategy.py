@@ -50,6 +50,78 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
         except (json.JSONDecodeError, OSError):
             return []
 
+    @staticmethod
+    def _mean(vals: list[float]) -> float | None:
+        return sum(vals) / len(vals) if vals else None
+
+    @staticmethod
+    def _fmt(v: float | None) -> str:
+        return f"{v:.2f}" if v is not None else "—"
+
+    def _phase_cell(self, plan: list[list[int]], completed: set[int]) -> str:
+        if not plan:
+            return "—"
+        parts = []
+        for p, ranks in enumerate(plan):
+            label = str(ranks)
+            parts.append(f"[green]{label}[/green]" if p in completed else f"[red]{label}[/red]")
+        return "\n".join(parts)
+
+    def _build_table(
+        self,
+        title: str,
+        plan: list[list[int]],
+        node_logs: list[Path],
+        completed_by_node: dict[int, set[int]],
+        samples_by_node: dict[int, list],
+        has_combined: bool,
+        has_kineto: bool,
+    ) -> Table:
+        table = Table(title=title, show_lines=True)
+        table.add_column("Node", justify="right")
+        table.add_column("Phases", justify="left")
+        if has_combined:
+            table.add_column("Dispatch+Combine BW (GB/s)", justify="right")
+            table.add_column("Avg (µs)", justify="right")
+            table.add_column("Min (µs)", justify="right")
+            table.add_column("Max (µs)", justify="right")
+        if has_kineto:
+            table.add_column("Dispatch BW (GB/s)", justify="right")
+            table.add_column("Combine BW (GB/s)", justify="right")
+
+        for node_idx in range(len(node_logs)):
+            completed = completed_by_node.get(node_idx, set())
+            samples = samples_by_node.get(node_idx, [])
+            row = [str(node_idx), self._phase_cell(plan, completed)]
+            if has_combined:
+                row += [
+                    self._fmt(
+                        self._mean(
+                            [
+                                s.dispatch_combine_bandwidth_gbps
+                                for s in samples
+                                if s.dispatch_combine_bandwidth_gbps is not None
+                            ]
+                        )
+                    ),
+                    self._fmt(self._mean([s.avg_time_us for s in samples if s.avg_time_us is not None])),
+                    self._fmt(self._mean([s.min_time_us for s in samples if s.min_time_us is not None])),
+                    self._fmt(self._mean([s.max_time_us for s in samples if s.max_time_us is not None])),
+                ]
+            if has_kineto:
+                row += [
+                    self._fmt(
+                        self._mean(
+                            [s.dispatch_bandwidth_gbps for s in samples if s.dispatch_bandwidth_gbps is not None]
+                        )
+                    ),
+                    self._fmt(
+                        self._mean([s.combine_bandwidth_gbps for s in samples if s.combine_bandwidth_gbps is not None])
+                    ),
+                ]
+            table.add_row(*row)
+        return table
+
     def generate_report(self) -> None:
         console = Console()
         node_logs = self._node_logs()
@@ -67,57 +139,10 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
         has_kineto = any(s.dispatch_bandwidth_gbps is not None for ss in samples_by_node.values() for s in ss)
 
         passed = sum(1 for p in range(num_phases) if p in completed_by_node.get(0, set()))
-        case_id = self.test_run.name
         phases_summary = f"{passed}/{num_phases} phases passed" if num_phases else ""
-        title = f"NIXL EP — {case_id}" + (f" — {phases_summary}" if phases_summary else "")
+        title = f"NIXL EP — {self.test_run.name}" + (f" — {phases_summary}" if phases_summary else "")
 
-        table = Table(title=title, show_lines=True)
-        table.add_column("Node", justify="right")
-        table.add_column("Phases", justify="left")
-        if has_combined:
-            table.add_column("Dispatch+Combine BW (GB/s)", justify="right")
-            table.add_column("Avg (µs)", justify="right")
-            table.add_column("Min (µs)", justify="right")
-            table.add_column("Max (µs)", justify="right")
-        if has_kineto:
-            table.add_column("Dispatch BW (GB/s)", justify="right")
-            table.add_column("Combine BW (GB/s)", justify="right")
-
-        def mean(vals: list[float]) -> float | None:
-            return sum(vals) / len(vals) if vals else None
-
-        def fmt(v: float | None) -> str:
-            return f"{v:.2f}" if v is not None else "—"
-
-        def phase_cell(completed: set[int]) -> str:
-            if not plan:
-                return "—"
-            parts = []
-            for p, ranks in enumerate(plan):
-                label = str(ranks)
-                parts.append(f"[green]{label}[/green]" if p in completed else f"[red]{label}[/red]")
-            return "\n".join(parts)
-
-        for node_idx in range(len(node_logs)):
-            completed = completed_by_node.get(node_idx, set())
-            samples = samples_by_node.get(node_idx, [])
-            phases_str = phase_cell(completed)
-
-            row = [str(node_idx), phases_str]
-            if has_combined:
-                row += [
-                    fmt(mean([s.dispatch_combine_bandwidth_gbps for s in samples if s.dispatch_combine_bandwidth_gbps is not None])),
-                    fmt(mean([s.avg_time_us for s in samples if s.avg_time_us is not None])),
-                    fmt(mean([s.min_time_us for s in samples if s.min_time_us is not None])),
-                    fmt(mean([s.max_time_us for s in samples if s.max_time_us is not None])),
-                ]
-            if has_kineto:
-                row += [
-                    fmt(mean([s.dispatch_bandwidth_gbps for s in samples if s.dispatch_bandwidth_gbps is not None])),
-                    fmt(mean([s.combine_bandwidth_gbps for s in samples if s.combine_bandwidth_gbps is not None])),
-                ]
-            table.add_row(*row)
-
+        table = self._build_table(title, plan, node_logs, completed_by_node, samples_by_node, has_combined, has_kineto)
         console.print(table)
 
     def get_metric(self, metric: str) -> float:
@@ -125,9 +150,7 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
             return METRIC_ERROR
         samples = [s for path in self._node_logs() for s in parse_nixl_ep_bandwidth_samples(path)]
         bw_values = [
-            s.dispatch_combine_bandwidth_gbps
-            for s in samples
-            if s.dispatch_combine_bandwidth_gbps is not None
+            s.dispatch_combine_bandwidth_gbps for s in samples if s.dispatch_combine_bandwidth_gbps is not None
         ]
         if not bw_values:
             return METRIC_ERROR

@@ -623,7 +623,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 19
+        assert len(Registry().reports_map) == 20
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
