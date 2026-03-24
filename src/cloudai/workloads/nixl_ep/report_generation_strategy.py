@@ -73,7 +73,7 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
 
         table = Table(title=title, show_lines=True)
         table.add_column("Node", justify="right")
-        table.add_column("Phases", justify="center")
+        table.add_column("Phases", justify="left")
         if has_combined:
             table.add_column("Dispatch+Combine BW (GB/s)", justify="right")
             table.add_column("Avg (µs)", justify="right")
