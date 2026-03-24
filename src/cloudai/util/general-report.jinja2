@@ -82,7 +82,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(320px, 0.92fr);
         gap: 1rem;
-        align-items: stretch;
+        align-items: start;
     }
     .overview-left {
         display: flex;
@@ -116,6 +116,15 @@
         border-color: rgba(118, 185, 0, 0.34);
         box-shadow: inset 0 4px 0 var(--nv-green);
     }
+    .metric-card--accent {
+        background: linear-gradient(180deg, rgba(118, 185, 0, 0.20), rgba(255, 255, 255, 0.99));
+        border-color: rgba(118, 185, 0, 0.42);
+        box-shadow: inset 0 4px 0 var(--nv-green-bright);
+    }
+    .metric-card--accent .metric-value {
+        font-size: 1.8rem;
+        color: var(--nv-green-strong);
+    }
     .metric-card--neutral {
         background: rgba(255, 255, 255, 0.94);
     }
@@ -142,6 +151,9 @@
         border: 1px solid rgba(17, 17, 17, 0.06);
         background: rgba(255, 255, 255, 0.90);
     }
+    .context-item--runtime {
+        background: rgba(249, 251, 247, 0.96);
+    }
     .label {
         color: var(--nv-muted);
         display: block;
@@ -156,7 +168,7 @@
     .effort-block {
         display: flex;
         flex-direction: column;
-        height: 100%;
+        align-self: start;
         padding: 1rem 1.05rem;
         border-radius: var(--radius-md);
         border: 1px solid rgba(118, 185, 0, 0.22);
@@ -179,83 +191,45 @@
     }
     .effort-chart-shell {
         display: flex;
-        align-items: stretch;
-        justify-content: center;
+        align-items: center;
         flex: none;
-        min-height: 360px;
-        height: 360px;
-        margin-top: 0.6rem;
+        min-height: 0;
+        height: auto;
+        margin-top: 0.45rem;
         border-radius: var(--radius-md);
         border: 1px solid rgba(17, 17, 17, 0.08);
         background: rgba(255, 255, 255, 0.88);
-        padding: 1rem 1.1rem 0.9rem;
+        padding: 0.95rem 1rem;
     }
-    .effort-compare {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(120px, 1fr));
-        gap: 1.25rem;
-        align-items: end;
-        width: 100%;
-    }
-    .effort-bar-card {
+    .efficiency-panel {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 0.65rem;
-        min-width: 0;
-    }
-    .effort-value {
-        color: var(--nv-ink);
-        font-size: 1.1rem;
-        font-weight: 750;
-        letter-spacing: -0.02em;
-    }
-    .effort-stage {
-        position: relative;
-        display: flex;
-        align-items: end;
-        justify-content: center;
+        gap: 0.8rem;
         width: 100%;
-        height: 238px;
-        padding: 0 0.9rem;
-        border-bottom: 1px solid rgba(17, 17, 17, 0.10);
     }
-    .effort-bar {
-        position: relative;
-        width: min(96px, 100%);
-        min-width: 54px;
-        border-radius: 18px 18px 6px 6px;
-        border: 1px solid rgba(17, 17, 17, 0.08);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-    }
-    .effort-bar--explored {
-        background: linear-gradient(180deg, var(--nv-green-bright), var(--nv-green));
-        border-color: rgba(118, 185, 0, 0.38);
-    }
-    .effort-bar--full {
-        background: linear-gradient(180deg, rgba(57, 66, 78, 0.30), rgba(57, 66, 78, 0.18));
-        border-color: rgba(57, 66, 78, 0.18);
-    }
-    .effort-bar--break::after {
-        content: "";
-        position: absolute;
-        left: 8%;
-        right: 8%;
-        top: 42%;
-        height: 18px;
-        border-top: 4px solid rgba(255, 255, 255, 0.98);
-        border-bottom: 4px solid rgba(255, 255, 255, 0.98);
-        background: rgba(255, 255, 255, 0.98);
-        clip-path: polygon(0 28%, 22% 0, 50% 28%, 78% 0, 100% 28%, 100% 72%, 78% 100%, 50% 72%, 22% 100%, 0 72%);
-        box-shadow: 0 0 0 1px rgba(57, 66, 78, 0.04);
-    }
-    .effort-bar-label {
+    .efficiency-steps {
         color: var(--nv-muted);
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 650;
+    }
+    .efficiency-callout {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        padding: 0;
+    }
+    .efficiency-ratio {
+        color: var(--nv-green-strong);
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+    }
+    .efficiency-ratio-note {
+        color: var(--nv-ink);
+        font-size: 1rem;
+        font-weight: 650;
+        line-height: 1.2;
     }
     .dse-box {
         margin-top: 1.15rem;
@@ -394,11 +368,12 @@
             height: 280px;
         }
         .effort-chart-shell {
-            height: 280px;
-            min-height: 280px;
+            height: auto;
+            min-height: 0;
         }
-        .effort-stage {
-            height: 180px;
+        .metric-card--accent .metric-value,
+        .efficiency-ratio {
+            font-size: 1.45rem;
         }
     }
 </style>
@@ -546,7 +521,7 @@
                         </div>
 
                         <div class="impact-stat-grid">
-                            <div class="metric-card metric-card--hero">
+                            <div class="metric-card metric-card--accent">
                                 <div class="metric-label">Estimated Savings</div>
                                 <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
                             </div>
@@ -554,8 +529,8 @@
                         </div>
 
                         <div class="context-strip">
-                            <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
-                            <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
+                            <div class="context-item context-item--runtime"><span class="label">Avg Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
+                            <div class="context-item context-item--runtime"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
                         </div>
                     </div>
                 </div>
@@ -563,38 +538,17 @@
                 {% if summary.effort_chart_data %}
                 <div class="effort-block">
                     <div class="effort-head">
-                        <h3>DSE Savings: {{ "{:,}".format(summary.executed_steps) }} vs {{ "{:,}".format(summary.total_space) }}</h3>
-                        <span class="effort-caption">
-                            {% if summary.effort_chart_data.show_break %}
-                            Full-space bar uses a visual break so both bars stay readable.
-                            {% else %}
-                            Compared with the full search space.
-                            {% endif %}
-                        </span>
+                        <h3>Exploration Efficiency</h3>
+                        <span class="effort-caption">{{ format_percent(summary.effort_chart_data["explored_percent"]) }} explored</span>
                     </div>
-                    <div class="effort-chart-shell chart-shell">
-                            <div class="effort-compare" aria-label="Bar chart comparing explored steps and full search space">
-                                <div class="effort-bar-card">
-                                    <div class="effort-value">{{ "{:,}".format(summary.effort_chart_data["values"][0]) }}</div>
-                                    <div class="effort-stage">
-                                        <div
-                                            class="effort-bar effort-bar--explored"
-                                            style="height: {{ "%.2f"|format(summary.effort_chart_data["explored_height_pct"]) }}%;"
-                                        ></div>
-                                    </div>
-                                    <div class="effort-bar-label">{{ summary.effort_chart_data["labels"][0] }}</div>
-                                </div>
-                                <div class="effort-bar-card">
-                                    <div class="effort-value">{{ "{:,}".format(summary.effort_chart_data["values"][1]) }}</div>
-                                    <div class="effort-stage">
-                                        <div
-                                            class="effort-bar effort-bar--full {% if summary.effort_chart_data["show_break"] %}effort-bar--break{% endif %}"
-                                            style="height: {{ "%.2f"|format(summary.effort_chart_data["full_height_pct"]) }}%;"
-                                        ></div>
-                                    </div>
-                                    <div class="effort-bar-label">{{ summary.effort_chart_data["labels"][1] }}</div>
-                                </div>
+                    <div class="effort-chart-shell">
+                        <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
+                            <div class="efficiency-callout">
+                                <div class="efficiency-ratio">~{{ format_float(summary.effort_chart_data["reduction_factor"], 1) }}x</div>
+                                <div class="efficiency-ratio-note">reduction in search space</div>
                             </div>
+                            <div class="efficiency-steps">{{ "{:,}".format(summary.effort_chart_data["executed_steps"]) }} / {{ "{:,}".format(summary.effort_chart_data["total_space"]) }} steps</div>
+                        </div>
                     </div>
                 </div>
                 {% endif %}

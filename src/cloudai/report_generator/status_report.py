@@ -19,7 +19,6 @@ from __future__ import annotations
 import ast
 import contextlib
 import logging
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -129,16 +128,14 @@ def _build_effort_chart_data(executed_steps: int, total_space: int) -> dict[str,
         return None
 
     explored_ratio = min(max(executed_steps / total_space, 0.0), 1.0)
-    show_break = total_space / max(executed_steps, 1) >= 12
-    explored_height_pct = max(12.0, math.sqrt(explored_ratio) * 100) if explored_ratio > 0 else 12.0
-    explored_height_pct = min(explored_height_pct, 100.0)
+    reduction_factor = total_space / max(executed_steps, 1)
     return {
         "explored_ratio": explored_ratio,
-        "labels": ["Explored", "Full Space"],
-        "values": [executed_steps, total_space],
-        "explored_height_pct": explored_height_pct,
-        "full_height_pct": 100.0,
-        "show_break": show_break,
+        "explored_percent": explored_ratio * 100.0,
+        "avoided_percent": max((1.0 - explored_ratio) * 100.0, 0.0),
+        "reduction_factor": reduction_factor,
+        "executed_steps": executed_steps,
+        "total_space": total_space,
     }
 
 
