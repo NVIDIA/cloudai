@@ -1,15 +1,15 @@
 vLLM
 ====
 
-This workload (``test_template_name`` is ``vllm``) allows users to execute vLLM benchmarks within the CloudAI framework.
+vLLM workload (``test_template_name`` is ``vllm``) allows users to execute vLLM benchmarks within the CloudAI framework.
 
 vLLM is a high-throughput and memory-efficient inference engine for LLMs. This workload supports both aggregated and disaggregated prefill/decode modes.
 
 Usage Examples
 --------------
 
-Test + Scenario example
-~~~~~~~~~~~~~~~~~~~~~~~
+Test and Scenario Examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
    :caption: test.toml (test definition)
@@ -68,16 +68,16 @@ Test-in-Scenario example
    num_prompts = 30
 
 
-Control number of GPUs
-----------------------
+Controlling the Number of GPUs
+-------------------------------
 The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
 1. ``gpus_per_node`` system property (scalar value)
 2. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
 3. ``gpu_ids`` command argument for ``prefill`` and ``decode`` configurations (comma-separated list of GPU IDs). If disaggregated mode is used (``prefill`` is set), both ``prefill`` and ``decode`` should define ``gpu_ids``, or none of them should set it.
 
 
-Control disaggregation
-----------------------
+Controlling Disaggregation
+--------------------------
 By default, vLLM will run without disaggregation as a single process. To enable disaggregation, one needs to set ``prefill`` configuration:
 
 .. code-block:: toml
@@ -92,9 +92,11 @@ By default, vLLM will run without disaggregation as a single process. To enable 
    [extra_env_vars]
    CUDA_VISIBLE_DEVICES = "0,1,2,3"
 
-The config above will automatically split GPUs specified in ``CUDA_VISIBLE_DEVICES`` into two halves, first half will be used for prefill and second half will be used for decode.
+The config above, will automatically split GPUs specified in ``CUDA_VISIBLE_DEVICES`` into two:
+- The first half will be used for prefill
+- The second half will be used for decode
 
-For more control, one can specify the GPU IDs explicitly in ``prefill`` and ``decode`` configurations:
+For more control, users can specify the GPU IDs explicitly in ``prefill`` and ``decode`` configurations:
 
 .. code-block:: toml
    :caption: test.toml (disaggregated prefill/decode)
@@ -108,8 +110,8 @@ For more control, one can specify the GPU IDs explicitly in ``prefill`` and ``de
 In this case ``CUDA_VISIBLE_DEVICES`` will be ignored and only the GPUs specified in ``gpu_ids`` will be used.
 
 
-Control ``proxy_script``
-------------------------
+Controlling ``proxy_script``
+-----------------------------
 ``proxy_script`` is used to proxy the requests from the client to the prefill and decode instances. It is ignored for non-disaggregated mode. Default value can be found below.
 
 It can be overridden by setting ``proxy_script`` by using the latest version of the script from vLLM repository:
