@@ -65,7 +65,7 @@ class DSECaseIterationSummary:
     name: str
     saved_time: str
     saved_gpu_hours: str
-    estimated_savings: str
+    saved_usd: str
     gpu_label: str
     avg_step_runtime: str
     observed_runtime: str
@@ -77,7 +77,7 @@ class DSECaseIterationSummary:
 
 
 @dataclass(frozen=True)
-class _StepComputation:
+class TrajectoryStep:
     step: int
     reward: float
     observation_text: str
@@ -151,7 +151,40 @@ def _step_elapsed_time(step_dir: Path) -> int | None:
     return metadata.elapsed_time_sec
 
 
-def _build_reward_chart_data(steps: list[_StepComputation]) -> dict[str, Any] | None:
+def calculate_saved_gpu_hours(
+    system: System,
+    total_runtime_sec: float | None,
+    projected_runtime_sec: float | None,
+    test_run_details: TestRunDetails,
+) -> float | None:
+    gpus_per_node = getattr(system, "gpus_per_node", None)
+    total_gpu_hours = (
+        (total_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
+        if gpus_per_node is not None
+        else None
+    )
+    projected_gpu_hours = (
+        (projected_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
+        if projected_runtime_sec is not None and gpus_per_node is not None
+        else None
+    )
+    return (
+        max(projected_gpu_hours - total_gpu_hours, 0.0)
+        if projected_gpu_hours is not None and total_gpu_hours is not None
+        else None
+    )
+
+
+def calculate_savings(saved_gpu_hours: float | None, gpu_arch_label: str | None) -> float | None:
+    gpu_arch_family = _normalize_gpu_family(gpu_arch_label)
+    return (
+        saved_gpu_hours * GPU_HOURLY_COST_USD[gpu_arch_family]
+        if saved_gpu_hours is not None and gpu_arch_family in GPU_HOURLY_COST_USD
+        else None
+    )
+
+
+def _build_reward_chart_data(steps: list[TrajectoryStep]) -> dict[str, Any] | None:
     if not steps:
         return None
 
@@ -171,20 +204,23 @@ def _build_parameter_rows(param_space: dict[str, list[Any]], best_action: dict[s
         rows.append(
             DSEParameterRow(
                 name=name,
-                values=[DSEParameterValue(text=_format_scalar(value), is_best=_format_scalar(value) == best_value) for value in values],
+                values=[
+                    DSEParameterValue(
+                        text=_format_scalar(value),
+                        is_best=_format_scalar(value) == best_value,
+                    )
+                    for value in values
+                ],
             )
         )
     return rows
 
 
-def _build_iteration_summary(
-    system: System,
-    results_root: Path,
-    test_case: TestRun,
-    iteration: int,
+def _build_trajectory_steps(
     iteration_dir: Path,
+    test_case: TestRun,
     test_runs: list[TestRun],
-) -> DSECaseIterationSummary | None:
+) -> list[TrajectoryStep] | None:
     trajectory_file = iteration_dir / "trajectory.csv"
     if not trajectory_file.is_file():
         logging.warning(f"No trajectory file found for {test_case.name} at {trajectory_file}")
@@ -196,7 +232,7 @@ def _build_iteration_summary(
         return None
 
     runs_by_step = {test_run.step: test_run for test_run in test_runs}
-    steps: list[_StepComputation] = []
+    steps: list[TrajectoryStep] = []
     for row in df.to_dict(orient="records"):
         step_no = int(row["step"])
         action = _safe_literal_eval(row.get("action"), {})
@@ -207,7 +243,7 @@ def _build_iteration_summary(
             observation = [observation]
         step_run = runs_by_step.get(step_no)
         steps.append(
-            _StepComputation(
+            TrajectoryStep(
                 step=step_no,
                 reward=float(row["reward"]),
                 observation_text=", ".join(_format_scalar(value) for value in observation) if observation else "n/a",
@@ -221,7 +257,22 @@ def _build_iteration_summary(
         return None
 
     steps.sort(key=lambda step: step.step)
-    best_step = max(steps, key=lambda step: step.reward)
+    return steps
+
+
+def _build_iteration_summary(
+    system: System,
+    results_root: Path,
+    test_case: TestRun,
+    iteration: int,
+    iteration_dir: Path,
+    test_runs: list[TestRun],
+) -> DSECaseIterationSummary | None:
+    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs)
+    if not trajectory_steps:
+        return None
+
+    best_step = max(trajectory_steps, key=lambda step: step.reward)
     best_step_dump = iteration_dir / str(best_step.step) / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     if not best_step_dump.exists():
         logging.warning(f"No test run dump found for best DSE step at {best_step_dump}")
@@ -230,60 +281,40 @@ def _build_iteration_summary(
     with best_step_dump.open() as f:
         test_run_details = TestRunDetails.model_validate(toml.load(f))
 
-    best_config_toml = toml.dumps(test_run_details.test_definition.model_dump())
+    elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
+    if not elapsed_times:
+        return None
 
-    elapsed_times = [step.elapsed_time_sec for step in steps if step.elapsed_time_sec is not None]
-    avg_step_duration_sec = sum(elapsed_times) / len(elapsed_times) if elapsed_times else None
-    total_runtime_sec = sum(elapsed_times) if elapsed_times else None
+    total_observed_runtime_sec = sum(elapsed_times)
+    avg_step_duration_sec = total_observed_runtime_sec / len(elapsed_times)
     total_space = len(test_case.all_combinations)
-    executed_steps = len(steps)
-    projected_runtime_sec = avg_step_duration_sec * total_space if avg_step_duration_sec is not None else None
-    saved_runtime_sec = (
-        max(projected_runtime_sec - total_runtime_sec, 0.0)
-        if projected_runtime_sec is not None and total_runtime_sec is not None
-        else None
-    )
+    projected_runtime_sec = avg_step_duration_sec * total_space
+    saved_runtime_sec = max(projected_runtime_sec - total_observed_runtime_sec, 0.0)
 
     metadata = load_system_metadata(iteration_dir / str(best_step.step), results_root)
     gpu_arch_label = metadata.system.gpu_arch_type if metadata else None
-    gpu_arch_family = _normalize_gpu_family(gpu_arch_label)
-    gpus_per_node = getattr(system, "gpus_per_node", None)
-    total_gpu_hours = (
-        (total_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
-        if total_runtime_sec is not None and gpus_per_node is not None
-        else None
+    saved_gpu_hours = calculate_saved_gpu_hours(
+        system=system,
+        total_runtime_sec=total_observed_runtime_sec,
+        projected_runtime_sec=projected_runtime_sec,
+        test_run_details=test_run_details,
     )
-    projected_gpu_hours = (
-        (projected_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
-        if projected_runtime_sec is not None and gpus_per_node is not None
-        else None
-    )
-    saved_gpu_hours = (
-        max(projected_gpu_hours - total_gpu_hours, 0.0)
-        if projected_gpu_hours is not None and total_gpu_hours is not None
-        else None
-    )
-    estimated_saved_cost_usd = (
-        saved_gpu_hours * GPU_HOURLY_COST_USD[gpu_arch_family]
-        if saved_gpu_hours is not None and gpu_arch_family in GPU_HOURLY_COST_USD
-        else None
-    )
-
-    reduction_factor = total_space / max(executed_steps, 1)
+    estimated_saved_cost_usd = calculate_savings(saved_gpu_hours, gpu_arch_label)
+    reduction_factor = total_space / len(trajectory_steps)
 
     return DSECaseIterationSummary(
         name=f"{test_case.name}-{iteration}",
         saved_time=format_duration(saved_runtime_sec),
         saved_gpu_hours=format_float(saved_gpu_hours, 2),
-        estimated_savings=format_money(estimated_saved_cost_usd),
+        saved_usd=format_money(estimated_saved_cost_usd),
         gpu_label=gpu_arch_label or "unknown",
         avg_step_runtime=format_duration(avg_step_duration_sec),
-        observed_runtime=format_duration(total_runtime_sec),
+        observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
-        efficiency_steps=f"{executed_steps:,} / {total_space:,} steps",
-        best_config_toml=best_config_toml,
+        efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
+        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
-        reward_chart_data=_build_reward_chart_data(steps),
+        reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )
 
 
