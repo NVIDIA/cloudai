@@ -87,7 +87,18 @@
     .overview-left {
         display: flex;
         flex-direction: column;
-        gap: 0.9rem;
+        gap: 1rem;
+    }
+    .impact-stat-grid,
+    .context-strip {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .impact-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .context-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .summary-stat-grid {
         display: flex;
@@ -95,7 +106,7 @@
         gap: 0.9rem;
     }
     .metric-card {
-        padding: 1rem 1.05rem;
+        padding: 0.95rem 1rem;
         border-radius: var(--radius-md);
         border: 1px solid rgba(17, 17, 17, 0.06);
         background: rgba(255, 255, 255, 0.96);
@@ -120,15 +131,10 @@
     .metric-value {
         margin-top: 0.3rem;
         color: var(--nv-ink);
-        font-size: 1.6rem;
+        font-size: 1.45rem;
         font-weight: 750;
         line-height: 1.1;
         letter-spacing: -0.03em;
-    }
-    .context-strip {
-        display: flex;
-        flex-direction: column;
-        gap: 0.8rem;
     }
     .context-item {
         padding: 0.85rem 0.95rem;
@@ -173,8 +179,9 @@
     }
     .effort-chart-shell {
         position: relative;
-        flex: 1;
+        flex: none;
         min-height: 360px;
+        height: 360px;
         margin-top: 0.6rem;
         border-radius: var(--radius-md);
         border: 1px solid rgba(17, 17, 17, 0.08);
@@ -182,8 +189,8 @@
         padding: 0.85rem;
     }
     .effort-chart-shell canvas {
+        display: block;
         width: 100% !important;
-        height: 100% !important;
     }
     .dse-box {
         margin-top: 1.15rem;
@@ -280,10 +287,11 @@
     .chart-shell {
         position: relative;
         min-height: 260px;
+        height: 320px;
     }
     .chart-shell canvas {
+        display: block;
         width: 100% !important;
-        height: 100% !important;
     }
     .chart-fallback {
         margin-top: 0.75rem;
@@ -312,6 +320,17 @@
         }
         .overview-layout {
             grid-template-columns: 1fr;
+        }
+        .impact-stat-grid,
+        .context-strip {
+            grid-template-columns: 1fr;
+        }
+        .chart-shell {
+            height: 280px;
+        }
+        .effort-chart-shell {
+            height: 280px;
+            min-height: 280px;
         }
     }
 </style>
@@ -497,55 +516,48 @@
     <section class="dse-summary">
         <div class="overview-board">
             <div class="overview-topline">
-                <h2>{{ summary.display_name }}</h2>
+                <h2>DSE: overview</h2>
                 <span class="status-pill status-pill--{{ summary.status_text | lower }}">{{ summary.status_text }}</span>
-                <span class="overview-summary-line">
-                    {{ "{:,}".format(summary.executed_steps) }} explored out of {{ "{:,}".format(summary.total_space) }} combinations
-                </span>
             </div>
-            <p class="overview-description">{{ summary.description }}</p>
 
             <div class="overview-layout">
                 <div class="overview-left">
                     <div class="summary-stat-grid">
-                        <div class="metric-card metric-card--neutral">
-                            <div class="metric-label">Search Space</div>
-                            <div class="metric-value">{{ "{:,}".format(summary.total_space) }}</div>
+                        <div class="impact-stat-grid">
+                            <div class="metric-card metric-card--hero">
+                                <div class="metric-label">Saved Time</div>
+                                <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
+                            </div>
+                            <div class="metric-card metric-card--hero">
+                                <div class="metric-label">Saved GPU-Hours</div>
+                                <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
+                            </div>
                         </div>
-                        <div class="metric-card metric-card--neutral">
-                            <div class="metric-label">Explored Steps</div>
-                            <div class="metric-value">{{ "{:,}".format(summary.executed_steps) }}</div>
-                        </div>
-                        <div class="metric-card metric-card--hero">
-                            <div class="metric-label">Saved Time</div>
-                            <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
-                        </div>
-                        <div class="metric-card metric-card--hero">
-                            <div class="metric-label">Saved GPU-Hours</div>
-                            <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
-                        </div>
-                        <div class="metric-card metric-card--hero">
-                            <div class="metric-label">Estimated $ Saved</div>
-                            <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
-                        </div>
-                    </div>
 
-                    <div class="context-strip">
-                        <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
-                        <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
-                        <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
+                        <div class="impact-stat-grid">
+                            <div class="metric-card metric-card--hero">
+                                <div class="metric-label">Estimated Savings</div>
+                                <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
+                            </div>
+                            <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
+                        </div>
+
+                        <div class="context-strip">
+                            <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
+                            <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
+                        </div>
                     </div>
                 </div>
 
                 {% if summary.effort_chart_data %}
                 <div class="effort-block">
                     <div class="effort-head">
-                        <h3>DSE Savings</h3>
+                        <h3>DSE Savings: {{ "{:,}".format(summary.executed_steps) }} vs {{ "{:,}".format(summary.total_space) }}</h3>
                         <span class="effort-caption">
                             {% if summary.effort_chart_data.use_log_scale %}
                             Log scale keeps both bars legible across a large search-space gap.
                             {% else %}
-                            Side-by-side comparison of explored steps versus full search space.
+                            Compared with the full search space.
                             {% endif %}
                         </span>
                     </div>
@@ -565,7 +577,7 @@
 
         <div class="dse-box">
             <div class="section-topline">
-                <h3>Best Config</h3>
+                <h3>DSE: Best Config</h3>
                 <div class="best-config-actions">
                     {% if summary.best_config_rel_path %}<a href="{{ summary.best_config_rel_path }}">Best Test TOML</a>{% endif %}
                     {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
@@ -581,7 +593,7 @@
         </div>
 
         <div class="dse-box">
-            <h3>Exploration Space</h3>
+            <h3>DSE: Exploration Space</h3>
             <table class="space-table">
                 <thead>
                     <tr>
@@ -607,7 +619,7 @@
         </div>
 
         <div class="dse-box viz-card">
-            <h3>Reward Over Steps</h3>
+            <h3>DSE: Reward Over Steps</h3>
             <p class="small-note">Observed reward is shown as the dark line; the NVIDIA-green dashed line tracks the best-so-far trajectory.</p>
             {% if summary.reward_chart_data %}
                 <div class="chart-shell">

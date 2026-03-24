@@ -125,7 +125,7 @@ class StatusReporter(Reporter):
             ]
             if summary.best_config_rel_path:
                 details.append(summary.best_config_rel_path)
-            table.add_row(summary.display_name, f"[bold]{summary.status_style}[/bold]", "\n".join(details))
+            table.add_row(summary.description, f"[bold]{summary.status_style}[/bold]", "\n".join(details))
 
     def _add_standard_rows(self, table: Table):
         for tr in self.trs:

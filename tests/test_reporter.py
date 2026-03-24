@@ -501,9 +501,7 @@ def test_dse_generate_scenario_report_renders_html(
     html = report_path.read_text()
     assert "cdn.jsdelivr.net/npm/chart.js" in html
     assert "Saved GPU-Hours" in html
-    assert "Search Space" in html
-    assert "Explored Steps" in html
-    assert "DSE Savings" in html
+    assert "DSE Savings: 3 vs 8" in html
     assert "Reward Over Steps" in html
     assert "Best Test TOML" in html
     assert "Show best config TOML" in html

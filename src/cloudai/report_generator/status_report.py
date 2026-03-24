@@ -259,12 +259,6 @@ class DSESummary:
     effort_chart_data: dict[str, Any] | None = None
 
     @property
-    def display_name(self) -> str:
-        if self.iteration == 0:
-            return self.name
-        return f"{self.name} iter={self.iteration}"
-
-    @property
     def status_text(self) -> str:
         if self.failure_count == 0:
             return "PASSED"
