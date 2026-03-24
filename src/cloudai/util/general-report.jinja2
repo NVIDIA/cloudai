@@ -178,7 +178,9 @@
         font-size: 0.92rem;
     }
     .effort-chart-shell {
-        position: relative;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
         flex: none;
         min-height: 360px;
         height: 360px;
@@ -186,11 +188,74 @@
         border-radius: var(--radius-md);
         border: 1px solid rgba(17, 17, 17, 0.08);
         background: rgba(255, 255, 255, 0.88);
-        padding: 0.85rem;
+        padding: 1rem 1.1rem 0.9rem;
     }
-    .effort-chart-shell canvas {
-        display: block;
-        width: 100% !important;
+    .effort-compare {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+        gap: 1.25rem;
+        align-items: end;
+        width: 100%;
+    }
+    .effort-bar-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+    .effort-value {
+        color: var(--nv-ink);
+        font-size: 1.1rem;
+        font-weight: 750;
+        letter-spacing: -0.02em;
+    }
+    .effort-stage {
+        position: relative;
+        display: flex;
+        align-items: end;
+        justify-content: center;
+        width: 100%;
+        height: 238px;
+        padding: 0 0.9rem;
+        border-bottom: 1px solid rgba(17, 17, 17, 0.10);
+    }
+    .effort-bar {
+        position: relative;
+        width: min(96px, 100%);
+        min-width: 54px;
+        border-radius: 18px 18px 6px 6px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .effort-bar--explored {
+        background: linear-gradient(180deg, var(--nv-green-bright), var(--nv-green));
+        border-color: rgba(118, 185, 0, 0.38);
+    }
+    .effort-bar--full {
+        background: linear-gradient(180deg, rgba(57, 66, 78, 0.30), rgba(57, 66, 78, 0.18));
+        border-color: rgba(57, 66, 78, 0.18);
+    }
+    .effort-bar--break::after {
+        content: "";
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        top: 42%;
+        height: 18px;
+        border-top: 4px solid rgba(255, 255, 255, 0.98);
+        border-bottom: 4px solid rgba(255, 255, 255, 0.98);
+        background: rgba(255, 255, 255, 0.98);
+        clip-path: polygon(0 28%, 22% 0, 50% 28%, 78% 0, 100% 28%, 100% 72%, 78% 100%, 50% 72%, 22% 100%, 0 72%);
+        box-shadow: 0 0 0 1px rgba(57, 66, 78, 0.04);
+    }
+    .effort-bar-label {
+        color: var(--nv-muted);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: center;
     }
     .dse-box {
         margin-top: 1.15rem;
@@ -332,6 +397,9 @@
             height: 280px;
             min-height: 280px;
         }
+        .effort-stage {
+            height: 180px;
+        }
     }
 </style>
 {% if dse_summaries %}
@@ -448,63 +516,6 @@
             canvas.parentElement.classList.add("is-enhanced");
         });
 
-        const effortCanvases = document.querySelectorAll(".js-effort-chart");
-        effortCanvases.forEach((canvas) => {
-            const dataNode = document.getElementById(canvas.dataset.chartDataId);
-            if (!dataNode) {
-                return;
-            }
-            const chartData = JSON.parse(dataNode.textContent);
-            new Chart(canvas, {
-                type: "bar",
-                data: {
-                    labels: chartData.labels,
-                    datasets: [
-                        {
-                            data: chartData.values,
-                            backgroundColor: ["#76b900", "rgba(57, 66, 78, 0.24)"],
-                            borderColor: ["#76b900", "rgba(57, 66, 78, 0.50)"],
-                            borderWidth: 1,
-                            borderRadius: 14,
-                            maxBarThickness: 90
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return context.raw.toLocaleString();
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        },
-                        y: {
-                            type: chartData.use_log_scale ? "logarithmic" : "linear",
-                            beginAtZero: !chartData.use_log_scale,
-                            ticks: {
-                                callback: function (value) {
-                                    return Number(value).toLocaleString();
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            canvas.parentElement.classList.add("is-enhanced");
-        });
     });
 </script>
 {% endif %}
@@ -554,22 +565,37 @@
                     <div class="effort-head">
                         <h3>DSE Savings: {{ "{:,}".format(summary.executed_steps) }} vs {{ "{:,}".format(summary.total_space) }}</h3>
                         <span class="effort-caption">
-                            {% if summary.effort_chart_data.use_log_scale %}
-                            Log scale keeps both bars legible across a large search-space gap.
+                            {% if summary.effort_chart_data.show_break %}
+                            Full-space bar uses a visual break so both bars stay readable.
                             {% else %}
                             Compared with the full search space.
                             {% endif %}
                         </span>
                     </div>
                     <div class="effort-chart-shell chart-shell">
-                        <canvas
-                            class="js-effort-chart"
-                            data-chart-data-id="effort-chart-data-{{ loop.index0 }}"
-                            aria-label="Bar chart comparing explored steps and full search space"
-                        ></canvas>
+                            <div class="effort-compare" aria-label="Bar chart comparing explored steps and full search space">
+                                <div class="effort-bar-card">
+                                    <div class="effort-value">{{ "{:,}".format(summary.effort_chart_data["values"][0]) }}</div>
+                                    <div class="effort-stage">
+                                        <div
+                                            class="effort-bar effort-bar--explored"
+                                            style="height: {{ "%.2f"|format(summary.effort_chart_data["explored_height_pct"]) }}%;"
+                                        ></div>
+                                    </div>
+                                    <div class="effort-bar-label">{{ summary.effort_chart_data["labels"][0] }}</div>
+                                </div>
+                                <div class="effort-bar-card">
+                                    <div class="effort-value">{{ "{:,}".format(summary.effort_chart_data["values"][1]) }}</div>
+                                    <div class="effort-stage">
+                                        <div
+                                            class="effort-bar effort-bar--full {% if summary.effort_chart_data["show_break"] %}effort-bar--break{% endif %}"
+                                            style="height: {{ "%.2f"|format(summary.effort_chart_data["full_height_pct"]) }}%;"
+                                        ></div>
+                                    </div>
+                                    <div class="effort-bar-label">{{ summary.effort_chart_data["labels"][1] }}</div>
+                                </div>
+                            </div>
                     </div>
-                    <script type="application/json" id="effort-chart-data-{{ loop.index0 }}">{{ summary.effort_chart_data | tojson }}</script>
-                    <p class="chart-fallback">Interactive chart unavailable. The totals above remain available as text.</p>
                 </div>
                 {% endif %}
             </div>

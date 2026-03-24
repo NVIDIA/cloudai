@@ -26,7 +26,7 @@ from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
-from cloudai.report_generator.status_report import DSEReportBuilder, ReportItem, load_system_metadata
+from cloudai.report_generator.status_report import DSEReportBuilder, ReportItem, _build_effort_chart_data, load_system_metadata
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -462,7 +462,9 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.effort_chart_data["explored_ratio"] == pytest.approx(3 / 8)
     assert summary.effort_chart_data["labels"] == ["Explored", "Full Space"]
     assert summary.effort_chart_data["values"] == [3, 8]
-    assert summary.effort_chart_data["use_log_scale"] is False
+    assert summary.effort_chart_data["explored_height_pct"] == pytest.approx((3 / 8) ** 0.5 * 100)
+    assert summary.effort_chart_data["full_height_pct"] == pytest.approx(100.0)
+    assert summary.effort_chart_data["show_break"] is False
 
     best_values = {row.name: row.best_value for row in summary.parameter_rows}
     assert best_values["nthreads"] == "2"
@@ -509,7 +511,8 @@ def test_dse_generate_scenario_report_renders_html(
     assert "BO Analysis" in html
     assert "All Steps" in html
     assert "dse-report.toml" in html
-    assert "js-effort-chart" in html
+    assert "effort-bar--explored" in html
+    assert "effort-bar--full" in html
     assert "js-reward-chart" in html
     assert "chart-shell" in html
     assert 'class="value-pill value-pill--selected"' in html
@@ -521,6 +524,14 @@ def test_dse_generate_scenario_report_renders_html(
     assert "<th>Best</th>" not in html
     assert "status-pill--passed" in html
     assert "1m 40s" in html
+
+
+def test_effort_chart_uses_break_for_large_search_space() -> None:
+    chart_data = _build_effort_chart_data(30, 100_000)
+
+    assert chart_data is not None
+    assert chart_data["show_break"] is True
+    assert chart_data["explored_height_pct"] == pytest.approx(12.0)
 
 
 def test_dse_console_summary_is_compact(
