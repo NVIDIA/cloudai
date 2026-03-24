@@ -29,39 +29,40 @@ from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
 from cloudai.util.lazy_imports import lazy
+
 from .util import load_system_metadata
 
+# https://gpus.io/en/gpus
+# https://getdeploying.com/gpus
+# https://docs.coreweave.com/platform/instances/gpu/
 GPU_HOURLY_COST_USD = {
-    "H100": 4.50,
-    "B200": 8.00,
-    "GB200": 10.00,
-    "GB300": 12.00,
+    "H100": 3.0,
+    "B200": 5.5,
+    "GB200": 11.00,
+    "GB300": 8.0,
 }
 
 
 @dataclass(frozen=True)
 class DSEParameterValue:
+    """Represents DSE dimension value."""
+
     text: str
     is_best: bool
 
 
 @dataclass(frozen=True)
 class DSEParameterRow:
+    """Represents a dimension in DSE."""
+
     name: str
     values: list[DSEParameterValue]
 
 
 @dataclass(frozen=True)
-class DSEStepRow:
-    name: str
-    status_text: str
-    status_class: str
-    logs_path: str | None
-    nodes_text: str
-
-
-@dataclass(frozen=True)
 class DSECaseIterationSummary:
+    """Summary for DSE case iteration."""
+
     name: str
     saved_time: str
     saved_gpu_hours: str
@@ -78,6 +79,8 @@ class DSECaseIterationSummary:
 
 @dataclass(frozen=True)
 class TrajectoryStep:
+    """Enriched trajectory step for DSE."""
+
     step: int
     reward: float
     observation_text: str
@@ -153,15 +156,13 @@ def _step_elapsed_time(step_dir: Path) -> int | None:
 
 def calculate_saved_gpu_hours(
     system: System,
-    total_runtime_sec: float | None,
-    projected_runtime_sec: float | None,
+    total_runtime_sec: float,
+    projected_runtime_sec: float,
     test_run_details: TestRunDetails,
 ) -> float | None:
     gpus_per_node = getattr(system, "gpus_per_node", None)
     total_gpu_hours = (
-        (total_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
-        if gpus_per_node is not None
-        else None
+        (total_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node if gpus_per_node is not None else None
     )
     projected_gpu_hours = (
         (projected_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
@@ -336,9 +337,7 @@ def build_dse_summaries(
 
         for iteration in range(test_case.iterations):
             dse_iteration_runs = [
-                tr
-                for tr in loaded_test_runs
-                if tr.name == test_case.name and tr.current_iteration == iteration
+                tr for tr in loaded_test_runs if tr.name == test_case.name and tr.current_iteration == iteration
             ]
 
             iteration_dir = case_root / str(iteration)

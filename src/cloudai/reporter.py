@@ -27,12 +27,12 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
-from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.report_generator.util import load_system_metadata
 
 
 @dataclass
@@ -136,6 +136,8 @@ class StatusReporter(Reporter):
 
 
 class DSEReporter(Reporter):
+    """Detailed reports for DSE test cases."""
+
     @property
     def templates_dir(self) -> Path:
         return Path(__file__).parent / "util"

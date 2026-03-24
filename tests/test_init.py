@@ -16,7 +16,7 @@
 
 
 from cloudai.core import Registry
-from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
+from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
 from cloudai.systems.runai import RunAIInstaller, RunAISystem
@@ -260,6 +260,7 @@ def test_scenario_reports():
     assert list(scenario_reports.keys()) == [
         "per_test",
         "status",
+        "dse",
         "tarball",
         "nixl_bench_summary",
         "nccl_comparison",
@@ -268,6 +269,7 @@ def test_scenario_reports():
     assert list(scenario_reports.values()) == [
         PerTestReporter,
         StatusReporter,
+        DSEReporter,
         TarballReporter,
         NIXLBenchComparisonReport,
         NcclComparisonReport,
@@ -280,6 +282,7 @@ def test_report_configs():
     assert list(configs.keys()) == [
         "per_test",
         "status",
+        "dse",
         "tarball",
         "nixl_bench_summary",
         "nccl_comparison",

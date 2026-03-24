@@ -206,4 +206,3 @@ def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetada
         except Exception as exc:
             logging.debug(f"Error validating metadata for {node_files[0]}: {exc}")
             return None
-
