@@ -553,6 +553,8 @@ def test_mixed_scenario_renders_dse_tabs_and_standard_table(
     assert "dse-report-a" in html
     assert "dse-report-b" in html
     assert html.count('data-tab-target="dse-case-') == 2
+    assert 'id="reward-chart-data-0-0"' in html
+    assert 'id="reward-chart-data-1-0"' in html
     assert "All Steps" in html
     assert benchmark_tr.name in html
 

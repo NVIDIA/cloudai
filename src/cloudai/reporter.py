@@ -33,7 +33,6 @@ from cloudai.report_generator.status_report import (
     format_duration,
     format_float,
     format_money,
-    format_percent,
 )
 
 
@@ -87,12 +86,10 @@ class StatusReporter(Reporter):
         report = template.render(
             name=self.test_scenario.name,
             report_items=standard_report_items,
-            dse_summaries=dse_summaries,
             dse_cases=dse_cases,
             dse_report_items=dse_report_items,
             format_duration=format_duration,
             format_float=format_float,
-            format_percent=format_percent,
             format_money=format_money,
         )
         report_path = self.results_root / f"{self.test_scenario.name}.html"

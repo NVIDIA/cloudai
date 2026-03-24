@@ -1,7 +1,7 @@
 {% extends "base-report.jinja2" %}
 
 {% block extra_head %}
-{% if dse_summaries %}
+{% if dse_cases %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 {% endif %}
 <style>
@@ -104,11 +104,6 @@
         margin: 0;
         color: var(--nv-ink);
     }
-    .overview-description {
-        max-width: 78ch;
-        margin: 0 0 1.25rem;
-        color: var(--nv-muted);
-    }
     .status-pill {
         display: inline-flex;
         align-items: center;
@@ -134,10 +129,6 @@
     .status-pill--failed {
         background: rgba(244, 63, 94, 0.14);
         border-color: rgba(244, 63, 94, 0.30);
-    }
-    .overview-summary-line {
-        color: var(--nv-muted);
-        font-size: 0.95rem;
     }
     .overview-layout {
         display: grid;
@@ -185,9 +176,6 @@
     .metric-card--accent .metric-value {
         font-size: 1.8rem;
         color: var(--nv-green-strong);
-    }
-    .metric-card--neutral {
-        background: rgba(255, 255, 255, 0.94);
     }
     .metric-label {
         display: flex;
@@ -246,13 +234,6 @@
     .effort-head h3 {
         margin: 0;
     }
-    .effort-caption {
-        color: var(--nv-muted);
-        font-size: 0.92rem;
-    }
-    .effort-chart-shell {
-        margin-top: 0.45rem;
-    }
     .efficiency-panel {
         display: flex;
         flex-direction: column;
@@ -286,23 +267,6 @@
     .dse-box {
         margin-top: 1.15rem;
         padding: 1.2rem 1.3rem;
-    }
-    .section-topline {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.8rem 1rem;
-        margin-bottom: 0.9rem;
-    }
-    .section-topline h3 {
-        margin: 0;
-    }
-    .best-config-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: center;
     }
     .action-button {
         display: inline-flex;
@@ -439,10 +403,6 @@
         .chart-shell {
             height: 280px;
         }
-        .effort-chart-shell {
-            height: auto;
-            min-height: 0;
-        }
         .metric-card--accent .metric-value,
         .efficiency-ratio {
             font-size: 1.45rem;
@@ -456,7 +416,7 @@
         }
     }
 </style>
-{% if dse_summaries %}
+{% if dse_cases %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".js-copy-config").forEach((button) => {
@@ -612,116 +572,116 @@
                 class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
                 data-tab-panel="dse-case-{{ loop.index0 }}"
             >
+                {% set case_idx = loop.index0 %}
                 {% for summary in case.summaries %}
                 <section class="dse-summary">
-        <div class="overview-board">
-            <div class="overview-topline">
-                <h2>DSE: overview</h2>
-                <span class="status-pill status-pill--{{ summary.status_text | lower }}">{{ summary.status_text }}</span>
-            </div>
+                    <div class="overview-board">
+                        <div class="overview-topline">
+                            <h2>DSE: overview</h2>
+                            <span class="status-pill status-pill--{{ summary.status_text | lower }}">{{ summary.status_text }}</span>
+                        </div>
 
-            <div class="overview-layout">
-                <div class="overview-left">
-                    <div class="summary-stat-grid">
-                        <div class="impact-stat-grid">
-                            <div class="metric-card metric-card--hero">
-                                <div class="metric-label">Saved Time</div>
-                                <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
+                        <div class="overview-layout">
+                            <div class="overview-left">
+                                <div class="summary-stat-grid">
+                                    <div class="impact-stat-grid">
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved Time</div>
+                                            <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
+                                        </div>
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved GPU-Hours</div>
+                                            <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="impact-stat-grid">
+                                        <div class="metric-card metric-card--accent">
+                                            <div class="metric-label">Estimated Savings</div>
+                                            <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
+                                        </div>
+                                        <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
+                                    </div>
+
+                                    <div class="context-strip">
+                                        <div class="context-item context-item--runtime"><span class="label">Avg Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
+                                        <div class="context-item context-item--runtime"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="metric-card metric-card--hero">
-                                <div class="metric-label">Saved GPU-Hours</div>
-                                <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
+                            {% if summary.effort_chart_data %}
+                            <div class="effort-block">
+                                <div class="effort-head">
+                                    <h3>Exploration Efficiency</h3>
+                                </div>
+                                <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
+                                    <div class="efficiency-callout">
+                                        <div class="efficiency-ratio">~{{ format_float(summary.effort_chart_data["reduction_factor"], 1) }}x</div>
+                                        <div class="efficiency-ratio-note">reduction in search space</div>
+                                    </div>
+                                    <div class="efficiency-steps">{{ "{:,}".format(summary.effort_chart_data["executed_steps"]) }} / {{ "{:,}".format(summary.effort_chart_data["total_space"]) }} steps</div>
+                                </div>
                             </div>
+                            {% endif %}
                         </div>
 
-                        <div class="impact-stat-grid">
-                            <div class="metric-card metric-card--accent">
-                                <div class="metric-label">Estimated Savings</div>
-                                <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
-                            </div>
-                            <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
-                        </div>
-
-                        <div class="context-strip">
-                            <div class="context-item context-item--runtime"><span class="label">Avg Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
-                            <div class="context-item context-item--runtime"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
-                        </div>
+                        {% if summary.best_config_toml %}
+                        <details class="best-config-preview">
+                            <summary>
+                                <span class="best-config-summary-title">Best Config TOML</span>
+                                <span class="best-config-summary-actions">
+                                    {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
+                                    <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ case_idx }}-{{ loop.index0 }}">Copy TOML</button>
+                                </span>
+                            </summary>
+                            <pre id="best-config-text-{{ case_idx }}-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
+                        </details>
+                        {% endif %}
                     </div>
-                </div>
 
-                {% if summary.effort_chart_data %}
-                <div class="effort-block">
-                    <div class="effort-head">
-                        <h3>Exploration Efficiency</h3>
-                    </div>
-                    <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
-                        <div class="efficiency-callout">
-                            <div class="efficiency-ratio">~{{ format_float(summary.effort_chart_data["reduction_factor"], 1) }}x</div>
-                            <div class="efficiency-ratio-note">reduction in search space</div>
-                        </div>
-                        <div class="efficiency-steps">{{ "{:,}".format(summary.effort_chart_data["executed_steps"]) }} / {{ "{:,}".format(summary.effort_chart_data["total_space"]) }} steps</div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-
-            {% if summary.best_config_toml %}
-            <details class="best-config-preview">
-                <summary>
-                    <span class="best-config-summary-title">Best Config TOML</span>
-                    <span class="best-config-summary-actions">
-                        {% if summary.analysis_rel_path %}<a href="{{ summary.analysis_rel_path }}">BO Analysis</a>{% endif %}
-                        <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
-                    </span>
-                </summary>
-                <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
-            </details>
-            {% endif %}
-        </div>
-
-        <div class="dse-box">
-            <h3>DSE: Exploration Space</h3>
-            <table class="space-table">
-                <thead>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Allowed Values</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in summary.parameter_rows %}
-                    <tr>
-                        <td>{{ row.name }}</td>
-                        <td>
-                            <div class="value-cloud">
-                                {% for value in row.values %}
-                                <span class="value-pill {% if value == row.best_value %}value-pill--selected{% endif %}">{{ value }}</span>
+                    <div class="dse-box">
+                        <h3>DSE: Exploration Space</h3>
+                        <table class="space-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Allowed Values</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in summary.parameter_rows %}
+                                <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>
+                                        <div class="value-cloud">
+                                            {% for value in row.values %}
+                                            <span class="value-pill {% if value == row.best_value %}value-pill--selected{% endif %}">{{ value }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
                                 {% endfor %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            </tbody>
+                        </table>
+                    </div>
 
-        <div class="dse-box viz-card">
-            <h3>DSE: Reward Over Steps</h3>
-            {% if summary.reward_chart_data %}
-                <div class="chart-shell">
-                    <canvas
-                        class="js-reward-chart"
-                        data-chart-data-id="reward-chart-data-{{ loop.index0 }}"
-                        aria-label="Line chart of reward over DSE steps"
-                    ></canvas>
-                </div>
-                <script type="application/json" id="reward-chart-data-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
-                <p class="chart-fallback">Interactive chart unavailable. Step count and summary metrics remain available above.</p>
-                <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
-            {% else %}
-                <p>No reward data available.</p>
-            {% endif %}
-        </div>
+                    <div class="dse-box viz-card">
+                        <h3>DSE: Reward Over Steps</h3>
+                        {% if summary.reward_chart_data %}
+                            <div class="chart-shell">
+                                <canvas
+                                    class="js-reward-chart"
+                                    data-chart-data-id="reward-chart-data-{{ case_idx }}-{{ loop.index0 }}"
+                                    aria-label="Line chart of reward over DSE steps"
+                                ></canvas>
+                            </div>
+                            <script type="application/json" id="reward-chart-data-{{ case_idx }}-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
+                            <p class="chart-fallback">Interactive chart unavailable. Step count and summary metrics remain available above.</p>
+                            <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
+                        {% else %}
+                            <p>No reward data available.</p>
+                        {% endif %}
+                    </div>
                 </section>
                 {% endfor %}
 
