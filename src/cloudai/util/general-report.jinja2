@@ -6,16 +6,41 @@
 {% endif %}
 <style>
     .dse-summary {
-        margin: 2rem 0 3rem;
+        margin: 0 0 3rem;
+    }
+    .dse-cases-shell {
+        margin: 1.5rem 0 2rem;
+        padding: 1.2rem 1.2rem 0.4rem;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--nv-shadow);
+    }
+    .dse-cases-header {
+        margin-bottom: 1rem;
+    }
+    .dse-cases-header h2 {
+        margin: 0 0 0.25rem;
+    }
+    .dse-cases-subtitle {
+        margin: 0;
+        color: var(--nv-muted);
+        font-size: 0.95rem;
     }
     .dse-tabs {
-        margin: 1.25rem 0 2rem;
+        margin: 0;
     }
     .dse-tab-list {
         display: flex;
         flex-wrap: wrap;
         gap: 0.7rem;
         margin-bottom: 1.15rem;
+        padding: 0.35rem;
+        border-radius: 999px;
+        background: #f5f7f2;
+        border: 1px solid rgba(17, 17, 17, 0.06);
+        width: fit-content;
+        max-width: 100%;
     }
     .dse-tab-button {
         display: inline-flex;
@@ -24,18 +49,19 @@
         padding: 0.58rem 0.95rem;
         border-radius: 999px;
         border: 1px solid rgba(17, 17, 17, 0.08);
-        background: #ffffff;
+        background: transparent;
         color: var(--nv-ink);
         font-weight: 650;
         cursor: pointer;
     }
     .dse-tab-button:hover {
-        background: #fbfcfa;
+        background: rgba(255, 255, 255, 0.75);
     }
     .dse-tab-button.is-active {
         border-color: rgba(118, 185, 0, 0.28);
-        background: rgba(118, 185, 0, 0.10);
+        background: #ffffff;
         color: var(--nv-green-strong);
+        box-shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
     }
     .dse-tab-panel {
         display: none;
@@ -561,28 +587,33 @@
 
 {% block content %}
 {% if dse_cases %}
-    <section class="dse-tabs js-dse-tabs">
-        <div class="dse-tab-list" role="tablist" aria-label="DSE test cases">
-            {% for case in dse_cases %}
-            <button
-                type="button"
-                class="dse-tab-button js-dse-tab-button {% if loop.first %}is-active{% endif %}"
-                data-tab-target="dse-case-{{ loop.index0 }}"
-                role="tab"
-                aria-selected="{{ 'true' if loop.first else 'false' }}"
-            >
-                {{ case.name }}
-            </button>
-            {% endfor %}
+    <section class="dse-cases-shell">
+        <div class="dse-cases-header">
+            <h2>DSE Cases</h2>
+            <p class="dse-cases-subtitle">Switch between DSE test cases in this scenario.</p>
         </div>
+        <div class="dse-tabs js-dse-tabs">
+            <div class="dse-tab-list" role="tablist" aria-label="DSE test cases">
+                {% for case in dse_cases %}
+                <button
+                    type="button"
+                    class="dse-tab-button js-dse-tab-button {% if loop.first %}is-active{% endif %}"
+                    data-tab-target="dse-case-{{ loop.index0 }}"
+                    role="tab"
+                    aria-selected="{{ 'true' if loop.first else 'false' }}"
+                >
+                    {{ case.name }}
+                </button>
+                {% endfor %}
+            </div>
 
-        {% for case in dse_cases %}
-        <div
-            class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
-            data-tab-panel="dse-case-{{ loop.index0 }}"
-        >
-            {% for summary in case.summaries %}
-            <section class="dse-summary">
+            {% for case in dse_cases %}
+            <div
+                class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
+                data-tab-panel="dse-case-{{ loop.index0 }}"
+            >
+                {% for summary in case.summaries %}
+                <section class="dse-summary">
         <div class="overview-board">
             <div class="overview-topline">
                 <h2>DSE: overview</h2>
@@ -691,11 +722,12 @@
                 <p>No reward data available.</p>
             {% endif %}
         </div>
-    </section>
-            {% endfor %}
+                </section>
+                {% endfor %}
 
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </section>
 {% endif %}
 

@@ -504,6 +504,8 @@ def test_dse_generate_scenario_report_renders_html(
     report_path = slurm_system.output_path / "dse_scenario.html"
     html = report_path.read_text()
     assert "cdn.jsdelivr.net/npm/chart.js" in html
+    assert "DSE Cases" in html
+    assert "Switch between DSE test cases in this scenario." in html
     assert "js-dse-tab-button" in html
     assert "Saved GPU-Hours" in html
     assert "Exploration Efficiency" in html
@@ -547,6 +549,7 @@ def test_mixed_scenario_renders_dse_tabs_and_standard_table(
     reporter.generate()
 
     html = (slurm_system.output_path / "mixed_scenario.html").read_text()
+    assert "DSE Cases" in html
     assert "dse-report-a" in html
     assert "dse-report-b" in html
     assert html.count('data-tab-target="dse-case-') == 2
