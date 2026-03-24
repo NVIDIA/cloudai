@@ -211,7 +211,7 @@ def _build_reward_chart_data(steps: list[TrajectoryStep]) -> dict[str, Any] | No
         "labels": [step.step for step in steps],
         "rewards": [step.reward for step in steps],
         "observations": [step.observation_text for step in steps],
-        "best_index": best_step.step,
+        "best_index": best_step.step - 1,
     }
 
 

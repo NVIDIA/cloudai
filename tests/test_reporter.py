@@ -520,7 +520,7 @@ def test_dse_reporter(
             "labels": [0, 1, 2],
             "rewards": [-10.0, -5.0, -7.0],
             "observations": ["10", "5", "7"],
-            "best_index": 1,
+            "best_index": 0,
         },
     }
     assert len(summaries) == 1
