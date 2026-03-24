@@ -70,6 +70,7 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_ep import NixlEPReportGenerationStrategy, NixlEPTestDefinition
 from cloudai.workloads.nixl_perftest import NIXLKVBenchDummyReport, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import OSUBenchReportGenerationStrategy, OSUBenchTestDefinition
 from cloudai.workloads.sglang import SGLangBenchReportGenerationStrategy, SglangTestDefinition
@@ -644,6 +645,7 @@ class TestReporters:
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
+            (NixlEPTestDefinition, {NixlEPReportGenerationStrategy}),
             (OSUBenchTestDefinition, {OSUBenchReportGenerationStrategy}),
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),

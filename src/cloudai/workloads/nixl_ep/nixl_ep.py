@@ -97,7 +97,7 @@ class NixlEPCmdArgs(CmdArgs):
         for phase in parsed:
             if not isinstance(phase, list) or not phase:
                 raise ValueError("Each plan phase must be a non-empty list of ranks.")
-            if any(not isinstance(rank, int) for rank in phase):
+            if any(type(rank) is not int for rank in phase):
                 raise ValueError("Each plan rank must be an integer.")
 
         return parsed
@@ -184,15 +184,16 @@ class NixlEPTestDefinition(TestDefinition):
         return None
 
     def _check_benchmark_output(self, expected_node_logs: list[Path]) -> JobStatusResult | None:
-        if any(parse_nixl_ep_bandwidth_samples(path) for path in expected_node_logs):
+        missing_summaries = [path.name for path in expected_node_logs if not parse_nixl_ep_bandwidth_samples(path)]
+        if not missing_summaries:
             return None
 
         first_log = expected_node_logs[0]
         tail = self._tail(first_log)
         error_message = (
-            "NIXL EP completed at the Slurm level, but no benchmark summary lines were found in the node logs. "
-            "Expected lines such as '[rank N] Dispatch + combine bandwidth: ...'. "
-            f"Checked logs: {', '.join(path.name for path in expected_node_logs)}."
+            "NIXL EP completed at the Slurm level, but benchmark summary lines were missing from "
+            f"{', '.join(missing_summaries)}. "
+            "Expected lines such as '[rank N] Dispatch + combine bandwidth: ...'."
         )
         if tail:
             error_message += f"\n{tail}"

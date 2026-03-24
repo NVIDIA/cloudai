@@ -241,4 +241,4 @@ class TestNixlEPStatusCheck:
         result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
-        assert "no benchmark summary lines were found" in result.error_message
+        assert "benchmark summary lines were missing from" in result.error_message
