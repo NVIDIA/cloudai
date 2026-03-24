@@ -1,0 +1,100 @@
+NIXL EP
+=======
+
+This workload (``test_template_name`` is ``NixlEP``) runs the NIXL Elastic EP benchmark through a Slurm-managed multi-node elastic launcher flow.
+
+Overview
+--------
+
+The Slurm launch model is:
+
+- one ``elastic.py`` process per node, started in sequence as the plan progresses
+- the master node starts first and exposes a TCPStore for rank coordination
+- follower nodes connect via ``--tcp-server $master_ip`` once the master is ready
+- the benchmark runtime comes from the container image
+- each run serializes its plan JSON into the output directory
+
+Plan Format
+-----------
+
+The ``plan`` field is a JSON-encoded list of phases. Each phase lists the rank indices that should be active; negative indices mark ranks that are temporarily removed (contraction):
+
+.. code-block:: text
+
+   [[0, 1, 2, 3],              # phase 0: ranks 0–3 start
+    [0, 1, 2, 3, 4, 5, 6, 7], # phase 1: ranks 4–7 join (expansion)
+    [0, 1, 2, 3, 4, -6, 7],   # phase 2: rank 6 removed (contraction)
+    [0, 1, 2, 3, 4, 5, 6, 7]] # phase 3: rank 6 rejoins
+
+Each phase that introduces new positive ranks triggers an additional ``srun`` launch on the appropriate node. Phase completion is detected by polling the primary log for ``-> end phase N`` markers.
+
+Usage Examples
+--------------
+
+Test TOML example:
+
+.. code-block:: toml
+
+   name = "nixl-ep-expansion-contraction"
+   description = "NIXL Elastic EP expansion/contraction benchmark"
+   test_template_name = "NixlEP"
+
+   [cmd_args]
+   docker_image_url = "<docker container url here>"
+   elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
+   plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
+   num_processes_per_node = 4
+   num_tokens = 256
+   num_experts_per_rank = 4
+   hidden_dim = 8192
+   num_topk = 6
+   disable_ll_nvlink = true
+
+Test-in-Scenario example:
+
+.. code-block:: toml
+
+   name = "nixl-ep-expansion-contraction"
+
+   [[Tests]]
+   id = "nixl_ep.expansion_contraction"
+   num_nodes = 3
+   time_limit = "00:30:00"
+
+   name = "nixl-ep-expansion-contraction"
+   description = "NIXL Elastic EP expansion/contraction benchmark"
+   test_template_name = "NixlEP"
+
+     [Tests.cmd_args]
+     docker_image_url = "<docker container url here>"
+     elastic_script = "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py"
+     plan = "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
+     num_processes_per_node = 4
+     num_tokens = 256
+     num_experts_per_rank = 4
+     hidden_dim = 8192
+     num_topk = 6
+     disable_ll_nvlink = true
+
+Reporting
+---------
+
+After a run completes, CloudAI prints a single table with one row per (node, rank) measurement. The ``Phases`` column shows each phase index colour-coded green (passed) or red (failed). Bandwidth columns report dispatch+combine throughput and timing per rank.
+
+The reported metric (``default``) is the mean dispatch+combine bandwidth in GB/s across all ranks.
+
+API Documentation
+-----------------
+
+Command Arguments
+~~~~~~~~~~~~~~~~~
+
+.. autopydantic_model:: cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs
+   :members:
+
+Test Definition
+~~~~~~~~~~~~~~~
+
+.. autoclass:: cloudai.workloads.nixl_ep.nixl_ep.NixlEPTestDefinition
+   :members:
+   :show-inheritance:
