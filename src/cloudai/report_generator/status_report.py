@@ -128,12 +128,11 @@ def _build_effort_chart_data(executed_steps: int, total_space: int) -> dict[str,
         return None
 
     explored_ratio = min(max(executed_steps / total_space, 0.0), 1.0)
-    explored_display_percent = 100.0 if explored_ratio >= 1.0 else min(max(explored_ratio * 100.0, 14.0), 62.0)
-
     return {
         "explored_ratio": explored_ratio,
-        "explored_display_percent": explored_display_percent,
-        "remainder_display_percent": max(100.0 - explored_display_percent, 0.0),
+        "labels": ["Explored", "Full Space"],
+        "values": [executed_steps, total_space],
+        "use_log_scale": total_space / max(executed_steps, 1) >= 20,
     }
 
 
@@ -248,7 +247,6 @@ class DSESummary:
     avg_step_duration_sec: float | None
     total_runtime_sec: float | None
     saved_runtime_sec: float | None
-    success_count: int
     failure_count: int
     gpu_arch_label: str | None
     saved_gpu_hours: float | None
@@ -270,7 +268,7 @@ class DSESummary:
     def status_text(self) -> str:
         if self.failure_count == 0:
             return "PASSED"
-        if self.success_count == 0:
+        if self.failure_count == self.executed_steps:
             return "FAILED"
         return "PARTIAL"
 
@@ -421,8 +419,7 @@ class DSEReportBuilder:
             else None
         )
 
-        success_count = sum(1 for step in steps if step.is_successful)
-        failure_count = len(steps) - success_count
+        failure_count = sum(1 for step in steps if not step.is_successful)
         best_action = best_step_data.action
         parameter_rows = [
             DSEParameterRow(
@@ -448,7 +445,6 @@ class DSEReportBuilder:
             avg_step_duration_sec=avg_step_duration_sec,
             total_runtime_sec=total_runtime_sec,
             saved_runtime_sec=saved_runtime_sec,
-            success_count=success_count,
             failure_count=failure_count,
             gpu_arch_label=gpu_arch_label,
             saved_gpu_hours=saved_gpu_hours,

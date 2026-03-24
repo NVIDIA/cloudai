@@ -460,6 +460,9 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.reward_chart_data["observations"] == ["2.5", "1.2", "1.8"]
     assert summary.effort_chart_data is not None
     assert summary.effort_chart_data["explored_ratio"] == pytest.approx(3 / 8)
+    assert summary.effort_chart_data["labels"] == ["Explored", "Full Space"]
+    assert summary.effort_chart_data["values"] == [3, 8]
+    assert summary.effort_chart_data["use_log_scale"] is False
 
     best_values = {row.name: row.best_value for row in summary.parameter_rows}
     assert best_values["nthreads"] == "2"
@@ -508,6 +511,7 @@ def test_dse_generate_scenario_report_renders_html(
     assert "BO Analysis" in html
     assert "All Steps" in html
     assert "dse-report.toml" in html
+    assert "js-effort-chart" in html
     assert "js-reward-chart" in html
     assert "chart-shell" in html
     assert 'class="value-pill value-pill--selected"' in html

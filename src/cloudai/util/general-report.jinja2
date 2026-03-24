@@ -78,11 +78,21 @@
         color: var(--nv-muted);
         font-size: 0.95rem;
     }
-    .summary-stat-grid {
+    .overview-layout {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.92fr);
+        gap: 1rem;
+        align-items: stretch;
+    }
+    .overview-left {
+        display: flex;
+        flex-direction: column;
         gap: 0.9rem;
-        margin-bottom: 1rem;
+    }
+    .summary-stat-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
     }
     .metric-card {
         padding: 1rem 1.05rem;
@@ -116,10 +126,9 @@
         letter-spacing: -0.03em;
     }
     .context-strip {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.8rem 1rem;
-        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
     }
     .context-item {
         padding: 0.85rem 0.95rem;
@@ -139,6 +148,9 @@
         font-weight: 650;
     }
     .effort-block {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
         padding: 1rem 1.05rem;
         border-radius: var(--radius-md);
         border: 1px solid rgba(118, 185, 0, 0.22);
@@ -159,59 +171,19 @@
         color: var(--nv-muted);
         font-size: 0.92rem;
     }
-    .effort-bar {
-        display: flex;
-        align-items: stretch;
-        width: 100%;
-        min-height: 56px;
-        margin: 0.7rem 0 0.6rem;
-        overflow: hidden;
-        border-radius: 999px;
+    .effort-chart-shell {
+        position: relative;
+        flex: 1;
+        min-height: 360px;
+        margin-top: 0.6rem;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(17, 17, 17, 0.08);
-        background: rgba(255, 255, 255, 0.86);
+        background: rgba(255, 255, 255, 0.88);
+        padding: 0.85rem;
     }
-    .effort-bar__explored {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 86px;
-        background: linear-gradient(90deg, var(--nv-green), var(--nv-green-bright));
-        color: #ffffff;
-        font-weight: 700;
-        font-size: 0.9rem;
-    }
-    .effort-bar__break {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 62px;
-        color: var(--nv-muted);
-        font-weight: 900;
-        letter-spacing: 0.08em;
-        background:
-            repeating-linear-gradient(
-                -55deg,
-                rgba(17, 17, 17, 0.06),
-                rgba(17, 17, 17, 0.06) 6px,
-                rgba(255, 255, 255, 0.75) 6px,
-                rgba(255, 255, 255, 0.75) 12px
-            );
-    }
-    .effort-bar__remaining {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        padding-right: 1rem;
-        color: var(--nv-muted);
-        font-weight: 700;
-        background: rgba(17, 17, 17, 0.08);
-    }
-    .effort-scale {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        color: var(--nv-muted);
-        font-size: 0.9rem;
+    .effort-chart-shell canvas {
+        width: 100% !important;
+        height: 100% !important;
     }
     .dse-box {
         margin-top: 1.15rem;
@@ -338,11 +310,8 @@
         .metric-value {
             font-size: 1.35rem;
         }
-        .context-strip {
+        .overview-layout {
             grid-template-columns: 1fr;
-        }
-        .effort-bar__break {
-            width: 46px;
         }
     }
 </style>
@@ -459,6 +428,64 @@
             });
             canvas.parentElement.classList.add("is-enhanced");
         });
+
+        const effortCanvases = document.querySelectorAll(".js-effort-chart");
+        effortCanvases.forEach((canvas) => {
+            const dataNode = document.getElementById(canvas.dataset.chartDataId);
+            if (!dataNode) {
+                return;
+            }
+            const chartData = JSON.parse(dataNode.textContent);
+            new Chart(canvas, {
+                type: "bar",
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            data: chartData.values,
+                            backgroundColor: ["#76b900", "rgba(57, 66, 78, 0.24)"],
+                            borderColor: ["#76b900", "rgba(57, 66, 78, 0.50)"],
+                            borderWidth: 1,
+                            borderRadius: 14,
+                            maxBarThickness: 90
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return context.raw.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            type: chartData.use_log_scale ? "logarithmic" : "linear",
+                            beginAtZero: !chartData.use_log_scale,
+                            ticks: {
+                                callback: function (value) {
+                                    return Number(value).toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            canvas.parentElement.classList.add("is-enhanced");
+        });
     });
 </script>
 {% endif %}
@@ -478,59 +505,62 @@
             </div>
             <p class="overview-description">{{ summary.description }}</p>
 
-            <div class="summary-stat-grid">
-                <div class="metric-card metric-card--neutral">
-                    <div class="metric-label">Search Space</div>
-                    <div class="metric-value">{{ "{:,}".format(summary.total_space) }}</div>
-                </div>
-                <div class="metric-card metric-card--neutral">
-                    <div class="metric-label">Explored Steps</div>
-                    <div class="metric-value">{{ "{:,}".format(summary.executed_steps) }}</div>
-                </div>
-                <div class="metric-card metric-card--hero">
-                    <div class="metric-label">Saved Time</div>
-                    <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
-                </div>
-                <div class="metric-card metric-card--hero">
-                    <div class="metric-label">Saved GPU-Hours</div>
-                    <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
-                </div>
-                <div class="metric-card metric-card--hero">
-                    <div class="metric-label">Estimated $ Saved</div>
-                    <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
-                </div>
-            </div>
-
-            <div class="context-strip">
-                <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
-                <div class="context-item"><span class="label">Step Success / Failure</span><span class="value">{{ summary.success_count }} / {{ summary.failure_count }}</span></div>
-                <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
-                <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
-            </div>
-
-            {% if summary.effort_chart_data %}
-            <div class="effort-block">
-                <div class="effort-head">
-                    <h3>DSE Savings</h3>
-                    <span class="effort-caption">Axis break emphasizes the gap between explored trials and full-space search.</span>
-                </div>
-                <div class="effort-bar">
-                    <div class="effort-bar__explored" style="width: {{ summary.effort_chart_data.explored_display_percent }}%;">
-                        {{ "{:,}".format(summary.executed_steps) }}
+            <div class="overview-layout">
+                <div class="overview-left">
+                    <div class="summary-stat-grid">
+                        <div class="metric-card metric-card--neutral">
+                            <div class="metric-label">Search Space</div>
+                            <div class="metric-value">{{ "{:,}".format(summary.total_space) }}</div>
+                        </div>
+                        <div class="metric-card metric-card--neutral">
+                            <div class="metric-label">Explored Steps</div>
+                            <div class="metric-value">{{ "{:,}".format(summary.executed_steps) }}</div>
+                        </div>
+                        <div class="metric-card metric-card--hero">
+                            <div class="metric-label">Saved Time</div>
+                            <div class="metric-value">{{ format_duration(summary.saved_runtime_sec) }}</div>
+                        </div>
+                        <div class="metric-card metric-card--hero">
+                            <div class="metric-label">Saved GPU-Hours</div>
+                            <div class="metric-value">{{ format_float(summary.saved_gpu_hours, 2) }}</div>
+                        </div>
+                        <div class="metric-card metric-card--hero">
+                            <div class="metric-label">Estimated $ Saved</div>
+                            <div class="metric-value">{{ format_money(summary.estimated_saved_cost_usd) }}</div>
+                        </div>
                     </div>
-                    {% if summary.skipped_steps > 0 %}
-                    <div class="effort-bar__break">//</div>
-                    <div class="effort-bar__remaining" style="width: {{ summary.effort_chart_data.remainder_display_percent }}%;">
-                        {{ "{:,}".format(summary.total_space) }}
+
+                    <div class="context-strip">
+                        <div class="context-item"><span class="label">GPU Label</span><span class="value">{{ summary.gpu_arch_label or "unknown" }}</span></div>
+                        <div class="context-item"><span class="label">Average Step Runtime</span><span class="value">{{ format_duration(summary.avg_step_duration_sec) }}</span></div>
+                        <div class="context-item"><span class="label">Observed Runtime</span><span class="value">{{ format_duration(summary.total_runtime_sec) }}</span></div>
                     </div>
-                    {% endif %}
                 </div>
-                <div class="effort-scale">
-                    <span>Explored</span>
-                    <span>Full space</span>
+
+                {% if summary.effort_chart_data %}
+                <div class="effort-block">
+                    <div class="effort-head">
+                        <h3>DSE Savings</h3>
+                        <span class="effort-caption">
+                            {% if summary.effort_chart_data.use_log_scale %}
+                            Log scale keeps both bars legible across a large search-space gap.
+                            {% else %}
+                            Side-by-side comparison of explored steps versus full search space.
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="effort-chart-shell chart-shell">
+                        <canvas
+                            class="js-effort-chart"
+                            data-chart-data-id="effort-chart-data-{{ loop.index0 }}"
+                            aria-label="Bar chart comparing explored steps and full search space"
+                        ></canvas>
+                    </div>
+                    <script type="application/json" id="effort-chart-data-{{ loop.index0 }}">{{ summary.effort_chart_data | tojson }}</script>
+                    <p class="chart-fallback">Interactive chart unavailable. The totals above remain available as text.</p>
                 </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
 
         <div class="dse-box">
