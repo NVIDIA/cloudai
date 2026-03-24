@@ -408,7 +408,10 @@
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".js-copy-config").forEach((button) => {
-            button.addEventListener("click", async function () {
+            button.addEventListener("click", async function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
                 const target = document.getElementById(button.dataset.copyTarget);
                 if (!target) {
                     return;

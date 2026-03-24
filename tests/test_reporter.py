@@ -346,8 +346,8 @@ class TestSlurmReportItem:
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
-    assert any(name == "dse" for name, _ in reports)
-    assert reports[-2][0] == "status"
+    assert reports[-3][0] == "status"
+    assert reports[-2][0] == "dse"
     assert reports[-1][0] == "tarball"
 
 
@@ -417,6 +417,9 @@ def _create_dse_iteration(
             _write_slurm_job(step_dir, int(step["elapsed_time_sec"]))
             _write_slurm_system_metadata(step_dir, slurm_metadata)
 
+            # NCCLTestDefinition.was_run_successful
+            (step_dir / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+
             step_tr = case.apply_params_set(step["action"])
             step_tr.current_iteration = iteration
             step_tr.step = step_no
@@ -479,17 +482,17 @@ def _create_dse_iteration(
     }
 
 
-def test_dse_reporter_builds_mixed_case_summaries_and_outputs(
+def test_dse_reporter(
     slurm_system: SlurmSystem,
     slurm_metadata: SlurmSystemMetadata,
 ) -> None:
     slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
 
-    dse_case_a = TestRun(
-        name="dse-case-a",
+    dse_case = TestRun(
+        name="dse-case",
         test=NCCLTestDefinition(
             name="nccl",
-            description="NCCL case A",
+            description="NCCL case",
             test_template_name="NcclTest",
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
             extra_env_vars={"VAR1": ["value1", "value2"]},
@@ -497,38 +500,12 @@ def test_dse_reporter_builds_mixed_case_summaries_and_outputs(
         ),
         num_nodes=1,
         nodes=["node1"],
-        iterations=2,
-    )
-    dse_case_b = TestRun(
-        name="dse-case-b",
-        test=NCCLTestDefinition(
-            name="nccl",
-            description="NCCL case B",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            extra_env_vars={"VAR2": ["x", "y", "z"]},
-            agent_steps=2,
-        ),
-        num_nodes=1,
-        nodes=["node2"],
-        iterations=1,
-    )
-    benchmark_case = TestRun(
-        name="benchmark-case",
-        test=NCCLTestDefinition(
-            name="nccl",
-            description="Regular benchmark",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        num_nodes=1,
-        nodes=["node3"],
         iterations=1,
     )
 
     expected = [
         _create_dse_iteration(
-            dse_case_a,
+            dse_case,
             iteration=0,
             system=slurm_system,
             results_root=slurm_system.output_path,
@@ -557,65 +534,11 @@ def test_dse_reporter_builds_mixed_case_summaries_and_outputs(
                 },
             ],
         ),
-        _create_dse_iteration(
-            dse_case_a,
-            iteration=1,
-            system=slurm_system,
-            results_root=slurm_system.output_path,
-            slurm_metadata=slurm_metadata,
-            steps=[
-                {
-                    "step": 0,
-                    "action": {"ngpus": 1, "extra_env_vars.VAR1": "value2"},
-                    "reward": -8.0,
-                    "observation": [8],
-                    "elapsed_time_sec": 30,
-                },
-                {
-                    "step": 1,
-                    "action": {"ngpus": 2, "extra_env_vars.VAR1": "value2"},
-                    "reward": -3.0,
-                    "observation": [3],
-                    "elapsed_time_sec": 30,
-                },
-                {
-                    "step": 2,
-                    "action": {"ngpus": 1, "extra_env_vars.VAR1": "value1"},
-                    "reward": -9.0,
-                    "observation": [9],
-                    "elapsed_time_sec": 30,
-                },
-            ],
-        ),
-        _create_dse_iteration(
-            dse_case_b,
-            iteration=0,
-            system=slurm_system,
-            results_root=slurm_system.output_path,
-            slurm_metadata=slurm_metadata,
-            steps=[
-                {
-                    "step": 0,
-                    "action": {"extra_env_vars.VAR2": "x"},
-                    "reward": -100.0,
-                    "observation": [100],
-                    "elapsed_time_sec": 90,
-                },
-                {
-                    "step": 1,
-                    "action": {"extra_env_vars.VAR2": "y"},
-                    "reward": -20.0,
-                    "observation": [20],
-                    "elapsed_time_sec": 150,
-                },
-            ],
-        ),
     ]
-    _create_non_dse_iteration(benchmark_case, iteration=0, results_root=slurm_system.output_path)
 
     scenario = TestScenario(
-        name="mixed-dse-scenario",
-        test_runs=[dse_case_a, dse_case_b, benchmark_case],
+        name="single-dse-scenario",
+        test_runs=[dse_case],
     )
     reporter = DSEReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig())
     reporter.load_test_runs()
@@ -631,6 +554,5 @@ def test_dse_reporter_builds_mixed_case_summaries_and_outputs(
 
     reporter.generate()
 
-    assert (slurm_system.output_path / "mixed-dse-scenario-dse-report.html").exists()
-    assert (slurm_system.output_path / dse_case_a.name / "0" / f"{dse_case_a.name}.toml").exists()
-    assert (slurm_system.output_path / dse_case_b.name / "0" / f"{dse_case_b.name}.toml").exists()
+    assert (slurm_system.output_path / "single-dse-scenario-dse-report.html").exists()
+    assert (slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml").exists()

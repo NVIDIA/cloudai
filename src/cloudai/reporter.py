@@ -107,7 +107,7 @@ class StatusReporter(Reporter):
         with report_path.open("w") as f:
             f.write(report)
 
-        logging.info(f"Generated scenario report at {report_path}")
+        logging.info("Generated scenario report at %s", report_path)
 
     def print_summary(self) -> None:
         if not self.trs:
@@ -175,17 +175,24 @@ class DSEReporter(Reporter):
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
             trajectory_file = tr_root / "trajectory.csv"
             if not trajectory_file.is_file():
-                logging.warning(f"No trajectory file found for {tr.name} at {trajectory_file}")
+                logging.warning("No trajectory file found for %s at %s", tr.name, trajectory_file)
                 continue
 
             df = lazy.pd.read_csv(trajectory_file)
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+            if not best_step_details.is_file():
+                logging.warning("No best step found for %s at %s", tr.name, best_step_details)
+                return
             with best_step_details.open() as f:
-                trd = TestRunDetails.model_validate(toml.load(f))
+                try:
+                    trd = TestRunDetails.model_validate(toml.load(f))
+                except Exception as exc:
+                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
+                    return
 
             best_config_path = tr_root / f"{tr.name}.toml"
-            logging.info(f"Writing best config for {tr.name} to {best_config_path}")
+            logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
 

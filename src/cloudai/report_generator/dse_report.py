@@ -138,7 +138,9 @@ def _normalize_gpu_family(gpu_name: str | None) -> str | None:
     if not gpu_name:
         return None
     upper = gpu_name.upper()
-    for family in GPU_HOURLY_COST_USD:
+
+    # sorted because of `B200 in GB200 is True`
+    for family in sorted(GPU_HOURLY_COST_USD, key=len, reverse=True):
         if family in upper:
             return family
     return None
@@ -150,7 +152,12 @@ def _step_elapsed_time(step_dir: Path) -> int | None:
         return None
 
     with slurm_job_path.open() as f:
-        metadata = SlurmJobMetadata.model_validate(toml.load(f))
+        try:
+            metadata = SlurmJobMetadata.model_validate(toml.load(f))
+        except Exception as exc:
+            logging.debug(f"Error validating slurm job metadata for {slurm_job_path}: {exc}")
+            return None
+
     return metadata.elapsed_time_sec
 
 
@@ -185,16 +192,26 @@ def calculate_savings(saved_gpu_hours: float | None, gpu_arch_label: str | None)
     )
 
 
+def get_best_step(steps: list[TrajectoryStep]) -> TrajectoryStep | None:
+    successful_steps = [step for step in steps if step.is_successful]
+    if not successful_steps:
+        return None
+    return max(successful_steps, key=lambda step: step.reward)
+
+
 def _build_reward_chart_data(steps: list[TrajectoryStep]) -> dict[str, Any] | None:
     if not steps:
         return None
 
-    best_index = max(range(len(steps)), key=lambda idx: steps[idx].reward)
+    best_step = get_best_step(steps)
+    if best_step is None:
+        return None
+
     return {
         "labels": [step.step for step in steps],
         "rewards": [step.reward for step in steps],
         "observations": [step.observation_text for step in steps],
-        "best_index": best_index,
+        "best_index": best_step.step,
     }
 
 
@@ -273,7 +290,10 @@ def _build_iteration_summary(
     if not trajectory_steps:
         return None
 
-    best_step = max(trajectory_steps, key=lambda step: step.reward)
+    best_step = get_best_step(trajectory_steps)
+    if best_step is None:
+        return None
+
     best_step_dump = iteration_dir / str(best_step.step) / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     if not best_step_dump.exists():
         logging.warning(f"No test run dump found for best DSE step at {best_step_dump}")
