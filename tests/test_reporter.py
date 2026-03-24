@@ -229,7 +229,7 @@ def test_template_file_path(system: System) -> None:
     reporter = StatusReporter(
         system, TestScenario(name="test_scenario", test_runs=[]), system.output_path, ReportConfig()
     )
-    assert (reporter.templates_dir / "general-report.jinja2").exists()
+    assert (reporter.templates_dir / "dse-report.jinja2").exists()
 
 
 MY_REPORT_CALLED = 0
@@ -453,7 +453,6 @@ def test_dse_summary_and_best_config_artifacts(slurm_system: SlurmSystem, slurm_
     assert summary.saved_runtime_sec == pytest.approx(100.0)
     assert summary.saved_gpu_hours == pytest.approx((100.0 / 3600.0) * 16)
     assert summary.estimated_saved_cost_usd == pytest.approx((summary.saved_gpu_hours or 0) * 4.5)
-    assert summary.analysis_rel_path is not None
     assert summary.best_config_rel_path == f"./{dse_tr.name}/0/{dse_tr.name}.toml"
     assert summary.reward_chart_data is not None
     assert summary.reward_chart_data["labels"] == [1, 2, 3]

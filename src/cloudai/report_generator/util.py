@@ -15,9 +15,14 @@
 # limitations under the License.
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, List, Tuple
 
+import toml
+
 from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystemMetadata
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
@@ -178,3 +183,27 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
             diff[key] = all_values
 
     return diff
+
+
+def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:
+    metadata_path = run_dir / "metadata"
+    if not metadata_path.exists():
+        logging.debug(f"No metadata folder found in {run_dir=}")
+        fallback_metadata_path = results_root / "metadata"
+        if not fallback_metadata_path.exists():
+            logging.debug(f"No metadata folder found in {results_root=}")
+            return None
+        metadata_path = fallback_metadata_path
+
+    node_files = list(metadata_path.glob("node-*.toml"))
+    if not node_files:
+        logging.debug(f"No node files found in {metadata_path}")
+        return None
+
+    with node_files[0].open() as f:
+        try:
+            return SlurmSystemMetadata.model_validate(toml.load(f))
+        except Exception as exc:
+            logging.debug(f"Error validating metadata for {node_files[0]}: {exc}")
+            return None
+

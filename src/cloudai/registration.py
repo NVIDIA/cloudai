@@ -46,7 +46,7 @@ def register_all():
     )
     from cloudai.core import Registry
     from cloudai.models.scenario import ReportConfig
-    from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
+    from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, TarballReporter
 
     # Import systems
     from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesRunner, KubernetesSystem
@@ -295,6 +295,7 @@ def register_all():
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("dse", DSEReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
     Registry().add_scenario_report(
         "nixl_bench_summary",

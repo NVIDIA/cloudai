@@ -1,0 +1,415 @@
+{% extends "base-report.jinja2" %}
+
+{% block extra_head %}
+{% if dse_cases %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endif %}
+<style>
+    .dse-summary {
+        margin: 0 0 2rem;
+    }
+    .dse-box {
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--nv-shadow);
+        margin-bottom: 1.4rem;
+        padding: 1.35rem;
+    }
+    .dse-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.8rem 1rem;
+        margin-bottom: 1rem;
+    }
+    .dse-header h2 {
+        margin: 0;
+    }
+    .dse-kpi-grid,
+    .dse-runtime-grid {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .dse-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 0.9rem;
+    }
+    .dse-runtime-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .metric-card {
+        padding: 0.95rem 1rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: #ffffff;
+    }
+    .metric-card--hero {
+        background: linear-gradient(180deg, rgba(248, 251, 244, 1), rgba(255, 255, 255, 1));
+        border-color: rgba(118, 185, 0, 0.24);
+        box-shadow: inset 0 3px 0 rgba(118, 185, 0, 0.88);
+    }
+    .metric-card--accent {
+        background: linear-gradient(180deg, rgba(245, 250, 238, 1), rgba(255, 255, 255, 1));
+        border-color: rgba(118, 185, 0, 0.28);
+        box-shadow: inset 0 3px 0 rgba(118, 185, 0, 0.92);
+    }
+    .metric-label {
+        color: var(--nv-muted);
+        font-size: 0.77rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+    .metric-value {
+        margin-top: 0.3rem;
+        color: var(--nv-ink);
+        font-size: 1.45rem;
+        font-weight: 750;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+    }
+    .metric-card--accent .metric-value {
+        font-size: 1.8rem;
+        color: var(--nv-green-strong);
+    }
+    .best-config-preview {
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: #ffffff;
+        margin-top: 1rem;
+    }
+    .best-config-preview summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        list-style: none;
+        cursor: pointer;
+        padding: 0.9rem 1rem;
+        color: var(--nv-ink);
+        font-weight: 650;
+        background: #fbfcfa;
+    }
+    .best-config-preview summary::-webkit-details-marker {
+        display: none;
+    }
+    .best-config-summary-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-left: auto;
+    }
+    .action-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(118, 185, 0, 0.28);
+        background: #ffffff;
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .action-button:hover {
+        background: var(--nv-green-soft);
+        text-decoration: none;
+    }
+    .best-config-preview pre {
+        max-height: 360px;
+        overflow: auto;
+        margin: 0;
+        padding: 1rem;
+        color: #1f2933;
+        background: #ffffff;
+        border-top: 1px solid rgba(17, 17, 17, 0.06);
+    }
+    .space-table th {
+        background: #f0f9de;
+    }
+    .value-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+    .value-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.22rem 0.62rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        color: var(--nv-text);
+        font-weight: 650;
+        white-space: nowrap;
+    }
+    .value-pill--selected {
+        background: var(--nv-green-soft);
+        border-color: rgba(118, 185, 0, 0.30);
+        color: var(--nv-green-strong);
+    }
+    .chart-shell {
+        position: relative;
+        min-height: 260px;
+        height: 320px;
+    }
+    .chart-shell canvas {
+        display: block;
+        width: 100% !important;
+    }
+    .chart-fallback {
+        margin-top: 0.75rem;
+        color: var(--nv-muted);
+        font-size: 0.88rem;
+    }
+    .chart-shell.is-enhanced + .chart-fallback,
+    .chart-shell.is-enhanced ~ .chart-fallback {
+        display: none;
+    }
+    @media (max-width: 640px) {
+        .dse-kpi-grid,
+        .dse-runtime-grid {
+            grid-template-columns: 1fr;
+        }
+        .metric-value {
+            font-size: 1.35rem;
+        }
+        .metric-card--accent .metric-value {
+            font-size: 1.5rem;
+        }
+        .best-config-preview summary {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .best-config-summary-actions {
+            margin-left: 0;
+        }
+    }
+</style>
+{% if dse_cases %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".js-copy-config").forEach((button) => {
+            button.addEventListener("click", async function () {
+                const target = document.getElementById(button.dataset.copyTarget);
+                if (!target) {
+                    return;
+                }
+                const originalText = button.textContent;
+                try {
+                    await navigator.clipboard.writeText(target.textContent || "");
+                    button.textContent = "Copied";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                } catch (_error) {
+                    button.textContent = "Copy failed";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                }
+            });
+        });
+
+        if (typeof Chart === "undefined") {
+            return;
+        }
+
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif';
+        Chart.defaults.color = "#5f6b65";
+        Chart.defaults.borderColor = "rgba(57, 66, 78, 0.10)";
+
+        document.querySelectorAll(".js-reward-chart").forEach((canvas) => {
+            const dataNode = document.getElementById(canvas.dataset.chartDataId);
+            if (!dataNode) {
+                return;
+            }
+            const chartData = JSON.parse(dataNode.textContent);
+            const pointBackgroundColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointBorderColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointRadii = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? 5 : 3
+            );
+
+            new Chart(canvas, {
+                type: "line",
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: "Observed reward",
+                            data: chartData.rewards,
+                            borderColor: "#39424e",
+                            backgroundColor: "rgba(57, 66, 78, 0.14)",
+                            pointBackgroundColor: pointBackgroundColors,
+                            pointBorderColor: pointBorderColors,
+                            pointRadius: pointRadii,
+                            pointHoverRadius: 6,
+                            borderWidth: 2,
+                            tension: 0.25,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: "index",
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function (context) {
+                                    const idx = context[0].dataIndex;
+                                    const lines = ["Observation: " + (chartData.observations[idx] || "n/a")];
+                                    if (idx === chartData.best_index) {
+                                        lines.push("Best step");
+                                    }
+                                    return lines;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Step"
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: "Reward"
+                            }
+                        }
+                    }
+                }
+            });
+            canvas.parentElement.classList.add("is-enhanced");
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if dse_cases %}
+    {% for summary in dse_cases %}
+    <section class="dse-summary">
+        <div class="dse-box">
+            <div class="dse-header">
+                <h2>{{ summary.name }}</h2>
+            </div>
+
+            <div class="dse-kpi-grid">
+                <div class="metric-card metric-card--hero">
+                    <div class="metric-label">Saved Time</div>
+                    <div class="metric-value">{{ summary.saved_time }}</div>
+                </div>
+                <div class="metric-card metric-card--hero">
+                    <div class="metric-label">Saved GPU-Hours</div>
+                    <div class="metric-value">{{ summary.saved_gpu_hours }}</div>
+                </div>
+                <div class="metric-card metric-card--accent">
+                    <div class="metric-label">Estimated Savings</div>
+                    <div class="metric-value">{{ summary.estimated_savings }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">GPU Label</div>
+                    <div class="metric-value">{{ summary.gpu_label }}</div>
+                </div>
+            </div>
+
+            <div class="dse-runtime-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Avg Step Runtime</div>
+                    <div class="metric-value">{{ summary.avg_step_runtime }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Observed Runtime</div>
+                    <div class="metric-value">{{ summary.observed_runtime }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Exploration Efficiency</div>
+                    <div class="metric-value">{{ summary.efficiency_ratio }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Explored Steps</div>
+                    <div class="metric-value">{{ summary.efficiency_steps }}</div>
+                </div>
+            </div>
+
+            {% if summary.best_config_toml %}
+            <details class="best-config-preview">
+                <summary>
+                    <span>Best Config TOML</span>
+                    <span class="best-config-summary-actions">
+                        <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
+                    </span>
+                </summary>
+                <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
+            </details>
+            {% endif %}
+        </div>
+
+        <div class="dse-box">
+            <h3>DSE: Exploration Space</h3>
+            <table class="space-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Allowed Values</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary.parameter_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>
+                            <div class="value-cloud">
+                                {% for value in row.values %}
+                                <span class="value-pill {% if value.is_best %}value-pill--selected{% endif %}">{{ value.text }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="dse-box">
+            <h3>DSE: Reward Over Steps</h3>
+            {% if summary.reward_chart_data %}
+                <div class="chart-shell">
+                    <canvas
+                        class="js-reward-chart"
+                        data-chart-data-id="reward-chart-data-{{ loop.index0 }}"
+                        aria-label="Line chart of reward over DSE steps"
+                    ></canvas>
+                </div>
+                <script type="application/json" id="reward-chart-data-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
+                <p class="chart-fallback">Interactive chart unavailable. Numeric report details remain available above.</p>
+                <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
+            {% else %}
+                <p>No reward data available.</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endfor %}
+{% else %}
+    <p>No DSE results found.</p>
+{% endif %}
+{% endblock %}

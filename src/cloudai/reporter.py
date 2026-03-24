@@ -17,23 +17,45 @@
 import contextlib
 import logging
 import tarfile
-from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import jinja2
+import toml
 from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.core import Reporter, TestRun
-from cloudai.report_generator.status_report import (
-    DSEReportBuilder,
-    DSESummary,
-    ReportItem,
-    format_duration,
-    format_float,
-    format_money,
-)
+from cloudai.util.lazy_imports import lazy
+
+from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .models.scenario import TestRunDetails
+from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.report_generator.util import load_system_metadata
+
+
+@dataclass
+class ReportItem:
+    """Enhanced report item for Slurm systems with node information."""
+
+    name: str
+    description: str
+    logs_path: Optional[str] = None
+    nodes: Optional[str] = None
+
+    @classmethod
+    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
+        report_items: list[ReportItem] = []
+        for tr in test_runs:
+            ri = ReportItem(case_name(tr), tr.test.description)
+            if tr.output_path.exists():
+                ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
+            if metadata := load_system_metadata(tr.output_path, results_root):
+                ri.nodes = metadata.slurm.node_list
+            report_items.append(ri)
+
+        return report_items
 
 
 class PerTestReporter(Reporter):
@@ -62,68 +84,55 @@ class StatusReporter(Reporter):
     """Generates HTML status reports with system-specific templates."""
 
     @property
-    def templates_dir(self) -> Path:
+    def template_file_path(self) -> Path:
         return Path(__file__).parent / "util"
+
+    @property
+    def template_file(self) -> str:
+        return "general-report.jinja2"
 
     def generate(self) -> None:
         self.load_test_runs()
+        self.generate_scenario_report()
+        self.report_best_dse_config()
+        self.print_summary()
 
-        dse_builder = DSEReportBuilder(self.system, self.results_root, self.trs)
-        dse_summaries = dse_builder.build(self.test_scenario.test_runs)
-
-        self.to_html(dse_summaries)
-        self.to_console(dse_summaries)
-
-    def to_html(self, dse_summaries: list[DSESummary]) -> None:
-        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
-        template = jinja_env.get_template("general-report.jinja2")
+    def generate_scenario_report(self) -> None:
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(
+            self.template_file
+        )
 
         report_items = ReportItem.from_test_runs(self.trs, self.results_root)
-        dse_cases = self._build_dse_cases(dse_summaries, report_items)
-        dse_case_names = {case["name"] for case in dse_cases}
-        dse_report_items = [item for item in report_items if item.group_name in dse_case_names]
-        standard_report_items = [item for item in report_items if item.group_name not in dse_case_names]
-        report = template.render(
-            name=self.test_scenario.name,
-            report_items=standard_report_items,
-            dse_cases=dse_cases,
-            dse_report_items=dse_report_items,
-            format_duration=format_duration,
-            format_float=format_float,
-            format_money=format_money,
-        )
+        report = template.render(name=self.test_scenario.name, report_items=report_items)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
             f.write(report)
 
         logging.info(f"Generated scenario report at {report_path}")
 
-    def _build_dse_cases(self, dse_summaries: list[DSESummary], report_items: list[ReportItem]) -> list[dict[str, object]]:
-        summaries_by_name: dict[str, list[DSESummary]] = defaultdict(list)
-        for summary in dse_summaries:
-            summaries_by_name[summary.name].append(summary)
-
-        items_by_name: dict[str, list[ReportItem]] = defaultdict(list)
-        for item in report_items:
-            if item.is_dse:
-                items_by_name[item.group_name].append(item)
-
-        dse_case_names = []
+    def report_best_dse_config(self):
         for tr in self.test_scenario.test_runs:
-            if tr.is_dse_job and tr.name not in dse_case_names:
-                dse_case_names.append(tr.name)
+            if not tr.test.is_dse_job:
+                continue
 
-        return [
-            {
-                "name": case_name,
-                "summaries": summaries_by_name.get(case_name, []),
-                "report_items": items_by_name.get(case_name, []),
-            }
-            for case_name in dse_case_names
-            if summaries_by_name.get(case_name)
-        ]
+            tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
+            trajectory_file = tr_root / "trajectory.csv"
+            if not trajectory_file.exists():
+                logging.warning(f"No trajectory file found for {tr.name} at {trajectory_file}")
+                continue
 
-    def to_console(self, dse_summaries: list[DSESummary]):
+            df = lazy.pd.read_csv(trajectory_file)
+            best_step = df.loc[df["reward"].idxmax()]["step"]
+            best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+            with best_step_details.open() as f:
+                trd = TestRunDetails.model_validate(toml.load(f))
+
+            best_config_path = tr_root / f"{tr.name}.toml"
+            logging.info(f"Writing best config for {tr.name} to {best_config_path}")
+            with best_config_path.open("w") as f:
+                toml.dump(trd.test_definition.model_dump(), f)
+
+    def print_summary(self) -> None:
         if not self.trs:
             logging.debug("No test runs found, skipping summary.")
             return
@@ -132,31 +141,6 @@ class StatusReporter(Reporter):
         for col in ["Case", "Status", "Details"]:
             table.add_column(col, overflow="fold")
 
-        if dse_summaries:
-            self._add_dse_rows(dse_summaries, table)
-        else:
-            self._add_standard_rows(table)
-
-        console = Console()
-        with console.capture() as capture:
-            console.print(table)
-
-        logging.info(capture.get())
-
-    @staticmethod
-    def _add_dse_rows(dse_summaries: list[DSESummary], table: Table):
-        for summary in dse_summaries:
-            details = [
-                f"steps={summary.executed_steps}/{summary.total_space}",
-                f"best_step={summary.best_step}",
-                f"best_reward={format_float(summary.best_reward, 4)}",
-                f"failures={summary.failure_count}",
-            ]
-            if summary.best_config_rel_path:
-                details.append(summary.best_config_rel_path)
-            table.add_row(summary.description, f"[bold]{summary.status_style}[/bold]", "\n".join(details))
-
-    def _add_standard_rows(self, table: Table):
         for tr in self.trs:
             tr_status = tr.test.was_run_successful(tr)
             sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
@@ -164,7 +148,40 @@ class StatusReporter(Reporter):
             with contextlib.suppress(ValueError):
                 display_path = str(tr.output_path.absolute().relative_to(Path.cwd()))
             details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
-            table.add_row(tr.name, sts_text, f"{display_path}{details_text}")
+            columns = [tr.name, sts_text, f"{display_path}{details_text}"]
+            table.add_row(*columns)
+
+        console = Console()
+        with console.capture() as capture:
+            console.print(table)  # doesn't print to stdout, captures only
+
+        logging.info(capture.get())
+
+
+class DSEReporter(Reporter):
+    @property
+    def templates_dir(self) -> Path:
+        return Path(__file__).parent / "util"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+
+        dse_cases = build_dse_summaries(
+            system=self.system,
+            results_root=self.results_root,
+            loaded_test_runs=self.trs,
+            test_cases=self.test_scenario.test_runs,
+        )
+
+        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
+        template = jinja_env.get_template("dse-report.jinja2")
+
+        report = template.render(scenario_name=self.test_scenario.name, dse_cases=dse_cases)
+        report_path = self.results_root / f"{self.test_scenario.name}-dse-report.html"
+        with report_path.open("w") as f:
+            f.write(report)
+
+        logging.info(f"Generated scenario report at {report_path}")
 
 
 class TarballReporter(Reporter):
