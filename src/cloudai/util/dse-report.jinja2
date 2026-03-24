@@ -438,8 +438,18 @@
             buttons.forEach((button) => {
                 button.addEventListener("click", function () {
                     const target = button.dataset.tabTarget;
-                    buttons.forEach((candidate) => candidate.classList.toggle("is-active", candidate === button));
-                    panels.forEach((panel) => panel.classList.toggle("is-active", panel.dataset.tabPanel === target));
+                    buttons.forEach((candidate) => {
+                        const isActive = candidate === button;
+                        candidate.classList.toggle("is-active", isActive);
+                        candidate.setAttribute("aria-selected", isActive ? "true" : "false");
+                        candidate.setAttribute("tabindex", isActive ? "0" : "-1");
+                    });
+                    panels.forEach((panel) => {
+                        const isActive = panel.dataset.tabPanel === target;
+                        panel.classList.toggle("is-active", isActive);
+                        panel.toggleAttribute("hidden", !isActive);
+                        panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+                    });
                 });
             });
         });
@@ -547,10 +557,13 @@
                 {% for summary in dse_cases %}
                 <button
                     type="button"
+                    id="dse-tab-{{ loop.index0 }}"
                     class="dse-tab-button js-dse-tab-button {% if loop.first %}is-active{% endif %}"
                     data-tab-target="dse-case-{{ loop.index0 }}"
                     role="tab"
                     aria-selected="{{ 'true' if loop.first else 'false' }}"
+                    aria-controls="dse-case-{{ loop.index0 }}"
+                    tabindex="{{ '0' if loop.first else '-1' }}"
                 >
                     {{ summary.name }}
                 </button>
@@ -560,7 +573,12 @@
             {% for summary in dse_cases %}
             <div
                 class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
+                id="dse-case-{{ loop.index0 }}"
                 data-tab-panel="dse-case-{{ loop.index0 }}"
+                role="tabpanel"
+                aria-labelledby="dse-tab-{{ loop.index0 }}"
+                aria-hidden="{{ 'false' if loop.first else 'true' }}"
+                {% if not loop.first %}hidden{% endif %}
             >
                 <section class="dse-summary">
                     <div class="overview-board">

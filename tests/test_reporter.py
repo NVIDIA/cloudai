@@ -28,14 +28,7 @@ from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
-from cloudai.report_generator.dse_report import (
-    build_dse_summaries,
-    calculate_saved_gpu_hours,
-    calculate_savings,
-    format_duration,
-    format_float,
-    format_money,
-)
+from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -397,11 +390,10 @@ def _create_non_dse_iteration(case: TestRun, iteration: int, results_root: Path)
 def _create_dse_iteration(
     case: TestRun,
     iteration: int,
-    system: SlurmSystem,
     results_root: Path,
     slurm_metadata: SlurmSystemMetadata,
     steps: list[dict[str, Any]],
-) -> dict:
+) -> None:
     iteration_dir = results_root / case.name / str(iteration)
     iteration_dir.mkdir(parents=True, exist_ok=True)
 
@@ -427,60 +419,6 @@ def _create_dse_iteration(
             with (step_dir / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).open("w") as dump_file:
                 toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
 
-    best_step = max(steps, key=lambda item: float(item["reward"]))
-    best_tr = case.apply_params_set(best_step["action"])
-    best_tr.current_iteration = iteration
-    best_tr.step = int(best_step["step"])
-    best_tr.output_path = iteration_dir / str(best_step["step"])
-
-    elapsed_times = [int(step["elapsed_time_sec"]) for step in steps]
-    total_observed_runtime_sec = sum(elapsed_times)
-    avg_step_duration_sec = total_observed_runtime_sec / len(elapsed_times)
-    total_space = len(case.all_combinations)
-    projected_runtime_sec = avg_step_duration_sec * total_space
-    saved_runtime_sec = max(projected_runtime_sec - total_observed_runtime_sec, 0.0)
-    test_run_details = TestRunDetails.from_test_run(best_tr, "", "")
-    saved_gpu_hours = calculate_saved_gpu_hours(
-        system=system,
-        total_runtime_sec=total_observed_runtime_sec,
-        projected_runtime_sec=projected_runtime_sec,
-        test_run_details=test_run_details,
-    )
-    saved_usd = calculate_savings(saved_gpu_hours, slurm_metadata.system.gpu_arch_type)
-    reduction_factor = total_space / len(steps)
-
-    return {
-        "name": f"{case.name}-{iteration}",
-        "saved_time": format_duration(saved_runtime_sec),
-        "saved_gpu_hours": format_float(saved_gpu_hours, 2),
-        "saved_usd": format_money(saved_usd),
-        "gpu_label": slurm_metadata.system.gpu_arch_type,
-        "avg_step_runtime": format_duration(avg_step_duration_sec),
-        "observed_runtime": format_duration(total_observed_runtime_sec),
-        "efficiency_ratio": f"~{format_float(reduction_factor, 1)}x",
-        "efficiency_steps": f"{len(steps):,} / {total_space:,} steps",
-        "best_config_toml": toml.dumps(test_run_details.test_definition.model_dump()),
-        "parameter_rows": [
-            {
-                "name": name,
-                "values": [
-                    {
-                        "text": str(value),
-                        "is_best": str(value) == str(best_step["action"].get(name, "n/a")),
-                    }
-                    for value in values
-                ],
-            }
-            for name, values in case.param_space.items()
-        ],
-        "reward_chart_data": {
-            "labels": [int(step["step"]) for step in steps],
-            "rewards": [float(step["reward"]) for step in steps],
-            "observations": [", ".join(str(v) for v in step["observation"]) for step in steps],
-            "best_index": max(range(len(steps)), key=lambda idx: float(steps[idx]["reward"])),
-        },
-    }
-
 
 def test_dse_reporter(
     slurm_system: SlurmSystem,
@@ -503,38 +441,36 @@ def test_dse_reporter(
         iterations=1,
     )
 
-    expected = [
-        _create_dse_iteration(
-            dse_case,
-            iteration=0,
-            system=slurm_system,
-            results_root=slurm_system.output_path,
-            slurm_metadata=slurm_metadata,
-            steps=[
-                {
-                    "step": 0,
-                    "action": {"ngpus": 1, "extra_env_vars.VAR1": "value1"},
-                    "reward": -10.0,
-                    "observation": [10],
-                    "elapsed_time_sec": 60,
-                },
-                {
-                    "step": 1,
-                    "action": {"ngpus": 2, "extra_env_vars.VAR1": "value1"},
-                    "reward": -5.0,
-                    "observation": [5],
-                    "elapsed_time_sec": 120,
-                },
-                {
-                    "step": 2,
-                    "action": {"ngpus": 2, "extra_env_vars.VAR1": "value2"},
-                    "reward": -7.0,
-                    "observation": [7],
-                    "elapsed_time_sec": 180,
-                },
-            ],
-        ),
+    steps = [
+        {
+            "step": 0,
+            "action": {"ngpus": 1, "extra_env_vars.VAR1": "value1"},
+            "reward": -10.0,
+            "observation": [10],
+            "elapsed_time_sec": 60,
+        },
+        {
+            "step": 1,
+            "action": {"ngpus": 2, "extra_env_vars.VAR1": "value1"},
+            "reward": -5.0,
+            "observation": [5],
+            "elapsed_time_sec": 120,
+        },
+        {
+            "step": 2,
+            "action": {"ngpus": 2, "extra_env_vars.VAR1": "value2"},
+            "reward": -7.0,
+            "observation": [7],
+            "elapsed_time_sec": 180,
+        },
     ]
+    _create_dse_iteration(
+        dse_case,
+        iteration=0,
+        results_root=slurm_system.output_path,
+        slurm_metadata=slurm_metadata,
+        steps=steps,
+    )
 
     scenario = TestScenario(
         name="single-dse-scenario",
@@ -550,7 +486,45 @@ def test_dse_reporter(
         test_cases=scenario.test_runs,
     )
 
-    assert [asdict(summary) for summary in summaries] == expected
+    best_tr = dse_case.apply_params_set({"ngpus": 2, "extra_env_vars.VAR1": "value1"})
+    best_tr.current_iteration = 0
+    best_tr.step = 1
+    expected = {
+        "name": "dse-case-0",
+        "saved_time": "2m",
+        "saved_gpu_hours": "0.27",
+        "saved_usd": "$0.80",
+        "gpu_label": "NVIDIA H100 80GB HBM3",
+        "avg_step_runtime": "2m",
+        "observed_runtime": "6m",
+        "efficiency_ratio": "~1.3x",
+        "efficiency_steps": "3 / 4 steps",
+        "best_config_toml": toml.dumps(TestRunDetails.from_test_run(best_tr, "", "").test_definition.model_dump()),
+        "parameter_rows": [
+            {
+                "name": "ngpus",
+                "values": [
+                    {"text": "1", "is_best": False},
+                    {"text": "2", "is_best": True},
+                ],
+            },
+            {
+                "name": "extra_env_vars.VAR1",
+                "values": [
+                    {"text": "value1", "is_best": True},
+                    {"text": "value2", "is_best": False},
+                ],
+            },
+        ],
+        "reward_chart_data": {
+            "labels": [0, 1, 2],
+            "rewards": [-10.0, -5.0, -7.0],
+            "observations": ["10", "5", "7"],
+            "best_index": 1,
+        },
+    }
+    assert len(summaries) == 1
+    assert asdict(summaries[0]) == expected
 
     reporter.generate()
 
