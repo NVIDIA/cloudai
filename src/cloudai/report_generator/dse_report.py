@@ -61,7 +61,7 @@ class DSEStepRow:
 
 
 @dataclass(frozen=True)
-class DSERunSummary:
+class DSECaseIterationSummary:
     name: str
     saved_time: str
     saved_gpu_hours: str
@@ -184,7 +184,7 @@ def _build_iteration_summary(
     iteration: int,
     iteration_dir: Path,
     test_runs: list[TestRun],
-) -> DSERunSummary | None:
+) -> DSECaseIterationSummary | None:
     trajectory_file = iteration_dir / "trajectory.csv"
     if not trajectory_file.is_file():
         logging.warning(f"No trajectory file found for {test_case.name} at {trajectory_file}")
@@ -271,7 +271,7 @@ def _build_iteration_summary(
 
     reduction_factor = total_space / max(executed_steps, 1)
 
-    return DSERunSummary(
+    return DSECaseIterationSummary(
         name=f"{test_case.name}-{iteration}",
         saved_time=format_duration(saved_runtime_sec),
         saved_gpu_hours=format_float(saved_gpu_hours, 2),
@@ -292,8 +292,8 @@ def build_dse_summaries(
     results_root: Path,
     loaded_test_runs: list[TestRun],
     test_cases: list[TestRun],
-) -> list[DSERunSummary]:
-    result: list[DSERunSummary] = []
+) -> list[DSECaseIterationSummary]:
+    result: list[DSECaseIterationSummary] = []
 
     for test_case in test_cases:
         if not test_case.is_dse_job:
@@ -307,7 +307,7 @@ def build_dse_summaries(
             dse_iteration_runs = [
                 tr
                 for tr in loaded_test_runs
-                if tr.name == test_case.name and tr.current_iteration != iteration
+                if tr.name == test_case.name and tr.current_iteration == iteration
             ]
 
             iteration_dir = case_root / str(iteration)
