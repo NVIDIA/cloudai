@@ -49,7 +49,9 @@ requires-python = ">=3.10"
     "import-linter~=2.10",
     "pytest-deadfixtures~=3.1",
     "taplo~=0.9.3",
+    "gymnasium~=1.2",
   ]
+  rl = ["gymnasium~=1.2"]
   docs = [
     "sphinx~=8.1",
     "nvidia-sphinx-theme~=0.0.8",
