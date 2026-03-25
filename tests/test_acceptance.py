@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import json
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
@@ -66,6 +67,7 @@ from cloudai.workloads.nemo_launcher import (
 )
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
@@ -266,6 +268,7 @@ def build_special_test_run(
         "megatron-bridge",
         "triton-inference",
         "nixl_bench",
+        "nixl-ep",
         "ai-dynamo",
         "nixl-perftest",
         "nixl-kvbench",
@@ -396,6 +399,34 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     served_model_name="model",
                     tokenizer="tok",
                 ),
+            ),
+        ),
+        "nixl-ep": lambda: create_test_run(
+            partial_tr,
+            "nixl-ep",
+            NixlEPTestDefinition(
+                name="nixl-ep",
+                description="nixl-ep",
+                test_template_name="NixlEP",
+                cmd_args=NixlEPCmdArgs.model_validate(
+                    {
+                        "docker_image_url": "docker.io/nvidia/nixl-ep:latest",
+                        "elastic_script": "/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
+                        "plan": json.dumps(
+                            [[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]
+                        ),
+                        "num_processes_per_node": 4,
+                        "service_startup_timeout_seconds": 90,
+                        "store_port": 9999,
+                        "num_tokens": 256,
+                        "num_experts_per_rank": 4,
+                        "hidden_dim": 8192,
+                        "num_topk": 6,
+                        "disable_ll_nvlink": True,
+                        "kineto": True,
+                    }
+                ),
+                extra_env_vars={"LD_LIBRARY_PATH": "/workspace/rdma_core/lib:$LD_LIBRARY_PATH"},
             ),
         ),
         "nixl_bench": lambda: create_test_run(
@@ -658,6 +689,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.test.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param in {"nixl_bench", "nixl-kvbench"}:
             tr.num_nodes = 2
+        if request.param == "nixl-ep":
+            tr.num_nodes = 3
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
         if request.param == "deepep-benchmark":
