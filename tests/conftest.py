@@ -92,6 +92,7 @@ def k8s_system(tmp_path: Path) -> KubernetesSystem:
         global_env_vars={},
         monitor_interval=1,
         gpus_per_node=8,
+        use_host_network=True,
         default_namespace="test-namespace",
         kube_config_path=kube_config,
     )
