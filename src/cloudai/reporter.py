@@ -136,7 +136,15 @@ class StatusReporter(Reporter):
 
 
 class DSEReporter(Reporter):
-    """Detailed reports for DSE test cases."""
+    """
+    Generate DSE-specific scenario artifacts.
+
+    For scenarios containing DSE test cases, this reporter produces:
+
+    - a dedicated HTML report at `<results>/<scenario>-dse-report.html`
+    - one best-config TOML per DSE test case iteration at
+      `<results>/<dse-case>/<iteration>/<dse-case>.toml`
+    """
 
     @property
     def templates_dir(self) -> Path:
@@ -168,6 +176,7 @@ class DSEReporter(Reporter):
         logging.info(f"Generated scenario report at {report_path}")
 
     def report_best_dse_config(self):
+        """Persist the highest-reward configuration for each DSE test case iteration."""
         for tr in self.test_scenario.test_runs:
             if not tr.test.is_dse_job:
                 continue

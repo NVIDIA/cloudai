@@ -382,11 +382,6 @@ def _write_slurm_system_metadata(step_dir: Path, slurm_metadata: SlurmSystemMeta
         toml.dump(slurm_metadata.model_dump(), f)
 
 
-def _create_non_dse_iteration(case: TestRun, iteration: int, results_root: Path) -> None:
-    iteration_dir = results_root / case.name / str(iteration)
-    iteration_dir.mkdir(parents=True, exist_ok=True)
-
-
 def _create_dse_iteration(
     case: TestRun,
     iteration: int,
