@@ -1,0 +1,700 @@
+{% extends "base-report.jinja2" %}
+
+{% block extra_head %}
+{% if dse_cases %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endif %}
+<style>
+    .dse-summary {
+        margin: 0;
+    }
+    .dse-cases-shell {
+        margin: 1.5rem 0 2rem;
+        padding: 1.2rem 1.2rem 0.4rem;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--nv-shadow);
+    }
+    .dse-cases-header {
+        margin-bottom: 1rem;
+    }
+    .dse-cases-header h2 {
+        margin: 0 0 0.25rem;
+    }
+    .dse-cases-subtitle {
+        margin: 0;
+        color: var(--nv-muted);
+        font-size: 0.95rem;
+    }
+    .dse-tabs {
+        margin: 0;
+    }
+    .dse-tab-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+        margin-bottom: 1.15rem;
+        padding: 0.35rem;
+        border-radius: 999px;
+        background: #f5f7f2;
+        border: 1px solid rgba(17, 17, 17, 0.06);
+        width: fit-content;
+        max-width: 100%;
+    }
+    .dse-tab-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.58rem 0.95rem;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: transparent;
+        color: var(--nv-ink);
+        font-weight: 650;
+        cursor: pointer;
+    }
+    .dse-tab-button:hover {
+        background: rgba(255, 255, 255, 0.75);
+    }
+    .dse-tab-button.is-active {
+        border-color: rgba(118, 185, 0, 0.28);
+        background: #ffffff;
+        color: var(--nv-green-strong);
+        box-shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
+    }
+    .dse-tab-panel {
+        display: none;
+    }
+    .dse-tab-panel.is-active {
+        display: block;
+    }
+    .overview-board,
+    .dse-box {
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--nv-shadow);
+    }
+    .overview-board {
+        position: relative;
+        margin-bottom: 1.5rem;
+        padding: 1.6rem;
+        overflow: hidden;
+    }
+    .overview-board::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        background: linear-gradient(90deg, var(--nv-green), var(--nv-green-bright));
+        pointer-events: none;
+    }
+    .overview-topline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.8rem 1rem;
+        margin-bottom: 0.85rem;
+    }
+    .overview-board h2 {
+        margin: 0;
+        color: var(--nv-ink);
+    }
+    .overview-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.95fr);
+        gap: 1rem;
+        align-items: start;
+    }
+    .overview-left {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .summary-stat-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+    }
+    .impact-stat-grid,
+    .context-strip {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .impact-stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .context-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .dse-box {
+        margin-bottom: 1.4rem;
+        padding: 1.35rem;
+    }
+    .dse-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.8rem 1rem;
+        margin-bottom: 1rem;
+    }
+    .dse-header h2 {
+        margin: 0;
+    }
+    .dse-kpi-grid,
+    .dse-runtime-grid {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .dse-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 0.9rem;
+    }
+    .dse-runtime-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .metric-card {
+        padding: 0.95rem 1rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: #ffffff;
+    }
+    .metric-card--hero {
+        background: linear-gradient(180deg, rgba(248, 251, 244, 1), rgba(255, 255, 255, 1));
+        border-color: rgba(118, 185, 0, 0.24);
+        box-shadow: inset 0 3px 0 rgba(118, 185, 0, 0.88);
+    }
+    .metric-card--accent {
+        background: linear-gradient(180deg, rgba(245, 250, 238, 1), rgba(255, 255, 255, 1));
+        border-color: rgba(118, 185, 0, 0.28);
+        box-shadow: inset 0 3px 0 rgba(118, 185, 0, 0.92);
+    }
+    .metric-label {
+        color: var(--nv-muted);
+        font-size: 0.77rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+    .metric-value {
+        margin-top: 0.3rem;
+        color: var(--nv-ink);
+        font-size: 1.45rem;
+        font-weight: 750;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+    }
+    .metric-card--accent .metric-value {
+        font-size: 1.8rem;
+        color: var(--nv-green-strong);
+    }
+    .context-item {
+        padding: 0.85rem 0.95rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: #ffffff;
+    }
+    .context-item--runtime {
+        background: #fbfcfa;
+    }
+    .label {
+        color: var(--nv-muted);
+        display: block;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .value {
+        color: var(--nv-ink);
+        font-weight: 650;
+    }
+    .effort-block {
+        display: flex;
+        flex-direction: column;
+        align-self: start;
+        padding: 1rem 1.05rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        background: linear-gradient(180deg, #fcfdfb, #ffffff);
+    }
+    .effort-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        margin-bottom: 0.65rem;
+    }
+    .effort-head h3 {
+        margin: 0;
+    }
+    .efficiency-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        width: 100%;
+    }
+    .efficiency-steps {
+        color: var(--nv-muted);
+        font-size: 0.95rem;
+        font-weight: 650;
+    }
+    .efficiency-callout {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        padding: 0;
+    }
+    .efficiency-ratio {
+        color: var(--nv-green-strong);
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+    }
+    .efficiency-ratio-note {
+        color: var(--nv-ink);
+        font-size: 1rem;
+        font-weight: 650;
+        line-height: 1.2;
+    }
+    .best-config-preview {
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        background: #ffffff;
+        margin-top: 1rem;
+    }
+    .best-config-preview summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        list-style: none;
+        cursor: pointer;
+        padding: 0.9rem 1rem;
+        color: var(--nv-ink);
+        font-weight: 650;
+        background: #fbfcfa;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .best-config-preview summary::-webkit-details-marker {
+        display: none;
+    }
+    .best-config-preview summary::before {
+        content: "";
+        width: 0;
+        height: 0;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 7px solid var(--nv-green-strong);
+        margin-right: 0.55rem;
+        transition: transform 0.15s ease;
+    }
+    .best-config-preview summary:hover {
+        background: var(--nv-green-soft);
+    }
+    .best-config-preview[open] summary::before {
+        transform: rotate(90deg);
+    }
+    .best-config-summary-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-left: auto;
+    }
+    .action-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(118, 185, 0, 0.28);
+        background: #ffffff;
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .action-button:hover {
+        background: var(--nv-green-soft);
+        text-decoration: none;
+    }
+    .best-config-preview pre {
+        max-height: 360px;
+        overflow: auto;
+        margin: 0;
+        padding: 1rem;
+        color: #1f2933;
+        background: #ffffff;
+        border-top: 1px solid rgba(17, 17, 17, 0.06);
+    }
+    .space-table th {
+        background: #f0f9de;
+    }
+    .value-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+    .value-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.22rem 0.62rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        color: var(--nv-text);
+        font-weight: 650;
+        white-space: nowrap;
+    }
+    .value-pill--selected {
+        background: var(--nv-green-soft);
+        border-color: rgba(118, 185, 0, 0.30);
+        color: var(--nv-green-strong);
+    }
+    .chart-shell {
+        position: relative;
+        min-height: 260px;
+        height: 320px;
+    }
+    .chart-shell canvas {
+        display: block;
+        width: 100% !important;
+    }
+    .chart-fallback {
+        margin-top: 0.75rem;
+        color: var(--nv-muted);
+        font-size: 0.88rem;
+    }
+    .chart-shell.is-enhanced + .chart-fallback,
+    .chart-shell.is-enhanced ~ .chart-fallback {
+        display: none;
+    }
+    @media (max-width: 640px) {
+        .overview-board,
+        .dse-box {
+            padding: 1.1rem;
+        }
+        .overview-layout,
+        .impact-stat-grid,
+        .context-strip,
+        .dse-kpi-grid,
+        .dse-runtime-grid {
+            grid-template-columns: 1fr;
+        }
+        .metric-value {
+            font-size: 1.35rem;
+        }
+        .metric-card--accent .metric-value {
+            font-size: 1.5rem;
+        }
+        .efficiency-ratio {
+            font-size: 1.45rem;
+        }
+        .best-config-preview summary {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .best-config-summary-actions {
+            margin-left: 0;
+        }
+    }
+</style>
+{% if dse_cases %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".js-copy-config").forEach((button) => {
+            button.addEventListener("click", async function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const target = document.getElementById(button.dataset.copyTarget);
+                if (!target) {
+                    return;
+                }
+                const originalText = button.textContent;
+                try {
+                    await navigator.clipboard.writeText(target.textContent || "");
+                    button.textContent = "Copied";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                } catch (_error) {
+                    button.textContent = "Copy failed";
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1500);
+                }
+            });
+        });
+
+        document.querySelectorAll(".js-dse-tabs").forEach((root) => {
+            const buttons = root.querySelectorAll(".js-dse-tab-button");
+            const panels = root.querySelectorAll(".js-dse-tab-panel");
+            buttons.forEach((button) => {
+                button.addEventListener("click", function () {
+                    const target = button.dataset.tabTarget;
+                    buttons.forEach((candidate) => {
+                        const isActive = candidate === button;
+                        candidate.classList.toggle("is-active", isActive);
+                        candidate.setAttribute("aria-selected", isActive ? "true" : "false");
+                        candidate.setAttribute("tabindex", isActive ? "0" : "-1");
+                    });
+                    panels.forEach((panel) => {
+                        const isActive = panel.dataset.tabPanel === target;
+                        panel.classList.toggle("is-active", isActive);
+                        panel.toggleAttribute("hidden", !isActive);
+                        panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+                    });
+                });
+            });
+        });
+
+        if (typeof Chart === "undefined") {
+            return;
+        }
+
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif';
+        Chart.defaults.color = "#5f6b65";
+        Chart.defaults.borderColor = "rgba(57, 66, 78, 0.10)";
+
+        document.querySelectorAll(".js-reward-chart").forEach((canvas) => {
+            const dataNode = document.getElementById(canvas.dataset.chartDataId);
+            if (!dataNode) {
+                return;
+            }
+            const chartData = JSON.parse(dataNode.textContent);
+            const pointBackgroundColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointBorderColors = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? "#76b900" : "#39424e"
+            );
+            const pointRadii = chartData.rewards.map((_, idx) =>
+                idx === chartData.best_index ? 5 : 3
+            );
+
+            new Chart(canvas, {
+                type: "line",
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: "Reward",
+                            data: chartData.rewards,
+                            borderColor: "#39424e",
+                            backgroundColor: "transparent",
+                            pointBackgroundColor: pointBackgroundColors,
+                            pointBorderColor: pointBorderColors,
+                            pointRadius: pointRadii,
+                            pointHoverRadius: 6,
+                            borderWidth: 2,
+                            tension: 0.25,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: "index",
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function (context) {
+                                    const idx = context[0].dataIndex;
+                                    const lines = ["Observation: " + (chartData.observations[idx] || "n/a")];
+                                    if (idx === chartData.best_index) {
+                                        lines.push("Best step");
+                                    }
+                                    return lines;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Step"
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: "Reward"
+                            }
+                        }
+                    }
+                }
+            });
+            canvas.parentElement.classList.add("is-enhanced");
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if dse_cases %}
+    <section class="dse-cases-shell">
+        <div class="dse-cases-header">
+            <h2>DSE Cases</h2>
+            <p class="dse-cases-subtitle">Switch between DSE test case reports in this scenario.</p>
+        </div>
+        <div class="dse-tabs js-dse-tabs">
+            <div class="dse-tab-list" role="tablist" aria-label="DSE reports">
+                {% for summary in dse_cases %}
+                <button
+                    type="button"
+                    id="dse-tab-{{ loop.index0 }}"
+                    class="dse-tab-button js-dse-tab-button {% if loop.first %}is-active{% endif %}"
+                    data-tab-target="dse-case-{{ loop.index0 }}"
+                    role="tab"
+                    aria-selected="{{ 'true' if loop.first else 'false' }}"
+                    aria-controls="dse-case-{{ loop.index0 }}"
+                    tabindex="{{ '0' if loop.first else '-1' }}"
+                >
+                    {{ summary.name }}
+                </button>
+                {% endfor %}
+            </div>
+
+            {% for summary in dse_cases %}
+            <div
+                class="dse-tab-panel js-dse-tab-panel {% if loop.first %}is-active{% endif %}"
+                id="dse-case-{{ loop.index0 }}"
+                data-tab-panel="dse-case-{{ loop.index0 }}"
+                role="tabpanel"
+                aria-labelledby="dse-tab-{{ loop.index0 }}"
+                aria-hidden="{{ 'false' if loop.first else 'true' }}"
+                {% if not loop.first %}hidden{% endif %}
+            >
+                <section class="dse-summary">
+                    <div class="overview-board">
+                        <div class="overview-topline">
+                            <h2>Overview</h2>
+                        </div>
+
+                        <div class="overview-layout">
+                            <div class="overview-left">
+                                <div class="summary-stat-grid">
+                                    <div class="impact-stat-grid">
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved Time</div>
+                                            <div class="metric-value">{{ summary.saved_time }}</div>
+                                        </div>
+                                        <div class="metric-card metric-card--hero">
+                                            <div class="metric-label">Saved GPU-Hours</div>
+                                            <div class="metric-value">{{ summary.saved_gpu_hours }}</div>
+                                        </div>
+                                        <div class="metric-card metric-card--accent">
+                                            <div class="metric-label">Estimated Savings</div>
+                                            <div class="metric-value">{{ summary.saved_usd }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="context-strip">
+                                        <div class="context-item">
+                                            <span class="label">GPU Label</span>
+                                            <span class="value">{{ summary.gpu_label }}</span>
+                                        </div>
+                                        <div class="context-item context-item--runtime">
+                                            <span class="label">Avg Step Runtime</span>
+                                            <span class="value">{{ summary.avg_step_runtime }}</span>
+                                        </div>
+                                        <div class="context-item context-item--runtime">
+                                            <span class="label">Observed Runtime</span>
+                                            <span class="value">{{ summary.observed_runtime }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="effort-block">
+                                <div class="effort-head">
+                                    <h3>Exploration Efficiency</h3>
+                                </div>
+                                <div class="efficiency-panel" aria-label="Efficiency summary for explored steps versus total search space">
+                                    <div class="efficiency-callout">
+                                        <div class="efficiency-ratio">{{ summary.efficiency_ratio }}</div>
+                                        <div class="efficiency-ratio-note">reduction in search space</div>
+                                    </div>
+                                    <div class="efficiency-steps">{{ summary.efficiency_steps }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="dse-box">
+                        <h3>Exploration Space</h3>
+                        <table class="space-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Values</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in summary.parameter_rows %}
+                                <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>
+                                        <div class="value-cloud">
+                                            {% for value in row.values %}
+                                            <span class="value-pill {% if value.is_best %}value-pill--selected{% endif %}">{{ value.text }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% if summary.best_config_toml %}
+                        <details class="best-config-preview">
+                            <summary>
+                                <span>Best Config TOML</span>
+                                <span class="best-config-summary-actions">
+                                    <button type="button" class="action-button js-copy-config" data-copy-target="best-config-text-{{ loop.index0 }}">Copy TOML</button>
+                                </span>
+                            </summary>
+                            <pre id="best-config-text-{{ loop.index0 }}">{{ summary.best_config_toml }}</pre>
+                        </details>
+                        {% endif %}
+                    </div>
+
+                    <div class="dse-box">
+                        <h3>Reward Over Steps</h3>
+                        {% if summary.reward_chart_data %}
+                            <div class="chart-shell">
+                                <canvas
+                                    class="js-reward-chart"
+                                    data-chart-data-id="reward-chart-data-{{ loop.index0 }}"
+                                    aria-label="Line chart of reward over DSE steps"
+                                ></canvas>
+                            </div>
+                            <script type="application/json" id="reward-chart-data-{{ loop.index0 }}">{{ summary.reward_chart_data | tojson }}</script>
+                            <p class="chart-fallback">Interactive chart unavailable. Numeric report details remain available above.</p>
+                            <noscript><p class="chart-fallback">JavaScript is disabled. Numeric report details remain available without charts.</p></noscript>
+                        {% else %}
+                            <p>No reward data available.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+{% else %}
+    <p>No DSE results found.</p>
+{% endif %}
+{% endblock %}

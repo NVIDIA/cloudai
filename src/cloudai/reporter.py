@@ -27,33 +27,16 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
-from .systems.slurm import SlurmSystem, SlurmSystemMetadata
 
 
 @dataclass
 class ReportItem:
-    """Basic report item for general systems."""
-
-    name: str
-    description: str
-    logs_path: Optional[str] = None
-
-    @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
-        report_items: list[ReportItem] = []
-        for tr in test_runs:
-            report_items.append(ReportItem(case_name(tr), tr.test.description))
-            if tr.output_path.exists():
-                report_items[-1].logs_path = f"./{tr.output_path.relative_to(results_root)}"
-        return report_items
-
-
-@dataclass
-class SlurmReportItem:
     """Enhanced report item for Slurm systems with node information."""
 
     name: str
@@ -62,38 +45,13 @@ class SlurmReportItem:
     nodes: Optional[str] = None
 
     @classmethod
-    def get_metadata(cls, run_dir: Path, results_root: Path) -> Optional[SlurmSystemMetadata]:
-        metadata_path = run_dir / "metadata"
-        if not metadata_path.exists():
-            logging.debug(f"No metadata folder found in {run_dir=}")
-            if not (results_root / "metadata").exists():
-                logging.debug(f"No metadata folder found in {results_root=}")
-                return None
-            else:  # single-sbatch case
-                metadata_path = results_root / "metadata"
-
-        node_files = list(metadata_path.glob("node-*.toml"))
-        if not node_files:
-            logging.debug(f"No node files found in {metadata_path}")
-            return None
-
-        node_file = node_files[0]
-        with node_file.open() as f:
-            try:
-                return SlurmSystemMetadata.model_validate(toml.load(f))
-            except Exception as e:
-                logging.debug(f"Error validating metadata for {node_file}: {e}")
-
-        return None
-
-    @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
-        report_items: list[SlurmReportItem] = []
+    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
+        report_items: list[ReportItem] = []
         for tr in test_runs:
-            ri = SlurmReportItem(case_name(tr), tr.test.description)
+            ri = ReportItem(case_name(tr), tr.test.description)
             if tr.output_path.exists():
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
-            if metadata := cls.get_metadata(tr.output_path, results_root):
+            if metadata := load_system_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
             report_items.append(ri)
 
@@ -131,17 +89,11 @@ class StatusReporter(Reporter):
 
     @property
     def template_file(self) -> str:
-        if isinstance(self.system, SlurmSystem):
-            return "general-slurm-report.jinja2"
         return "general-report.jinja2"
-
-    def best_dse_config_file_name(self, tr: TestRun) -> str:
-        return f"{tr.name}.toml"
 
     def generate(self) -> None:
         self.load_test_runs()
         self.generate_scenario_report()
-        self.report_best_dse_config()
         self.print_summary()
 
     def generate_scenario_report(self) -> None:
@@ -149,39 +101,13 @@ class StatusReporter(Reporter):
             self.template_file
         )
 
-        report_items = (
-            SlurmReportItem.from_test_runs(self.trs, self.results_root)
-            if isinstance(self.system, SlurmSystem)
-            else ReportItem.from_test_runs(self.trs, self.results_root)
-        )
+        report_items = ReportItem.from_test_runs(self.trs, self.results_root)
         report = template.render(name=self.test_scenario.name, report_items=report_items)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
             f.write(report)
 
-        logging.info(f"Generated scenario report at {report_path}")
-
-    def report_best_dse_config(self):
-        for tr in self.test_scenario.test_runs:
-            if not tr.test.is_dse_job:
-                continue
-
-            tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
-            trajectory_file = tr_root / "trajectory.csv"
-            if not trajectory_file.exists():
-                logging.warning(f"No trajectory file found for {tr.name} at {trajectory_file}")
-                continue
-
-            df = lazy.pd.read_csv(trajectory_file)
-            best_step = df.loc[df["reward"].idxmax()]["step"]
-            best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
-            with best_step_details.open() as f:
-                trd = TestRunDetails.model_validate(toml.load(f))
-
-            best_config_path = tr_root / self.best_dse_config_file_name(tr)
-            logging.info(f"Writing best config for {tr.name} to {best_config_path}")
-            with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(), f)
+        logging.info("Generated scenario report at %s", report_path)
 
     def print_summary(self) -> None:
         if not self.trs:
@@ -207,6 +133,78 @@ class StatusReporter(Reporter):
             console.print(table)  # doesn't print to stdout, captures only
 
         logging.info(capture.get())
+
+
+class DSEReporter(Reporter):
+    """
+    Generate DSE-specific scenario artifacts.
+
+    For scenarios containing DSE test cases, this reporter produces:
+
+    - a dedicated HTML report at `<results>/<scenario>-dse-report.html`
+    - one best-config TOML per DSE test case iteration at
+      `<results>/<dse-case>/<iteration>/<dse-case>.toml`
+    """
+
+    @property
+    def templates_dir(self) -> Path:
+        return Path(__file__).parent / "util"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+
+        dse_cases = build_dse_summaries(
+            system=self.system,
+            results_root=self.results_root,
+            loaded_test_runs=self.trs,
+            test_cases=self.test_scenario.test_runs,
+        )
+
+        if not dse_cases:
+            return
+
+        self.report_best_dse_config()
+
+        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
+        template = jinja_env.get_template("dse-report.jinja2")
+
+        report = template.render(name=self.test_scenario.name, dse_cases=dse_cases)
+        report_path = self.results_root / f"{self.test_scenario.name}-dse-report.html"
+        with report_path.open("w") as f:
+            f.write(report)
+
+        logging.info(f"Generated scenario report at {report_path}")
+
+    def report_best_dse_config(self):
+        """Persist the highest-reward configuration for each DSE test case iteration."""
+        for tr in self.test_scenario.test_runs:
+            if not tr.test.is_dse_job:
+                continue
+
+            tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
+            trajectory_file = tr_root / "trajectory.csv"
+            if not trajectory_file.is_file():
+                logging.warning("No trajectory file found for %s at %s", tr.name, trajectory_file)
+                continue
+
+            df = lazy.pd.read_csv(trajectory_file)
+            best_step = df.loc[df["reward"].idxmax()]["step"]
+            best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+            if not best_step_details.is_file():
+                logging.warning("No best step found for %s at %s", tr.name, best_step_details)
+                continue
+
+            with best_step_details.open() as f:
+                try:
+                    trd = TestRunDetails.model_validate(toml.load(f))
+                except Exception as exc:
+                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
+                    continue
+
+            best_config_path = tr_root / f"{tr.name}.toml"
+            logging.info("Writing best config for %s to %s", tr.name, best_config_path)
+            with best_config_path.open("w") as f:
+                toml.dump(trd.test_definition.model_dump(), f)
 
 
 class TarballReporter(Reporter):

@@ -6,6 +6,7 @@
         <th>Test</th>
         <th>Description</th>
         <th>Results</th>
+        <th>Nodes</th>
     </tr>
     {% for item in report_items %}
     <tr>
@@ -15,6 +16,11 @@
             <td><a href="{{ item.logs_path }}">logs</a></td>
         {% else %}
             <td>no logs</td>
+        {% endif %}
+        {% if item.nodes %}
+            <td>{{ item.nodes }}</td>
+        {% else %}
+            <td>No nodes info</td>
         {% endif %}
     </tr>
     {% endfor %}
