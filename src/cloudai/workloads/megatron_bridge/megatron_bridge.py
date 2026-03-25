@@ -35,7 +35,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     time_limit: str = Field(default="00:05:00")
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
-    gpus_per_node: int | None = None
     enable_vboost: bool | None = Field(default=False)
     dryrun: bool | None = Field(default=False)
     enable_nsys: bool | None = Field(default=False)

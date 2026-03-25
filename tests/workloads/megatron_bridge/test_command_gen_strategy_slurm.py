@@ -377,26 +377,17 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert f"{repo_path.absolute()}:" not in wrapper_content
         assert ":/opt/Megatron-Bridge" not in wrapper_content
 
-    @pytest.mark.parametrize(
-        ("cmd_args_gpus_per_node", "system_gpus_per_node", "expected_gpus"),
-        (
-            (None, None, None),
-            (2, None, 2),
-            (2, 4, 2),
-            (None, 4, 4),
-        ),
-    )
+    @pytest.mark.parametrize(("system_gpus_per_node", "expected_gpus"), ((None, None), (4, 4)))
     def test_gpus_per_node(
         self,
         configured_slurm_system: SlurmSystem,
         make_test_run: Callable[..., TestRun],
-        cmd_args_gpus_per_node: int | None,
         system_gpus_per_node: int | None,
         expected_gpus: int | None,
     ) -> None:
         configured_slurm_system.supports_gpu_directives_cache = True
         configured_slurm_system.gpus_per_node = system_gpus_per_node
-        tr = make_test_run(cmd_args_overrides={"gpus_per_node": cmd_args_gpus_per_node}, output_subdir="out_gpus")
+        tr = make_test_run(output_subdir="out_gpus")
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
 
