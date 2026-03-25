@@ -341,7 +341,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.dryrun and "dryrun" in fields_set:
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
-        add_field("gpus_per_node", "-gn", args.gpus_per_node)
+        add_field("gpus_per_node", "-gn", self.system.gpus_per_node)
         # Always provide a stable golden values filename so Megatron-Bridge writes parsed metrics to disk.
         add("--golden_values_path", GOLDEN_VALUES_FILENAME)
         if mounts:
@@ -455,9 +455,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         additional_slurm_params: list[str] = []
 
-        if args.gpus_per_node and self.system.supports_gpu_directives:
-            additional_slurm_params.append(f"gpus-per-node={args.gpus_per_node}")
-            additional_slurm_params.append(f"gres=gpu:{args.gpus_per_node}")
+        if self.system.gpus_per_node and self.system.supports_gpu_directives:
+            additional_slurm_params.append(f"gpus-per-node={self.system.gpus_per_node}")
+            additional_slurm_params.append(f"gres=gpu:{self.system.gpus_per_node}")
 
         _, node_list = self.get_cached_nodes_spec()
         if node_list:
