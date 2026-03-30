@@ -269,7 +269,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                         "(docker_image.installed_path is empty). Please run `cloudai install` first, or provide "
                         "a valid local .sqsh path in cmd_args.container_image."
                     )
-                return str(Path(installed).absolute())
+                if isinstance(installed, Path):
+                    return str(installed.absolute())
+                # DockerURL - pass directly to pyxis (it will pull from registry)
+                return str(installed)
 
             ci = str(args.container_image).strip()
             if ci.startswith("/") or ci.startswith("."):

@@ -21,6 +21,8 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
+from cloudai._core.types import DockerURL
+
 
 class Installable(ABC):
     """Installable object."""
@@ -73,11 +75,20 @@ class DockerImage(Installable):
         return f"{img_name}__{tag}.sqsh"
 
     @property
-    def installed_path(self) -> Union[str, Path]:
-        """Return the cached path or URL of the docker image."""
+    def installed_path(self) -> Union[DockerURL, Path]:
+        """
+        Return the cached path or URL of the docker image.
+
+        Returns:
+            Path: Local .sqsh file path (when cached locally)
+            DockerURL: Registry URL (when not cached, pyxis pulls from registry)
+
+        Downstream code should check isinstance(result, Path) vs isinstance(result, DockerURL)
+        to determine how to handle the value. Do NOT call Path().absolute() on DockerURL.
+        """
         if self._installed_path:
             return self._installed_path.absolute() if isinstance(self._installed_path, Path) else self._installed_path
-        return self.url
+        return DockerURL(self.url)
 
     @installed_path.setter
     def installed_path(self, value: Union[str, Path]) -> None:
