@@ -98,7 +98,7 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         tp = cast(int, getattr(args, "tensor_parallel_size", 1))
         pp = cast(int, getattr(args, "pipeline_parallel_size", 1))
         dp = cast(int, getattr(args, "data_parallel_size", 1))
-        ep_enabled = cast(bool, getattr(args, "expert_parallel", getattr(args, "enable_expert_parallel", False)))
+        ep_enabled = cast(bool, getattr(args, "enable_expert_parallel", False))
         all2all_backend = cast(str, getattr(args, "all2all_backend", ""))
 
         constraint1 = (tp * pp * dp) <= gpu_count
