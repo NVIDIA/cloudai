@@ -24,8 +24,15 @@ def test_vllm_serve_args_exclude_internal_fields() -> None:
 
 
 def test_vllm_serve_args_convert_boolean_flags() -> None:
-    assert VllmArgs.model_validate({"expert_parallel": True}).serve_args == ["--enable-expert-parallel"]
-    assert VllmArgs.model_validate({"expert_parallel": False}).serve_args == ["--no-enable-expert-parallel"]
+    assert VllmArgs.model_validate({"enable_expert_parallel": True}).serve_args == ["--enable-expert-parallel"]
+    assert VllmArgs.model_validate({"enable_expert_parallel": False}).serve_args == ["--no-enable-expert-parallel"]
+    assert VllmArgs.model_validate({"tokens_only": True}).serve_args == ["--tokens-only"]
+    assert VllmArgs.model_validate({"tokens_only": False}).serve_args == ["--no-tokens-only"]
+
+
+def test_vllm_serve_args_convert_standalone_boolean_flags() -> None:
+    assert VllmArgs.model_validate({"headless": True}).serve_args == ["--headless"]
+    assert VllmArgs.model_validate({"headless": False}).serve_args == []
 
 
 def test_vllm_serve_args_keep_non_boolean_values() -> None:

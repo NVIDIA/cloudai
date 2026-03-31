@@ -198,7 +198,7 @@ class TestVllmAggregatedMode:
     def test_get_vllm_serve_commands_convert_boolean_flags(
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
-        vllm.cmd_args.decode = VllmArgs.model_validate({"expert_parallel": True})
+        vllm.cmd_args.decode = VllmArgs.model_validate({"enable_expert_parallel": True})
         vllm_tr.test = vllm
         vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
 

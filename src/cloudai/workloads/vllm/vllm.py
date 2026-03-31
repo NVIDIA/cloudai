@@ -35,6 +35,7 @@ from cloudai.workloads.common.llm_serving import (
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
+VLLM_STANDALONE_BOOL_FLAGS = {"aggregate-engine-logging", "disable-log-stats", "grpc", "headless"}
 
 
 class VllmArgs(LLMServingArgs):
@@ -55,7 +56,10 @@ class VllmArgs(LLMServingArgs):
         for key, value in self.model_dump(exclude=self.serve_args_exclude, exclude_none=True).items():
             opt = key.replace("_", "-")
             if isinstance(value, bool):
-                args.append(f"--{'enable' if value else 'no-enable'}-{opt}")
+                if value:
+                    args.append(f"--{opt}")
+                elif opt not in VLLM_STANDALONE_BOOL_FLAGS:
+                    args.append(f"--no-{opt}")
             elif value == "":
                 args.append(f"--{opt}")
             else:
