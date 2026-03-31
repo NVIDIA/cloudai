@@ -98,15 +98,18 @@ class LLMServingArgs(CmdArgs):
         """Fields consumed internally and excluded from generic serve args."""
         return {"gpu_ids"}
 
+    def serialize_serve_arg(self, key: str, value: Any) -> list[str]:
+        """Serialize a single serve argument to CLI tokens."""
+        opt = f"--{key.replace('_', '-')}"
+        if value == "":
+            return [opt]
+        return [opt, str(value)]
+
     @property
     def serve_args(self) -> list[str]:
         args: list[str] = []
         for key, value in self.model_dump(exclude=self.serve_args_exclude, exclude_none=True).items():
-            opt = f"--{key.replace('_', '-')}"
-            if value == "":
-                args.append(opt)
-            else:
-                args.extend([opt, str(value)])
+            args.extend(self.serialize_serve_arg(key, value))
         return args
 
 

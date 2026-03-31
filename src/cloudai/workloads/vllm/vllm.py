@@ -35,7 +35,6 @@ from cloudai.workloads.common.llm_serving import (
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
-VLLM_STANDALONE_BOOL_FLAGS = {"aggregate-engine-logging", "disable-log-stats", "grpc", "headless"}
 
 
 class VllmArgs(LLMServingArgs):
@@ -50,21 +49,11 @@ class VllmArgs(LLMServingArgs):
     def serve_args_exclude(self) -> set[str]:
         return super().serve_args_exclude | {"nixl_threads"}
 
-    @property
-    def serve_args(self) -> list[str]:
-        args: list[str] = []
-        for key, value in self.model_dump(exclude=self.serve_args_exclude, exclude_none=True).items():
-            opt = key.replace("_", "-")
-            if isinstance(value, bool):
-                if value:
-                    args.append(f"--{opt}")
-                elif opt not in VLLM_STANDALONE_BOOL_FLAGS:
-                    args.append(f"--no-{opt}")
-            elif value == "":
-                args.append(f"--{opt}")
-            else:
-                args.extend([f"--{opt}", str(value)])
-        return args
+    def serialize_serve_arg(self, key: str, value: object) -> list[str]:
+        opt = f"--{key.replace('_', '-')}"
+        if isinstance(value, bool):
+            return [opt] if value else [f"--no-{key.replace('_', '-')}"]
+        return super().serialize_serve_arg(key, value)
 
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):

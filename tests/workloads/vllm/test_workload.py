@@ -32,7 +32,7 @@ def test_vllm_serve_args_convert_boolean_flags() -> None:
 
 def test_vllm_serve_args_convert_standalone_boolean_flags() -> None:
     assert VllmArgs.model_validate({"headless": True}).serve_args == ["--headless"]
-    assert VllmArgs.model_validate({"headless": False}).serve_args == []
+    assert VllmArgs.model_validate({"headless": False}).serve_args == ["--no-headless"]
 
 
 def test_vllm_serve_args_keep_non_boolean_values() -> None:
@@ -76,7 +76,7 @@ def test_constraint_check_rejects_flashinfer_with_dp_and_expert_parallel(tmp_pat
         cmd_args=VllmCmdArgs(
             docker_image_url="test_url",
             decode=VllmArgs.model_validate(
-                {"data_parallel_size": 2, "all2all_backend": "flashinfer_all2allv", "expert_parallel": True}
+                {"data_parallel_size": 2, "all2all_backend": "flashinfer_all2allv", "enable_expert_parallel": True}
             ),
         ),
         extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1"},
