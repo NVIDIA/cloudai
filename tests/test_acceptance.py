@@ -564,7 +564,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     model_family_name="qwen3",
                     model_recipe_name="30b_a3b",
                     num_gpus=8,
-                    gpus_per_node=4,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
                 extra_container_mounts=[],
