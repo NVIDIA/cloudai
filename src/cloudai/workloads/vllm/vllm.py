@@ -17,12 +17,20 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional, cast
 
 from pydantic import ConfigDict, Field
 
-from cloudai.core import GitRepo, Installable, JobStatusResult, TestRun
+from cloudai.core import GitRepo, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
-from cloudai.workloads.common.llm_serving import LLMServingArgs, LLMServingCmdArgs, LLMServingTestDefinition
+from cloudai.workloads.common.llm_serving import (
+    LLMServingArgs,
+    LLMServingCmdArgs,
+    LLMServingTestDefinition,
+    all_gpu_ids,
+    calculate_decode_gpu_ids,
+    calculate_prefill_gpu_ids,
+)
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
@@ -40,6 +48,12 @@ class VllmArgs(LLMServingArgs):
     @property
     def serve_args_exclude(self) -> set[str]:
         return super().serve_args_exclude | {"nixl_threads"}
+
+    def serialize_serve_arg(self, key: str, value: object) -> list[str]:
+        opt = f"--{key.replace('_', '-')}"
+        if isinstance(value, bool):
+            return [opt] if value else [f"--no-{key.replace('_', '-')}"]
+        return super().serialize_serve_arg(key, value)
 
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
@@ -78,6 +92,62 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         if self.proxy_script_repo:
             installables.append(self.proxy_script_repo)
         return installables
+
+    @staticmethod
+    def _validate_vllm_parallelism_constraints(role: str, args: VllmArgs, gpu_count: int) -> bool:
+        tp = cast(int, getattr(args, "tensor_parallel_size", 1))
+        pp = cast(int, getattr(args, "pipeline_parallel_size", 1))
+        dp = cast(int, getattr(args, "data_parallel_size", 1))
+        ep_enabled = cast(bool, getattr(args, "enable_expert_parallel", False))
+        all2all_backend = cast(str, getattr(args, "all2all_backend", ""))
+
+        constraint1 = (tp * pp * dp) <= gpu_count
+        if not constraint1:
+            logging.error(
+                "vLLM %s constraint failed: (tp * pp * dp) <= num_gpus. tp=%s pp=%s dp=%s num_gpus=%s",
+                role,
+                tp,
+                pp,
+                dp,
+                gpu_count,
+            )
+            return False
+
+        using_flashinfer_all2allv = all2all_backend == "flashinfer_all2allv"
+        constraint2 = not (using_flashinfer_all2allv and dp > 1 and ep_enabled)
+        if not constraint2:
+            logging.error(
+                "vLLM %s constraint failed: flashinfer_all2allv only works with DP=1, or with DP>1 and expert "
+                "parallel disabled. all2all_backend=%s dp=%s expert_parallel=%s",
+                role,
+                all2all_backend,
+                dp,
+                ep_enabled,
+            )
+            return False
+
+        return True
+
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
+        system_gpus_per_node = getattr(system, "gpus_per_node", None) if system is not None else None
+        num_nodes = tr.nnodes
+
+        if self.cmd_args.prefill is None:
+            return self._validate_vllm_parallelism_constraints(
+                role="decode",
+                args=self.cmd_args.decode,
+                gpu_count=len(all_gpu_ids(self, system_gpus_per_node)),
+            )
+
+        return self._validate_vllm_parallelism_constraints(
+            role="prefill",
+            args=self.cmd_args.prefill,
+            gpu_count=len(calculate_prefill_gpu_ids(self, num_nodes, system_gpus_per_node)),
+        ) and self._validate_vllm_parallelism_constraints(
+            role="decode",
+            args=self.cmd_args.decode,
+            gpu_count=len(calculate_decode_gpu_ids(self, num_nodes, system_gpus_per_node)),
+        )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         log_path = tr.output_path / VLLM_BENCH_LOG_FILE
