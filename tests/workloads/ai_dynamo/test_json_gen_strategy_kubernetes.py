@@ -259,7 +259,7 @@ class TestDynamoCniNetworking:
 
     def test_host_network_mode_no_annotations(self, k8s_system: KubernetesSystem, disagg_tr: TestRun) -> None:
         deployment = self.gen_json(k8s_system, disagg_tr, None)
-        for svc_name in ("frontend", "decode"):
+        for svc_name in ("frontend", "decode", "prefill"):
             svc = deployment["spec"]["services"][svc_name]
             assert "extraPodMetadata" not in svc
             assert svc["extraPodSpec"]["hostNetwork"] is True
