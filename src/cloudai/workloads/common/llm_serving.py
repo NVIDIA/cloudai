@@ -52,6 +52,40 @@ def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgsT], system_gpus_
     return list(range(system_gpus_per_node or 1))
 
 
+def calculate_prefill_gpu_ids(
+    tdef: LLMServingTestDefinition[LLMServingCmdArgsT],
+    num_nodes: int,
+    system_gpus_per_node: int | None,
+) -> list[int]:
+    if not tdef.cmd_args.prefill:
+        return []
+    if tdef.cmd_args.prefill.gpu_ids:
+        return parse_gpu_ids(tdef.cmd_args.prefill.gpu_ids)
+
+    gpu_ids = all_gpu_ids(tdef, system_gpus_per_node)
+    if num_nodes == 2:
+        return gpu_ids
+    mid = len(gpu_ids) // 2
+    return gpu_ids[:mid]
+
+
+def calculate_decode_gpu_ids(
+    tdef: LLMServingTestDefinition[LLMServingCmdArgsT],
+    num_nodes: int,
+    system_gpus_per_node: int | None,
+) -> list[int]:
+    if tdef.cmd_args.decode.gpu_ids:
+        return parse_gpu_ids(tdef.cmd_args.decode.gpu_ids)
+
+    gpu_ids = all_gpu_ids(tdef, system_gpus_per_node)
+    if not tdef.cmd_args.prefill:
+        return gpu_ids
+    if num_nodes == 2:
+        return gpu_ids
+    mid = len(gpu_ids) // 2
+    return gpu_ids[mid:]
+
+
 class LLMServingArgs(CmdArgs):
     """Shared serve-argument serialization for LLM serving workloads."""
 
@@ -299,21 +333,11 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
 
     @property
     def prefill_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
-            return parse_gpu_ids(self.tdef.cmd_args.prefill.gpu_ids)
-        if self.is_two_node_disaggregated:
-            return self.gpu_ids
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[:mid]
+        return calculate_prefill_gpu_ids(self.tdef, self.test_run.nnodes, self.system.gpus_per_node)
 
     @property
     def decode_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.decode.gpu_ids:
-            return parse_gpu_ids(self.tdef.cmd_args.decode.gpu_ids)
-        if self.is_two_node_disaggregated:
-            return self.gpu_ids
-        mid = len(self.gpu_ids) // 2
-        return self.gpu_ids[mid:]
+        return calculate_decode_gpu_ids(self.tdef, self.test_run.nnodes, self.system.gpus_per_node)
 
     def _disagg_srun_prefix(self, relative: int | None = None) -> str:
         srun_command_parts = self.gen_srun_prefix(with_num_nodes=(relative is None))

@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.core import GitRepo
+from cloudai.core import GitRepo, TestRun
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmTestDefinition
 
 
@@ -42,3 +43,71 @@ def test_installables_include_proxy_script_repo() -> None:
     )
 
     assert tdef.installables == [tdef.docker_image, tdef.hf_model, proxy_script_repo]
+
+
+def test_constraint_check_rejects_tp_pp_dp_above_available_gpus(tmp_path) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            decode=VllmArgs.model_validate({"tensor_parallel_size": 2, "pipeline_parallel_size": 2}),
+        ),
+        extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2"},
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    assert tdef.constraint_check(tr, None) is False
+
+
+def test_constraint_check_rejects_flashinfer_with_dp_and_expert_parallel(tmp_path) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            decode=VllmArgs.model_validate(
+                {"data_parallel_size": 2, "all2all_backend": "flashinfer_all2allv", "expert_parallel": True}
+            ),
+        ),
+        extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1"},
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    assert tdef.constraint_check(tr, None) is False
+
+
+def test_constraint_check_validates_disaggregated_roles_against_split_gpus(tmp_path) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"tensor_parallel_size": 3}),
+            decode=VllmArgs.model_validate({"tensor_parallel_size": 2}),
+        ),
+        extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    assert tdef.constraint_check(tr, None) is False
+
+
+def test_constraint_check_uses_all_node_gpus_per_role_for_two_node_disagg(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"tensor_parallel_size": 4}),
+            decode=VllmArgs.model_validate({"tensor_parallel_size": 4}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
