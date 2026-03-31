@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import time
@@ -39,6 +40,7 @@ class KubernetesSystem(System):
     scheduler: str = "kubernetes"
     monitor_interval: int = 1
     gpus_per_node: int = 1
+    use_host_network: bool | None = None
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
@@ -130,6 +132,45 @@ class KubernetesSystem(System):
         Currently not implemented for KubernetesSystem.
         """
         pass
+
+    def get_network_attachment_definitions(self) -> list[str]:
+        """Return all NetworkAttachmentDefinitions in the cluster as 'namespace/name' strings."""
+        cmd = ["kubectl", "get", "network-attachment-definitions", "--all-namespaces", "-o", "json"]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.debug("Failed to list NetworkAttachmentDefinitions: %s", e.stderr)
+            return []
+
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            logging.debug("Failed to parse NetworkAttachmentDefinitions output: %s", e)
+            return []
+
+        return [f"{item['metadata']['namespace']}/{item['metadata']['name']}" for item in data.get("items", [])]
+
+    def resolve_cni_networks(self) -> list[str] | None:
+        """
+        Determine which CNI networks to use, or None if host networking should be used.
+
+        - use_host_network=True:  always use hostNetwork, skip CNI discovery.
+        - use_host_network=False: require CNI; raise if none are found.
+        - use_host_network=None:  try CNI, fall back to hostNetwork if none found.
+        """
+        if self.use_host_network is True:
+            return None
+
+        if networks := self.get_network_attachment_definitions():
+            return networks
+
+        if self.use_host_network is False:
+            raise RuntimeError(
+                "use_host_network=False but no NetworkAttachmentDefinitions were found in the cluster. "
+                "Ensure the CNI operator is installed and net-attach-defs are configured."
+            )
+
+        return None  # auto mode: fall back to hostNetwork
 
     def is_job_running(self, job: BaseJob) -> bool:
         k_job: KubernetesJob = cast(KubernetesJob, job)

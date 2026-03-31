@@ -173,8 +173,8 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition) -> TestRun:
-    tr = partial_tr(name=name, test=test_definition)
+def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition, **kwargs) -> TestRun:
+    tr = partial_tr(name=name, test=test_definition, **kwargs)
     return tr
 
 
@@ -575,6 +575,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     )
                 ],
             ),
+            time_limit="00:20:00",
         ),
         "vllm": lambda: create_test_run(
             partial_tr,

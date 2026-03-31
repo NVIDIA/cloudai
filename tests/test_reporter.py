@@ -15,17 +15,21 @@
 # limitations under the License.
 
 import copy
+import csv
 import tarfile
+from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import pytest
 import toml
 
 from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
-from cloudai.core import Registry, Reporter, System
-from cloudai.models.scenario import ReportConfig
-from cloudai.reporter import PerTestReporter, SlurmReportItem, StatusReporter, TarballReporter
+from cloudai.core import CommandGenStrategy, Registry, Reporter, System
+from cloudai.models.scenario import ReportConfig, TestRunDetails
+from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -33,6 +37,8 @@ from cloudai.systems.slurm.slurm_metadata import (
     MetadataNetwork,
     MetadataSlurm,
     MetadataSystem,
+    SlurmJobMetadata,
+    SlurmStepMetadata,
     SlurmSystemMetadata,
 )
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -90,20 +96,6 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
 
     with tarfile.open(tarball_path, "r:gz") as tar:
         assert f"{results_dir.name}/dummy.txt" in tar.getnames()
-
-
-def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    reporter = StatusReporter(
-        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
-    )
-    reporter.report_best_dse_config()
-    best_config_path = (
-        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
-    )
-    assert best_config_path.exists()
-    nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
-    assert isinstance(nccl.cmd_args, NCCLCmdArgs)
-    assert nccl.agent_steps == 12
 
 
 @pytest.mark.parametrize(
@@ -265,26 +257,61 @@ class TestSlurmReportItem:
     def test_no_metadata_folder(self, slurm_system: SlurmSystem) -> None:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
 
-        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
-        assert meta is None
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.nodes is None
 
     def test_no_metadata_files(self, slurm_system: SlurmSystem) -> None:
         run_dir = slurm_system.output_path / "run_dir"
         (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
 
-        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
-        assert meta is None
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.nodes is None
 
     def test_metadata_file_in_run_dir(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
         run_dir = slurm_system.output_path / "run_dir"
         (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
         with open(run_dir / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
 
-        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
-        assert meta is not None
-        assert meta.slurm.node_list == slurm_metadata.slurm.node_list
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.nodes == slurm_metadata.slurm.node_list
 
     def test_metadata_for_single_sbatch(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
         run_dir = slurm_system.output_path / "run_dir"
@@ -292,14 +319,209 @@ class TestSlurmReportItem:
         (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
         with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
 
-        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
-        assert meta is not None
-        assert meta.slurm.node_list == slurm_metadata.slurm.node_list
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.nodes == slurm_metadata.slurm.node_list
 
 
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
-    assert reports[-2][0] == "status"
+    assert reports[-3][0] == "status"
+    assert reports[-2][0] == "dse"
     assert reports[-1][0] == "tarball"
+
+
+def _write_slurm_job(step_dir: Path, elapsed_time_sec: int) -> None:
+    metadata = SlurmJobMetadata(
+        job_id=12345,
+        name=step_dir.name,
+        state="COMPLETED",
+        start_time="2026-03-24T12:00:00",
+        end_time="2026-03-24T12:05:00",
+        elapsed_time_sec=elapsed_time_sec,
+        exit_code="0:0",
+        srun_cmd="srun echo test",
+        test_cmd="echo test",
+        is_single_sbatch=False,
+        job_root=step_dir,
+        job_steps=[
+            SlurmStepMetadata(
+                job_id=12345,
+                step_id="0",
+                name=step_dir.name,
+                state="COMPLETED",
+                start_time="2026-03-24T12:00:00",
+                end_time="2026-03-24T12:05:00",
+                elapsed_time_sec=elapsed_time_sec,
+                exit_code="0:0",
+                submit_line="srun echo test",
+            )
+        ],
+    )
+    with (step_dir / "slurm-job.toml").open("w") as f:
+        toml.dump(metadata.model_dump(mode="json"), f)
+
+
+def _write_slurm_system_metadata(step_dir: Path, slurm_metadata: SlurmSystemMetadata) -> None:
+    metadata_dir = step_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    with (metadata_dir / "node-0.toml").open("w") as f:
+        toml.dump(slurm_metadata.model_dump(), f)
+
+
+def _create_dse_iteration(
+    case: TestRun,
+    iteration: int,
+    results_root: Path,
+    slurm_metadata: SlurmSystemMetadata,
+    steps: list[dict[str, Any]],
+) -> None:
+    iteration_dir = results_root / case.name / str(iteration)
+    iteration_dir.mkdir(parents=True, exist_ok=True)
+
+    with (iteration_dir / "trajectory.csv").open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "action", "reward", "observation"])
+        for step in steps:
+            step_no = step["step"]
+            writer.writerow([step_no, step["action"], step["reward"], step["observation"]])
+
+            step_dir = iteration_dir / str(step_no)
+            step_dir.mkdir(parents=True, exist_ok=True)
+            _write_slurm_job(step_dir, int(step["elapsed_time_sec"]))
+            _write_slurm_system_metadata(step_dir, slurm_metadata)
+
+            # NCCLTestDefinition.was_run_successful
+            (step_dir / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+
+            step_tr = case.apply_params_set(step["action"])
+            step_tr.current_iteration = iteration
+            step_tr.step = step_no
+            step_tr.output_path = step_dir
+            with (step_dir / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).open("w") as dump_file:
+                toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
+
+
+def test_dse_reporter(
+    slurm_system: SlurmSystem,
+    slurm_metadata: SlurmSystemMetadata,
+) -> None:
+    slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
+
+    dse_case = TestRun(
+        name="dse-case",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="NCCL case",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
+            extra_env_vars={"VAR1": ["value1", "value2"]},
+            agent_steps=3,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+        iterations=1,
+    )
+
+    steps = [
+        {
+            "step": 0,
+            "action": {"ngpus": 1, "extra_env_vars.VAR1": "value1"},
+            "reward": -10.0,
+            "observation": [10],
+            "elapsed_time_sec": 60,
+        },
+        {
+            "step": 1,
+            "action": {"ngpus": 2, "extra_env_vars.VAR1": "value1"},
+            "reward": -5.0,
+            "observation": [5],
+            "elapsed_time_sec": 120,
+        },
+        {
+            "step": 2,
+            "action": {"ngpus": 2, "extra_env_vars.VAR1": "value2"},
+            "reward": -7.0,
+            "observation": [7],
+            "elapsed_time_sec": 180,
+        },
+    ]
+    _create_dse_iteration(
+        dse_case,
+        iteration=0,
+        results_root=slurm_system.output_path,
+        slurm_metadata=slurm_metadata,
+        steps=steps,
+    )
+
+    scenario = TestScenario(
+        name="single-dse-scenario",
+        test_runs=[dse_case],
+    )
+    reporter = DSEReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig())
+    reporter.load_test_runs()
+
+    summaries = build_dse_summaries(
+        system=slurm_system,
+        results_root=slurm_system.output_path,
+        loaded_test_runs=reporter.trs,
+        test_cases=scenario.test_runs,
+    )
+
+    best_tr = dse_case.apply_params_set({"ngpus": 2, "extra_env_vars.VAR1": "value1"})
+    best_tr.current_iteration = 0
+    best_tr.step = 1
+    expected = {
+        "name": "dse-case-0",
+        "saved_time": "2m",
+        "saved_gpu_hours": "0.27",
+        "saved_usd": "$0.80",
+        "gpu_label": "NVIDIA H100 80GB HBM3",
+        "avg_step_runtime": "2m",
+        "observed_runtime": "6m",
+        "efficiency_ratio": "~1.3x",
+        "efficiency_steps": "3 / 4 steps",
+        "best_config_toml": toml.dumps(TestRunDetails.from_test_run(best_tr, "", "").test_definition.model_dump()),
+        "parameter_rows": [
+            {
+                "name": "ngpus",
+                "values": [
+                    {"text": "1", "is_best": False},
+                    {"text": "2", "is_best": True},
+                ],
+            },
+            {
+                "name": "extra_env_vars.VAR1",
+                "values": [
+                    {"text": "value1", "is_best": True},
+                    {"text": "value2", "is_best": False},
+                ],
+            },
+        ],
+        "reward_chart_data": {
+            "labels": [0, 1, 2],
+            "rewards": [-10.0, -5.0, -7.0],
+            "observations": ["10", "5", "7"],
+            "best_index": 0,
+        },
+    }
+    assert len(summaries) == 1
+    assert asdict(summaries[0]) == expected
+
+    reporter.generate()
+
+    assert (slurm_system.output_path / "single-dse-scenario-dse-report.html").exists()
+    assert (slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml").exists()

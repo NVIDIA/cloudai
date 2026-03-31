@@ -32,7 +32,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Slurm/launcher-level
     gpu_type: str = Field(default="gb200")
     log_dir: str = Field(default="")
-    time_limit: str = Field(default="00:05:00")
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
     enable_vboost: bool | None = Field(default=False)

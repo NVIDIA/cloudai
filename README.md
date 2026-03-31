@@ -84,6 +84,13 @@ cloudai generate-report\
     --result-dir /path/to/result_directory
 ```
 
+Generated artifacts depend on the scenario contents:
+
+- A plain scenario status report is written as `<scenario>.html`.
+- If the scenario contains DSE test cases, an additional DSE-specific report is written as `<scenario>-dse-report.html`.
+- For DSE runs, the best discovered test configuration is also written as `<dse-case>/<iteration>/<dse-case>.toml`.
+- Custom reporters could generate additional artifacts.
+
 ### install
 This mode installs test prerequisites. For more details, please refer to the [installation guide](https://nvidia.github.io/cloudai/workloads_requirements_installation.html). It automatically runs as part of the `run` mode if prerequisites are not met.
 

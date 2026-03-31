@@ -38,6 +38,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
     def gen_json(self) -> dict[Any, Any]:
         k8s_system = cast(KubernetesSystem, self.system)
         job_name = self.sanitize_k8s_job_name(self.test_run.name)
+        cni_networks = k8s_system.resolve_cni_networks()
 
         deployment = {
             "apiVersion": "kubeflow.org/v2beta1",
@@ -50,8 +51,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                 "slotsPerWorker": k8s_system.gpus_per_node,
                 "runPolicy": {"cleanPodPolicy": "Running"},
                 "mpiReplicaSpecs": {
-                    "Launcher": self._create_launcher_spec(),
-                    "Worker": self._create_worker_spec(),
+                    "Launcher": self._create_launcher_spec(cni_networks),
+                    "Worker": self._create_worker_spec(cni_networks),
                 },
             },
         }
@@ -66,56 +67,53 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         return tdef.cmd_args.docker_image_url.replace("#", "/")
 
-    def _create_launcher_spec(self) -> dict[str, Any]:
+    def _create_launcher_spec(self, cni_networks: list[str] | None) -> dict[str, Any]:
         env_vars = self._get_merged_env_vars()
-        return {
-            "replicas": 1,
-            "template": {
-                "spec": {
-                    "hostNetwork": True,
-                    "containers": [
-                        {
-                            "image": self.container_url,
-                            "name": "nccl-test-launcher",
-                            "imagePullPolicy": "IfNotPresent",
-                            "securityContext": {"privileged": True},
-                            "env": self._generate_env_list(env_vars),
-                            "command": ["/bin/bash", "-c"],
-                            "args": [self._generate_launcher_command()],
-                            "resources": self._prepare_launcher_resources(),
-                        }
-                    ],
-                },
-            },
+        spec: dict[str, Any] = {
+            "containers": [
+                {
+                    "image": self.container_url,
+                    "name": "nccl-test-launcher",
+                    "imagePullPolicy": "IfNotPresent",
+                    "securityContext": {"privileged": True},
+                    "env": self._generate_env_list(env_vars),
+                    "command": ["/bin/bash", "-c"],
+                    "args": [self._generate_launcher_command()],
+                    "resources": self._prepare_launcher_resources(),
+                }
+            ],
         }
+        if not cni_networks:
+            spec["hostNetwork"] = True
+        return {"replicas": 1, "template": {"spec": spec}}
 
-    def _create_worker_spec(self) -> dict[str, Any]:
+    def _create_worker_spec(self, cni_networks: list[str] | None) -> dict[str, Any]:
         env_vars = self._get_merged_env_vars()
-        return {
-            "replicas": self.test_run.nnodes,
-            "template": {
-                "spec": {
-                    "hostNetwork": True,
-                    "containers": [
-                        {
-                            "image": self.container_url,
-                            "name": "nccl-test-worker",
-                            "ports": [{"containerPort": self.ssh_port, "name": "ssh"}],
-                            "imagePullPolicy": "IfNotPresent",
-                            "securityContext": {"privileged": True},
-                            "env": self._generate_env_list(env_vars),
-                            "command": ["/bin/bash", "-c"],
-                            "args": [self._generate_worker_command()],
-                            "resources": self._prepare_worker_resources(),
-                            "volumeMounts": [
-                                {"mountPath": "/dev/shm", "name": "dev-shm"},
-                            ],
-                        }
+        spec: dict[str, Any] = {
+            "containers": [
+                {
+                    "image": self.container_url,
+                    "name": "nccl-test-worker",
+                    "ports": [{"containerPort": self.ssh_port, "name": "ssh"}],
+                    "imagePullPolicy": "IfNotPresent",
+                    "securityContext": {"privileged": True},
+                    "env": self._generate_env_list(env_vars),
+                    "command": ["/bin/bash", "-c"],
+                    "args": [self._generate_worker_command()],
+                    "resources": self._prepare_worker_resources(cni_networks),
+                    "volumeMounts": [
+                        {"mountPath": "/dev/shm", "name": "dev-shm"},
                     ],
-                    "volumes": [{"name": "dev-shm", "emptyDir": {"medium": "Memory", "sizeLimit": "1Gi"}}],
-                },
-            },
+                }
+            ],
+            "volumes": [{"name": "dev-shm", "emptyDir": {"medium": "Memory", "sizeLimit": "1Gi"}}],
         }
+        if not cni_networks:
+            spec["hostNetwork"] = True
+        template: dict[str, Any] = {"spec": spec}
+        if cni_networks:
+            template["metadata"] = {"annotations": {"k8s.v1.cni.cncf.io/networks": ",".join(cni_networks)}}
+        return {"replicas": self.test_run.nnodes, "template": template}
 
     def _generate_worker_command(self) -> str:
         """
@@ -209,7 +207,16 @@ sleep infinity
             "limits": {"cpu": "2", "memory": "8Gi"},
         }
 
-    def _prepare_worker_resources(self) -> Dict[str, Dict[str, str]]:
+    def _prepare_worker_resources(self, cni_networks: list[str] | None) -> Dict[str, Dict[str, str]]:
         k8s_system = cast(KubernetesSystem, self.system)
         gpu_count = str(k8s_system.gpus_per_node)
-        return {"requests": {"nvidia.com/gpu": gpu_count}, "limits": {"nvidia.com/gpu": gpu_count}}
+        resources: Dict[str, Dict[str, str]] = {
+            "requests": {"nvidia.com/gpu": gpu_count},
+            "limits": {"nvidia.com/gpu": gpu_count},
+        }
+        if cni_networks:
+            for net in cni_networks:
+                nic_name = net.split("/", 1)[1]
+                resources["requests"][f"nvidia.com/{nic_name}"] = "1"
+                resources["limits"][f"nvidia.com/{nic_name}"] = "1"
+        return resources

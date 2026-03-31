@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -228,7 +228,8 @@ class Registry(metaclass=Singleton):
             return {
                 "per_test": 0,  # first
                 "status": 2,
-                "tarball": 3,  # last
+                "dse": 3,
+                "tarball": 4,  # last
             }.get(k, 1)
 
         return sorted(self.scenario_reports.items(), key=lambda kv: report_order(kv[0]))

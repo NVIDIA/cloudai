@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import subprocess
 from pathlib import Path
-from typing import Dict, List
+from typing import ClassVar, Dict, List
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -188,3 +190,74 @@ def test_delete_job(k8s_system: KubernetesSystem, job_kind: str):
         assert k8s_system._delete_dynamo_graph_deployment.called
     else:
         raise AssertionError(f"Unhandled job kind in test: {job_kind}")
+
+
+def _net_attach_def_json(*pairs: tuple[str, str]) -> str:
+    items = [{"metadata": {"namespace": ns, "name": n}} for ns, n in pairs]
+    return json.dumps({"items": items})
+
+
+class TestGetNetworkAttachmentDefinitions:
+    @pytest.mark.parametrize(
+        "pairs, expected",
+        [
+            ([], []),
+            ([("default", "rail-0"), ("default", "rail-1")], ["default/rail-0", "default/rail-1"]),
+            (
+                [("default", "nic0-rail0-plane0"), ("kube-system", "nic1-rail1-plane0")],
+                ["default/nic0-rail0-plane0", "kube-system/nic1-rail1-plane0"],
+            ),
+        ],
+        ids=["empty", "same-namespace", "multiple-namespaces"],
+    )
+    def test_success(self, k8s_system: KubernetesSystem, pairs: list, expected: list) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout=_net_attach_def_json(*pairs), returncode=0)
+            assert k8s_system.get_network_attachment_definitions() == expected
+
+    @pytest.mark.parametrize(
+        "side_effect, stdout",
+        [
+            (subprocess.CalledProcessError(1, "kubectl", stderr="No CRD found"), None),
+            (None, "not valid json"),
+        ],
+        ids=["kubectl-failure", "invalid-json"],
+    )
+    def test_returns_empty_on_error(
+        self, k8s_system: KubernetesSystem, side_effect: Exception | None, stdout: str | None
+    ) -> None:
+        with patch("subprocess.run") as mock_run:
+            if side_effect:
+                mock_run.side_effect = side_effect
+            else:
+                mock_run.return_value = MagicMock(stdout=stdout, returncode=0)
+            assert k8s_system.get_network_attachment_definitions() == []
+
+
+class TestResolveCniNetworks:
+    NETS: ClassVar[list[str]] = ["default/rail-0", "default/rail-1"]
+
+    @pytest.mark.parametrize(
+        "use_host_network, discovered, expected",
+        [
+            (True, NETS, None),  # forced host network — ignores discovered nets
+            (None, NETS, NETS),  # auto — uses CNI when available
+            (None, [], None),  # auto — falls back to host network when none found
+            (False, NETS, NETS),  # require CNI — uses discovered nets
+        ],
+        ids=["forced-host", "auto-cni", "auto-fallback", "require-cni"],
+    )
+    def test_resolve(
+        self, k8s_system: KubernetesSystem, use_host_network: bool | None, discovered: list, expected: list | None
+    ) -> None:
+        k8s_system.use_host_network = use_host_network
+        with patch.object(KubernetesSystem, "get_network_attachment_definitions", return_value=discovered):
+            assert k8s_system.resolve_cni_networks() == expected
+
+    def test_require_cni_raises_when_none_found(self, k8s_system: KubernetesSystem) -> None:
+        k8s_system.use_host_network = False
+        with (
+            patch.object(KubernetesSystem, "get_network_attachment_definitions", return_value=[]),
+            pytest.raises(RuntimeError, match="NetworkAttachmentDefinitions"),
+        ):
+            k8s_system.resolve_cni_networks()

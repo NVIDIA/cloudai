@@ -325,7 +325,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add("-p", self.system.default_partition)
         add_field("gpu_type", "-g", args.gpu_type)
         add_field("log_dir", "-l", args.log_dir)
-        add_field("time_limit", "-t", args.time_limit)
+        add("-t", self.test_run.time_limit)
         if container_path:
             add_field("container_image", "-i", container_path)
         add_field("compute_dtype", "-c", args.compute_dtype)
