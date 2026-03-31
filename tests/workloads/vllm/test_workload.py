@@ -22,6 +22,15 @@ def test_vllm_serve_args_exclude_internal_fields() -> None:
     assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
 
 
+def test_vllm_serve_args_convert_boolean_flags() -> None:
+    assert VllmArgs.model_validate({"expert_parallel": True}).serve_args == ["--enable-expert-parallel"]
+    assert VllmArgs.model_validate({"expert_parallel": False}).serve_args == ["--no-enable-expert-parallel"]
+
+
+def test_vllm_serve_args_keep_non_boolean_values() -> None:
+    assert VllmArgs.model_validate({"tensor_parallel_size": 4}).serve_args == ["--tensor-parallel-size", "4"]
+
+
 def test_installables_include_proxy_script_repo() -> None:
     proxy_script_repo = GitRepo(url="./proxy_script_repo", commit="commit")
     tdef = VllmTestDefinition(

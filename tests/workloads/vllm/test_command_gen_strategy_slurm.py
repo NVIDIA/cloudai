@@ -195,6 +195,24 @@ class TestVllmAggregatedMode:
         assert len(commands) == 1
         assert commands[0] == ["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port)]
 
+    def test_get_vllm_serve_commands_convert_boolean_flags(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.cmd_args.decode = VllmArgs.model_validate({"expert_parallel": True})
+        vllm_tr.test = vllm
+        vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+
+        commands = vllm_cmd_gen_strategy.get_serve_commands()
+
+        assert commands[0] == [
+            "vllm",
+            "serve",
+            vllm.cmd_args.model,
+            "--enable-expert-parallel",
+            "--port",
+            str(vllm.cmd_args.port),
+        ]
+
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
 

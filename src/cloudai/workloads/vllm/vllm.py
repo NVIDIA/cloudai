@@ -41,6 +41,19 @@ class VllmArgs(LLMServingArgs):
     def serve_args_exclude(self) -> set[str]:
         return super().serve_args_exclude | {"nixl_threads"}
 
+    @property
+    def serve_args(self) -> list[str]:
+        args: list[str] = []
+        for key, value in self.model_dump(exclude=self.serve_args_exclude, exclude_none=True).items():
+            opt = key.replace("_", "-")
+            if isinstance(value, bool):
+                args.append(f"--{'enable' if value else 'no-enable'}-{opt}")
+            elif value == "":
+                args.append(f"--{opt}")
+            else:
+                args.extend([f"--{opt}", str(value)])
+        return args
+
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
     """vLLM serve command arguments."""
