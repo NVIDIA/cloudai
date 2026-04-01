@@ -393,7 +393,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if vp_for_launcher == 1 or (
             isinstance(vp_for_launcher, (list, tuple)) and len(vp_for_launcher) == 1 and vp_for_launcher[0] == 1
         ):
-            vp_for_launcher = None
+            vp_for_launcher = "None"
         add_field("vp", "-vp", vp_for_launcher)
         add_field("ep", "-ep", args.ep)
         add_field("et", "-et", args.et)
