@@ -439,3 +439,17 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             "--exclusive --reservation my_reserv --overcommit"
         )
         assert result == ["exclusive", "reservation=my_reserv", "overcommit"]
+
+    def test_profiling_ranks_string_format(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+    ) -> None:
+        tr = make_test_run(
+            cmd_args_overrides={"profiling_ranks": "0,1,2,3", "enable_nsys": True},
+            output_subdir="out_prof_str",
+        )
+        assert not tr.is_dse_job
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--profiling_ranks 0,1,2,3" in wrapper_content

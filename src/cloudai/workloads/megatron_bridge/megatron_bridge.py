@@ -113,7 +113,10 @@ class MegatronBridgeCmdArgs(CmdArgs):
     profiling_stop_step: Optional[int] = Field(default=None)
     record_memory_history: Optional[bool] = Field(default=None)
     profiling_gpu_metrics: Optional[bool] = Field(default=None)
-    profiling_ranks: Optional[Union[int, List[int]]] = Field(default=None)
+    profiling_ranks: Optional[Union[int, str, List[int]]] = Field(
+        default=None,
+        description="Rank ID, comma-separated rank IDs as a string (e.g. '0,4,8'), or list of rank IDs.",
+    )
     nsys_trace: Optional[Union[str, List[str]]] = Field(
         default=None,
         description="Comma-separated nsys trace events (e.g. cuda,nvtx).",
