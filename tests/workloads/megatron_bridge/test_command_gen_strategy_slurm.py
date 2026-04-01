@@ -453,3 +453,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "--profiling_ranks 0,1,2,3" in wrapper_content
+
+    def test_vp(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+    ):
+        tr = make_test_run(cmd_args_overrides={"vp": 1})
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "-vp None" in wrapper_content
