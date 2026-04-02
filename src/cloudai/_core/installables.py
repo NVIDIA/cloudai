@@ -53,24 +53,42 @@ class DockerImage(Installable):
 
     @property
     def cache_filename(self) -> str:
-        """Return the cache filename for the docker image."""
-        tag, wo_prefix = "notag", self.url
-        is_local = wo_prefix.startswith("/") or wo_prefix.startswith(".")
-        if "://" in wo_prefix:
-            wo_prefix = self.url.split("://", maxsplit=1)[1]
-        if ":" in wo_prefix:
-            tag = wo_prefix.rsplit(":", maxsplit=1)[1]
-        wo_tag = wo_prefix.rsplit(":", maxsplit=1)[0]
-        if is_local:
-            img_name = wo_tag.rsplit("/", maxsplit=1)[1]
+        """
+        Return the cache filename for the docker image.
+
+        Examples::
+
+            DockerImage("nvcr.io#nvidia/pytorch:24.02-py3").cache_filename
+            # "nvcr.io_nvidia__pytorch__24.02-py3.sqsh"
+
+            DockerImage("registry.example.com:5000#group/project").cache_filename
+            # "registry.example.com_5000_group__project__notag.sqsh"
+
+            DockerImage("/local/cache/image.sqsh").cache_filename
+            # "image.sqsh__notag.sqsh"
+        """
+        reference = self.url.split("://", maxsplit=1)[-1]
+        tag = "notag"
+
+        if reference.startswith("/") or reference.startswith("."):
+            # Local image file
+            image_ref = reference
+            if ":" in reference:
+                image_ref, tag = reference.rsplit(":", maxsplit=1)
+
+            # /local/disk/file.sqsh -> file
+            image_name = image_ref.rsplit("/", maxsplit=1)[-1]
         else:
-            parts = wo_tag.split("/")
-            img_name = "_".join(parts[:-1]) + "__" + parts[-1]
+            # Remote image url
+            parts = reference.replace("#", "/").split("/")
 
-        # Replace # with _ in img_name to avoid filesystem issues
-        img_name = img_name.replace("#", "_")
+            last_part = parts[-1]
+            if ":" in last_part:
+                parts[-1], tag = last_part.rsplit(":", maxsplit=1)
 
-        return f"{img_name}__{tag}.sqsh"
+            image_name = "_".join(parts[:-1]) + "__" + parts[-1]
+
+        return f"{image_name.replace('#', '_').replace(':', '_')}__{tag}.sqsh"
 
     @property
     def installed_path(self) -> Union[str, Path]:
