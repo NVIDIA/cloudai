@@ -58,17 +58,21 @@ class DockerImage(Installable):
         is_local = wo_prefix.startswith("/") or wo_prefix.startswith(".")
         if "://" in wo_prefix:
             wo_prefix = self.url.split("://", maxsplit=1)[1]
-        if ":" in wo_prefix:
-            tag = wo_prefix.rsplit(":", maxsplit=1)[1]
-        wo_tag = wo_prefix.rsplit(":", maxsplit=1)[0]
         if is_local:
+            if ":" in wo_prefix:
+                tag = wo_prefix.rsplit(":", maxsplit=1)[1]
+                wo_prefix = wo_prefix.rsplit(":", maxsplit=1)[0]
+            wo_tag = wo_prefix
             img_name = wo_tag.rsplit("/", maxsplit=1)[1]
         else:
-            parts = wo_tag.split("/")
+            normalized_url = wo_prefix.replace("#", "/")
+            parts = normalized_url.split("/")
+            if ":" in parts[-1]:
+                parts[-1], tag = parts[-1].rsplit(":", maxsplit=1)
             img_name = "_".join(parts[:-1]) + "__" + parts[-1]
 
-        # Replace # with _ in img_name to avoid filesystem issues
-        img_name = img_name.replace("#", "_")
+        # Normalize separators and registry ports so the cache key is always a filename, not a path.
+        img_name = img_name.replace("#", "_").replace(":", "_")
 
         return f"{img_name}__{tag}.sqsh"
 
