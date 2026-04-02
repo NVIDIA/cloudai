@@ -147,6 +147,8 @@ class TestBaseInstaller:
         ("http://fake_url/img", "fake_url__img__notag.sqsh"),
         ("nvcr.io#nvidia/pytorch:24.02-py3", "nvcr.io_nvidia__pytorch__24.02-py3.sqsh"),
         ("/local/disk/file", "file__notag.sqsh"),
+        ("/local/disk/file:tag", "file__tag.sqsh"),
+        ("./local/disk/file:tag", "file__tag.sqsh"),
         ("gitlab.com#org/team/image:latest", "gitlab.com_org_team__image__latest.sqsh"),
         ("registry.example.com:5000#group/project", "registry.example.com_5000_group__project__notag.sqsh"),
         ("registry.example.com:5000#group/project:latest", "registry.example.com_5000_group__project__latest.sqsh"),
