@@ -31,9 +31,9 @@ def mb_tr(tmp_path: Path) -> TestRun:
         [
             "ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU",
             "",
-            "ain_fp8_mx/0  [2025-12-22 15:18:33] iteration       50/      50 | consumed samples:        25600 | "
-            "elapsed time per iteration (ms): 9089.0 | learning rate: 3.000000E-05 | global batch size:   512 | "
-            "lm loss: 8.114214E+00 | load_balancing_loss: 1.000000E+00 | loss scale: 1.0 | grad norm: 0.042 | "
+            "ain_fp8_mx/0  [2025-12-22 15:18:33] iteration       50/      50 | consumed samples:        25600 | ",
+            "elapsed time per iteration (ms): 9089.0 | learning rate: 3.000000E-05 | global batch size:   512 | ",
+            "lm loss: 8.114214E+00 | load_balancing_loss: 1.000000E+00 | loss scale: 1.0 | grad norm: 0.042 | ",
             "number of skipped iterations:   0 | number of nan iterations:   0 |",
             "",
         ]
