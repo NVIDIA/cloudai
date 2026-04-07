@@ -27,7 +27,7 @@ import toml
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .megatron_bridge import GOLDEN_VALUES_FILENAME, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -342,8 +342,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
         add_field("gpus_per_node", "-gn", self.system.gpus_per_node)
-        # Always provide a stable golden values filename so Megatron-Bridge writes parsed metrics to disk.
-        add("--golden_values_path", GOLDEN_VALUES_FILENAME)
         if mounts:
             add("-cm", ",".join(mounts))
 

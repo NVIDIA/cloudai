@@ -185,14 +185,6 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "--cuda_graph_impl" not in cmd
         assert " -ms " not in cmd
 
-    def test_golden_values_path_is_always_provided(
-        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
-    ) -> None:
-        tr = make_test_run(num_nodes=1)
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
-        wrapper_content = self._wrapper_content(cmd_gen)
-        assert "--golden_values_path cloudai_megatron_bridge_golden_values.json" in wrapper_content
-
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
@@ -294,30 +286,25 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         ) in wrapper_content
         assert 'exit "${WANDB_INSTALL_RC}"' in wrapper_content
 
-    def test_was_run_successful_detects_launcher_failure_marker(self, make_test_run: Callable[..., TestRun]) -> None:
-        tr = make_test_run()
-        tr.output_path.mkdir(parents=True, exist_ok=True)
-        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
-            "Job 4818718 finished: FAILED\nException: Experiment failed for test with status: FAILED.\n"
-        )
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
-        result = tdef.was_run_successful(tr)
-        assert not result.is_successful
-        assert result.error_message is not None
-
-    def test_was_run_successful_accepts_expected_missing_golden_values_failure(
-        self, make_test_run: Callable[..., TestRun]
+    @pytest.mark.parametrize(
+        ("log_content", "expected_is_successful"),
+        (
+            (None, False),
+            ("", False),
+            ("any\bthing", False),
+            ("ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU", True),
+        ),
+    )
+    def test_was_run_successful(
+        self, make_test_run: Callable[..., TestRun], log_content: str | None, expected_is_successful: bool
     ) -> None:
         tr = make_test_run()
         tr.output_path.mkdir(parents=True, exist_ok=True)
-        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
-            "Convergence check failed due to missing golden values.\n"
-            "This is expected if it is the first time running this model.\n"
-            "Job 123 finished: FAILED\n"
-        )
+        if log_content is not None:
+            (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(log_content)
         tdef = cast(MegatronBridgeTestDefinition, tr.test)
         result = tdef.was_run_successful(tr)
-        assert result.is_successful
+        assert result.is_successful is expected_is_successful
 
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun

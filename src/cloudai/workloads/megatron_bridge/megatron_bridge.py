@@ -16,14 +16,13 @@
 
 import logging
 import os
+import re
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
-
-GOLDEN_VALUES_FILENAME = "cloudai_megatron_bridge_golden_values.json"
 
 
 class MegatronBridgeCmdArgs(CmdArgs):
@@ -571,9 +570,32 @@ class MegatronBridgeTestDefinition(TestDefinition):
                 error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
             )
 
-        content = log_path.read_text(encoding="utf-8", errors="ignore")
+        log_data = log_path.read_text(encoding="utf-8", errors="ignore")
+        step_times_s, _ = extract_mbridge_metrics(log_data)
+        if not step_times_s:
+            return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
-        if "Convergence check failed due to missing golden values." in content:
-            return JobStatusResult(is_successful=True)
+        return JobStatusResult(is_successful=True)
 
-        return JobStatusResult(is_successful=False, error_message="\n".join(content.splitlines()[-40:]))
+
+def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
+    step_times_s: list[float] = []
+    gpu_tflops: list[float] = []
+    step_line_re = re.compile(
+        r"Step Time\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*s.*?"
+        r"GPU utilization:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:MODEL_)?TFLOP/s/GPU",
+        re.IGNORECASE,
+    )
+    for line in logs.splitlines():
+        m = step_line_re.search(line)
+        if m:
+            try:
+                step_times_s.append(float(m.group(1)))
+                gpu_tflops.append(float(m.group(2)))
+            except (ValueError, TypeError):
+                logging.debug("Failed to parse step metrics line: %s", line.rstrip("\n"))
+
+    if len(step_times_s) > 10:
+        step_times_s = step_times_s[-10:]
+        gpu_tflops = gpu_tflops[-10:]
+    return step_times_s, gpu_tflops
