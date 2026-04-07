@@ -116,6 +116,20 @@ def prepare_installation(
     return installables, installer
 
 
+def _run_custom_training_loop(agent: object, agent_type: str) -> int:
+    """Delegate to an agent's own training loop (e.g. RLlib PPO)."""
+    logging.info(f"Agent {agent_type} uses a custom training loop, delegating to agent.train()")
+    try:
+        agent.train()  # type: ignore[union-attr]
+        return 0
+    except Exception as e:
+        logging.error(f"Agent training failed for {agent_type}: {e}", exc_info=True)
+        return 1
+    finally:
+        if hasattr(agent, "shutdown"):
+            agent.shutdown()  # type: ignore[union-attr]
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -150,6 +164,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
         agent = agent_class(env, agent_config)
+
+        if getattr(agent, "HAS_CUSTOM_TRAINING_LOOP", False):
+            err |= _run_custom_training_loop(agent, agent_type)
+            continue
 
         observation, _ = env.reset()
 

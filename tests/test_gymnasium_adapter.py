@@ -161,3 +161,49 @@ def test_adapter_import_error_without_gymnasium() -> None:
 
 def test_adapter_unwrapped_returns_original(fake_gym: _FakeGym, adapter: GymnasiumAdapter) -> None:
     assert adapter.unwrapped is fake_gym
+
+
+class _FixedParamGym(_FakeGym):
+    def define_action_space(self) -> dict[str, Any]:
+        return {
+            "param_a": [1, 2, 3],
+            "param_b": [10, 20],
+            "fixed_param": [42],
+        }
+
+    def step(self, action: Any) -> tuple[list, float, bool, dict]:
+        self.last_action = action
+        return [1.0, 2.0, 3.0], 0.5, False, {"info": "test"}
+
+
+def test_step_merges_fixed_params() -> None:
+    gym = _FixedParamGym()
+    adapter = GymnasiumAdapter(gym)
+    adapter.reset()
+    adapter.step({"param_a": 0, "param_b": 1})
+
+    assert "fixed_param" in gym.last_action
+    assert gym.last_action["fixed_param"] == 42
+    assert gym.last_action["param_a"] == 1
+    assert gym.last_action["param_b"] == 20
+
+
+def test_step_raw_bypasses_decode() -> None:
+    gym = _FixedParamGym()
+    adapter = GymnasiumAdapter(gym)
+    adapter.reset()
+
+    raw_params = {"param_a": 999, "param_b": 888, "fixed_param": 777}
+    result = adapter.step_raw(raw_params)
+
+    assert len(result) == 5
+    _obs, _reward, terminated, truncated, _info = result
+    assert isinstance(terminated, bool)
+    assert isinstance(truncated, bool)
+    assert gym.last_action == raw_params
+
+
+def test_fixed_params_stored_correctly() -> None:
+    gym = _FixedParamGym()
+    adapter = GymnasiumAdapter(gym)
+    assert adapter._fixed_params == {"fixed_param": 42}

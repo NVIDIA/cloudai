@@ -53,6 +53,7 @@ class GymnasiumAdapter:
 
         raw_action_space = env.define_action_space()
         self._tunable_params: dict[str, list] = {k: v for k, v in raw_action_space.items() if len(v) > 1}
+        self._fixed_params: dict[str, Any] = {k: v[0] for k, v in raw_action_space.items() if len(v) == 1}
 
         self.action_space = spaces.Dict({k: spaces.Discrete(len(v)) for k, v in self._tunable_params.items()})
 
@@ -71,8 +72,13 @@ class GymnasiumAdapter:
 
     def step(self, action: dict[str, int]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """Execute one step and return the gymnasium 5-tuple."""
-        decoded = self.decode_action(action)
+        decoded = {**self._fixed_params, **self.decode_action(action)}
         obs, reward, done, info = self._env.step(decoded)
+        return self._np.asarray(obs, dtype=self._np.float32), float(reward), bool(done), False, info
+
+    def step_raw(self, param_dict: dict[str, Any]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        """Execute one step with a pre-decoded parameter dictionary."""
+        obs, reward, done, info = self._env.step(param_dict)
         return self._np.asarray(obs, dtype=self._np.float32), float(reward), bool(done), False, info
 
     def decode_action(self, action: dict[str, int]) -> dict[str, Any]:
