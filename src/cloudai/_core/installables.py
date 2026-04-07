@@ -54,24 +54,24 @@ class DockerImage(Installable):
     @property
     def cache_filename(self) -> str:
         """Return the cache filename for the docker image."""
-        reference = self.url.split("://", maxsplit=1)[-1]
-        tag = "notag"
-
-        if reference.startswith(("/", ".")):
-            image_name = Path(reference).name
-            if ":" in reference:
-                image_name, tag = image_name.rsplit(":", maxsplit=1)
+        tag, wo_prefix = "notag", self.url
+        is_local = wo_prefix.startswith("/") or wo_prefix.startswith(".")
+        if "://" in wo_prefix:
+            wo_prefix = self.url.split("://", maxsplit=1)[1]
+        if ":" in wo_prefix:
+            tag = wo_prefix.rsplit(":", maxsplit=1)[1]
+        wo_tag = wo_prefix.rsplit(":", maxsplit=1)[0]
+        if is_local:
+            img_name = wo_tag.rsplit("/", maxsplit=1)[1]
         else:
-            # Remote image url
-            parts = reference.replace("#", "/").split("/")
+            parts = wo_tag.split("/")
+            img_name = "_".join(parts[:-1]) + "__" + parts[-1]
 
-            last_part = parts[-1]
-            if ":" in last_part:
-                parts[-1], tag = last_part.rsplit(":", maxsplit=1)
+        # Replace # with _ in img_name to avoid filesystem issues
+        img_name = img_name.replace("#", "_")
 
-            image_name = "_".join(parts[:-1]) + "__" + parts[-1]
-
-        return f"{image_name.replace('#', '_').replace(':', '_')}__{tag}.sqsh"
+        path = f"{img_name}__{tag}.sqsh"
+        return path.replace("/", "_").replace("#", "_").strip("_")
 
     @property
     def installed_path(self) -> Union[str, Path]:

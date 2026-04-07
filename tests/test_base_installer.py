@@ -150,9 +150,10 @@ class TestBaseInstaller:
         ("/local/disk/file:tag", "file__tag.sqsh"),
         ("./local/disk/file:tag", "file__tag.sqsh"),
         ("gitlab.com#org/team/image:latest", "gitlab.com_org_team__image__latest.sqsh"),
-        ("registry.example.com:5000#group/project", "registry.example.com_5000_group__project__notag.sqsh"),
-        ("registry.example.com:5000#group/project:latest", "registry.example.com_5000_group__project__latest.sqsh"),
-        ("gitlab-master.nvidia.com:5005#abc/def/g-h.i", "gitlab-master.nvidia.com_5005_abc_def__g-h.i__notag.sqsh"),
+        ("registry.example.com:5000#group/project", "registry.example.com__5000_group_project.sqsh"),
+        ("registry.example.com:5000#group/project:latest", "registry.example.com:5000_group__project__latest.sqsh"),
+        ("gitlab-master.nvidia.com:5005#abc/def/g-h.i", "gitlab-master.nvidia.com__5005_abc_def_g-h.i.sqsh"),
+        ("nvcr.io/nvidia#nemo:24.07", "nvcr.io__nvidia_nemo__24.07.sqsh"),
     ],
 )
 def test_docker_cache_filename(url: str, expected: str):
