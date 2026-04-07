@@ -53,31 +53,14 @@ class DockerImage(Installable):
 
     @property
     def cache_filename(self) -> str:
-        """
-        Return the cache filename for the docker image.
-
-        Examples::
-
-            DockerImage("nvcr.io#nvidia/pytorch:24.02-py3").cache_filename
-            # "nvcr.io_nvidia__pytorch__24.02-py3.sqsh"
-
-            DockerImage("registry.example.com:5000#group/project").cache_filename
-            # "registry.example.com_5000_group__project__notag.sqsh"
-
-            DockerImage("/local/cache/image.sqsh").cache_filename
-            # "image.sqsh__notag.sqsh"
-        """
+        """Return the cache filename for the docker image."""
         reference = self.url.split("://", maxsplit=1)[-1]
         tag = "notag"
 
-        if reference.startswith("/") or reference.startswith("."):
-            # Local image file
-            image_ref = reference
+        if reference.startswith(("/", ".")):
+            image_name = Path(reference).name
             if ":" in reference:
-                image_ref, tag = reference.rsplit(":", maxsplit=1)
-
-            # /local/disk/file.sqsh -> file
-            image_name = image_ref.rsplit("/", maxsplit=1)[-1]
+                image_name, tag = image_name.rsplit(":", maxsplit=1)
         else:
             # Remote image url
             parts = reference.replace("#", "/").split("/")
