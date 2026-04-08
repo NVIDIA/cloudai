@@ -70,7 +70,8 @@ class DockerImage(Installable):
         # Replace # with _ in img_name to avoid filesystem issues
         img_name = img_name.replace("#", "_")
 
-        return f"{img_name}__{tag}.sqsh"
+        path = f"{img_name}__{tag}.sqsh"
+        return path.replace("/", "_").replace("#", "_").strip("_")
 
     @property
     def installed_path(self) -> Union[str, Path]:
