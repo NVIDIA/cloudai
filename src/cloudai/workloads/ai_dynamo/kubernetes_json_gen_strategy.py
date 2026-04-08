@@ -29,10 +29,10 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
     DEPLOYMENT_FILE_NAME = "deployment.yaml"
 
-    def gen_frontend_dict(self) -> dict[str, Any]:
+    def gen_frontend_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
-        return {
+        cfg: dict[str, Any] = {
             "dynamoNamespace": system.default_namespace,
             "componentType": "frontend",
             "replicas": 1,
@@ -42,11 +42,14 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 }
             },
         }
+        if cni_networks is None:
+            cfg["extraPodSpec"]["hostNetwork"] = True
+        return cfg
 
-    def gen_decode_dict(self) -> dict[str, Any]:
+    def gen_decode_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
 
-        decode_cfg = self._get_base_service_dict()
+        decode_cfg = self._get_base_service_dict(cni_networks)
         decode_cfg["extraPodSpec"]["mainContainer"]["command"] = tdef.cmd_args.dynamo.decode_worker.cmd.split()
 
         args = ["--model", tdef.cmd_args.dynamo.model]
@@ -61,12 +64,12 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         return decode_cfg
 
-    def gen_prefill_dict(self) -> dict[str, Any]:
+    def gen_prefill_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
         if not tdef.cmd_args.dynamo.prefill_worker:
             raise ValueError("Prefill worker configuration is not defined in the test definition.")
 
-        prefill_cfg = self._get_base_service_dict()
+        prefill_cfg = self._get_base_service_dict(cni_networks)
         prefill_cfg["subComponentType"] = "prefill"
         prefill_cfg["extraPodSpec"]["mainContainer"]["command"] = tdef.cmd_args.dynamo.prefill_worker.cmd.split()
 
@@ -84,6 +87,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
         k8s_system = cast(KubernetesSystem, self.system)
+        cni_networks = k8s_system.resolve_cni_networks()
 
         deployment = {
             "apiVersion": "nvidia.com/v1alpha1",
@@ -91,23 +95,23 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             "metadata": {"name": k8s_system.default_namespace},
             "spec": {
                 "services": {
-                    "frontend": self.gen_frontend_dict(),
-                    "decode": self.gen_decode_dict(),
+                    "frontend": self.gen_frontend_dict(cni_networks),
+                    "decode": self.gen_decode_dict(cni_networks),
                 },
             },
         }
         if td.cmd_args.dynamo.prefill_worker:
-            deployment["spec"]["services"]["prefill"] = self.gen_prefill_dict()
+            deployment["spec"]["services"]["prefill"] = self.gen_prefill_dict(cni_networks)
 
         with (self.test_run.output_path / self.DEPLOYMENT_FILE_NAME).open("w") as f:
             yaml.safe_dump(deployment, f)
 
         return deployment
 
-    def _get_base_service_dict(self) -> dict[str, Any]:
+    def _get_base_service_dict(self, cni_networks: list[str] | None) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
-        return {
+        cfg: dict[str, Any] = {
             "dynamoNamespace": system.default_namespace,
             "componentType": "worker",
             "replicas": 1,
@@ -119,6 +123,14 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 }
             },
         }
+        if cni_networks is not None:
+            nic_resources = {f"nvidia.com/{net.split('/', 1)[1]}": "1" for net in cni_networks}
+            cfg["extraPodMetadata"] = {"annotations": {"k8s.v1.cni.cncf.io/networks": ",".join(cni_networks)}}
+            cfg["resources"]["requests"] = {"custom": nic_resources}
+            cfg["resources"]["limits"]["custom"] = nic_resources
+        else:
+            cfg["extraPodSpec"]["hostNetwork"] = True
+        return cfg
 
     def _to_dynamo_arg(self, arg_name: str) -> str:
         return "--" + arg_name.replace("_", "-")

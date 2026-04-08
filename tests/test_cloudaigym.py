@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
+from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
 from cloudai.core import BaseRunner, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
@@ -298,3 +298,51 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
     upd_tdef = cast(NIXLBenchTestDefinition, new_tr.test)
 
     assert upd_tdef.docker_image.installed_path == tmp_path
+
+
+@pytest.mark.parametrize(
+    ("trajectory", "current_iteration", "action", "expected_step"),
+    [
+        ({}, 0, {"x": 1}, None),
+        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 0, {"x": 1}, 1),
+        ({0: [TrajectoryEntry(1, {"x": 1.0}, 1, [1])]}, 0, {"x": 1}, None),
+        (
+            {
+                0: [
+                    TrajectoryEntry(1, {"x": 1.0}, 1, [1]),
+                    TrajectoryEntry(2, {"x": 1}, 1, [1]),
+                ]
+            },
+            0,
+            {"x": 1},
+            2,
+        ),
+        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 1, {"x": 1}, None),
+        ({1: [TrajectoryEntry(3, {"x": 1}, 1, [1])]}, 1, {"x": 1}, 3),
+    ],
+)
+def test_get_cached_trajectory_result(
+    base_tr: TestRun,
+    tmp_path: Path,
+    trajectory: dict[int, list[TrajectoryEntry]],
+    current_iteration: int,
+    action: dict[str, object],
+    expected_step: int | None,
+) -> None:
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+    runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner)
+    env.test_run.current_iteration = current_iteration
+    env.trajectory = trajectory
+
+    actual = env.get_cached_trajectory_result(action)
+    if actual is None:
+        assert expected_step is None
+    else:
+        assert actual.step == expected_step

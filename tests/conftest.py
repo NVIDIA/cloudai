@@ -67,6 +67,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
     )
     system.scheduler = "slurm"
     system.monitor_interval = 0
+    system.supports_gpu_directives_cache = True
     return system
 
 
@@ -91,6 +92,7 @@ def k8s_system(tmp_path: Path) -> KubernetesSystem:
         global_env_vars={},
         monitor_interval=1,
         gpus_per_node=8,
+        use_host_network=True,
         default_namespace="test-namespace",
         kube_config_path=kube_config,
     )

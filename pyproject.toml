@@ -145,8 +145,8 @@ root_package = "cloudai"
   [[tool.importlinter.contracts]]
   name = "Report generator is leaf dependency"
   type = "forbidden"
-  forbidden_modules = ["cloudai.systems", "cloudai.workloads", "cloudai.cli"]
-  allow_indirect_imports = true                                               # allow "from cloudai.core import ..."
+  forbidden_modules = ["cloudai.workloads", "cloudai.cli"]
+  allow_indirect_imports = true                            # allow "from cloudai.core import ..."
   source_modules = ["cloudai.report_generator"]
 
   [[tool.importlinter.contracts]]

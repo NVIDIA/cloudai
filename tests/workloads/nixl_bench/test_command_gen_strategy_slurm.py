@@ -105,6 +105,32 @@ class TestNIXLBenchCommand:
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).is_file()
             assert (nixl_bench_tr.output_path / "device_list_mounts" / local_device_filename).stat().st_size == 1024
 
+    def test_cleanup_job_artifacts(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+        nixl_bench_tr.test.cmd_args = NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "docker.io/library/ubuntu:22.04",
+                "path_to_benchmark": "/nixlbench",
+                "backend": "GUSLI",
+                "device_list": "11:K:/dev/nvme0n1,12:F:/p1/store0.bin,13:F:/p2/store0.bin",
+                "filepath": "/data",
+            }
+        )
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+        filepath_dir = nixl_bench_tr.output_path / "filepath_mount"
+        device_list_dir = nixl_bench_tr.output_path / "device_list_mounts"
+        other_file = nixl_bench_tr.output_path / "keep.txt"
+        filepath_dir.mkdir(parents=True, exist_ok=True)
+        device_list_dir.mkdir(parents=True, exist_ok=True)
+        (filepath_dir / "a.txt").write_text("x")
+        (device_list_dir / "b.txt").write_text("x")
+        other_file.write_text("keep")
+
+        strategy.cleanup_job_artifacts()
+
+        assert not filepath_dir.exists()
+        assert not device_list_dir.exists()
+        assert other_file.exists()
+
     @pytest.mark.parametrize(
         ("override", "expected_error_match", "expected_total_buffer_size"),
         (

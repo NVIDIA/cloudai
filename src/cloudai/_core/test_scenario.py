@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,6 +62,7 @@ class TestRun:
     test: TestDefinition
     num_nodes: Union[int, list[int]]
     nodes: List[str]
+    exclude_nodes: List[str] = field(default_factory=list)
     output_path: Path = Path("")
     iterations: int = 1
     current_iteration: int = 0

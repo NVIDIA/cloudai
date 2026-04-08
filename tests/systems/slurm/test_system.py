@@ -16,7 +16,6 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
@@ -140,19 +139,34 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
             SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.COMPLETING)
         ],
         SlurmNodeState.ALLOCATED: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.ALLOCATED)],
+        SlurmNodeState.RESERVED: [SlurmNode(name="node06", partition=partition_name, state=SlurmNodeState.RESERVED)],
     }
 
     return grouped_nodes
 
 
-def test_get_available_nodes_exceeding_limit_no_callstack(
-    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], caplog
-):
+def test_get_available_nodes_exceeding_limit_no_callstack(slurm_system: SlurmSystem, caplog):
     group_name = "group1"
     partition_name = "main"
     num_nodes = 5
+    empty_grouped_nodes = {
+        SlurmNodeState.IDLE: [],
+        SlurmNodeState.COMPLETING: [],
+        SlurmNodeState.ALLOCATED: [],
+    }
 
-    slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+    mod_path = "cloudai.systems.slurm.slurm_system.SlurmSystem"
+    with (
+        patch(f"{mod_path}.update", return_value=None) as mock_update,
+        patch(f"{mod_path}.group_nodes_by_state", return_value=empty_grouped_nodes) as mock_group_nodes_by_state,
+    ):
+        slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+
+    mock_update.assert_called_once()
+    mock_group_nodes_by_state.assert_called_once()
+    args, kwargs = mock_group_nodes_by_state.call_args
+    assert args == (partition_name, group_name)
+    assert kwargs in ({}, {"exclude_nodes": None})
 
     log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
     assert log_message in caplog.text
@@ -166,6 +180,7 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
         grouped_nodes[SlurmNodeState.IDLE][0].name,
         grouped_nodes[SlurmNodeState.IDLE][1].name,
         grouped_nodes[SlurmNodeState.COMPLETING][0].name,
+        grouped_nodes[SlurmNodeState.RESERVED][0].name,
     ]
     returned_node_names = [node.name for node in available_nodes]
 
@@ -193,8 +208,8 @@ def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
     group_name = "group_name"
-    num_nodes = 5
-    available_nodes = 4
+    num_nodes = 6
+    available_nodes = 5
 
     with pytest.raises(
         ValueError,
@@ -363,9 +378,31 @@ class TestGetNodesBySpec:
 
         num_nodes, node_list = slurm_system.get_nodes_by_spec(in_nnodes, in_nodes)
 
-        mock_parse_nodes.assert_called_once_with(in_nodes)
+        mock_parse_nodes.assert_called_once_with(in_nodes, exclude_nodes=None)
         assert num_nodes == exp_nnodes
         assert node_list == exp_nodes
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.parse_nodes")
+    def test_raises_when_all_nodes_excluded(self, mock_parse_nodes: Mock, slurm_system: SlurmSystem):
+        mock_parse_nodes.return_value = []
+        exclude = ["node01", "node02"]
+
+        with pytest.raises(ValueError, match="after excluding nodes"):
+            slurm_system.get_nodes_by_spec(2, ["node0[1-2]"], exclude_nodes=exclude)
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.parse_nodes")
+    def test_raises_when_parse_nodes_returns_empty_for_nonempty_specs(
+        self, mock_parse_nodes: Mock, slurm_system: SlurmSystem
+    ):
+        mock_parse_nodes.return_value = []
+
+        with pytest.raises(ValueError, match="no nodes are available"):
+            slurm_system.get_nodes_by_spec(1, ["main:group1:3"])
+
+    def test_empty_nodes_with_exclude_still_returns_unconstrained(self, slurm_system: SlurmSystem):
+        num_nodes, node_list = slurm_system.get_nodes_by_spec(3, [], exclude_nodes=["node01"])
+        assert num_nodes == 3
+        assert node_list == []
 
 
 class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
@@ -513,8 +550,25 @@ GresTypes               = cpu,gpu,fpga""",
 def test_supports_gpu_directives(
     mock_fetch_command_output, scontrol_output: str, expected_support: bool, slurm_system: SlurmSystem
 ):
+    slurm_system.supports_gpu_directives_cache = None
     mock_fetch_command_output.return_value = (scontrol_output, "")
     assert slurm_system.supports_gpu_directives == expected_support
+
+
+@patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
+def test_supports_gpu_directives_defaults_to_true_on_probe_error(
+    mock_fetch_command_output, slurm_system: SlurmSystem, caplog: pytest.LogCaptureFixture
+):
+    slurm_system.supports_gpu_directives_cache = None
+    stderr = "scontrol failed"
+    mock_fetch_command_output.return_value = ("", stderr)
+
+    with caplog.at_level("WARNING"):
+        assert slurm_system.supports_gpu_directives is True
+
+    assert slurm_system.supports_gpu_directives_cache is True
+    assert f"Error checking GPU support: {stderr}" in caplog.text
+    mock_fetch_command_output.assert_called_once_with("scontrol show config")
 
 
 @pytest.mark.parametrize(

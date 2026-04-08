@@ -52,15 +52,39 @@ def sglang_disagg_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
     return TestRun(test=sglang, num_nodes=1, nodes=[], output_path=tmp_path, name="sglang-disagg-job")
 
 
+@pytest.fixture
+def sglang_disagg_2node_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
+    sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+    sglang.cmd_args.prefill = SglangArgs()
+    return TestRun(test=sglang, num_nodes=2, nodes=[], output_path=tmp_path, name="sglang-disagg-2node-job")
+
+
 def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
     assert sglang_cmd_gen_strategy._container_mounts() == [
         f"{sglang_cmd_gen_strategy.system.hf_home_path.absolute()}:/root/.cache/huggingface"
     ]
 
 
+class TestGpuDetection:
+    @pytest.mark.parametrize("cuda_visible_devices", ["0", "0,1,2,3", "0,1,2,3,4,5,6,7"])
+    def test_gpu_ids_from_cuda_visible_devices(
+        self, cuda_visible_devices: str, sglang_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        sglang_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": cuda_visible_devices}
+        strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
+        assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
+
+    def test_multinode_disagg_uses_shared_gpu_ids_per_role(
+        self, sglang_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_2node_tr)
+        assert strategy.prefill_gpu_ids == [0, 1, 2, 3]
+        assert strategy.decode_gpu_ids == [0, 1, 2, 3]
+
+
 def test_get_sglang_serve_commands_aggregated(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
     cmd_args = sglang_cmd_gen_strategy.test_run.test.cmd_args
-    commands = sglang_cmd_gen_strategy.get_sglang_serve_commands()
+    commands = sglang_cmd_gen_strategy.get_serve_commands()
 
     assert len(commands) == 1
     assert commands[0] == [
@@ -79,7 +103,7 @@ def test_get_sglang_serve_commands_aggregated(sglang_cmd_gen_strategy: SglangSlu
 def test_get_sglang_serve_commands_disagg(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
-    commands = strategy.get_sglang_serve_commands()
+    commands = strategy.get_serve_commands()
 
     assert len(commands) == 2
     prefill_cmd, decode_cmd = commands
@@ -97,7 +121,7 @@ def test_get_sglang_bench_command_adds_pd_separated_in_disagg(
 ) -> None:
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
-    command = strategy.get_sglang_bench_command()
+    command = strategy.get_bench_command()
 
     assert "--pd-separated" in command
 
@@ -105,7 +129,7 @@ def test_get_sglang_bench_command_adds_pd_separated_in_disagg(
 def test_get_sglang_bench_command_writes_jsonl(
     sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
 ) -> None:
-    command = sglang_cmd_gen_strategy.get_sglang_bench_command()
+    command = sglang_cmd_gen_strategy.get_bench_command()
     output_file_args = [part for part in command if part.startswith("--output-file ")]
     assert len(output_file_args) == 1
     assert output_file_args[0].endswith(f"/{SGLANG_BENCH_JSONL_FILE}")
@@ -118,9 +142,44 @@ def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slur
 
     assert "Starting SGLang instances" in srun_command
     assert "Starting router" in srun_command
+    assert "PREFILL_NODE=${NODES[0]}" in srun_command
+    assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
     assert 'env CUDA_VISIBLE_DEVICES="0,1"' in srun_command
     assert 'env CUDA_VISIBLE_DEVICES="2,3"' in srun_command
+    assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
+    assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
+    assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
+    assert "--decode http://${DECODE_NODE}:8200" in srun_command
+    assert "--base-url http://127.0.0.1:8000" in srun_command
     assert f"--output={strategy.test_run.output_path.absolute()}/{SGLANG_BENCH_LOG_FILE}" in srun_command
+
+
+def test_gen_srun_command_contains_expected_two_node_flow(
+    sglang_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_2node_tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert "PREFILL_NODE=${NODES[0]}" in srun_command
+    assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
+    assert srun_command.count("--relative=0 -N1") == 3
+    assert srun_command.count("--relative=1 -N1") == 1
+    assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3"' in srun_command
+    assert srun_command.count("--host 0.0.0.0") >= 2
+    assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
+    assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
+    assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
+    assert "--decode http://${DECODE_NODE}:8200" in srun_command
+    assert "--base-url http://127.0.0.1:8000" in srun_command
+
+
+def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    sglang_disagg_tr.num_nodes = 3
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
+
+    with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
+        _ = strategy._gen_srun_command()
 
 
 def test_gen_srun_command_contains_cuda_visible_devices_for_aggregated(

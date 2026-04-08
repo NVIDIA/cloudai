@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,6 +48,10 @@ class CommandGenStrategy(ABC):
         Only at command generation time, CloudAI has all the information to store the test run.
         """
         pass
+
+    def cleanup_job_artifacts(self) -> None:
+        """Best-effort cleanup hook run after the job has fully completed."""
+        return
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:

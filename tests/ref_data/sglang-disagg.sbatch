@@ -15,10 +15,10 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID ROUTER_PID=$ROUTER_PID"
+    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
     [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
     [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$ROUTER_PID" ] && kill -9 $ROUTER_PID 2>/dev/null
+    [ -n "$HELPER_PID" ] && kill -9 $HELPER_PID 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -40,6 +40,15 @@ wait_for_health() {
     return 1
 }
 
+NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
+PREFILL_NODE=${NODES[0]}
+DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}
+if [ -z "$PREFILL_NODE" ]; then
+    echo "Failed to resolve allocated nodes for disaggregated SGLang"
+    exit 1
+fi
+echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
+
 echo "Starting SGLang instances..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-prefill.log \
@@ -51,18 +60,17 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
     env CUDA_VISIBLE_DEVICES="2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8200 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
 DECODE_PID=$!
 
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${NODE}:8100/health" || exit 1
-wait_for_health "http://${NODE}:8200/health" || exit 1
+echo "Waiting for SGLang on $PREFILL_NODE and $DECODE_NODE to be ready..."
+wait_for_health "http://${PREFILL_NODE}:8100/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8200/health" || exit 1
 
 echo "Starting router..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-router.log \
-    python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://0.0.0.0:8100 --decode http://0.0.0.0:8200 --host 0.0.0.0 --port 8000 &
-ROUTER_PID=$!
+    python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8100 --decode http://${DECODE_NODE}:8200 --host 0.0.0.0 --port 8000 &
+HELPER_PID=$!
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
-    python3 -m sglang.bench_serving --backend sglang --base-url http://0.0.0.0:8000 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated
+    python3 -m sglang.bench_serving --backend sglang --base-url http://127.0.0.1:8000 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated

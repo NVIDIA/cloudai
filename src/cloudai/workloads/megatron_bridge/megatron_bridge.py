@@ -16,14 +16,13 @@
 
 import logging
 import os
+import re
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
-
-GOLDEN_VALUES_FILENAME = "cloudai_megatron_bridge_golden_values.json"
 
 
 class MegatronBridgeCmdArgs(CmdArgs):
@@ -32,10 +31,8 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Slurm/launcher-level
     gpu_type: str = Field(default="gb200")
     log_dir: str = Field(default="")
-    time_limit: str = Field(default="00:05:00")
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
-    gpus_per_node: int = Field(default=8)
     enable_vboost: bool | None = Field(default=False)
     dryrun: bool | None = Field(default=False)
     enable_nsys: bool | None = Field(default=False)
@@ -115,7 +112,10 @@ class MegatronBridgeCmdArgs(CmdArgs):
     profiling_stop_step: Optional[int] = Field(default=None)
     record_memory_history: Optional[bool] = Field(default=None)
     profiling_gpu_metrics: Optional[bool] = Field(default=None)
-    profiling_ranks: Optional[Union[int, List[int]]] = Field(default=None)
+    profiling_ranks: Optional[Union[int, str, List[int]]] = Field(
+        default=None,
+        description="Rank ID, comma-separated rank IDs as a string (e.g. '0,4,8'), or list of rank IDs.",
+    )
     nsys_trace: Optional[Union[str, List[str]]] = Field(
         default=None,
         description="Comma-separated nsys trace events (e.g. cuda,nvtx).",
@@ -184,10 +184,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     @staticmethod
     def _select_megatron_bridge_repo(git_repos: list[GitRepo]) -> GitRepo | None:
-        """Return the Megatron-Bridge repo from `git_repos` (normalized to mount_as=/opt/Megatron-Bridge)."""
+        """
+        Return the Megatron-Bridge repo from `git_repos`.
+
+        When the user sets ``mount_as`` (e.g. ``/opt/Megatron-Bridge``), the installed clone will be bind-mounted
+        into the container at that path, overriding whatever the container image ships. When ``mount_as`` is *not*
+        set the container's built-in ``/opt/Megatron-Bridge`` is used.
+        """
         for repo in git_repos:
             if "Megatron-Bridge" in repo.url or (repo.mount_as or "").rstrip("/") == "/opt/Megatron-Bridge":
-                return repo if repo.mount_as else repo.model_copy(update={"mount_as": "/opt/Megatron-Bridge"})
+                return repo
         return None
 
     @field_validator("git_repos", mode="after")
@@ -564,9 +570,32 @@ class MegatronBridgeTestDefinition(TestDefinition):
                 error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
             )
 
-        content = log_path.read_text(encoding="utf-8", errors="ignore")
+        log_data = log_path.read_text(encoding="utf-8", errors="ignore")
+        step_times_s, _ = extract_mbridge_metrics(log_data)
+        if not step_times_s:
+            return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
-        if "Convergence check failed due to missing golden values." in content:
-            return JobStatusResult(is_successful=True)
+        return JobStatusResult(is_successful=True)
 
-        return JobStatusResult(is_successful=False, error_message="\n".join(content.splitlines()[-40:]))
+
+def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
+    step_times_s: list[float] = []
+    gpu_tflops: list[float] = []
+    step_line_re = re.compile(
+        r"Step Time\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*s.*?"
+        r"GPU utilization:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:MODEL_)?TFLOP/s/GPU",
+        re.IGNORECASE,
+    )
+    for line in logs.splitlines():
+        m = step_line_re.search(line)
+        if m:
+            try:
+                step_times_s.append(float(m.group(1)))
+                gpu_tflops.append(float(m.group(2)))
+            except (ValueError, TypeError):
+                logging.debug("Failed to parse step metrics line: %s", line.rstrip("\n"))
+
+    if len(step_times_s) > 10:
+        step_times_s = step_times_s[-10:]
+        gpu_tflops = gpu_tflops[-10:]
+    return step_times_s, gpu_tflops
