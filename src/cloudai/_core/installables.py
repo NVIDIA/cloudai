@@ -70,13 +70,17 @@ class DockerImage(Installable):
         # Replace # with _ in img_name to avoid filesystem issues
         img_name = img_name.replace("#", "_")
 
-        return f"{img_name}__{tag}.sqsh"
+        path = f"{img_name}__{tag}.sqsh"
+        return path.replace("/", "_").replace("#", "_").strip("_")
 
     @property
     def installed_path(self) -> Union[str, Path]:
         """Return the cached path or URL of the docker image."""
         if self._installed_path:
             return self._installed_path.absolute() if isinstance(self._installed_path, Path) else self._installed_path
+        local_image_path = Path(self.url)
+        if local_image_path.is_absolute() or self.url.startswith("."):
+            return local_image_path.absolute()
         return self.url
 
     @installed_path.setter

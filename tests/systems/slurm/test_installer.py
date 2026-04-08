@@ -368,3 +368,17 @@ def test_mark_as_installed_local_container(slurm_system: SlurmSystem):
     installer.mark_as_installed_one(docker_image)
 
     assert docker_image.installed_path == local_image.absolute()
+
+
+def test_mark_as_installed_duplicate_local_containers_preserve_local_path(slurm_system: SlurmSystem):
+    installer = SlurmInstaller(slurm_system)
+
+    local_image = Path("/tmp/local_image.sqsh")
+    first = DockerImage(url=str(local_image))
+    second = DockerImage(url=str(local_image))
+
+    result = installer.mark_as_installed([first, second])
+
+    assert result.success
+    assert first.installed_path == local_image
+    assert second.installed_path == local_image
