@@ -15,14 +15,15 @@
 # limitations under the License.
 
 import argparse
-from typing import Any, ClassVar, Iterator
+import logging
+from typing import Any, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
-from cloudai.cli.handlers import handle_dse_job
+from cloudai.cli.handlers import _run_custom_training_loop, handle_dse_job
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
@@ -58,7 +59,7 @@ class StubAgent(BaseAgent):
     def configure(self, config: dict[str, Any]) -> None:
         raise NotImplementedError
 
-    def select_action(self) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: Optional[list] = None) -> tuple[int, dict[str, Any]]:
         raise NotImplementedError
 
     def update_policy(self, _feedback: dict[str, Any]) -> None:
@@ -207,3 +208,95 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
 
     assert [tr.step for tr in reporter.trs] == [1, 3]
+
+
+class CustomLoopStubAgentConfig(BaseAgentConfig):
+    pass
+
+
+class CustomLoopStubAgent(BaseAgent):
+    HAS_CUSTOM_TRAINING_LOOP: ClassVar[bool] = True
+    train_called: ClassVar[bool] = False
+    shutdown_called: ClassVar[bool] = False
+
+    def __init__(self, env, config: CustomLoopStubAgentConfig):
+        self.env = env
+        self.config = config
+        self.max_steps = 0
+        CustomLoopStubAgent.train_called = False
+        CustomLoopStubAgent.shutdown_called = False
+
+    @staticmethod
+    def get_config_class() -> type[CustomLoopStubAgentConfig]:
+        return CustomLoopStubAgentConfig
+
+    def configure(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
+
+    def select_action(self, observation: Optional[list] = None) -> tuple[int, dict[str, Any]]:
+        raise NotImplementedError
+
+    def update_policy(self, _feedback: dict[str, Any]) -> None:
+        return
+
+    def train(self) -> None:
+        CustomLoopStubAgent.train_called = True
+
+    def shutdown(self) -> None:
+        CustomLoopStubAgent.shutdown_called = True
+
+
+@pytest.fixture
+def custom_loop_agent_name() -> Iterator[str]:
+    registry = Registry()
+    agent_name = "test_handlers_custom_loop_agent"
+    old_agent = registry.agents_map.get(agent_name)
+    registry.update_agent(agent_name, CustomLoopStubAgent)
+    CustomLoopStubAgent.train_called = False
+    CustomLoopStubAgent.shutdown_called = False
+    yield agent_name
+    CustomLoopStubAgent.train_called = False
+    CustomLoopStubAgent.shutdown_called = False
+    if old_agent is None:
+        del registry.agents_map[agent_name]
+    else:
+        registry.update_agent(agent_name, old_agent)
+
+
+def test_custom_training_loop_success() -> None:
+    agent = MagicMock()
+    agent.train = MagicMock()
+    agent.shutdown = MagicMock()
+
+    result = _run_custom_training_loop(agent, "mock_agent")
+
+    assert result == 0
+    agent.train.assert_called_once()
+    agent.shutdown.assert_called_once()
+
+
+def test_custom_training_loop_failure(caplog: pytest.LogCaptureFixture) -> None:
+    agent = MagicMock()
+    agent.train = MagicMock(side_effect=RuntimeError("boom"))
+    agent.shutdown = MagicMock()
+
+    with caplog.at_level(logging.ERROR):
+        result = _run_custom_training_loop(agent, "mock_agent")
+
+    assert result == 1
+    agent.shutdown.assert_called_once()
+    assert "boom" in caplog.text
+
+
+def test_dse_delegates_to_custom_loop(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_loop_agent_name: str,
+) -> None:
+    dse_tr.test.agent = custom_loop_agent_name
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert CustomLoopStubAgent.train_called is True
+    assert CustomLoopStubAgent.shutdown_called is True
