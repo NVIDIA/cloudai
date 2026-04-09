@@ -180,7 +180,7 @@ def test_constraint_failure(nemorun: NeMoRunTestDefinition, step_kwargs: dict, e
     runner.system = MagicMock()
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
 
-    bad = {"trainer.strategy.context_parallel_size": 3} # induce constraint failure
+    bad = {"trainer.strategy.context_parallel_size": 3}  # induce constraint failure
     obs, reward, done, info = env.step(bad, **step_kwargs)
 
     assert obs == [-1.0]
