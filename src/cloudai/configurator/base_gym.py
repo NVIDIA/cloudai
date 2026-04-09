@@ -67,7 +67,7 @@ class BaseGym(ABC):
         pass
 
     @abstractmethod
-    def step(self, action: Any, constraint_check_reward: float) -> Tuple[list, float, bool, dict]:
+    def step(self, action: Any, constraint_check_reward: float = -1.0) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
