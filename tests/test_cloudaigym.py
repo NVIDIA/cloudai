@@ -158,6 +158,37 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     assert env.test_run.output_path.name == "42"
 
 
+@pytest.mark.parametrize(
+    "step_kwargs, expected_reward",
+    [
+        pytest.param({}, -1.0, id="default_penalty"),
+        pytest.param({"constraint_check_reward": -2.5}, -2.5, id="custom_penalty"),
+    ],
+)
+def test_constraint_failure(nemorun: NeMoRunTestDefinition, step_kwargs: dict, expected_reward: float):
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    test_run = TestRun(
+        name="constraint_fail_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.system = MagicMock()
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+
+    bad = {"trainer.strategy.context_parallel_size": 3} # induce constraint failure
+    obs, reward, done, info = env.step(bad, **step_kwargs)
+
+    assert obs == [-1.0]
+    assert reward == expected_reward
+    assert done is True
+    assert info == {}
+
+
 def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(
