@@ -79,6 +79,29 @@ class TestMegatronRunSuccessCheck:
         result = self.megatron_tdef.was_run_successful(base_tr)
         assert result.is_successful
 
+    def test_timeout_slurm_job_with_zero_exit_and_iteration_metrics_succeeds(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        self._write_slurm_metadata(base_tr.output_path, state="TIMEOUT", exit_code="0:0")
+        (base_tr.output_path / "stdout.txt").write_text(
+            "[2026-01-16 07:32:39] iteration 6/100 | elapsed time per iteration (ms): 15639.0 | "
+            "throughput per GPU (TFLOP/s/GPU): 494.6 |\n"
+        )
+
+        result = self.megatron_tdef.was_run_successful(base_tr)
+        assert result.is_successful
+
+    def test_timeout_slurm_job_with_non_zero_exit_fails(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        self._write_slurm_metadata(base_tr.output_path, state="TIMEOUT", exit_code="15:0")
+        (base_tr.output_path / "stdout.txt").write_text(
+            "[2026-01-16 07:32:39] iteration 6/100 | elapsed time per iteration (ms): 15639.0 | "
+            "throughput per GPU (TFLOP/s/GPU): 494.6 |\n"
+        )
+
+        result = self.megatron_tdef.was_run_successful(base_tr)
+        assert not result.is_successful
+        assert "state=TIMEOUT" in result.error_message
+
     def test_completed_slurm_job_without_iteration_metrics_fails(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         self._write_slurm_metadata(base_tr.output_path, state="COMPLETED")
