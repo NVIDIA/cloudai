@@ -202,15 +202,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             srun_cmd.append(self.test_run.extra_srun_args)
         return srun_cmd
 
-    def _gen_external_benchmark_command(self, image_path: str, frontend_node: str) -> str:
+    def _gen_external_benchmark_command(self, image_path: str) -> str:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
         out_dir = str(self.test_run.output_path.absolute())
 
         srun_cmd = self._gen_client_srun_prefix(image_path)
         srun_cmd.extend(
             [
+                "--overlap",
                 "--nodes=1",
-                f"--nodelist={frontend_node}",
+                "--nodelist=$SLURM_JOB_MASTER_NODE",
                 "--ntasks=1",
                 "--ntasks-per-node=1",
                 f"--output={out_dir}/genai-perf-stdout.txt",
@@ -219,7 +220,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"{self.CONTAINER_MOUNT_INSTALL}/{td.cmd_args.genai_perf.script.src.name}",
                 f"--result-dir {self.CONTAINER_MOUNT_OUTPUT}",
                 f'--model "{td.cmd_args.dynamo.model}"',
-                f'--url "http://{frontend_node}"',
+                '--url "http://$SLURM_JOB_MASTER_NODE"',
                 f'--port "{td.cmd_args.dynamo.port}"',
                 f'--endpoint "{td.cmd_args.dynamo.endpoint}"',
                 f'--gpus-per-node "{self.system.gpus_per_node or 1}"',
@@ -245,26 +246,25 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return super().gen_exec_command()
 
         service_cmd = self._gen_service_srun_command()
-        benchmark_cmd = self._gen_external_benchmark_command(client_image_path, "$FRONTEND_NODE")
+        benchmark_cmd = self._gen_external_benchmark_command(client_image_path)
         success_marker = f"{self.test_run.output_path.absolute()}/{td.success_marker}"
 
         full_command = "\n".join(
             [
-                'FRONTEND_NODE=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)',
-                'if [ -z "$FRONTEND_NODE" ]; then',
-                '  echo "Failed to resolve frontend node from SLURM_JOB_NODELIST" >&2',
+                'if [ -z "$SLURM_JOB_MASTER_NODE" ]; then',
+                '  echo "SLURM_JOB_MASTER_NODE is not set" >&2',
                 "  exit 1",
                 "fi",
                 f"{service_cmd} &",
                 "SERVICE_PID=$!",
                 "BENCH_RC=0",
                 "for _ in $(seq 1 120); do",
-                f'  if curl -sf "http://$FRONTEND_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
+                f'  if curl -sf "http://$SLURM_JOB_MASTER_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',  # noqa: E501
                 "    break",
                 "  fi",
                 "  sleep 5",
                 "done",
-                f'if ! curl -sf "http://$FRONTEND_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
+                f'if ! curl -sf "http://$SLURM_JOB_MASTER_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',  # noqa: E501
                 "  BENCH_RC=1",
                 "else",
                 f"  {benchmark_cmd} || BENCH_RC=$?",
