@@ -148,3 +148,37 @@ def test_dynamo_cmd(
 ) -> None:
     result = strategy.gen_dynamo_cmd(module, Path(config))
     assert result.strip() == expected
+
+
+def test_gen_exec_command_with_external_genai_perf_client(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    dynamo_repo_path = tmp_path / "dynamo_repo"
+    dynamo_repo_path.mkdir()
+
+    cmd_args.genai_perf.client_docker_image_url = "nvcr.io/nvidia/tritonserver:25.03-py3-sdk"
+
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(
+            url="https://github.com/ai-dynamo/dynamo.git",
+            commit="f7e468c7e8ff0d1426db987564e60572167e8464",
+            installed_path=dynamo_repo_path,
+        ),
+    )
+
+    tr = TestRun(name="run", test=tdef, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    command = strategy.gen_exec_command()
+    script_path = Path(command.removeprefix("sbatch ").strip())
+    content = script_path.read_text()
+
+    assert "--wait-for-external-workload true" in content
+    assert "genai-perf-stdout.txt" in content
+    assert "genai-perf-stderr.txt" in content
+    assert "tritonserver:25.03-py3-sdk" in content
+    assert "/v1/models" in content
