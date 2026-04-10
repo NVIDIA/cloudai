@@ -32,7 +32,6 @@ ITERATION_LOG_REGEX = re.compile(
     r"throughput per GPU \(TFLOP/s/GPU\):\s*([0-9]+(?:\.[0-9]+)?)",
     re.IGNORECASE,
 )
-SUCCESSFUL_SLURM_STATES = ("COMPLETED", "TIMEOUT")
 
 
 class MegatronRunCmdArgs(CmdArgs):
@@ -146,11 +145,11 @@ class MegatronRunTestDefinition(TestDefinition):
         with slurm_job_path.open("r", encoding="utf-8") as file:
             metadata = SlurmJobMetadata.model_validate(toml.load(file))
 
-        if not metadata.state.startswith(SUCCESSFUL_SLURM_STATES) or not metadata.exit_code.startswith("0:"):
+        if not metadata.exit_code.startswith("0:"):
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
-                    f"Slurm job did not complete successfully for {tr.output_path}: "
+                    f"Slurm job exited with a non-zero exit code for {tr.output_path}: "
                     f"state={metadata.state}, exit_code={metadata.exit_code}."
                 ),
             )

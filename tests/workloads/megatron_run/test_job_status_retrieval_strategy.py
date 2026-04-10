@@ -56,7 +56,7 @@ class TestMegatronRunSuccessCheck:
         assert not result.is_successful
         assert "slurm-job.toml file not found" in result.error_message
 
-    def test_failed_slurm_state_fails_even_if_stdout_has_metrics(self, base_tr: TestRun) -> None:
+    def test_non_zero_exit_code_fails_even_if_stdout_has_metrics(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         self._write_slurm_metadata(base_tr.output_path, state="FAILED", exit_code="1:0")
         (base_tr.output_path / "stdout.txt").write_text(
@@ -66,7 +66,7 @@ class TestMegatronRunSuccessCheck:
 
         result = self.megatron_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert "state=FAILED" in result.error_message
+        assert "non-zero exit code" in result.error_message
 
     def test_completed_slurm_job_with_iteration_metrics_succeeds(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -100,7 +100,7 @@ class TestMegatronRunSuccessCheck:
 
         result = self.megatron_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert "state=TIMEOUT" in result.error_message
+        assert "non-zero exit code" in result.error_message
 
     def test_completed_slurm_job_without_iteration_metrics_fails(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
