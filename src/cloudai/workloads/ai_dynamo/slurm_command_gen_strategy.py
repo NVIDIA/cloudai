@@ -202,10 +202,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             srun_cmd.append(self.test_run.extra_srun_args)
         return srun_cmd
 
-    def _gen_external_benchmark_command(self, image_path: str) -> str:
+    def _gen_external_benchmark_command(self, image_path: str, frontend_node: str) -> str:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
-        _, node_list = self.get_cached_nodes_spec()
-        frontend_node = node_list[0]
         out_dir = str(self.test_run.output_path.absolute())
 
         srun_cmd = self._gen_client_srun_prefix(image_path)
@@ -246,24 +244,27 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not client_image_path:
             return super().gen_exec_command()
 
-        _, node_list = self.get_cached_nodes_spec()
-        frontend_node = node_list[0]
         service_cmd = self._gen_service_srun_command()
-        benchmark_cmd = self._gen_external_benchmark_command(client_image_path)
+        benchmark_cmd = self._gen_external_benchmark_command(client_image_path, "$FRONTEND_NODE")
         success_marker = f"{self.test_run.output_path.absolute()}/{td.success_marker}"
 
         full_command = "\n".join(
             [
+                'FRONTEND_NODE=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)',
+                'if [ -z "$FRONTEND_NODE" ]; then',
+                '  echo "Failed to resolve frontend node from SLURM_JOB_NODELIST" >&2',
+                "  exit 1",
+                "fi",
                 f"{service_cmd} &",
                 "SERVICE_PID=$!",
                 "BENCH_RC=0",
                 "for _ in $(seq 1 120); do",
-                f'  if curl -sf "http://{frontend_node}:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
+                f'  if curl -sf "http://$FRONTEND_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
                 "    break",
                 "  fi",
                 "  sleep 5",
                 "done",
-                f'if ! curl -sf "http://{frontend_node}:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
+                f'if ! curl -sf "http://$FRONTEND_NODE:{td.cmd_args.dynamo.port}/v1/models" >/dev/null 2>&1; then',
                 "  BENCH_RC=1",
                 "else",
                 f"  {benchmark_cmd} || BENCH_RC=$?",
