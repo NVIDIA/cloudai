@@ -41,6 +41,7 @@ class OnlineTrajectoryEntry:
     action: dict[str, Any]
     reward: float
     observation: list
+    info: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class CloudAIGymOnlineEnv(BaseGym):
@@ -108,6 +109,7 @@ class CloudAIGymOnlineEnv(BaseGym):
                 action=action,
                 reward=reward,
                 observation=observation,
+                info=info,
             )
         )
 
@@ -131,5 +133,5 @@ class CloudAIGymOnlineEnv(BaseGym):
         with open(self.trajectory_file_path, mode="a", newline="") as f:
             writer = csv.writer(f)
             if not file_exists:
-                writer.writerow(["step", "action", "reward", "observation"])
-            writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
+                writer.writerow(["step", "action", "reward", "observation", "info"])
+            writer.writerow([entry.step, entry.action, entry.reward, entry.observation, entry.info])
