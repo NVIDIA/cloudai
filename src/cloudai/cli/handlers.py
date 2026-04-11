@@ -157,7 +157,12 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             err = 1
             continue
 
-        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
+        env_mode = getattr(test_run.test.cmd_args, "live_rl_mode", False)
+        if env_mode:
+            env_factory = registry.get_env_factory("online")
+            env = env_factory(test_run=test_run, runner=runner.runner)
+        else:
+            env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent_config_data = test_run.test.agent_config or {}
         agent_config = agent_class.get_config_class()(**agent_config_data)
         if agent_config.start_action == "first":

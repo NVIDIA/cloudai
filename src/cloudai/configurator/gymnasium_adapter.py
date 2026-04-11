@@ -50,12 +50,22 @@ class GymnasiumAdapter:
 
         self._np = np
         self._env = env
+        self._continuous = False
 
         raw_action_space = env.define_action_space()
-        self._tunable_params: dict[str, list] = {k: v for k, v in raw_action_space.items() if len(v) > 1}
-        self._fixed_params: dict[str, Any] = {k: v[0] for k, v in raw_action_space.items() if len(v) == 1}
 
-        self.action_space = spaces.Dict({k: spaces.Discrete(len(v)) for k, v in self._tunable_params.items()})
+        if isinstance(raw_action_space, dict) and raw_action_space.get("type") == "continuous":
+            self._continuous = True
+            shape = int(raw_action_space["shape"])
+            low = float(raw_action_space.get("low", -1e6))
+            high = float(raw_action_space.get("high", 1e6))
+            self.action_space = spaces.Box(low=low, high=high, shape=(shape,), dtype=np.float32)
+            self._tunable_params: dict[str, list] = {}
+            self._fixed_params: dict[str, Any] = {}
+        else:
+            self._tunable_params = {k: v for k, v in raw_action_space.items() if len(v) > 1}
+            self._fixed_params = {k: v[0] for k, v in raw_action_space.items() if len(v) == 1}
+            self.action_space = spaces.Dict({k: spaces.Discrete(len(v)) for k, v in self._tunable_params.items()})
 
         obs = env.define_observation_space()
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(len(obs),), dtype=np.float32)
@@ -70,9 +80,12 @@ class GymnasiumAdapter:
         obs, info = self._env.reset(seed=seed, options=options)
         return self._np.asarray(obs, dtype=self._np.float32), info
 
-    def step(self, action: dict[str, int]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+    def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """Execute one step and return the gymnasium 5-tuple."""
-        decoded = {**self._fixed_params, **self.decode_action(action)}
+        if self._continuous:
+            decoded = self._np.asarray(action, dtype=self._np.float32).tolist()
+        else:
+            decoded = {**self._fixed_params, **self.decode_action(action)}
         obs, reward, done, info = self._env.step(decoded)
         return self._np.asarray(obs, dtype=self._np.float32), float(reward), bool(done), False, info
 

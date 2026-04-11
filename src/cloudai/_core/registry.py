@@ -57,6 +57,7 @@ class Registry(metaclass=Singleton):
     scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
     report_configs: ClassVar[dict[str, ReportConfig]] = {}
     reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
+    env_factories_map: ClassVar[dict[str, Callable]] = {}
     command_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[CommandGenStrategy]]] = {}
     json_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[JsonGenStrategy]]] = {}
     grading_strategies_map: ClassVar[dict[Tuple[Type[System], Type[TestDefinition]], Type[GradingStrategy]]] = {}
@@ -248,6 +249,19 @@ class Registry(metaclass=Singleton):
                 f"Reward function '{name}' not found. Available functions: {list(self.reward_functions_map.keys())}"
             )
         return self.reward_functions_map[name]
+
+    def add_env_factory(self, name: str, factory: Callable) -> None:
+        if name in self.env_factories_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_env_factory(name, factory)
+
+    def update_env_factory(self, name: str, factory: Callable) -> None:
+        self.env_factories_map[name] = factory
+
+    def get_env_factory(self, name: str) -> Callable:
+        if name not in self.env_factories_map:
+            raise KeyError(f"Env factory '{name}' not found. Available: {list(self.env_factories_map.keys())}")
+        return self.env_factories_map[name]
 
     def add_command_gen_strategy(
         self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
