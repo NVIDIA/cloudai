@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -68,9 +68,12 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: Optional[list] = None) -> tuple[int, dict[str, Any]]:
         """
         Select an action from the action space.
+
+        Args:
+            observation: Optional environment observation from the previous step.
 
         Returns:
             Tuple[int, Dict[str, Any]]: The current step index and a dictionary mapping action keys to selected values.

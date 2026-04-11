@@ -116,6 +116,20 @@ def prepare_installation(
     return installables, installer
 
 
+def _run_custom_training_loop(agent: object, agent_type: str) -> int:
+    """Delegate to an agent's own training loop (e.g. RLlib PPO)."""
+    logging.info(f"Agent {agent_type} uses a custom training loop, delegating to agent.train()")
+    try:
+        agent.train()  # type: ignore[union-attr]
+        return 0
+    except Exception as e:
+        logging.error(f"Agent training failed for {agent_type}: {e}", exc_info=True)
+        return 1
+    finally:
+        if hasattr(agent, "shutdown"):
+            agent.shutdown()  # type: ignore[union-attr]
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -151,15 +165,29 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
         agent = agent_class(env, agent_config)
 
+        if getattr(agent, "HAS_CUSTOM_TRAINING_LOOP", False):
+            err |= _run_custom_training_loop(agent, agent_type)
+            continue
+
+        observation, _ = env.reset()
+
         for step in range(agent.max_steps):
-            result = agent.select_action()
+            result = agent.select_action(observation=observation)
             if result is None:
                 break
             step, action = result
             env.test_run.step = step
             logging.info(f"Running step {step} (of {agent.max_steps}) with action {action}")
-            observation, reward, *_ = env.step(action)
-            feedback = {"trial_index": step, "value": reward}
+            prev_obs = observation
+            observation, reward, done, *_ = env.step(action)
+            feedback = {
+                "trial_index": step,
+                "value": reward,
+                "observation": observation,
+                "prev_observation": prev_obs,
+                "action": action,
+                "done": done,
+            }
             agent.update_policy(feedback)
             logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 

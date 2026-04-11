@@ -73,9 +73,10 @@ class CloudAIGymEnv(BaseGym):
         Define the observation space for the environment.
 
         Returns:
-            list: The observation space.
+            list: One float per agent metric, giving the correct shape.
         """
-        return [0.0]
+        n_metrics = max(len(self.test_run.test.agent_metrics), 1)
+        return [0.0] * n_metrics
 
     def reset(
         self,
@@ -97,7 +98,7 @@ class CloudAIGymEnv(BaseGym):
         if seed is not None:
             lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
-        observation = [0.0]
+        observation = self.define_observation_space()
         info = {}
         return observation, info
 
