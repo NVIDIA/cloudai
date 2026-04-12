@@ -146,6 +146,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     err = 0
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
+        test_run.output_path = runner.runner._setup_output_directory(test_run)
 
         agent_type = test_run.test.agent
         agent_class = registry.agents_map.get(agent_type)
