@@ -84,8 +84,12 @@ class CloudAIGymOnlineEnv(BaseGym):
         return self._server.get_observation_space()
 
     @property
-    def first_sweep(self) -> dict[str, Any]:
+    def first_sweep(self) -> Any:
         space = self.define_action_space()
+        if isinstance(space, dict) and space.get("type") == "continuous":
+            shape = int(space.get("shape", 1))
+            low = float(space.get("low", -1.0))
+            return [low] * shape
         return {k: v[0] if isinstance(v, list) else v for k, v in space.items()}
 
     def reset(
@@ -124,7 +128,7 @@ class CloudAIGymOnlineEnv(BaseGym):
 
     @property
     def trajectory_file_path(self) -> Path:
-        return self.runner.scenario_root / self.test_run.name / "online_trajectory.csv"
+        return self.test_run.output_path / "online_trajectory.csv"
 
     def _write_trajectory(self, entry: OnlineTrajectoryEntry):
         self.trajectory.append(entry)

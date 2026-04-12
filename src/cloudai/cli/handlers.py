@@ -337,11 +337,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
     has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
+    has_live_rl = any(getattr(tr.test.cmd_args, "live_rl_mode", False) for tr in test_scenario.test_runs)
+    if args.single_sbatch or (not has_dse and not has_live_rl):
         handle_non_dse_job(runner, args)
         return 0
 
-    if all(tr.is_dse_job for tr in test_scenario.test_runs):
+    if all(tr.is_dse_job or getattr(tr.test.cmd_args, "live_rl_mode", False) for tr in test_scenario.test_runs):
         return handle_dse_job(runner, args)
 
     logging.error("Mixing DSE and non-DSE jobs is not allowed.")
