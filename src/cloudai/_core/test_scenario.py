@@ -30,8 +30,7 @@ if TYPE_CHECKING:
     from ..models.workload import TestDefinition
     from .report_generation_strategy import ReportGenerationStrategy
 
-
-METRIC_ERROR = -1.0
+METRIC_ERROR: float = -1.0
 
 
 class TestDependency:
@@ -102,6 +101,10 @@ class TestRun:
                 return r
 
         return None
+
+    def get_metric_error_value(self) -> float:
+        """Numeric sentinel for missing or failed metrics."""
+        return METRIC_ERROR
 
     def get_metric_value(self, system: System, metric: str) -> float:
         report = self.metric_reporter

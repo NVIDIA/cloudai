@@ -17,9 +17,24 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base_gym import BaseGym
+
+
+class RewardOverrides(BaseModel):
+    """Optional reward and observation overrides for the agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    constraint_failure: float | None = Field(
+        default=None,
+        description="Reward when a constraint check fails; None uses the environment default (-1.0).",
+    )
+    metric_failure: float | None = Field(
+        default=None,
+        description="Observation value when a metric is missing or failed; None uses -1.0.",
+    )
 
 
 class BaseAgentConfig(BaseModel):
@@ -29,7 +44,10 @@ class BaseAgentConfig(BaseModel):
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
-    constraint_reward_override: float = -1.0
+    rewards: RewardOverrides | None = Field(
+        default=None,
+        description="Reward and observation overrides for the agent.",
+    )
 
 
 class BaseAgent(ABC):

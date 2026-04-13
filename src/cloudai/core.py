@@ -40,7 +40,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
-from .configurator.base_agent import BaseAgent, BaseAgentConfig
+from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.grid_search import GridSearchAgent
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
@@ -81,6 +81,7 @@ __all__ = [
     "Registry",
     "ReportGenerationStrategy",
     "Reporter",
+    "RewardOverrides",
     "Runner",
     "StatusReporter",
     "System",
