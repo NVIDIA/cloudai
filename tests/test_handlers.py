@@ -27,6 +27,7 @@ from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
     Registry,
+    RewardOverrides,
     Runner,
     TestDependency,
     TestRun,
@@ -207,3 +208,8 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
 
     assert [tr.step for tr in reporter.trs] == [1, 3]
+
+
+def test_rewards_nested() -> None:
+    cfg = BaseAgentConfig.model_validate({"rewards": {"constraint_failure": -2.5, "metric_failure": 0.0}})
+    assert cfg.rewards == RewardOverrides(constraint_failure=-2.5, metric_failure=0.0)

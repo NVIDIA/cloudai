@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
-from cloudai.core import BaseRunner, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -159,13 +159,13 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
 
 
 @pytest.mark.parametrize(
-    "step_kwargs, expected_reward",
+    "rewards, expected_reward",
     [
-        pytest.param({}, -1.0, id="default_penalty"),
-        pytest.param({"constraint_check_reward": -2.5}, -2.5, id="custom_penalty"),
+        pytest.param(None, -1.0, id="default_penalty"),
+        pytest.param(RewardOverrides(constraint_failure=-2.5), -2.5, id="custom_penalty"),
     ],
 )
-def test_constraint_failure(nemorun: NeMoRunTestDefinition, step_kwargs: dict, expected_reward: float):
+def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverrides | None, expected_reward: float):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
@@ -178,10 +178,10 @@ def test_constraint_failure(nemorun: NeMoRunTestDefinition, step_kwargs: dict, e
     )
     runner = MagicMock(spec=BaseRunner)
     runner.system = MagicMock()
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=rewards)
 
     bad = {"trainer.strategy.context_parallel_size": 3}  # induce constraint failure
-    obs, reward, done, info = env.step(bad, **step_kwargs)
+    obs, reward, done, info = env.step(bad)
 
     assert obs == [-1.0]
     assert reward == expected_reward
