@@ -29,6 +29,7 @@ class BaseAgentConfig(BaseModel):
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
+    constraint_reward_override: float = -1.0
 
 
 class BaseAgent(ABC):

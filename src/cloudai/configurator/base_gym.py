@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,12 +67,13 @@ class BaseGym(ABC):
         pass
 
     @abstractmethod
-    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
+    def step(self, action: Any, constraint_check_reward: float = -1.0) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
             action (Any): Action chosen by the agent.
+            constraint_check_reward (float): Reward returned upon constraint check failure.
 
         Returns:
             Tuple: A tuple containing:

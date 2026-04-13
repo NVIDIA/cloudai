@@ -101,12 +101,13 @@ class CloudAIGymEnv(BaseGym):
         info = {}
         return observation, info
 
-    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
+    def step(self, action: Any, constraint_check_reward: float = -1.0) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
             action (Any): Action chosen by the agent.
+            constraint_check_reward (float): Reward returned upon constraint check failure.
 
         Returns:
             Tuple: A tuple containing:
@@ -127,7 +128,7 @@ class CloudAIGymEnv(BaseGym):
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
-            return [-1.0], -1.0, True, {}
+            return [-1.0], constraint_check_reward, True, {}
 
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.get_job_output_path(new_tr)
