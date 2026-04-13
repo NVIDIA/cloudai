@@ -171,6 +171,14 @@ For DSE workloads, you can pass agent configuration via ``agent_config`` in the 
 
 - ``random_seed``: controls deterministic random behavior in agents.
 - ``start_action``: controls the very first action strategy (``"random"`` or ``"first"``).
+- ``rewards`` (optional): nested table mapped to ``RewardOverrides``. When present, ``CloudAIGymEnv`` uses it for
+  constraint failures and for substituting failed-metric values in observations.
+
+  - ``constraint_failure``: reward returned when ``TestDefinition.constraint_check`` fails on a step. If omitted
+    or unset, the environment uses ``-1.0``.
+  - ``metric_failure``: value written into the observation vector when a metric is missing or equals the
+    canonical error sentinel (``METRIC_ERROR``, ``-1.0``). If omitted or unset, observations use ``-1.0`` for that
+    slot.
 
 Example:
 
@@ -187,6 +195,10 @@ Example:
      [Tests.agent_config]
      random_seed = 123
      start_action = "first"
+
+       [Tests.agent_config.rewards]
+       constraint_failure = -5.0
+       metric_failure = 0.0
 
 When an agent honors ``start_action = "first"``, it should start from ``CloudAIGymEnv.first_sweep`` (the sweep
 is built from first values of each sweep parameter). ``start_action = "random"`` means starting from a random
