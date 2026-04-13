@@ -165,6 +165,8 @@ class MegatronRunTestDefinition(TestDefinition):
             for line in file:
                 if ITERATION_LOG_REGEX.search(line):
                     return JobStatusResult(is_successful=True)
+                if "validation loss at iteration" in line:
+                    return JobStatusResult(is_successful=True)
 
         return JobStatusResult(
             is_successful=False,
