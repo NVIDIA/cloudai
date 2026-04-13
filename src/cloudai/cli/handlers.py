@@ -167,9 +167,8 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             agent.update_policy(feedback)
             logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 
-    if args.mode == "run":
-        runner.runner.test_scenario.test_runs = original_test_runs
-        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+    runner.runner.test_scenario.test_runs = original_test_runs
+    generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
     logging.info("All jobs are complete.")
     return err
