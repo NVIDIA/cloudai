@@ -30,7 +30,25 @@ if TYPE_CHECKING:
     from ..models.workload import TestDefinition
     from .report_generation_strategy import ReportGenerationStrategy
 
-METRIC_ERROR: float = -1.0
+class _MetricErrorSentinel:
+    """Singleton returned by report strategies on failure; use ``v is METRIC_ERROR`` to detect errors."""
+
+    __slots__ = ()
+    _instance: _MetricErrorSentinel | None = None
+
+    def __new__(cls) -> _MetricErrorSentinel:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "METRIC_ERROR"
+
+    def __float__(self) -> float:
+        return -1.0
+
+
+METRIC_ERROR = _MetricErrorSentinel()
 
 
 class TestDependency:
@@ -102,11 +120,11 @@ class TestRun:
 
         return None
 
-    def get_metric_error_value(self) -> float:
-        """Numeric sentinel for missing or failed metrics."""
+    def get_metric_error_value(self) -> _MetricErrorSentinel:
+        """Same object strategies return on metric failure; use ``value is tr.get_metric_error_value()`` for checks."""
         return METRIC_ERROR
 
-    def get_metric_value(self, system: System, metric: str) -> float:
+    def get_metric_value(self, system: System, metric: str) -> float | _MetricErrorSentinel:
         report = self.metric_reporter
         if report is None:
             return METRIC_ERROR

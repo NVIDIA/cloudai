@@ -225,10 +225,11 @@ class CloudAIGymEnv(BaseGym):
         if self.rewards is not None and self.rewards.metric_failure is not None:
             obs_replace = self.rewards.metric_failure
 
+        err = self.test_run.get_metric_error_value()
         observation = []
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v == self.test_run.get_metric_error_value():
+            if v is err:
                 v = obs_replace
             observation.append(v)
         return observation

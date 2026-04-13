@@ -176,9 +176,9 @@ For DSE workloads, you can pass agent configuration via ``agent_config`` in the 
 
   - ``constraint_failure``: reward returned when ``TestDefinition.constraint_check`` fails on a step. If omitted
     or unset, the environment uses ``-1.0``.
-  - ``metric_failure``: value written into the observation vector when a metric is missing or equals the
-    canonical error sentinel (``METRIC_ERROR``, ``-1.0``). If omitted or unset, observations use ``-1.0`` for that
-    slot.
+  - ``metric_failure``: value written into the observation vector when a metric is missing or is the
+    canonical error sentinel ``METRIC_ERROR`` (a distinct object from numeric metrics, so a valid ``-1.0``
+    result is not mistaken for an error). If omitted or unset, observations use ``-1.0`` for that slot.
 
 Example:
 

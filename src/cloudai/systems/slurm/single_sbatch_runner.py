@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Generator, Optional, cast
 
 from cloudai.configurator import CloudAIGymEnv, TrajectoryEntry
-from cloudai.core import BaseJob, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.core import BaseJob, JobIdRetrievalError, Registry, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -200,6 +200,7 @@ class SingleSbatchRunner(SlurmRunner):
         self.on_job_completion(job)
 
     def handle_dse(self):
+        registry = Registry()
         for tr in self.test_scenario.test_runs:
             if not tr.is_dse_job:
                 continue
@@ -209,7 +210,13 @@ class SingleSbatchRunner(SlurmRunner):
                 next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
-                gym = CloudAIGymEnv(next_tr, self)
+                rewards = None
+                agent_class = registry.agents_map.get(next_tr.test.agent)
+                if agent_class is not None:
+                    agent_config = agent_class.get_config_class()(**(next_tr.test.agent_config or {}))
+                    rewards = agent_config.rewards
+
+                gym = CloudAIGymEnv(next_tr, self, rewards=rewards)
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)
                 gym.write_trajectory(
