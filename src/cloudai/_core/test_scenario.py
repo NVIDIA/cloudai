@@ -20,7 +20,7 @@ import copy
 import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
 
 from ..util import flatten_dict
 from .system import System
@@ -30,13 +30,14 @@ if TYPE_CHECKING:
     from ..models.workload import TestDefinition
     from .report_generation_strategy import ReportGenerationStrategy
 
-class _MetricErrorSentinel:
+
+class MetricErrorSentinel:
     """Singleton returned by report strategies on failure; use ``v is METRIC_ERROR`` to detect errors."""
 
     __slots__ = ()
-    _instance: _MetricErrorSentinel | None = None
+    _instance: MetricErrorSentinel | None = None
 
-    def __new__(cls) -> _MetricErrorSentinel:
+    def __new__(cls) -> MetricErrorSentinel:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -48,7 +49,9 @@ class _MetricErrorSentinel:
         return -1.0
 
 
-METRIC_ERROR = _MetricErrorSentinel()
+METRIC_ERROR = MetricErrorSentinel()
+
+MetricValue: TypeAlias = float | MetricErrorSentinel
 
 
 class TestDependency:
@@ -120,11 +123,15 @@ class TestRun:
 
         return None
 
-    def get_metric_error_value(self) -> _MetricErrorSentinel:
-        """Same object strategies return on metric failure; use ``value is tr.get_metric_error_value()`` for checks."""
+    def get_metric_error_value(self) -> MetricErrorSentinel:
+        """
+        Return the singleton metric-error token (``METRIC_ERROR``).
+
+        Use ``value is test_run.get_metric_error_value()`` so a numeric ``-1.0`` is not treated as an error.
+        """
         return METRIC_ERROR
 
-    def get_metric_value(self, system: System, metric: str) -> float | _MetricErrorSentinel:
+    def get_metric_value(self, system: System, metric: str) -> MetricValue:
         report = self.metric_reporter
         if report is None:
             return METRIC_ERROR

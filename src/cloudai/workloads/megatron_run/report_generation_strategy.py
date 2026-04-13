@@ -23,7 +23,7 @@ from pathlib import Path
 from statistics import mean, median, pstdev
 from typing import ClassVar
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
 CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
 
@@ -166,7 +166,7 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
             writer.writerow(["iteration_time_ms", iter_avg, iter_median, iter_min, iter_max, iter_std])
             writer.writerow(["tflops_per_gpu", tflops_avg, tflops_median, tflops_min, tflops_max, tflops_std])
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         if metric not in {"default", "iteration-time", "tflops-per-gpu"}:
             return METRIC_ERROR
         log_file, iter_times_ms, gpu_tflops = self._get_extracted_data()

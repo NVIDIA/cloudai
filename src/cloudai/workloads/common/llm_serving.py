@@ -25,7 +25,7 @@ from rich.console import Console
 from rich.table import Table
 from typing_extensions import Self
 
-from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, MetricValue, ReportGenerationStrategy
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -251,7 +251,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
 
         return len(gpu_ids) * num_nodes
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         if metric not in self.metrics:
             return METRIC_ERROR
 

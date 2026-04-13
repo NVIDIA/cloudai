@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import ClassVar
 
 from .system import System
-from .test_scenario import TestRun
+from .test_scenario import MetricValue, TestRun
 
 
 class ReportGenerationStrategy(ABC):
@@ -30,7 +30,7 @@ class ReportGenerationStrategy(ABC):
         self.system = system
         self.test_run = tr
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         return 0.0
 
     @abstractmethod
