@@ -137,6 +137,8 @@ def test_megatron_run_get_metric_iteration_time(slurm_system: SlurmSystem, megat
     # Expected: avg of [15800.0, 15639.0, 15448.5]
     expected_avg = (15800.0 + 15639.0 + 15448.5) / 3
     metric = strategy.get_metric("iteration-time")
+    assert metric is not METRIC_ERROR
+    assert isinstance(metric, float)
     assert abs(metric - expected_avg) < 0.1
 
 
@@ -145,6 +147,8 @@ def test_megatron_run_get_metric_default(slurm_system: SlurmSystem, megatron_run
     # Default should return iteration-time
     expected_avg = (15800.0 + 15639.0 + 15448.5) / 3
     metric = strategy.get_metric("default")
+    assert metric is not METRIC_ERROR
+    assert isinstance(metric, float)
     assert abs(metric - expected_avg) < 0.1
 
 
@@ -153,19 +157,21 @@ def test_megatron_run_get_metric_tflops(slurm_system: SlurmSystem, megatron_run_
     # Expected: avg of [490.0, 494.6, 500.6]
     expected_avg = (490.0 + 494.6 + 500.6) / 3
     metric = strategy.get_metric("tflops-per-gpu")
+    assert metric is not METRIC_ERROR
+    assert isinstance(metric, float)
     assert abs(metric - expected_avg) < 0.1
 
 
 def test_megatron_run_get_metric_invalid(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
     strategy = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
     metric = strategy.get_metric("invalid-metric")
-    assert metric == METRIC_ERROR
+    assert metric is METRIC_ERROR
 
 
 def test_megatron_run_get_metric_no_data(slurm_system: SlurmSystem, megatron_run_tr_no_data: TestRun) -> None:
     strategy = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr_no_data)
     metric = strategy.get_metric("iteration-time")
-    assert metric == METRIC_ERROR
+    assert metric is METRIC_ERROR
 
 
 def test_megatron_run_metrics_class_var() -> None:

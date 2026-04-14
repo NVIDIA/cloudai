@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 if TYPE_CHECKING:
     import pandas as pd
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 from cloudai.util.lazy_imports import lazy
@@ -128,7 +128,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
 
         report_tool.finalize_report(Path("cloudai_ucc_test_bokeh_report.html"))
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         """
         Calculate the metric value from the UCC test output.
 

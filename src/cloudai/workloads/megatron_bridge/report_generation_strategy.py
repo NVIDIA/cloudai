@@ -18,7 +18,7 @@ from pathlib import Path
 from statistics import mean, median, pstdev
 from typing import ClassVar
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
 from .megatron_bridge import extract_mbridge_metrics
 
@@ -101,7 +101,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
             f.write(f"  max: {tflops_stats['max']}\n")
             f.write(f"  std: {tflops_stats['std']}\n")
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
             return METRIC_ERROR
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()

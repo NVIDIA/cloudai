@@ -23,7 +23,7 @@ from typing import ClassVar
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
 from .log_parsing import parse_nixl_ep_bandwidth_samples, parse_nixl_ep_completed_phases
 from .nixl_ep import GENERATED_PLAN_FILE_NAME
@@ -145,7 +145,7 @@ class NixlEPReportGenerationStrategy(ReportGenerationStrategy):
         table = self._build_table(title, plan, node_logs, completed_by_node, samples_by_node, has_combined, has_kineto)
         console.print(table)
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         if metric not in self.metrics:
             return METRIC_ERROR
         samples = [s for path in self._node_logs() for s in parse_nixl_ep_bandwidth_samples(path)]
