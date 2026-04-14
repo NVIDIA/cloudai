@@ -123,14 +123,6 @@ class TestRun:
 
         return None
 
-    def get_metric_error_value(self) -> MetricErrorSentinel:
-        """
-        Return the singleton metric-error token (``METRIC_ERROR``).
-
-        Use ``value is test_run.get_metric_error_value()`` so a numeric ``-1.0`` is not treated as an error.
-        """
-        return METRIC_ERROR
-
     def get_metric_value(self, system: System, metric: str) -> MetricValue:
         report = self.metric_reporter
         if report is None:

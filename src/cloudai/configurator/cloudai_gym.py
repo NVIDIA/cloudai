@@ -21,7 +21,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from cloudai.core import BaseRunner, Registry, TestRun
+from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -45,19 +45,14 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(
-        self,
-        test_run: TestRun,
-        runner: BaseRunner,
-        rewards: RewardOverrides | None = None,
-    ):
+    def __init__(self, test_run: TestRun, runner: BaseRunner, rewards: RewardOverrides):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
-            rewards: Optional reward / observation overrides from agent config.
+            rewards: Reward / observation overrides from agent config.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -135,12 +130,7 @@ class CloudAIGymEnv(BaseGym):
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
-            reward = (
-                self.rewards.constraint_failure
-                if self.rewards and self.rewards.constraint_failure is not None
-                else -1.0
-            )
-            return [-1.0], reward, True, {}
+            return [-1.0], self.rewards.constraint_failure, True, {}
 
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.get_job_output_path(new_tr)
@@ -225,11 +215,10 @@ class CloudAIGymEnv(BaseGym):
         if self.rewards is not None and self.rewards.metric_failure is not None:
             obs_replace = self.rewards.metric_failure
 
-        err = self.test_run.get_metric_error_value()
         observation = []
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v is err:
+            if v is METRIC_ERROR:
                 v = obs_replace
             observation.append(v)
         return observation

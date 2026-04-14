@@ -211,10 +211,10 @@ class SingleSbatchRunner(SlurmRunner):
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
                 rewards = None
-                agent_class = registry.agents_map.get(next_tr.test.agent)
-                if agent_class is not None:
-                    agent_config = agent_class.get_config_class()(**(next_tr.test.agent_config or {}))
-                    rewards = agent_config.rewards
+                agent_class = registry.agents_map[next_tr.test.agent]
+                agent_config_data = next_tr.test.agent_config or {}
+                agent_config = agent_class.get_config_class()(**agent_config_data)
+                rewards = agent_config.rewards
 
                 gym = CloudAIGymEnv(next_tr, self, rewards=rewards)
                 observation = gym.get_observation({})

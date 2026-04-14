@@ -83,7 +83,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
 
 def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     observation_space = env.define_observation_space()
 
     expected_observation_space = [0.0]
@@ -125,7 +125,7 @@ def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
 )
 def test_compute_reward(reward_function, test_cases, base_tr: TestRun):
     base_tr.test.agent_reward_function = reward_function
-    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock())
+    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock(), rewards=RewardOverrides())
 
     for input_value, expected_reward in test_cases:
         reward = env.compute_reward(input_value)
@@ -136,7 +136,7 @@ def test_compute_reward_invalid(base_tr: TestRun):
     base_tr.test.agent_reward_function = "nonexistent"
 
     with pytest.raises(KeyError) as exc_info:
-        CloudAIGymEnv(test_run=base_tr, runner=MagicMock())
+        CloudAIGymEnv(test_run=base_tr, runner=MagicMock(), rewards=RewardOverrides())
 
     assert "Reward function 'nonexistent' not found" in str(exc_info.value)
     assert (
@@ -148,7 +148,7 @@ def test_compute_reward_invalid(base_tr: TestRun):
 def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     test_run.test.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
     _, action = agent.select_action()
@@ -161,11 +161,11 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
 @pytest.mark.parametrize(
     "rewards, expected_reward",
     [
-        pytest.param(None, -1.0, id="default_penalty"),
+        pytest.param(RewardOverrides(), -1.0, id="default_penalty"),
         pytest.param(RewardOverrides(constraint_failure=-2.5), -2.5, id="custom_penalty"),
     ],
 )
-def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverrides | None, expected_reward: float):
+def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverrides, expected_reward: float):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
@@ -368,7 +368,7 @@ def test_get_cached_trajectory_result(
     runner.testrun_to_job_map = {}
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
-    env = CloudAIGymEnv(test_run=base_tr, runner=runner)
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     env.test_run.current_iteration = current_iteration
     env.trajectory = trajectory
 

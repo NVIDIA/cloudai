@@ -27,13 +27,13 @@ class RewardOverrides(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    constraint_failure: float | None = Field(
-        default=None,
-        description="Reward when a constraint check fails; None uses the environment default (-1.0).",
+    constraint_failure: float = Field(
+        default=-1.0,
+        description="Reward when a constraint check fails.",
     )
-    metric_failure: float | None = Field(
-        default=None,
-        description="Observation value when a metric is missing or failed; None uses -1.0.",
+    metric_failure: float = Field(
+        default=-1.0,
+        description="Observation value when a metric is missing or failed.",
     )
 
 
@@ -44,8 +44,8 @@ class BaseAgentConfig(BaseModel):
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
-    rewards: RewardOverrides | None = Field(
-        default=None,
+    rewards: RewardOverrides = Field(
+        default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
     )
 

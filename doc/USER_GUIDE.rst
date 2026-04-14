@@ -213,8 +213,7 @@ Report generation strategies signal a failed or missing metric by returning the 
 ``cloudai.core`` (type ``MetricErrorSentinel``; ``float(METRIC_ERROR)`` is ``-1.0`` for numeric use). The declared
 return type of ``ReportGenerationStrategy.get_metric`` is ``MetricValue`` (``float | MetricErrorSentinel``).
 
-When branching on success vs failure, use **identity** (``value is METRIC_ERROR`` or
-``value is test_run.get_metric_error_value()``), not equality to ``-1.0``, so a legitimate metric of ``-1.0`` is not
+When branching on success vs failure, use **identity** (``value is METRIC_ERROR``), not equality to ``-1.0``, so a legitimate metric of ``-1.0`` is not
 treated as an error. The gym observation path uses that identity check before applying ``agent_config.rewards.metric_failure``.
 
 Configuring HTTP Data Repository
