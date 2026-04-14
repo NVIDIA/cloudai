@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import ClassVar
 
 from .system import System
-from .test_scenario import MetricValue, TestRun
+from .test_scenario import METRIC_ERROR, MetricValue, TestRun
 
 
 class ReportGenerationStrategy(ABC):
@@ -31,7 +31,7 @@ class ReportGenerationStrategy(ABC):
         self.test_run = tr
 
     def get_metric(self, metric: str) -> MetricValue:
-        return 0.0
+        return METRIC_ERROR
 
     @abstractmethod
     def can_handle_directory(self) -> bool: ...

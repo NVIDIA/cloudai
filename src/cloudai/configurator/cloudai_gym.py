@@ -211,15 +211,11 @@ class CloudAIGymEnv(BaseGym):
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
 
-        obs_replace = -1.0
-        if self.rewards is not None and self.rewards.metric_failure is not None:
-            obs_replace = self.rewards.metric_failure
-
         observation = []
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
             if v is METRIC_ERROR:
-                v = obs_replace
+                v = self.rewards.metric_failure
             observation.append(v)
         return observation
 
