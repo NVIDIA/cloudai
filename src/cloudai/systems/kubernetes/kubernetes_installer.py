@@ -116,6 +116,9 @@ class KubernetesInstaller(BaseInstaller):
                 verify_res = self._verify_commit(item.commit, repo_path)
                 if not verify_res.success:
                     return verify_res
+                verify_submodules, msg_submodules = item.check_submodules_state(repo_path)
+                if not verify_submodules:
+                    return InstallStatusResult(False, msg_submodules)
                 item.installed_path = repo_path
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"Git repository {item.url} not cloned")
@@ -156,10 +159,9 @@ class KubernetesInstaller(BaseInstaller):
             verify_res = self._verify_commit(item.commit, repo_path)
             if not verify_res.success:
                 return verify_res
-            if item.init_submodules:
-                res = self._init_submodules(repo_path)
-                if not res.success:
-                    return res
+            submodules_res, submodules_msg = item.ensure_submodules_state(repo_path)
+            if not submodules_res:
+                return InstallStatusResult(False, submodules_msg)
             item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
             logging.debug(msg)
@@ -184,13 +186,12 @@ class KubernetesInstaller(BaseInstaller):
                 rmtree(repo_path)
             return res
 
-        if item.init_submodules:
-            res = self._init_submodules(repo_path)
-            if not res.success:
-                logging.error(f"Submodule init failed, removing cloned repository at {repo_path}")
-                if repo_path.exists():
-                    rmtree(repo_path)
-                return res
+        submodules_res, submodules_msg = item.ensure_submodules_state(repo_path)
+        if not submodules_res:
+            logging.error(f"Submodule setup failed with `{submodules_msg}`, removing cloned repository at {repo_path}")
+            if repo_path.exists():
+                rmtree(repo_path)
+            return InstallStatusResult(False, submodules_msg)
 
         return InstallStatusResult(True)
 
@@ -254,14 +255,6 @@ class KubernetesInstaller(BaseInstaller):
         result = subprocess.run(checkout_cmd, cwd=str(path), capture_output=True, text=True)
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
-        return InstallStatusResult(True)
-
-    def _init_submodules(self, path: Path) -> InstallStatusResult:
-        logging.debug(f"Initializing submodules in {path}")
-        submodule_cmd = ["git", "submodule", "update", "--init", "--recursive"]
-        result = subprocess.run(submodule_cmd, cwd=str(path), capture_output=True, text=True)
-        if result.returncode != 0:
-            return InstallStatusResult(False, f"Failed to initialize submodules: {result.stderr}")
         return InstallStatusResult(True)
 
     def _verify_commit(self, ref: str, path: Path) -> InstallStatusResult:
