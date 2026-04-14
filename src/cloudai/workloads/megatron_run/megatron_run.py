@@ -172,6 +172,6 @@ class MegatronRunTestDefinition(TestDefinition):
             is_successful=False,
             error_message=(
                 f"stdout.txt in {tr.output_path} does not contain Megatron iteration metrics. "
-                "Expected at least one line with elapsed time per iteration and throughput per GPU."
+                "Expected at least one line with elapsed time per iteration and throughput per GPU or validation loss."
             ),
         )
