@@ -146,9 +146,11 @@ class GitRepo(Installable, BaseModel):
 
     def ensure_submodules_state(self, repo_path: Path) -> tuple[bool, str]:
         """Ensure submodules state in the cloned repo matches self.init_submodules (install or deinstall them)."""
-        submodules_are_ok, _ = self.check_submodules_state(repo_path)
+        submodules_are_ok, submodules_are_ok_msg = self.check_submodules_state(repo_path)
         if submodules_are_ok:
             return True, ""
+        if not submodules_are_ok and "Failed to get submodule status" in submodules_are_ok_msg:
+            return False, submodules_are_ok_msg
 
         cmd = ["update", "--init", "--recursive"] if self.init_submodules else ["deinit", "--all", "--force"]
         result = subprocess.run(["git", "submodule", *cmd], cwd=str(repo_path), capture_output=True, text=True)

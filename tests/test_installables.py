@@ -158,3 +158,12 @@ class TestGitRepoSubmodules:
 
         assert result is False
         assert message == expected_message
+
+    def test_ensure_submodules_state_status_fails(self, git: GitRepo):
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [CompletedProcess(args=[], returncode=1, stdout="bla", stderr="bla")]
+            result, message = git.ensure_submodules_state(Path("/repo"))
+
+        assert result is False
+        assert "bla" in message
+        assert mock_run.call_count == 1
