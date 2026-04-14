@@ -45,10 +45,24 @@ class TestGitRepoSubmodules:
         [
             (True, " 0123456789abcdef path/to/submodule\n", True, ""),
             (True, "-0123456789abcdef path/to/submodule\n", False, "Cloned repo has not all submodules initialized."),
+            (True, "+0123456789abcdef path/to/submodule\n", False, "Cloned repo has not all submodules initialized."),
+            (True, "U0123456789abcdef path/to/submodule\n", False, "Cloned repo has not all submodules initialized."),
             (False, "-0123456789abcdef path/to/submodule\n", True, ""),
             (
                 False,
                 " 0123456789abcdef path/to/submodule\n",
+                False,
+                "Cloned repo has some submodules initialized but requires none to be.",
+            ),
+            (
+                False,
+                "+0123456789abcdef path/to/submodule\n",
+                False,
+                "Cloned repo has some submodules initialized but requires none to be.",
+            ),
+            (
+                False,
+                "U0123456789abcdef path/to/submodule\n",
                 False,
                 "Cloned repo has some submodules initialized but requires none to be.",
             ),
@@ -84,6 +98,8 @@ class TestGitRepoSubmodules:
         [
             (True, "-0123456789abcdef path/to/submodule\n", ["git", "submodule", "update", "--init", "--recursive"]),
             (False, " 0123456789abcdef path/to/submodule\n", ["git", "submodule", "deinit", "--all", "--force"]),
+            (False, "+0123456789abcdef path/to/submodule\n", ["git", "submodule", "deinit", "--all", "--force"]),
+            (False, "U0123456789abcdef path/to/submodule\n", ["git", "submodule", "deinit", "--all", "--force"]),
         ],
     )
     def test_ensure_submodules_state_reconciles(
@@ -120,6 +136,8 @@ class TestGitRepoSubmodules:
         [
             (True, "-0123456789abcdef path/to/submodule\n", "Failed to initialize submodules: err"),
             (False, " 0123456789abcdef path/to/submodule\n", "Failed to deinitialize submodules: err"),
+            (False, "+0123456789abcdef path/to/submodule\n", "Failed to deinitialize submodules: err"),
+            (False, "U0123456789abcdef path/to/submodule\n", "Failed to deinitialize submodules: err"),
         ],
     )
     def test_ensure_submodules_state_reconcile_failure(

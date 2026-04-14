@@ -136,10 +136,10 @@ class GitRepo(Installable, BaseModel):
         if not has_submodules:
             return True, ""
 
-        submodules_initialized = (line.startswith(" ") for line in output)
-        if self.init_submodules and not all(submodules_initialized):
+        status_prefixes = [line[0] for line in output]
+        if self.init_submodules and not all(prefix == " " for prefix in status_prefixes):
             return False, "Cloned repo has not all submodules initialized."
-        if not self.init_submodules and any(submodules_initialized):
+        if not self.init_submodules and not all(prefix == "-" for prefix in status_prefixes):
             return False, "Cloned repo has some submodules initialized but requires none to be."
 
         return True, ""
