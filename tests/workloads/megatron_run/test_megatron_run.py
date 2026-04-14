@@ -74,6 +74,7 @@ class TestMegatronRunSuccessCheck:
                 True,
             ),
             ("0:0", "validation loss at iteration 1.0", True),
+            ("0:15", "validation loss at iteration 1.0", True),
             ("15:0", "validation loss at iteration 1.0", False),
         ),
     )
