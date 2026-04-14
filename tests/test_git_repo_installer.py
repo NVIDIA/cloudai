@@ -103,7 +103,8 @@ class TestGitRepoInstaller:
         repo_path = installer.system.install_path / git.repo_name
         repo_path.mkdir()
         installer._verify_commit = Mock(return_value=InstallStatusResult(True))
-        res = installer._install_one_git_repo(git)
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")):
+            res = installer._install_one_git_repo(git)
         assert res.success
         assert res.message == f"Git repository already exists at {repo_path}."
         assert git.installed_path == repo_path
@@ -232,29 +233,6 @@ class TestGitRepoInstaller:
             res = installer._verify_commit(ref, repo_path)
         assert res.success
 
-    def test_submodules_initialized(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
-        repo_path = installer.system.install_path / git.repo_name
-        repo_path.mkdir()
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(args=[], returncode=0)
-            res = installer._init_submodules(repo_path)
-        assert res.success
-        mock_run.assert_called_once_with(
-            ["git", "submodule", "update", "--init", "--recursive"],
-            cwd=str(repo_path),
-            capture_output=True,
-            text=True,
-        )
-
-    def test_error_initializing_submodules(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
-        repo_path = installer.system.install_path / git.repo_name
-        repo_path.mkdir()
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
-            res = installer._init_submodules(repo_path)
-        assert not res.success
-        assert res.message == "Failed to initialize submodules: err"
-
     def test_submodule_failure_cleans_up_repo(
         self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
     ):
@@ -264,17 +242,18 @@ class TestGitRepoInstaller:
             side_effect=lambda url, path: (path.mkdir(parents=True, exist_ok=True), InstallStatusResult(True))[1]
         )
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
-        installer._init_submodules = Mock(
-            return_value=InstallStatusResult(False, "Failed to initialize submodules: err")
-        )
-        res = installer._install_one_git_repo(git)
+        with patch.object(
+            GitRepo, "ensure_submodules_state", return_value=(False, "Failed to initialize submodules: err")
+        ):
+            res = installer._install_one_git_repo(git)
         assert not res.success
         assert not repo_path.exists()
 
     def test_all_good_flow(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
-        res = installer._install_one_git_repo(git)
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")):
+            res = installer._install_one_git_repo(git)
         assert res.success
         assert git.installed_path == installer.system.install_path / git.repo_name
 
@@ -283,19 +262,19 @@ class TestGitRepoInstaller:
     ):
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
-        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
-        res = installer._install_one_git_repo(git)
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")) as mock_ensure:
+            res = installer._install_one_git_repo(git)
         assert res.success
-        installer._init_submodules.assert_not_called()
+        mock_ensure.assert_called_once()
 
     def test_submodules_run_when_requested(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         git.init_submodules = True
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
-        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
-        res = installer._install_one_git_repo(git)
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")) as mock_ensure:
+            res = installer._install_one_git_repo(git)
         assert res.success
-        installer._init_submodules.assert_called_once()
+        mock_ensure.assert_called_once()
 
     def test_existing_repo_inits_submodules_when_requested(
         self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
@@ -304,11 +283,47 @@ class TestGitRepoInstaller:
         repo_path = installer.system.install_path / git.repo_name
         repo_path.mkdir()
         installer._verify_commit = Mock(return_value=InstallStatusResult(True))
-        installer._init_submodules = Mock(return_value=InstallStatusResult(True))
-        res = installer._install_one_git_repo(git)
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")) as mock_ensure:
+            res = installer._install_one_git_repo(git)
         assert res.success
         assert git.installed_path == repo_path
-        installer._init_submodules.assert_called_once_with(repo_path)
+        mock_ensure.assert_called_once_with(repo_path)
+
+    def test_existing_repo_deinits_submodules_when_not_requested(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        installer._verify_commit = Mock(return_value=InstallStatusResult(True))
+        with patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")) as mock_ensure:
+            res = installer._install_one_git_repo(git)
+
+        assert res.success
+        mock_ensure.assert_called_once_with(repo_path)
+
+    def test_is_installed_checks_submodule_state(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        installer._verify_commit = Mock(return_value=InstallStatusResult(True))
+        with patch.object(GitRepo, "check_submodules_state", return_value=(True, "")) as mock_check:
+            res = installer.is_installed_one(git)
+
+        assert res.success
+        mock_check.assert_called_once_with(repo_path)
+
+    def test_is_installed_fails_when_submodule_state_does_not_match(
+        self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo
+    ):
+        repo_path = installer.system.install_path / git.repo_name
+        repo_path.mkdir()
+        installer._verify_commit = Mock(return_value=InstallStatusResult(True))
+        with patch.object(GitRepo, "check_submodules_state", return_value=(False, "Submodule state does not match")):
+            res = installer.is_installed_one(git)
+
+        assert not res.success
+        assert "Submodule state does not match" in res.message
 
     def test_uninstall_no_repo(self, installer: Union[KubernetesInstaller, SlurmInstaller], git: GitRepo):
         res = installer._uninstall_git_repo(git)
