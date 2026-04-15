@@ -211,9 +211,9 @@ class TestParseAllDuplicateDetection:
     """Tests for TestParser.parse_all() duplicate name detection.
 
     Reproduces the scenario where two TOML files (e.g. a DSE config and a
-    single-point copy) share the same ``name`` field. The current check
-    ``if name in objects`` compares a str against a list of Pydantic
-    BaseModel instances, which always evaluates to False.
+    single-point copy) share the same ``name`` field. The implementation
+    tracks seen names in a ``dict[str, Path]`` and raises ``ValueError``
+    listing both conflicting file paths when a duplicate is found.
     """
 
     __test__ = True
@@ -241,8 +241,11 @@ class TestParseAllDuplicateDetection:
         fake = self._make_fake_parsed("dse_qwen_30b_a3b")
 
         with patch.object(parser, "_parse_data", return_value=fake):
-            with pytest.raises(ValueError, match="dse_qwen_30b_a3b"):
+            with pytest.raises(ValueError, match="dse_qwen_30b_a3b") as exc_info:
                 parser.parse_all()
+            msg = str(exc_info.value)
+            assert str(dse_toml) in msg
+            assert str(single_toml) in msg
 
     def test_unique_names_no_error(self, tmp_path: Path):
         """Files with distinct names should parse without error."""
