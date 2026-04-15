@@ -19,9 +19,10 @@ from typing import Generator, cast
 from unittest.mock import Mock, patch
 
 import pytest
+import toml
 from pydantic_core import ErrorDetails
 
-from cloudai.core import Parser, Registry, Reporter, format_validation_error
+from cloudai.core import Parser, Registry, Reporter, TestParser, format_validation_error
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -204,3 +205,73 @@ class TestParseReportsSpec:
         with pytest.raises(ValueError) as exc_info:
             parse_reports_spec({scenario_report: {"enable": "invalid"}})
         assert f"Error validating report configuration '{scenario_report}' as ReportConfig: " in str(exc_info.value)
+
+
+class TestParseAllDuplicateDetection:
+    """Tests for TestParser.parse_all() duplicate name detection.
+
+    Reproduces the scenario where two TOML files (e.g. a DSE config and a
+    single-point copy) share the same ``name`` field. The current check
+    ``if name in objects`` compares a str against a list of Pydantic
+    BaseModel instances, which always evaluates to False.
+    """
+
+    __test__ = True
+
+    @staticmethod
+    def _write_test_toml(path: Path, name: str) -> None:
+        path.write_text(toml.dumps({"name": name, "description": "test"}))
+
+    @staticmethod
+    def _make_fake_parsed(name: str) -> Mock:
+        obj = Mock()
+        obj.name = name
+        return obj
+
+    def test_duplicate_name_across_files_raises(self, tmp_path: Path):
+        """Two files with the same name field should raise ValueError."""
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir()
+        dse_toml = test_dir / "dse_qwen_30b_a3b.toml"
+        single_toml = test_dir / "qwen_30b_a3b.toml"
+        self._write_test_toml(dse_toml, "dse_qwen_30b_a3b")
+        self._write_test_toml(single_toml, "dse_qwen_30b_a3b")
+
+        parser = TestParser([dse_toml, single_toml], None)  # type: ignore
+        fake = self._make_fake_parsed("dse_qwen_30b_a3b")
+
+        with patch.object(parser, "_parse_data", return_value=fake):
+            with pytest.raises(ValueError, match="dse_qwen_30b_a3b"):
+                parser.parse_all()
+
+    def test_unique_names_no_error(self, tmp_path: Path):
+        """Files with distinct names should parse without error."""
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir()
+        toml_a = test_dir / "test_a.toml"
+        toml_b = test_dir / "test_b.toml"
+        self._write_test_toml(toml_a, "test_a")
+        self._write_test_toml(toml_b, "test_b")
+
+        parser = TestParser([toml_a, toml_b], None)  # type: ignore
+
+        with patch.object(
+            parser,
+            "_parse_data",
+            side_effect=[self._make_fake_parsed("test_a"), self._make_fake_parsed("test_b")],
+        ):
+            results = parser.parse_all()
+            assert len(results) == 2
+
+    def test_single_file_no_error(self, tmp_path: Path):
+        """A single file should parse without error."""
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir()
+        toml_a = test_dir / "only_one.toml"
+        self._write_test_toml(toml_a, "only_one")
+
+        parser = TestParser([toml_a], None)  # type: ignore
+
+        with patch.object(parser, "_parse_data", return_value=self._make_fake_parsed("only_one")):
+            results = parser.parse_all()
+            assert len(results) == 1
