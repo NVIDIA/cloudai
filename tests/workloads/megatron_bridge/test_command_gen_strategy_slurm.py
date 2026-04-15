@@ -185,14 +185,6 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "--cuda_graph_impl" not in cmd
         assert " -ms " not in cmd
 
-    def test_golden_values_path_is_always_provided(
-        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
-    ) -> None:
-        tr = make_test_run(num_nodes=1)
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
-        wrapper_content = self._wrapper_content(cmd_gen)
-        assert "--golden_values_path cloudai_megatron_bridge_golden_values.json" in wrapper_content
-
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
@@ -294,30 +286,25 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         ) in wrapper_content
         assert 'exit "${WANDB_INSTALL_RC}"' in wrapper_content
 
-    def test_was_run_successful_detects_launcher_failure_marker(self, make_test_run: Callable[..., TestRun]) -> None:
-        tr = make_test_run()
-        tr.output_path.mkdir(parents=True, exist_ok=True)
-        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
-            "Job 4818718 finished: FAILED\nException: Experiment failed for test with status: FAILED.\n"
-        )
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
-        result = tdef.was_run_successful(tr)
-        assert not result.is_successful
-        assert result.error_message is not None
-
-    def test_was_run_successful_accepts_expected_missing_golden_values_failure(
-        self, make_test_run: Callable[..., TestRun]
+    @pytest.mark.parametrize(
+        ("log_content", "expected_is_successful"),
+        (
+            (None, False),
+            ("", False),
+            ("any\bthing", False),
+            ("ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU", True),
+        ),
+    )
+    def test_was_run_successful(
+        self, make_test_run: Callable[..., TestRun], log_content: str | None, expected_is_successful: bool
     ) -> None:
         tr = make_test_run()
         tr.output_path.mkdir(parents=True, exist_ok=True)
-        (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
-            "Convergence check failed due to missing golden values.\n"
-            "This is expected if it is the first time running this model.\n"
-            "Job 123 finished: FAILED\n"
-        )
+        if log_content is not None:
+            (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(log_content)
         tdef = cast(MegatronBridgeTestDefinition, tr.test)
         result = tdef.was_run_successful(tr)
-        assert result.is_successful
+        assert result.is_successful is expected_is_successful
 
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
@@ -377,16 +364,28 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert f"{repo_path.absolute()}:" not in wrapper_content
         assert ":/opt/Megatron-Bridge" not in wrapper_content
 
-    def test_gpus_per_node_passed_as_additional_slurm_param(
-        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    @pytest.mark.parametrize(("system_gpus_per_node", "expected_gpus"), ((None, None), (4, 4)))
+    def test_gpus_per_node(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+        system_gpus_per_node: int | None,
+        expected_gpus: int | None,
     ) -> None:
         configured_slurm_system.supports_gpu_directives_cache = True
-        tr = make_test_run(cmd_args_overrides={"gpus_per_node": 2}, output_subdir="out_gpus")
+        configured_slurm_system.gpus_per_node = system_gpus_per_node
+        tr = make_test_run(output_subdir="out_gpus")
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
-        assert "--additional_slurm_params" in wrapper_content
-        assert "gpus-per-node=2" in wrapper_content
-        assert "gres=gpu:2" in wrapper_content
+
+        if expected_gpus is None:
+            assert "--additional_slurm_params" not in wrapper_content
+            assert "-gn" not in wrapper_content
+        else:
+            assert "--additional_slurm_params" in wrapper_content
+            assert f"gpus-per-node={expected_gpus}" in wrapper_content
+            assert f"gres=gpu:{expected_gpus}" in wrapper_content
+            assert f"-gn {expected_gpus}" in wrapper_content
 
     def test_gpus_per_node_skipped_when_gpu_directives_unsupported(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
@@ -427,3 +426,27 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             "--exclusive --reservation my_reserv --overcommit"
         )
         assert result == ["exclusive", "reservation=my_reserv", "overcommit"]
+
+    def test_profiling_ranks_string_format(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+    ) -> None:
+        tr = make_test_run(
+            cmd_args_overrides={"profiling_ranks": "0,1,2,3", "enable_nsys": True},
+            output_subdir="out_prof_str",
+        )
+        assert not tr.is_dse_job
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--profiling_ranks 0,1,2,3" in wrapper_content
+
+    def test_vp(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+    ):
+        tr = make_test_run(cmd_args_overrides={"vp": 1})
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "-vp None" in wrapper_content

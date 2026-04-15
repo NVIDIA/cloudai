@@ -19,14 +19,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from AI Dynamo run directories."""
 
-    def extract_metric_from_csv(self, csv_file: Path, metric_name: str, metric_type: str) -> float:
+    def extract_metric_from_csv(self, csv_file: Path, metric_name: str, metric_type: str) -> MetricValue:
         df = lazy.pd.read_csv(csv_file)
 
         if "Metric" not in df.columns or metric_type not in df.columns:
@@ -42,7 +42,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             return METRIC_ERROR
         return float(series.iloc[0])
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         logging.info(f"Getting metric: {metric}")
         benchmark_name = "genai_perf"
         metric_name = metric

@@ -171,6 +171,14 @@ For DSE workloads, you can pass agent configuration via ``agent_config`` in the 
 
 - ``random_seed``: controls deterministic random behavior in agents.
 - ``start_action``: controls the very first action strategy (``"random"`` or ``"first"``).
+- ``rewards`` (optional): nested table mapped to ``RewardOverrides``. When present, ``CloudAIGymEnv`` uses it for
+  constraint failures and for substituting failed-metric values in observations.
+
+  - ``constraint_failure``: reward returned when ``TestDefinition.constraint_check`` fails on a step. If omitted
+    or unset, the environment uses ``-1.0``.
+  - ``metric_failure``: value written into the observation vector when a metric is missing or is the
+    canonical error sentinel ``METRIC_ERROR`` (a distinct object from numeric metrics, so a valid ``-1.0``
+    result is not mistaken for an error). If omitted or unset, observations use ``-1.0`` for that slot.
 
 Example:
 
@@ -188,11 +196,25 @@ Example:
      random_seed = 123
      start_action = "first"
 
+       [Tests.agent_config.rewards]
+       constraint_failure = -5.0
+       metric_failure = 0.0
+
 When an agent honors ``start_action = "first"``, it should start from ``CloudAIGymEnv.first_sweep`` (the sweep
 is built from first values of each sweep parameter). ``start_action = "random"`` means starting from a random
 action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
+
+Metric errors and report strategies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Report generation strategies signal a failed or missing metric by returning the singleton ``METRIC_ERROR`` from
+``cloudai.core`` (type ``MetricErrorSentinel``; ``float(METRIC_ERROR)`` is ``-1.0`` for numeric use). The declared
+return type of ``ReportGenerationStrategy.get_metric`` is ``MetricValue`` (``float | MetricErrorSentinel``).
+
+When branching on success vs failure, use **identity** (``value is METRIC_ERROR``), not equality to ``-1.0``, so a legitimate metric of ``-1.0`` is not
+treated as an error. The gym observation path uses that identity check before applying ``agent_config.rewards.metric_failure``.
 
 Configuring HTTP Data Repository
 --------------------------------

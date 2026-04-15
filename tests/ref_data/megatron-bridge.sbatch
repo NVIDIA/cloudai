@@ -19,7 +19,7 @@ if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
 fi
 
 LAUNCH_RC=0
-NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 4 --golden_values_path cloudai_megatron_bridge_golden_values.json -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --additional_slurm_params 'gpus-per-node=4;gres=gpu:4' >>"$LOG" 2>&1 || LAUNCH_RC=$?
+NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' >>"$LOG" 2>&1 || LAUNCH_RC=$?
 
 
 JOB_ID=""

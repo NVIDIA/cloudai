@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 from typing import ClassVar
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.common.nixl import extract_nixlbench_data
@@ -47,7 +47,7 @@ class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
         df = extract_nixlbench_data(self.results_file)
         df.to_csv(self.test_run.output_path / "nixlbench.csv", index=False)
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
         df = extract_nixlbench_data(self.results_file)
         if df.empty or metric not in {"default", "latency"}:

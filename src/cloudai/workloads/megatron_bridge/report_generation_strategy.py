@@ -13,63 +13,44 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import logging
 from pathlib import Path
 from statistics import mean, median, pstdev
 from typing import ClassVar
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .megatron_bridge import GOLDEN_VALUES_FILENAME
+from .megatron_bridge import extract_mbridge_metrics
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
-    """Parse Megatron-Bridge JSON metrics file for step time and GPU TFLOP/s per GPU."""
+    """Parse Megatron-Bridge logs for step time and GPU TFLOP/s per GPU."""
 
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
+    def get_log_file(self) -> Path | None:
+        log = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
+        return log if log.is_file() else None
+
     @property
-    def metrics_file(self) -> Path | None:
-        for path in Path(self.test_run.output_path).rglob(GOLDEN_VALUES_FILENAME):
-            return path
-        return None
+    def results_file(self) -> Path:
+        return self.get_log_file() or (self.test_run.output_path / "cloudai_megatron_bridge_launcher.log")
 
     def can_handle_directory(self) -> bool:
-        return self.metrics_file is not None
-
-    def _extract(self, metrics_file: Path) -> tuple[list[float], list[float]]:
-        try:
-            data: dict[str, dict[str, float]] = json.loads(metrics_file.read_text())
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Corrupted JSON metrics file at {metrics_file}") from e
-
-        data = {k: v for k, v in data.items() if k.isdigit()}
-        steps = sorted(list(map(int, data.keys())))
-
-        try:
-            step_times_s: list[float] = [data[str(step)]["elapsed time per iteration (ms)"] / 1000.0 for step in steps]
-            # despite the metric is named GPU utilization, it's actually TFLOP/s per GPU
-            gpu_tflops: list[float] = [data[str(step)]["GPU utilization"] for step in steps]
-        except (KeyError, AttributeError, TypeError) as e:
-            raise ValueError(f"Cannot parse JSON metrics file at {metrics_file} with {e}") from e
-
-        if len(step_times_s) > 10:
-            step_times_s = step_times_s[-10:]
-            gpu_tflops = gpu_tflops[-10:]
-
-        return step_times_s, gpu_tflops
+        return self.get_log_file() is not None
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
-        metrics_file = self.metrics_file
-        if not metrics_file:
+        log_file = self.get_log_file()
+        if not log_file:
             return None, [], []
-        step_times_s, gpu_tflops = self._extract(metrics_file)
-        return metrics_file, step_times_s, gpu_tflops
+
+        log_data = log_file.read_text(encoding="utf-8", errors="ignore")
+        step_times_s, gpu_tflops = extract_mbridge_metrics(log_data)
+        return log_file, step_times_s, gpu_tflops
 
     def generate_report(self) -> None:
-        metrics_file, step_times_s, gpu_tflops = self._get_extracted_data()
-        if not metrics_file:
+        log_file, step_times_s, gpu_tflops = self._get_extracted_data()
+        if not log_file:
             logging.error(
                 "No Megatron-Bridge launcher log file found in: %s",
                 self.test_run.output_path,
@@ -80,9 +61,9 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         if not step_times_s:
             with summary_file.open("w") as f:
                 f.write("MegatronBridge report\n")
-                f.write("No metrics were found.\n\n")
+                f.write("No 'Step Time' / 'GPU utilization' lines were found.\n\n")
                 f.write("Searched file:\n")
-                f.write(f"  - {metrics_file}\n")
+                f.write(f"  - {log_file}\n")
             logging.warning("No step metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)
             return
 
@@ -105,7 +86,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
             tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
 
         with summary_file.open("w") as f:
-            f.write(f"Source log: {metrics_file}\n\n")
+            f.write(f"Source log: {log_file}\n\n")
             f.write("Step Time (s)\n")
             f.write(f"  avg: {step_stats['avg']}\n")
             f.write(f"  median: {step_stats['median']}\n")
@@ -120,13 +101,13 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
             f.write(f"  max: {tflops_stats['max']}\n")
             f.write(f"  std: {tflops_stats['std']}\n")
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
             return METRIC_ERROR
-        metrics_file, step_times_s, gpu_tflops = self._get_extracted_data()
-        if not metrics_file:
+        log_file, step_times_s, gpu_tflops = self._get_extracted_data()
+        if not log_file:
             logging.error(
-                "No Megatron-Bridge launcher metrics file found in: %s",
+                "No Megatron-Bridge launcher log file found in: %s",
                 self.test_run.output_path,
             )
             return METRIC_ERROR

@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional, Tuple
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
+from .base_agent import RewardOverrides
 from .base_gym import BaseGym
 
 
@@ -44,17 +45,19 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: BaseRunner):
+    def __init__(self, test_run: TestRun, runner: BaseRunner, rewards: RewardOverrides):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
+            rewards: Reward / observation overrides from agent config.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
+        self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
@@ -127,7 +130,7 @@ class CloudAIGymEnv(BaseGym):
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
-            return [-1.0], -1.0, True, {}
+            return [-1.0], self.rewards.constraint_failure, True, {}
 
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.get_job_output_path(new_tr)
@@ -211,8 +214,8 @@ class CloudAIGymEnv(BaseGym):
         observation = []
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v == METRIC_ERROR:
-                v = -1.0
+            if v is METRIC_ERROR:
+                v = self.rewards.metric_failure
             observation.append(v)
         return observation
 

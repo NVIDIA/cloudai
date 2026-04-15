@@ -29,7 +29,6 @@ gpu_type = "gb200"
 container_image = "nvcr.io#nvidia/nemo:26.02.00"
 model_family_name = "qwen"
 model_recipe_name = "qwen3_30b_a3b"
-gpus_per_node = 4
 num_gpus = 8
 domain = "llm"
 task = "pretrain"

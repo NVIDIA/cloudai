@@ -143,9 +143,13 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             err = 1
             continue
 
-        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent_config_data = test_run.test.agent_config or {}
         agent_config = agent_class.get_config_class()(**agent_config_data)
+        env = CloudAIGymEnv(
+            test_run=test_run,
+            runner=runner.runner,
+            rewards=agent_config.rewards,
+        )
         if agent_config.start_action == "first":
             logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 

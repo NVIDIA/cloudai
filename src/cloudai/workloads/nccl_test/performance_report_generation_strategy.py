@@ -22,7 +22,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, List, Tuple
 
-from cloudai.core import METRIC_ERROR, System, TestRun
+from cloudai.core import METRIC_ERROR, MetricValue, System, TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
@@ -181,7 +181,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
 
         report_tool.finalize_report(Path("cloudai_nccl_test_bokeh_report.html"))
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         df: pd.DataFrame = self._extract_data()
         if df.empty:
             return METRIC_ERROR

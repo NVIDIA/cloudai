@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import ClassVar
 
 from .system import System
-from .test_scenario import TestRun
+from .test_scenario import METRIC_ERROR, MetricValue, TestRun
 
 
 class ReportGenerationStrategy(ABC):
@@ -30,8 +30,8 @@ class ReportGenerationStrategy(ABC):
         self.system = system
         self.test_run = tr
 
-    def get_metric(self, metric: str) -> float:
-        return 0.0
+    def get_metric(self, metric: str) -> MetricValue:
+        return METRIC_ERROR
 
     @abstractmethod
     def can_handle_directory(self) -> bool: ...

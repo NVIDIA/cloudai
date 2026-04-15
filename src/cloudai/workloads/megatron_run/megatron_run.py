@@ -14,14 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from os.path import expandvars
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
+import toml
 from pydantic import Field, field_validator, model_validator
 
-from cloudai.core import DockerImage, Installable
+from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.systems.slurm import SlurmJobMetadata
+
+ITERATION_LOG_REGEX = re.compile(
+    r"elapsed time per iteration \(ms\):\s*([0-9]+(?:\.[0-9]+)?)"
+    r".*?"
+    r"throughput per GPU \(TFLOP/s/GPU\):\s*([0-9]+(?:\.[0-9]+)?)",
+    re.IGNORECASE,
+)
 
 
 class MegatronRunCmdArgs(CmdArgs):
@@ -123,3 +133,45 @@ class MegatronRunTestDefinition(TestDefinition):
 
         if not Path(expandvars(src_mount)).exists():
             raise ValueError(f"Source path {src_mount} ({expandvars(src_mount)}) does not exist for {field}={path}.")
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        slurm_job_path = tr.output_path / "slurm-job.toml"
+        if not slurm_job_path.is_file():
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"slurm-job.toml file not found in the specified output directory {tr.output_path}.",
+            )
+
+        with slurm_job_path.open("r", encoding="utf-8") as file:
+            metadata = SlurmJobMetadata.model_validate(toml.load(file))
+
+        if not metadata.exit_code.startswith("0:"):
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    f"Slurm job exited with a non-zero exit code for {tr.output_path}: "
+                    f"state={metadata.state}, exit_code={metadata.exit_code}."
+                ),
+            )
+
+        stdout_path = tr.output_path / "stdout.txt"
+        if not stdout_path.is_file():
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"stdout.txt file not found in the specified output directory {tr.output_path}.",
+            )
+
+        with stdout_path.open("r", encoding="utf-8", errors="ignore") as file:
+            for line in file:
+                if ITERATION_LOG_REGEX.search(line):
+                    return JobStatusResult(is_successful=True)
+                if "validation loss at iteration" in line:
+                    return JobStatusResult(is_successful=True)
+
+        return JobStatusResult(
+            is_successful=False,
+            error_message=(
+                f"stdout.txt in {tr.output_path} does not contain Megatron iteration metrics. "
+                "Expected at least one line with elapsed time per iteration and throughput per GPU or validation loss."
+            ),
+        )

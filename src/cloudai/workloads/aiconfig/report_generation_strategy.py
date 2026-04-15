@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ import json
 import logging
 from typing import ClassVar, Optional
 
-from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
 from .aiconfigurator import AiconfiguratorTestDefinition
 
@@ -85,7 +85,7 @@ class AiconfiguratorReportGenerationStrategy(ReportGenerationStrategy):
         except Exception as e:
             logging.error(f"Failed to write summary: {e}")
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> MetricValue:
         data = self._load_results()
         if not data:
             return METRIC_ERROR

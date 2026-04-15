@@ -173,8 +173,8 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition) -> TestRun:
-    tr = partial_tr(name=name, test=test_definition)
+def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition, **kwargs) -> TestRun:
+    tr = partial_tr(name=name, test=test_definition, **kwargs)
     return tr
 
 
@@ -564,7 +564,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     model_family_name="qwen3",
                     model_recipe_name="30b_a3b",
                     num_gpus=8,
-                    gpus_per_node=4,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
                 extra_container_mounts=[],
@@ -576,6 +575,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     )
                 ],
             ),
+            time_limit="00:20:00",
         ),
         "vllm": lambda: create_test_run(
             partial_tr,

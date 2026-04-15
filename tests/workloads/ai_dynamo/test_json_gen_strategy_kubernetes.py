@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, cast
+from typing import Any, ClassVar, cast
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -215,3 +216,50 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     with open(json_gen.test_run.output_path / json_gen.DEPLOYMENT_FILE_NAME, "r") as f:
         content = yaml.safe_load(f)
         assert content == deployment
+
+
+class TestDynamoCniNetworking:
+    CNI_NETS: ClassVar[list[str]] = ["default/nic0-rail0-plane0", "default/nic0-rail0-plane1"]
+
+    @pytest.fixture
+    def disagg_tr(self, base_tr: TestRun) -> TestRun:
+        base_tr.test = AIDynamoTestDefinition(
+            name="test_dynamo",
+            description="Test AI Dynamo workload",
+            test_template_name="AIDynamo",
+            cmd_args=AIDynamoCmdArgs(
+                docker_image_url="docker/image:latest",
+                dynamo=AIDynamoArgs(
+                    decode_worker=WorkerConfig(cmd="cmd", worker_initialized_regex="regex", num_nodes=1),
+                    prefill_worker=WorkerConfig(cmd="cmd", worker_initialized_regex="regex", num_nodes=1),
+                ),
+            ),
+        )
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        return base_tr
+
+    def gen_json(self, k8s_system: KubernetesSystem, tr: TestRun, cni_nets: list[str] | None) -> dict:
+        with patch.object(KubernetesSystem, "resolve_cni_networks", return_value=cni_nets):
+            return AIDynamoKubernetesJsonGenStrategy(k8s_system, tr).gen_json()
+
+    def test_cni_mode_worker_with_nics_spec(self, k8s_system: KubernetesSystem, disagg_tr: TestRun) -> None:
+        deployment = self.gen_json(k8s_system, disagg_tr, self.CNI_NETS)
+        for svc_name in ("decode", "prefill"):
+            svc = deployment["spec"]["services"][svc_name]
+            assert "hostNetwork" not in svc["extraPodSpec"]
+
+            annotations = svc["extraPodMetadata"]["annotations"]
+            assert annotations["k8s.v1.cni.cncf.io/networks"] == ",".join(self.CNI_NETS)
+
+            resources = svc["resources"]
+            for net in self.CNI_NETS:
+                nic = f"nvidia.com/{net.split('/', 1)[1]}"
+                assert resources["requests"]["custom"][nic] == "1"
+                assert resources["limits"]["custom"][nic] == "1"
+
+    def test_host_network_mode_no_annotations(self, k8s_system: KubernetesSystem, disagg_tr: TestRun) -> None:
+        deployment = self.gen_json(k8s_system, disagg_tr, None)
+        for svc_name in ("frontend", "decode", "prefill"):
+            svc = deployment["spec"]["services"][svc_name]
+            assert "extraPodMetadata" not in svc
+            assert svc["extraPodSpec"]["hostNetwork"] is True

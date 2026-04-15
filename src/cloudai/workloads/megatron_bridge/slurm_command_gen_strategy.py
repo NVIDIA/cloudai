@@ -27,7 +27,7 @@ import toml
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .megatron_bridge import GOLDEN_VALUES_FILENAME, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -325,7 +325,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add("-p", self.system.default_partition)
         add_field("gpu_type", "-g", args.gpu_type)
         add_field("log_dir", "-l", args.log_dir)
-        add_field("time_limit", "-t", args.time_limit)
+        add("-t", self.test_run.time_limit)
         if container_path:
             add_field("container_image", "-i", container_path)
         add_field("compute_dtype", "-c", args.compute_dtype)
@@ -341,9 +341,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.dryrun and "dryrun" in fields_set:
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
-        add_field("gpus_per_node", "-gn", args.gpus_per_node)
-        # Always provide a stable golden values filename so Megatron-Bridge writes parsed metrics to disk.
-        add("--golden_values_path", GOLDEN_VALUES_FILENAME)
+        add_field("gpus_per_node", "-gn", self.system.gpus_per_node)
         if mounts:
             add("-cm", ",".join(mounts))
 
@@ -393,7 +391,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if vp_for_launcher == 1 or (
             isinstance(vp_for_launcher, (list, tuple)) and len(vp_for_launcher) == 1 and vp_for_launcher[0] == 1
         ):
-            vp_for_launcher = None
+            vp_for_launcher = "None"
         add_field("vp", "-vp", vp_for_launcher)
         add_field("ep", "-ep", args.ep)
         add_field("et", "-et", args.et)
@@ -455,9 +453,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         additional_slurm_params: list[str] = []
 
-        if args.gpus_per_node and self.system.supports_gpu_directives:
-            additional_slurm_params.append(f"gpus-per-node={args.gpus_per_node}")
-            additional_slurm_params.append(f"gres=gpu:{args.gpus_per_node}")
+        if self.system.gpus_per_node and self.system.supports_gpu_directives:
+            additional_slurm_params.append(f"gpus-per-node={self.system.gpus_per_node}")
+            additional_slurm_params.append(f"gres=gpu:{self.system.gpus_per_node}")
 
         _, node_list = self.get_cached_nodes_spec()
         if node_list:
