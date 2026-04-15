@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,11 +63,7 @@ class TestParser:
                 parsed_object = self._parse_data(data)
                 obj_name: str = parsed_object.name
                 if obj_name in seen_names:
-                    raise ValueError(
-                        f"Duplicate test name '{obj_name}' found in:\n"
-                        f"  - {seen_names[obj_name]}\n"
-                        f"  - {f}"
-                    )
+                    raise ValueError(f"Duplicate test name '{obj_name}' found in:\n  - {seen_names[obj_name]}\n  - {f}")
                 seen_names[obj_name] = f
                 objects.append(parsed_object)
         return objects
