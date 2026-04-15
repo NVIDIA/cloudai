@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import logging
 from abc import abstractmethod
 from datetime import datetime
@@ -70,6 +71,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             env_vars["SLURM_HOSTFILE"] = str(hostfile)
 
         return env_vars
+
+    def write_env_vars(self):
+        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
+            for key, value in self.final_env_vars.items():
+                f.write(f'export {key}="{value}"\n')
 
     @abstractmethod
     def _container_mounts(self) -> list[str]:
@@ -241,9 +247,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         nsys_command_parts = self.gen_nsys_command()
         test_command_parts = self.generate_test_command()
 
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                f.write(f'export {key}="{value}"\n')
+        self.write_env_vars()
 
         full_test_cmd = (
             f'bash -c "source {(self.test_run.output_path / "env_vars.sh").absolute()}; '

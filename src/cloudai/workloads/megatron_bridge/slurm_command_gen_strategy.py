@@ -37,14 +37,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     The launcher submits the actual training sbatch job; CloudAI tracks that job ID via SlurmRunner parsing.
     """
 
-    CONTAINER_RUNTIME_ENV_VARS: frozenset[str] = frozenset(
-        {
-            "MELLANOX_VISIBLE_DEVICES",
-            "NVIDIA_VISIBLE_DEVICES",
-            "NVIDIA_DRIVER_CAPABILITIES",
-        }
-    )
-
     def _container_mounts(self) -> list[str]:
         # This workload submits its own sbatch job and passes mounts via `-cm`.
         return []
@@ -92,36 +84,70 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("w") as f:
             f.write(f"{command}\n")
 
-    def _build_custom_bash_env_exports(self) -> list[str]:
-        """
-        Build repeated -cb entries that export env vars inside the launched Slurm job shell.
+    def _get_startup_env_vars(self) -> dict[str, str]:
+        """Env vars to export before sbatch submission (those that contain commas) = best effort to support them."""
+        return {k: str(v) for k, v in (self.get_sbatch_env_vars() | self.final_env_vars).items() if "," in v}
 
-        We quote each full `export KEY=value` command so `$SLURM_*` and commas survive
-        argument parsing on the submit node and are expanded/interpreted in the job shell.
-        """
-        exports: list[str] = []
-        for key, value in sorted(self.final_env_vars.items()):
-            exports.extend(["-cb", shlex.quote(f"export {key}={value}")])
-        return exports
+    def _build_custom_env_vars(self) -> str:
+        ignored_env_vars = {}
 
-    def _container_runtime_env_exports(self) -> list[str]:
-        """
-        Build ``export`` lines for container-runtime env vars.
+        custom_env_vars = {}
+        for k, v in (self.get_sbatch_env_vars() | self.final_env_vars).items():
+            v = str(v)
 
-        Variables like ``MELLANOX_VISIBLE_DEVICES`` and ``NVIDIA_VISIBLE_DEVICES``
-        are consumed by the NVIDIA container toolkit / enroot at container-creation
-        time to decide which devices to mount.  They must be present in the process
-        environment **before** the Megatron-Bridge launcher calls ``sbatch`` so that
-        Slurm inherits them into the job and ``srun`` passes them to the container
-        runtime.  Exporting them in the wrapper script (which runs on the submit
-        node) achieves this.  The same variables are still passed via ``-cb`` as
-        well, so they are also set inside the container for any runtime readers.
-        """
-        lines: list[str] = []
-        for key, value in sorted(self.final_env_vars.items()):
-            if key in self.CONTAINER_RUNTIME_ENV_VARS:
-                lines.append(f"export {key}={shlex.quote(str(value))}")
-        return lines
+            if "," in v:
+                ignored_env_vars[k] = v
+                continue
+
+            # make sure expressions aren't evaluated before sbatch submit
+            if "$(" in v:
+                v = v.replace("$(", "\\$(")
+
+            custom_env_vars[k] = v
+
+        if ignored_env_vars:
+            logging.warning(
+                "Megatron-Bridge has limited support for env vars with commas. The following env vars will not be "
+                "evaluated inside SBATCH. Only outside (before sbatch submission) and on each compute node (srun).\n%s",
+                ",".join(f"{key}={value}" for key, value in ignored_env_vars.items()),
+            )
+
+        if not custom_env_vars:
+            return ""
+
+        return shlex.quote(",".join(f"{key}={value}" for key, value in custom_env_vars.items()))
+
+    def _build_custom_srun_args(self) -> list[str]:
+        srun_parts = self.gen_srun_prefix()
+        srun_parts.remove("srun")
+
+        part_prefixes_to_remove = (
+            "--mpi",
+            "--container-writable",
+            "--no-container-mount-home",
+            "--container-mounts",
+            "--container-image",
+        )
+        return [part for part in srun_parts if not part.startswith(part_prefixes_to_remove)]
+
+    def _build_additional_slurm_params(self) -> str:
+        directives = self._get_sbatch_directives()
+        additional_slurm_params: list[str] = []
+
+        for key, value in directives.items():
+            if key == "-N":
+                key = "nodes"
+            key = key.lstrip("-").replace("_", "-")
+
+            if value is True or value == "":
+                additional_slurm_params.append(key)
+            else:
+                additional_slurm_params.append(f"{key}={value}")
+
+        if not additional_slurm_params:
+            return ""
+
+        return shlex.quote(";".join(additional_slurm_params))
 
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
@@ -134,30 +160,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         items = [seg.strip().strip("\"'") for seg in s.split(",") if seg.strip()]
         joined = ",".join(items)
         return f'"{joined}"'
-
-    @staticmethod
-    def _parse_srun_args_as_slurm_params(srun_args: str) -> list[str]:
-        """
-        Convert ``--key value`` pairs from extra_srun_args into ``key=value`` for --additional_slurm_params.
-
-        Standalone boolean flags (e.g. ``--exclusive``) are emitted as bare
-        key names without a ``=value`` suffix.
-        """
-        params: list[str] = []
-        tokens = shlex.split(srun_args)
-        i = 0
-        while i < len(tokens):
-            tok = tokens[i]
-            if tok.startswith("--") and "=" in tok:
-                key, val = tok[2:].split("=", 1)
-                params.append(f"{key}={val}")
-            elif tok.startswith("--") and i + 1 < len(tokens) and not tokens[i + 1].startswith("--"):
-                params.append(f"{tok[2:]}={tokens[i + 1]}")
-                i += 1
-            elif tok.startswith("--"):
-                params.append(tok[2:])
-            i += 1
-        return params
 
     def _normalize_cuda_graph_scope_arg(self, val: Any) -> str:
         s = str(val).strip().strip("\"'")
@@ -179,8 +181,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         wrapper_path = output_dir / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         log_path = output_dir / "cloudai_megatron_bridge_launcher.log"
 
-        container_runtime_exports = self._container_runtime_env_exports()
-
         script_lines = [
             "#!/usr/bin/env bash",
             "set -o pipefail",
@@ -193,7 +193,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Mirror wrapper stdout/stderr to files for debugging while still emitting to the parent process.
             'exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)',
             "",
-            *container_runtime_exports,
+            self._format_env_vars(self._get_startup_env_vars()),
             "",
             ': >"$LOG"',
             "WANDB_INSTALL_RC=0",
@@ -289,11 +289,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
         python_bin = (venv_path / "bin" / "python").absolute()
-        parts: list[str] = [
-            f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
-            str(python_bin),
-            str(Path(launcher_py).absolute()),
-        ]
+        parts: list[str] = [str(python_bin), str(Path(launcher_py).absolute())]
 
         def add(flag: str, value: Any) -> None:
             if value is None:
@@ -345,10 +341,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # Pass extra env variables as `-cb export KEY=value` commands to avoid Megatron-Bridge's
-        # --custom_env_vars parser limitation for comma-containing values.
-        if self.final_env_vars:
-            parts.extend(self._build_custom_bash_env_exports())
+        # Manage environment variables
+        mounts.append(f"{(self.test_run.output_path / 'env_vars.sh').absolute()}:/env_vars.sh")
+        parts.extend(["-cb", "'source /env_vars.sh'"])
+        self.write_env_vars()
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)
@@ -451,25 +447,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("nsys_trace", "--nsys_trace", self._list_or_comma_str(args.nsys_trace))
         add_field("nsys_extra_args", "--nsys_extra_args", self._list_or_comma_str(args.nsys_extra_args))
 
-        additional_slurm_params: list[str] = []
+        if additional_slurm_params := self._build_additional_slurm_params():
+            parts.extend(["--additional_slurm_params", additional_slurm_params])
 
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            additional_slurm_params.append(f"gpus-per-node={self.system.gpus_per_node}")
-            additional_slurm_params.append(f"gres=gpu:{self.system.gpus_per_node}")
+        if custom_srun_args := self._build_custom_srun_args():
+            parts.extend(["--custom_srun_args", f"'{','.join(custom_srun_args)}'"])
 
-        _, node_list = self.get_cached_nodes_spec()
-        if node_list:
-            nodelist_str = ",".join(node_list)
-            additional_slurm_params.append(f"nodelist={nodelist_str}")
-        elif self.test_run.exclude_nodes:
-            additional_slurm_params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
-
-        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
-            if source:
-                additional_slurm_params.extend(self._parse_srun_args_as_slurm_params(source))
-
-        if additional_slurm_params:
-            parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])
+        if custom_env_vars := self._build_custom_env_vars():
+            parts.extend(["--custom_env_vars", custom_env_vars])
 
         # Config variant
         add_field("config_variant", "-cv", args.config_variant)
