@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -118,6 +119,46 @@ class GitRepo(Installable, BaseModel):
     @property
     def container_mount(self) -> str:
         return self.mount_as or f"/git/{self.repo_name}"
+
+    def check_submodules_state(self, repo_path: Path) -> tuple[bool, str]:
+        """Check if submodules state in the cloned repo matches self.init_submodules."""
+        result = subprocess.run(
+            ["git", "submodule", "status", "--recursive"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False, f"Failed to get submodule status: {result.stderr}"
+        output = [line for line in result.stdout.splitlines() if line.strip()]
+
+        has_submodules = bool(output)
+        if not has_submodules:
+            return True, ""
+
+        status_prefixes = [line[0] for line in output]
+        if self.init_submodules and not all(prefix == " " for prefix in status_prefixes):
+            return False, "Cloned repo has not all submodules initialized."
+        if not self.init_submodules and not all(prefix == "-" for prefix in status_prefixes):
+            return False, "Cloned repo has some submodules initialized but requires none to be."
+
+        return True, ""
+
+    def ensure_submodules_state(self, repo_path: Path) -> tuple[bool, str]:
+        """Ensure submodules state in the cloned repo matches self.init_submodules (install or deinstall them)."""
+        submodules_are_ok, submodules_are_ok_msg = self.check_submodules_state(repo_path)
+        if submodules_are_ok:
+            return True, ""
+        if not submodules_are_ok and "Failed to get submodule status" in submodules_are_ok_msg:
+            return False, submodules_are_ok_msg
+
+        cmd = ["update", "--init", "--recursive"] if self.init_submodules else ["deinit", "--all", "--force"]
+        result = subprocess.run(["git", "submodule", *cmd], cwd=str(repo_path), capture_output=True, text=True)
+        if result.returncode != 0:
+            action = "initialize" if self.init_submodules else "deinitialize"
+            return False, f"Failed to {action} submodules: {result.stderr}"
+
+        return True, ""
 
 
 @dataclass
