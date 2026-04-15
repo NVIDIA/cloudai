@@ -256,7 +256,6 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         env_vars = super().final_env_vars
         env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
         env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
-        env_vars["SLURM_JOB_MASTER_NODE"] = "$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         return env_vars
 
     @final_env_vars.setter
