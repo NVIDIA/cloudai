@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,6 +54,7 @@ class TestParser:
             List[Any]: List of objects from the configuration files.
         """
         objects: List[Any] = []
+        seen_names: Dict[str, Path] = {}
         for f in self.test_tomls:
             self.current_file = f
             logging.debug(f"Parsing file: {f}")
@@ -61,8 +62,9 @@ class TestParser:
                 data: Dict[str, Any] = toml.load(fh)
                 parsed_object = self._parse_data(data)
                 obj_name: str = parsed_object.name
-                if obj_name in objects:
-                    raise ValueError(f"Duplicate name found: {obj_name}")
+                if obj_name in seen_names:
+                    raise ValueError(f"Duplicate test name '{obj_name}' found in:\n  - {seen_names[obj_name]}\n  - {f}")
+                seen_names[obj_name] = f
                 objects.append(parsed_object)
         return objects
 
