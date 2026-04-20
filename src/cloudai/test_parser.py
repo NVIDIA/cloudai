@@ -79,10 +79,11 @@ class TestParser:
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
         except ValidationError as e:
-            logging.error(f"Failed to parse test spec: '{self.current_file}'")
+            msg = f"Failed to parse test spec: '{self.current_file}'"
             for err in e.errors(include_url=False):
                 err_msg = format_validation_error(err)
-                logging.error(err_msg)
+                msg += f"\n\t{err_msg}"
+            logging.error(msg)
             raise TestConfigParsingError("Failed to parse test spec") from e
 
         return test_def
