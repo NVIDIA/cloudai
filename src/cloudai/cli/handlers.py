@@ -43,11 +43,21 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
+from cloudai.test_parser import load_toml_file
+from cloudai.toml_utils import format_toml_decode_error
 from cloudai.util import prepare_output_dir
 
 
 def _log_installation_dirs(prefix: str, system: System) -> None:
     logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
+
+
+def _log_verification_failure(config_kind: str, file_path: Path, error: Exception) -> None:
+    message = str(error).strip() or error.__class__.__name__
+    if str(file_path) in message:
+        logging.error(message)
+    else:
+        logging.error(f"{config_kind} verification failed for '{file_path}': {message}")
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -356,8 +366,8 @@ def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]
 def _ensure_kube_config_exists(system_toml_path: Path, content: str):
     try:
         config_dict = toml.loads(content)
-    except Exception as e:
-        logging.error(f"Error parsing TOML file {system_toml_path}: {e}")
+    except toml.TomlDecodeError as e:
+        logging.error(format_toml_decode_error(system_toml_path, e, "system config"))
         raise
 
     kube_config_path_str = config_dict.get("kube_config_path")
@@ -415,12 +425,14 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
                 with _ensure_kube_config_exists(system_toml, content):
                     Parser.parse_system(system_toml)
             except Exception as e:
+                _log_verification_failure("System config", system_toml, e)
                 logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
         else:
             try:
                 Parser.parse_system(system_toml)
             except Exception as e:
+                _log_verification_failure("System config", system_toml, e)
                 logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
 
@@ -440,8 +452,9 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
         try:
             with test_toml.open() as fh:
                 tp.current_file = test_toml
-                tp.load_test_definition(toml.load(fh))
-        except Exception:
+                tp.load_test_definition(load_toml_file(fh, test_toml))
+        except Exception as e:
+            _log_verification_failure("Test config", test_toml, e)
             nfailed += 1
 
     if nfailed:
@@ -464,7 +477,8 @@ def verify_test_scenarios(
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
             Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
-        except Exception:
+        except Exception as e:
+            _log_verification_failure("Test scenario", scenario_file, e)
             nfailed += 1
 
     if nfailed:
@@ -498,12 +512,15 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     nfailed = 0
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
-    if files["test"]:
-        nfailed += verify_test_configs(files["test"])
+    if test_tomls:
+        nfailed += verify_test_configs(test_tomls)
     if files["scenario"]:
         nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
     if files["unknown"]:
-        logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
+        for unknown_file in files["unknown"]:
+            logging.error(
+                f"Unknown configuration file '{unknown_file}': could not classify as system, test, scenario, or hook."
+            )
         nfailed += len(files["unknown"])
 
     if nfailed:

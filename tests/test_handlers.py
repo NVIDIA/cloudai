@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 from typing import Any, ClassVar, Iterator
 from unittest.mock import MagicMock
 
@@ -22,7 +23,7 @@ import pandas as pd
 import pytest
 from pydantic import Field
 
-from cloudai.cli.handlers import handle_dse_job
+from cloudai.cli.handlers import handle_dse_job, verify_system_configs, verify_test_configs, verify_test_scenarios
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
@@ -213,3 +214,42 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
 def test_rewards_nested() -> None:
     cfg = BaseAgentConfig.model_validate({"rewards": {"constraint_failure": -2.5, "metric_failure": 0.0}})
     assert cfg.rewards == RewardOverrides(constraint_failure=-2.5, metric_failure=0.0)
+
+
+def test_verify_test_configs_logs_failure_details(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    broken_test = tmp_path / "broken_test.toml"
+    broken_test.write_text('name = "first"\nname = "second"\n')
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_configs([broken_test])
+
+    assert nfailed == 1
+    assert str(broken_test) in caplog.text
+    assert "duplicate TOML key 'name'" in caplog.text
+    assert "1 out of 1 test configurations have issues." in caplog.text
+
+
+def test_verify_system_configs_logs_failure_details(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    broken_system = tmp_path / "broken_system.toml"
+    broken_system.write_text('scheduler = "slurm"\nscheduler = "kubernetes"\n')
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_system_configs([broken_system])
+
+    assert nfailed == 1
+    assert str(broken_system) in caplog.text
+    assert "duplicate TOML key 'scheduler'" in caplog.text
+    assert "1 out of 1 system configurations have issues." in caplog.text
+
+
+def test_verify_test_scenarios_logs_failure_details(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    broken_scenario = tmp_path / "broken_scenario.toml"
+    broken_scenario.write_text('name = "first"\nname = "second"\n[[Tests]]\nid = "t1"\ntest_name = "demo"\n')
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([broken_scenario], [], [], [])
+
+    assert nfailed == 1
+    assert str(broken_scenario) in caplog.text
+    assert "duplicate TOML key 'name'" in caplog.text
+    assert "1 out of 1 test scenarios have issues." in caplog.text

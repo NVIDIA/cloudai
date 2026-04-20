@@ -39,6 +39,7 @@ from .core import (
 from .models.scenario import TestRunModel, TestScenarioModel
 from .models.workload import TestDefinition
 from .test_parser import TestParser
+from .toml_utils import format_toml_decode_error
 
 
 def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
@@ -101,7 +102,12 @@ class TestScenarioParser:
             TestScenario: The parsed TestScenario object.
         """
         with self.file_path.open("r") as file:
-            data: Dict[str, Any] = toml.load(file)
+            try:
+                data = toml.load(file)
+            except toml.TomlDecodeError as e:
+                message = format_toml_decode_error(self.file_path, e, "test scenario definition")
+                logging.error(message)
+                raise TestScenarioParsingError(message) from e
             return self._parse_data(data)
 
     def _parse_data(self, data: Dict[str, Any]) -> TestScenario:

@@ -34,6 +34,7 @@ from ._core.system import System
 from ._core.test_scenario import TestScenario
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
+from .toml_utils import format_toml_decode_error
 
 HOOK_ROOT = Path("conf/hook")
 HOOK_TEST_ROOT = HOOK_ROOT / "test"
@@ -166,7 +167,12 @@ class Parser:
         registry = Registry()
         with Path(system_config_path).open() as f:
             logging.debug(f"Opened system config file: {system_config_path}")
-            data = toml.load(f)
+            try:
+                data = toml.load(f)
+            except toml.TomlDecodeError as e:
+                message = format_toml_decode_error(system_config_path, e, "system config")
+                logging.error(message)
+                raise SystemConfigParsingError(message) from e
             scheduler: Optional[str] = data.get("scheduler")
             if scheduler is None:
                 logging.error(f"Missing 'scheduler' key in {system_config_path}")
