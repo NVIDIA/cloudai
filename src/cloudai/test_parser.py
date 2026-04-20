@@ -72,8 +72,11 @@ class TestParser:
         test_template_name = data.get("test_template_name")
         registry = Registry()
         if not test_template_name or test_template_name not in registry.test_definitions_map:
-            logging.error(f"Failed to parse test spec: '{self.current_file}'")
-            logging.error(f"TestTemplate with name '{test_template_name}' not supported.")
+            logging.error(
+                "Failed to parse test spec: '%s'\n\tTestTemplate with name '%s' not supported.",
+                self.current_file,
+                test_template_name,
+            )
             raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
 
         try:
