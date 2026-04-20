@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import io
 import logging
 from pathlib import Path
 from typing import Any, Dict, List
@@ -59,7 +59,7 @@ class TestParser:
             self.current_file = f
             logging.debug(f"Parsing file: {f}")
             with f.open() as fh:
-                data: Dict[str, Any] = toml.load(fh)
+                data: Dict[str, Any] = load_toml_file(fh, f)
                 parsed_object = self._parse_data(data)
                 obj_name: str = parsed_object.name
                 if obj_name in seen_names:
@@ -98,3 +98,45 @@ class TestParser:
             Test: Parsed Test object.
         """
         return self.load_test_definition(data)
+
+
+def load_toml_file(fh: io.IOBase, file_path: Path) -> Dict[str, Any]:
+    try:
+        return toml.load(fh)
+    except toml.TomlDecodeError as e:
+        message = format_toml_decode_error(file_path, e)
+        logging.error(message)
+        raise TestConfigParsingError(message) from e
+
+
+def format_toml_decode_error(file_path: Path, error: toml.TomlDecodeError) -> str:
+    if error.msg == "Duplicate keys!":
+        duplicate_key = extract_duplicate_key(error.doc, error.lineno)
+        if duplicate_key:
+            return (
+                f"Failed to parse test spec '{file_path}': duplicate TOML key "
+                f"'{duplicate_key}' at line {error.lineno}, column {error.colno}."
+            )
+
+    return (
+        f"Failed to parse test spec '{file_path}': TOML parsing error "
+        f"at line {error.lineno}, column {error.colno}: {error.msg}"
+    )
+
+
+def extract_duplicate_key(doc: Any, lineno: int) -> str:
+    key = _extract_duplicate_key(doc, lineno)
+    return key or "<unknown>"
+
+
+def _extract_duplicate_key(doc: str, lineno: int) -> str | None:
+    lines = doc.splitlines()
+    if lineno < 1 or lineno > len(lines):
+        return None
+
+    line = lines[lineno - 1].split("#", 1)[0].strip()
+    if not line or "=" not in line or line.startswith("["):
+        return None
+
+    key = line.split("=", 1)[0].strip()
+    return key or None
