@@ -117,7 +117,10 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
     """Shared command-argument shape for LLM serving workloads."""
 
     docker_image_url: str
+
     model: str
+    model_is_local: bool = False
+
     port: int = Field(default=8000, ge=1, le=65535)
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
@@ -155,7 +158,12 @@ class LLMServingTestDefinition(TestDefinition, Generic[LLMServingCmdArgsT]):
 
     @property
     def installables(self) -> list[Installable]:
-        return [*self.git_repos, self.docker_image, self.hf_model, *self.extra_installables]
+        return [
+            *self.git_repos,
+            self.docker_image,
+            *([] if self.cmd_args.model_is_local else [self.hf_model]),
+            *self.extra_installables,
+        ]
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
