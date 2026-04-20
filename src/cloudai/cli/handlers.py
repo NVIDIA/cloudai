@@ -454,7 +454,7 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
                 tp.current_file = test_toml
                 tp.load_test_definition(load_toml_file(fh, test_toml))
         except Exception as e:
-            _log_verification_failure("Test config", test_toml, e)
+            _log_verification_failure("Test file", test_toml, e)
             nfailed += 1
 
     if nfailed:
@@ -478,7 +478,7 @@ def verify_test_scenarios(
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
             Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
         except Exception as e:
-            _log_verification_failure("Test scenario", scenario_file, e)
+            _log_verification_failure("Scenario file", scenario_file, e)
             nfailed += 1
 
     if nfailed:
