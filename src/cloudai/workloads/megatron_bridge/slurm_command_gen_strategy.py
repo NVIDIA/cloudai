@@ -99,10 +99,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 ignored_env_vars[k] = v
                 continue
 
-            # make sure expressions aren't evaluated before sbatch submit
-            if "$(" in v:
-                v = v.replace("$(", "\\$(")
-
             custom_env_vars[k] = v
 
         if ignored_env_vars:
@@ -338,13 +334,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
         add_field("gpus_per_node", "-gn", self.system.gpus_per_node)
-        if mounts:
-            add("-cm", ",".join(mounts))
 
         # Manage environment variables
         mounts.append(f"{(self.test_run.output_path / 'env_vars.sh').absolute()}:/env_vars.sh")
         parts.extend(["-cb", "'source /env_vars.sh'"])
         self.write_env_vars()
+
+        if mounts:
+            add("-cm", ",".join(mounts))
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)
@@ -451,7 +448,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.extend(["--additional_slurm_params", additional_slurm_params])
 
         if custom_srun_args := self._build_custom_srun_args():
-            parts.extend(["--custom_srun_args", f"'{','.join(custom_srun_args)}'"])
+            parts.extend([f"--custom_srun_args='{','.join(custom_srun_args)}'"])
 
         if custom_env_vars := self._build_custom_env_vars():
             parts.extend(["--custom_env_vars", custom_env_vars])
