@@ -52,14 +52,6 @@ def _log_installation_dirs(prefix: str, system: System) -> None:
     logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
 
 
-def _log_verification_failure(config_kind: str, file_path: Path, error: Exception) -> None:
-    message = str(error).strip() or error.__class__.__name__
-    if str(file_path) in message:
-        logging.error(message)
-    else:
-        logging.error(f"{config_kind} verification failed for '{file_path}': {message}")
-
-
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     """
     Manage the installation or uninstallation process for CloudAI.
@@ -425,14 +417,12 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
                 with _ensure_kube_config_exists(system_toml, content):
                     Parser.parse_system(system_toml)
             except Exception as e:
-                _log_verification_failure("System config", system_toml, e)
                 logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
         else:
             try:
                 Parser.parse_system(system_toml)
             except Exception as e:
-                _log_verification_failure("System config", system_toml, e)
                 logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
 
@@ -453,8 +443,7 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
             with test_toml.open() as fh:
                 tp.current_file = test_toml
                 tp.load_test_definition(load_toml_file(fh, test_toml))
-        except Exception as e:
-            _log_verification_failure("Test file", test_toml, e)
+        except Exception:
             nfailed += 1
 
     if nfailed:
@@ -477,8 +466,7 @@ def verify_test_scenarios(
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
             Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
-        except Exception as e:
-            _log_verification_failure("Scenario file", scenario_file, e)
+        except Exception:
             nfailed += 1
 
     if nfailed:
