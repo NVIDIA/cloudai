@@ -59,7 +59,7 @@ class TestParser:
             self.current_file = f
             logging.debug(f"Parsing file: {f}")
             with f.open() as fh:
-                data: Dict[str, Any] = load_toml_file(fh, f)
+                data: Dict[str, Any] = load_test_toml_file(fh, f)
                 parsed_object = self._parse_data(data)
                 obj_name: str = parsed_object.name
                 if obj_name in seen_names:
@@ -104,7 +104,7 @@ class TestParser:
         return self.load_test_definition(data)
 
 
-def load_toml_file(fh, file_path: Path) -> Dict[str, Any]:
+def load_test_toml_file(fh, file_path: Path) -> Dict[str, Any]:
     try:
         return toml.load(fh)
     except toml.TomlDecodeError as e:

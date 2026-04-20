@@ -43,7 +43,7 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
-from cloudai.test_parser import load_toml_file
+from cloudai.test_parser import load_test_toml_file
 from cloudai.toml_utils import format_toml_decode_error
 from cloudai.util import prepare_output_dir
 
@@ -442,7 +442,7 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
         try:
             with test_toml.open() as fh:
                 tp.current_file = test_toml
-                tp.load_test_definition(load_toml_file(fh, test_toml))
+                tp.load_test_definition(load_test_toml_file(fh, test_toml))
         except Exception:
             nfailed += 1
 

@@ -21,7 +21,16 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai.core import File, NsysConfiguration, Parser, Registry, TestDefinition, TestParser, TestRun
+from cloudai.core import (
+    File,
+    NsysConfiguration,
+    Parser,
+    Registry,
+    TestConfigParsingError,
+    TestDefinition,
+    TestParser,
+    TestRun,
+)
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
@@ -260,7 +269,7 @@ class TestLoadTestDefinition:
         assert test_def.cmd_args.trainer.strategy.nested_unknown == "nested_unknown"  # type: ignore
 
     def test_load_test_definition_unknown_test(self, test_parser: TestParser):
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(TestConfigParsingError) as exc_info:
             test_parser.load_test_definition(data={"test_template_name": "unknown"})
         assert "TestTemplate with name 'unknown' not supported." in str(exc_info.value)
 
