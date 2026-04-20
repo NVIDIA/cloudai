@@ -82,6 +82,7 @@ class SglangBenchCmdArgs(CmdArgs):
     warmup_requests: int = 2
     random_range_ratio: float = 1.0
     output_details: bool = True
+    base_url: str = "127.0.0.1"
 
 
 class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):

@@ -78,6 +78,7 @@ class VllmBenchCmdArgs(CmdArgs):
     random_output_len: int = 128
     max_concurrency: int = 16
     num_prompts: int = 30
+    base_url: str = "127.0.0.1"
 
 
 class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):

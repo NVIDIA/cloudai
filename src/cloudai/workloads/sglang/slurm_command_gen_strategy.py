@@ -103,7 +103,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             "-m",
             self.tdef.cmd_args.bench_module,
             f"--backend {bench_args.backend}",
-            f"--base-url http://127.0.0.1:{self.serve_port}",
+            f"--base-url http://{bench_args.base_url}:{self.serve_port}",
             f"--model {self.tdef.cmd_args.model}",
             f"--dataset-name {bench_args.dataset_name}",
             f"--num-prompts {bench_args.num_prompts}",
