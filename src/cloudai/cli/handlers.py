@@ -498,23 +498,29 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
         )
 
     nfailed = 0
+    total_checked = 0
+
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
+        total_checked += len(files["system"])
     if test_tomls:
         nfailed += verify_test_configs(test_tomls)
+        total_checked += len(test_tomls)
     if files["scenario"]:
         nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
+        total_checked += len(files["scenario"])
     if files["unknown"]:
         for unknown_file in files["unknown"]:
             logging.error(
                 f"Unknown configuration file '{unknown_file}': could not classify as system, test, scenario, or hook."
             )
         nfailed += len(files["unknown"])
+        total_checked += len(files["unknown"])
 
     if nfailed:
-        logging.error(f"{nfailed} out of {len(tomls)} configuration files have issues.")
+        logging.error(f"{nfailed} out of {total_checked} configuration files have issues.")
     else:
-        logging.info(f"Checked {len(tomls)} configuration files, all passed")
+        logging.info(f"Checked {total_checked} configuration files, all passed")
 
     return nfailed
 

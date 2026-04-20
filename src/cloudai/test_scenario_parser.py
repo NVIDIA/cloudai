@@ -102,12 +102,7 @@ class TestScenarioParser:
             TestScenario: The parsed TestScenario object.
         """
         with self.file_path.open("r") as file:
-            try:
-                data = load_scenario_toml_file(file, self.file_path)
-            except toml.TomlDecodeError as e:
-                message = format_toml_decode_error(self.file_path, e, "test scenario definition")
-                logging.error(message)
-                raise TestScenarioParsingError(message) from e
+            data = load_scenario_toml_file(file, self.file_path)
             return self._parse_data(data)
 
     def _parse_data(self, data: Dict[str, Any]) -> TestScenario:
@@ -247,6 +242,6 @@ def load_scenario_toml_file(fh, file_path: Path) -> Dict[str, Any]:
     try:
         return toml.load(fh)
     except toml.TomlDecodeError as e:
-        message = format_toml_decode_error(file_path, e, "test spec")
+        message = format_toml_decode_error(file_path, e, "test scenario")
         logging.error(message)
         raise TestScenarioParsingError(message) from e
