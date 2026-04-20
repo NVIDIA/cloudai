@@ -84,8 +84,7 @@ class TestParser:
         except ValidationError as e:
             msg = f"Failed to parse test spec: '{self.current_file}'"
             for err in e.errors(include_url=False):
-                err_msg = format_validation_error(err)
-                msg += f"\n\t{err_msg}"
+                msg += f"\n\t{format_validation_error(err)}"
             logging.error(msg)
             raise TestConfigParsingError("Failed to parse test spec") from e
 

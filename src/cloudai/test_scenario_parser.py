@@ -123,10 +123,10 @@ class TestScenarioParser:
         try:
             ts_model = TestScenarioModel.model_validate(data)
         except ValidationError as e:
-            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            msg = f"Failed to parse Test Scenario definition: {self.file_path}"
             for err in e.errors(include_url=False):
-                err_msg = format_validation_error(err)
-                logging.error(err_msg)
+                msg += f"\n\t{format_validation_error(err)}"
+            logging.error(msg)
             raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
 
         total_weight = sum(tr.weight for tr in ts_model.tests)
