@@ -122,7 +122,7 @@ class TestScenarioParser:
             for err in e.errors(include_url=False):
                 msg += f"\n\t{format_validation_error(err)}"
             logging.error(msg)
-            raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
+            raise TestScenarioParsingError(msg) from e
 
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
