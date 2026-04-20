@@ -77,7 +77,7 @@ class TestParser:
                 self.current_file,
                 test_template_name,
             )
-            raise ValueError(f"TestTemplate with name '{test_template_name}' not supported.")
+            raise TestConfigParsingError(f"TestTemplate with name '{test_template_name}' not supported.")
 
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
