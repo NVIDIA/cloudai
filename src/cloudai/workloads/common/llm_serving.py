@@ -118,7 +118,12 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
 
     docker_image_url: str
     model: str
-    port: int = Field(default=8000, ge=1, le=65535)
+    port: int = Field(default=8300, ge=1, le=65535)
+    host: str = Field(default="0.0.0.0", description="Host/interface for serve or router processes to bind to.")
+    bench_host: str | None = Field(
+        default=None,
+        description="Hostname used by the benchmark client. Defaults to the allocated node hostname.",
+    )
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
     decode: LLMServingArgsT
@@ -362,6 +367,19 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         if role == "decode":
             return "${DECODE_NODE}"
         raise ValueError(f"Unknown disaggregated role: {role}")
+
+    @property
+    def bind_host(self) -> str:
+        return self.tdef.cmd_args.host
+
+    @property
+    def bench_host(self) -> str:
+        configured_host = self.tdef.cmd_args.bench_host
+        if configured_host:
+            return configured_host
+        if self.is_disaggregated:
+            return "${PREFILL_NODE}"
+        return "${NODE}"
 
     def generate_disaggregated_node_setup(self) -> str:
         if not self.is_disaggregated:

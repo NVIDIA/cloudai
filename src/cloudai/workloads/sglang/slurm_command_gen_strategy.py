@@ -40,7 +40,6 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
     def get_serve_commands(self) -> list[list[str]]:
         cmd_args = self.tdef.cmd_args
-        bind_host = "0.0.0.0"
 
         base_cmd = ["python3", "-m", cmd_args.serve_module, "--model-path", cmd_args.model]
         if not cmd_args.prefill:
@@ -48,7 +47,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
                 [
                     *base_cmd,
                     "--host",
-                    bind_host,
+                    self.bind_host,
                     "--port",
                     str(self.serve_port),
                     *cmd_args.decode.serve_args,
@@ -57,8 +56,8 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
         commands: list[list[str]] = []
         for host, port, mode, args in [
-            (bind_host, self.prefill_port, "prefill", cast(SglangArgs, cmd_args.prefill)),
-            (bind_host, self.decode_port, "decode", cmd_args.decode),
+            (self.bind_host, self.prefill_port, "prefill", cast(SglangArgs, cmd_args.prefill)),
+            (self.bind_host, self.decode_port, "decode", cmd_args.decode),
         ]:
             commands.append(
                 [
@@ -88,7 +87,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             "--decode",
             f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}",
             "--host",
-            "0.0.0.0",
+            self.bind_host,
             "--port",
             str(self.serve_port),
         ]
@@ -103,7 +102,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             "-m",
             self.tdef.cmd_args.bench_module,
             f"--backend {bench_args.backend}",
-            f"--base-url http://127.0.0.1:{self.serve_port}",
+            f"--base-url http://{self.bench_host}:{self.serve_port}",
             f"--model {self.tdef.cmd_args.model}",
             f"--dataset-name {bench_args.dataset_name}",
             f"--num-prompts {bench_args.num_prompts}",

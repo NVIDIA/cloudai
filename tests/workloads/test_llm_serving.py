@@ -259,11 +259,13 @@ class TestLLMServingSlurmHelpers:
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
         assert strategy.workload_slug == "fake-llm"
-        assert strategy.serve_port == 8000
+        assert strategy.serve_port == 8300
         assert strategy.prefill_gpu_ids == [0, 1, 2, 3]
         assert strategy.decode_gpu_ids == [0, 1, 2, 3]
-        assert strategy.prefill_port == 8100
-        assert strategy.decode_port == 8200
+        assert strategy.prefill_port == 8400
+        assert strategy.decode_port == 8500
+        assert strategy.bind_host == "0.0.0.0"
+        assert strategy.bench_host == "${PREFILL_NODE}"
         assert strategy.disaggregated_role_host("prefill") == "${PREFILL_NODE}"
         assert strategy.disaggregated_role_host("decode") == "${DECODE_NODE}"
         assert strategy.prefill_log_file == "fake-llm-prefill.log"
@@ -285,16 +287,16 @@ class TestLLMServingSlurmHelpers:
             strategy.generate_wait_for_health_block(
                 "Fake LLM",
                 [
-                    "http://${PREFILL_NODE}:8100/health",
-                    "http://${DECODE_NODE}:8200/health",
+                    "http://${PREFILL_NODE}:8400/health",
+                    "http://${DECODE_NODE}:8500/health",
                 ],
                 host_setup="",
                 host_display="$PREFILL_NODE and $DECODE_NODE",
             )
             == """\
 echo "Waiting for Fake LLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8100/health" || exit 1
-wait_for_health "http://${DECODE_NODE}:8200/health" || exit 1"""
+wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1"""
         )
         assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
 
