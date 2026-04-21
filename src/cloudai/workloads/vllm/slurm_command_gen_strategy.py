@@ -45,7 +45,7 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
 
-        base_cmd = ["vllm", "serve", cmd_args.model]
+        base_cmd = ["vllm", "serve", cmd_args.model, "--host", self.bind_host]
         if not tdef.cmd_args.prefill:
             return [[*base_cmd, *tdef.cmd_args.decode.serve_args, "--port", str(self.serve_port)]]
 
@@ -88,6 +88,8 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         return [
             "python3",
             self.tdef.cmd_args.proxy_script,
+            "--host",
+            self.bind_host,
             "--port",
             str(self.serve_port),
             "--prefiller-hosts",
@@ -109,7 +111,7 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             "bench",
             "serve",
             f"--model {self.tdef.cmd_args.model}",
-            f"--base-url http://127.0.0.1:{self.serve_port}",
+            f"--base-url http://{self.bench_host}:{self.serve_port}",
             f"--random-input-len {bench_args.random_input_len}",
             f"--random-output-len {bench_args.random_output_len}",
             f"--max-concurrency {bench_args.max_concurrency}",

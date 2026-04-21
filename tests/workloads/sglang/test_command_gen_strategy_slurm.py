@@ -94,7 +94,7 @@ def test_get_sglang_serve_commands_aggregated(sglang_cmd_gen_strategy: SglangSlu
         "--model-path",
         cmd_args.model,
         "--host",
-        "0.0.0.0",
+        cmd_args.host,
         "--port",
         str(cmd_args.port),
     ]
@@ -132,6 +132,7 @@ def test_get_sglang_bench_command_writes_jsonl(
     command = sglang_cmd_gen_strategy.get_bench_command()
     output_file_args = [part for part in command if part.startswith("--output-file ")]
     assert len(output_file_args) == 1
+    assert f"--base-url http://${{NODE}}:{sglang_cmd_gen_strategy.test_run.test.cmd_args.port}" in command
     assert output_file_args[0].endswith(f"/{SGLANG_BENCH_JSONL_FILE}")
 
 
@@ -150,7 +151,7 @@ def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slur
     assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
     assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
     assert "--decode http://${DECODE_NODE}:8200" in srun_command
-    assert "--base-url http://127.0.0.1:8000" in srun_command
+    assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
     assert f"--output={strategy.test_run.output_path.absolute()}/{SGLANG_BENCH_LOG_FILE}" in srun_command
 
 
@@ -171,7 +172,7 @@ def test_gen_srun_command_contains_expected_two_node_flow(
     assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
     assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
     assert "--decode http://${DECODE_NODE}:8200" in srun_command
-    assert "--base-url http://127.0.0.1:8000" in srun_command
+    assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
 
 
 def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:

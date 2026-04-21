@@ -159,7 +159,7 @@ class TestVllmBenchCommand:
             "bench",
             "serve",
             f"--model {cmd_args.model}",
-            f"--base-url http://127.0.0.1:{cmd_args.port}",
+            f"--base-url http://${{NODE}}:{cmd_args.port}",
             f"--random-input-len {bench_args.random_input_len}",
             f"--random-output-len {bench_args.random_output_len}",
             f"--max-concurrency {bench_args.max_concurrency}",
@@ -193,7 +193,7 @@ class TestVllmAggregatedMode:
         commands = vllm_cmd_gen_strategy.get_serve_commands()
 
         assert len(commands) == 1
-        assert commands[0] == ["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port)]
+        assert commands[0] == ["vllm", "serve", cmd_args.model, "--host", cmd_args.host, "--port", str(cmd_args.port)]
 
     def test_get_vllm_serve_commands_convert_boolean_flags(
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
@@ -208,6 +208,8 @@ class TestVllmAggregatedMode:
             "vllm",
             "serve",
             vllm.cmd_args.model,
+            "--host",
+            vllm.cmd_args.host,
             "--enable-expert-parallel",
             "--port",
             str(vllm.cmd_args.port),
@@ -304,6 +306,8 @@ class TestVllmDisaggregatedMode:
             "vllm",
             "serve",
             cmd_args.model,
+            "--host",
+            cmd_args.host,
             "--port",
             str(cmd_args.port + 100),
             "--kv-transfer-config",
@@ -313,6 +317,8 @@ class TestVllmDisaggregatedMode:
             "vllm",
             "serve",
             cmd_args.model,
+            "--host",
+            cmd_args.host,
             "--port",
             str(cmd_args.port + 200),
             "--kv-transfer-config",
@@ -329,6 +335,8 @@ class TestVllmDisaggregatedMode:
         assert command == [
             "python3",
             cmd_args.proxy_script,
+            "--host",
+            cmd_args.host,
             "--port",
             str(cmd_args.port),
             "--prefiller-hosts",
@@ -441,7 +449,7 @@ echo "Running benchmark..."
         assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
         assert "--prefiller-hosts ${PREFILL_NODE}" in srun_command
         assert "--decoder-hosts ${DECODE_NODE}" in srun_command
-        assert "--base-url http://127.0.0.1:8000" in srun_command
+        assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
 
     def test_disagg_more_than_two_nodes_is_rejected(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
         vllm_disagg_tr.num_nodes = 3
