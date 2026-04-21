@@ -39,6 +39,7 @@ from .core import (
 from .models.scenario import TestRunModel, TestScenarioModel
 from .models.workload import TestDefinition
 from .test_parser import TestParser
+from .toml_utils import format_toml_decode_error
 
 
 def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
@@ -101,7 +102,7 @@ class TestScenarioParser:
             TestScenario: The parsed TestScenario object.
         """
         with self.file_path.open("r") as file:
-            data: Dict[str, Any] = toml.load(file)
+            data = load_scenario_toml_file(file, self.file_path)
             return self._parse_data(data)
 
     def _parse_data(self, data: Dict[str, Any]) -> TestScenario:
@@ -117,11 +118,11 @@ class TestScenarioParser:
         try:
             ts_model = TestScenarioModel.model_validate(data)
         except ValidationError as e:
-            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            msg = f"Failed to parse Test Scenario definition: {self.file_path}"
             for err in e.errors(include_url=False):
-                err_msg = format_validation_error(err)
-                logging.error(err_msg)
-            raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
+                msg += f"\n\t{format_validation_error(err)}"
+            logging.error(msg)
+            raise TestScenarioParsingError(msg) from e
 
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
@@ -235,3 +236,12 @@ class TestScenarioParser:
             )
 
         return test
+
+
+def load_scenario_toml_file(fh, file_path: Path) -> Dict[str, Any]:
+    try:
+        return toml.load(fh)
+    except toml.TomlDecodeError as e:
+        message = format_toml_decode_error(file_path, e, "test scenario")
+        logging.error(message)
+        raise TestScenarioParsingError(message) from e

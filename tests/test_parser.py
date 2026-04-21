@@ -22,7 +22,7 @@ import pytest
 import toml
 from pydantic_core import ErrorDetails
 
-from cloudai.core import Parser, Registry, Reporter, TestParser, format_validation_error
+from cloudai.core import Parser, Registry, Reporter, TestConfigParsingError, TestParser, format_validation_error
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -278,3 +278,19 @@ class TestParseAllDuplicateDetection:
         with patch.object(parser, "_parse_data", return_value=self._make_fake_parsed("only_one")):
             results = parser.parse_all()
             assert len(results) == 1
+
+    def test_duplicate_toml_key_reports_file_and_key(self, tmp_path: Path):
+        """A duplicate TOML key should report the offending file and key."""
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir()
+        broken_toml = test_dir / "broken.toml"
+        broken_toml.write_text('name = "test_a"\nname = "test_b"\n')
+
+        parser = TestParser([broken_toml], None)  # type: ignore
+
+        with pytest.raises(TestConfigParsingError, match="duplicate TOML key 'name'") as exc_info:
+            parser.parse_all()
+
+        msg = str(exc_info.value)
+        assert str(broken_toml) in msg
+        assert "line 2, column 1" in msg
