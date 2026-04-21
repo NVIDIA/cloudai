@@ -587,7 +587,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=VllmCmdArgs(
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
                     model="Qwen/Qwen3-0.6B",
-                    port=8000,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
             ),
@@ -602,7 +601,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SglangCmdArgs(
                     docker_image_url="docker.io/lmsysorg/sglang:dev",
                     model="Qwen/Qwen3-8B",
-                    port=8000,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
             ),
@@ -617,7 +615,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SglangCmdArgs(
                     docker_image_url="docker.io/lmsysorg/sglang:dev",
                     model="Qwen/Qwen3-8B",
-                    port=8000,
                     prefill=SglangArgs(),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
@@ -633,7 +630,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SglangCmdArgs(
                     docker_image_url="docker.io/lmsysorg/sglang:dev",
                     model="Qwen/Qwen3-8B",
-                    port=8000,
                     prefill=SglangArgs(),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
@@ -649,7 +645,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=VllmCmdArgs(
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
                     model="Qwen/Qwen3-0.6B",
-                    port=8000,
                     prefill=VllmArgs(),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
@@ -665,7 +660,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=VllmCmdArgs(
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
                     model="Qwen/Qwen3-0.6B",
-                    port=8000,
                     prefill=VllmArgs(),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},

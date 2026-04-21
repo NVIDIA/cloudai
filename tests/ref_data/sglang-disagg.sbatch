@@ -52,25 +52,25 @@ echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
 echo "Starting SGLang instances..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-prefill.log \
-    env CUDA_VISIBLE_DEVICES="0,1" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8100 --disaggregation-mode prefill --disaggregation-transfer-backend nixl &
+    env CUDA_VISIBLE_DEVICES="0,1" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8400 --disaggregation-mode prefill --disaggregation-transfer-backend nixl &
 PREFILL_PID=$!
 
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-decode.log \
-    env CUDA_VISIBLE_DEVICES="2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8200 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
+    env CUDA_VISIBLE_DEVICES="2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8500 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
 DECODE_PID=$!
 
 echo "Waiting for SGLang on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8100/health" || exit 1
-wait_for_health "http://${DECODE_NODE}:8200/health" || exit 1
+wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-router.log \
-    python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8100 --decode http://${DECODE_NODE}:8200 --host 0.0.0.0 --port 8000 &
+    python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8400 --decode http://${DECODE_NODE}:8500 --host 0.0.0.0 --port 8300 &
 HELPER_PID=$!
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
-    python3 -m sglang.bench_serving --backend sglang --base-url http://${PREFILL_NODE}:8000 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated
+    python3 -m sglang.bench_serving --backend sglang --base-url http://${PREFILL_NODE}:8300 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated
