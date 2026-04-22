@@ -89,6 +89,9 @@ srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --cont
     python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --host 0.0.0.0 --port 8300 --prefiller-hosts ${PREFILL_NODE} --prefiller-ports 8400 --decoder-hosts ${DECODE_NODE} --decoder-ports 8500 &
 HELPER_PID=$!
 
+echo "Waiting for vLLM on $PREFILL_NODE server to be ready..."
+wait_for_health "http://${PREFILL_NODE}:8300/v1/models" || exit 1
+
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-bench.log \
