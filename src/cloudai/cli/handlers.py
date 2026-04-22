@@ -554,8 +554,11 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
         try:
             toml_content = toml.loads(content)
         except toml.TomlDecodeError:
+            files["unknown"].append(toml_file)
             continue
+
         if not isinstance(toml_content, dict):
+            files["unknown"].append(toml_file)
             continue
 
         if "scheduler" in toml_content:
