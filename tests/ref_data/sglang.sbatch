@@ -46,7 +46,7 @@ SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for SGLang on $NODE to be ready..."
-wait_for_health "http://${NODE}:8300/health" || exit 1
+wait_for_health "http://${NODE}:8300/v1/models" || exit 1
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \

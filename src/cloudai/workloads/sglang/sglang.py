@@ -62,6 +62,7 @@ class SglangCmdArgs(LLMServingCmdArgs[SglangArgs]):
     serve_module: str = "sglang.launch_server"
     router_module: str = "sglang_router.launch_router"
     bench_module: str = "sglang.bench_serving"
+    healthcheck: str = Field(default="/v1/models", description="Health check router endpoint.")
 
     prefill: SglangArgs | None = Field(
         default=None,
