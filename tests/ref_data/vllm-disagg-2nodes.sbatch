@@ -16,9 +16,9 @@ srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/vllm:latest --
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$HELPER_PID" ] && kill -9 $HELPER_PID 2>/dev/null
+    [ -n "$PREFILL_PID" ] && kill -TERM $PREFILL_PID 2>/dev/null
+    [ -n "$DECODE_PID" ] && kill -TERM $DECODE_PID 2>/dev/null
+    [ -n "$HELPER_PID" ] && kill -TERM $HELPER_PID 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -82,3 +82,6 @@ echo "Running benchmark..."
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-bench.log \
     vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${PREFILL_NODE}:8300 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30 --result-dir __OUTPUT_DIR__/output --result-filename vllm-bench.json --save-result
+
+cleanup
+sleep 15
