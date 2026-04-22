@@ -444,7 +444,7 @@ cleanup() {{
 trap cleanup EXIT"""
 
         pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
-        pid_array = " ".join(map(lambda p: f'"${p}"', pid_vars))
+        pid_array = " ".join(f'"${p}"' for p in pid_vars)
         return f"""\
 cleanup() {{
     echo "Cleaning up PIDs: {pid_values}"
