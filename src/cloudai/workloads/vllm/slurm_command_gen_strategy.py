@@ -37,6 +37,10 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
     def workload_name(self) -> str:
         return "vLLM"
 
+    @property
+    def mpi(self) -> str:
+        return "none"
+
     @staticmethod
     def _to_json_str_arg(config: dict) -> str:
         return "'" + json.dumps(config, separators=(",", ":")) + "'"

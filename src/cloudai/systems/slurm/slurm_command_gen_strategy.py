@@ -66,6 +66,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """Return CommandGenStrategy specific container mounts for the test run."""
         ...
 
+    @property
+    def mpi(self) -> str:
+        return self.system.mpi
+
     def store_test_run(self) -> None:
         test_cmd, srun_cmd = (" ".join(self.generate_test_command()), self.gen_srun_command())
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
@@ -248,7 +252,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
         num_nodes, _ = self.get_cached_nodes_spec()
-        srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
+        srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}"]
         if with_num_nodes and not self.nodelist_in_use:
             srun_command_parts.append(f"-N{num_nodes}")
         if use_pretest_extras and self.test_run.pre_test:

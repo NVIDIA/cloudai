@@ -10,9 +10,9 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
@@ -69,12 +69,12 @@ fi
 echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
 
 echo "Starting vLLM instances..."
-srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-prefill.log \
     env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --port 8400 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
 PREFILL_PID=$!
 
-srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=1 -N1 \
+srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=1 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-decode.log \
     env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --port 8500 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
 DECODE_PID=$!
@@ -84,7 +84,7 @@ wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
 wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
-srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-router.log \
     python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --host 0.0.0.0 --port 8300 --prefiller-hosts ${PREFILL_NODE} --prefiller-ports 8400 --decoder-hosts ${DECODE_NODE} --decoder-ports 8500 &
 HELPER_PID=$!
@@ -93,7 +93,7 @@ echo "Waiting for vLLM on $PREFILL_NODE server to be ready..."
 wait_for_health "http://${PREFILL_NODE}:8300/v1/models" || exit 1
 
 echo "Running benchmark..."
-srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/vllm-bench.log \
     vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${PREFILL_NODE}:8300 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30 --result-dir __OUTPUT_DIR__/output --result-filename vllm-bench.json --save-result
 
