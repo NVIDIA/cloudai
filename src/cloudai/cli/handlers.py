@@ -551,7 +551,7 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
                 files["hook"].append(toml_file)
             continue
 
-        if "scheduler =" in content:
+        if "\nscheduler =" in content:
             files["system"].append(toml_file)
         elif "test_template_name =" in content and "[[Tests]]" not in content:
             files["test"].append(toml_file)
