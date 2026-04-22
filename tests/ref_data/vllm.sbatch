@@ -16,19 +16,12 @@ srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 
 cleanup() {
     echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-
-    for pid in "$SERVE_PID"; do
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
-    done
-
-    for pid in "$SERVE_PID"; do
-        [ -z "$pid" ] && continue
-        i=0
-        while kill -0 "$pid" 2>/dev/null; do
-            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
-            sleep 1
-            i=$((i+1))
-        done
+    kill -TERM "$SERVE_PID" 2>/dev/null
+    i=0
+    while kill -0 "$SERVE_PID" 2>/dev/null; do
+        [ "$i" -ge 15 ] && echo "PID did not exit in time" && return 1
+        sleep 1
+        i=$((i+1))
     done
 }
 trap cleanup EXIT

@@ -255,7 +255,13 @@ wait_for_health() {{
         expected = f"""\
 cleanup() {{
     echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-    [ -n "$SERVE_PID" ] && kill -9 $SERVE_PID 2>/dev/null
+    kill -TERM "$SERVE_PID" 2>/dev/null
+    i=0
+    while kill -0 "$SERVE_PID" 2>/dev/null; do
+        [ "$i" -ge 15 ] && echo "PID did not exit in time" && return 1
+        sleep 1
+        i=$((i+1))
+    done
 }}
 trap cleanup EXIT
 
@@ -274,7 +280,10 @@ wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
-    {bench_cmd}"""
+    {bench_cmd}
+
+cleanup
+"""
 
         assert srun_command == expected
 
@@ -377,9 +386,20 @@ class TestVllmDisaggregatedMode:
         expected = f"""\
 cleanup() {{
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$HELPER_PID" ] && kill -9 $HELPER_PID 2>/dev/null
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+    done
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -z "$pid" ] && continue
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+            sleep 1
+            i=$((i+1))
+        done
+    done
 }}
 trap cleanup EXIT
 
@@ -422,7 +442,10 @@ HELPER_PID=$!
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
-    {bench_cmd}"""
+    {bench_cmd}
+
+cleanup
+"""
 
         assert srun_command == expected
 

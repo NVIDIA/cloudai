@@ -432,17 +432,19 @@ wait_for_health() {{
             pid_var = pid_vars[0]
             return f"""\
 cleanup() {{
-    echo "Cleaning up PIDs: {pid_var}=${pid_var}
-    kill -TERM "{pid_var}" 2>/dev/null
+    echo "Cleaning up PIDs: {pid_var}=${pid_var}"
+    kill -TERM "${pid_var}" 2>/dev/null
+    i=0
     while kill -0 "${pid_var}" 2>/dev/null; do
         [ "$i" -ge {timeout} ] && echo "PID did not exit in time" && return 1
         sleep 1
+        i=$((i+1))
     done
 }}
 trap cleanup EXIT"""
 
         pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
-        pid_array = " ".join(map(lambda p: f'"${p}"', pid_values))
+        pid_array = " ".join(map(lambda p: f'"${p}"', pid_vars))
         return f"""\
 cleanup() {{
     echo "Cleaning up PIDs: {pid_values}"

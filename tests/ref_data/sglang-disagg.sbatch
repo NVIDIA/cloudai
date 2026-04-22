@@ -16,10 +16,20 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-    [ -n "$PREFILL_PID" ] && kill -TERM $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -TERM $DECODE_PID 2>/dev/null
-    [ -n "$HELPER_PID" ] && kill -TERM $HELPER_PID 2>/dev/null
-    sleep 15
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+    done
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -z "$pid" ] && continue
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+            sleep 1
+            i=$((i+1))
+        done
+    done
 }
 trap cleanup EXIT
 
