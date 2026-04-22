@@ -26,6 +26,21 @@ from cloudai.models.scenario import TestScenarioModel
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
 
+def get_all_systems() -> list[Path]:
+    result = []
+
+    for p in TOML_FILES:
+        try:
+            toml_content = toml.loads(p.read_text())
+        except toml.TomlDecodeError:
+            continue
+
+        if isinstance(toml_content, dict) and "scheduler" in toml_content:
+            result.append(p)
+
+    return result
+
+
 @pytest.mark.parametrize("toml_file", TOML_FILES, ids=lambda x: str(x))
 def test_toml_files(toml_file: Path):
     """
@@ -38,7 +53,7 @@ def test_toml_files(toml_file: Path):
         assert toml.load(f) is not None
 
 
-ALL_SYSTEMS = [p for p in Path("conf/").glob("**/*.toml") if "scheduler =" in p.read_text()]
+ALL_SYSTEMS = get_all_systems()
 
 
 @pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
