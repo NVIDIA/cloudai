@@ -306,6 +306,10 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         """Typed access to the workload test definition."""
 
     @property
+    def mpi(self) -> str:
+        return "none"
+
+    @property
     @abstractmethod
     def workload_name(self) -> str:
         """User-facing workload name for diagnostics."""

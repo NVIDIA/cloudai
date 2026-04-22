@@ -10,9 +10,9 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-srun --export=ALL --mpi=pmix -N2 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=none -N2 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=none -N2 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
@@ -65,12 +65,12 @@ fi
 echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
 
 echo "Starting SGLang instances..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/sglang-prefill.log \
     env CUDA_VISIBLE_DEVICES="0,1,2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8400 --disaggregation-mode prefill --disaggregation-transfer-backend nixl &
 PREFILL_PID=$!
 
-srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=1 -N1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=1 -N1 \
     --output=__OUTPUT_DIR__/output/sglang-decode.log \
     env CUDA_VISIBLE_DEVICES="0,1,2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8500 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
 DECODE_PID=$!
@@ -80,7 +80,7 @@ wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
 wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/sglang-router.log \
     python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8400 --decode http://${DECODE_NODE}:8500 --host 0.0.0.0 --port 8300 &
 HELPER_PID=$!
@@ -89,7 +89,7 @@ echo "Waiting for SGLang on $PREFILL_NODE server to be ready..."
 wait_for_health "http://${PREFILL_NODE}:8300/v1/models" || exit 1
 
 echo "Running benchmark..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
     python3 -m sglang.bench_serving --backend sglang --base-url http://${PREFILL_NODE}:8300 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated
 
