@@ -15,8 +15,21 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-    [ -n "$SERVE_PID" ] && kill -9 $SERVE_PID 2>/dev/null
+    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+    done
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -z "$pid" ] && continue
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+            sleep 1
+            i=$((i+1))
+        done
+    done
 }
 trap cleanup EXIT
 
@@ -52,3 +65,5 @@ echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
     python3 -m sglang.bench_serving --backend sglang --base-url http://${NODE}:8300 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details
+
+cleanup

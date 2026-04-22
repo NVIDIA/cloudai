@@ -427,13 +427,39 @@ wait_for_health() {{
 }}"""
 
     @staticmethod
-    def generate_cleanup_function(pid_vars: list[str]) -> str:
+    def generate_cleanup_function(pid_vars: list[str], timeout: int = 15) -> str:
+        if len(pid_vars) == 1:
+            pid_var = pid_vars[0]
+            return f"""\
+cleanup() {{
+    echo "Cleaning up PIDs: {pid_var}=${pid_var}
+    kill -TERM "{pid_var}" 2>/dev/null
+    while kill -0 "${pid_var}" 2>/dev/null; do
+        [ "$i" -ge {timeout} ] && echo "PID did not exit in time" && return 1
+        sleep 1
+    done
+}}
+trap cleanup EXIT"""
+
         pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
-        kill_lines = "\n".join(f'    [ -n "${pid_var}" ] && kill -9 ${pid_var} 2>/dev/null' for pid_var in pid_vars)
+        pid_array = " ".join(map(lambda p: f'"${p}"', pid_values))
         return f"""\
 cleanup() {{
     echo "Cleaning up PIDs: {pid_values}"
-{kill_lines}
+
+    for pid in {pid_array}; do
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+    done
+
+    for pid in {pid_array}; do
+        [ -z "$pid" ] && continue
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+            [ "$i" -ge {timeout} ] && echo "PID $pid did not exit in time" && return 1
+            sleep 1
+            i=$((i+1))
+        done
+    done
 }}
 trap cleanup EXIT"""
 
@@ -527,7 +553,9 @@ trap cleanup EXIT"""
 
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
-        return self._gen_llm_serving_srun_command(serve_commands)
+        srun_command = self._gen_llm_serving_srun_command(serve_commands)
+        srun_command += "\n\ncleanup\n"
+        return srun_command
 
     def _gen_llm_serving_srun_command(self, serve_commands: list[list[str]]) -> str:
         bench_cmd = " ".join(self.get_bench_command())

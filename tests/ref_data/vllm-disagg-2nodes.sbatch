@@ -16,9 +16,20 @@ srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/vllm:latest --
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-    [ -n "$PREFILL_PID" ] && kill -TERM $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -TERM $DECODE_PID 2>/dev/null
-    [ -n "$HELPER_PID" ] && kill -TERM $HELPER_PID 2>/dev/null
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
+    done
+
+    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
+        [ -z "$pid" ] && continue
+        i=0
+        while kill -0 "$pid" 2>/dev/null; do
+            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+            sleep 1
+            i=$((i+1))
+        done
+    done
 }
 trap cleanup EXIT
 
@@ -84,4 +95,3 @@ srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/vllm:latest --cont
     vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${PREFILL_NODE}:8300 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30 --result-dir __OUTPUT_DIR__/output --result-filename vllm-bench.json --save-result
 
 cleanup
-sleep 15

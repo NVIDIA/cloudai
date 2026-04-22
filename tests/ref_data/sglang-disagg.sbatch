@@ -16,9 +16,10 @@ srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev
 
 cleanup() {
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
-    [ -n "$HELPER_PID" ] && kill -9 $HELPER_PID 2>/dev/null
+    [ -n "$PREFILL_PID" ] && kill -TERM $PREFILL_PID 2>/dev/null
+    [ -n "$DECODE_PID" ] && kill -TERM $DECODE_PID 2>/dev/null
+    [ -n "$HELPER_PID" ] && kill -TERM $HELPER_PID 2>/dev/null
+    sleep 15
 }
 trap cleanup EXIT
 
@@ -74,3 +75,5 @@ echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
     python3 -m sglang.bench_serving --backend sglang --base-url http://${PREFILL_NODE}:8300 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details --pd-separated
+
+cleanup
