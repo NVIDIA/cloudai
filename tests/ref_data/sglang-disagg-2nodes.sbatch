@@ -74,6 +74,9 @@ srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --c
     python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8400 --decode http://${DECODE_NODE}:8500 --host 0.0.0.0 --port 8300 &
 HELPER_PID=$!
 
+echo "Waiting for SGLang on $PREFILL_NODE server to be ready..."
+wait_for_health "http://${PREFILL_NODE}:8300/v1/models" || exit 1
+
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --relative=0 -N1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \

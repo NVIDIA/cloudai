@@ -578,6 +578,12 @@ echo "Running benchmark..."
             host_setup="",
             host_display="$PREFILL_NODE and $DECODE_NODE",
         )
+        wait_block_helper = self.generate_wait_for_health_block(
+            self.workload_name,
+            [f"http://{self.disaggregated_role_host('prefill')}:{self.serve_port}/v1/models"],
+            host_setup="",
+            host_display="$PREFILL_NODE server",
+        )
         preamble = self.disaggregated_script_preamble()
 
         return f"""\
@@ -604,6 +610,8 @@ echo "Starting {self.proxy_router_name}..."
     --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
     {" ".join(helper_cmd)} &
 {self.proxy_router_pid_var}=$!
+
+{wait_block_helper}
 
 echo "Running benchmark..."
 {prefill_srun_prefix} \\
