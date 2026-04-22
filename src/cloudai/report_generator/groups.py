@@ -51,6 +51,10 @@ class TestRunsGrouper:
         if field.startswith("extra_env_vars."):
             f_name = field[len("extra_env_vars.") :]
             v = str(tdef.extra_env_vars.get(f_name))
+        elif field.startswith("bench_cmd_args."):
+            bench_cmd_args = getattr(tdef, "bench_cmd_args", None)
+            f_name = field[len("bench_cmd_args.") :]
+            v = str(getattr(bench_cmd_args, f_name))
         else:
             v = getattr(tdef.cmd_args, field)
         return v

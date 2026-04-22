@@ -165,12 +165,26 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
 
 def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
     """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
+
+    def _normalize(value):
+        if isinstance(value, dict):
+            return tuple(sorted((k, _normalize(v)) for k, v in value.items()))
+        if isinstance(value, list):
+            return tuple(_normalize(v) for v in value)
+        return value
+
     dicts: list[dict] = []
     for tr in trs:
+        bench_cmd_args = getattr(tr.test, "bench_cmd_args", None)
         dicts.append(
             {
                 "NUM_NODES": tr.num_nodes,
                 **tr.test.cmd_args.model_dump(),
+                **(
+                    {f"bench_cmd_args.{k}": v for k, v in bench_cmd_args.model_dump().items()}
+                    if bench_cmd_args is not None
+                    else {}
+                ),
                 **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
             }
         )
@@ -179,7 +193,7 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
     diff = {}
     for key in all_keys:
         all_values = [d[key] for d in dicts]
-        if len(set(all_values)) > 1:
+        if len({_normalize(value) for value in all_values}) > 1:
             diff[key] = all_values
 
     return diff

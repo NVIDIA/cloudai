@@ -21,6 +21,7 @@ import pandas as pd
 from cloudai import TestRun
 from cloudai.report_generator.groups import TestRunsGrouper
 from cloudai.report_generator.util import diff_test_runs
+from cloudai.workloads.sglang import SglangBenchCmdArgs, SglangCmdArgs, SglangTestDefinition
 
 
 class TestGrouping:
@@ -101,6 +102,29 @@ class TestGrouping:
         assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
         assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
+    def test_group_by_bench_cmd_args_field(self) -> None:
+        sglang1 = TestRun(
+            name="sglang1",
+            test=SglangTestDefinition(
+                name="sglang1",
+                description="desc",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
+                bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
+            ),
+            num_nodes=1,
+            nodes=[],
+        )
+        sglang2 = copy.deepcopy(sglang1)
+        sglang2.name = "sglang2"
+        sglang2.test.bench_cmd_args.max_concurrency = 16
+
+        groups = TestRunsGrouper(trs=[sglang1, sglang2], group_by=["bench_cmd_args.max_concurrency"]).groups()
+
+        assert len(groups) == 2
+        assert groups[0].name == "bench_cmd_args.max_concurrency=8"
+        assert groups[1].name == "bench_cmd_args.max_concurrency=16"
+
 
 class TestDiffTrs:
     def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
@@ -130,3 +154,23 @@ class TestDiffTrs:
 
         diff = diff_test_runs([nccl1, nccl2])
         assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}
+
+    def test_diff_bench_cmd_args_field(self) -> None:
+        sglang1 = TestRun(
+            name="sglang1",
+            test=SglangTestDefinition(
+                name="sglang1",
+                description="desc",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
+                bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
+            ),
+            num_nodes=1,
+            nodes=[],
+        )
+        sglang2 = copy.deepcopy(sglang1)
+        sglang2.test.bench_cmd_args.max_concurrency = 16
+
+        diff = diff_test_runs([sglang1, sglang2])
+
+        assert diff == {"bench_cmd_args.max_concurrency": [8, 16]}

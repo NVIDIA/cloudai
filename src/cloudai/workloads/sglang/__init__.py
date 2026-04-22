@@ -24,6 +24,7 @@ from .sglang import (
     SglangCmdArgs,
     SglangTestDefinition,
 )
+from .sglang_comparison_report import SGLangComparisonReport
 from .slurm_command_gen_strategy import SglangSlurmCommandGenStrategy
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     "SGLANG_BENCH_LOG_FILE",
     "SGLangBenchReport",
     "SGLangBenchReportGenerationStrategy",
+    "SGLangComparisonReport",
     "SglangArgs",
     "SglangBenchCmdArgs",
     "SglangCmdArgs",

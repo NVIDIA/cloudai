@@ -72,13 +72,14 @@ def test_calculate_total_time_limit(
     assert calculate_total_time_limit(test_hooks, time_limit) == expected
 
 
-def test_report_spec_is_parsed() -> None:
+@pytest.mark.parametrize("report_name", ["nccl_comparison", "sglang_comparison", "vllm_comparison"])
+def test_report_spec_is_parsed(report_name: str) -> None:
     model = TestScenarioModel.model_validate(
-        toml.loads("""
+        toml.loads(f"""
     name = "scenario"
 
     [reports]
-    nccl_comparison = { enable = false, group_by = ["my_field"] }
+    {report_name} = {{ enable = false, group_by = ["bench_cmd_args.max_concurrency"] }}
 
     [[Tests]]
     id = "1"
@@ -91,6 +92,6 @@ def test_report_spec_is_parsed() -> None:
     )
 
     assert len(model.reports) == 1
-    cfg = cast(ComparisonReportConfig, model.reports["nccl_comparison"])
+    cfg = cast(ComparisonReportConfig, model.reports[report_name])
     assert cfg.enable is False
-    assert cfg.group_by == ["my_field"]
+    assert cfg.group_by == ["bench_cmd_args.max_concurrency"]
