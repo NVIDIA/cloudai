@@ -551,7 +551,17 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
                 files["hook"].append(toml_file)
             continue
 
-        if "scheduler =" in content:
+        try:
+            toml_content = toml.loads(content)
+        except toml.TomlDecodeError:
+            files["unknown"].append(toml_file)
+            continue
+
+        if not isinstance(toml_content, dict):
+            files["unknown"].append(toml_file)
+            continue
+
+        if "scheduler" in toml_content:
             files["system"].append(toml_file)
         elif "test_template_name =" in content and "[[Tests]]" not in content:
             files["test"].append(toml_file)
