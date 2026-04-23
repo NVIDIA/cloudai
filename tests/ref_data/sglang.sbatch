@@ -10,13 +10,19 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export CUDA_VISIBLE_DEVICES=0
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
     echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-    [ -n "$SERVE_PID" ] && kill -9 $SERVE_PID 2>/dev/null
+    kill -TERM "$SERVE_PID" 2>/dev/null
+    i=0
+    while kill -0 "$SERVE_PID" 2>/dev/null; do
+        [ "$i" -ge 15 ] && echo "PID did not exit in time" && return 1
+        sleep 1
+        i=$((i+1))
+    done
 }
 trap cleanup EXIT
 
@@ -39,7 +45,7 @@ wait_for_health() {
 }
 
 echo "Starting SGLang instances..."
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
+srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-serve.log \
     env CUDA_VISIBLE_DEVICES="0" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8300 &
 SERVE_PID=$!
@@ -49,6 +55,8 @@ echo "Waiting for SGLang on $NODE to be ready..."
 wait_for_health "http://${NODE}:8300/health" || exit 1
 
 echo "Running benchmark..."
-srun --export=ALL --mpi=pmix -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
+srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/sglang-bench.log \
     python3 -m sglang.bench_serving --backend sglang --base-url http://${NODE}:8300 --model Qwen/Qwen3-8B --dataset-name random --num-prompts 30 --max-concurrency 16 --random-input 16 --random-output 128 --warmup-requests 2 --random-range-ratio 1.0 --output-file __OUTPUT_DIR__/output/sglang-bench.jsonl --output-details
+
+cleanup
