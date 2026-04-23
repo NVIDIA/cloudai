@@ -124,6 +124,7 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
         default=None,
         description="Hostname used by the benchmark client. Defaults to the allocated node hostname.",
     )
+    healthcheck: str = Field(default="")
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
     decode: LLMServingArgsT
@@ -574,7 +575,7 @@ trap cleanup EXIT"""
         serve_cmd_with_env = self._with_env(serve_cmd, self.aggregated_serve_env())
         health_func = self.generate_wait_for_health_function()
         wait_block = self.generate_wait_for_health_block(
-            self.workload_name, [f"http://${{NODE}}:{self.serve_port}/health"]
+            self.workload_name, [f"http://${{NODE}}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"]
         )
         return f"""\
 {self.generate_cleanup_function([self.serve_pid_var])}
@@ -614,7 +615,7 @@ echo "Running benchmark..."
         )
         wait_block_helper = self.generate_wait_for_health_block(
             self.workload_name,
-            [f"http://{self.disaggregated_role_host('prefill')}:{self.serve_port}/v1/models"],
+            [f"http://{self.disaggregated_role_host('prefill')}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"],
             host_setup="",
             host_display="$PREFILL_NODE server",
         )

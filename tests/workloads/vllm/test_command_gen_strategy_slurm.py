@@ -275,7 +275,7 @@ SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
+wait_for_health "http://${{NODE}}:{cmd_args.port}/healthcheck" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -440,7 +440,7 @@ echo "Starting router..."
 HELPER_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE server to be ready..."
-wait_for_health "http://${{PREFILL_NODE}}:{cmd_args.port}/v1/models" || exit 1
+wait_for_health "http://${{PREFILL_NODE}}:{cmd_args.port}/healthcheck" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
