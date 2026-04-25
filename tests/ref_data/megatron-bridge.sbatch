@@ -8,6 +8,7 @@ WRAPPER_STDOUT="__OUTPUT_DIR__/output/cloudai_megatron_bridge_wrapper.stdout"
 WRAPPER_STDERR="__OUTPUT_DIR__/output/cloudai_megatron_bridge_wrapper.stderr"
 exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)
 
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 : >"$LOG"
 WANDB_INSTALL_RC=0
@@ -19,7 +20,7 @@ if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
 fi
 
 LAUNCH_RC=0
-NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' >>"$LOG" 2>&1 || LAUNCH_RC=$?
+__INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'source /env_vars.sh' -m qwen3 -mr 30b_a3b --detach false --additional_slurm_params 'output=__OUTPUT_DIR__/output/stdout.txt;error=__OUTPUT_DIR__/output/stderr.txt;partition=main;nodes=1;gpus-per-node=8;gres=gpu:8;time=00:20:00' --custom_srun_args '--export=ALL,-N1' --custom_env_vars 'SLURM_JOB_MASTER_NODE=\$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1),NCCL_DEBUG=INFO' >>"$LOG" 2>&1 || LAUNCH_RC=$?
 
 
 JOB_ID=""
