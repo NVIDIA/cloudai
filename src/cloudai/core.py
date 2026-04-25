@@ -41,8 +41,7 @@ from ._core.runner import Runner
 from ._core.system import System
 from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
 from .configurator.base_agent import BaseAgent, BaseAgentConfig
-from .configurator.cloudai_gym import CloudAIGymEnv
-from .configurator.cloudai_gym_online import CloudAIGymOnlineEnv, GymServer, OnlineTrajectoryEntry
+from .configurator.cloudai_gym import CloudAIGymEnv, GymServer
 from .configurator.grid_search import GridSearchAgent
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
@@ -59,7 +58,6 @@ __all__ = [
     "BaseRunner",
     "BaseSystemParser",
     "CloudAIGymEnv",
-    "CloudAIGymOnlineEnv",
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",
@@ -77,7 +75,6 @@ __all__ = [
     "JsonGenStrategy",
     "MissingTestError",
     "NsysConfiguration",
-    "OnlineTrajectoryEntry",
     "Parser",
     "PerTestReporter",
     "PredictorConfig",
