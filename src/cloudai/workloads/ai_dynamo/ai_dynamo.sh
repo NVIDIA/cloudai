@@ -9,6 +9,7 @@ DONE_MARKER="./success-marker.txt"
 FATAL_ERROR_MARKER="./failure-marker.txt"
 NODE_ROLES_FILE="node_roles.log"
 TEST_USER="$USER"
+WAIT_FOR_EXTERNAL_WORKLOAD="false"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
@@ -177,6 +178,8 @@ _parse_cli_pairs() {
         FATAL_ERROR_MARKER="$2" ;;
       --success-marker)
         DONE_MARKER="$2" ;;
+      --wait-for-external-workload)
+        WAIT_FOR_EXTERNAL_WORKLOAD="$2" ;;
     esac
     shift; shift;
   done
@@ -1078,7 +1081,11 @@ function main()
 
     sleep 10
 
-    launch_workloads &
+    if [[ "$WAIT_FOR_EXTERNAL_WORKLOAD" == "true" ]]; then
+      log "Waiting for external workload to complete"
+    else
+      launch_workloads &
+    fi
   fi
 
   wait_for_frontend_marker

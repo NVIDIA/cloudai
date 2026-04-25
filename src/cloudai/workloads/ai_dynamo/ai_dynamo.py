@@ -276,10 +276,18 @@ class GenAIPerf(Workload):
     name: str = "genai_perf"
     cmd: str = "genai-perf profile"
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf.sh")
+    client_docker_image_url: str | None = Field(
+        default=None,
+        serialization_alias="client-docker-image-url",
+        validation_alias=AliasChoices("client-docker-image-url", "client_docker_image_url"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.script]
+        result: list[Installable] = [self.script]
+        if self.client_docker_image_url:
+            result.append(DockerImage(url=self.client_docker_image_url))
+        return result
 
 
 class Constraints(BaseModel):
