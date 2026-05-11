@@ -16,7 +16,7 @@
 
 import stat
 from pathlib import Path
-from typing import List, cast
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
@@ -113,9 +113,8 @@ def test_generate_start_wrapper_script(tmp_path: Path, strategy: TritonInference
     assert bool(mode & stat.S_IXUSR)
 
 
-def test_append_sbatch_directives(strategy: TritonInferenceSlurmCommandGenStrategy) -> None:
-    lines: List[str] = []
-    strategy._append_sbatch_directives(lines)
+def test_gen_sbatch_prefix(strategy: TritonInferenceSlurmCommandGenStrategy) -> None:
+    lines = strategy._gen_sbatch_prefix()
     assert "export HEAD_NODE=$SLURM_JOB_MASTER_NODE" in lines
     assert "export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE" in lines
     assert "export NIM_NUM_COMPUTE_NODES=2" in lines

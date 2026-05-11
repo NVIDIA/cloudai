@@ -25,37 +25,21 @@ from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
 class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for DeepEP benchmark on Slurm systems."""
 
-    def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
-        """
-        Append bash commands to detect head node IP for torchrun.
-
-        Args:
-            batch_script_content: The list of script lines to append to.
-        """
-        batch_script_content.extend(
-            [
-                "",
-                "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
-                "nodes_array=($nodes)",
-                "head_node=${nodes_array[0]}",
-                'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
-                "",
-                "echo Nodes: $SLURM_JOB_NODELIST",
-                "echo Num Nodes: ${#nodes[@]}",
-                "echo Head Node IP: $head_node_ip",
-                "",
-            ]
-        )
-
-    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
-        """
-        Append SBATCH directives and head node detection setup for DeepEP.
-
-        Args:
-            batch_script_content: The list of script lines to append to.
-        """
-        super()._append_sbatch_directives(batch_script_content)
-        self._append_head_node_detection(batch_script_content)
+    def _gen_sbatch_prefix(self) -> list[str]:
+        """Append bash commands to detect head node IP for torchrun."""
+        return [
+            *super()._gen_sbatch_prefix(),
+            "",
+            "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
+            "nodes_array=($nodes)",
+            "head_node=${nodes_array[0]}",
+            'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
+            "",
+            "echo Nodes: $SLURM_JOB_NODELIST",
+            "echo Num Nodes: ${#nodes[@]}",
+            "echo Head Node IP: $head_node_ip",
+            "",
+        ]
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to DeepEP benchmark."""

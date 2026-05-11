@@ -134,12 +134,10 @@ class SingleSbatchRunner(SlurmRunner):
                 yield next_tr
 
     def get_global_env_vars(self) -> str:
-        vars: list[str] = ["export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"]
         tr = self.test_scenario.test_runs[0]
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
-        for key, value in cmd_gen.final_env_vars.items():
-            vars.append(f"export {key}={value}")
-        return "\n".join(vars)
+        env_vars = cmd_gen.get_sbatch_env_vars() | cmd_gen.final_env_vars
+        return "\n".join([f"export {key}={value}" for key, value in env_vars.items()])
 
     def gen_sbatch_content(self) -> str:
         content: list[str] = ["#!/bin/bash", *self.get_sbatch_directives(), ""]

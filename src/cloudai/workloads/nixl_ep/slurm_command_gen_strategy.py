@@ -64,23 +64,21 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError("NIXL EP Slurm command generation requires num_processes_per_node to be an integer.")
         return num_processes_per_node
 
-    def _append_sbatch_directives(self, batch_script_content: list[str]) -> None:
-        super()._append_sbatch_directives(batch_script_content)
-        batch_script_content.extend(
-            [
-                "",
-                "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
-                "nodes_array=($nodes)",
-                "master_node=${nodes_array[0]}",
-                "master_ip=$(srun --nodes=1 --ntasks=1 -w \"$master_node\" hostname --ip-address | awk '{print $1}')",
-                "",
-                "echo Nodes: $SLURM_JOB_NODELIST",
-                "echo Num Nodes: ${#nodes[@]}",
-                "echo Master Node: $master_node",
-                "echo Master IP: $master_ip",
-                "",
-            ]
-        )
+    def _gen_sbatch_prefix(self) -> list[str]:
+        return [
+            *super()._gen_sbatch_prefix(),
+            "",
+            "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
+            "nodes_array=($nodes)",
+            "master_node=${nodes_array[0]}",
+            "master_ip=$(srun --nodes=1 --ntasks=1 -w \"$master_node\" hostname --ip-address | awk '{print $1}')",
+            "",
+            "echo Nodes: $SLURM_JOB_NODELIST",
+            "echo Num Nodes: ${#nodes[@]}",
+            "echo Master Node: $master_node",
+            "echo Master IP: $master_ip",
+            "",
+        ]
 
     @property
     def env_vars_path(self) -> Path:

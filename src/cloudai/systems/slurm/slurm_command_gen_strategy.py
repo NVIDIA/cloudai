@@ -61,6 +61,22 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         _, nodes = self.get_cached_nodes_spec()
         return len(nodes) > 0
 
+    def get_sbatch_env_vars(self) -> dict[str, str]:
+        env_vars = {
+            "SLURM_JOB_MASTER_NODE": "$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)",
+        }
+
+        _, hostfile = self.get_nodes_related_directives()
+        if hostfile is not None:
+            env_vars["SLURM_HOSTFILE"] = str(hostfile)
+
+        return env_vars
+
+    def write_env_vars(self):
+        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
+            for key, value in self.final_env_vars.items():
+                f.write(f'export {key}="{value}"\n')
+
     @abstractmethod
     def _container_mounts(self) -> list[str]:
         """Return CommandGenStrategy specific container mounts for the test run."""
@@ -235,9 +251,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         nsys_command_parts = self.gen_nsys_command()
         test_command_parts = self.generate_test_command()
 
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                f.write(f'export {key}="{value}"\n')
+        self.write_env_vars()
 
         full_test_cmd = (
             f'bash -c "source {(self.test_run.output_path / "env_vars.sh").absolute()}; '
@@ -278,22 +292,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def generate_test_command(self) -> List[str]:
         return []
 
-    def _add_reservation(self, batch_script_content: List[str]):
-        """
-        Add reservation if provided.
-
-        Args:
-            batch_script_content (List[str]): content of the batch script.
-
-        Returns:
-            List[str]: updated batch script with reservation if exists.
-        """
-        reservation_key = "--reservation "
-        if self.system.extra_srun_args and reservation_key in self.system.extra_srun_args:
-            reservation = self.system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
-            batch_script_content.append(f"#SBATCH --reservation={reservation}")
-
-        return batch_script_content
+    def _get_reservation(self) -> str | None:
+        if self.system.extra_srun_args and "--reservation " in self.system.extra_srun_args:
+            return self.system.extra_srun_args.split("--reservation ", 1)[1].split(" ", 1)[0]
+        return None
 
     def _ranks_mapping_cmd(self) -> str:
         return " ".join(
@@ -356,6 +358,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ]
 
         self._append_sbatch_directives(batch_script_content)
+        batch_script_content.append("")
+        batch_script_content.extend([self._format_env_vars(self.get_sbatch_env_vars())])
+
+        if sbatch_prefix := self._gen_sbatch_prefix():
+            batch_script_content.extend(sbatch_prefix)
 
         batch_script_content.extend([self._format_env_vars(self.final_env_vars)])
 
@@ -372,6 +379,39 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
+    def _get_sbatch_directives(self) -> dict[str, str]:
+        directives = {}
+
+        if reservation := self._get_reservation():
+            directives["reservation"] = reservation
+
+        directives["output"] = self.test_run.output_path.absolute() / "stdout.txt"
+        directives["error"] = self.test_run.output_path.absolute() / "stderr.txt"
+        directives["partition"] = self.system.default_partition
+
+        if self.system.account:
+            directives["account"] = self.system.account
+
+        if self.system.distribution:
+            directives["distribution"] = self.system.distribution
+
+        directives.update(self.get_nodes_related_directives()[0])
+
+        if self.system.gpus_per_node and self.system.supports_gpu_directives:
+            directives["gpus-per-node"] = self.system.gpus_per_node
+            directives["gres"] = f"gpu:{self.system.gpus_per_node}"
+
+        if self.system.ntasks_per_node:
+            directives["ntasks_per_node"] = self.system.ntasks_per_node
+
+        if self.test_run.time_limit:
+            directives["time"] = self.test_run.time_limit
+
+        for arg in self.system.extra_sbatch_args:
+            directives[arg] = ""
+
+        return directives
+
     def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
         """
         Append SBATCH directives to the batch script content.
@@ -379,43 +419,25 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
         """
-        batch_script_content = self._add_reservation(batch_script_content)
+        directives = self._get_sbatch_directives()
+        for key, value in directives.items():
+            if key.startswith("-"):
+                # strip makes handling empty `value` cleaner
+                batch_script_content.append(f"#SBATCH {key} {value}".strip())
+            elif value:
+                batch_script_content.append(f"#SBATCH --{key}={value}")
+            else:
+                batch_script_content.append(f"#SBATCH --{key}")
 
-        batch_script_content.append(f"#SBATCH --output={self.test_run.output_path.absolute() / 'stdout.txt'}")
-        batch_script_content.append(f"#SBATCH --error={self.test_run.output_path.absolute() / 'stderr.txt'}")
-        batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
-        if self.system.account:
-            batch_script_content.append(f"#SBATCH --account={self.system.account}")
+    def _gen_sbatch_prefix(self) -> list[str]:
+        return []
 
-        hostfile = self._append_nodes_related_directives(batch_script_content)
-
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
-            batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
-
-        if self.system.ntasks_per_node:
-            batch_script_content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
-        if self.test_run.time_limit:
-            batch_script_content.append(f"#SBATCH --time={self.test_run.time_limit}")
-
-        for arg in self.system.extra_sbatch_args:
-            batch_script_content.append(f"#SBATCH {arg}")
-
-        if hostfile is not None:
-            batch_script_content.append(f"export SLURM_HOSTFILE={hostfile}")
-
-        batch_script_content.append(
-            "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
-        )
-
-    def _append_nodes_related_directives(self, content: List[str]) -> Optional[Path]:
+    def get_nodes_related_directives(self) -> tuple[dict, Optional[Path]]:
+        directives = {}
         num_nodes, node_list = self.get_cached_nodes_spec()
 
-        if self.system.distribution:
-            content.append(f"#SBATCH --distribution={self.system.distribution}")
-
         if node_list:
-            content.append(f"#SBATCH --nodelist={','.join(node_list)}")
+            directives["nodelist"] = ",".join(node_list)
 
             hostfile = (self.test_run.output_path / "hostfile.txt").absolute()
             with hostfile.open("w") as hf:
@@ -424,14 +446,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                     for _ in range(tasks):
                         hf.write(f"{node}\n")
 
-            return hostfile
+            return directives, hostfile
 
-        content.append(f"#SBATCH -N {num_nodes}")
+        directives["-N"] = num_nodes
 
         if self.test_run.exclude_nodes:
-            content.append(f"#SBATCH --exclude={','.join(self.test_run.exclude_nodes)}")
+            directives["exclude"] = ",".join(self.test_run.exclude_nodes)
 
-        return None
+        return directives, None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """

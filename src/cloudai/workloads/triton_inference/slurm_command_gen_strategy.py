@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, Tuple, cast
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
@@ -44,12 +44,14 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return mounts
 
-    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
-        super()._append_sbatch_directives(batch_script_content)
-        batch_script_content.append("export HEAD_NODE=$SLURM_JOB_MASTER_NODE")
-        batch_script_content.append("export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE")
-        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={self.test_run.nnodes - 1}")
-        batch_script_content.append("export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'")
+    def _gen_sbatch_prefix(self) -> list[str]:
+        return [
+            *super()._gen_sbatch_prefix(),
+            "export HEAD_NODE=$SLURM_JOB_MASTER_NODE",
+            "export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE",
+            f"export NIM_NUM_COMPUTE_NODES={self.test_run.nnodes - 1}",
+            "export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'",
+        ]
 
     def _generate_start_wrapper_script(self, script_path: Path, env_vars: Dict[str, Any]) -> None:
         lines = ["#!/bin/bash", ""]
