@@ -287,6 +287,30 @@ cleanup
 
         assert srun_command == expected
 
+    def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.custom_bash = "echo setup"
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 2
+        assert "echo setup; exec vllm serve" in srun_command
+        assert "echo setup; exec vllm bench serve" in srun_command
+
+    def test_custom_bash_regex_can_target_only_aggregated_benchmark(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ):
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.custom_bash = {"vllm bench serve": "echo bench setup"}
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 1
+        assert "echo bench setup; exec vllm bench serve" in srun_command
+        assert "echo bench setup; exec vllm serve" not in srun_command
+
 
 class TestVllmDisaggregatedMode:
     """Tests for vLLM disaggregated mode with multiple GPUs."""
@@ -451,6 +475,26 @@ cleanup
 """
 
         assert srun_command == expected
+
+    def test_custom_bash_regex_can_target_disaggregated_commands(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        tdef.custom_bash = {
+            r'CUDA_VISIBLE_DEVICES="0,1".*vllm serve': "echo prefill setup",
+            r'CUDA_VISIBLE_DEVICES="2,3".*vllm serve': "echo decode setup",
+            "toy_proxy_server": "echo router setup",
+            "vllm bench serve": "echo bench setup",
+        }
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 4
+        assert "echo prefill setup; exec env" in srun_command
+        assert "echo decode setup; exec env" in srun_command
+        assert "echo router setup; exec python3" in srun_command
+        assert "echo bench setup; exec vllm bench serve" in srun_command
 
     def test_gen_srun_command_disagg_two_nodes_flow(
         self, vllm_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
