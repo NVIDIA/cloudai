@@ -379,9 +379,7 @@ def test_get_cached_trajectory_result(
         assert actual.step == expected_step
 
 
-def test_cached_step_appends_trajectory_row(
-    nemorun: NeMoRunTestDefinition, tmp_path: Path
-) -> None:
+def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
     """Cache hits must still append a row to trajectory.csv so the visible step list matches agent_steps."""
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
@@ -406,6 +404,7 @@ def test_cached_step_appends_trajectory_row(
     env.test_run.step = 5
     obs, reward, done, _info = env.step(cached_action)
 
+    runner.run.assert_not_called()
     assert reward == 0.42
     assert obs == [0.84]
     assert done is False
