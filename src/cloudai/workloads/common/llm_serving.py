@@ -431,8 +431,8 @@ fi
 """
         return f"""\
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-PREFILL_NODE=${{NODES[0]}}
-DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
+export PREFILL_NODE=${{NODES[0]}}
+export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
 if [ -z "$PREFILL_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated {self.workload_name}"
     exit 1
