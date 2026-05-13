@@ -16,6 +16,7 @@
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -26,9 +27,15 @@ from cloudai.workloads.sglang import (
     SGLangBenchReport,
     SGLangBenchReportGenerationStrategy,
     SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
     SglangTestDefinition,
 )
-from cloudai.workloads.sglang.sglang import SGLANG_BENCH_JSONL_FILE, parse_sglang_bench_output
+from cloudai.workloads.sglang.sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_SEMANTIC_EVAL_LOG_FILE,
+    parse_sglang_bench_output,
+    parse_sglang_semantic_accuracy,
+)
 
 BENCH_RECORD = {
     "num_prompts": 30,
@@ -129,6 +136,38 @@ def test_sglang_tps_per_gpu(slurm_system: SlurmSystem, sglang_tr: TestRun) -> No
     metric = strategy.get_metric("tps-per-gpu")
 
     assert metric == 600.0
+
+
+def test_sglang_accuracy_metric(slurm_system: SlurmSystem, sglang_tr: TestRun):
+    sglang_test = cast(SglangTestDefinition, sglang_tr.test)
+    sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+    (sglang_tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE).write_text("Score: 0.945\n", encoding="utf-8")
+
+    strategy = SGLangBenchReportGenerationStrategy(slurm_system, sglang_tr)
+
+    assert strategy.get_metric("accuracy") == 0.945
+
+
+def test_parse_sglang_semantic_accuracy_from_score(tmp_path: Path):
+    log_path = tmp_path / "score.log"
+    log_path.write_text("Total latency: 1.000 s\nScore: 0.812\n", encoding="utf-8")
+
+    assert parse_sglang_semantic_accuracy(log_path) == 0.812
+
+
+def test_parse_sglang_semantic_accuracy_from_legacy_accuracy(tmp_path: Path) -> None:
+    log_path = tmp_path / "accuracy.log"
+    log_path.write_text("Accuracy: 0.945\nInvalid: 0.000\n", encoding="utf-8")
+
+    assert parse_sglang_semantic_accuracy(log_path) == 0.945
+
+
+def test_parse_sglang_semantic_accuracy_missing_or_invalid(tmp_path: Path) -> None:
+    log_path = tmp_path / "invalid.log"
+    log_path.write_text("no score here\n", encoding="utf-8")
+
+    assert parse_sglang_semantic_accuracy(tmp_path / "missing.log") is None
+    assert parse_sglang_semantic_accuracy(log_path) is None
 
 
 def test_sglang_tps_per_user__concurrency_is_zero() -> None:

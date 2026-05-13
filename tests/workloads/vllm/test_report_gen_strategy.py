@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -25,10 +26,16 @@ from cloudai.workloads.vllm import (
     VLLMBenchReport,
     VLLMBenchReportGenerationStrategy,
     VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
 from cloudai.workloads.vllm.report_generation_strategy import parse_vllm_bench_output
-from cloudai.workloads.vllm.vllm import VLLM_BENCH_JSON_FILE
+from cloudai.workloads.vllm.vllm import (
+    VLLM_BENCH_JSON_FILE,
+    VLLM_GSM8K_JSON_FILE,
+    VLLM_SEMANTIC_EVAL_LOG_FILE,
+    parse_vllm_semantic_accuracy,
+)
 
 BENCH_DATA = VLLMBenchReport(
     num_prompts=30,
@@ -115,3 +122,32 @@ def test_vllm_tps_per_gpu(slurm_system: SlurmSystem, vllm_tr: TestRun, ngpus: in
     metric = strategy.get_metric("tps-per-gpu")
 
     assert metric == BENCH_DATA.throughput / ngpus
+
+
+def test_vllm_accuracy_metric(slurm_system: SlurmSystem, vllm_tr: TestRun) -> None:
+    vllm_test = cast(VllmTestDefinition, vllm_tr.test)
+    vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+    (vllm_tr.output_path / VLLM_GSM8K_JSON_FILE).write_text('{"accuracy": 0.875}', encoding="utf-8")
+
+    strategy = VLLMBenchReportGenerationStrategy(slurm_system, vllm_tr)
+
+    assert strategy.get_metric("accuracy") == 0.875
+
+
+def test_parse_vllm_semantic_accuracy_from_json(tmp_path: Path) -> None:
+    (tmp_path / VLLM_GSM8K_JSON_FILE).write_text('{"accuracy": 0.91}', encoding="utf-8")
+
+    assert parse_vllm_semantic_accuracy(tmp_path) == 0.91
+
+
+def test_parse_vllm_semantic_accuracy_falls_back_to_log(tmp_path: Path) -> None:
+    (tmp_path / VLLM_GSM8K_JSON_FILE).write_text("{invalid", encoding="utf-8")
+    (tmp_path / VLLM_SEMANTIC_EVAL_LOG_FILE).write_text("Accuracy: 0.742\n", encoding="utf-8")
+
+    assert parse_vllm_semantic_accuracy(tmp_path) == 0.742
+
+
+def test_parse_vllm_semantic_accuracy_missing_or_invalid(tmp_path: Path) -> None:
+    (tmp_path / VLLM_SEMANTIC_EVAL_LOG_FILE).write_text("no accuracy here\n", encoding="utf-8")
+
+    assert parse_vllm_semantic_accuracy(tmp_path) is None

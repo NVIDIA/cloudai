@@ -217,6 +217,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         "throughput",
         "tps-per-user",
         "tps-per-gpu",
+        "accuracy",
     ]
 
     @property
@@ -240,6 +241,10 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
     def parse_results(self) -> ReportT | None:
         return self.parse_output(self.test_run.output_path / self.result_file_name)
 
+    def parse_semantic_accuracy(self) -> float | None:
+        """Parse semantic validation accuracy, if supported by the workload."""
+        return None
+
     def can_handle_directory(self) -> bool:
         return self.parse_results() is not None
 
@@ -260,6 +265,13 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
     def get_metric(self, metric: str) -> MetricValue:
         if metric not in self.metrics:
             return METRIC_ERROR
+
+        if metric == "accuracy":
+            tdef = cast(TestDefT, self.test_run.test)
+            if getattr(tdef, "semantic_eval_cmd_args", None) is None:
+                return METRIC_ERROR
+            accuracy = self.parse_semantic_accuracy()
+            return accuracy if accuracy is not None else METRIC_ERROR
 
         results = self.parse_results()
         if results is None:
@@ -286,14 +298,31 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         table.add_column("TPOT Mean, ms", justify="right")
         table.add_column("TPOT Median, ms", justify="right")
         table.add_column("TPOT P99, ms", justify="right")
+        accuracy = self.get_metric("accuracy")
+        if accuracy != METRIC_ERROR:
+            table.add_column("Accuracy", justify="right")
+            row = [
+                f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
+                f"{results.mean_ttft_ms:.4f}",
+                f"{results.median_ttft_ms:.4f}",
+                f"{results.p99_ttft_ms:.4f}",
+                f"{results.mean_tpot_ms:.4f}",
+                f"{results.median_tpot_ms:.4f}",
+                f"{results.p99_tpot_ms:.4f}",
+                f"{accuracy:.4f}",
+            ]
+        else:
+            row = [
+                f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
+                f"{results.mean_ttft_ms:.4f}",
+                f"{results.median_ttft_ms:.4f}",
+                f"{results.p99_ttft_ms:.4f}",
+                f"{results.mean_tpot_ms:.4f}",
+                f"{results.median_tpot_ms:.4f}",
+                f"{results.p99_tpot_ms:.4f}",
+            ]
         table.add_row(
-            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
-            f"{results.mean_ttft_ms:.4f}",
-            f"{results.median_ttft_ms:.4f}",
-            f"{results.p99_ttft_ms:.4f}",
-            f"{results.mean_tpot_ms:.4f}",
-            f"{results.median_tpot_ms:.4f}",
-            f"{results.p99_tpot_ms:.4f}",
+            *row,
         )
         console.print(table)
 
@@ -523,6 +552,11 @@ trap cleanup EXIT"""
         return f"{self.workload_slug}-bench.log"
 
     @property
+    def semantic_eval_log_file(self) -> str:
+        """Semantic validation log file name."""
+        return f"{self.workload_slug}-semantic-eval.log"
+
+    @property
     def serve_pid_var(self) -> str:
         """Shell variable holding the aggregated serve PID."""
         return "SERVE_PID"
@@ -557,6 +591,33 @@ trap cleanup EXIT"""
     @abstractmethod
     def get_helper_command(self) -> list[str]:
         """Return the helper process command for disaggregated mode."""
+
+    def get_semantic_eval_command(self) -> list[str] | None:
+        """Return the optional semantic validation command."""
+        return None
+
+    def _expand_semantic_eval_args(self, args: str, *, host: str) -> str:
+        replacements = {
+            "{model}": self.tdef.cmd_args.model,
+            "{host}": host,
+            "{port}": str(self.serve_port),
+            "{output_path}": str(self.test_run.output_path.absolute()),
+        }
+        for placeholder, value in replacements.items():
+            args = args.replace(placeholder, value)
+        return args
+
+    def _gen_semantic_eval_block(self, srun_prefix: str) -> str:
+        semantic_cmd = self.get_semantic_eval_command()
+        if not semantic_cmd:
+            return ""
+
+        return f"""\
+
+echo "Running semantic validation..."
+{srun_prefix} \\
+    --output={(self.test_run.output_path / self.semantic_eval_log_file).absolute()} \\
+    {" ".join(semantic_cmd)}"""
 
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
@@ -593,7 +654,7 @@ echo "Starting {self.workload_name} instances..."
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}"""
+    {bench_cmd}{self._gen_semantic_eval_block(f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1")}"""
 
     def _gen_disaggregated_script(self, serve_commands: list[list[str]], bench_cmd: str) -> str:
         prefill_cmd, decode_cmd = serve_commands
@@ -651,4 +712,4 @@ echo "Starting {self.proxy_router_name}..."
 echo "Running benchmark..."
 {prefill_srun_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}"""
+    {bench_cmd}{self._gen_semantic_eval_block(prefill_srun_prefix)}"""
