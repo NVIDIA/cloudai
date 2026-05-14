@@ -130,6 +130,25 @@ def normalize_stages(strategy: NixlEPSlurmCommandGenStrategy) -> list[tuple[int,
     return normalized_stages
 
 
+def read_launcher_script(strategy: NixlEPSlurmCommandGenStrategy) -> str:
+    srun_command = strategy.gen_srun_command()
+    assert srun_command == f"bash {strategy.launcher_script_path.absolute()}"
+    return strategy.launcher_script_path.read_text(encoding="utf-8")
+
+
+def assert_launcher_sruns_are_explicitly_routed(launcher_script: str) -> None:
+    srun_lines = [line for line in launcher_script.splitlines() if line.startswith("srun ")]
+    assert srun_lines
+    assert "--relative=" not in launcher_script
+    assert "exec >>" not in launcher_script
+    assert "exec 2>>" not in launcher_script
+    for line in srun_lines:
+        assert "--output=" in line
+        assert "--error=" in line
+        assert "--nodelist=" in line
+        assert " -N1 " in line
+
+
 def test_num_processes_per_node_returns_integer(
     nixl_ep: NixlEPTestDefinition,
     slurm_system: SlurmSystem,
@@ -474,18 +493,20 @@ def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_syste
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert "wait_for_master_services" not in srun_command
-    assert "wait_for_phase_completion()" in srun_command
-    assert 'wait_for_phase_completion "0"' in srun_command
-    assert 'wait_for_phase_completion "2"' in srun_command
-    assert srun_command.count("--num-processes 4") == 2
-    assert srun_command.count("--num-processes 2") == 1
-    assert srun_command.count("--tcp-server $master_ip") == 2
-    assert srun_command.count("--open-mode=append") == 2
-    assert "--nodelist=$SLURM_JOB_MASTER_NODE" in srun_command
-    assert "--relative=1" not in srun_command
+    assert "wait_for_master_services" not in launcher_script
+    assert "wait_for_phase_completion()" in launcher_script
+    assert 'wait_for_phase_completion "0"' in launcher_script
+    assert 'wait_for_phase_completion "2"' in launcher_script
+    assert launcher_script.count("--num-processes 4") == 2
+    assert launcher_script.count("--num-processes 2") == 1
+    assert launcher_script.count("--tcp-server $master_ip") == 2
+    assert launcher_script.count("--open-mode=append") == 2
+    assert '--nodelist="${nodes_array[0]}"' in launcher_script
+    assert_launcher_sruns_are_explicitly_routed(launcher_script)
+    assert "trap cleanup_nixl_ep EXIT" in launcher_script
+    assert "jobs -pr" in launcher_script
 
 
 def test_gen_srun_command_single_node_static_plan(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
@@ -501,11 +522,11 @@ def test_gen_srun_command_single_node_static_plan(nixl_ep: NixlEPTestDefinition,
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert "wait_for_phase_completion()" not in srun_command
-    assert srun_command.count("--num-processes 4") == 1
-    assert "--disable-ll-nvlink" not in srun_command
+    assert "wait_for_phase_completion()" not in launcher_script
+    assert launcher_script.count("--num-processes 4") == 1
+    assert "--disable-ll-nvlink" not in launcher_script
 
 
 def test_gen_srun_command_single_node_single_rank_plan(
@@ -522,13 +543,13 @@ def test_gen_srun_command_single_node_single_rank_plan(
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert "wait_for_master_services()" not in srun_command
-    assert "wait_for_phase_completion()" not in srun_command
-    assert srun_command.count("--num-processes 1") == 1
-    assert "--tcp-server $master_ip" not in srun_command
-    assert "--open-mode=append" not in srun_command
+    assert "wait_for_master_services()" not in launcher_script
+    assert "wait_for_phase_completion()" not in launcher_script
+    assert launcher_script.count("--num-processes 1") == 1
+    assert "--tcp-server $master_ip" not in launcher_script
+    assert "--open-mode=append" not in launcher_script
 
 
 def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> None:
@@ -683,12 +704,12 @@ def test_gen_srun_command_single_node_double_expansion_omits_disable_flag(
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert 'wait_for_phase_completion "0"' in srun_command
-    assert 'wait_for_phase_completion "1"' in srun_command
-    assert srun_command.count("--num-processes 2") == 2
-    assert "--disable-ll-nvlink" not in srun_command
+    assert 'wait_for_phase_completion "0"' in launcher_script
+    assert 'wait_for_phase_completion "1"' in launcher_script
+    assert launcher_script.count("--num-processes 2") == 2
+    assert "--disable-ll-nvlink" not in launcher_script
 
 
 def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_before_second_stage(
@@ -713,16 +734,17 @@ def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_bef
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert "wait_for_master_services()" in srun_command
-    assert "wait_for_phase_completion()" in srun_command
-    assert 'wait_for_phase_completion "0"' in srun_command
-    assert srun_command.count("--num-processes 4") == 2
-    assert srun_command.count("--relative=1") == 1
-    assert srun_command.count("--nodelist=$SLURM_JOB_MASTER_NODE") == 1
-    assert srun_command.count("--tcp-server $master_ip") == 1
-    assert srun_command.count("--open-mode=append") == 1
+    assert "wait_for_master_services()" in launcher_script
+    assert "wait_for_phase_completion()" in launcher_script
+    assert 'wait_for_phase_completion "0"' in launcher_script
+    assert launcher_script.count("--num-processes 4") == 2
+    assert '--nodelist="${nodes_array[0]}"' in launcher_script
+    assert '--nodelist="${nodes_array[1]}"' in launcher_script
+    assert_launcher_sruns_are_explicitly_routed(launcher_script)
+    assert launcher_script.count("--tcp-server $master_ip") == 1
+    assert launcher_script.count("--open-mode=append") == 1
 
 
 def test_gen_srun_command_multi_node_single_stage_starts_followers(
@@ -747,13 +769,15 @@ def test_gen_srun_command_multi_node_single_stage_starts_followers(
     )
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
-    srun_command = strategy.gen_srun_command()
+    launcher_script = read_launcher_script(strategy)
 
-    assert "wait_for_master_services()" in srun_command
-    assert "wait_for_phase_completion()" not in srun_command
-    assert srun_command.count("--num-processes 4") == 2
-    assert srun_command.count("--relative=1") == 1
-    assert srun_command.count("--tcp-server $master_ip") == 1
+    assert "wait_for_master_services()" in launcher_script
+    assert "wait_for_phase_completion()" not in launcher_script
+    assert launcher_script.count("--num-processes 4") == 2
+    assert '--nodelist="${nodes_array[0]}"' in launcher_script
+    assert '--nodelist="${nodes_array[1]}"' in launcher_script
+    assert_launcher_sruns_are_explicitly_routed(launcher_script)
+    assert launcher_script.count("--tcp-server $master_ip") == 1
 
 
 def test_single_node_stages_reject_mismatch(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
@@ -794,10 +818,14 @@ def test_gen_srun_command_single_launch_reports_success(
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
     srun_command = strategy.gen_srun_command()
+    launcher_script = strategy.launcher_script_path.read_text(encoding="utf-8")
 
-    assert 'echo "All NIXL EP launches completed successfully"' in srun_command
-    assert 'if [ "$rc" -eq 0 ]; then' in srun_command
-    assert "exit $rc" in srun_command
+    assert srun_command == f"bash {strategy.launcher_script_path.absolute()}"
+    assert "srun " not in srun_command
+    assert "master_ip=$(" in launcher_script
+    assert 'echo "All NIXL EP launches completed successfully"' in launcher_script
+    assert 'if [ "$rc" -eq 0 ]; then' in launcher_script
+    assert "exit $rc" in launcher_script
 
 
 def test_gen_exec_command_matches_reference(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
