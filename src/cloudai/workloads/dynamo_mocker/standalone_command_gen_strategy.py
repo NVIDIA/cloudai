@@ -175,7 +175,10 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
         quoted_args = " ".join(shlex.quote(a) for a in self._script_args)
         wrapper_lines = [
             "#!/usr/bin/env bash",
-            f"bash {self._script_path} {quoted_args} > {stdout_file} 2> {stderr_file}",
+            (
+                f"bash {shlex.quote(str(self._script_path))} {quoted_args}"
+                f" > {shlex.quote(str(stdout_file))} 2> {shlex.quote(str(stderr_file))}"
+            ),
         ]
         self._wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
         self._wrapper_path.chmod(self._wrapper_path.stat().st_mode | stat.S_IXUSR)

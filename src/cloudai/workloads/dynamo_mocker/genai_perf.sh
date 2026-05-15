@@ -41,6 +41,13 @@ log() {
   echo "[$(date '+%F %T') $(hostname)]: $*"
 }
 
+_require_value() {
+  local flag="$1" val="${2-}"
+  if [[ -z "$val" || "$val" == --* ]]; then
+    log "ERROR: $flag requires a value (got: '${val:-<empty>}')" >&2; exit 1
+  fi
+}
+
 # Collect all flags after -- into genai_perf_profile_args.
 # Kept as a plain array (not associative) so bare boolean flags like --streaming
 # are preserved correctly without an eval round-trip.
@@ -54,11 +61,11 @@ parse_genai_perf_args() {
 process_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --result-dir)  result_dir="$2";  shift 2 ;;
-      --model)       model="$2";       shift 2 ;;
-      --port)        port="$2";        shift 2 ;;
-      --report-name) report_name="$2"; shift 2 ;;
-      --cmd)         cmd="$2";         shift 2 ;;
+      --result-dir)  _require_value "$1" "${2-}"; result_dir="$2";  shift 2 ;;
+      --model)       _require_value "$1" "${2-}"; model="$2";       shift 2 ;;
+      --port)        _require_value "$1" "${2-}"; port="$2";        shift 2 ;;
+      --report-name) _require_value "$1" "${2-}"; report_name="$2"; shift 2 ;;
+      --cmd)         _require_value "$1" "${2-}"; cmd="$2";         shift 2 ;;
       --)            shift; parse_genai_perf_args "$@"; break ;;
       --*)           echo "[$(date '+%F %T') $(hostname)]: WARNING: ignoring unknown context flag: $1" >&2; shift 1 ;;
       *)             shift ;;
@@ -111,6 +118,9 @@ main() {
   fi
 
   local artifact_dir="$result_dir/genai_perf_artifacts"
+  # Remove stale artifacts from any previous run so process_results only
+  # finds CSV files produced by this invocation.
+  rm -rf "$artifact_dir"
   log "Launching genai-perf (cmd=${run_cmd[*]}, model=$model, url=localhost:${port})"
 
   "${run_cmd[@]}" \

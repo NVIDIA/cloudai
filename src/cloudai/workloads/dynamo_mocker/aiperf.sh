@@ -113,6 +113,9 @@ main() {
   fi
 
   local artifact_dir="$result_dir/aiperf_artifacts"
+  # Remove stale artifacts from any previous run so process_results only
+  # finds CSV files produced by this invocation.
+  rm -rf "$artifact_dir"
   log "Launching aiperf (cmd=${run_cmd[*]}, model=$model, url=localhost:${port})"
 
   "${run_cmd[@]}" \
