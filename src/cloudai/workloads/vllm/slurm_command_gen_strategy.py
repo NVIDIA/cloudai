@@ -22,6 +22,7 @@ from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrate
 from .vllm import (
     VLLM_BENCH_JSON_FILE,
     VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
 
@@ -121,3 +122,21 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             "--save-result",
             *extras,
         ]
+
+    def get_semantic_eval_command(self) -> list[str] | None:
+        eval_args: VllmSemanticEvalCmdArgs | None = self.tdef.semantic_eval_cmd_args
+        if eval_args is None:
+            return None
+
+        host = self.bench_host
+        http_host = host if host.startswith("http://") or host.startswith("https://") else f"http://{host}"
+        command = [
+            "python3",
+            eval_args.script,
+            f"--host {http_host}",
+            f"--port {self.serve_port}",
+        ]
+        args = self._expand_semantic_eval_args(eval_args.args, host=http_host)
+        if args:
+            command.append(args)
+        return command

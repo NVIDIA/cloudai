@@ -18,10 +18,12 @@ from .report_generation_strategy import SGLangBenchReportGenerationStrategy
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
     SGLANG_BENCH_LOG_FILE,
+    SGLANG_SEMANTIC_EVAL_LOG_FILE,
     SglangArgs,
     SglangBenchCmdArgs,
     SGLangBenchReport,
     SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
     SglangTestDefinition,
 )
 from .slurm_command_gen_strategy import SglangSlurmCommandGenStrategy
@@ -29,11 +31,13 @@ from .slurm_command_gen_strategy import SglangSlurmCommandGenStrategy
 __all__ = [
     "SGLANG_BENCH_JSONL_FILE",
     "SGLANG_BENCH_LOG_FILE",
+    "SGLANG_SEMANTIC_EVAL_LOG_FILE",
     "SGLangBenchReport",
     "SGLangBenchReportGenerationStrategy",
     "SglangArgs",
     "SglangBenchCmdArgs",
     "SglangCmdArgs",
+    "SglangSemanticEvalCmdArgs",
     "SglangSlurmCommandGenStrategy",
     "SglangTestDefinition",
 ]

@@ -17,7 +17,13 @@
 import json
 
 from cloudai.core import TestRun
-from cloudai.workloads.sglang import SGLANG_BENCH_JSONL_FILE, SglangCmdArgs, SglangTestDefinition
+from cloudai.workloads.sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_SEMANTIC_EVAL_LOG_FILE,
+    SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
+    SglangTestDefinition,
+)
 
 
 class TestSglangSuccessCheck:
@@ -89,3 +95,55 @@ class TestSglangSuccessCheck:
         assert (
             result.error_message == f"SGLang bench jsonl does not contain successful requests in {base_tr.output_path}."
         )
+
+    def test_semantic_eval_successful_with_low_accuracy(self, base_tr: TestRun) -> None:
+        self.sglang_tdef.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        (base_tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
+            json.dumps(
+                {
+                    "completed": 3,
+                    "num_prompts": 3,
+                    "request_throughput": 1.0,
+                    "max_concurrency": 16,
+                    "mean_ttft_ms": 1.0,
+                    "median_ttft_ms": 1.0,
+                    "p99_ttft_ms": 1.0,
+                    "mean_tpot_ms": 1.0,
+                    "median_tpot_ms": 1.0,
+                    "p99_tpot_ms": 1.0,
+                }
+            )
+            + "\n"
+        )
+        (base_tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE).write_text("Score: 0.000\n")
+
+        result = self.sglang_tdef.was_run_successful(base_tr)
+
+        assert result.is_successful
+
+    def test_semantic_eval_requires_parseable_accuracy(self, base_tr: TestRun) -> None:
+        self.sglang_tdef.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        (base_tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
+            json.dumps(
+                {
+                    "completed": 3,
+                    "num_prompts": 3,
+                    "request_throughput": 1.0,
+                    "max_concurrency": 16,
+                    "mean_ttft_ms": 1.0,
+                    "median_ttft_ms": 1.0,
+                    "p99_ttft_ms": 1.0,
+                    "mean_tpot_ms": 1.0,
+                    "median_tpot_ms": 1.0,
+                    "p99_tpot_ms": 1.0,
+                }
+            )
+            + "\n"
+        )
+
+        result = self.sglang_tdef.was_run_successful(base_tr)
+
+        assert not result.is_successful
+        assert result.error_message == f"SGLang semantic accuracy not found in {base_tr.output_path}."

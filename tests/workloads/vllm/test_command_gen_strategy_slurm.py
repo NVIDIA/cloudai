@@ -25,6 +25,7 @@ from cloudai.workloads.vllm import (
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
     VllmSlurmCommandGenStrategy,
     VllmTestDefinition,
 )
@@ -182,6 +183,54 @@ class TestVllmBenchCommand:
         assert "--extra1 1" in cmd
         assert "--extra-2 2" in cmd
         assert "--extra-3 3" in cmd
+
+
+class TestVllmSemanticEvalCommand:
+    def test_get_vllm_semantic_eval_command_defaults(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy):
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+
+        command = vllm_cmd_gen_strategy.get_semantic_eval_command()
+
+        assert command == [
+            "python3",
+            "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py",
+            "--host http://${NODE}",
+            "--port 8000",
+            "--num-questions 200 --save-results "
+            f"{vllm_cmd_gen_strategy.test_run.output_path.absolute()}/vllm-gsm8k.json",
+        ]
+
+    def test_gen_srun_command_contains_vllm_semantic_eval(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert "Running benchmark..." in srun_command
+        assert "Running semantic validation..." in srun_command
+        assert (
+            "--output=" + str((vllm_cmd_gen_strategy.test_run.output_path / "vllm-semantic-eval.log").absolute())
+            in srun_command
+        )
+        assert "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py --host http://${NODE} --port 8000" in srun_command
+
+    def test_gen_srun_command_contains_vllm_semantic_eval_in_disagg(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm_disagg_test = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        vllm_disagg_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "Running semantic validation..." in srun_command
+        assert (
+            "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py --host http://${PREFILL_NODE} --port 8000"
+            in srun_command
+        )
 
 
 class TestVllmAggregatedMode:
