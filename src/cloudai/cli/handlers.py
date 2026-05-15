@@ -20,7 +20,7 @@ import logging
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Protocol, runtime_checkable
 from unittest.mock import Mock
 
 import toml
@@ -118,6 +118,40 @@ def prepare_installation(
     return installables, installer
 
 
+@runtime_checkable
+class CustomTrainingLoopAgent(Protocol):
+    """
+    Agent that drives its own training loop and skips the ``handle_dse_job`` step loop.
+
+    Set ``HAS_CUSTOM_TRAINING_LOOP = True`` on the agent class to opt in. Used by
+    agents (e.g. RLlib-based) whose training loops are not modelled as a sequence
+    of independent ``select_action`` / ``env.step`` calls.
+    """
+
+    HAS_CUSTOM_TRAINING_LOOP: bool
+
+    def train(self) -> None: ...
+
+
+def _has_custom_training_loop(agent: object) -> bool:
+    return bool(getattr(agent, "HAS_CUSTOM_TRAINING_LOOP", False))
+
+
+def _run_custom_training_loop(agent: CustomTrainingLoopAgent, agent_type: str) -> int:
+    """Drive an agent's self-contained training loop and return a process-style exit code."""
+    logging.info(f"Agent {agent_type} drives its own training loop; delegating to agent.train().")
+    try:
+        agent.train()
+        return 0
+    except Exception:
+        logging.exception(f"Custom training loop failed for agent {agent_type}.")
+        return 1
+    finally:
+        shutdown = getattr(agent, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -156,6 +190,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
         agent = agent_class(env, agent_config)
+
+        if _has_custom_training_loop(agent):
+            err |= _run_custom_training_loop(agent, agent_type)
+            continue
 
         observation, _ = env.reset()
         for _ in range(agent.max_steps):
