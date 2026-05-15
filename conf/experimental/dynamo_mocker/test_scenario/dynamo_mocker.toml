@@ -1,0 +1,5 @@
+name = "dynamo-mocker-scenario"
+
+[[Tests]]
+id = "dynamo_mocker.base"
+test_name = "dynamo_mocker_base_test"
