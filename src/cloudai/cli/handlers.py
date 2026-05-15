@@ -20,7 +20,7 @@ import logging
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional, Protocol, runtime_checkable
+from typing import Callable, List, Optional, Protocol, TypeGuard, runtime_checkable
 from unittest.mock import Mock
 
 import toml
@@ -133,7 +133,15 @@ class CustomTrainingLoopAgent(Protocol):
     def train(self) -> None: ...
 
 
-def _has_custom_training_loop(agent: object) -> bool:
+def _has_custom_training_loop(agent: object) -> TypeGuard[CustomTrainingLoopAgent]:
+    """
+    Narrow ``agent`` to :class:`CustomTrainingLoopAgent` when it opts into the dispatch path.
+
+    Returning :class:`TypeGuard` (instead of plain ``bool``) lets the type checker
+    treat this predicate like ``isinstance``: callers inside the truthy branch see
+    ``agent`` as a :class:`CustomTrainingLoopAgent`, so ``agent.train()`` type-checks
+    without ``getattr`` or ``cast``.
+    """
     return bool(getattr(agent, "HAS_CUSTOM_TRAINING_LOOP", False))
 
 
