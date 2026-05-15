@@ -202,6 +202,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     expected_trajectory = pd.DataFrame(
         data=[
             [1, "{'candidate': 1}", -1.0, "[-1.0]"],
+            [2, "{'candidate': 1}", -1.0, "[-1.0]"],
             [3, "{'candidate': 2}", -1.0, "[-1.0]"],
         ],
         columns=["step", "action", "reward", "observation"],
