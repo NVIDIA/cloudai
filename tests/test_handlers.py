@@ -15,15 +15,22 @@
 # limitations under the License.
 
 import argparse
+import logging
 from pathlib import Path
-from typing import Any, ClassVar, Iterator
+from typing import Any, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
-from cloudai.cli.handlers import handle_dse_job, verify_system_configs, verify_test_configs, verify_test_scenarios
+from cloudai.cli.handlers import (
+    _run_custom_training_loop,
+    handle_dse_job,
+    verify_system_configs,
+    verify_test_configs,
+    verify_test_scenarios,
+)
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
@@ -254,3 +261,122 @@ def test_verify_test_scenarios_logs_failure_details(tmp_path: Path, caplog: pyte
     assert str(broken_scenario) in caplog.text
     assert "duplicate TOML key 'name'" in caplog.text
     assert "1 out of 1 test scenarios have issues." in caplog.text
+
+
+class CustomLoopStubAgentConfig(BaseAgentConfig):
+    pass
+
+
+class CustomLoopStubAgent(BaseAgent):
+    """Stub agent that opts into the custom-training-loop dispatch path."""
+
+    HAS_CUSTOM_TRAINING_LOOP: ClassVar[bool] = True
+
+    train_calls: ClassVar[int] = 0
+    shutdown_calls: ClassVar[int] = 0
+    train_raises: ClassVar[Optional[BaseException]] = None
+
+    def __init__(self, env, config: CustomLoopStubAgentConfig):
+        self.env = env
+        self.config = config
+        self.max_steps = 0
+
+    @staticmethod
+    def get_config_class() -> type[CustomLoopStubAgentConfig]:
+        return CustomLoopStubAgentConfig
+
+    def configure(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
+
+    def select_action(self) -> tuple[int, dict[str, Any]]:  # pragma: no cover - never called
+        raise AssertionError("select_action must not be called when HAS_CUSTOM_TRAINING_LOOP is True")
+
+    def update_policy(self, _feedback: dict[str, Any]) -> None:
+        return
+
+    def train(self) -> None:
+        CustomLoopStubAgent.train_calls += 1
+        if CustomLoopStubAgent.train_raises is not None:
+            raise CustomLoopStubAgent.train_raises
+
+    def shutdown(self) -> None:
+        CustomLoopStubAgent.shutdown_calls += 1
+
+
+@pytest.fixture
+def custom_loop_agent_name() -> Iterator[str]:
+    registry = Registry()
+    agent_name = "test_handlers_custom_loop_agent"
+    old_agent = registry.agents_map.get(agent_name)
+    registry.update_agent(agent_name, CustomLoopStubAgent)
+    CustomLoopStubAgent.train_calls = 0
+    CustomLoopStubAgent.shutdown_calls = 0
+    CustomLoopStubAgent.train_raises = None
+    yield agent_name
+    CustomLoopStubAgent.train_calls = 0
+    CustomLoopStubAgent.shutdown_calls = 0
+    CustomLoopStubAgent.train_raises = None
+    if old_agent is None:
+        del registry.agents_map[agent_name]
+    else:
+        registry.update_agent(agent_name, old_agent)
+
+
+def test_run_custom_training_loop_calls_train_and_shutdown() -> None:
+    agent = MagicMock()
+    agent.train = MagicMock()
+    agent.shutdown = MagicMock()
+
+    assert _run_custom_training_loop(agent, "mock_agent") == 0
+    agent.train.assert_called_once_with()
+    agent.shutdown.assert_called_once_with()
+
+
+def test_run_custom_training_loop_returns_error_and_still_shuts_down(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    agent = MagicMock()
+    agent.train = MagicMock(side_effect=RuntimeError("boom"))
+    agent.shutdown = MagicMock()
+
+    with caplog.at_level(logging.ERROR):
+        assert _run_custom_training_loop(agent, "mock_agent") == 1
+
+    agent.shutdown.assert_called_once_with()
+    assert "boom" in caplog.text
+
+
+def test_run_custom_training_loop_tolerates_missing_shutdown() -> None:
+    agent = MagicMock(spec=["train"])
+    agent.train = MagicMock()
+
+    assert _run_custom_training_loop(agent, "mock_agent") == 0
+    agent.train.assert_called_once_with()
+
+
+def test_handle_dse_job_dispatches_to_custom_training_loop(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_loop_agent_name: str,
+) -> None:
+    dse_tr.test.agent = custom_loop_agent_name
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert CustomLoopStubAgent.train_calls == 1
+    assert CustomLoopStubAgent.shutdown_calls == 1
+
+
+def test_handle_dse_job_propagates_custom_loop_failure(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_loop_agent_name: str,
+) -> None:
+    CustomLoopStubAgent.train_raises = RuntimeError("training blew up")
+    dse_tr.test.agent = custom_loop_agent_name
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert CustomLoopStubAgent.shutdown_calls == 1
