@@ -180,34 +180,42 @@ check_port_free() {
 }
 
 # ── Arg parsing ───────────────────────────────────────────────────────────
+_require_value() {
+  local flag="$1" val="${2-}"
+  if [[ -z "$val" || "$val" == --* ]]; then
+    echo "ERROR: $flag requires a value (got: '${val:-<empty>}')" >&2
+    exit 1
+  fi
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --venv-python)              venv_python="$2";              shift 2 ;;
-      --result-dir)               result_dir="$2";               shift 2 ;;
-      --model-path)               model_path="$2";               shift 2 ;;
-      --num-workers)              num_workers="$2";              shift 2 ;;
-      --speedup-ratio)            speedup_ratio="$2";            shift 2 ;;
-      --block-size)               block_size="$2";               shift 2 ;;
-      --num-gpu-blocks-override)  num_gpu_blocks_override="$2";  shift 2 ;;
-      --enable-prefix-caching)    enable_prefix_caching="$2";    shift 2 ;;
-      --http-port)                http_port="$2";                shift 2 ;;
-      --router-mode)              router_mode="$2";              shift 2 ;;
-      --input-tokens)             input_tokens="$2";             shift 2 ;;
-      --output-tokens)            output_tokens="$2";            shift 2 ;;
-      --request-count)            request_count="$2";            shift 2 ;;
-      --replay-concurrency)       replay_concurrency="$2";       shift 2 ;;
-      --replay-mode)              replay_mode="$2";              shift 2 ;;
+      --venv-python)              _require_value "$1" "${2-}"; venv_python="$2";              shift 2 ;;
+      --result-dir)               _require_value "$1" "${2-}"; result_dir="$2";               shift 2 ;;
+      --model-path)               _require_value "$1" "${2-}"; model_path="$2";               shift 2 ;;
+      --num-workers)              _require_value "$1" "${2-}"; num_workers="$2";              shift 2 ;;
+      --speedup-ratio)            _require_value "$1" "${2-}"; speedup_ratio="$2";            shift 2 ;;
+      --block-size)               _require_value "$1" "${2-}"; block_size="$2";               shift 2 ;;
+      --num-gpu-blocks-override)  _require_value "$1" "${2-}"; num_gpu_blocks_override="$2";  shift 2 ;;
+      --enable-prefix-caching)    _require_value "$1" "${2-}"; enable_prefix_caching="$2";    shift 2 ;;
+      --http-port)                _require_value "$1" "${2-}"; http_port="$2";                shift 2 ;;
+      --router-mode)              _require_value "$1" "${2-}"; router_mode="$2";              shift 2 ;;
+      --input-tokens)             _require_value "$1" "${2-}"; input_tokens="$2";             shift 2 ;;
+      --output-tokens)            _require_value "$1" "${2-}"; output_tokens="$2";            shift 2 ;;
+      --request-count)            _require_value "$1" "${2-}"; request_count="$2";            shift 2 ;;
+      --replay-concurrency)       _require_value "$1" "${2-}"; replay_concurrency="$2";       shift 2 ;;
+      --replay-mode)              _require_value "$1" "${2-}"; replay_mode="$2";              shift 2 ;;
       # Disaggregated mode
-      --disaggregation-mode)      disaggregation_mode="$2";    shift 2 ;;
-      --prefill-num-nodes)        prefill_num_nodes="$2";      shift 2 ;;
-      --decode-num-nodes)         decode_num_nodes="$2";       shift 2 ;;
-      --prefill-cmd)              prefill_cmd="$2";            shift 2 ;;
-      --decode-cmd)               decode_cmd="$2";             shift 2 ;;
-      --kv-transfer-bandwidth)    kv_transfer_bandwidth="$2";  shift 2 ;;
-      --prefill-initialized-regex)   prefill_initialized_regex="$2";   shift 2 ;;
-      --decode-initialized-regex)    decode_initialized_regex="$2";    shift 2 ;;
-      --benchmark-tool)              benchmark_tool="$2";              shift 2 ;;
+      --disaggregation-mode)      _require_value "$1" "${2-}"; disaggregation_mode="$2";    shift 2 ;;
+      --prefill-num-nodes)        _require_value "$1" "${2-}"; prefill_num_nodes="$2";      shift 2 ;;
+      --decode-num-nodes)         _require_value "$1" "${2-}"; decode_num_nodes="$2";       shift 2 ;;
+      --prefill-cmd)              _require_value "$1" "${2-}"; prefill_cmd="$2";            shift 2 ;;
+      --decode-cmd)               _require_value "$1" "${2-}"; decode_cmd="$2";             shift 2 ;;
+      --kv-transfer-bandwidth)    _require_value "$1" "${2-}"; kv_transfer_bandwidth="$2";  shift 2 ;;
+      --prefill-initialized-regex)   _require_value "$1" "${2-}"; prefill_initialized_regex="$2";   shift 2 ;;
+      --decode-initialized-regex)    _require_value "$1" "${2-}"; decode_initialized_regex="$2";    shift 2 ;;
+      --benchmark-tool)              _require_value "$1" "${2-}"; benchmark_tool="$2";              shift 2 ;;
       --engine-*)
         # Extra dynamo.mocker engine flags forwarded from [cmd_args.engine] extras.
         engine_extra_args["--${1#--engine-}"]="$2"
@@ -278,7 +286,11 @@ parse_args() {
 # "python3 -m dynamo.mocker", "aiperf profile", "genai-perf profile")
 # resolve to venv binaries without needing full paths.
 resolve_python() {
-  if [[ -n "$venv_python" && -x "$venv_python" ]]; then
+  if [[ -n "$venv_python" ]]; then
+    if [[ ! -x "$venv_python" ]]; then
+      echo "ERROR: --venv-python '$venv_python' does not exist or is not executable" >&2
+      exit 1
+    fi
     PYTHON="$venv_python"
     export PATH="$(dirname "$venv_python"):${PATH}"
   fi
@@ -773,8 +785,11 @@ main() {
   # ── 3. Run benchmark ─────────────────────────────────────────────────────
   if [[ "$benchmark_tool" == "aiperf" ]]; then
     launch_aiperf
-  else
+  elif [[ "$benchmark_tool" == "genai_perf" ]]; then
     launch_genai_perf
+  else
+    write_failure_marker "Unknown benchmark_tool='$benchmark_tool' (must be 'aiperf' or 'genai_perf')"
+    exit 1
   fi
 
   if [[ ! -f "$result_dir/benchmark_report.csv" ]]; then
