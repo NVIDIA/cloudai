@@ -20,7 +20,7 @@ import logging
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 from unittest.mock import Mock
 
 import toml
@@ -118,6 +118,32 @@ def prepare_installation(
     return installables, installer
 
 
+def _build_step_feedback(
+    *,
+    step: int,
+    action: dict[str, Any],
+    reward: float,
+    observation: list[float],
+    prev_observation: list[float],
+    done: bool,
+) -> dict[str, Any]:
+    """
+    Assemble the per-step feedback dict consumed by ``BaseAgent.update_policy``.
+
+    ``trial_index`` / ``value`` preserve the historical contract used by Bayesian
+    optimisation and grid search; the remaining keys expose the gymnasium-style
+    transition for observation-conditioned agents.
+    """
+    return {
+        "trial_index": step,
+        "value": reward,
+        "observation": observation,
+        "prev_observation": prev_observation,
+        "action": action,
+        "done": done,
+    }
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -157,16 +183,26 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
         agent = agent_class(env, agent_config)
 
-        for step in range(agent.max_steps):
-            result = agent.select_action()
+        observation, _ = env.reset()
+        for _ in range(agent.max_steps):
+            result = agent.select_action(observation=observation)
             if result is None:
                 break
             step, action = result
             env.test_run.step = step
             logging.info(f"Running step {step} (of {agent.max_steps}) with action {action}")
-            observation, reward, *_ = env.step(action)
-            feedback = {"trial_index": step, "value": reward}
-            agent.update_policy(feedback)
+            prev_observation = observation
+            observation, reward, done, *_ = env.step(action)
+            agent.update_policy(
+                _build_step_feedback(
+                    step=step,
+                    action=action,
+                    reward=reward,
+                    observation=observation,
+                    prev_observation=prev_observation,
+                    done=done,
+                )
+            )
             logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 
     if args.mode == "run":
