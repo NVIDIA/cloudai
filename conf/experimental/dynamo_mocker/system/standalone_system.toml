@@ -1,0 +1,5 @@
+name = "standalone_system"
+scheduler = "standalone"
+
+install_path = "./install"
+output_path = "./results"

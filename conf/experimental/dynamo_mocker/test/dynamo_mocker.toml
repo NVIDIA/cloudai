@@ -1,0 +1,48 @@
+name = "dynamo_mocker_base_test"
+description = "GPU-free LLM inference simulation using dynamo.mocker + aiperf."
+test_template_name = "DynamoMocker"
+
+[cmd_args]
+model_path = "Qwen/Qwen3-0.6B"
+benchmark_tool = "aiperf"
+
+  [cmd_args.engine]
+  speedup_ratio = 1.0
+  block_size = 64
+  num_gpu_blocks_override = 256
+  enable_prefix_caching = true
+  kv_transfer_bandwidth = 200.0
+
+  [cmd_args.worker]
+  disaggregation_mode = "prefill_decode"
+  num_workers = 1
+
+    [cmd_args.worker.prefill_worker]
+    num_nodes = 1
+    cmd = "python3 -m dynamo.mocker --disaggregation-mode prefill"
+    worker_initialized_regex = "created and running"
+
+      [cmd_args.worker.prefill_worker.args]
+      max_num_seqs = 4
+
+    [cmd_args.worker.decode_worker]
+    num_nodes = 1
+    cmd = "python3 -m dynamo.mocker --disaggregation-mode decode"
+    worker_initialized_regex = "created and running"
+
+      [cmd_args.worker.decode_worker.args]
+      max_num_seqs = 16
+
+  [cmd_args.frontend]
+  http_port = 8000
+  router_mode = "kv_router"
+
+  [cmd_args.aiperf]
+  input_tokens = 128
+  output_tokens = 32
+  request_count = 50
+  replay_concurrency = 10
+  replay_mode = "offline"
+  warmup_request_count = 5
+  random_seed = 42
+  output_tokens_stddev = 16
