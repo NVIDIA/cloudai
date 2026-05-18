@@ -354,6 +354,38 @@ def test_run_custom_training_loop_tolerates_missing_shutdown() -> None:
     agent.train.assert_called_once_with()
 
 
+def test_run_custom_training_loop_reports_shutdown_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """shutdown() raising must not suppress the exit code or propagate the exception."""
+    agent = MagicMock()
+    agent.train = MagicMock()
+    agent.shutdown = MagicMock(side_effect=RuntimeError("teardown blew up"))
+
+    with caplog.at_level(logging.ERROR):
+        assert _run_custom_training_loop(agent, "mock_agent") == 1
+
+    agent.train.assert_called_once_with()
+    agent.shutdown.assert_called_once_with()
+    assert "teardown blew up" in caplog.text
+
+
+def test_run_custom_training_loop_reports_combined_train_and_shutdown_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When both train() and shutdown() raise, the helper still returns 1 and logs both."""
+    agent = MagicMock()
+    agent.train = MagicMock(side_effect=RuntimeError("training boom"))
+    agent.shutdown = MagicMock(side_effect=RuntimeError("teardown boom"))
+
+    with caplog.at_level(logging.ERROR):
+        assert _run_custom_training_loop(agent, "mock_agent") == 1
+
+    agent.shutdown.assert_called_once_with()
+    assert "training boom" in caplog.text
+    assert "teardown boom" in caplog.text
+
+
 def test_handle_dse_job_dispatches_to_custom_training_loop(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
