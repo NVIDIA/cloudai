@@ -155,7 +155,10 @@ class MockerGenAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    cmd: str = Field(default="", description="Override genai-perf command. Empty = shell default (genai-perf profile).")
+    cmd: str = Field(
+        default="",
+        description="Override genai-perf binary. 'profile' is always appended. Empty = shell default.",
+    )
     extra_args: Optional[str] = None
     input_tokens: Union[int, List[int]] = Field(default=5000)
     output_tokens: Union[int, List[int]] = Field(default=500)
@@ -190,7 +193,10 @@ class MockerAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    cmd: str = Field(default="", description="Override aiperf command. Empty = shell default (aiperf profile).")
+    cmd: str = Field(
+        default="",
+        description="Override aiperf binary. 'profile' is always appended. Empty = shell default.",
+    )
     extra_args: Optional[str] = None
     input_tokens: Union[int, List[int]] = Field(default=5000)
     output_tokens: Union[int, List[int]] = Field(default=500)
@@ -213,6 +219,10 @@ class DynamoMockerCmdArgs(CmdArgs):
     """Top-level command arguments for the Dynamo Mocker workload."""
 
     model_path: str = "Qwen/Qwen3-0.6B"
+    nats_cmd: str = Field(
+        default="nats-server -js",
+        description="Command used to launch nats-server. Override with a full path if nats-server is not on PATH.",
+    )
     engine: MockerEngineArgs = Field(default_factory=MockerEngineArgs)
     worker: MockerWorkerConfig = Field(default_factory=MockerWorkerConfig)
     frontend: MockerFrontendArgs = Field(default_factory=MockerFrontendArgs)

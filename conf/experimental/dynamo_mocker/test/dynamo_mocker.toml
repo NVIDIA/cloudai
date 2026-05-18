@@ -20,6 +20,7 @@ test_template_name = "DynamoMocker"
 
 [cmd_args]
 model_path = "Qwen/Qwen3-0.6B"
+nats_cmd = "nats-server -js"
 benchmark_tool = "aiperf"
 
   [cmd_args.engine]
