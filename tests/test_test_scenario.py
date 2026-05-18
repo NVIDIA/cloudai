@@ -38,6 +38,7 @@ from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
+from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.deepep import (
@@ -649,6 +650,7 @@ class TestReporters:
             (OSUBenchTestDefinition, {OSUBenchReportGenerationStrategy}),
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
+            (DynamoMockerTestDefinition, {DynamoMockerReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
         ],
