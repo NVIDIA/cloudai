@@ -61,7 +61,12 @@ process_args() {
     case "$1" in
       --result-dir)  _require_value "$1" "${2-}"; result_dir="$2";  shift 2 ;;
       --model)       _require_value "$1" "${2-}"; model="$2";       shift 2 ;;
-      --port)        _require_value "$1" "${2-}"; port="$2";        shift 2 ;;
+      --port)
+        _require_value "$1" "${2-}"
+        if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+          log "ERROR: --port must be numeric (got: '$2')" >&2; exit 1
+        fi
+        port="$2"; shift 2 ;;
       --report-name) _require_value "$1" "${2-}"; report_name="$2"; shift 2 ;;
       --cmd)         _require_value "$1" "${2-}"; cmd="$2";         shift 2 ;;
       --)            shift; parse_aiperf_args "$@"; break ;;
