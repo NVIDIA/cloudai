@@ -196,8 +196,8 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
         )
         output_path = self.test_run.output_path
         output_path.mkdir(parents=True, exist_ok=True)
-        test_cmd = "bash " + shlex.quote(str(self._script_path)) + " " + " ".join(
-            shlex.quote(a) for a in self._script_args
+        test_cmd = (
+            "bash " + shlex.quote(str(self._script_path)) + " " + " ".join(shlex.quote(a) for a in self._script_args)
         )
         full_cmd = f'bash "{self._wrapper_path}"'
         dump_path = output_path / self.TEST_RUN_DUMP_FILE_NAME

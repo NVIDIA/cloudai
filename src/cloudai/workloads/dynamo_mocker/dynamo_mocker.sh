@@ -203,7 +203,12 @@ parse_args() {
       --block-size)               _require_value "$1" "${2-}"; block_size="$2";               shift 2 ;;
       --num-gpu-blocks-override)  _require_value "$1" "${2-}"; num_gpu_blocks_override="$2";  shift 2 ;;
       --enable-prefix-caching)    _require_value "$1" "${2-}"; enable_prefix_caching="$2";    shift 2 ;;
-      --http-port)                _require_value "$1" "${2-}"; http_port="$2";                shift 2 ;;
+      --http-port)
+        _require_value "$1" "${2-}"
+        if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+          echo "ERROR: --http-port must be numeric (got: '$2')" >&2; exit 1
+        fi
+        http_port="$2"; shift 2 ;;
       --router-mode)              _require_value "$1" "${2-}"; router_mode="$2";              shift 2 ;;
       --input-tokens)             _require_value "$1" "${2-}"; input_tokens="$2";             shift 2 ;;
       --output-tokens)            _require_value "$1" "${2-}"; output_tokens="$2";            shift 2 ;;
