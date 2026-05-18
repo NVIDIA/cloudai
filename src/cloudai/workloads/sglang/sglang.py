@@ -20,15 +20,17 @@ import logging
 from functools import cache
 from pathlib import Path
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from cloudai.core import JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
+    CustomBash,
     LLMServingArgs,
     LLMServingBenchReport,
     LLMServingCmdArgs,
     LLMServingTestDefinition,
+    validate_custom_bash_patterns,
 )
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
@@ -89,6 +91,12 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
     """Test object for SGLang."""
 
     bench_cmd_args: SglangBenchCmdArgs = SglangBenchCmdArgs()
+    custom_bash: CustomBash | None = None
+
+    @field_validator("custom_bash", mode="after")
+    @classmethod
+    def validate_custom_bash(cls, custom_bash: CustomBash | None) -> CustomBash | None:
+        return validate_custom_bash_patterns(custom_bash)
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)

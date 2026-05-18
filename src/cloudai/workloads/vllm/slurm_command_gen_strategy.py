@@ -72,9 +72,9 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
     def disaggregated_script_preamble(self) -> str:
         return f"""\
-PORT_OFFSET=$((SLURM_JOB_ID % 1000))
-PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
+export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
 """
 
