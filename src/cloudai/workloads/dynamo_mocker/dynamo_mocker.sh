@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES All rights reserved.
 #
 # dynamo_mocker.sh — GPU-free dynamo inference simulation mirroring ai_dynamo.sh.
 #
