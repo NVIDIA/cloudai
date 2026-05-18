@@ -105,6 +105,7 @@ main() {
   local -a run_cmd
   if [[ -n "$cmd" ]]; then
     read -ra run_cmd <<< "$cmd"
+    run_cmd+=(profile)
   else
     if [[ ! -x "$AIPERF" ]] && ! command -v "$AIPERF" > /dev/null 2>&1; then
       log "ERROR: aiperf binary not found or not executable: $AIPERF"; exit 1

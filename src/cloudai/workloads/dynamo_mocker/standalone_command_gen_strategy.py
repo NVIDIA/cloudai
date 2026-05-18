@@ -122,6 +122,8 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
             str(result_dir),
             "--model-path",
             args.model_path,
+            "--nats-cmd",
+            args.nats_cmd,
             "--speedup-ratio",
             str(e.speedup_ratio),
             "--block-size",

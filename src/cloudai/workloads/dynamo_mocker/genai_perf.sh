@@ -110,6 +110,7 @@ main() {
   local -a run_cmd
   if [[ -n "$cmd" ]]; then
     read -ra run_cmd <<< "$cmd"
+    run_cmd+=(profile)
   else
     if [[ ! -x "$GENAI_PERF" ]] && ! command -v "$GENAI_PERF" > /dev/null 2>&1; then
       log "ERROR: genai-perf binary not found or not executable: $GENAI_PERF"; exit 1

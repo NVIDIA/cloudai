@@ -87,6 +87,9 @@ kv_transfer_bandwidth=200.0     # GB/s — simulates nixl KV migration latency
 prefill_initialized_regex="created and running"
 decode_initialized_regex="created and running"
 
+# NATS server command (override with full path if nats-server is not on PATH)
+nats_cmd="nats-server -js"
+
 # Benchmark tool selection
 benchmark_tool="genai_perf"          # genai_perf | aiperf
 aiperf_cmd=""                        # override aiperf command (empty = aiperf.sh default)
@@ -192,6 +195,7 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --venv-python)              _require_value "$1" "${2-}"; venv_python="$2";              shift 2 ;;
+      --nats-cmd)                 _require_value "$1" "${2-}"; nats_cmd="$2";                 shift 2 ;;
       --result-dir)               _require_value "$1" "${2-}"; result_dir="$2";               shift 2 ;;
       --model-path)               _require_value "$1" "${2-}"; model_path="$2";               shift 2 ;;
       --num-workers)              _require_value "$1" "${2-}"; num_workers="$2";              shift 2 ;;
@@ -408,17 +412,18 @@ write_node_roles() {
 
 # ── NATS (mirrors ai_dynamo.sh launch_nats) ───────────────────────────────
 launch_nats() {
-  local NATS_BIN
-  NATS_BIN="$(command -v nats-server 2>/dev/null || true)"
-  if [[ -z "$NATS_BIN" || ! -x "$NATS_BIN" ]]; then
-    write_failure_marker "nats-server not found in PATH. Install nats-server and ensure it is on PATH."
+  # First token of nats_cmd is the binary (e.g. "nats-server" or "/full/path/nats-server")
+  local nats_bin="${nats_cmd%% *}"
+  if ! command -v "$nats_bin" > /dev/null 2>&1 && [[ ! -x "$nats_bin" ]]; then
+    write_failure_marker "nats-server not found: '$nats_bin'. Set nats_cmd in [cmd_args] to the full path."
     exit 1
   fi
   check_port_free "nats"             4222
   check_port_free "nats-monitoring"  8222
 
-  log "Starting nats-server..."
-  "$NATS_BIN" -js -p 4222 -m 8222 > "$result_dir/nats.log" 2>&1 &
+  log "Starting nats-server (cmd=$nats_cmd)..."
+  # shellcheck disable=SC2086
+  $nats_cmd -p 4222 -m 8222 > "$result_dir/nats.log" 2>&1 &
   NATS_PID=$!
   log "nats-server started (PID=$NATS_PID)"
   wait_for_service "http://localhost:8222/healthz" 30
