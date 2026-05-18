@@ -146,18 +146,30 @@ def _has_custom_training_loop(agent: object) -> TypeGuard[CustomTrainingLoopAgen
 
 
 def _run_custom_training_loop(agent: CustomTrainingLoopAgent, agent_type: str) -> int:
-    """Drive an agent's self-contained training loop and return a process-style exit code."""
+    """
+    Drive an agent's self-contained training loop and return a process-style exit code.
+
+    ``shutdown()`` runs inside its own ``try/except`` so a faulty teardown cannot
+    suppress the exit code from ``train()`` nor propagate out of this helper:
+    ``handle_dse_job`` relies on the returned ``rc`` to accumulate ``err |= rc``
+    and continue with the remaining test runs.
+    """
     logging.info(f"Agent {agent_type} drives its own training loop; delegating to agent.train().")
+    rc = 0
     try:
         agent.train()
-        return 0
     except Exception:
         logging.exception(f"Custom training loop failed for agent {agent_type}.")
-        return 1
+        rc = 1
     finally:
         shutdown = getattr(agent, "shutdown", None)
         if callable(shutdown):
-            shutdown()
+            try:
+                shutdown()
+            except Exception:
+                logging.exception(f"Shutdown failed for agent {agent_type}.")
+                rc = 1
+    return rc
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
