@@ -410,7 +410,7 @@ write_node_roles() {
       echo "$(hostname),decode_mocker"
     fi
     echo "$(hostname),frontend"
-    echo "$(hostname),genai_perf"
+    echo "$(hostname),${benchmark_tool}"
   } > "$roles_file"
   log "Node roles → $roles_file"
 }

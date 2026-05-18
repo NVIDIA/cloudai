@@ -418,6 +418,7 @@ class TestPrefillDecodeExtraArgs:
     def test_prefill_args_extra_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 prefill_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"max_num_seqs": "10"})
                 ),
@@ -431,6 +432,7 @@ class TestPrefillDecodeExtraArgs:
     def test_decode_args_extra_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 decode_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"max_num_seqs": "20"})
                 ),
@@ -445,6 +447,7 @@ class TestPrefillDecodeExtraArgs:
         """Prefill and decode can carry the same flag name with different values."""
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 prefill_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"max_num_seqs": "10"})
                 ),
@@ -463,6 +466,7 @@ class TestPrefillDecodeExtraArgs:
     def test_prefill_args_not_in_decode_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 prefill_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"prefill_only_flag": "x"})
                 ),
@@ -476,6 +480,7 @@ class TestPrefillDecodeExtraArgs:
     def test_decode_args_not_in_prefill_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 decode_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"decode_only_flag": "y"})
                 ),
@@ -489,6 +494,7 @@ class TestPrefillDecodeExtraArgs:
     def test_prefill_args_bool_lowercased(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 prefill_worker=MockerWorkerInstance(
                     args=MockerWorkerInstanceArgs.model_validate({"enable_chunked_prefill": True})
                 ),
@@ -533,6 +539,7 @@ class TestPrefillDecodeExtraArgs:
     def test_prefill_extra_args_raw_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 prefill_worker=MockerWorkerInstance(extra_args="--no-enable-expert-parallel"),
             )
         )
@@ -544,6 +551,7 @@ class TestPrefillDecodeExtraArgs:
     def test_decode_extra_args_raw_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(
             worker=MockerWorkerConfig(
+                disaggregation_mode="prefill_decode",
                 decode_worker=MockerWorkerInstance(extra_args="--some-decode-flag"),
             )
         )
