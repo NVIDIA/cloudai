@@ -15,9 +15,9 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-from .base_agent import BaseAgent, BaseAgentConfig, Observation
+from .base_agent import BaseAgent, BaseAgentConfig
 from .cloudai_gym import CloudAIGymEnv
 
 
@@ -71,7 +71,7 @@ class GridSearchAgent(BaseAgent):
         keys = list(self.action_space.keys())
         return [dict(zip(keys, combination, strict=True)) for combination in self.action_combinations]
 
-    def select_action(self, observation: Optional[Observation] = None) -> Tuple[int, Dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> Tuple[int, Dict[str, Any]]:
         """
         Select the next action from the grid.
 

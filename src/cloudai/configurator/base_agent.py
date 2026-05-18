@@ -15,13 +15,11 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .base_gym import BaseGym
-
-Observation = list[float]
 
 
 class RewardOverrides(BaseModel):
@@ -89,7 +87,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self, observation: Optional[Observation] = None) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]]:
         """
         Select an action from the action space.
 
