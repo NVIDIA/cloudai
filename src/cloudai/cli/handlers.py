@@ -20,7 +20,7 @@ import logging
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Protocol, TypeGuard, runtime_checkable
 from unittest.mock import Mock
 
 import toml
@@ -118,6 +118,60 @@ def prepare_installation(
     return installables, installer
 
 
+@runtime_checkable
+class CustomTrainingLoopAgent(Protocol):
+    """
+    Agent that drives its own training loop and skips the ``handle_dse_job`` step loop.
+
+    Set ``HAS_CUSTOM_TRAINING_LOOP = True`` on the agent class to opt in. Used by
+    agents (e.g. RLlib-based) whose training loops are not modelled as a sequence
+    of independent ``select_action`` / ``env.step`` calls.
+    """
+
+    HAS_CUSTOM_TRAINING_LOOP: bool
+
+    def train(self) -> None: ...
+
+
+def _has_custom_training_loop(agent: object) -> TypeGuard[CustomTrainingLoopAgent]:
+    """
+    Narrow ``agent`` to :class:`CustomTrainingLoopAgent` when it opts into the dispatch path.
+
+    Returning :class:`TypeGuard` (instead of plain ``bool``) lets the type checker
+    treat this predicate like ``isinstance``: callers inside the truthy branch see
+    ``agent`` as a :class:`CustomTrainingLoopAgent`, so ``agent.train()`` type-checks
+    without ``getattr`` or ``cast``.
+    """
+    return bool(getattr(agent, "HAS_CUSTOM_TRAINING_LOOP", False))
+
+
+def _run_custom_training_loop(agent: CustomTrainingLoopAgent, agent_type: str) -> int:
+    """
+    Drive an agent's self-contained training loop and return a process-style exit code.
+
+    ``shutdown()`` runs inside its own ``try/except`` so a faulty teardown cannot
+    suppress the exit code from ``train()`` nor propagate out of this helper:
+    ``handle_dse_job`` relies on the returned ``rc`` to accumulate ``err |= rc``
+    and continue with the remaining test runs.
+    """
+    logging.info(f"Agent {agent_type} drives its own training loop; delegating to agent.train().")
+    rc = 0
+    try:
+        agent.train()
+    except Exception:
+        logging.exception(f"Custom training loop failed for agent {agent_type}.")
+        rc = 1
+    finally:
+        shutdown = getattr(agent, "shutdown", None)
+        if callable(shutdown):
+            try:
+                shutdown()
+            except Exception:
+                logging.exception(f"Shutdown failed for agent {agent_type}.")
+                rc = 1
+    return rc
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -156,6 +210,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
         agent = agent_class(env, agent_config)
+
+        if _has_custom_training_loop(agent):
+            err |= _run_custom_training_loop(agent, agent_type)
+            continue
 
         for step in range(agent.max_steps):
             result = agent.select_action()
