@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES All rights reserved.
 #
 # aiperf.sh — wrapper for aiperf profile, mirroring genai_perf.sh.
 #
