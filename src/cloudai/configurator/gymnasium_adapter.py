@@ -90,8 +90,21 @@ class GymnasiumAdapter:
         return self._env
 
     def decode_action(self, action: dict[str, int]) -> dict[str, Any]:
-        """Map discrete action indices back to the original parameter values."""
-        return {name: self._tunable_params[name][idx] for name, idx in action.items()}
+        """
+        Map discrete action indices back to the original parameter values.
+
+        Raises:
+            ValueError: if ``action`` is missing tunable params, contains unknown keys,
+                or carries an index outside the discrete range for any tunable param.
+        """
+        self._assert_keys(action.keys(), set(self._tunable_params), "action")
+        decoded: dict[str, Any] = {}
+        for name, idx in action.items():
+            values = self._tunable_params[name]
+            if not 0 <= idx < len(values):
+                raise ValueError(f"Action index out of range for '{name}': {idx} (expected 0..{len(values) - 1})")
+            decoded[name] = values[idx]
+        return decoded
 
     def reset(
         self,
@@ -108,11 +121,26 @@ class GymnasiumAdapter:
         return self._step_with_params(params)
 
     def step_raw(self, params: dict[str, Any]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
-        """Step the env with an already-decoded parameter dict; bypasses index decoding."""
+        """
+        Step the env with an already-decoded parameter dict; bypasses index decoding.
+
+        Raises:
+            ValueError: if ``params`` does not cover exactly the tunable + fixed param keys.
+        """
+        self._assert_keys(params.keys(), set(self._tunable_params) | set(self._fixed_params), "raw params")
         return self._step_with_params(params)
 
     def render(self) -> None:
         self._env.render()
+
+    @staticmethod
+    def _assert_keys(received: Any, expected: set[str], ctx: str) -> None:
+        received_set = set(received)
+        if received_set == expected:
+            return
+        missing = sorted(expected - received_set)
+        extra = sorted(received_set - expected)
+        raise ValueError(f"{ctx} keys mismatch; missing={missing}, extra={extra}")
 
     def _step_with_params(self, params: dict[str, Any]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         self._sync_underlying_step_counter()

@@ -203,3 +203,32 @@ def test_missing_gymnasium_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(ImportError, match="pip install gymnasium"):
         GymnasiumAdapter(_FakeGym())
+
+
+def test_decode_action_rejects_missing_keys(adapter: GymnasiumAdapter) -> None:
+    with pytest.raises(ValueError, match=r"missing=\['param_b'\]"):
+        adapter.decode_action({"param_a": 0})
+
+
+def test_decode_action_rejects_unknown_keys(adapter: GymnasiumAdapter) -> None:
+    with pytest.raises(ValueError, match=r"extra=\['bogus'\]"):
+        adapter.decode_action({"param_a": 0, "param_b": 1, "bogus": 0})
+
+
+def test_decode_action_rejects_out_of_range_index(adapter: GymnasiumAdapter) -> None:
+    with pytest.raises(ValueError, match=r"out of range for 'param_a'"):
+        adapter.decode_action({"param_a": 99, "param_b": 0})
+
+
+def test_step_raw_rejects_missing_fixed_param() -> None:
+    adapter = GymnasiumAdapter(_FixedParamGym())
+    adapter.reset()
+    with pytest.raises(ValueError, match=r"missing=\['fixed_param'\]"):
+        adapter.step_raw({"param_a": 1, "param_b": 10})
+
+
+def test_step_raw_rejects_unknown_keys() -> None:
+    adapter = GymnasiumAdapter(_FixedParamGym())
+    adapter.reset()
+    with pytest.raises(ValueError, match=r"extra=\['bogus'\]"):
+        adapter.step_raw({"param_a": 1, "param_b": 10, "fixed_param": 42, "bogus": 0})
