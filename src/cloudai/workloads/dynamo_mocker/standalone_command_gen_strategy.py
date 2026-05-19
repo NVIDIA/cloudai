@@ -163,7 +163,7 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
 
         if tdef.python_environment.venv_path is None:
             raise RuntimeError("Unexpected state: python environment is not installed yet")
-        python_exec = tdef.python_environment.python_path(self.system.install_path)
+        python_exec = tdef.python_environment.venv_path / "bin" / "python"
 
         script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
         script_args = self._build_script_args(args, output_path, python_exec)
@@ -196,7 +196,7 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
 
         if tdef.python_environment.venv_path is None:
             raise RuntimeError("Unexpected state: python environment is not installed yet")
-        python_exec = tdef.python_environment.python_path(self.system.install_path)
+        python_exec = tdef.python_environment.venv_path / "bin" / "python"
 
         script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
         script_args = self._build_script_args(args, output_path, python_exec)
