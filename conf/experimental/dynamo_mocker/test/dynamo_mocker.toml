@@ -36,7 +36,6 @@ benchmark_tool = "aiperf"
 
     [cmd_args.worker.prefill_worker]
     num_nodes = 1
-    cmd = "python3 -m dynamo.mocker --disaggregation-mode prefill"
     worker_initialized_regex = "created and running"
 
       [cmd_args.worker.prefill_worker.args]
@@ -44,7 +43,6 @@ benchmark_tool = "aiperf"
 
     [cmd_args.worker.decode_worker]
     num_nodes = 1
-    cmd = "python3 -m dynamo.mocker --disaggregation-mode decode"
     worker_initialized_regex = "created and running"
 
       [cmd_args.worker.decode_worker.args]

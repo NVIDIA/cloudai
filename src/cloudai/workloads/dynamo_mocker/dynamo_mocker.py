@@ -252,13 +252,17 @@ class DynamoMockerTestDefinition(TestDefinition):
     success_marker: str = "success-marker.txt"
     failure_marker: str = "failure-marker.txt"
 
+    _python_environment: Optional[PythonEnvironment] = None
+
     @property
     def python_environment(self) -> PythonEnvironment:
-        return PythonEnvironment(
-            name="dynamo-mocker",
-            python_version="3.12",
-            requirements=["ai-dynamo", "genai-perf", "aiperf"],
-        )
+        if not self._python_environment:
+            self._python_environment = PythonEnvironment(
+                name="dynamo-mocker",
+                python_version="3.12",
+                requirements=["ai-dynamo", "genai-perf", "aiperf"],
+            )
+        return self._python_environment
 
     @property
     def installables(self) -> list[Installable]:
