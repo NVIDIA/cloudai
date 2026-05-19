@@ -60,7 +60,7 @@ class StubAgent(BaseAgent):
     def configure(self, config: dict[str, Any]) -> None:
         raise NotImplementedError
 
-    def select_action(self) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]]:
         raise NotImplementedError
 
     def update_policy(self, _feedback: dict[str, Any]) -> None:
