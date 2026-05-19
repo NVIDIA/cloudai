@@ -69,6 +69,7 @@ class UCCCmdArgs(CmdArgs):
     b: Union[int, list[int]] = 1
     e: Union[str, list[str]] = "8M"
     gen: Union[str, list[str], None] = None
+    use_deepep_matrix: bool = False
 
 
 class UCCTestDefinition(TestDefinition):

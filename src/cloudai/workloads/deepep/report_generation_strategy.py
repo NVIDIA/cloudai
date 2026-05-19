@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.deepep.deepep_combined_report import deepep_results_json_files
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -40,40 +41,27 @@ class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
         Returns:
             bool: True if directory contains DeepEP results.
         """
-        # Check for results subdirectories created by DeepEP
         directory_path = self.test_run.output_path
-        matching_dirs = list(directory_path.glob("results/benchmark_*_ranks_*"))
-
-        if matching_dirs:
-            # Check if any of them has results.json
-            for result_dir in matching_dirs:
-                if (result_dir / "results.json").exists():
-                    return True
-
-        return False
+        return bool(deepep_results_json_files(directory_path))
 
     def generate_report(self) -> None:
         """Generate a report from DeepEP benchmark results."""
         directory_path = self.test_run.output_path
         test_name = self.test_run.test.name
 
-        results_dirs = list(directory_path.glob("results/benchmark_*_ranks_*"))
-
-        if not results_dirs:
-            return
-
         all_results = []
 
-        for result_dir in results_dirs:
-            results_json = result_dir / "results.json"
-            if not results_json.exists():
-                continue
+        for results_json in deepep_results_json_files(directory_path):
+            result_dir = results_json.parent
 
             try:
                 with open(results_json, "r") as f:
                     results_data = json.load(f)
             except Exception as e:
                 logging.debug(f"Error parsing {results_json}: {e}")
+                continue
+
+            if not isinstance(results_data, list):
                 continue
 
             match = re.match(r"benchmark_(\d+)_ranks_(.+?)_(low_latency|standard)", result_dir.name)
@@ -84,6 +72,8 @@ class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
                 mode = match.group(3)
 
             for result in results_data:
+                if not isinstance(result, dict):
+                    continue
                 result["num_ranks"] = num_ranks
                 result["timestamp"] = timestamp
                 result["mode"] = mode
@@ -99,6 +89,9 @@ class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
                 "num_tokens",
                 "hidden",
                 "deepep_time",
+                "bus_bw_avg",
+                "bus_bw_min",
+                "bus_bw_max",
                 "global_bw",
                 "simple_rdma_bw",
                 "simple_nvl_bw",

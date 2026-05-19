@@ -82,6 +82,7 @@ def register_all():
         DeepEPReportGenerationStrategy,
         DeepEPSlurmCommandGenStrategy,
         DeepEPTestDefinition,
+        DeepEPMoEThroughputReporter,
     )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
@@ -301,6 +302,7 @@ def register_all():
     Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("deepep_moe_throughput", DeepEPMoEThroughputReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("dse", DSEReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))

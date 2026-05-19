@@ -27,7 +27,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
         """
-        Append bash commands to detect head node IP for torchrun.
+        Append bash commands to detect head node IP.
 
         Args:
             batch_script_content: The list of script lines to append to.
@@ -43,6 +43,9 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "echo Nodes: $SLURM_JOB_NODELIST",
                 "echo Num Nodes: ${#nodes[@]}",
                 "echo Head Node IP: $head_node_ip",
+                "",
+                "export MASTER_ADDR=$head_node_ip",
+                "export MASTER_PORT=29500",
                 "",
             ]
         )
@@ -66,7 +69,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._generate_config_yaml(config_file_path, cmd_args)
 
         mounts = [
-            f"{config_file_path.parent.absolute()}:{config_file_path.parent.absolute()}",
+            f"{config_file_path.absolute()}:{cmd_args.config_file_path}",
             f"{self.test_run.output_path.absolute()}:{cmd_args.results_dir}",
         ]
 
@@ -87,22 +90,11 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             benchmark_script = "/workspace/dp-benchmark/benchmark/benchmark_ll.py"
 
-        _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
-        num_nodes = len(nodes) if nodes else self.test_run.nnodes
-
-        config_file_path = self.test_run.output_path / "config.yaml"
-        command_parts = [
-            "torchrun",
-            f"--nnodes={num_nodes}",
-            "--nproc_per_node=1",
-            "--rdzv_id=$RANDOM",
-            "--rdzv_backend=c10d",
-            "--rdzv_endpoint=$head_node_ip:29500",
+        return [
+            "python",
             benchmark_script,
-            str(config_file_path.absolute()),
+            cmd_args.config_file_path,
         ]
-
-        return command_parts
 
     def _generate_config_yaml(self, config_path: Path, cmd_args: DeepEPCmdArgs) -> None:
         """
@@ -136,4 +128,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_srun_success_check(self) -> str:
         """Check if DeepEP benchmark completed successfully."""
         output_file = self.test_run.output_path / "stdout.txt"
-        return f'grep -q "global_bw\\|deepep_time" {output_file} && echo 1 || echo 0'
+        return (
+            'grep -Eq "global_bw|RDMA BW \\(GB/s\\)|NVLink BW \\(GB/s\\)|Bus BW \\(GB/s\\)|Global BW \\(GB/s\\)" '
+            f'{output_file} && echo 1 || echo 0'
+        )

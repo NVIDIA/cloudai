@@ -38,6 +38,7 @@ class DeepEPCmdArgs(CmdArgs):
     num_iterations: int = 50
     shuffle_columns: bool = False
     use_kineto_profiler: bool = False
+    enable_tuning: bool = False
     num_sms: int = 24
     num_qps_per_rank: int = 12
     config_file_path: str = "/tmp/config.yaml"

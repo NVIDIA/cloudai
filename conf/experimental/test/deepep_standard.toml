@@ -20,13 +20,12 @@ test_template_name = "DeepEP"
 
 [cmd_args]
 # Local .sqsh file:
-# docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
 # Container registry (uses your Docker credentials):
 docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
 
 mode = "standard"
 
-tokens = 1024
+tokens = 4096
 num_experts = 256
 num_topk = 8
 hidden_size = 7168

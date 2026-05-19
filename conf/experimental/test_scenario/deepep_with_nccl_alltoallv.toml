@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,15 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
-from .deepep_moe_throughput_reporter import DeepEPMoEThroughputReporter
-from .report_generation_strategy import DeepEPReportGenerationStrategy
-from .slurm_command_gen_strategy import DeepEPSlurmCommandGenStrategy
+name = "deepep-with-nccl-alltoallv"
 
-__all__ = [
-    "DeepEPCmdArgs",
-    "DeepEPMoEThroughputReporter",
-    "DeepEPReportGenerationStrategy",
-    "DeepEPSlurmCommandGenStrategy",
-    "DeepEPTestDefinition",
-]
+# First run the DeepEP benchmark which generates the traffic matrix
+[[Tests]]
+id = "Tests.deepep"
+test_name = "deepep_standard"
+num_nodes = 2
+nodes = ["dgx-gaia-55", "dgx-gaia-56"]
+time_limit = "00:30:00"
+
+# Then run NCCL AlltoAllv test using the generated matrix
+[[Tests]]
+id = "Tests.nccl_alltoallv"
+test_name = "nccl_alltoallv"
+num_nodes = 2
+nodes = ["dgx-gaia-55", "dgx-gaia-56"]
+time_limit = "00:30:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.deepep"
