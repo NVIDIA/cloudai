@@ -31,7 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Python: resolved in main() after parse_args ──────────────────────────
 # Set by resolve_python() using --venv-python (CloudAI PythonEnvironment managed venv).
-PYTHON="python3"
+# No default — resolve_python() will fail if --venv-python is not provided.
+PYTHON=""
 
 
 # ── Thread-pool caps ─────────────────────────────────────────────────────
@@ -79,8 +80,8 @@ num_workers=1                   # combined mode: simulated workers in one proces
 # Disaggregated mode: per-role instance counts and launch commands
 prefill_num_nodes=1             # number of prefill mocker instances
 decode_num_nodes=1              # number of decode mocker instances
-prefill_cmd="python3 -m dynamo.mocker --disaggregation-mode prefill"   # command used to launch prefill workers
-decode_cmd="python3 -m dynamo.mocker --disaggregation-mode decode"     # command used to launch decode workers
+prefill_cmd=""   # set after resolve_python() in main(); overridable via --prefill-cmd
+decode_cmd=""    # set after resolve_python() in main(); overridable via --decode-cmd
 kv_transfer_bandwidth=200.0     # GB/s — simulates nixl KV migration latency
 # Per-worker regex: scanned in log files to determine when each role is ready.
 # Mirrors ai_dynamo.sh's worker-initialized-regex (now split per role).
@@ -295,14 +296,14 @@ parse_args() {
 # "python3 -m dynamo.mocker", "aiperf profile", "genai-perf profile")
 # resolve to venv binaries without needing full paths.
 resolve_python() {
-  if [[ -n "$venv_python" ]]; then
-    if [[ ! -x "$venv_python" ]]; then
-      echo "ERROR: --venv-python '$venv_python' does not exist or is not executable" >&2
-      exit 1
-    fi
-    PYTHON="$venv_python"
-    export PATH="$(dirname "$venv_python"):${PATH}"
+  if [[ -z "$venv_python" ]]; then
+    echo "ERROR: --venv-python is required" >&2; exit 1
   fi
+  if [[ ! -x "$venv_python" ]]; then
+    echo "ERROR: --venv-python '$venv_python' does not exist or is not executable" >&2; exit 1
+  fi
+  PYTHON="$venv_python"
+  export PATH="$(dirname "$venv_python"):${PATH}"
 }
 
 # ── Wait helpers ──────────────────────────────────────────────────────────
@@ -726,6 +727,10 @@ launch_aiperf() {
 main() {
   parse_args "$@" || exit 1
   resolve_python
+  # Set defaults that depend on $PYTHON (after venv is resolved).
+  # User-provided --prefill-cmd / --decode-cmd take precedence.
+  [[ -z "$prefill_cmd" ]] && prefill_cmd="$PYTHON -m dynamo.mocker --disaggregation-mode prefill"
+  [[ -z "$decode_cmd" ]]  && decode_cmd="$PYTHON -m dynamo.mocker --disaggregation-mode decode"
 
   if [[ -z "$result_dir" ]]; then
     echo "ERROR: --result-dir is required" >&2

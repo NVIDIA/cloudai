@@ -60,6 +60,8 @@ def _make_strategy(
         test_template_name="DynamoMockerTest",
         cmd_args=cmd_args,
     )
+    # Simulate post-install state: venv_path is set on the cached instance.
+    tdef.python_environment.venv_path = system.install_path / tdef.python_environment.venv_name
     tr = TestRun(
         name="test-run",
         test=tdef,

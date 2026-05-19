@@ -37,10 +37,6 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
     parameters and redirects stdout/stderr to the output directory.
     """
 
-    _script_path: Optional[Path] = None
-    _script_args: Optional[List[str]] = None
-    _wrapper_path: Optional[Path] = None
-
     @staticmethod
     def _extra_flags(model_extra: Optional[dict], prefix: str) -> List[str]:
         """
@@ -165,41 +161,51 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
         output_path = self.test_run.output_path
         output_path.mkdir(parents=True, exist_ok=True)
 
+        if tdef.python_environment.venv_path is None:
+            raise RuntimeError("Unexpected state: python environment is not installed yet")
         python_exec = tdef.python_environment.python_path(self.system.install_path)
 
-        self._script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
-        self._script_args = self._build_script_args(args, output_path, python_exec)
-        self._wrapper_path = output_path / "dynamo_mocker_run.sh"
+        script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
+        script_args = self._build_script_args(args, output_path, python_exec)
+        wrapper_path = output_path / "dynamo_mocker_run.sh"
 
         # Wrapper script: redirects stdout/stderr for cloudai log capture
         stdout_file = output_path / "stdout.txt"
         stderr_file = output_path / "stderr.txt"
-        quoted_args = " ".join(shlex.quote(a) for a in self._script_args)
+        quoted_args = " ".join(shlex.quote(a) for a in script_args)
         wrapper_lines = [
             "#!/usr/bin/env bash",
             (
-                f"bash {shlex.quote(str(self._script_path))} {quoted_args}"
+                f"bash {shlex.quote(str(script_path))} {quoted_args}"
                 f" > {shlex.quote(str(stdout_file))} 2> {shlex.quote(str(stderr_file))}"
             ),
         ]
-        self._wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
-        self._wrapper_path.chmod(self._wrapper_path.stat().st_mode | stat.S_IXUSR)
+        wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
+        wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IXUSR)
 
         self.store_test_run()
 
-        return f'bash "{self._wrapper_path}"'
+        return f'bash "{wrapper_path}"'
 
     def store_test_run(self) -> None:
         """Persist TestRunDetails to the output directory for inspection."""
-        assert self._script_path is not None and self._script_args is not None and self._wrapper_path is not None, (
-            "store_test_run() must be called after gen_exec_command()"
-        )
+        tdef = cast(DynamoMockerTestDefinition, self.test_run.test)
+        args: DynamoMockerCmdArgs = tdef.cmd_args
         output_path = self.test_run.output_path
         output_path.mkdir(parents=True, exist_ok=True)
+
+        if tdef.python_environment.venv_path is None:
+            raise RuntimeError("Unexpected state: python environment is not installed yet")
+        python_exec = tdef.python_environment.python_path(self.system.install_path)
+
+        script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
+        script_args = self._build_script_args(args, output_path, python_exec)
+        wrapper_path = output_path / "dynamo_mocker_run.sh"
+
         test_cmd = (
-            "bash " + shlex.quote(str(self._script_path)) + " " + " ".join(shlex.quote(a) for a in self._script_args)
+            "bash " + shlex.quote(str(script_path)) + " " + " ".join(shlex.quote(a) for a in script_args)
         )
-        full_cmd = f'bash "{self._wrapper_path}"'
+        full_cmd = f'bash "{wrapper_path}"'
         dump_path = output_path / self.TEST_RUN_DUMP_FILE_NAME
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
         with dump_path.open("w", encoding="utf-8") as f:
