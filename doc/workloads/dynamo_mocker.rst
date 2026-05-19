@@ -6,10 +6,7 @@ using ``dynamo.mocker`` and ``dynamo.frontend`` from the `ai-dynamo <https://git
 package, then benchmarks the stack with `aiperf <https://github.com/NVIDIA/aiperf>`_ or
 `genai-perf <https://github.com/triton-inference-server/client/tree/main/src/c%2B%2B/perf_analyzer/genai-perf>`_.
 
-This workload is designed for latency/throughput profiling on **login nodes** — no GPUs are required.
-It mirrors the ``ai_dynamo`` workload topology (combined or disaggregated prefill/decode) but replaces
-real GPU workers with lightweight mocker processes that simulate KV-cache block allocation, LRU eviction,
-and KV transfer latency.
+It is a **Standalone** workload (no Slurm/Kubernetes/RunAI required).
 
 Prerequisites
 -------------
