@@ -16,6 +16,7 @@ Available Workloads
    ":doc:`chakra_replay`", "✅", "❌", "❌", "❌"
    ":doc:`ddlb`", "✅", "❌", "❌", "❌"
    ":doc:`deepep`", "✅", "❌", "❌", "❌"
+   ":doc:`dynamo_mocker`", "❌", "❌", "❌", "✅"
    ":doc:`jax_toolbox`", "✅", "❌", "❌", "❌"
    "MegatronRun", "✅", "❌", "❌", "❌"
    ":doc:`megatron_bridge`", "✅", "❌", "❌", "❌"

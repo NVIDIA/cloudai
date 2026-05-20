@@ -258,3 +258,38 @@ def test_gen_srun_command_contains_cuda_visible_devices_for_aggregated(
 ) -> None:
     srun_command = sglang_cmd_gen_strategy._gen_srun_command()
     assert 'env CUDA_VISIBLE_DEVICES="0"' in srun_command
+
+
+def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
+    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
+) -> None:
+    tdef = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    tdef.custom_bash = "echo setup"
+
+    srun_command = sglang_cmd_gen_strategy._gen_srun_command()
+
+    assert srun_command.count("bash -c ") == 2
+    assert "echo setup; exec env CUDA_VISIBLE_DEVICES" in srun_command
+    assert "python3 -m sglang.launch_server" in srun_command
+    assert "echo setup; exec python3 -m sglang.bench_serving" in srun_command
+
+
+def test_custom_bash_regex_can_target_sglang_disaggregated_commands(
+    sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    tdef.custom_bash = {
+        "sglang.launch_server.*prefill": "echo prefill setup",
+        "sglang.launch_server.*decode": "echo decode setup",
+        "sglang_router.launch_router": "echo router setup",
+        "sglang.bench_serving": "echo bench setup",
+    }
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert srun_command.count("bash -c ") == 4
+    assert "echo prefill setup; exec env" in srun_command
+    assert "echo decode setup; exec env" in srun_command
+    assert "echo router setup; exec python3 -m sglang_router.launch_router" in srun_command
+    assert "echo bench setup; exec python3 -m sglang.bench_serving" in srun_command

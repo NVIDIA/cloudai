@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+import shlex
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Generic, TypeVar, cast
@@ -33,6 +35,19 @@ TestDefT = TypeVar("TestDefT", bound="LLMServingTestDefinition[Any]")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
 LLMServingArgsT = TypeVar("LLMServingArgsT", bound="LLMServingArgs")
 LLMServingCmdArgsT = TypeVar("LLMServingCmdArgsT", bound="LLMServingCmdArgs")
+
+CustomBash = str | dict[str, str]
+
+
+def validate_custom_bash_patterns(custom_bash: CustomBash | None) -> CustomBash | None:
+    """Validate regex keys for workload-specific custom bash injection."""
+    if isinstance(custom_bash, dict):
+        for pattern in custom_bash:
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid custom_bash regex '{pattern}': {e}") from e
+    return custom_bash
 
 
 def parse_gpu_ids(gpu_ids: str | list[str] | None) -> list[int]:
@@ -395,6 +410,23 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         env_parts = ["env", *[f'{key}="{value}"' for key, value in env_vars.items()], *command]
         return " ".join(env_parts)
 
+    def _custom_bash_for_command(self, command_tail: str) -> str | None:
+        custom_bash = getattr(self.tdef, "custom_bash", None)
+        if isinstance(custom_bash, str):
+            return custom_bash or None
+        if isinstance(custom_bash, dict):
+            for pattern, bash in custom_bash.items():
+                if re.search(pattern, command_tail):
+                    return bash or None
+        return None
+
+    def _with_custom_bash(self, command_tail: str) -> str:
+        custom_bash = self._custom_bash_for_command(command_tail)
+        if not custom_bash:
+            return command_tail
+
+        return "bash -c " + shlex.quote(f"{custom_bash}; exec {command_tail}")
+
     def disaggregated_role_host(self, role: str) -> str:
         if role == "prefill":
             return "${PREFILL_NODE}"
@@ -428,8 +460,8 @@ fi
 """
         return f"""\
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-PREFILL_NODE=${{NODES[0]}}
-DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
+export PREFILL_NODE=${{NODES[0]}}
+export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
 if [ -z "$PREFILL_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated {self.workload_name}"
     exit 1
@@ -646,7 +678,7 @@ echo "Running semantic validation..."
 echo "Starting {self.workload_name} instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.serve_log_file).absolute()} \\
-    {serve_cmd_with_env} &
+    {self._with_custom_bash(serve_cmd_with_env)} &
 {self.serve_pid_var}=$!
 
 {wait_block}
@@ -654,7 +686,9 @@ echo "Starting {self.workload_name} instances..."
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}{self._gen_semantic_eval_block(f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1")}"""
+    {self._with_custom_bash(bench_cmd)}
+
+{self._gen_semantic_eval_block(f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1")}""".strip()
 
     def _gen_disaggregated_script(self, serve_commands: list[list[str]], bench_cmd: str) -> str:
         prefill_cmd, decode_cmd = serve_commands
@@ -691,12 +725,12 @@ echo "Running benchmark..."
 echo "Starting {self.workload_name} instances..."
 {prefill_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.prefill_log_file} \\
-    {prefill_cmd_with_env} &
+    {self._with_custom_bash(prefill_cmd_with_env)} &
 PREFILL_PID=$!
 
 {decode_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.decode_log_file} \\
-    {decode_cmd_with_env} &
+    {self._with_custom_bash(decode_cmd_with_env)} &
 DECODE_PID=$!
 
 {wait_block}
@@ -704,7 +738,7 @@ DECODE_PID=$!
 echo "Starting {self.proxy_router_name}..."
 {prefill_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
-    {" ".join(helper_cmd)} &
+    {self._with_custom_bash(" ".join(helper_cmd))} &
 {self.proxy_router_pid_var}=$!
 
 {wait_block_helper}
@@ -712,4 +746,6 @@ echo "Starting {self.proxy_router_name}..."
 echo "Running benchmark..."
 {prefill_srun_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}{self._gen_semantic_eval_block(prefill_srun_prefix)}"""
+    {self._with_custom_bash(bench_cmd)}
+
+{self._gen_semantic_eval_block(prefill_srun_prefix)}""".strip()

@@ -745,3 +745,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         )
         ref_wrapper = ref_wrapper.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
         assert curr_wrapper == ref_wrapper, "start_server_wrapper.sh does not match reference"
+
+    if test_req[1] == "nixl-ep.sbatch":
+        launcher_file = slurm_system.output_path / "nixl-ep-launch.sh"
+        assert launcher_file.exists(), "nixl-ep-launch.sh was not generated"
+        curr_launcher = launcher_file.read_text().strip()
+        ref_launcher = (Path(__file__).parent / "ref_data" / "nixl-ep-launch.sh").read_text().strip()
+        ref_launcher = ref_launcher.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent)).replace(
+            "__INSTALL_DIR__", str(slurm_system.install_path.absolute())
+        )
+        assert curr_launcher == ref_launcher, "nixl-ep-launch.sh does not match reference"

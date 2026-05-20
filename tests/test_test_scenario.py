@@ -44,6 +44,7 @@ from cloudai.workloads.deepep import (
     DeepEPReportGenerationStrategy,
     DeepEPTestDefinition,
 )
+from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -624,7 +625,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 20
+        assert len(Registry().reports_map) == 21
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -649,6 +650,7 @@ class TestReporters:
             (OSUBenchTestDefinition, {OSUBenchReportGenerationStrategy}),
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
+            (DynamoMockerTestDefinition, {DynamoMockerReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
         ],

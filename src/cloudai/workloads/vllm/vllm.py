@@ -23,17 +23,19 @@ from functools import cache
 from pathlib import Path
 from typing import Optional, cast
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
+    CustomBash,
     LLMServingArgs,
     LLMServingCmdArgs,
     LLMServingTestDefinition,
     all_gpu_ids,
     calculate_decode_gpu_ids,
     calculate_prefill_gpu_ids,
+    validate_custom_bash_patterns,
 )
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
@@ -100,6 +102,12 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
     semantic_eval_cmd_args: VllmSemanticEvalCmdArgs | None = None
     proxy_script_repo: GitRepo | None = None
+    custom_bash: CustomBash | None = None
+
+    @field_validator("custom_bash", mode="after")
+    @classmethod
+    def validate_custom_bash(cls, custom_bash: CustomBash | None) -> CustomBash | None:
+        return validate_custom_bash_patterns(custom_bash)
 
     @property
     def extra_installables(self) -> list[Installable]:
