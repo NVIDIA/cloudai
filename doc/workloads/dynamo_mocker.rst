@@ -14,17 +14,25 @@ Prerequisites
 CloudAI automatically installs ``ai-dynamo``, ``aiperf``, and ``genai-perf`` into a managed Python virtual
 environment on first run — no manual pip install is needed.
 
-**The one manual prerequisite is** ``nats-server``. The ``dynamo.mocker`` runtime uses NATS as its event plane.
-Install it from the `official releases <https://github.com/nats-io/nats-server/releases>`_ or via a package
-manager, then make it available either on ``PATH`` or by setting ``nats_cmd`` in the test TOML to the full path:
+The one prerequisite is ``nats-server``. On many clusters ``nats-server`` is pre-installed by administrators
+and is already on ``PATH``. Check if it is already available:
 
-.. code-block:: toml
+.. code-block:: bash
 
-   [cmd_args]
-   nats_cmd = "/path/to/nats-server -js"
+   which nats-server
 
-On many clusters ``nats-server`` is pre-installed by administrators and is already on ``PATH``, in which case
-the default value ``"nats-server -js"`` works without modification.
+If not found, download the binary from the `official releases <https://github.com/nats-io/nats-server/releases>`_,
+extract it, and add it to ``PATH``:
+
+.. code-block:: bash
+
+   # replace <version> with the latest release tag, e.g. v2.10.24
+   curl -L https://github.com/nats-io/nats-server/releases/download/<version>/nats-server-<version>-linux-amd64.zip \
+     -o /tmp/nats-server.zip
+   unzip /tmp/nats-server.zip -d /tmp/
+   mkdir -p ~/.local/bin && mv /tmp/nats-server-<version>-linux-amd64/nats-server ~/.local/bin/
+   export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc to persist
+
 
 An ``HF_TOKEN`` environment variable is required to download gated models from HuggingFace Hub. Set it before
 running:
