@@ -313,32 +313,23 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         table.add_column("TPOT Mean, ms", justify="right")
         table.add_column("TPOT Median, ms", justify="right")
         table.add_column("TPOT P99, ms", justify="right")
+
+        row = [
+            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
+            f"{results.mean_ttft_ms:.4f}",
+            f"{results.median_ttft_ms:.4f}",
+            f"{results.p99_ttft_ms:.4f}",
+            f"{results.mean_tpot_ms:.4f}",
+            f"{results.median_tpot_ms:.4f}",
+            f"{results.p99_tpot_ms:.4f}",
+        ]
+
         accuracy = self.get_metric("accuracy")
         if accuracy != METRIC_ERROR:
             table.add_column("Accuracy", justify="right")
-            row = [
-                f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
-                f"{results.mean_ttft_ms:.4f}",
-                f"{results.median_ttft_ms:.4f}",
-                f"{results.p99_ttft_ms:.4f}",
-                f"{results.mean_tpot_ms:.4f}",
-                f"{results.median_tpot_ms:.4f}",
-                f"{results.p99_tpot_ms:.4f}",
-                f"{accuracy:.4f}",
-            ]
-        else:
-            row = [
-                f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
-                f"{results.mean_ttft_ms:.4f}",
-                f"{results.median_ttft_ms:.4f}",
-                f"{results.p99_ttft_ms:.4f}",
-                f"{results.mean_tpot_ms:.4f}",
-                f"{results.median_tpot_ms:.4f}",
-                f"{results.p99_tpot_ms:.4f}",
-            ]
-        table.add_row(
-            *row,
-        )
+            row.append(f"{accuracy:.4f}")
+
+        table.add_row(*row)
         console.print(table)
 
 
