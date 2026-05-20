@@ -41,7 +41,7 @@ time_limit = "00:10:00"
   [Tests.cmd_args.prefill]
   gpu_ids = "0,1"
   enforce_eager = ""
-  tensor_parallel_size = 4
+  tensor_parallel_size = 1
   max_num_batched_tokens = 1024
 
   [Tests.cmd_args.decode]

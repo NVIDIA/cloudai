@@ -19,7 +19,7 @@ description = "SGLang test"
 test_template_name = "sglang"
 
 [cmd_args]
-docker_image_url = "lmsysorg/sglang:dev-cu13"
+docker_image_url = "nvcr.io#nvidia/ai-dynamo/sglang-runtime:1.1.1"
 
 [semantic_eval_cmd_args]
 module = "sglang.test.run_eval"

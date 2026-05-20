@@ -42,12 +42,12 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.prefill]
   gpu_ids = "0,1"
-  tensor_parallel_size = 4
+  tensor_parallel_size = 2
   mem_fraction_static = 0.75
 
   [Tests.cmd_args.decode]
   gpu_ids = "2,3"
-  tensor_parallel_size = 4
+  tensor_parallel_size = 2
   mem_fraction_static = 0.75
 
 [[Tests]]
@@ -58,7 +58,7 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.prefill]
   gpu_ids = "0,1"
-  tensor_parallel_size = 4
+  tensor_parallel_size = 2
   mem_fraction_static = 0.75
 
   [Tests.cmd_args.decode]
@@ -73,9 +73,9 @@ num_nodes = 2
 time_limit = "00:10:00"
 
   [Tests.cmd_args.prefill]
-  tensor_parallel_size = 8
+  tensor_parallel_size = 4
   mem_fraction_static = 0.75
 
   [Tests.cmd_args.decode]
-  tensor_parallel_size = 8
+  tensor_parallel_size = 4
   mem_fraction_static = 0.75
