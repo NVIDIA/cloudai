@@ -28,6 +28,10 @@ Test + Scenario example
    max_concurrency = 16
    num_prompts = 30
 
+   [semantic_eval_cmd_args]
+   module = "sglang.test.run_eval"
+   args = "--eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
+
 
 .. code-block:: toml
    :caption: scenario.toml (scenario with one test)
@@ -66,6 +70,29 @@ Test-in-Scenario example
    random_output = 128
    max_concurrency = 16
    num_prompts = 30
+
+
+Semantic Validation
+-------------------
+To run GSM8K semantic validation after the serving benchmark, add ``semantic_eval_cmd_args``. CloudAI reports
+``accuracy`` from the eval output, but does not enforce an accuracy threshold.
+
+.. code-block:: toml
+   :caption: test.toml (semantic validation)
+
+   [semantic_eval_cmd_args]
+   module = "sglang.test.run_eval"
+   args = "--eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
+
+For images that still use the legacy SGLang GSM8K runner, override the module and raw arguments:
+
+.. code-block:: toml
+
+   [semantic_eval_cmd_args]
+   module = "sglang.test.few_shot_gsm8k"
+   args = "--num-questions 200"
+
+The ``args`` string supports ``{model}``, ``{host}``, ``{port}``, and ``{output_path}`` placeholders.
 
 
 Control number of GPUs
@@ -127,6 +154,13 @@ Benchmark Command Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autopydantic_model:: cloudai.workloads.sglang.sglang.SglangBenchCmdArgs
+   :members:
+   :show-inheritance:
+
+Semantic Eval Command Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autopydantic_model:: cloudai.workloads.sglang.sglang.SglangSemanticEvalCmdArgs
    :members:
    :show-inheritance:
 

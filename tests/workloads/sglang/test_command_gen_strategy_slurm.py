@@ -21,7 +21,13 @@ import pytest
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.sglang import SglangArgs, SglangCmdArgs, SglangSlurmCommandGenStrategy, SglangTestDefinition
+from cloudai.workloads.sglang import (
+    SglangArgs,
+    SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
+    SglangSlurmCommandGenStrategy,
+    SglangTestDefinition,
+)
 from cloudai.workloads.sglang.sglang import SGLANG_BENCH_JSONL_FILE, SGLANG_BENCH_LOG_FILE
 
 
@@ -135,6 +141,69 @@ def test_get_sglang_bench_command_writes_jsonl(
     assert len(output_file_args) == 1
     assert f"--base-url http://${{NODE}}:{sglang_cmd_gen_strategy.test_run.test.cmd_args.port}" in command
     assert output_file_args[0].endswith(f"/{SGLANG_BENCH_JSONL_FILE}")
+
+
+def test_get_sglang_semantic_eval_command_defaults(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy):
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+
+    command = sglang_cmd_gen_strategy.get_semantic_eval_command()
+
+    assert command == [
+        "python3",
+        "-m",
+        "sglang.test.run_eval",
+        "--host ${NODE}",
+        "--port 8000",
+        "--eval-name gsm8k --num-examples 200 --num-threads 128 --model Qwen/Qwen3-8B",
+    ]
+
+
+def test_get_sglang_semantic_eval_command_supports_custom_module_and_args(
+    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
+):
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs(
+        module="sglang.test.few_shot_gsm8k",
+        args="--num-questions 200 --data-path {output_path}/gsm8k.jsonl --seen {host}:{port}",
+    )
+
+    command = sglang_cmd_gen_strategy.get_semantic_eval_command()
+
+    assert command is not None
+    assert command[2] == "sglang.test.few_shot_gsm8k"
+    assert command[-1] == (
+        f"--num-questions 200 --data-path {sglang_cmd_gen_strategy.test_run.output_path.absolute()}/gsm8k.jsonl "
+        "--seen ${NODE}:8000"
+    )
+
+
+def test_gen_srun_command_contains_sglang_semantic_eval(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy):
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+
+    srun_command = sglang_cmd_gen_strategy._gen_srun_command()
+
+    assert "Running benchmark..." in srun_command
+    assert "Running semantic validation..." in srun_command
+    assert (
+        "--output=" + str((sglang_cmd_gen_strategy.test_run.output_path / "sglang-semantic-eval.log").absolute())
+        in srun_command
+    )
+    assert "python3 -m sglang.test.run_eval --host ${NODE} --port 8000" in srun_command
+
+
+def test_gen_srun_command_contains_sglang_semantic_eval_in_disagg(
+    sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    sglang_test = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert "Running semantic validation..." in srun_command
+    assert "python3 -m sglang.test.run_eval --host ${PREFILL_NODE} --port 8000" in srun_command
 
 
 def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:

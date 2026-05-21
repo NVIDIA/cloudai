@@ -14,29 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import VLLMBenchReport, VLLMBenchReportGenerationStrategy
-from .slurm_command_gen_strategy import VllmSlurmCommandGenStrategy
-from .vllm import (
-    VLLM_BENCH_LOG_FILE,
-    VLLM_GSM8K_JSON_FILE,
-    VLLM_SEMANTIC_EVAL_LOG_FILE,
-    VllmArgs,
-    VllmBenchCmdArgs,
-    VllmCmdArgs,
-    VllmSemanticEvalCmdArgs,
-    VllmTestDefinition,
-)
+name = "vllm"
+description = "vLLM test"
+test_template_name = "vllm"
 
-__all__ = [
-    "VLLM_BENCH_LOG_FILE",
-    "VLLM_GSM8K_JSON_FILE",
-    "VLLM_SEMANTIC_EVAL_LOG_FILE",
-    "VLLMBenchReport",
-    "VLLMBenchReportGenerationStrategy",
-    "VllmArgs",
-    "VllmBenchCmdArgs",
-    "VllmCmdArgs",
-    "VllmSemanticEvalCmdArgs",
-    "VllmSlurmCommandGenStrategy",
-    "VllmTestDefinition",
-]
+[[git_repos]]
+url = "https://github.com/vllm-project/vllm.git"
+commit = "main"
+mount_as = "/vllm_repo"
+
+[cmd_args]
+docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:1.1.1"
+
+[semantic_eval_cmd_args]
+script = "/vllm_repo/tests/evals/gsm8k/gsm8k_eval.py"
+args = "--num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+
+[extra_env_vars]
+UCX_NET_DEVICES = "all"
+UCX_TLS = "^gdr_copy,cuda_ipc"

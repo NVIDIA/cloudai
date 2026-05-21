@@ -23,6 +23,7 @@ from .sglang import (
     SglangArgs,
     SglangBenchCmdArgs,
     SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
     SglangTestDefinition,
 )
 
@@ -121,6 +122,24 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
         if self.tdef.cmd_args.prefill:
             command.append("--pd-separated")
 
+        return command
+
+    def get_semantic_eval_command(self) -> list[str] | None:
+        eval_args: SglangSemanticEvalCmdArgs | None = self.tdef.semantic_eval_cmd_args
+        if eval_args is None:
+            return None
+
+        host = self.bench_host
+        command = [
+            "python3",
+            "-m",
+            eval_args.module,
+            f"--host {host}",
+            f"--port {self.serve_port}",
+        ]
+        args = self._expand_semantic_eval_args(eval_args.args, host=host)
+        if args:
+            command.append(args)
         return command
 
     def aggregated_serve_env(self) -> dict[str, str]:
