@@ -634,13 +634,14 @@ trap cleanup EXIT"""
         semantic_cmd = self.get_semantic_eval_command()
         if not semantic_cmd:
             return ""
+        semantic_cmd_full = self._with_custom_bash(" ".join(semantic_cmd))
 
         return f"""\
 
 echo "Running semantic validation..."
 {srun_prefix} \\
     --output={(self.test_run.output_path / self.semantic_eval_log_file).absolute()} \\
-    {" ".join(semantic_cmd)}"""
+    {semantic_cmd_full}"""
 
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
