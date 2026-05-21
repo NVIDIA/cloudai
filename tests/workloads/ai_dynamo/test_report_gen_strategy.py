@@ -25,6 +25,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    AIPerf,
     GenAIPerf,
     LMCache,
     LMCacheArgs,
@@ -49,10 +50,10 @@ def get_csv_content() -> str:
 
 def get_aiperf_csv_content() -> str:
     return (
-        "Metric,avg,min,max,p1,p5,p10,p25,p50,p75,p90,p95,p99,std\n"
-        "Inter Token Latency (ms),2.83,2.78,2.91,2.78,2.79,2.81,2.82,2.83,2.84,2.85,2.88,2.90,0.03\n"
-        "Time to First Token (ms),49.87,17.15,99.91,18.60,21.26,22.46,49.35,49.87,50.52,51.63,53.91,92.31,9.20\n"
-        "Output Sequence Length (tokens),498.06,410.00,501.00,450.67,499.00,500.00,500.00,500.00,500.00,500.00,500.00,501.00,12.62\n"
+        "Metric,avg,min,max\n"
+        "Inter Token Latency (ms),2.83,2.78,2.91\n"
+        "Time to First Token (ms),49.87,17.15,99.91\n"
+        "Output Sequence Length (tokens),498.06,410.00,501.00\n"
         "\n"
         "Metric,Value\n"
         "Output Token Throughput (tokens/sec),595.68\n"
@@ -93,6 +94,32 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
 
 
 @pytest.fixture
+def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
+    test = AIDynamoTestDefinition(
+        name="ai_dynamo_aiperf",
+        description="desc",
+        test_template_name="t",
+        cmd_args=AIDynamoCmdArgs(
+            docker_image_url="http://url",
+            workloads="aiperf.sh",
+            dynamo=AIDynamoArgs(
+                prefill_worker=WorkerConfig(
+                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    worker_initialized_regex="VllmWorker.*has.been.initialized",
+                    args=WorkerBaseArgs(),
+                ),
+            ),
+            aiperf=AIPerf(),
+            lmcache=LMCache(args=LMCacheArgs()),
+        ),
+    )
+    tr = TestRun(name="ai_dynamo_aiperf", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
+    (tr.output_path / test.success_marker).touch()
+    return tr
+
+
+@pytest.fixture
 def csv_content() -> str:
     return get_csv_content()
 
@@ -104,39 +131,32 @@ def test_ai_dynamo_can_handle_directory(slurm_system: SlurmSystem, ai_dynamo_tr:
 
 def test_ai_dynamo_generate_report(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun, csv_content: str) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
-    # The new implementation does not generate a report file
     strategy.generate_report()
-    # Just verify the method runs without error
     assert True
 
 
 def test_ai_dynamo_get_metric_genai_perf(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    # genai_perf metrics require explicit benchmark prefix since default is now aiperf
-    assert strategy.get_metric("genai_perf:Output Sequence Length (tokens):avg") == 101.01
-    assert strategy.get_metric("genai_perf:Inter Token Latency (ms):avg") == 12.34
+    # Default fixture uses workloads="genai_perf.sh" — bare names resolve to genai_perf_report.csv.
+    assert strategy.get_metric("Inter Token Latency (ms)") == 12.34
+    assert strategy.get_metric("Output Sequence Length (tokens)") == 101.01
+
+    # Explicit prefix also works.
     assert strategy.get_metric("genai_perf:Time To First Token (ms):avg") == 111.12
     assert strategy.get_metric("genai_perf:Inter Token Latency (ms):p50") == 89.01
 
 
-def test_ai_dynamo_get_metric_aiperf_defaults(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
-    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
+def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun) -> None:
+    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_tr)
 
-    # bare metric names default to aiperf_report.csv (avg column)
+    # aiperf fixture uses workloads="aiperf.sh" — bare names resolve to aiperf_report.csv.
     assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
     assert strategy.get_metric("Output Token Throughput (tokens/sec)") == 595.68
 
-
-def test_ai_dynamo_get_metric_aiperf_explicit(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
-    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
-
-    # per-request metrics (first CSV section with avg/p50 columns)
+    # Explicit prefix.
     assert strategy.get_metric("aiperf:Inter Token Latency (ms):avg") == 2.83
-    assert strategy.get_metric("aiperf:Inter Token Latency (ms):p50") == 2.83
     assert strategy.get_metric("aiperf:Time to First Token (ms):avg") == 49.87
-
-    # summary metrics (second CSV section — value lands in "avg" column by position)
     assert strategy.get_metric("aiperf:Output Token Throughput (tokens/sec):avg") == 595.68
     assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
 
@@ -146,8 +166,7 @@ def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: T
 
     assert strategy.get_metric("nonexistent-metric") == METRIC_ERROR
 
-    # Empty the aiperf CSV to test error handling for the default path
-    (ai_dynamo_tr.output_path / "aiperf_report.csv").write_text("")
+    (ai_dynamo_tr.output_path / "genai_perf_report.csv").write_text("")
     assert strategy.get_metric("Inter Token Latency (ms)") == METRIC_ERROR
 
 

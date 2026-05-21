@@ -15,7 +15,6 @@
 # limitations under the License.
 
 name = "dynamo_sglang"
-job_status_check = false
 
 [[Tests]]
 id = "sglang-Qwen3-0.6B"
