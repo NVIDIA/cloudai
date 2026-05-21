@@ -44,7 +44,7 @@ url="http://localhost"
 port=8000
 report_name="aiperf_report.csv"
 cmd="aiperf profile"
-extra_args=""
+declare -a extra_args=()
 declare -a aiperf_profile_args=()
 
 log() {
@@ -74,9 +74,9 @@ process_args() {
       --port)         port="$2";        shift 2 ;;
       --report-name)  report_name="$2"; shift 2 ;;
       --cmd)          cmd="$2";         shift 2 ;;
-      --extra-args)   extra_args="$2";  shift 2 ;;
+      --extra-args)   read -ra extra_args <<< "$2"; shift 2 ;;
       --)             shift; _parse_aiperf_args "$@"; break ;;
-      --*)            shift 2 ;;  # consume unknown flag + its value
+      --*)            if [[ -n "${2:-}" && "${2}" != -* ]]; then shift 2; else shift 1; fi ;;  # consume unknown flag; shift 2 only if next arg is a value
       *)              shift ;;
     esac
   done
@@ -88,7 +88,7 @@ process_args() {
     port:         $port
     report_name:  $report_name
     cmd:          $cmd
-    extra_args:   $extra_args
+    extra_args:   ${extra_args[*]:-}
     profile_args: ${aiperf_profile_args[*]:-}"
 }
 
@@ -133,7 +133,7 @@ main() {
     --artifact-dir  "$artifact_dir" \
     --no-server-metrics \
     "${aiperf_profile_args[@]}" \
-    ${extra_args}
+    "${extra_args[@]}"
 
   log "aiperf run complete"
   process_results

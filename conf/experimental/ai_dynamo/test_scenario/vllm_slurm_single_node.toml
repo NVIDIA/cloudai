@@ -20,7 +20,7 @@ job_status_check = false
 [[Tests]]
 id = "test.disagg.single-node"
 test_name = "vLLM"
-time_limit = "00:10:00"
+time_limit = "00:15:00"
 
   [Tests.cmd_args]
 
