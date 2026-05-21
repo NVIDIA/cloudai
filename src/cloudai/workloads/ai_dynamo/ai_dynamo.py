@@ -282,6 +282,25 @@ class GenAIPerf(Workload):
         return [self.script]
 
 
+class AIPerf(Workload):
+    """Workload configuration for aiperf benchmarking."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str = "aiperf"
+    cmd: str = "aiperf profile"
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
+    report_name: str = Field(
+        default="aiperf_report.csv",
+        serialization_alias="report-name",
+        validation_alias=AliasChoices("report-name", "report_name"),
+    )
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.script]
+
+
 class Constraints(BaseModel):
     """Constraints for validation of AI Dynamo configurations when using DSE."""
 
@@ -301,12 +320,13 @@ class AIDynamoCmdArgs(CmdArgs):
     dynamo: AIDynamoArgs
     lmcache: LMCache = Field(default_factory=LMCache)
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
+    aiperf: AIPerf = Field(default_factory=AIPerf)
     workloads: str = "genai_perf.sh"
 
     @field_validator("workloads", mode="before")
     @classmethod
     def validate_workloads(cls, v: str) -> str:
-        allowed_workloads = ["genai_perf.sh"]
+        allowed_workloads = ["genai_perf.sh", "aiperf.sh"]
         values = [w.strip() for w in v.split(",")]
         for workload in values:
             if workload not in allowed_workloads:
@@ -322,6 +342,7 @@ class AIDynamoCmdArgs(CmdArgs):
         return [
             *self.lmcache.installables,
             *self.genai_perf.installables,
+            *self.aiperf.installables,
         ]
 
 
@@ -356,6 +377,7 @@ class AIDynamoTestDefinition(TestDefinition):
         """Get a map of workload scripts to workload objects."""
         return {
             self.cmd_args.genai_perf.script.src.name: self.cmd_args.genai_perf,
+            self.cmd_args.aiperf.script.src.name: self.cmd_args.aiperf,
         }
 
     @property
