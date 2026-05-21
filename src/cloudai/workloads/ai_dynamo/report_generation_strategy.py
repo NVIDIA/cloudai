@@ -44,7 +44,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def get_metric(self, metric: str) -> MetricValue:
         logging.info(f"Getting metric: {metric}")
-        benchmark_name = "genai_perf"
+        benchmark_name = "aiperf"
         metric_name = metric
         metric_type = "avg"
 

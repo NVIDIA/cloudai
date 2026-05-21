@@ -47,6 +47,20 @@ def get_csv_content() -> str:
     )
 
 
+def get_aiperf_csv_content() -> str:
+    return (
+        "Metric,avg,min,max,p1,p5,p10,p25,p50,p75,p90,p95,p99,std\n"
+        "Inter Token Latency (ms),2.83,2.78,2.91,2.78,2.79,2.81,2.82,2.83,2.84,2.85,2.88,2.90,0.03\n"
+        "Time to First Token (ms),49.87,17.15,99.91,18.60,21.26,22.46,49.35,49.87,50.52,51.63,53.91,92.31,9.20\n"
+        "Output Sequence Length (tokens),498.06,410.00,501.00,450.67,499.00,500.00,500.00,500.00,500.00,500.00,500.00,501.00,12.62\n"
+        "\n"
+        "Metric,Value\n"
+        "Output Token Throughput (tokens/sec),595.68\n"
+        "Total Token Throughput (tokens/sec),954.47\n"
+        "Request Count,50.00\n"
+    )
+
+
 @pytest.fixture
 def ai_dynamo_tr(tmp_path: Path) -> TestRun:
     test = AIDynamoTestDefinition(
@@ -70,6 +84,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
 
     csv_content = get_csv_content()
     (tr.output_path / "genai_perf_report.csv").write_text(csv_content)
+    (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / "profile_genai_perf.csv").write_text(csv_content)
     (tr.output_path / "profile_genai_perf.json").write_text("mock json content")
     (tr.output_path / test.success_marker).touch()
@@ -95,32 +110,45 @@ def test_ai_dynamo_generate_report(slurm_system: SlurmSystem, ai_dynamo_tr: Test
     assert True
 
 
-def test_ai_dynamo_get_metric_single_values(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
+def test_ai_dynamo_get_metric_genai_perf(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    # Test that metrics from the first CSV section work
-    assert strategy.get_metric("Output Sequence Length (tokens)") == 101.01
-    assert strategy.get_metric("Input Sequence Length (tokens)") == 123.45
+    # genai_perf metrics require explicit benchmark prefix since default is now aiperf
+    assert strategy.get_metric("genai_perf:Output Sequence Length (tokens):avg") == 101.01
+    assert strategy.get_metric("genai_perf:Inter Token Latency (ms):avg") == 12.34
+    assert strategy.get_metric("genai_perf:Time To First Token (ms):avg") == 111.12
+    assert strategy.get_metric("genai_perf:Inter Token Latency (ms):p50") == 89.01
 
 
-def test_ai_dynamo_get_metric_statistical_values(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
+def test_ai_dynamo_get_metric_aiperf_defaults(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    # Use exact metric names from CSV (with avg column, which is default)
-    assert strategy.get_metric("Time To First Token (ms)") == 111.12
-    assert strategy.get_metric("Time To Second Token (ms)") == 11.13
-    assert strategy.get_metric("Request Latency (ms)") == 1111.14
-    assert strategy.get_metric("Inter Token Latency (ms)") == 12.34
+    # bare metric names default to aiperf_report.csv (avg column)
+    assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
+    assert strategy.get_metric("Output Token Throughput (tokens/sec)") == 595.68
+
+
+def test_ai_dynamo_get_metric_aiperf_explicit(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
+    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
+
+    # per-request metrics (first CSV section with avg/p50 columns)
+    assert strategy.get_metric("aiperf:Inter Token Latency (ms):avg") == 2.83
+    assert strategy.get_metric("aiperf:Inter Token Latency (ms):p50") == 2.83
+    assert strategy.get_metric("aiperf:Time to First Token (ms):avg") == 49.87
+
+    # summary metrics (second CSV section — value lands in "avg" column by position)
+    assert strategy.get_metric("aiperf:Output Token Throughput (tokens/sec):avg") == 595.68
+    assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
 
 
 def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    assert strategy.get_metric("invalid-metric") == METRIC_ERROR
+    assert strategy.get_metric("nonexistent-metric") == METRIC_ERROR
 
-    # Empty the CSV file to test error handling
-    (ai_dynamo_tr.output_path / "genai_perf_report.csv").write_text("")
-    assert strategy.get_metric("invalid-metric") == METRIC_ERROR
+    # Empty the aiperf CSV to test error handling for the default path
+    (ai_dynamo_tr.output_path / "aiperf_report.csv").write_text("")
+    assert strategy.get_metric("Inter Token Latency (ms)") == METRIC_ERROR
 
 
 def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
