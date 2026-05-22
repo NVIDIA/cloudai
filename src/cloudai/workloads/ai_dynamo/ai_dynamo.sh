@@ -50,7 +50,7 @@ dynamo_args["frontend-node"]=""
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed."
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|ERROR.nixl_connector.*Handshake.*failed|RuntimeError:.Remote.NIXL.agent.engine.ID.mismatch|zmq.error.Again:.Resource.temporarily.unavailable"
 
 # sglang_dsr1-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
@@ -96,6 +96,10 @@ _resolve_host_ip() {
     exit 1
   fi
   echo "$ip"
+}
+
+_current_node_ip() {
+  _resolve_host_ip "$(_current_node_name)"
 }
 
 _apply_sglang_dsr1_section_args() {
@@ -721,6 +725,8 @@ function launch_decode()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -742,10 +748,10 @@ function launch_decode()
       args_arr+=($key "${decode_args[$key]}")
     done
 
-    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
@@ -776,6 +782,8 @@ function launch_prefill()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -797,10 +805,10 @@ function launch_prefill()
       args_arr+=($key "${prefill_args[$key]}")
     done
 
-    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \

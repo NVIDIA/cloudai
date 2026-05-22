@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import logging
 from pathlib import Path
 from typing import Literal, Optional, cast
@@ -385,6 +386,7 @@ class AIDynamoTestDefinition(TestDefinition):
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
         result = True
+        errors: list[str] = []
         workload_map = self.get_workload_map()
         failure_marker = output_path / self.failure_marker
         success_marker = output_path / self.success_marker
@@ -408,12 +410,37 @@ class AIDynamoTestDefinition(TestDefinition):
                 continue
             workload_csv_file = output_path / report_name
             if not workload_csv_file.exists():
-                logging.info(f"Result file ({workload_csv_file.absolute()}) not found for workload: {workload}")
-                result = False
+                msg = f"Result file ({workload_csv_file.absolute()}) not found for workload: {workload}"
+                logging.info(msg)
+                errors.append(msg)
             else:
                 logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
+                if error_count := self._get_report_error_count(workload_csv_file):
+                    errors.append(f"Workload {workload} reported {error_count:g} request error(s)")
 
-        return JobStatusResult(result)
+        if errors:
+            result = False
+
+        return JobStatusResult(result, error_message="\n".join(errors))
+
+    def _get_report_error_count(self, report_path: Path) -> float:
+        """Return request-level errors reported by AIPerf/GenAI-Perf CSV output."""
+        try:
+            with report_path.open(newline="") as f:
+                for row in csv.reader(f):
+                    if len(row) < 2:
+                        continue
+                    metric = row[0].strip().lower()
+                    if metric not in {"error request count", "failed request count"}:
+                        continue
+                    try:
+                        return float(row[1])
+                    except ValueError:
+                        logging.warning("Unable to parse request error count from %s: %s", report_path, row[1])
+        except OSError:
+            logging.exception("Unable to read report file: %s", report_path)
+            return 1
+        return 0
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker

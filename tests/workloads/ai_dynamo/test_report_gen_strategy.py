@@ -129,6 +129,16 @@ def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
     assert result.is_successful is True
 
 
+def test_was_run_successful_fails_on_request_errors(ai_dynamo_tr: TestRun) -> None:
+    test_def = ai_dynamo_tr.test
+    (ai_dynamo_tr.output_path / "genai_perf_report.csv").write_text("Metric,Value\nError Request Count,50.00\n")
+
+    result = test_def.was_run_successful(ai_dynamo_tr)
+
+    assert result.is_successful is False
+    assert "50 request error(s)" in result.error_message
+
+
 def test_was_run_successful_no_results(ai_dynamo_tr: TestRun, tmp_path: Path) -> None:
     test_def = ai_dynamo_tr.test
     ai_dynamo_tr.output_path = tmp_path / "empty_output"
