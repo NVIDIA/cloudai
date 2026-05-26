@@ -441,3 +441,130 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     contents = csv_path.read_text().strip().splitlines()
     assert contents[0] == "step,action,reward,observation"
     assert contents[-1].startswith("5,")
+
+
+def _seed_cached_entry_with_env_params(
+    env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
+) -> None:
+    """Seed env.trajectory with one entry, attaching env_params via object.__setattr__.
+
+    TrajectoryEntry is a frozen dataclass and does not yet declare env_params.
+    Once the field is added, drop this helper and pass env_params as a kwarg.
+    """
+    entry = TrajectoryEntry(step=1, action=action, reward=0.5, observation=[100.0])
+    object.__setattr__(entry, "env_params", env_params)
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [entry]}
+
+
+def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> None:
+    """Cache MUST miss when env_params differ, even if action is identical.
+
+    Without this property the agent receives stale rewards on every cache hit
+    under domain randomization. PPO/DQN/BO all silently train on labels that
+    do not correspond to the env they were nominally generated under.
+    """
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"drop_rate": 0.001})
+
+    env.test_run.current_env_params = {"drop_rate": 0.01}  # type: ignore[attr-defined]
+
+    assert env.get_cached_trajectory_result({"x": 10}) is None, (
+        "Cache must include env_params in its key. The current implementation "
+        "keys on action alone, so trials repeating the same action under a "
+        "different env_params sample receive a stale cached reward. See "
+        "env-params-cloudai-corpus-plan.md."
+    )
+
+
+def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: Path) -> None:
+    """Same action AND same env_params must still HIT the cache."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"drop_rate": 0.001})
+
+    env.test_run.current_env_params = {"drop_rate": 0.001}  # type: ignore[attr-defined]
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None and result.step == 1
+
+
+def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path) -> None:
+    """Workloads without env_params behave exactly as today (back-compat)."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [TrajectoryEntry(step=1, action={"x": 10}, reward=0.5, observation=[100.0])]}
+    # Note: neither the cached entry nor test_run carries env_params -> existing behavior.
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None and result.step == 1
+
+
+def test_step_reruns_workload_when_env_params_change(
+    nemorun: NeMoRunTestDefinition, tmp_path: Path
+) -> None:
+    """Integration: env.step() with same action but different env_params re-runs the workload.
+
+    Counterpart to test_cache_miss_when_env_params_differ but exercising the
+    full step() flow: increment_step -> apply_params_set -> cache lookup ->
+    runner.run() -> write_trajectory.
+    """
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+    runner.shutting_down = False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    action = {"trainer.max_steps": 1000}
+    fake_obs = iter([[100.0], [50.0]])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
+        env.test_run.step = 0
+        env.test_run.current_env_params = {"drop_rate": 0.001}  # type: ignore[attr-defined]
+        obs1, _r1, *_ = env.step(action)
+
+        env.test_run.current_env_params = {"drop_rate": 0.01}  # type: ignore[attr-defined]
+        obs2, _r2, *_ = env.step(action)
+
+    assert runner.run.call_count == 2, (
+        "Different env_params between two env.step() calls with the same action "
+        "must trigger a workload re-run; the cache lookup must miss."
+    )
+    assert obs1 != obs2, "fresh workload run should produce a fresh observation"
