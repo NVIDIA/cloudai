@@ -47,7 +47,7 @@ Node Configuration for AI Dynamo
 
 AI Dynamo jobs use three distinct types of nodes:
 
-- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker
+- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`aiperf` by default, configurable via ``workloads`` in the test TOML), and the first decode worker
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
@@ -82,32 +82,71 @@ The job progress monitoring can be done using either of the following options:
 
    watch tail -n 4 ./results/<scenario name>/*.txt
 
-The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch ``genai-perf``, which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
+The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch the configured benchmark tool (``aiperf`` by default), which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
 
-Review genai-perf Benchmark Results
------------------------------------
+Choosing a Benchmark Tool
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After job completion, CloudAI will place the output logs and result files in the designated results directory. To analyze performance metrics and validate inference outcomes:
+The benchmark tool is controlled by the ``workloads`` field in the test TOML. The default is ``aiperf.sh``:
 
-- Navigate to the results directory (e.g., ``./results/...``)
-- Most importantly, open the ``profile_genai_perf.csv`` file to examine the final benchmarking results
+.. code-block:: toml
 
-This CSV file includes detailed metrics collected by genai-perf, such as request latency, throughput, and system utilization statistics. Use this data to evaluate the model's performance and identify potential bottlenecks or optimization opportunities.
+   [cmd_args]
+   workloads = "aiperf.sh"   # default — uses aiperf, writes aiperf_report.csv
+
+To use genai-perf instead, set:
+
+.. code-block:: toml
+
+   [cmd_args]
+   workloads = "genai_perf.sh"   # uses genai-perf, writes genai_perf_report.csv
+
+   [cmd_args.genai_perf]
+   cmd = "genai-perf profile"
+   extra-args = "--streaming --verbose -- -v --async"
+
+     [cmd_args.genai_perf.args]
+     endpoint-type = "chat"
+     output-tokens-mean = 500
+     request-count = 50
+
+Review Benchmark Results
+------------------------
+
+After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
+
+- ``aiperf.sh`` (default) → ``aiperf_report.csv``
+- ``genai_perf.sh`` → ``genai_perf_report.csv``
+
+Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
+
+Example ``aiperf_report.csv`` (default):
 
 ::
 
-   Metric,avg,min,max,p99,p95,p90,p75,p50,p25
-   Time To First Token (ms),"1,146.31",249.48,"3,485.23","3,457.97","3,349.56","3,215.06","1,330.93",640.07,286.52
-   Time To Second Token (ms),26.05,0.00,133.51,96.12,36.56,34.88,34.35,33.55,1.78
-   Request Latency (ms),"6,406.20","5,371.47","9,608.72","9,436.13","9,046.58","9,028.16","6,549.60","5,690.23","5,493.63"
-   Inter Token Latency (ms),30.35,27.59,35.60,35.23,33.88,32.53,31.05,30.13,29.04
-   Output Sequence Length (tokens),174.45,164.00,187.00,186.22,183.10,180.10,177.00,174.00,171.75
-   Input Sequence Length (tokens),"3,000.05","2,999.00","3,001.00","3,001.00","3,001.00","3,000.00","3,000.00","3,000.00","3,000.00"
+   Metric,avg,min,max,p25,p50,p75,p99,std
+   Inter Token Latency (ms),2.81,2.66,2.88,2.79,2.83,2.84,2.87,0.04
+   Time to First Token (ms),49.87,17.15,99.91,49.35,49.87,50.52,92.31,9.20
+   Time to Second Token (ms),0.50,0.03,4.05,0.03,0.04,0.04,3.47,1.08
+   Request Latency (ms),1652.30,1203.61,6433.87,1453.19,1462.99,1466.72,6431.16,976.18
+   Output Sequence Length (tokens),498.06,410.00,501.00,500.00,500.00,500.00,501.00,12.62
+   Input Sequence Length (tokens),300.00,300.00,300.00,300.00,300.00,300.00,300.00,0.00
 
    Metric,Value
-   Output Token Throughput (per sec),261.25
-   Request Throughput (per sec),1.50
-   Request Count (count),40.00
+   Output Token Throughput (tokens/sec),598.78
+   Total Token Throughput (tokens/sec),962.32
+   Request Throughput (requests/sec),1.20
+   Request Count,50.00
+
+Supported Backends
+------------------
+
+The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
+
+- **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
+
+Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.
 
 
 API Documentation

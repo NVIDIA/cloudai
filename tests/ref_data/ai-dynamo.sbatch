@@ -85,4 +85,8 @@ srun \
   --genai_perf-random-seed "42" \
   --genai_perf-request-count "100" \
   --genai_perf-synthetic-input-tokens-mean "550" \
-  --genai_perf-warmup-request-count "10"
+  --genai_perf-warmup-request-count "10" \
+  --aiperf-name "aiperf" \
+  --aiperf-cmd "aiperf profile" \
+  --aiperf-script "/cloudai_install/aiperf.sh" \
+  --aiperf-report-name "aiperf_report.csv"

@@ -35,6 +35,8 @@ declare -A lmcache_args
 declare -A lmcache_config
 declare -A genai_perf_args
 declare -A genai_perf_config
+declare -A aiperf_args
+declare -A aiperf_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -163,6 +165,10 @@ _parse_cli_pairs() {
         genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
       --genai_perf-*)
         genai_perf_config["--${key#--genai_perf-}"]="$2" ;;
+      --aiperf-args-*)
+        aiperf_args["--${key#--aiperf-args-}"]="$2" ;;
+      --aiperf-*)
+        aiperf_config["--${key#--aiperf-}"]="$2" ;;
       --hf-home)
         HUGGINGFACE_HOME="$2" ;;
       --storage-cache-dir)
@@ -353,6 +359,8 @@ _dump_args() {
   log "LMCache args:\n$(arg_array_to_string lmcache_args)"
   log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
+  log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
+  log "AIPerf args:\n$(arg_array_to_string aiperf_args)"
   log "--------------------------------"
 }
 
@@ -503,6 +511,10 @@ _is_prefill_node() {
 
 _is_genai_perf_workload() {
   [[ "${dynamo_args["workloads"]}" == *"genai_perf.sh"* ]]
+}
+
+_is_aiperf_workload() {
+  [[ "${dynamo_args["workloads"]}" == *"aiperf.sh"* ]]
 }
 
 _init_runtime_env() {
@@ -1024,6 +1036,10 @@ function launch_workloads()
 
   if _is_genai_perf_workload; then
     launch_workload genai_perf_config genai_perf_args
+  fi
+
+  if _is_aiperf_workload; then
+    launch_workload aiperf_config aiperf_args
   fi
 
   mark_done

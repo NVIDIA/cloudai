@@ -18,7 +18,7 @@ name = "dynamo_sglang"
 
 [[Tests]]
 id = "sglang-Qwen3-0.6B"
-test_name = "sglang-Qwen3-0.6B"
+test_name = "sglang"
 time_limit = "00:20:00"
 
   [Tests.cmd_args]

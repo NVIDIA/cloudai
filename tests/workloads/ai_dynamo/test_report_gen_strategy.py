@@ -25,6 +25,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    AIPerf,
     GenAIPerf,
     LMCache,
     LMCacheArgs,
@@ -44,6 +45,20 @@ def get_csv_content() -> str:
         "Inter Token Latency (ms),12.34,23.45,34.56,45.67,56.78,67.89,78.90,89.01,90.12\n"
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
         "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n"
+    )
+
+
+def get_aiperf_csv_content() -> str:
+    return (
+        "Metric,avg,min,max\n"
+        "Inter Token Latency (ms),2.83,2.78,2.91\n"
+        "Time to First Token (ms),49.87,17.15,99.91\n"
+        "Output Sequence Length (tokens),498.06,410.00,501.00\n"
+        "\n"
+        "Metric,Value\n"
+        "Output Token Throughput (tokens/sec),595.68\n"
+        "Total Token Throughput (tokens/sec),954.47\n"
+        "Request Count,50.00\n"
     )
 
 
@@ -70,10 +85,37 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
 
     csv_content = get_csv_content()
     (tr.output_path / "genai_perf_report.csv").write_text(csv_content)
+    (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / "profile_genai_perf.csv").write_text(csv_content)
     (tr.output_path / "profile_genai_perf.json").write_text("mock json content")
     (tr.output_path / test.success_marker).touch()
 
+    return tr
+
+
+@pytest.fixture
+def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
+    test = AIDynamoTestDefinition(
+        name="ai_dynamo_aiperf",
+        description="desc",
+        test_template_name="t",
+        cmd_args=AIDynamoCmdArgs(
+            docker_image_url="http://url",
+            workloads="aiperf.sh",
+            dynamo=AIDynamoArgs(
+                prefill_worker=WorkerConfig(
+                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    worker_initialized_regex="VllmWorker.*has.been.initialized",
+                    args=WorkerBaseArgs(),
+                ),
+            ),
+            aiperf=AIPerf(),
+            lmcache=LMCache(args=LMCacheArgs()),
+        ),
+    )
+    tr = TestRun(name="ai_dynamo_aiperf", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
+    (tr.output_path / test.success_marker).touch()
     return tr
 
 
@@ -89,38 +131,43 @@ def test_ai_dynamo_can_handle_directory(slurm_system: SlurmSystem, ai_dynamo_tr:
 
 def test_ai_dynamo_generate_report(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun, csv_content: str) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
-    # The new implementation does not generate a report file
     strategy.generate_report()
-    # Just verify the method runs without error
     assert True
 
 
-def test_ai_dynamo_get_metric_single_values(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
+def test_ai_dynamo_get_metric_genai_perf(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    # Test that metrics from the first CSV section work
-    assert strategy.get_metric("Output Sequence Length (tokens)") == 101.01
-    assert strategy.get_metric("Input Sequence Length (tokens)") == 123.45
-
-
-def test_ai_dynamo_get_metric_statistical_values(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
-    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
-
-    # Use exact metric names from CSV (with avg column, which is default)
-    assert strategy.get_metric("Time To First Token (ms)") == 111.12
-    assert strategy.get_metric("Time To Second Token (ms)") == 11.13
-    assert strategy.get_metric("Request Latency (ms)") == 1111.14
+    # Default fixture uses workloads="genai_perf.sh" — bare names resolve to genai_perf_report.csv.
     assert strategy.get_metric("Inter Token Latency (ms)") == 12.34
+    assert strategy.get_metric("Output Sequence Length (tokens)") == 101.01
+
+    # Explicit prefix also works.
+    assert strategy.get_metric("genai_perf:Time To First Token (ms):avg") == 111.12
+    assert strategy.get_metric("genai_perf:Inter Token Latency (ms):p50") == 89.01
+
+
+def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun) -> None:
+    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_tr)
+
+    # aiperf fixture uses workloads="aiperf.sh" — bare names resolve to aiperf_report.csv.
+    assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
+    assert strategy.get_metric("Output Token Throughput (tokens/sec)") == 595.68
+
+    # Explicit prefix.
+    assert strategy.get_metric("aiperf:Inter Token Latency (ms):avg") == 2.83
+    assert strategy.get_metric("aiperf:Time to First Token (ms):avg") == 49.87
+    assert strategy.get_metric("aiperf:Output Token Throughput (tokens/sec):avg") == 595.68
+    assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
 
 
 def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
 
-    assert strategy.get_metric("invalid-metric") == METRIC_ERROR
+    assert strategy.get_metric("nonexistent-metric") == METRIC_ERROR
 
-    # Empty the CSV file to test error handling
     (ai_dynamo_tr.output_path / "genai_perf_report.csv").write_text("")
-    assert strategy.get_metric("invalid-metric") == METRIC_ERROR
+    assert strategy.get_metric("Inter Token Latency (ms)") == METRIC_ERROR
 
 
 def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
