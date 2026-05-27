@@ -88,7 +88,7 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
-  setup-cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.6.0.post1'"
+  setup-cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.8.0'"
 
     [cmd_args.aiperf.args]
     accuracy-benchmark = "mmlu"

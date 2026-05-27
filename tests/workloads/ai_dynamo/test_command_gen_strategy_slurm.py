@@ -155,7 +155,7 @@ def test_dynamo_cmd(
 def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"
-    setup_cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.6.0.post1'"
+    setup_cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.8.0'"
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
             "setup-cmd": setup_cmd,
