@@ -20,12 +20,11 @@ import pathlib
 
 import cloudai.core
 import cloudai.report_generator.comparison_report
-import cloudai.workloads.common.llm_serving_comparison_report
-import cloudai.workloads.sglang.report_generation_strategy
-import cloudai.workloads.sglang.sglang
+from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
+from cloudai.workloads.sglang import SGLangBenchReportGenerationStrategy, SglangTestDefinition
 
 
-class SGLangComparisonReport(cloudai.workloads.common.llm_serving_comparison_report.LLMServingComparisonReport):
+class SGLangComparisonReport(LLMServingComparisonReport):
     """Comparison report for SGLang benchmark results."""
 
     def __init__(
@@ -39,12 +38,10 @@ class SGLangComparisonReport(cloudai.workloads.common.llm_serving_comparison_rep
         self.report_file_name = "sglang_comparison.html"
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
-        return isinstance(tr.test, cloudai.workloads.sglang.sglang.SglangTestDefinition)
+        return isinstance(tr.test, SglangTestDefinition)
 
     def parse_results(self, tr: cloudai.core.TestRun):
-        strategy = cloudai.workloads.sglang.report_generation_strategy.SGLangBenchReportGenerationStrategy(
-            self.system, tr
-        )
+        strategy = SGLangBenchReportGenerationStrategy(self.system, tr)
         results = strategy.parse_results()
         if results is None:
             return None

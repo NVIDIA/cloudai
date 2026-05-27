@@ -20,12 +20,11 @@ import pathlib
 
 import cloudai.core
 import cloudai.report_generator.comparison_report
-import cloudai.workloads.common.llm_serving_comparison_report
-import cloudai.workloads.vllm.report_generation_strategy
-import cloudai.workloads.vllm.vllm
+from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
+from cloudai.workloads.vllm import VLLMBenchReportGenerationStrategy, VllmTestDefinition
 
 
-class VLLMComparisonReport(cloudai.workloads.common.llm_serving_comparison_report.LLMServingComparisonReport):
+class VLLMComparisonReport(LLMServingComparisonReport):
     """Comparison report for vLLM benchmark results."""
 
     def __init__(
@@ -39,10 +38,10 @@ class VLLMComparisonReport(cloudai.workloads.common.llm_serving_comparison_repor
         self.report_file_name = "vllm_comparison.html"
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
-        return isinstance(tr.test, cloudai.workloads.vllm.vllm.VllmTestDefinition)
+        return isinstance(tr.test, VllmTestDefinition)
 
     def parse_results(self, tr: cloudai.core.TestRun):
-        strategy = cloudai.workloads.vllm.report_generation_strategy.VLLMBenchReportGenerationStrategy(self.system, tr)
+        strategy = VLLMBenchReportGenerationStrategy(self.system, tr)
         results = strategy.parse_results()
         if results is None:
             return None

@@ -21,8 +21,20 @@ import cloudai.core
 import cloudai.report_generator.comparison_report
 import cloudai.report_generator.groups
 import cloudai.systems.slurm
-import cloudai.workloads.sglang
-import cloudai.workloads.vllm
+from cloudai.workloads.sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SglangBenchCmdArgs,
+    SglangCmdArgs,
+    SGLangComparisonReport,
+    SglangTestDefinition,
+)
+from cloudai.workloads.vllm import (
+    VLLM_BENCH_JSON_FILE,
+    VllmBenchCmdArgs,
+    VllmCmdArgs,
+    VLLMComparisonReport,
+    VllmTestDefinition,
+)
 
 
 def _write_result(run_dir: pathlib.Path, file_name: str, content: str) -> None:
@@ -33,35 +45,31 @@ def _write_result(run_dir: pathlib.Path, file_name: str, content: str) -> None:
 def test_vllm_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
         name="vllm-8",
-        test=cloudai.workloads.vllm.VllmTestDefinition(
+        test=VllmTestDefinition(
             name="vllm",
             description="vLLM benchmark",
             test_template_name="vllm",
-            cmd_args=cloudai.workloads.vllm.VllmCmdArgs(
-                docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"
-            ),
-            bench_cmd_args=cloudai.workloads.vllm.VllmBenchCmdArgs(max_concurrency=8),
+            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
+            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=8),
         ),
         num_nodes=1,
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
         name="vllm-16",
-        test=cloudai.workloads.vllm.VllmTestDefinition(
+        test=VllmTestDefinition(
             name="vllm",
             description="vLLM benchmark",
             test_template_name="vllm",
-            cmd_args=cloudai.workloads.vllm.VllmCmdArgs(
-                docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"
-            ),
-            bench_cmd_args=cloudai.workloads.vllm.VllmBenchCmdArgs(max_concurrency=16),
+            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
+            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=16),
         ),
         num_nodes=1,
         nodes=[],
     )
     _write_result(
         slurm_system.output_path / tr1.name / "0",
-        cloudai.workloads.vllm.VLLM_BENCH_JSON_FILE,
+        VLLM_BENCH_JSON_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -79,7 +87,7 @@ def test_vllm_comparison_report_generates_html(slurm_system: cloudai.systems.slu
     )
     _write_result(
         slurm_system.output_path / tr2.name / "0",
-        cloudai.workloads.vllm.VLLM_BENCH_JSON_FILE,
+        VLLM_BENCH_JSON_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -96,7 +104,7 @@ def test_vllm_comparison_report_generates_html(slurm_system: cloudai.systems.slu
         ),
     )
 
-    report = cloudai.workloads.vllm.VLLMComparisonReport(
+    report = VLLMComparisonReport(
         slurm_system,
         cloudai.core.TestScenario(name="vllm-comparison", test_runs=[tr1, tr2]),
         slurm_system.output_path,
@@ -129,35 +137,31 @@ def test_vllm_comparison_report_generates_html(slurm_system: cloudai.systems.slu
 def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
         name="sglang-8",
-        test=cloudai.workloads.sglang.SglangTestDefinition(
+        test=SglangTestDefinition(
             name="sglang",
             description="SGLang benchmark",
             test_template_name="sglang",
-            cmd_args=cloudai.workloads.sglang.SglangCmdArgs(
-                docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"
-            ),
-            bench_cmd_args=cloudai.workloads.sglang.SglangBenchCmdArgs(max_concurrency=8),
+            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
         ),
         num_nodes=1,
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
         name="sglang-16",
-        test=cloudai.workloads.sglang.SglangTestDefinition(
+        test=SglangTestDefinition(
             name="sglang",
             description="SGLang benchmark",
             test_template_name="sglang",
-            cmd_args=cloudai.workloads.sglang.SglangCmdArgs(
-                docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"
-            ),
-            bench_cmd_args=cloudai.workloads.sglang.SglangBenchCmdArgs(max_concurrency=16),
+            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=16),
         ),
         num_nodes=1,
         nodes=[],
     )
     _write_result(
         slurm_system.output_path / tr1.name / "0",
-        cloudai.workloads.sglang.SGLANG_BENCH_JSONL_FILE,
+        SGLANG_BENCH_JSONL_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -176,7 +180,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
     )
     _write_result(
         slurm_system.output_path / tr2.name / "0",
-        cloudai.workloads.sglang.SGLANG_BENCH_JSONL_FILE,
+        SGLANG_BENCH_JSONL_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -194,7 +198,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
         + "\n",
     )
 
-    report = cloudai.workloads.sglang.SGLangComparisonReport(
+    report = SGLangComparisonReport(
         slurm_system,
         cloudai.core.TestScenario(name="sglang-comparison", test_runs=[tr1, tr2]),
         slurm_system.output_path,
