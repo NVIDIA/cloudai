@@ -20,8 +20,8 @@ test_template_name = "AIDynamo"
 extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.8.1"
-workloads = "genai_perf.sh"
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+workloads = "aiperf.sh"
 
   [cmd_args.dynamo]
   backend = "vllm"
@@ -38,6 +38,7 @@ workloads = "genai_perf.sh"
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
+      kv-transfer-config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
 
     [cmd_args.dynamo.decode_worker]
     num-nodes = 1
@@ -50,6 +51,7 @@ workloads = "genai_perf.sh"
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
+      kv-transfer-config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
 
   [cmd_args.lmcache]
   controller_cmd = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
@@ -86,17 +88,35 @@ workloads = "genai_perf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
-
     [cmd_args.aiperf.args]
     concurrency = 2
+    extra-inputs = '{"min_tokens":10}'
+    output-tokens-mean = 500
     request-count = 50
     synthetic-input-tokens-mean = 300
-    output-tokens-mean = 500
+
+  [cmd_args.aiperf_accuracy]
+  entrypoint = "aiperf profile"
+  setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+  cli = '''
+--model {model}
+--url {url}
+--endpoint-type chat
+--streaming
+--artifact-dir {artifact_dir}
+--no-server-metrics
+--accuracy-benchmark mmlu
+--accuracy-n-shots 5
+--accuracy-tasks abstract_algebra
+--concurrency 10
+--extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+--num-requests 100
+'''
 
 [extra_env_vars]
 UCX_LOG_LEVEL = "warn"
-HF_HUB_OFFLINE = "1"
-TRANSFORMERS_OFFLINE = "1"
-HF_DATASETS_OFFLINE = "1"
+HF_HUB_OFFLINE = "0"
+TRANSFORMERS_OFFLINE = "0"
+HF_DATASETS_OFFLINE = "0"
 DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
 UCX_TLS = "all"

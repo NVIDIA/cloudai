@@ -193,12 +193,27 @@ class TestVllmSemanticEvalCommand:
         command = vllm_cmd_gen_strategy.get_semantic_eval_command()
 
         assert command == [
-            "python3",
-            "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py",
-            "--host http://${NODE}",
-            "--port 8000",
+            "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py",
+            "--host http://${NODE} --port 8000 "
             "--num-questions 200 --save-results "
             f"{vllm_cmd_gen_strategy.test_run.output_path.absolute()}/vllm-gsm8k.json",
+        ]
+
+    def test_get_vllm_semantic_eval_command_supports_custom_entrypoint_and_cli(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs(
+            entrypoint="python3 /custom/eval.py",
+            cli="--model {model} --api {url} --out {result_dir}/vllm-gsm8k.json",
+        )
+
+        command = vllm_cmd_gen_strategy.get_semantic_eval_command()
+
+        assert command == [
+            "python3 /custom/eval.py",
+            f"--model Qwen/Qwen3-0.6B --api http://${{NODE}}:8000 "
+            f"--out {vllm_cmd_gen_strategy.test_run.output_path.absolute()}/vllm-gsm8k.json",
         ]
 
     def test_gen_srun_command_contains_vllm_semantic_eval(

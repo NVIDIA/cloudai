@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -26,6 +28,8 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    AIPerf,
+    AIPerfAccuracy,
     GenAIPerf,
     LMCache,
     LMCacheArgs,
@@ -148,3 +152,78 @@ def test_dynamo_cmd(
 ) -> None:
     result = strategy.gen_dynamo_cmd(module, Path(config))
     assert result.strip() == expected
+
+
+def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    setup_cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+    cli = (
+        "--model {model} "
+        "--url {url} "
+        "--endpoint-type chat "
+        "--streaming "
+        "--artifact-dir {artifact_dir} "
+        "--no-server-metrics "
+        "--accuracy-benchmark mmlu "
+        "--accuracy-n-shots 5 "
+        "--accuracy-tasks abstract_algebra "
+        "--concurrency 10 "
+        '--extra-inputs \'{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}\' '
+        "--num-requests 100"
+    )
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "args": {
+                "concurrency": 2,
+                "request-count": 50,
+                "synthetic-input-tokens-mean": 300,
+                "output-tokens-mean": 500,
+            },
+        }
+    )
+    td.cmd_args.aiperf_accuracy = AIPerfAccuracy.model_validate(
+        {
+            "setup-cmd": setup_cmd,
+            "cli": cli,
+        }
+    )
+
+    result = strategy._gen_script_args(td)
+
+    assert '--aiperf-args-request-count "50"' in result
+    assert '--aiperf-args-synthetic-input-tokens-mean "300"' in result
+    assert '--aiperf-args-output-tokens-mean "500"' in result
+    assert f'--aiperf_accuracy-setup-cmd "{setup_cmd}"' in result
+    assert '--aiperf_accuracy-name "aiperf_accuracy"' in result
+    assert '--aiperf_accuracy-entrypoint "aiperf profile"' in result
+    assert '--aiperf_accuracy-artifact-dir-name "aiperf_accuracy_artifacts"' in result
+    assert f"--aiperf_accuracy-cli {shlex.quote(cli)}" in result
+
+
+def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    cli = "--model {model} --url {url} --endpoint {endpoint} --artifact-dir {artifact_dir} --prompt ping"
+    td.cmd_args.aiperf_accuracy = AIPerfAccuracy.model_validate(
+        {
+            "entrypoint": "python /custom_accuracy/dummy_accuracy.py",
+            "cli": cli,
+        }
+    )
+
+    result = strategy._gen_script_args(td)
+
+    assert '--aiperf_accuracy-entrypoint "python /custom_accuracy/dummy_accuracy.py"' in result
+    assert f'--aiperf_accuracy-cli "{cli}"' in result
+
+
+def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+    td.cmd_args.dynamo.prefill_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
+    td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--prefill-args-kv-transfer-config '{config}'" in result
+    assert f"--decode-args-kv-transfer-config '{config}'" in result

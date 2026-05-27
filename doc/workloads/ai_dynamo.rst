@@ -87,14 +87,14 @@ The frontend node will initially wait to allow weight loading on all nodes. Once
 Choosing a Benchmark Tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The benchmark tool is controlled by the ``workloads`` field in the test TOML. The default is ``aiperf.sh``:
+The benchmark tool is controlled by the ``workloads`` field in the test TOML. Set ``aiperf.sh`` to use AIPerf:
 
 .. code-block:: toml
 
    [cmd_args]
-   workloads = "aiperf.sh"   # default — uses aiperf, writes aiperf_report.csv
+   workloads = "aiperf.sh"   # uses aiperf, writes aiperf_report.csv
 
-To use genai-perf instead, set:
+To use genai-perf, set:
 
 .. code-block:: toml
 
@@ -110,17 +110,88 @@ To use genai-perf instead, set:
      output-tokens-mean = 500
      request-count = 50
 
+Semantic Degradation With AIPerf Accuracy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it with
+``[cmd_args.aiperf_accuracy]``. This runs after the configured performance workload, so it can be used with either
+``aiperf.sh`` or ``genai_perf.sh``:
+
+.. code-block:: toml
+
+   [cmd_args]
+   workloads = "aiperf.sh"
+
+   [cmd_args.aiperf]
+     [cmd_args.aiperf.args]
+     request-count = 50
+     synthetic-input-tokens-mean = 300
+     output-tokens-mean = 500
+     concurrency = 2
+
+   [cmd_args.aiperf_accuracy]
+   entrypoint = "aiperf profile"
+   setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+   cli = '''
+   --model {model}
+   --url {url}
+   --endpoint-type chat
+   --streaming
+   --artifact-dir {artifact_dir}
+   --no-server-metrics
+   --accuracy-benchmark mmlu
+   --accuracy-n-shots 5
+   --accuracy-tasks abstract_algebra
+   --concurrency 10
+   --extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+   --num-requests 100
+   '''
+
+When ``cmd_args.aiperf_accuracy`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes
+the ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt
+and token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
+
+The ``entrypoint`` and ``cli`` fields form the accuracy command. CloudAI expands ``{model}``, ``{url}``,
+``{endpoint}``, ``{result_dir}``, and ``{artifact_dir}`` in ``cli`` before launching it. The ``setup-cmd`` field is
+optional. It is useful for Dynamo images that include an older system ``aiperf`` build without the accuracy benchmark
+plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
+MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
+running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
+For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
+
+Custom Accuracy Scripts
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``cmd_args.aiperf_accuracy`` can also launch a custom mounted script instead of AIPerf. Mount the script or its parent
+directory with ``extra_container_mounts`` and set ``entrypoint`` to the in-container command:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/custom_accuracy:/custom_accuracy"]
+
+   [cmd_args.aiperf_accuracy]
+   entrypoint = "python /custom_accuracy/dummy_accuracy.py"
+   cli = "--model {model} --url {url} --endpoint {endpoint} --artifact-dir {artifact_dir} --prompt ping"
+
+CloudAI expands placeholders in ``cli`` and runs ``entrypoint`` with that CLI string. The custom command must write
+``accuracy_results.csv`` inside ``{artifact_dir}`` with an ``OVERALL`` row. CloudAI copies that file to the run output
+directory and exposes the same ``accuracy`` metric as AIPerf accuracy mode.
+
 Review Benchmark Results
 ------------------------
 
 After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
 
-- ``aiperf.sh`` (default) → ``aiperf_report.csv``
+- ``aiperf.sh`` → ``aiperf_report.csv``
 - ``genai_perf.sh`` → ``genai_perf_report.csv``
+- ``cmd_args.aiperf_accuracy`` → ``accuracy_results.csv``
+
+If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/accuracy_results.csv`` to
+``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 
-Example ``aiperf_report.csv`` (default):
+Example ``aiperf_report.csv``:
 
 ::
 

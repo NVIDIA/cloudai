@@ -92,8 +92,10 @@ class VllmBenchCmdArgs(CmdArgs):
 class VllmSemanticEvalCmdArgs(CmdArgs):
     """vLLM semantic validation command arguments."""
 
-    script: str = "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
-    args: str = "--num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+    model_config = ConfigDict(extra="forbid")
+
+    entrypoint: str = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+    cli: str = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
 
 
 class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):

@@ -130,13 +130,5 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
         host = self.bench_host
         http_host = host if host.startswith("http://") or host.startswith("https://") else f"http://{host}"
-        command = [
-            "python3",
-            eval_args.script,
-            f"--host {http_host}",
-            f"--port {self.serve_port}",
-        ]
-        args = self._expand_semantic_eval_args(eval_args.args, host=http_host)
-        if args:
-            command.append(args)
-        return command
+        cli = self._expand_semantic_eval_args(eval_args.cli, host=http_host)
+        return [eval_args.entrypoint, cli] if cli else [eval_args.entrypoint]

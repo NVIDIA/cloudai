@@ -29,8 +29,8 @@ Test + Scenario example
    num_prompts = 30
 
    [semantic_eval_cmd_args]
-   module = "sglang.test.run_eval"
-   args = "--eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
+   entrypoint = "python3 -m sglang.test.run_eval"
+   cli = "--host {host} --port {port} --eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
 
 
 .. code-block:: toml
@@ -81,18 +81,19 @@ To run GSM8K semantic validation after the serving benchmark, add ``semantic_eva
    :caption: test.toml (semantic validation)
 
    [semantic_eval_cmd_args]
-   module = "sglang.test.run_eval"
-   args = "--eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
+   entrypoint = "python3 -m sglang.test.run_eval"
+   cli = "--host {host} --port {port} --eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
 
-For images that still use the legacy SGLang GSM8K runner, override the module and raw arguments:
+For images that still use the legacy SGLang GSM8K runner, override the entrypoint and raw CLI:
 
 .. code-block:: toml
 
    [semantic_eval_cmd_args]
-   module = "sglang.test.few_shot_gsm8k"
-   args = "--num-questions 200"
+   entrypoint = "python3 -m sglang.test.few_shot_gsm8k"
+   cli = "--host {host} --port {port} --num-questions 200"
 
-The ``args`` string supports ``{model}``, ``{host}``, ``{port}``, and ``{output_path}`` placeholders.
+The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{output_path}``, and ``{result_dir}``
+placeholders.
 
 
 Control number of GPUs

@@ -29,8 +29,8 @@ Test and Scenario Examples
    num_prompts = 30
 
    [semantic_eval_cmd_args]
-   script = "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
-   args = "--num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+   entrypoint = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+   cli = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
 
 
 .. code-block:: toml
@@ -81,13 +81,14 @@ To run GSM8K semantic validation after the serving benchmark, add ``semantic_eva
    :caption: test.toml (semantic validation)
 
    [semantic_eval_cmd_args]
-   script = "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
-   args = "--num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+   entrypoint = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+   cli = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
 
 If the runtime image does not contain the eval script, mount a vLLM repository with existing ``git_repos`` support and
-point ``script`` at the mounted path.
+point ``entrypoint`` at the mounted path.
 
-The ``args`` string supports ``{model}``, ``{host}``, ``{port}``, and ``{output_path}`` placeholders.
+The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{output_path}``, and ``{result_dir}``
+placeholders.
 
 
 Controlling the Number of GPUs

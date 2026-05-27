@@ -37,6 +37,8 @@ declare -A genai_perf_args
 declare -A genai_perf_config
 declare -A aiperf_args
 declare -A aiperf_config
+declare -A aiperf_accuracy_args
+declare -A aiperf_accuracy_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -98,6 +100,10 @@ _resolve_host_ip() {
     exit 1
   fi
   echo "$ip"
+}
+
+_current_node_ip() {
+  _resolve_host_ip "$(_current_node_name)"
 }
 
 _apply_sglang_dsr1_section_args() {
@@ -169,6 +175,10 @@ _parse_cli_pairs() {
         aiperf_args["--${key#--aiperf-args-}"]="$2" ;;
       --aiperf-*)
         aiperf_config["--${key#--aiperf-}"]="$2" ;;
+      --aiperf_accuracy-args-*)
+        aiperf_accuracy_args["--${key#--aiperf_accuracy-args-}"]="$2" ;;
+      --aiperf_accuracy-*)
+        aiperf_accuracy_config["--${key#--aiperf_accuracy-}"]="$2" ;;
       --hf-home)
         HUGGINGFACE_HOME="$2" ;;
       --storage-cache-dir)
@@ -361,6 +371,8 @@ _dump_args() {
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
   log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
   log "AIPerf args:\n$(arg_array_to_string aiperf_args)"
+  log "AIPerf accuracy config params:\n$(arg_array_to_string aiperf_accuracy_config)"
+  log "AIPerf accuracy args:\n$(arg_array_to_string aiperf_accuracy_args)"
   log "--------------------------------"
 }
 
@@ -420,6 +432,10 @@ function perform_exit()
 
 exit_on_error() {
   local fatal=$(_detect_fatal_once)
+  if [ -f "${FATAL_ERROR_MARKER}" ]; then
+    log "FATAL_ERROR_MARKER found. Terminating."
+    perform_exit 1
+  fi
   if [ -f "${DONE_MARKER}" ]; then
     log "DONE_MARKER found. Skipping error check."
     return
@@ -515,6 +531,10 @@ _is_genai_perf_workload() {
 
 _is_aiperf_workload() {
   [[ "${dynamo_args["workloads"]}" == *"aiperf.sh"* ]]
+}
+
+_is_aiperf_accuracy_enabled() {
+  [[ -n "${aiperf_accuracy_config["--script"]:-}" ]]
 }
 
 _init_runtime_env() {
@@ -689,6 +709,13 @@ function mark_done()
   touch "$DONE_MARKER"
 }
 
+function mark_failed()
+{
+  local message="$1"
+  log "ERROR: ${message}"
+  printf '%s\n' "${message}" > "${FATAL_ERROR_MARKER}"
+}
+
 function launch_etcd()
 {
   log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}"
@@ -733,6 +760,8 @@ function launch_decode()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -754,10 +783,10 @@ function launch_decode()
       args_arr+=($key "${decode_args[$key]}")
     done
 
-    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
@@ -788,6 +817,8 @@ function launch_prefill()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -809,10 +840,10 @@ function launch_prefill()
       args_arr+=($key "${prefill_args[$key]}")
     done
 
-    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
@@ -1026,6 +1057,11 @@ function launch_workload()
     --decode-nodes "${decode_config["node-list"]}" \
     "${config_arr[@]}" \
     -- "${args_arr[@]}" > "${RESULTS_DIR}/$workload_name.log" 2>&1
+  local workload_status=$?
+  if [[ "${workload_status}" -ne 0 ]]; then
+    mark_failed "Workload ${workload_name} failed with exit code ${workload_status}. See ${RESULTS_DIR}/${workload_name}.log"
+    return "${workload_status}"
+  fi
 
   log "Done with $workload_name run"
 }
@@ -1035,11 +1071,15 @@ function launch_workloads()
   wait_for_dynamo_frontend
 
   if _is_genai_perf_workload; then
-    launch_workload genai_perf_config genai_perf_args
+    launch_workload genai_perf_config genai_perf_args || return $?
   fi
 
   if _is_aiperf_workload; then
-    launch_workload aiperf_config aiperf_args
+    launch_workload aiperf_config aiperf_args || return $?
+  fi
+
+  if _is_aiperf_accuracy_enabled; then
+    launch_workload aiperf_accuracy_config aiperf_accuracy_args || return $?
   fi
 
   mark_done
