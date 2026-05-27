@@ -29,6 +29,7 @@
 #   --port          HTTP port the dynamo.frontend is listening on.
 #   --report-name   Output CSV name (default: aiperf_report.csv).
 #   --cmd           Full launch command including subcommand (default: "aiperf profile").
+#   --setup-cmd     Optional shell command run before launching aiperf.
 #   --extra-args    Raw string appended verbatim after all other flags.
 #
 # All unrecognised flags (--install-dir, --gpus-per-node, etc.) are silently
@@ -44,6 +45,7 @@ url="http://localhost"
 port=8000
 report_name="aiperf_report.csv"
 cmd="aiperf profile"
+setup_cmd=""
 declare -a extra_args=()
 declare -a aiperf_profile_args=()
 
@@ -84,6 +86,7 @@ process_args() {
       --port)         port="$2";        shift 2 ;;
       --report-name)  report_name="$2"; shift 2 ;;
       --cmd)          cmd="$2";         shift 2 ;;
+      --setup-cmd)    setup_cmd="$2";   shift 2 ;;
       --extra-args)   read -ra extra_args <<< "$2"; shift 2 ;;
       --)             shift; _parse_aiperf_args "$@"; break ;;
       --*)            if [[ -n "${2:-}" && "${2}" != -* ]]; then shift 2; else shift 1; fi ;;  # consume unknown flag; shift 2 only if next arg is a value
@@ -98,8 +101,19 @@ process_args() {
     port:         $port
     report_name:  $report_name
     cmd:          $cmd
+    setup_cmd:    ${setup_cmd:-}
     extra_args:   ${extra_args[*]:-}
     profile_args: ${aiperf_profile_args[*]:-}"
+}
+
+run_setup_cmd() {
+  if [[ -z "$setup_cmd" ]]; then
+    return
+  fi
+
+  log "Running AIPerf setup command: $setup_cmd"
+  bash -lc "$setup_cmd"
+  log "AIPerf setup command complete"
 }
 
 process_results() {
@@ -143,6 +157,8 @@ main() {
   if [[ -z "$model" ]]; then
     log "ERROR: --model is required"; exit 1
   fi
+
+  run_setup_cmd
 
   local full_url="${url}:${port}"
   local artifact_dir="$result_dir/aiperf_artifacts"

@@ -374,6 +374,11 @@ class AIPerf(Workload):
     name: str = "aiperf"
     cmd: str = "aiperf profile"
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
+    setup_cmd: str | None = Field(
+        default=None,
+        serialization_alias="setup-cmd",
+        validation_alias=AliasChoices("setup-cmd", "setup_cmd"),
+    )
     report_name: str = Field(
         default="aiperf_report.csv",
         serialization_alias="report-name",

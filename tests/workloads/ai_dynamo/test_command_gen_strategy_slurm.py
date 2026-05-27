@@ -155,20 +155,23 @@ def test_dynamo_cmd(
 def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"
+    setup_cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.6.0.post1'"
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
+            "setup-cmd": setup_cmd,
             "args": {
                 "accuracy-benchmark": "mmlu",
                 "accuracy-n-shots": 5,
                 "accuracy-tasks": "abstract_algebra",
                 "concurrency": 10,
                 "num-requests": 100,
-            }
+            },
         }
     )
 
     result = strategy._gen_script_args(td)
 
+    assert f'--aiperf-setup-cmd "{setup_cmd}"' in result
     assert '--aiperf-args-accuracy-benchmark "mmlu"' in result
     assert '--aiperf-args-accuracy-n-shots "5"' in result
     assert '--aiperf-args-accuracy-tasks "abstract_algebra"' in result

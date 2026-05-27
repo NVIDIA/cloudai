@@ -121,17 +121,23 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
    [cmd_args]
    workloads = "aiperf.sh"
 
-     [cmd_args.aiperf.args]
-     accuracy-benchmark = "mmlu"
-     accuracy-n-shots = 5
-     accuracy-tasks = "abstract_algebra"
-     concurrency = 10
-     extra-inputs = '{"temperature":0,"stop":["\n"]}'
-     num-requests = 100
+   [cmd_args.aiperf]
+   setup-cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.6.0.post1'"
+
+   [cmd_args.aiperf.args]
+   accuracy-benchmark = "mmlu"
+   accuracy-n-shots = 5
+   accuracy-tasks = "abstract_algebra"
+   concurrency = 10
+   extra-inputs = '{"temperature":0,"stop":["\n"]}'
+   num-requests = 100
 
 When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
 ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt and
 token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
+
+The ``setup-cmd`` field is optional. It is useful for Dynamo images that include ``aiperf`` without its accuracy extra;
+CloudAI runs it immediately before launching ``aiperf profile``.
 
 Review Benchmark Results
 ------------------------
