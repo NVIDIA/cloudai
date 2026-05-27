@@ -167,10 +167,16 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
     """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
     dicts: list[dict] = []
     for tr in trs:
+        bench_cmd_args = getattr(tr.test, "bench_cmd_args", None)
+        bench_cmd_args_dict = {}
+        if bench_cmd_args is not None:
+            bench_cmd_args_dict = {f"bench_cmd_args.{k}": v for k, v in bench_cmd_args.model_dump().items()}
+
         dicts.append(
             {
                 "NUM_NODES": tr.num_nodes,
                 **tr.test.cmd_args.model_dump(),
+                **bench_cmd_args_dict,
                 **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
             }
         )
@@ -178,8 +184,8 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
 
     diff = {}
     for key in all_keys:
-        all_values = [d[key] for d in dicts]
-        if len(set(all_values)) > 1:
+        all_values = [d.get(key) for d in dicts]
+        if len({repr(v) for v in all_values}) > 1:
             diff[key] = all_values
 
     return diff

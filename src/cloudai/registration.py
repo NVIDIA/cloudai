@@ -154,6 +154,7 @@ def register_all():
     )
     from cloudai.workloads.sglang import (
         SGLangBenchReportGenerationStrategy,
+        SGLangComparisonReport,
         SglangSlurmCommandGenStrategy,
         SglangTestDefinition,
     )
@@ -179,6 +180,7 @@ def register_all():
     )
     from cloudai.workloads.vllm import (
         VLLMBenchReportGenerationStrategy,
+        VLLMComparisonReport,
         VllmSlurmCommandGenStrategy,
         VllmTestDefinition,
     )
@@ -326,6 +328,16 @@ def register_all():
         "osu_bench_comparison",
         OSUBenchComparisonReport,
         ComparisonReportConfig(enable=True, group_by=["benchmark"]),
+    )
+    Registry().add_scenario_report(
+        "vllm_comparison",
+        VLLMComparisonReport,
+        ComparisonReportConfig(enable=True),
+    )
+    Registry().add_scenario_report(
+        "sglang_comparison",
+        SGLangComparisonReport,
+        ComparisonReportConfig(enable=True),
     )
 
     Registry().add_reward_function("inverse", inverse_reward)
