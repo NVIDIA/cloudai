@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, Callable, List, Mapping, Tuple
 
 import toml
 
@@ -163,23 +163,21 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
     return df, unit
 
 
-def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
-    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
-    dicts: list[dict] = []
-    for tr in trs:
-        bench_cmd_args = getattr(tr.test, "bench_cmd_args", None)
-        bench_cmd_args_dict = {}
-        if bench_cmd_args is not None:
-            bench_cmd_args_dict = {f"bench_cmd_args.{k}": v for k, v in bench_cmd_args.model_dump().items()}
+def default_test_run_comparison_values(tr: TestRun) -> dict[str, object]:
+    """Return generic TestRun values used to label differences in comparison reports."""
+    return {
+        "NUM_NODES": tr.num_nodes,
+        **tr.test.cmd_args.model_dump(),
+        **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
+    }
 
-        dicts.append(
-            {
-                "NUM_NODES": tr.num_nodes,
-                **tr.test.cmd_args.model_dump(),
-                **bench_cmd_args_dict,
-                **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
-            }
-        )
+
+def diff_test_runs(
+    trs: list[TestRun],
+    comparison_values: Callable[[TestRun], Mapping[str, object]] = default_test_run_comparison_values,
+) -> dict[str, list[object]]:
+    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
+    dicts = [comparison_values(tr) for tr in trs]
     all_keys = set().union(*[d.keys() for d in dicts])
 
     diff = {}

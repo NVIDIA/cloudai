@@ -21,7 +21,7 @@ import pathlib
 import cloudai.core
 import cloudai.report_generator.comparison_report
 from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
-from cloudai.workloads.vllm import VLLMBenchReportGenerationStrategy, VllmTestDefinition
+from cloudai.workloads.vllm import VllmBenchCmdArgs, VLLMBenchReportGenerationStrategy, VllmTestDefinition
 
 
 class VLLMComparisonReport(LLMServingComparisonReport):
@@ -39,6 +39,11 @@ class VLLMComparisonReport(LLMServingComparisonReport):
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
         return isinstance(tr.test, VllmTestDefinition)
+
+    def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> VllmBenchCmdArgs:
+        if not isinstance(tr.test, VllmTestDefinition):
+            raise TypeError(f"{self.__class__.__name__} only supports vLLM test runs.")
+        return tr.test.bench_cmd_args
 
     def parse_results(self, tr: cloudai.core.TestRun):
         strategy = VLLMBenchReportGenerationStrategy(self.system, tr)

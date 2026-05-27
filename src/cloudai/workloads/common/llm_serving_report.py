@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, cast
 import rich.table
 
 import cloudai.core
+import cloudai.models.workload
 import cloudai.report_generator.comparison_report
 import cloudai.report_generator.groups
 from cloudai.util.lazy_imports import lazy
@@ -62,6 +63,15 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
     @abc.abstractmethod
     def parse_results(self, tr: cloudai.core.TestRun) -> tuple[llm_serving.LLMServingBenchReport, int] | None:
         """Parse a workload-specific benchmark result and return it with used GPU count."""
+
+    @abc.abstractmethod
+    def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> cloudai.models.workload.CmdArgs:
+        """Return workload-specific benchmark command arguments for comparison labels."""
+
+    def comparison_values(self, tr: cloudai.core.TestRun) -> dict[str, object]:
+        values = super().comparison_values(tr)
+        values.update({f"bench_cmd_args.{k}": v for k, v in self.benchmark_cmd_args(tr).model_dump().items()})
+        return values
 
     def load_test_runs(self) -> None:
         super().load_test_runs()

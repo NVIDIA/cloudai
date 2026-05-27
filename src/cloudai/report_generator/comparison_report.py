@@ -35,6 +35,7 @@ from .groups import GroupedTestRuns, TestRunsGrouper
 from .util import (
     bokeh_size_unit_js_tick_formatter,
     calculate_power_of_two_ticks,
+    default_test_run_comparison_values,
 )
 
 if TYPE_CHECKING:
@@ -70,8 +71,12 @@ class ComparisonReport(Reporter, ABC):
     @abstractmethod
     def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]: ...
 
+    def comparison_values(self, tr: TestRun) -> dict[str, object]:
+        """Return TestRun values used to label differences between compared runs."""
+        return default_test_run_comparison_values(tr)
+
     def get_bokeh_html(self) -> tuple[str, str]:
-        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
+        cmp_groups = TestRunsGrouper(self.trs, self.group_by, self.comparison_values).groups()
         charts: list[bk.figure] = self.create_charts(cmp_groups)
 
         # layout with 2 charts per row
@@ -93,7 +98,7 @@ class ComparisonReport(Reporter, ABC):
             return
 
         console = Console(record=True)
-        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
+        cmp_groups = TestRunsGrouper(self.trs, self.group_by, self.comparison_values).groups()
 
         tables = self.create_tables(cmp_groups)
         for table in tables:

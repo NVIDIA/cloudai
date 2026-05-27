@@ -21,7 +21,7 @@ import pathlib
 import cloudai.core
 import cloudai.report_generator.comparison_report
 from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
-from cloudai.workloads.sglang import SGLangBenchReportGenerationStrategy, SglangTestDefinition
+from cloudai.workloads.sglang import SglangBenchCmdArgs, SGLangBenchReportGenerationStrategy, SglangTestDefinition
 
 
 class SGLangComparisonReport(LLMServingComparisonReport):
@@ -39,6 +39,11 @@ class SGLangComparisonReport(LLMServingComparisonReport):
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
         return isinstance(tr.test, SglangTestDefinition)
+
+    def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> SglangBenchCmdArgs:
+        if not isinstance(tr.test, SglangTestDefinition):
+            raise TypeError(f"{self.__class__.__name__} only supports SGLang test runs.")
+        return tr.test.bench_cmd_args
 
     def parse_results(self, tr: cloudai.core.TestRun):
         strategy = SGLangBenchReportGenerationStrategy(self.system, tr)
