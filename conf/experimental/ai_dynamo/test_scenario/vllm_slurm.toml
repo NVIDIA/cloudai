@@ -19,7 +19,7 @@ job_status_check = false
 
 [[Tests]]
 id = "test.disagg.single-node"
-test_name = "vLLM-Qwen3-0.6B"
+test_name = "vLLM"
 time_limit = "00:10:00"
 
   [Tests.cmd_args]
@@ -38,7 +38,7 @@ time_limit = "00:10:00"
 
 [[Tests]]
 id = "test.disagg.multinode"
-test_name = "vLLM-Qwen3-0.6B"
+test_name = "vLLM"
 time_limit = "00:10:00"
 
   [Tests.cmd_args]

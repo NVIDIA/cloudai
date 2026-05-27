@@ -152,7 +152,7 @@ def test_was_run_successful_no_results(ai_dynamo_tr: TestRun, tmp_path: Path) ->
 
 def test_vllm_semantic_accuracy_metric_from_json(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     test_def = cast(AIDynamoTestDefinition, ai_dynamo_tr.test)
-    test_def.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs()
+    test_def.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs(cmd="bla")
     (ai_dynamo_tr.output_path / "vllm-gsm8k.json").write_text('{"accuracy": 0.875}', encoding="utf-8")
 
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
@@ -165,8 +165,7 @@ def test_vllm_semantic_accuracy_metric_from_json(slurm_system: SlurmSystem, ai_d
 def test_sglang_semantic_accuracy_metric_from_log(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     test_def = cast(AIDynamoTestDefinition, ai_dynamo_tr.test)
     test_def.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs(
-        module="sglang.test.run_eval",
-        args="--host {host} --port {port} --model {model}",
+        cmd="python3 -m sglang.test.run_eval --host {host} --port {port} --model {model}",
     )
     (ai_dynamo_tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE).write_text("Score: 0.945\n", encoding="utf-8")
 
@@ -178,7 +177,7 @@ def test_sglang_semantic_accuracy_metric_from_log(slurm_system: SlurmSystem, ai_
 
 def test_semantic_eval_requires_parseable_accuracy(ai_dynamo_tr: TestRun) -> None:
     test_def = cast(AIDynamoTestDefinition, ai_dynamo_tr.test)
-    test_def.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs()
+    test_def.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs(cmd="bla")
     (ai_dynamo_tr.output_path / "semantic_eval.log").write_text("Accuracy: 0.99\n", encoding="utf-8")
 
     result = test_def.was_run_successful(ai_dynamo_tr)
@@ -190,3 +189,7 @@ def test_semantic_eval_requires_parseable_accuracy(ai_dynamo_tr: TestRun) -> Non
 def test_semantic_eval_rejects_backend_specific_fields() -> None:
     with pytest.raises(ValueError):
         AIDynamoSemanticEvalCmdArgs.model_validate({"vllm_script": "script.py"})
+    with pytest.raises(ValueError):
+        AIDynamoSemanticEvalCmdArgs.model_validate({"module": "sglang.test.run_eval"})
+    with pytest.raises(ValueError):
+        AIDynamoSemanticEvalCmdArgs.model_validate({"log_file": "semantic_eval.log"})

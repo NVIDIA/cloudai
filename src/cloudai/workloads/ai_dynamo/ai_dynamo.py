@@ -291,18 +291,7 @@ class AIDynamoSemanticEvalCmdArgs(BaseModel):
 
     name: str = "semantic_eval"
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/semantic_eval.sh")
-    module: str = "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
-    args: str = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
-    log_file: str = Field(
-        default="semantic_eval.log",
-        serialization_alias="log-file",
-        validation_alias=AliasChoices("log-file", "log_file"),
-    )
-    extra_args: str | list[str] | None = Field(
-        default=None,
-        serialization_alias="extra-args",
-        validation_alias=AliasChoices("extra-args", "extra_args"),
-    )
+    cmd: str
 
     @property
     def installables(self) -> list[Installable]:
@@ -465,7 +454,7 @@ class AIDynamoTestDefinition(TestDefinition):
         if self.semantic_eval_cmd_args is None:
             return None
 
-        if "sglang" in self.semantic_eval_cmd_args.module.lower():
+        if "sglang" in self.semantic_eval_cmd_args.cmd.lower():
             return parse_sglang_semantic_accuracy(output_path)
 
         return parse_vllm_semantic_accuracy(output_path)

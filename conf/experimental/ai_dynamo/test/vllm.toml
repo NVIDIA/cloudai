@@ -85,6 +85,9 @@ workloads = "genai_perf.sh"
     warmup-request-count = 5
     concurrency = 2
 
+[semantic_eval_cmd_args]
+cmd = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py --host http://{host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+
 [extra_env_vars]
 UCX_LOG_LEVEL = "warn"
 HF_HUB_OFFLINE = "1"

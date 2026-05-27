@@ -518,6 +518,29 @@ _is_semantic_eval_enabled() {
   [[ -n "${semantic_eval_config["--script"]:-}" ]]
 }
 
+_expand_semantic_eval_cmd() {
+  local raw_cmd="${semantic_eval_config["--cmd"]:-}"
+  if [[ -z "$raw_cmd" ]]; then
+    return
+  fi
+
+  local url="http://${dynamo_args["frontend-node"]}"
+  local host="${dynamo_args["frontend-node"]}"
+  local expanded_cmd="$raw_cmd"
+  expanded_cmd="${expanded_cmd//\{model\}/${dynamo_args["model"]}}"
+  expanded_cmd="${expanded_cmd//\{host\}/$host}"
+  expanded_cmd="${expanded_cmd//\{url\}/$url}"
+  expanded_cmd="${expanded_cmd//\{port\}/${dynamo_args["port"]}}"
+  expanded_cmd="${expanded_cmd//\{output_path\}/$RESULTS_DIR}"
+  semantic_eval_config["--cmd"]="$expanded_cmd"
+
+  if [[ "${expanded_cmd,,}" == *"sglang"* ]]; then
+    semantic_eval_config["--name"]="sglang-semantic-eval"
+  else
+    semantic_eval_config["--name"]="vllm-semantic-eval"
+  fi
+}
+
 _init_runtime_env() {
   if _is_vllm || _is_sglang; then
     export HF_HOME="${HUGGINGFACE_HOME}"
@@ -1045,6 +1068,7 @@ function launch_workloads()
   fi
 
   if _is_semantic_eval_enabled; then
+    _expand_semantic_eval_cmd
     launch_workload semantic_eval_config semantic_eval_args
   fi
 
