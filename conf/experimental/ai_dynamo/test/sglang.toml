@@ -94,7 +94,7 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
-  setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+  setup-cmd = "python -m pip install --break-system-packages --ignore-installed blinker==1.9.0 && python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
 
     [cmd_args.aiperf.args]
     concurrency = 2
@@ -104,7 +104,7 @@ workloads = "aiperf.sh"
     synthetic-input-tokens-mean = 300
 
   [cmd_args.aiperf_accuracy]
-  setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+  setup-cmd = "python -m pip install --break-system-packages --ignore-installed blinker==1.9.0 && python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
 
     [cmd_args.aiperf_accuracy.args]
     accuracy-benchmark = "mmlu"
