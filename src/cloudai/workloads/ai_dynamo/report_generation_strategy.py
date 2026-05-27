@@ -48,7 +48,9 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         if metric.lower() == "accuracy":
             tdef = self.test_run.test
-            if not isinstance(tdef, AIDynamoTestDefinition) or not tdef.cmd_args.aiperf.has_accuracy_benchmark:
+            if not isinstance(tdef, AIDynamoTestDefinition):
+                return METRIC_ERROR
+            if tdef.cmd_args.aiperf_accuracy is None and not tdef.cmd_args.aiperf.has_accuracy_benchmark:
                 return METRIC_ERROR
             accuracy = parse_aiperf_accuracy(self.test_run.output_path)
             return accuracy if accuracy is not None else METRIC_ERROR

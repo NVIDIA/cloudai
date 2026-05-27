@@ -42,6 +42,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
 
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
+AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 
 
@@ -94,6 +95,7 @@ def parse_aiperf_accuracy(output_path: Path) -> float | None:
     """
     candidates = [
         output_path / AIPERF_ACCURACY_RESULTS_CSV,
+        output_path / AIPERF_ACCURACY_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
         output_path / AIPERF_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
     ]
 
@@ -401,6 +403,22 @@ class AIPerf(Workload):
         return "--accuracy-benchmark" in extra_args
 
 
+class AIPerfAccuracy(AIPerf):
+    """Optional AIPerf accuracy benchmark configuration."""
+
+    name: str = "aiperf_accuracy"
+    report_name: str = Field(
+        default="aiperf_accuracy_report.csv",
+        serialization_alias="report-name",
+        validation_alias=AliasChoices("report-name", "report_name"),
+    )
+    artifact_dir_name: str = Field(
+        default=AIPERF_ACCURACY_ARTIFACTS_DIR,
+        serialization_alias="artifact-dir-name",
+        validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
+    )
+
+
 class Constraints(BaseModel):
     """Constraints for validation of AI Dynamo configurations when using DSE."""
 
@@ -421,6 +439,7 @@ class AIDynamoCmdArgs(CmdArgs):
     lmcache: LMCache = Field(default_factory=LMCache)
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
+    aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
 
     @field_validator("workloads", mode="before")
@@ -443,6 +462,7 @@ class AIDynamoCmdArgs(CmdArgs):
             *self.lmcache.installables,
             *self.genai_perf.installables,
             *self.aiperf.installables,
+            *(self.aiperf_accuracy.installables if self.aiperf_accuracy else []),
         ]
 
 
@@ -470,6 +490,9 @@ class AIDynamoTestDefinition(TestDefinition):
         for workload in self.cmd_args.workloads_list:
             if workload not in workload_map:
                 raise ValueError(f"Invalid workload: {workload}. Available workloads: {list(workload_map.keys())}")
+
+        if self.cmd_args.aiperf_accuracy is not None and not self.cmd_args.aiperf_accuracy.has_accuracy_benchmark:
+            raise ValueError("cmd_args.aiperf_accuracy must configure an AIPerf --accuracy-benchmark argument")
 
         return self
 
@@ -504,10 +527,58 @@ class AIDynamoTestDefinition(TestDefinition):
             *self.cmd_args.installables,
         ]
 
+    def _has_aiperf_accuracy_results(self, output_path: Path) -> bool:
+        accuracy = parse_aiperf_accuracy(output_path)
+        if accuracy is None:
+            logging.info(f"AIPerf accuracy results not found in {output_path}.")
+            return False
+
+        logging.info(f"AIPerf accuracy results found in {output_path}: {accuracy}")
+        return True
+
+    def _is_legacy_aiperf_accuracy_workload(self, workload: str) -> bool:
+        return workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark
+
+    def _was_workload_report_produced(self, output_path: Path, workload: str, workload_config: Workload) -> bool:
+        report_name = workload_config.report_name
+        if report_name is None:
+            logging.warning(f"Workload {workload} has no report_name configured")
+            return False
+
+        workload_csv_file = output_path / report_name
+        if not workload_csv_file.exists():
+            logging.info(f"Result file ({workload_csv_file.absolute()}) not found for workload: {workload}")
+            return False
+
+        logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
+        return True
+
+    def _was_workload_successful(self, output_path: Path, workload: str, workload_map: dict[str, Workload]) -> bool:
+        workload_config = workload_map.get(workload)
+        if workload_config is None:
+            logging.info(f"Workload {workload} not found in workload map")
+            return False
+
+        if self._is_legacy_aiperf_accuracy_workload(workload):
+            return self._has_aiperf_accuracy_results(output_path)
+
+        return self._was_workload_report_produced(output_path, workload, workload_config)
+
+    def _were_workloads_successful(self, output_path: Path) -> bool:
+        workload_map = self.get_workload_map()
+        result = True
+        for workload in self.cmd_args.workloads_list:
+            result = self._was_workload_successful(output_path, workload, workload_map) and result
+        return result
+
+    def _was_aiperf_accuracy_successful(self, output_path: Path) -> bool:
+        if self.cmd_args.aiperf_accuracy is None:
+            return True
+
+        return self._has_aiperf_accuracy_results(output_path)
+
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
-        result = True
-        workload_map = self.get_workload_map()
         failure_marker = output_path / self.failure_marker
         success_marker = output_path / self.success_marker
 
@@ -518,34 +589,9 @@ class AIDynamoTestDefinition(TestDefinition):
         if not success_marker.exists():
             return JobStatusResult(False, error_message=f"Success marker file not found: {success_marker.absolute()}")
 
-        for workload in self.cmd_args.workloads_list:
-            if workload not in workload_map:
-                logging.info(f"Workload {workload} not found in workload map")
-                result = False
-                continue
-
-            if workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark:
-                accuracy = parse_aiperf_accuracy(output_path)
-                if accuracy is None:
-                    logging.info(f"AIPerf accuracy results not found in {output_path}.")
-                    result = False
-                else:
-                    logging.info(f"AIPerf accuracy results found in {output_path}: {accuracy}")
-                continue
-
-            report_name = workload_map[workload].report_name
-            if report_name is None:
-                logging.warning(f"Workload {workload} has no report_name configured")
-                result = False
-                continue
-            workload_csv_file = output_path / report_name
-            if not workload_csv_file.exists():
-                logging.info(f"Result file ({workload_csv_file.absolute()}) not found for workload: {workload}")
-                result = False
-            else:
-                logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
-
-        return JobStatusResult(result)
+        workloads_successful = self._were_workloads_successful(output_path)
+        accuracy_successful = self._was_aiperf_accuracy_successful(output_path)
+        return JobStatusResult(workloads_successful and accuracy_successful)
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker

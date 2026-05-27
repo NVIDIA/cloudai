@@ -19,7 +19,7 @@
 #
 # Called from ai_dynamo.sh's launch_workload() with:
 #   bash aiperf.sh --result-dir <dir> --model <model> --url <url> --port <port>
-#                  [--cmd <cmd>] [--report-name <name>] [--extra-args <args>]
+#                  [--cmd <cmd>] [--report-name <name>] [--artifact-dir-name <name>] [--extra-args <args>]
 #                  -- <aiperf-args>...
 #
 # Context flags (before --) that are recognised and used:
@@ -28,6 +28,7 @@
 #   --url           Base URL of the dynamo.frontend (e.g. http://node01).
 #   --port          HTTP port the dynamo.frontend is listening on.
 #   --report-name   Output CSV name (default: aiperf_report.csv).
+#   --artifact-dir-name  Artifact directory name under --result-dir (default: aiperf_artifacts).
 #   --cmd           Full launch command including subcommand (default: "aiperf profile").
 #   --setup-cmd     Optional shell command run before launching aiperf.
 #   --extra-args    Raw string appended verbatim after all other flags.
@@ -44,6 +45,7 @@ model=""
 url="http://localhost"
 port=8000
 report_name="aiperf_report.csv"
+artifact_dir_name="aiperf_artifacts"
 cmd="aiperf profile"
 setup_cmd=""
 declare -a extra_args=()
@@ -85,10 +87,11 @@ process_args() {
       --url)          url="$2";         shift 2 ;;
       --port)         port="$2";        shift 2 ;;
       --report-name)  report_name="$2"; shift 2 ;;
-      --cmd)          cmd="$2";         shift 2 ;;
-      --setup-cmd)    setup_cmd="$2";   shift 2 ;;
-      --extra-args)   read -ra extra_args <<< "$2"; shift 2 ;;
-      --)             shift; _parse_aiperf_args "$@"; break ;;
+      --artifact-dir-name) artifact_dir_name="$2"; shift 2 ;;
+      --cmd)               cmd="$2";               shift 2 ;;
+      --setup-cmd)         setup_cmd="$2";         shift 2 ;;
+      --extra-args)        read -ra extra_args <<< "$2"; shift 2 ;;
+      --)                  shift; _parse_aiperf_args "$@"; break ;;
       --*)            if [[ -n "${2:-}" && "${2}" != -* ]]; then shift 2; else shift 1; fi ;;  # consume unknown flag; shift 2 only if next arg is a value
       *)              shift ;;
     esac
@@ -100,6 +103,7 @@ process_args() {
     url:          $url
     port:         $port
     report_name:  $report_name
+    artifact_dir: $artifact_dir_name
     cmd:          $cmd
     setup_cmd:    ${setup_cmd:-}
     extra_args:   ${extra_args[*]:-}
@@ -117,7 +121,7 @@ run_setup_cmd() {
 }
 
 process_results() {
-  local artifact_dir="$result_dir/aiperf_artifacts"
+  local artifact_dir="$result_dir/$artifact_dir_name"
   local csv_path=""
   local accuracy_path="$artifact_dir/accuracy_results.csv"
 
@@ -161,7 +165,7 @@ main() {
   run_setup_cmd
 
   local full_url="${url}:${port}"
-  local artifact_dir="$result_dir/aiperf_artifacts"
+  local artifact_dir="$result_dir/$artifact_dir_name"
   rm -rf "$artifact_dir"
 
   # Split cmd into an array (e.g. "aiperf profile" → ["aiperf", "profile"])

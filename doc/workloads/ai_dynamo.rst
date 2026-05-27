@@ -113,8 +113,9 @@ To use genai-perf, set:
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it by adding AIPerf accuracy flags under
-``[cmd_args.aiperf.args]`` and running the ``aiperf.sh`` workload:
+AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it with
+``[cmd_args.aiperf_accuracy]``. This runs after the configured performance workload, so it can be used with either
+``aiperf.sh`` or ``genai_perf.sh``:
 
 .. code-block:: toml
 
@@ -122,9 +123,16 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
    workloads = "aiperf.sh"
 
    [cmd_args.aiperf]
-   setup-cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.8.0'"
+     [cmd_args.aiperf.args]
+     request-count = 50
+     synthetic-input-tokens-mean = 300
+     output-tokens-mean = 500
+     concurrency = 2
 
-   [cmd_args.aiperf.args]
+   [cmd_args.aiperf_accuracy]
+   setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+
+   [cmd_args.aiperf_accuracy.args]
    accuracy-benchmark = "mmlu"
    accuracy-n-shots = 5
    accuracy-tasks = "abstract_algebra"
@@ -132,9 +140,9 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
    extra-inputs = '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
    num-requests = 100
 
-When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
-``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt and
-token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
+When ``cmd_args.aiperf_accuracy`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes
+the ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt
+and token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
 
 The ``setup-cmd`` field is optional. It is useful for Dynamo images that include an older system ``aiperf`` build without
 the accuracy benchmark plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
@@ -147,11 +155,13 @@ Review Benchmark Results
 
 After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
 
-- ``aiperf.sh`` → ``aiperf_report.csv`` for performance mode, ``accuracy_results.csv`` for accuracy mode
+- ``aiperf.sh`` → ``aiperf_report.csv``
 - ``genai_perf.sh`` → ``genai_perf_report.csv``
+- ``cmd_args.aiperf_accuracy`` → ``accuracy_results.csv``
 
-If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_artifacts/accuracy_results.csv`` to ``accuracy_results.csv``
-in the run output directory and marks the run failed if that file is not produced.
+If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/accuracy_results.csv`` to
+``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced. The older
+one-shot form that puts ``accuracy-benchmark`` under ``cmd_args.aiperf.args`` remains supported for compatibility.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 

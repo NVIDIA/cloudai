@@ -37,6 +37,8 @@ declare -A genai_perf_args
 declare -A genai_perf_config
 declare -A aiperf_args
 declare -A aiperf_config
+declare -A aiperf_accuracy_args
+declare -A aiperf_accuracy_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -173,6 +175,10 @@ _parse_cli_pairs() {
         aiperf_args["--${key#--aiperf-args-}"]="$2" ;;
       --aiperf-*)
         aiperf_config["--${key#--aiperf-}"]="$2" ;;
+      --aiperf_accuracy-args-*)
+        aiperf_accuracy_args["--${key#--aiperf_accuracy-args-}"]="$2" ;;
+      --aiperf_accuracy-*)
+        aiperf_accuracy_config["--${key#--aiperf_accuracy-}"]="$2" ;;
       --hf-home)
         HUGGINGFACE_HOME="$2" ;;
       --storage-cache-dir)
@@ -365,6 +371,8 @@ _dump_args() {
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
   log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
   log "AIPerf args:\n$(arg_array_to_string aiperf_args)"
+  log "AIPerf accuracy config params:\n$(arg_array_to_string aiperf_accuracy_config)"
+  log "AIPerf accuracy args:\n$(arg_array_to_string aiperf_accuracy_args)"
   log "--------------------------------"
 }
 
@@ -523,6 +531,10 @@ _is_genai_perf_workload() {
 
 _is_aiperf_workload() {
   [[ "${dynamo_args["workloads"]}" == *"aiperf.sh"* ]]
+}
+
+_is_aiperf_accuracy_enabled() {
+  [[ -n "${aiperf_accuracy_config["--script"]:-}" ]]
 }
 
 _init_runtime_env() {
@@ -1064,6 +1076,10 @@ function launch_workloads()
 
   if _is_aiperf_workload; then
     launch_workload aiperf_config aiperf_args || return $?
+  fi
+
+  if _is_aiperf_accuracy_enabled; then
+    launch_workload aiperf_accuracy_config aiperf_accuracy_args || return $?
   fi
 
   mark_done

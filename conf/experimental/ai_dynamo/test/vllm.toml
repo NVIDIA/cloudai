@@ -88,9 +88,17 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
-  setup-cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.8.0'"
-
     [cmd_args.aiperf.args]
+    concurrency = 2
+    extra-inputs = '{"min_tokens":10}'
+    output-tokens-mean = 500
+    request-count = 50
+    synthetic-input-tokens-mean = 300
+
+  [cmd_args.aiperf_accuracy]
+  setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+
+    [cmd_args.aiperf_accuracy.args]
     accuracy-benchmark = "mmlu"
     accuracy-n-shots = 5
     accuracy-tasks = "abstract_algebra"

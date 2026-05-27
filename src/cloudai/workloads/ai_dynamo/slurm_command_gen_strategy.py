@@ -118,6 +118,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
+        if td.cmd_args.aiperf_accuracy is not None:
+            args.extend(self._get_nested_toml_args(td.cmd_args.aiperf_accuracy, "--aiperf_accuracy-"))
 
         return args
 
