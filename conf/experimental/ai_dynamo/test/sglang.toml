@@ -94,6 +94,8 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+
     [cmd_args.aiperf.args]
     concurrency = 2
     extra-inputs = '{"min_tokens":10}'
