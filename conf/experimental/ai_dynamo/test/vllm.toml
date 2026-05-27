@@ -95,7 +95,7 @@ workloads = "aiperf.sh"
     accuracy-n-shots = 5
     accuracy-tasks = "abstract_algebra"
     concurrency = 10
-    extra-inputs = '{"temperature":0,"stop":["\n"]}'
+    extra-inputs = '{"temperature":0}'
     num-requests = 100
 
 [extra_env_vars]

@@ -129,7 +129,7 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
    accuracy-n-shots = 5
    accuracy-tasks = "abstract_algebra"
    concurrency = 10
-   extra-inputs = '{"temperature":0,"stop":["\n"]}'
+   extra-inputs = '{"temperature":0}'
    num-requests = 100
 
 When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
