@@ -94,14 +94,26 @@ process_args() {
 
 process_results() {
   local artifact_dir="$result_dir/aiperf_artifacts"
-  local csv_path
-  csv_path=$(find "$artifact_dir" -name "*.csv" -print -quit 2>/dev/null || true)
+  local csv_path=""
+  local accuracy_path="$artifact_dir/accuracy_results.csv"
+
+  if [[ -f "$artifact_dir/profile_export_aiperf.csv" ]]; then
+    csv_path="$artifact_dir/profile_export_aiperf.csv"
+  else
+    csv_path=$(find "$artifact_dir" -name "*aiperf*.csv" -print -quit 2>/dev/null || true)
+  fi
+
   if [[ -n "$csv_path" ]]; then
     cp "$csv_path" "$result_dir/$report_name"
     log "aiperf report saved to $result_dir/$report_name"
   else
     log "ERROR: no CSV found in $artifact_dir — aiperf may not have completed"
     exit 1
+  fi
+
+  if [[ -f "$accuracy_path" ]]; then
+    cp "$accuracy_path" "$result_dir/accuracy_results.csv"
+    log "aiperf accuracy report saved to $result_dir/accuracy_results.csv"
   fi
 }
 

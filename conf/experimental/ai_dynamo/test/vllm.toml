@@ -20,8 +20,8 @@ test_template_name = "AIDynamo"
 extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.8.1"
-workloads = "genai_perf.sh"
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+workloads = "aiperf.sh"
 
   [cmd_args.dynamo]
   backend = "vllm"
@@ -88,7 +88,11 @@ workloads = "genai_perf.sh"
   [cmd_args.aiperf]
 
     [cmd_args.aiperf.args]
+    accuracy-benchmark = "mmlu"
+    accuracy-n-shots = 5
+    accuracy-tasks = "abstract_algebra"
     concurrency = 2
+    extra-inputs = '{"temperature":0,"stop":["\n"]}'
     request-count = 50
     synthetic-input-tokens-mean = 300
     output-tokens-mean = 500

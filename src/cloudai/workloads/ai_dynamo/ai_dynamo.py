@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import logging
 from pathlib import Path
 from typing import Literal, Optional, cast
@@ -39,6 +40,89 @@ from cloudai.core import (
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
+
+AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
+AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
+
+
+def _parse_accuracy_value(value: str | int | float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        accuracy = float(value)
+        return accuracy / 100 if accuracy > 1 else accuracy
+
+    raw_value = value.strip()
+    if not raw_value:
+        return None
+
+    is_percentage = raw_value.endswith("%")
+    if is_percentage:
+        raw_value = raw_value[:-1].strip()
+
+    try:
+        accuracy = float(raw_value)
+    except ValueError:
+        return None
+
+    return accuracy / 100 if is_percentage or accuracy > 1 else accuracy
+
+
+def _parse_count_value(value: str | int | float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value.strip())
+    except ValueError:
+        return None
+
+
+def parse_aiperf_accuracy(output_path: Path) -> float | None:
+    """
+    Parse AIPerf accuracy from accuracy_results.csv.
+
+    Expected CSV format:
+        Task,Correct,Total,Accuracy
+        abstract_algebra,35,100,35.00%
+        OVERALL,8368,14042,59.59%
+
+    AIPerf writes this file under aiperf_artifacts; CloudAI's wrapper also copies
+    it to the run output directory when present. The returned value is normalized
+    to a 0.0-1.0 fraction.
+    """
+    candidates = [
+        output_path / AIPERF_ACCURACY_RESULTS_CSV,
+        output_path / AIPERF_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
+    ]
+
+    for csv_file in candidates:
+        if not csv_file.exists() or csv_file.stat().st_size == 0:
+            continue
+
+        fallback_accuracy: float | None = None
+        with csv_file.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                accuracy = _parse_accuracy_value(row.get("Accuracy") or row.get("accuracy") or row.get("Value"))
+                if accuracy is None:
+                    correct = _parse_count_value(row.get("Correct") or row.get("correct"))
+                    total = _parse_count_value(row.get("Total") or row.get("total"))
+                    if correct is not None and total:
+                        accuracy = correct / total
+                if accuracy is None:
+                    continue
+
+                task = (row.get("Task") or row.get("task") or row.get("Metric") or "").strip().upper()
+                if task == "OVERALL":
+                    return accuracy
+                if fallback_accuracy is None:
+                    fallback_accuracy = accuracy
+
+        if fallback_accuracy is not None:
+            return fallback_accuracy
+
+    return None
 
 
 class Args(BaseModel):
@@ -300,6 +384,17 @@ class AIPerf(Workload):
     def installables(self) -> list[Installable]:
         return [self.script]
 
+    @property
+    def has_accuracy_benchmark(self) -> bool:
+        args_extra = getattr(self.args, "model_extra", {}) or {}
+        if args_extra.get("accuracy-benchmark") or args_extra.get("accuracy_benchmark"):
+            return True
+
+        extra_args = self.extra_args or ""
+        if isinstance(extra_args, list):
+            return "--accuracy-benchmark" in extra_args
+        return "--accuracy-benchmark" in extra_args
+
 
 class Constraints(BaseModel):
     """Constraints for validation of AI Dynamo configurations when using DSE."""
@@ -434,6 +529,12 @@ class AIDynamoTestDefinition(TestDefinition):
                 result = False
             else:
                 logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
+
+            if workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark:
+                accuracy = parse_aiperf_accuracy(output_path)
+                if accuracy is None:
+                    logging.info(f"AIPerf accuracy results not found in {output_path}.")
+                    result = False
 
         return JobStatusResult(result)
 

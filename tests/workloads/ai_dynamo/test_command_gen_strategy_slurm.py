@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -26,6 +27,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    AIPerf,
     GenAIPerf,
     LMCache,
     LMCacheArgs,
@@ -148,3 +150,23 @@ def test_dynamo_cmd(
 ) -> None:
     result = strategy.gen_dynamo_cmd(module, Path(config))
     assert result.strip() == expected
+
+
+def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "args": {
+                "accuracy-benchmark": "mmlu",
+                "accuracy-n-shots": 5,
+                "accuracy-tasks": "abstract_algebra",
+            }
+        }
+    )
+
+    result = strategy._gen_script_args(td)
+
+    assert '--aiperf-args-accuracy-benchmark "mmlu"' in result
+    assert '--aiperf-args-accuracy-n-shots "5"' in result
+    assert '--aiperf-args-accuracy-tasks "abstract_algebra"' in result

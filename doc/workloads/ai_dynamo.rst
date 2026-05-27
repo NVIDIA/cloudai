@@ -87,14 +87,14 @@ The frontend node will initially wait to allow weight loading on all nodes. Once
 Choosing a Benchmark Tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The benchmark tool is controlled by the ``workloads`` field in the test TOML. The default is ``aiperf.sh``:
+The benchmark tool is controlled by the ``workloads`` field in the test TOML. Set ``aiperf.sh`` to use AIPerf:
 
 .. code-block:: toml
 
    [cmd_args]
-   workloads = "aiperf.sh"   # default — uses aiperf, writes aiperf_report.csv
+   workloads = "aiperf.sh"   # uses aiperf, writes aiperf_report.csv
 
-To use genai-perf instead, set:
+To use genai-perf, set:
 
 .. code-block:: toml
 
@@ -110,17 +110,40 @@ To use genai-perf instead, set:
      output-tokens-mean = 500
      request-count = 50
 
+Semantic Degradation With AIPerf Accuracy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it by adding AIPerf accuracy flags under
+``[cmd_args.aiperf.args]`` and running the ``aiperf.sh`` workload:
+
+.. code-block:: toml
+
+   [cmd_args]
+   workloads = "aiperf.sh"
+
+     [cmd_args.aiperf.args]
+     accuracy-benchmark = "mmlu"
+     accuracy-n-shots = 5
+     accuracy-tasks = "abstract_algebra"
+     extra-inputs = '{"temperature":0,"stop":["\n"]}'
+
+When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
+``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction.
+
 Review Benchmark Results
 ------------------------
 
 After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
 
-- ``aiperf.sh`` (default) → ``aiperf_report.csv``
+- ``aiperf.sh`` → ``aiperf_report.csv``
 - ``genai_perf.sh`` → ``genai_perf_report.csv``
+
+If AIPerf accuracy mode is enabled, CloudAI also copies ``aiperf_artifacts/accuracy_results.csv`` to
+``accuracy_results.csv`` in the run output directory.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 
-Example ``aiperf_report.csv`` (default):
+Example ``aiperf_report.csv``:
 
 ::
 

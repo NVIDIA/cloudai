@@ -21,6 +21,7 @@ from pathlib import Path
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition, parse_aiperf_accuracy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
@@ -44,6 +45,14 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def get_metric(self, metric: str) -> MetricValue:
         logging.info(f"Getting metric: {metric}")
+
+        if metric.lower() == "accuracy":
+            tdef = self.test_run.test
+            if not isinstance(tdef, AIDynamoTestDefinition) or not tdef.cmd_args.aiperf.has_accuracy_benchmark:
+                return METRIC_ERROR
+            accuracy = parse_aiperf_accuracy(self.test_run.output_path)
+            return accuracy if accuracy is not None else METRIC_ERROR
+
         metric_name = metric
         metric_type = "avg"
 
