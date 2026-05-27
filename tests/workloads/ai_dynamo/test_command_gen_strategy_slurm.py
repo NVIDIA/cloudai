@@ -153,36 +153,6 @@ def test_dynamo_cmd(
     assert result.strip() == expected
 
 
-def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.workloads = "aiperf.sh"
-    setup_cmd = "python -m pip install --break-system-packages --upgrade 'aiperf[accuracy]==0.8.0'"
-    extra_inputs = '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
-    td.cmd_args.aiperf = AIPerf.model_validate(
-        {
-            "setup-cmd": setup_cmd,
-            "args": {
-                "accuracy-benchmark": "mmlu",
-                "accuracy-n-shots": 5,
-                "accuracy-tasks": "abstract_algebra",
-                "concurrency": 10,
-                "extra-inputs": extra_inputs,
-                "num-requests": 100,
-            },
-        }
-    )
-
-    result = strategy._gen_script_args(td)
-
-    assert f'--aiperf-setup-cmd "{setup_cmd}"' in result
-    assert '--aiperf-args-accuracy-benchmark "mmlu"' in result
-    assert '--aiperf-args-accuracy-n-shots "5"' in result
-    assert '--aiperf-args-accuracy-tasks "abstract_algebra"' in result
-    assert '--aiperf-args-concurrency "10"' in result
-    assert f"--aiperf-args-extra-inputs '{extra_inputs}'" in result
-    assert '--aiperf-args-num-requests "100"' in result
-
-
 def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"

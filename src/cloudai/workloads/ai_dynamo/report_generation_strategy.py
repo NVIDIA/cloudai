@@ -50,7 +50,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             tdef = self.test_run.test
             if not isinstance(tdef, AIDynamoTestDefinition):
                 return METRIC_ERROR
-            if tdef.cmd_args.aiperf_accuracy is None and not tdef.cmd_args.aiperf.has_accuracy_benchmark:
+            if tdef.cmd_args.aiperf_accuracy is None:
                 return METRIC_ERROR
             accuracy = parse_aiperf_accuracy(self.test_run.output_path)
             return accuracy if accuracy is not None else METRIC_ERROR

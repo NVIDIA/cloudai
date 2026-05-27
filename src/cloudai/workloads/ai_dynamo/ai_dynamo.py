@@ -46,87 +46,6 @@ AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 
 
-def _parse_accuracy_value(value: str | int | float | None) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        accuracy = float(value)
-        return accuracy / 100 if accuracy > 1 else accuracy
-
-    raw_value = value.strip()
-    if not raw_value:
-        return None
-
-    is_percentage = raw_value.endswith("%")
-    if is_percentage:
-        raw_value = raw_value[:-1].strip()
-
-    try:
-        accuracy = float(raw_value)
-    except ValueError:
-        return None
-
-    return accuracy / 100 if is_percentage or accuracy > 1 else accuracy
-
-
-def _parse_count_value(value: str | int | float | None) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return float(value.strip())
-    except ValueError:
-        return None
-
-
-def parse_aiperf_accuracy(output_path: Path) -> float | None:
-    """
-    Parse AIPerf accuracy from accuracy_results.csv.
-
-    Expected CSV format:
-        Task,Correct,Total,Accuracy
-        abstract_algebra,35,100,35.00%
-        OVERALL,8368,14042,59.59%
-
-    AIPerf writes this file under aiperf_artifacts; CloudAI's wrapper also copies
-    it to the run output directory when present. The returned value is normalized
-    to a 0.0-1.0 fraction.
-    """
-    candidates = [
-        output_path / AIPERF_ACCURACY_RESULTS_CSV,
-        output_path / AIPERF_ACCURACY_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
-        output_path / AIPERF_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
-    ]
-
-    for csv_file in candidates:
-        if not csv_file.exists() or csv_file.stat().st_size == 0:
-            continue
-
-        fallback_accuracy: float | None = None
-        with csv_file.open(newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                accuracy = _parse_accuracy_value(row.get("Accuracy") or row.get("accuracy") or row.get("Value"))
-                if accuracy is None:
-                    correct = _parse_count_value(row.get("Correct") or row.get("correct"))
-                    total = _parse_count_value(row.get("Total") or row.get("total"))
-                    if correct is not None and total:
-                        accuracy = correct / total
-                if accuracy is None:
-                    continue
-
-                task = (row.get("Task") or row.get("task") or row.get("Metric") or "").strip().upper()
-                if task == "OVERALL":
-                    return accuracy
-                if fallback_accuracy is None:
-                    fallback_accuracy = accuracy
-
-        if fallback_accuracy is not None:
-            return fallback_accuracy
-
-    return None
-
-
 class Args(BaseModel):
     """Arguments for custom workloads."""
 
@@ -536,9 +455,6 @@ class AIDynamoTestDefinition(TestDefinition):
         logging.info(f"AIPerf accuracy results found in {output_path}: {accuracy}")
         return True
 
-    def _is_legacy_aiperf_accuracy_workload(self, workload: str) -> bool:
-        return workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark
-
     def _was_workload_report_produced(self, output_path: Path, workload: str, workload_config: Workload) -> bool:
         report_name = workload_config.report_name
         if report_name is None:
@@ -558,9 +474,6 @@ class AIDynamoTestDefinition(TestDefinition):
         if workload_config is None:
             logging.info(f"Workload {workload} not found in workload map")
             return False
-
-        if self._is_legacy_aiperf_accuracy_workload(workload):
-            return self._has_aiperf_accuracy_results(output_path)
 
         return self._was_workload_report_produced(output_path, workload, workload_config)
 
@@ -623,3 +536,84 @@ class AIDynamoTestDefinition(TestDefinition):
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
 
         return True
+
+
+def _parse_accuracy_value(value: str | int | float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        accuracy = float(value)
+        return accuracy / 100 if accuracy > 1 else accuracy
+
+    raw_value = value.strip()
+    if not raw_value:
+        return None
+
+    is_percentage = raw_value.endswith("%")
+    if is_percentage:
+        raw_value = raw_value[:-1].strip()
+
+    try:
+        accuracy = float(raw_value)
+    except ValueError:
+        return None
+
+    return accuracy / 100 if is_percentage or accuracy > 1 else accuracy
+
+
+def _parse_count_value(value: str | int | float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value.strip())
+    except ValueError:
+        return None
+
+
+def parse_aiperf_accuracy(output_path: Path) -> float | None:
+    """
+    Parse AIPerf accuracy from accuracy_results.csv.
+
+    Expected CSV format:
+        Task,Correct,Total,Accuracy
+        abstract_algebra,35,100,35.00%
+        OVERALL,8368,14042,59.59%
+
+    AIPerf writes this file under aiperf_artifacts; CloudAI's wrapper also copies
+    it to the run output directory when present. The returned value is normalized
+    to a 0.0-1.0 fraction.
+    """
+    candidates = [
+        output_path / AIPERF_ACCURACY_RESULTS_CSV,
+        output_path / AIPERF_ACCURACY_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
+        output_path / AIPERF_ARTIFACTS_DIR / AIPERF_ACCURACY_RESULTS_CSV,
+    ]
+
+    for csv_file in candidates:
+        if not csv_file.exists() or csv_file.stat().st_size == 0:
+            continue
+
+        fallback_accuracy: float | None = None
+        with csv_file.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                accuracy = _parse_accuracy_value(row.get("Accuracy") or row.get("accuracy") or row.get("Value"))
+                if accuracy is None:
+                    correct = _parse_count_value(row.get("Correct") or row.get("correct"))
+                    total = _parse_count_value(row.get("Total") or row.get("total"))
+                    if correct is not None and total:
+                        accuracy = correct / total
+                if accuracy is None:
+                    continue
+
+                task = (row.get("Task") or row.get("task") or row.get("Metric") or "").strip().upper()
+                if task == "OVERALL":
+                    return accuracy
+                if fallback_accuracy is None:
+                    fallback_accuracy = accuracy
+
+        if fallback_accuracy is not None:
+            return fallback_accuracy
+
+    return None

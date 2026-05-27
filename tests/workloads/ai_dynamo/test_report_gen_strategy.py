@@ -127,32 +127,6 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
 
 
 @pytest.fixture
-def ai_dynamo_aiperf_accuracy_tr(tmp_path: Path) -> TestRun:
-    test = AIDynamoTestDefinition(
-        name="ai_dynamo_aiperf_accuracy",
-        description="desc",
-        test_template_name="t",
-        cmd_args=AIDynamoCmdArgs(
-            docker_image_url="http://url",
-            workloads="aiperf.sh",
-            dynamo=AIDynamoArgs(
-                prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
-                    worker_initialized_regex="VllmWorker.*has.been.initialized",
-                    args=WorkerBaseArgs(),
-                ),
-            ),
-            aiperf=AIPerf.model_validate({"args": {"accuracy-benchmark": "mmlu"}}),
-            lmcache=LMCache(args=LMCacheArgs()),
-        ),
-    )
-    tr = TestRun(name="ai_dynamo_aiperf_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
-    (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())
-    (tr.output_path / test.success_marker).touch()
-    return tr
-
-
-@pytest.fixture
 def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
     test = AIDynamoTestDefinition(
         name="ai_dynamo_aiperf_with_split_accuracy",
@@ -252,12 +226,6 @@ def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf
     assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
 
 
-def test_ai_dynamo_get_metric_aiperf_accuracy(slurm_system: SlurmSystem, ai_dynamo_aiperf_accuracy_tr: TestRun) -> None:
-    strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_accuracy_tr)
-
-    assert strategy.get_metric("accuracy") == 0.35
-
-
 def test_ai_dynamo_get_metric_split_aiperf_accuracy(
     slurm_system: SlurmSystem, ai_dynamo_aiperf_with_split_accuracy_tr: TestRun
 ) -> None:
@@ -290,12 +258,6 @@ def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
     assert result.is_successful is True
 
 
-def test_was_run_successful_with_aiperf_accuracy(ai_dynamo_aiperf_accuracy_tr: TestRun) -> None:
-    test_def = ai_dynamo_aiperf_accuracy_tr.test
-    result = test_def.was_run_successful(ai_dynamo_aiperf_accuracy_tr)
-    assert result.is_successful is True
-
-
 def test_was_run_successful_with_split_aiperf_accuracy(
     ai_dynamo_aiperf_with_split_accuracy_tr: TestRun,
 ) -> None:
@@ -310,13 +272,6 @@ def test_was_run_successful_with_genai_perf_and_split_aiperf_accuracy(
     test_def = ai_dynamo_genai_perf_with_split_accuracy_tr.test
     result = test_def.was_run_successful(ai_dynamo_genai_perf_with_split_accuracy_tr)
     assert result.is_successful is True
-
-
-def test_was_run_successful_requires_aiperf_accuracy(ai_dynamo_aiperf_accuracy_tr: TestRun) -> None:
-    test_def = ai_dynamo_aiperf_accuracy_tr.test
-    (ai_dynamo_aiperf_accuracy_tr.output_path / "accuracy_results.csv").unlink()
-    result = test_def.was_run_successful(ai_dynamo_aiperf_accuracy_tr)
-    assert result.is_successful is False
 
 
 def test_was_run_successful_requires_split_aiperf_accuracy(

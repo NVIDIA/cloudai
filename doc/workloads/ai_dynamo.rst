@@ -160,8 +160,7 @@ After job completion, CloudAI places output logs and result files in the designa
 - ``cmd_args.aiperf_accuracy`` → ``accuracy_results.csv``
 
 If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/accuracy_results.csv`` to
-``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced. The older
-one-shot form that puts ``accuracy-benchmark`` under ``cmd_args.aiperf.args`` remains supported for compatibility.
+``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 
