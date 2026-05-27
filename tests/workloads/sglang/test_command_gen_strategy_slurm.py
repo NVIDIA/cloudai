@@ -150,28 +150,24 @@ def test_get_sglang_semantic_eval_command_defaults(sglang_cmd_gen_strategy: Sgla
     command = sglang_cmd_gen_strategy.get_semantic_eval_command()
 
     assert command == [
-        "python3",
-        "-m",
-        "sglang.test.run_eval",
-        "--host ${NODE}",
-        "--port 8000",
-        "--eval-name gsm8k --num-examples 200 --num-threads 128 --model Qwen/Qwen3-8B",
+        "python3 -m sglang.test.run_eval",
+        "--host ${NODE} --port 8000 --eval-name gsm8k --num-examples 200 --num-threads 128 --model Qwen/Qwen3-8B",
     ]
 
 
-def test_get_sglang_semantic_eval_command_supports_custom_module_and_args(
+def test_get_sglang_semantic_eval_command_supports_custom_entrypoint_and_cli(
     sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
 ):
     sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
     sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs(
-        module="sglang.test.few_shot_gsm8k",
-        args="--num-questions 200 --data-path {output_path}/gsm8k.jsonl --seen {host}:{port}",
+        entrypoint="python3 /custom/semantic_eval.py",
+        cli="--num-questions 200 --data-path {result_dir}/gsm8k.jsonl --seen {url}",
     )
 
     command = sglang_cmd_gen_strategy.get_semantic_eval_command()
 
     assert command is not None
-    assert command[2] == "sglang.test.few_shot_gsm8k"
+    assert command[0] == "python3 /custom/semantic_eval.py"
     assert command[-1] == (
         f"--num-questions 200 --data-path {sglang_cmd_gen_strategy.test_run.output_path.absolute()}/gsm8k.jsonl "
         "--seen ${NODE}:8000"

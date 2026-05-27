@@ -92,8 +92,10 @@ class SglangBenchCmdArgs(CmdArgs):
 class SglangSemanticEvalCmdArgs(CmdArgs):
     """SGLang semantic validation command arguments."""
 
-    module: str = "sglang.test.run_eval"
-    args: str = "--eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
+    model_config = ConfigDict(extra="forbid")
+
+    entrypoint: str = "python3 -m sglang.test.run_eval"
+    cli: str = "--host {host} --port {port} --eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
 
 
 class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):

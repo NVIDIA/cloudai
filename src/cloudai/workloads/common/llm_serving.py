@@ -624,7 +624,9 @@ trap cleanup EXIT"""
             "{model}": self.tdef.cmd_args.model,
             "{host}": host,
             "{port}": str(self.serve_port),
+            "{url}": f"{host}:{self.serve_port}",
             "{output_path}": str(self.test_run.output_path.absolute()),
+            "{result_dir}": str(self.test_run.output_path.absolute()),
         }
         for placeholder, value in replacements.items():
             args = args.replace(placeholder, value)
