@@ -138,6 +138,8 @@ token-length flags out of this mode; the benchmark dataset should come from AIPe
 
 The ``setup-cmd`` field is optional. It is useful for Dynamo images that include an older system ``aiperf`` build without
 the accuracy benchmark plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
+MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
+running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
 
 Review Benchmark Results
 ------------------------

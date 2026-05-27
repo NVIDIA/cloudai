@@ -424,6 +424,10 @@ function perform_exit()
 
 exit_on_error() {
   local fatal=$(_detect_fatal_once)
+  if [ -f "${FATAL_ERROR_MARKER}" ]; then
+    log "FATAL_ERROR_MARKER found. Terminating."
+    perform_exit 1
+  fi
   if [ -f "${DONE_MARKER}" ]; then
     log "DONE_MARKER found. Skipping error check."
     return
@@ -691,6 +695,13 @@ function wait_for_frontend_marker()
 function mark_done()
 {
   touch "$DONE_MARKER"
+}
+
+function mark_failed()
+{
+  local message="$1"
+  log "ERROR: ${message}"
+  printf '%s\n' "${message}" > "${FATAL_ERROR_MARKER}"
 }
 
 function launch_etcd()
@@ -1034,6 +1045,11 @@ function launch_workload()
     --decode-nodes "${decode_config["node-list"]}" \
     "${config_arr[@]}" \
     -- "${args_arr[@]}" > "${RESULTS_DIR}/$workload_name.log" 2>&1
+  local workload_status=$?
+  if [[ "${workload_status}" -ne 0 ]]; then
+    mark_failed "Workload ${workload_name} failed with exit code ${workload_status}. See ${RESULTS_DIR}/${workload_name}.log"
+    return "${workload_status}"
+  fi
 
   log "Done with $workload_name run"
 }
@@ -1043,11 +1059,11 @@ function launch_workloads()
   wait_for_dynamo_frontend
 
   if _is_genai_perf_workload; then
-    launch_workload genai_perf_config genai_perf_args
+    launch_workload genai_perf_config genai_perf_args || return $?
   fi
 
   if _is_aiperf_workload; then
-    launch_workload aiperf_config aiperf_args
+    launch_workload aiperf_config aiperf_args || return $?
   fi
 
   mark_done
