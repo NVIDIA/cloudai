@@ -310,32 +310,30 @@ class AIPerf(Workload):
     def installables(self) -> list[Installable]:
         return [self.script]
 
-    @property
-    def has_accuracy_benchmark(self) -> bool:
-        args_extra = getattr(self.args, "model_extra", {}) or {}
-        if args_extra.get("accuracy-benchmark") or args_extra.get("accuracy_benchmark"):
-            return True
 
-        extra_args = self.extra_args or ""
-        if isinstance(extra_args, list):
-            return "--accuracy-benchmark" in extra_args
-        return "--accuracy-benchmark" in extra_args
+class AIPerfAccuracy(BaseModel):
+    """Optional accuracy benchmark configuration."""
 
-
-class AIPerfAccuracy(AIPerf):
-    """Optional AIPerf accuracy benchmark configuration."""
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     name: str = "aiperf_accuracy"
-    report_name: str = Field(
-        default="aiperf_accuracy_report.csv",
-        serialization_alias="report-name",
-        validation_alias=AliasChoices("report-name", "report_name"),
+    entrypoint: str = "aiperf profile"
+    cli: str
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/accuracy.sh")
+    setup_cmd: str | None = Field(
+        default=None,
+        serialization_alias="setup-cmd",
+        validation_alias=AliasChoices("setup-cmd", "setup_cmd"),
     )
     artifact_dir_name: str = Field(
         default=AIPERF_ACCURACY_ARTIFACTS_DIR,
         serialization_alias="artifact-dir-name",
         validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
     )
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.script]
 
 
 class Constraints(BaseModel):
@@ -409,9 +407,6 @@ class AIDynamoTestDefinition(TestDefinition):
         for workload in self.cmd_args.workloads_list:
             if workload not in workload_map:
                 raise ValueError(f"Invalid workload: {workload}. Available workloads: {list(workload_map.keys())}")
-
-        if self.cmd_args.aiperf_accuracy is not None and not self.cmd_args.aiperf_accuracy.has_accuracy_benchmark:
-            raise ValueError("cmd_args.aiperf_accuracy must configure an AIPerf --accuracy-benchmark argument")
 
         return self
 

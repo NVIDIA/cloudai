@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import shlex
 from pathlib import Path
 from typing import List, cast
 
@@ -71,6 +72,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str_v = str(v)
             if str_v.startswith("{") and str_v.endswith("}"):
                 args.append(f"{prefix}{k} '{str_v}'")
+            elif any(char in str_v for char in ['"', "'", "\n"]):
+                args.append(f"{prefix}{k} {shlex.quote(str_v)}")
             else:
                 args.append(f'{prefix}{k} "{v}"')
 

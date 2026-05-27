@@ -130,25 +130,52 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
      concurrency = 2
 
    [cmd_args.aiperf_accuracy]
+   entrypoint = "aiperf profile"
    setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
-
-   [cmd_args.aiperf_accuracy.args]
-   accuracy-benchmark = "mmlu"
-   accuracy-n-shots = 5
-   accuracy-tasks = "abstract_algebra"
-   concurrency = 10
-   extra-inputs = '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
-   num-requests = 100
+   cli = '''
+   --model {model}
+   --url {url}
+   --endpoint-type chat
+   --streaming
+   --artifact-dir {artifact_dir}
+   --no-server-metrics
+   --accuracy-benchmark mmlu
+   --accuracy-n-shots 5
+   --accuracy-tasks abstract_algebra
+   --concurrency 10
+   --extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+   --num-requests 100
+   '''
 
 When ``cmd_args.aiperf_accuracy`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes
 the ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt
 and token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
 
-The ``setup-cmd`` field is optional. It is useful for Dynamo images that include an older system ``aiperf`` build without
-the accuracy benchmark plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
+The ``entrypoint`` and ``cli`` fields form the accuracy command. CloudAI expands ``{model}``, ``{url}``,
+``{endpoint}``, ``{result_dir}``, and ``{artifact_dir}`` in ``cli`` before launching it. The ``setup-cmd`` field is
+optional. It is useful for Dynamo images that include an older system ``aiperf`` build without the accuracy benchmark
+plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
 MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
 running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
 For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
+
+Custom Accuracy Scripts
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``cmd_args.aiperf_accuracy`` can also launch a custom mounted script instead of AIPerf. Mount the script or its parent
+directory with ``extra_container_mounts`` and set ``entrypoint`` to the in-container command:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/custom_accuracy:/custom_accuracy"]
+
+   [cmd_args.aiperf_accuracy]
+   entrypoint = "python /custom_accuracy/dummy_accuracy.py"
+   cli = "--model {model} --url {url} --endpoint {endpoint} --artifact-dir {artifact_dir} --prompt ping"
+
+CloudAI expands placeholders in ``cli`` and runs ``entrypoint`` with that CLI string. The custom command must write
+``accuracy_results.csv`` inside ``{artifact_dir}`` with an ``OVERALL`` row. CloudAI copies that file to the run output
+directory and exposes the same ``accuracy`` metric as AIPerf accuracy mode.
 
 Review Benchmark Results
 ------------------------

@@ -68,6 +68,10 @@ def get_aiperf_accuracy_csv_content() -> str:
     return "Task,Correct,Total,Accuracy\nabstract_algebra,35,100,35.00%\nOVERALL,35,100,35.00%\n"
 
 
+def get_aiperf_accuracy_cli() -> str:
+    return "--model {model} --url {url} --artifact-dir {artifact_dir} --accuracy-benchmark mmlu"
+
+
 @pytest.fixture
 def ai_dynamo_tr(tmp_path: Path) -> TestRun:
     test = AIDynamoTestDefinition(
@@ -143,7 +147,7 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
                 ),
             ),
             aiperf=AIPerf(),
-            aiperf_accuracy=AIPerfAccuracy.model_validate({"args": {"accuracy-benchmark": "mmlu"}}),
+            aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
             lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
@@ -171,7 +175,7 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
                 ),
             ),
             genai_perf=GenAIPerf(),
-            aiperf_accuracy=AIPerfAccuracy.model_validate({"args": {"accuracy-benchmark": "mmlu"}}),
+            aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
             lmcache=LMCache(args=LMCacheArgs()),
         ),
     )

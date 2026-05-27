@@ -49,7 +49,7 @@ artifact_dir_name="aiperf_artifacts"
 cmd="aiperf profile"
 setup_cmd=""
 declare -a extra_args=()
-declare -a aiperf_profile_args=()
+declare -a profile_args=()
 
 log() {
   echo "[$(date '+%F %T') $(hostname)]: $*"
@@ -58,25 +58,15 @@ log() {
 _parse_aiperf_args() {
   while [[ $# -ge 2 ]]; do
     case "$1" in
-      --*) aiperf_profile_args+=("$1" "$2"); shift 2 ;;
+      --*) profile_args+=("$1" "$2"); shift 2 ;;
       *)   shift ;;
     esac
   done
   # Capture a trailing lone boolean flag if present.
   # Use if/fi — not [[ ]] && — so set -e does not trigger on a false condition.
   if [[ $# -eq 1 && "$1" == --* ]]; then
-    aiperf_profile_args+=("$1")
+    profile_args+=("$1")
   fi
-}
-
-has_accuracy_benchmark() {
-  local arg
-  for arg in "${aiperf_profile_args[@]}" "${extra_args[@]}"; do
-    if [[ "$arg" == "--accuracy-benchmark" ]]; then
-      return 0
-    fi
-  done
-  return 1
 }
 
 process_args() {
@@ -107,7 +97,7 @@ process_args() {
     cmd:          $cmd
     setup_cmd:    ${setup_cmd:-}
     extra_args:   ${extra_args[*]:-}
-    profile_args: ${aiperf_profile_args[*]:-}"
+    profile_args: ${profile_args[*]:-}"
 }
 
 run_setup_cmd() {
@@ -123,18 +113,6 @@ run_setup_cmd() {
 process_results() {
   local artifact_dir="$result_dir/$artifact_dir_name"
   local csv_path=""
-  local accuracy_path="$artifact_dir/accuracy_results.csv"
-
-  if has_accuracy_benchmark; then
-    if [[ ! -s "$accuracy_path" ]]; then
-      log "ERROR: AIPerf accuracy benchmark was requested but $accuracy_path was not produced"
-      exit 1
-    fi
-
-    cp "$accuracy_path" "$result_dir/accuracy_results.csv"
-    log "aiperf accuracy report saved to $result_dir/accuracy_results.csv"
-    return 0
-  fi
 
   if [[ -f "$artifact_dir/profile_export_aiperf.csv" ]]; then
     csv_path="$artifact_dir/profile_export_aiperf.csv"
@@ -150,6 +128,35 @@ process_results() {
     exit 1
   fi
 
+}
+
+run_aiperf() {
+  local full_url="$1"
+  local artifact_dir="$2"
+  local -a run_cmd=()
+  read -ra run_cmd <<< "$cmd"
+  local -a launch_cmd=(
+    "${run_cmd[@]}"
+    --model "$model"
+    --url "$full_url"
+    --endpoint-type chat
+    --streaming
+    --artifact-dir "$artifact_dir"
+    --no-server-metrics
+  )
+
+  log "Launching aiperf: ${run_cmd[*]} --model $model --url $full_url"
+
+  if [[ "${#profile_args[@]}" -gt 0 ]]; then
+    launch_cmd+=("${profile_args[@]}")
+  fi
+  if [[ "${#extra_args[@]}" -gt 0 ]]; then
+    launch_cmd+=("${extra_args[@]}")
+  fi
+
+  "${launch_cmd[@]}"
+
+  log "aiperf run complete"
 }
 
 main() {
@@ -168,23 +175,7 @@ main() {
   local artifact_dir="$result_dir/$artifact_dir_name"
   rm -rf "$artifact_dir"
 
-  # Split cmd into an array (e.g. "aiperf profile" → ["aiperf", "profile"])
-  local -a run_cmd=()
-  read -ra run_cmd <<< "$cmd"
-
-  log "Launching aiperf: ${run_cmd[*]} --model $model --url $full_url"
-
-  "${run_cmd[@]}" \
-    --model         "$model" \
-    --url           "$full_url" \
-    --endpoint-type chat \
-    --streaming \
-    --artifact-dir  "$artifact_dir" \
-    --no-server-metrics \
-    "${aiperf_profile_args[@]}" \
-    "${extra_args[@]}"
-
-  log "aiperf run complete"
+  run_aiperf "$full_url" "$artifact_dir"
   process_results
 }
 
