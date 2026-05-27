@@ -65,6 +65,16 @@ _parse_aiperf_args() {
   fi
 }
 
+has_accuracy_benchmark() {
+  local arg
+  for arg in "${aiperf_profile_args[@]}" "${extra_args[@]}"; do
+    if [[ "$arg" == "--accuracy-benchmark" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 process_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -97,6 +107,17 @@ process_results() {
   local csv_path=""
   local accuracy_path="$artifact_dir/accuracy_results.csv"
 
+  if has_accuracy_benchmark; then
+    if [[ ! -s "$accuracy_path" ]]; then
+      log "ERROR: AIPerf accuracy benchmark was requested but $accuracy_path was not produced"
+      exit 1
+    fi
+
+    cp "$accuracy_path" "$result_dir/accuracy_results.csv"
+    log "aiperf accuracy report saved to $result_dir/accuracy_results.csv"
+    return 0
+  fi
+
   if [[ -f "$artifact_dir/profile_export_aiperf.csv" ]]; then
     csv_path="$artifact_dir/profile_export_aiperf.csv"
   else
@@ -111,10 +132,6 @@ process_results() {
     exit 1
   fi
 
-  if [[ -f "$accuracy_path" ]]; then
-    cp "$accuracy_path" "$result_dir/accuracy_results.csv"
-    log "aiperf accuracy report saved to $result_dir/accuracy_results.csv"
-  fi
 }
 
 main() {

@@ -125,21 +125,24 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
      accuracy-benchmark = "mmlu"
      accuracy-n-shots = 5
      accuracy-tasks = "abstract_algebra"
+     concurrency = 10
      extra-inputs = '{"temperature":0,"stop":["\n"]}'
+     num-requests = 100
 
 When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
-``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction.
+``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt and
+token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
 
 Review Benchmark Results
 ------------------------
 
 After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
 
-- ``aiperf.sh`` → ``aiperf_report.csv``
+- ``aiperf.sh`` → ``aiperf_report.csv`` for performance mode, ``accuracy_results.csv`` for accuracy mode
 - ``genai_perf.sh`` → ``genai_perf_report.csv``
 
-If AIPerf accuracy mode is enabled, CloudAI also copies ``aiperf_artifacts/accuracy_results.csv`` to
-``accuracy_results.csv`` in the run output directory.
+If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_artifacts/accuracy_results.csv`` to ``accuracy_results.csv``
+in the run output directory and marks the run failed if that file is not produced.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 

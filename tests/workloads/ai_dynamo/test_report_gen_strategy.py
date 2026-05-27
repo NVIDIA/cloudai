@@ -146,7 +146,6 @@ def ai_dynamo_aiperf_accuracy_tr(tmp_path: Path) -> TestRun:
         ),
     )
     tr = TestRun(name="ai_dynamo_aiperf_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
-    (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())
     (tr.output_path / test.success_marker).touch()
     return tr

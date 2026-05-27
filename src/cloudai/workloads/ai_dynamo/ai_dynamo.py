@@ -518,6 +518,16 @@ class AIDynamoTestDefinition(TestDefinition):
                 logging.info(f"Workload {workload} not found in workload map")
                 result = False
                 continue
+
+            if workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark:
+                accuracy = parse_aiperf_accuracy(output_path)
+                if accuracy is None:
+                    logging.info(f"AIPerf accuracy results not found in {output_path}.")
+                    result = False
+                else:
+                    logging.info(f"AIPerf accuracy results found in {output_path}: {accuracy}")
+                continue
+
             report_name = workload_map[workload].report_name
             if report_name is None:
                 logging.warning(f"Workload {workload} has no report_name configured")
@@ -529,12 +539,6 @@ class AIDynamoTestDefinition(TestDefinition):
                 result = False
             else:
                 logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
-
-            if workload == self.cmd_args.aiperf.script.src.name and self.cmd_args.aiperf.has_accuracy_benchmark:
-                accuracy = parse_aiperf_accuracy(output_path)
-                if accuracy is None:
-                    logging.info(f"AIPerf accuracy results not found in {output_path}.")
-                    result = False
 
         return JobStatusResult(result)
 

@@ -161,6 +161,8 @@ def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCo
                 "accuracy-benchmark": "mmlu",
                 "accuracy-n-shots": 5,
                 "accuracy-tasks": "abstract_algebra",
+                "concurrency": 10,
+                "num-requests": 100,
             }
         }
     )
@@ -170,6 +172,8 @@ def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCo
     assert '--aiperf-args-accuracy-benchmark "mmlu"' in result
     assert '--aiperf-args-accuracy-n-shots "5"' in result
     assert '--aiperf-args-accuracy-tasks "abstract_algebra"' in result
+    assert '--aiperf-args-concurrency "10"' in result
+    assert '--aiperf-args-num-requests "100"' in result
 
 
 def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
