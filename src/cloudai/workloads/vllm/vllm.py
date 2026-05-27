@@ -16,11 +16,7 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
-from functools import cache
-from pathlib import Path
 from typing import Optional, cast
 
 from pydantic import ConfigDict, Field, field_validator
@@ -35,14 +31,13 @@ from cloudai.workloads.common.llm_serving import (
     all_gpu_ids,
     calculate_decode_gpu_ids,
     calculate_prefill_gpu_ids,
+    parse_vllm_semantic_accuracy,
     validate_custom_bash_patterns,
 )
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
-VLLM_GSM8K_JSON_FILE = "vllm-gsm8k.json"
-VLLM_SEMANTIC_EVAL_LOG_FILE = "vllm-semantic-eval.log"
 
 
 class VllmArgs(LLMServingArgs):
@@ -201,30 +196,3 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         return JobStatusResult(
             is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."
         )
-
-
-@cache
-def parse_vllm_semantic_accuracy(output_path: Path) -> float | None:
-    """Parse vLLM semantic validation accuracy from JSON results or the eval log."""
-    json_path = output_path / VLLM_GSM8K_JSON_FILE
-    if json_path.is_file():
-        try:
-            data = json.loads(json_path.read_text(encoding="utf-8"))
-            accuracy = data.get("accuracy") if isinstance(data, dict) else None
-            if isinstance(accuracy, (int, float)):
-                return float(accuracy)
-        except Exception as e:
-            logging.debug(f"Error parsing vLLM semantic JSON output: {e}")
-
-    log_path = output_path / VLLM_SEMANTIC_EVAL_LOG_FILE
-    if not log_path.is_file():
-        return None
-
-    pattern = re.compile(r"\bAccuracy:\s*([0-9]*\.?[0-9]+)")
-    with log_path.open(encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            match = pattern.search(line)
-            if match:
-                return float(match.group(1))
-
-    return None

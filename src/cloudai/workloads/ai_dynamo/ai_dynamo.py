@@ -40,6 +40,7 @@ from cloudai.core import (
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.common.llm_serving import parse_sglang_semantic_accuracy, parse_vllm_semantic_accuracy
 
 
 class Args(BaseModel):
@@ -283,6 +284,31 @@ class GenAIPerf(Workload):
         return [self.script]
 
 
+class AIDynamoSemanticEvalCmdArgs(BaseModel):
+    """Semantic validation command arguments for AI Dynamo frontends."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    name: str = "semantic_eval"
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/semantic_eval.sh")
+    module: str = "/opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+    args: str = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+    log_file: str = Field(
+        default="semantic_eval.log",
+        serialization_alias="log-file",
+        validation_alias=AliasChoices("log-file", "log_file"),
+    )
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.script]
+
+
 class Constraints(BaseModel):
     """Constraints for validation of AI Dynamo configurations when using DSE."""
 
@@ -332,6 +358,7 @@ class AIDynamoTestDefinition(TestDefinition):
     model_config = ConfigDict(extra="forbid")
 
     cmd_args: AIDynamoCmdArgs
+    semantic_eval_cmd_args: AIDynamoSemanticEvalCmdArgs | None = None
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
     repo: GitRepo = GitRepo(
@@ -381,13 +408,13 @@ class AIDynamoTestDefinition(TestDefinition):
             self.script,
             self.hf_model,
             *self.cmd_args.installables,
+            *(self.semantic_eval_cmd_args.installables if self.semantic_eval_cmd_args else []),
         ]
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
         result = True
         errors: list[str] = []
-        workload_map = self.get_workload_map()
         failure_marker = output_path / self.failure_marker
         success_marker = output_path / self.success_marker
 
@@ -398,15 +425,29 @@ class AIDynamoTestDefinition(TestDefinition):
         if not success_marker.exists():
             return JobStatusResult(False, error_message=f"Success marker file not found: {success_marker.absolute()}")
 
+        errors.extend(self._get_workload_report_errors(output_path))
+        if self.semantic_eval_cmd_args is not None and self.parse_semantic_accuracy(output_path) is None:
+            msg = f"Semantic eval accuracy not found in {output_path.absolute()}."
+            logging.info(msg)
+            errors.append(msg)
+
+        if errors:
+            result = False
+
+        return JobStatusResult(result, error_message="\n".join(errors))
+
+    def _get_workload_report_errors(self, output_path: Path) -> list[str]:
+        errors: list[str] = []
+        workload_map = self.get_workload_map()
         for workload in self.cmd_args.workloads_list:
             if workload not in workload_map:
                 logging.info(f"Workload {workload} not found in workload map")
-                result = False
+                errors.append(f"Workload {workload} not found in workload map")
                 continue
             report_name = workload_map[workload].report_name
             if report_name is None:
                 logging.warning(f"Workload {workload} has no report_name configured")
-                result = False
+                errors.append(f"Workload {workload} has no report_name configured")
                 continue
             workload_csv_file = output_path / report_name
             if not workload_csv_file.exists():
@@ -417,11 +458,17 @@ class AIDynamoTestDefinition(TestDefinition):
                 logging.info(f"Result file ({workload_csv_file.absolute()}) exists for {workload}")
                 if error_count := self._get_report_error_count(workload_csv_file):
                     errors.append(f"Workload {workload} reported {error_count:g} request error(s)")
+        return errors
 
-        if errors:
-            result = False
+    def parse_semantic_accuracy(self, output_path: Path) -> float | None:
+        """Parse semantic accuracy using the configured module to choose SGLang or vLLM-compatible output."""
+        if self.semantic_eval_cmd_args is None:
+            return None
 
-        return JobStatusResult(result, error_message="\n".join(errors))
+        if "sglang" in self.semantic_eval_cmd_args.module.lower():
+            return parse_sglang_semantic_accuracy(output_path)
+
+        return parse_vllm_semantic_accuracy(output_path)
 
     def _get_report_error_count(self, report_path: Path) -> float:
         """Return request-level errors reported by AIPerf/GenAI-Perf CSV output."""

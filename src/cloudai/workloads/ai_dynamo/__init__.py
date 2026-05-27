@@ -17,6 +17,7 @@
 from .ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
+    AIDynamoSemanticEvalCmdArgs,
     AIDynamoTestDefinition,
     GenAIPerf,
     LMCache,
@@ -33,6 +34,7 @@ __all__ = [
     "AIDynamoCmdArgs",
     "AIDynamoKubernetesJsonGenStrategy",
     "AIDynamoReportGenerationStrategy",
+    "AIDynamoSemanticEvalCmdArgs",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
     "GenAIPerf",

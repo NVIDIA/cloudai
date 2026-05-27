@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import subprocess
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -24,6 +26,7 @@ from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
+    AIDynamoSemanticEvalCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
     GenAIPerf,
@@ -148,3 +151,66 @@ def test_dynamo_cmd(
 ) -> None:
     result = strategy.gen_dynamo_cmd(module, Path(config))
     assert result.strip() == expected
+
+
+def test_gen_script_args_contains_semantic_eval_args(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun):
+    tdef = cast(AIDynamoTestDefinition, test_run.test)
+    tdef.semantic_eval_cmd_args = AIDynamoSemanticEvalCmdArgs(
+        module="sglang.test.run_eval",
+        args="--host {host} --port {port} --model {model}",
+        log_file="semantic_eval.log",
+    )
+    tdef.semantic_eval_cmd_args.script.installed_path = Path("/tmp/install/semantic_eval.sh")
+
+    args = strategy._gen_script_args(tdef)
+
+    assert '--semantic_eval-script "/cloudai_install/semantic_eval.sh"' in args
+    assert '--semantic_eval-module "sglang.test.run_eval"' in args
+    assert '--semantic_eval-args "--host {host} --port {port} --model {model}"' in args
+    assert '--semantic_eval-log-file "semantic_eval.log"' in args
+
+
+def test_semantic_eval_script_writes_log_without_metric_report(tmp_path: Path) -> None:
+    module = tmp_path / "semantic_eval.py"
+    module.write_text("print('Accuracy: 0.42')\n", encoding="utf-8")
+    script = Path("src/cloudai/workloads/ai_dynamo/semantic_eval.sh")
+
+    result = subprocess.run(
+        [
+            str(script),
+            "--result-dir",
+            str(tmp_path),
+            "--module",
+            str(module),
+            "--args",
+            "--host {host} --port {port} --model {model}",
+            "--model",
+            "Qwen/Qwen3-0.6B",
+            "--url",
+            "http://localhost",
+            "--port",
+            "8000",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert (tmp_path / "semantic_eval.log").read_text(encoding="utf-8").strip() == "Accuracy: 0.42"
+    assert not (tmp_path / "semantic_eval_report.csv").exists()
+
+
+def test_semantic_eval_script_returns_command_failure(tmp_path: Path) -> None:
+    module = tmp_path / "semantic_eval.py"
+    module.write_text("raise SystemExit(7)\n", encoding="utf-8")
+    script = Path("src/cloudai/workloads/ai_dynamo/semantic_eval.sh")
+
+    result = subprocess.run(
+        [str(script), "--result-dir", str(tmp_path), "--module", str(module)],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 7

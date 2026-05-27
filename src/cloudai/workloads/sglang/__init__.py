@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.workloads.common.llm_serving import SGLANG_SEMANTIC_EVAL_LOG_FILE
+
 from .report_generation_strategy import SGLangBenchReportGenerationStrategy
 from .sglang import (
     SGLANG_BENCH_JSONL_FILE,
     SGLANG_BENCH_LOG_FILE,
-    SGLANG_SEMANTIC_EVAL_LOG_FILE,
     SglangArgs,
     SglangBenchCmdArgs,
     SGLangBenchReport,

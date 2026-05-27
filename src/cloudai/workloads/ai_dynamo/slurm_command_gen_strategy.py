@@ -117,6 +117,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
+        if td.semantic_eval_cmd_args is not None:
+            args.extend(self._get_toml_args(td.semantic_eval_cmd_args, "--semantic_eval-"))
 
         return args
 

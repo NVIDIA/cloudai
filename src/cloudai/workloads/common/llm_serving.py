@@ -16,9 +16,12 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 import shlex
 from abc import ABC, abstractmethod
+from functools import cache
 from pathlib import Path
 from typing import Any, ClassVar, Generic, TypeVar, cast
 
@@ -37,6 +40,54 @@ LLMServingArgsT = TypeVar("LLMServingArgsT", bound="LLMServingArgs")
 LLMServingCmdArgsT = TypeVar("LLMServingCmdArgsT", bound="LLMServingCmdArgs")
 
 CustomBash = str | dict[str, str]
+
+SGLANG_SEMANTIC_EVAL_LOG_FILE = "sglang-semantic-eval.log"
+VLLM_GSM8K_JSON_FILE = "vllm-gsm8k.json"
+VLLM_SEMANTIC_EVAL_LOG_FILE = "vllm-semantic-eval.log"
+
+
+@cache
+def parse_sglang_semantic_accuracy(output_path: Path) -> float | None:
+    """Parse SGLang semantic validation accuracy from run_eval or legacy GSM8K output."""
+    log_file = output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE
+    if not log_file.is_file():
+        return None
+
+    pattern = re.compile(r"\b(?:Score|Accuracy):\s*([0-9]*\.?[0-9]+)")
+    with log_file.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            match = pattern.search(line)
+            if match:
+                return float(match.group(1))
+
+    return None
+
+
+@cache
+def parse_vllm_semantic_accuracy(output_path: Path) -> float | None:
+    """Parse vLLM semantic validation accuracy from JSON results or the eval log."""
+    json_path = output_path / VLLM_GSM8K_JSON_FILE
+    if json_path.is_file():
+        try:
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+            accuracy = data.get("accuracy") if isinstance(data, dict) else None
+            if isinstance(accuracy, (int, float)):
+                return float(accuracy)
+        except Exception as e:
+            logging.debug(f"Error parsing vLLM semantic JSON output: {e}")
+
+    log_path = output_path / VLLM_SEMANTIC_EVAL_LOG_FILE
+    if not log_path.is_file():
+        return None
+
+    pattern = re.compile(r"\bAccuracy:\s*([0-9]*\.?[0-9]+)")
+    with log_path.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            match = pattern.search(line)
+            if match:
+                return float(match.group(1))
+
+    return None
 
 
 def validate_custom_bash_patterns(custom_bash: CustomBash | None) -> CustomBash | None:

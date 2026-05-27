@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from functools import cache
 from pathlib import Path
 
@@ -31,13 +30,13 @@ from cloudai.workloads.common.llm_serving import (
     LLMServingBenchReport,
     LLMServingCmdArgs,
     LLMServingTestDefinition,
+    parse_sglang_semantic_accuracy,
     validate_custom_bash_patterns,
 )
 
 SGLANG_SERVE_LOG_FILE = "sglang-serve.log"
 SGLANG_BENCH_LOG_FILE = "sglang-bench.log"
 SGLANG_BENCH_JSONL_FILE = "sglang-bench.jsonl"
-SGLANG_SEMANTIC_EVAL_LOG_FILE = "sglang-semantic-eval.log"
 
 
 class SglangArgs(LLMServingArgs):
@@ -112,7 +111,7 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
         res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
         if res and res.completed > 0:
             if self.semantic_eval_cmd_args is not None:
-                accuracy = parse_sglang_semantic_accuracy(tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
+                accuracy = parse_sglang_semantic_accuracy(tr.output_path)
                 if accuracy is None:
                     return JobStatusResult(
                         is_successful=False,
@@ -162,21 +161,5 @@ def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
             except Exception as e:
                 logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
                 continue
-
-    return None
-
-
-@cache
-def parse_sglang_semantic_accuracy(log_file: Path) -> float | None:
-    """Parse SGLang semantic validation accuracy from run_eval or legacy GSM8K output."""
-    if not log_file.is_file():
-        return None
-
-    pattern = re.compile(r"\b(?:Score|Accuracy):\s*([0-9]*\.?[0-9]+)")
-    with log_file.open(encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            match = pattern.search(line)
-            if match:
-                return float(match.group(1))
 
     return None

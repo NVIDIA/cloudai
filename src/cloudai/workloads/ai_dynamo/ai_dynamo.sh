@@ -35,6 +35,8 @@ declare -A lmcache_args
 declare -A lmcache_config
 declare -A genai_perf_args
 declare -A genai_perf_config
+declare -A semantic_eval_args
+declare -A semantic_eval_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -167,6 +169,8 @@ _parse_cli_pairs() {
         genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
       --genai_perf-*)
         genai_perf_config["--${key#--genai_perf-}"]="$2" ;;
+      --semantic_eval-*)
+        semantic_eval_config["--${key#--semantic_eval-}"]="$2" ;;
       --hf-home)
         HUGGINGFACE_HOME="$2" ;;
       --storage-cache-dir)
@@ -357,6 +361,7 @@ _dump_args() {
   log "LMCache args:\n$(arg_array_to_string lmcache_args)"
   log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
+  log "Semantic eval config params:\n$(arg_array_to_string semantic_eval_config)"
   log "--------------------------------"
 }
 
@@ -507,6 +512,10 @@ _is_prefill_node() {
 
 _is_genai_perf_workload() {
   [[ "${dynamo_args["workloads"]}" == *"genai_perf.sh"* ]]
+}
+
+_is_semantic_eval_enabled() {
+  [[ -n "${semantic_eval_config["--script"]:-}" ]]
 }
 
 _init_runtime_env() {
@@ -1012,6 +1021,7 @@ function launch_workload()
     --install-dir "$INSTALL_DIR" \
     --result-dir "$RESULTS_DIR" \
     --model "${dynamo_args["model"]}" \
+    --backend "${dynamo_args["backend"]}" \
     --url "http://${dynamo_args["frontend-node"]}" \
     --port "${dynamo_args["port"]}" \
     --endpoint "${dynamo_args["endpoint"]}" \
@@ -1032,6 +1042,10 @@ function launch_workloads()
 
   if _is_genai_perf_workload; then
     launch_workload genai_perf_config genai_perf_args
+  fi
+
+  if _is_semantic_eval_enabled; then
+    launch_workload semantic_eval_config semantic_eval_args
   fi
 
   mark_done

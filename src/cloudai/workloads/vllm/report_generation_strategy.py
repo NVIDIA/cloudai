@@ -19,9 +19,14 @@ import logging
 from functools import cache
 from pathlib import Path
 
-from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy, all_gpu_ids
+from cloudai.workloads.common.llm_serving import (
+    LLMServingBenchReport,
+    LLMServingReportGenerationStrategy,
+    all_gpu_ids,
+    parse_vllm_semantic_accuracy,
+)
 
-from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition, parse_vllm_semantic_accuracy
+from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition
 
 
 class VLLMBenchReport(LLMServingBenchReport):

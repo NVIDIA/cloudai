@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.workloads.common.llm_serving import VLLM_GSM8K_JSON_FILE, VLLM_SEMANTIC_EVAL_LOG_FILE
+
 from .report_generation_strategy import VLLMBenchReport, VLLMBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import VllmSlurmCommandGenStrategy
 from .vllm import (
     VLLM_BENCH_LOG_FILE,
-    VLLM_GSM8K_JSON_FILE,
-    VLLM_SEMANTIC_EVAL_LOG_FILE,
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,

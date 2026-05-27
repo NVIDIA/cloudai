@@ -22,6 +22,8 @@ from pathlib import Path
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
 
+from .ai_dynamo import AIDynamoTestDefinition
+
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from AI Dynamo run directories."""
@@ -33,11 +35,12 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             logging.info(f"Metric type: {metric_type} not in CSV file: {df.columns}")
             return METRIC_ERROR
 
-        if metric_name not in df["Metric"].values:
+        matching_metric = df["Metric"].astype(str).str.lower() == metric_name.lower()
+        if not matching_metric.any():
             logging.info(f"Metric name: {metric_name} not in CSV file: {df['Metric'].values}")
             return METRIC_ERROR
 
-        series = df.loc[df["Metric"] == metric_name, metric_type]
+        series = df.loc[matching_metric, metric_type]
         if series.empty:
             return METRIC_ERROR
         return float(series.iloc[0])
@@ -48,12 +51,21 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         metric_name = metric
         metric_type = "avg"
 
+        if metric.lower() == "accuracy":
+            tdef = self.test_run.test
+            if not isinstance(tdef, AIDynamoTestDefinition) or tdef.semantic_eval_cmd_args is None:
+                return METRIC_ERROR
+            accuracy = tdef.parse_semantic_accuracy(self.test_run.output_path)
+            return accuracy if accuracy is not None else METRIC_ERROR
+
         if ":" in metric:
             parts = metric.split(":", maxsplit=2)
             if len(parts) != 3:
                 logging.warning(f"Invalid metric format: {metric}. Expected 'benchmark:metric_name:metric_type'")
                 return METRIC_ERROR
             benchmark_name, metric_name, metric_type = parts
+            if benchmark_name == "semantic_eval":
+                return METRIC_ERROR
 
         source_csv = self.test_run.output_path / f"{benchmark_name}_report.csv"
         logging.info(f"CSV file: {source_csv}")
