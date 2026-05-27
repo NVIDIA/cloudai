@@ -170,3 +170,15 @@ def test_gen_script_args_contains_aiperf_accuracy_args(strategy: AIDynamoSlurmCo
     assert '--aiperf-args-accuracy-benchmark "mmlu"' in result
     assert '--aiperf-args-accuracy-n-shots "5"' in result
     assert '--aiperf-args-accuracy-tasks "abstract_algebra"' in result
+
+
+def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+    td.cmd_args.dynamo.prefill_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
+    td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--prefill-args-kv-transfer-config '{config}'" in result
+    assert f"--decode-args-kv-transfer-config '{config}'" in result
