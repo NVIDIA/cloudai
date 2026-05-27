@@ -129,7 +129,7 @@ AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it
    accuracy-n-shots = 5
    accuracy-tasks = "abstract_algebra"
    concurrency = 10
-   extra-inputs = '{"temperature":0}'
+   extra-inputs = '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
    num-requests = 100
 
 When ``accuracy-benchmark`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes the
@@ -140,6 +140,7 @@ The ``setup-cmd`` field is optional. It is useful for Dynamo images that include
 the accuracy benchmark plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
 MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
 running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
+For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
 
 Review Benchmark Results
 ------------------------
