@@ -16,25 +16,25 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from itertools import cycle
+import abc
+import itertools
 from typing import TYPE_CHECKING, Any, cast
 
-from rich.table import Table
+import rich.table
 
-from cloudai.core import TestRun
-from cloudai.report_generator.comparison_report import ComparisonReport
-from cloudai.report_generator.groups import GroupedTestRuns
-from cloudai.util.lazy_imports import lazy
+import cloudai.core
+import cloudai.report_generator.comparison_report
+import cloudai.report_generator.groups
+import cloudai.util.lazy_imports
 
 if TYPE_CHECKING:
     import bokeh.plotting as bk
     import pandas as pd
 
-    from cloudai.workloads.common.llm_serving import LLMServingBenchReport
+    import cloudai.workloads.common.llm_serving
 
 
-class LLMServingComparisonReport(ComparisonReport, ABC):
+class LLMServingComparisonReport(cloudai.report_generator.comparison_report.ComparisonReport, abc.ABC):
     """Shared comparison report for LLM serving benchmarks."""
 
     LATENCY_METRICS = (
@@ -55,12 +55,14 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
         ("TPS/GPU", "tps_per_gpu"),
     )
 
-    @abstractmethod
-    def can_handle(self, tr: TestRun) -> bool:
+    @abc.abstractmethod
+    def can_handle(self, tr: cloudai.core.TestRun) -> bool:
         """Return whether the report should include the given test run."""
 
-    @abstractmethod
-    def parse_results(self, tr: TestRun) -> tuple[LLMServingBenchReport, int] | None:
+    @abc.abstractmethod
+    def parse_results(
+        self, tr: cloudai.core.TestRun
+    ) -> tuple[cloudai.workloads.common.llm_serving.LLMServingBenchReport, int] | None:
         """Parse a workload-specific benchmark result and return it with used GPU count."""
 
     def load_test_runs(self) -> None:
@@ -73,13 +75,13 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
             return "n/a"
         return round(float(value), 4)
 
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
-        empty_df = lazy.pd.DataFrame(
+    def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
+        empty_df = cloudai.util.lazy_imports.lazy.pd.DataFrame(
             {
-                "metric_group": lazy.pd.Series([], dtype=str),
-                "metric_order": lazy.pd.Series([], dtype=int),
-                "metric": lazy.pd.Series([], dtype=str),
-                "value": lazy.pd.Series([], dtype=object),
+                "metric_group": cloudai.util.lazy_imports.lazy.pd.Series([], dtype=str),
+                "metric_order": cloudai.util.lazy_imports.lazy.pd.Series([], dtype=int),
+                "metric": cloudai.util.lazy_imports.lazy.pd.Series([], dtype=str),
+                "value": cloudai.util.lazy_imports.lazy.pd.Series([], dtype=object),
             }
         )
         parsed = self.parse_results(tr)
@@ -130,7 +132,7 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
             )
             order += 1
 
-        return lazy.pd.DataFrame(rows)
+        return cloudai.util.lazy_imports.lazy.pd.DataFrame(rows)
 
     @staticmethod
     def _group_df(df: pd.DataFrame, metric_group: str) -> pd.DataFrame:
@@ -141,8 +143,10 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
             .reset_index(drop=True)
         )
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        tables: list[Table] = []
+    def create_tables(
+        self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
+    ) -> list[rich.table.Table]:
+        tables: list[rich.table.Table] = []
         for group in cmp_groups:
             extracted_dfs = [self.extract_data_as_df(item.tr) for item in group.items]
             tables.extend(
@@ -174,7 +178,7 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
 
     def _create_metric_bar_chart(
         self,
-        group: GroupedTestRuns,
+        group: cloudai.report_generator.groups.GroupedTestRuns,
         dfs: list[pd.DataFrame],
         title: str,
         y_axis_label: str,
@@ -182,7 +186,7 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
         factors: list[tuple[str, str]] = []
         values: list[float] = []
         colors: list[str] = []
-        color_cycler = cycle(["#1f77b4", "#17becf", "#2ca02c", "#bcbd22", "#ff7f0e"])
+        color_cycler = itertools.cycle(["#1f77b4", "#17becf", "#2ca02c", "#bcbd22", "#ff7f0e"])
         color_by_run = {item.name: next(color_cycler) for item in group.items}
 
         for df, run_name in zip(dfs, [item.name for item in group.items], strict=True):
@@ -194,9 +198,9 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
                 values.append(float(value))
                 colors.append(color_by_run[run_name])
 
-        x_range = lazy.bokeh_models.FactorRange(*factors)
+        x_range = cloudai.util.lazy_imports.lazy.bokeh_models.FactorRange(*factors)
         cast(Any, x_range).range_padding = 0.1
-        p = lazy.bokeh_plotting.figure(
+        p = cloudai.util.lazy_imports.lazy.bokeh_plotting.figure(
             title=f"{title}: {group.name}",
             x_range=x_range,
             y_axis_label=y_axis_label,
@@ -204,7 +208,7 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
             height=500,
             tools="save,reset",
         )
-        hover = lazy.bokeh_models.HoverTool(
+        hover = cloudai.util.lazy_imports.lazy.bokeh_models.HoverTool(
             tooltips=[("Metric", "@metric"), ("Run", "@run"), ("Value", "@value{0.0000}")]
         )
         p.add_tools(hover)
@@ -212,7 +216,7 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
         if not values:
             return p
 
-        source = lazy.bokeh_models.ColumnDataSource(
+        source = cloudai.util.lazy_imports.lazy.bokeh_models.ColumnDataSource(
             data={
                 "x": factors,
                 "metric": [metric for metric, _ in factors],
@@ -223,10 +227,10 @@ class LLMServingComparisonReport(ComparisonReport, ABC):
         )
         p.vbar(x="x", top="value", width=0.8, fill_color="color", line_color="color", source=source)
         p.xaxis.major_label_orientation = 0.8
-        p.y_range = lazy.bokeh_models.Range1d(start=0, end=max(values) * 1.1)
+        p.y_range = cloudai.util.lazy_imports.lazy.bokeh_models.Range1d(start=0, end=max(values) * 1.1)
         return p
 
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
+    def create_charts(self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]) -> list[bk.figure]:
         charts: list[bk.figure] = []
         for group in cmp_groups:
             extracted_dfs = [self.extract_data_as_df(item.tr) for item in group.items]

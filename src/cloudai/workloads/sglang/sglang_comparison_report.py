@@ -16,30 +16,35 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import pathlib
 
-from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReportConfig
-from cloudai.workloads.common.llm_serving_comparison_report import LLMServingComparisonReport
+import cloudai.core
+import cloudai.report_generator.comparison_report
+import cloudai.workloads.common.llm_serving_comparison_report
+import cloudai.workloads.sglang.report_generation_strategy
+import cloudai.workloads.sglang.sglang
 
-from .report_generation_strategy import SGLangBenchReportGenerationStrategy
-from .sglang import SglangTestDefinition
 
-
-class SGLangComparisonReport(LLMServingComparisonReport):
+class SGLangComparisonReport(cloudai.workloads.common.llm_serving_comparison_report.LLMServingComparisonReport):
     """Comparison report for SGLang benchmark results."""
 
     def __init__(
-        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
+        self,
+        system: cloudai.core.System,
+        test_scenario: cloudai.core.TestScenario,
+        results_root: pathlib.Path,
+        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.report_file_name = "sglang_comparison.html"
 
-    def can_handle(self, tr: TestRun) -> bool:
-        return isinstance(tr.test, SglangTestDefinition)
+    def can_handle(self, tr: cloudai.core.TestRun) -> bool:
+        return isinstance(tr.test, cloudai.workloads.sglang.sglang.SglangTestDefinition)
 
-    def parse_results(self, tr: TestRun):
-        strategy = SGLangBenchReportGenerationStrategy(self.system, tr)
+    def parse_results(self, tr: cloudai.core.TestRun):
+        strategy = cloudai.workloads.sglang.report_generation_strategy.SGLangBenchReportGenerationStrategy(
+            self.system, tr
+        )
         results = strategy.parse_results()
         if results is None:
             return None

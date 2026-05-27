@@ -15,61 +15,53 @@
 # limitations under the License.
 
 import json
-from pathlib import Path
+import pathlib
 
-from cloudai.core import TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
-from cloudai.report_generator.groups import TestRunsGrouper
-from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.sglang import (
-    SGLANG_BENCH_JSONL_FILE,
-    SglangBenchCmdArgs,
-    SglangCmdArgs,
-    SGLangComparisonReport,
-    SglangTestDefinition,
-)
-from cloudai.workloads.vllm import (
-    VLLM_BENCH_JSON_FILE,
-    VllmBenchCmdArgs,
-    VllmCmdArgs,
-    VLLMComparisonReport,
-    VllmTestDefinition,
-)
+import cloudai.core
+import cloudai.report_generator.comparison_report
+import cloudai.report_generator.groups
+import cloudai.systems.slurm
+import cloudai.workloads.sglang
+import cloudai.workloads.vllm
 
 
-def _write_result(run_dir: Path, file_name: str, content: str) -> None:
+def _write_result(run_dir: pathlib.Path, file_name: str, content: str) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / file_name).write_text(content, encoding="utf-8")
 
 
-def test_vllm_comparison_report_generates_html(slurm_system: SlurmSystem) -> None:
-    tr1 = TestRun(
+def test_vllm_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
+    tr1 = cloudai.core.TestRun(
         name="vllm-8",
-        test=VllmTestDefinition(
+        test=cloudai.workloads.vllm.VllmTestDefinition(
             name="vllm",
             description="vLLM benchmark",
             test_template_name="vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
-            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=8),
+            cmd_args=cloudai.workloads.vllm.VllmCmdArgs(
+                docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"
+            ),
+            bench_cmd_args=cloudai.workloads.vllm.VllmBenchCmdArgs(max_concurrency=8),
         ),
         num_nodes=1,
         nodes=[],
     )
-    tr2 = TestRun(
+    tr2 = cloudai.core.TestRun(
         name="vllm-16",
-        test=VllmTestDefinition(
+        test=cloudai.workloads.vllm.VllmTestDefinition(
             name="vllm",
             description="vLLM benchmark",
             test_template_name="vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
-            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=16),
+            cmd_args=cloudai.workloads.vllm.VllmCmdArgs(
+                docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"
+            ),
+            bench_cmd_args=cloudai.workloads.vllm.VllmBenchCmdArgs(max_concurrency=16),
         ),
         num_nodes=1,
         nodes=[],
     )
     _write_result(
         slurm_system.output_path / tr1.name / "0",
-        VLLM_BENCH_JSON_FILE,
+        cloudai.workloads.vllm.VLLM_BENCH_JSON_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -87,7 +79,7 @@ def test_vllm_comparison_report_generates_html(slurm_system: SlurmSystem) -> Non
     )
     _write_result(
         slurm_system.output_path / tr2.name / "0",
-        VLLM_BENCH_JSON_FILE,
+        cloudai.workloads.vllm.VLLM_BENCH_JSON_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -104,16 +96,16 @@ def test_vllm_comparison_report_generates_html(slurm_system: SlurmSystem) -> Non
         ),
     )
 
-    report = VLLMComparisonReport(
+    report = cloudai.workloads.vllm.VLLMComparisonReport(
         slurm_system,
-        TestScenario(name="vllm-comparison", test_runs=[tr1, tr2]),
+        cloudai.core.TestScenario(name="vllm-comparison", test_runs=[tr1, tr2]),
         slurm_system.output_path,
-        ComparisonReportConfig(enable=True, group_by=[]),
+        cloudai.report_generator.comparison_report.ComparisonReportConfig(enable=True, group_by=[]),
     )
 
     report.load_test_runs()
     assert len(report.trs) == 2
-    tables = report.create_tables(TestRunsGrouper(report.trs, []).groups())
+    tables = report.create_tables(cloudai.report_generator.groups.TestRunsGrouper(report.trs, []).groups())
     latency_table = tables[0]
     success_table = tables[1]
     throughput_table = tables[2]
@@ -123,8 +115,8 @@ def test_vllm_comparison_report_generates_html(slurm_system: SlurmSystem) -> Non
     assert list(latency_table.columns[0].cells)[:3] == ["Mean TTFT (ms)", "Median TTFT (ms)", "P99 TTFT (ms)"]
     assert list(success_table.columns[0].cells) == ["Successful Prompts", "Successful Prompts (%)"]
     assert list(success_table.columns[3].cells) == [
-        ComparisonReport._format_diff_cell(27.0, 30.0),
-        ComparisonReport._format_diff_cell(90.0, 100.0),
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(27.0, 30.0),
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(90.0, 100.0),
     ]
     throughput_row = list(throughput_table.columns[0].cells).index("TPS/GPU")
     assert list(throughput_table.columns[1].cells)[throughput_row] == "150.0"
@@ -134,34 +126,38 @@ def test_vllm_comparison_report_generates_html(slurm_system: SlurmSystem) -> Non
     assert (slurm_system.output_path / "vllm_comparison.html").exists()
 
 
-def test_sglang_comparison_report_generates_html(slurm_system: SlurmSystem) -> None:
-    tr1 = TestRun(
+def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
+    tr1 = cloudai.core.TestRun(
         name="sglang-8",
-        test=SglangTestDefinition(
+        test=cloudai.workloads.sglang.SglangTestDefinition(
             name="sglang",
             description="SGLang benchmark",
             test_template_name="sglang",
-            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
-            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
+            cmd_args=cloudai.workloads.sglang.SglangCmdArgs(
+                docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"
+            ),
+            bench_cmd_args=cloudai.workloads.sglang.SglangBenchCmdArgs(max_concurrency=8),
         ),
         num_nodes=1,
         nodes=[],
     )
-    tr2 = TestRun(
+    tr2 = cloudai.core.TestRun(
         name="sglang-16",
-        test=SglangTestDefinition(
+        test=cloudai.workloads.sglang.SglangTestDefinition(
             name="sglang",
             description="SGLang benchmark",
             test_template_name="sglang",
-            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
-            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=16),
+            cmd_args=cloudai.workloads.sglang.SglangCmdArgs(
+                docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"
+            ),
+            bench_cmd_args=cloudai.workloads.sglang.SglangBenchCmdArgs(max_concurrency=16),
         ),
         num_nodes=1,
         nodes=[],
     )
     _write_result(
         slurm_system.output_path / tr1.name / "0",
-        SGLANG_BENCH_JSONL_FILE,
+        cloudai.workloads.sglang.SGLANG_BENCH_JSONL_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -180,7 +176,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: SlurmSystem) -> N
     )
     _write_result(
         slurm_system.output_path / tr2.name / "0",
-        SGLANG_BENCH_JSONL_FILE,
+        cloudai.workloads.sglang.SGLANG_BENCH_JSONL_FILE,
         json.dumps(
             {
                 "num_prompts": 30,
@@ -198,24 +194,24 @@ def test_sglang_comparison_report_generates_html(slurm_system: SlurmSystem) -> N
         + "\n",
     )
 
-    report = SGLangComparisonReport(
+    report = cloudai.workloads.sglang.SGLangComparisonReport(
         slurm_system,
-        TestScenario(name="sglang-comparison", test_runs=[tr1, tr2]),
+        cloudai.core.TestScenario(name="sglang-comparison", test_runs=[tr1, tr2]),
         slurm_system.output_path,
-        ComparisonReportConfig(enable=True, group_by=[]),
+        cloudai.report_generator.comparison_report.ComparisonReportConfig(enable=True, group_by=[]),
     )
 
     report.load_test_runs()
     assert len(report.trs) == 2
-    tables = report.create_tables(TestRunsGrouper(report.trs, []).groups())
+    tables = report.create_tables(cloudai.report_generator.groups.TestRunsGrouper(report.trs, []).groups())
     success_table = tables[1]
     throughput_table = tables[2]
 
     assert "bench_cmd_args.max_concurrency=16" in str(success_table.columns[2].header)
     assert list(success_table.columns[0].cells) == ["Successful Prompts", "Successful Prompts (%)"]
     assert list(success_table.columns[3].cells) == [
-        ComparisonReport._format_diff_cell(24.0, 30.0),
-        ComparisonReport._format_diff_cell(80.0, 100.0),
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(24.0, 30.0),
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(80.0, 100.0),
     ]
     throughput_row = list(throughput_table.columns[0].cells).index("TPS/User")
     assert list(throughput_table.columns[2].cells)[throughput_row] == "112.5"
