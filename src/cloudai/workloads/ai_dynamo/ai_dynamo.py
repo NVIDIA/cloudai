@@ -45,6 +45,20 @@ AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
+ALLOWED_CONNECTORS = ["kvbm", "lmcache", "nixl", "none"]
+
+
+def validate_connector_value(v: str | list[str] | None) -> str | list[str] | None:
+    if v is None:
+        return v
+
+    values = v if isinstance(v, list) else v.replace("[", "").replace("]", "").replace(",", " ").split()
+    values = [str(c).strip().strip("'\"") for c in values]
+
+    for connector in values:
+        if connector not in ALLOWED_CONNECTORS:
+            raise ValueError(f"Invalid connector: {connector}. Available connectors: {ALLOWED_CONNECTORS}")
+    return v
 
 
 class Args(BaseModel):
@@ -129,6 +143,12 @@ class WorkerConfig(BaseModel):
         default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
     )
     nodes: str | None = Field(default=None)
+    connector: Optional[str | list[str]] = None
+
+    @field_validator("connector", mode="before")
+    @classmethod
+    def validate_connector(cls, v: str | list[str] | None) -> str | list[str] | None:
+        return validate_connector_value(v)
 
     args: WorkerBaseArgs = Field(default_factory=WorkerBaseArgs)
 
@@ -152,18 +172,7 @@ class AIDynamoArgs(BaseModel):
     @field_validator("connector", mode="before")
     @classmethod
     def validate_connector(cls, v: str | list[str] | None) -> str | list[str] | None:
-        if v is None:
-            return v
-        allowed_connectors = ["kvbm", "lmcache", "nixl", "none"]
-
-        # Connectors can be either a single string or a space-separated list.
-        values = v if isinstance(v, str) else " ".join(v)
-        values = [c.strip() for c in values.split(" ")]
-
-        for connector in values:
-            if connector not in allowed_connectors:
-                raise ValueError(f"Invalid connector: {connector}. Available connectors: {allowed_connectors}")
-        return v
+        return validate_connector_value(v)
 
     workspace_path: str = Field(
         default="/workspace",

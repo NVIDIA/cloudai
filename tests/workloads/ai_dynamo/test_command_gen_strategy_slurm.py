@@ -230,6 +230,19 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
     assert f"--decode-args-kv-transfer-config '{config}'" in result
 
 
+def test_gen_script_args_contains_prefill_connector_list(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.prefill_worker.connector = ["lmcache", "nixl"]
+
+    result = strategy._gen_script_args(td)
+    command = " ".join(result)
+
+    assert "--prefill-connector" in command
+    assert "lmcache" in command
+    assert "nixl" in command
+    assert "--decode-connector" not in command
+
+
 def test_gen_script_args_writes_inline_lmcache_config(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.lmcache_config = "chunk_size: 256\nlocal_cpu: true\n"

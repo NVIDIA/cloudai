@@ -259,11 +259,15 @@ _set_nodelists()
 }
 
 _has_connector() {
-  # Check if a specific connector is in the comma-separated connector list.
+  # Check if a specific connector is in a comma/space/Python-list connector value.
   local needle="$1"
-  local prefill_connectors="${prefill_args["--connector"]:-}"
-  local decode_connectors="${decode_args["--connector"]:-}"
-  [[ ",$prefill_connectors," == *",$needle,"* ]] || [[ ",$decode_connectors," == *",$needle,"* ]]
+  local connectors="${prefill_args["--connector"]:-} ${decode_args["--connector"]:-}"
+  connectors="${connectors//[/ }"
+  connectors="${connectors//]/ }"
+  connectors="${connectors//,/ }"
+  connectors="${connectors//\'/ }"
+  connectors="${connectors//\"/ }"
+  [[ " ${connectors} " == *" ${needle} "* ]]
 }
 
 _has_lmcache_config() {
@@ -402,6 +406,16 @@ function array_to_args()
   for key in "${!arr[@]}"; do
     shopt -s nocasematch
     val="${arr[$key]}"
+    # Handle Python-style list values: ['a', 'b'] -> --key a b
+    if [[ "$val" =~ ^\[.*\]$ ]]; then
+      local list_val="${val#[}"
+      list_val="${list_val%]}"
+      list_val="${list_val//,/ }"
+      list_val="${list_val//\'/}"
+      list_val="${list_val//\"/}"
+      result+="${key} ${list_val} "
+      continue
+    fi
     # Quote values that contain spaces
     if [[ "$val" == *" "* ]]; then
       val="${val//\"/\\\"}"  # Escape existing quotes

@@ -43,6 +43,7 @@ extra_config:
     num-nodes = 1
     cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
+    connector = "['lmcache', 'nixl']"
     extra-args = "--no-enable-expert-parallel"
 
       [cmd_args.dynamo.prefill_worker.args]
@@ -50,7 +51,6 @@ extra_config:
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
-      kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
 
     [cmd_args.dynamo.decode_worker]
     num-nodes = 1
@@ -63,7 +63,6 @@ extra_config:
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
-      kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
 
   [cmd_args.genai_perf]
   cmd = "genai-perf profile"
