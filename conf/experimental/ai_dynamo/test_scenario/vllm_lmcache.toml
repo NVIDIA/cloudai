@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "dynamo-vllm-lmcache"
+job_status_check = false
+
+[[Tests]]
+id = "test.disagg.single-node.lmcache-config"
+name = "vLLM LMCache config propagation"
+description = "Self-contained AIDynamo scenario showing inline LMCache YAML propagation to vLLM workers."
+test_template_name = "AIDynamo"
+time_limit = "00:10:00"
+extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  workloads = "aiperf.sh"
+  lmcache_config = '''
+chunk_size: 256
+local_cpu: true
+max_local_cpu_size: 6.0
+nixl_buffer_size: 2079377920
+nixl_buffer_device: "cpu"
+extra_config:
+  enable_nixl_storage: false
+  nixl_backend: "POSIX"
+  nixl_path: "/tmp/"
+  nixl_pool_size: 2048
+'''
+
+    [Tests.cmd_args.dynamo]
+    backend = "vllm"
+    model = "Qwen/Qwen3-0.6B"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 1
+      cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+      worker-initialized-regex = 'VllmWorker.*has.been.initialized'
+      extra-args = "--no-enable-expert-parallel"
+
+        [Tests.cmd_args.dynamo.prefill_worker.args]
+        gpu-memory-utilization = 0.8
+        tensor-parallel-size = 4
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+
+      [Tests.cmd_args.dynamo.decode_worker]
+      num-nodes = 1
+      cmd = 'python3 -m dynamo.vllm'
+      worker-initialized-regex = 'VllmWorker.*has.been.initialized'
+      extra-args = "--no-enable-expert-parallel"
+
+        [Tests.cmd_args.dynamo.decode_worker.args]
+        gpu-memory-utilization = 0.8
+        tensor-parallel-size = 4
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+
+    [Tests.cmd_args.aiperf]
+      [Tests.cmd_args.aiperf.args]
+      concurrency = 2
+      extra-inputs = '{"min_tokens":10}'
+      output-tokens-mean = 500
+      request-count = 50
+      synthetic-input-tokens-mean = 300
+
+  [Tests.extra_env_vars]
+  UCX_LOG_LEVEL = "warn"
+  HF_HUB_OFFLINE = "0"
+  TRANSFORMERS_OFFLINE = "0"
+  HF_DATASETS_OFFLINE = "0"
+  DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
+  UCX_TLS = "all"

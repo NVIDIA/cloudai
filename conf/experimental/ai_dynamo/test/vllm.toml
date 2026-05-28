@@ -17,23 +17,11 @@
 name = "vLLM"
 description = "vLLM backend"
 test_template_name = "AIDynamo"
-extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
+extra_container_mounts = ["/run/udev:/run/udev"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
 workloads = "aiperf.sh"
-lmcache_config = '''
-chunk_size: 256
-local_cpu: true
-max_local_cpu_size: 6.0
-nixl_buffer_size: 2079377920
-nixl_buffer_device: "cpu"
-extra_config:
-  enable_nixl_storage: false
-  nixl_backend: "POSIX"
-  nixl_path: "/tmp/"
-  nixl_pool_size: 2048
-'''
 
   [cmd_args.dynamo]
   backend = "vllm"
@@ -43,7 +31,6 @@ extra_config:
     num-nodes = 1
     cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
-    connector = "['lmcache', 'nixl']"
     extra-args = "--no-enable-expert-parallel"
 
       [cmd_args.dynamo.prefill_worker.args]

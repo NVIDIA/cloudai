@@ -406,16 +406,6 @@ function array_to_args()
   for key in "${!arr[@]}"; do
     shopt -s nocasematch
     val="${arr[$key]}"
-    # Handle Python-style list values: ['a', 'b'] -> --key a b
-    if [[ "$val" =~ ^\[.*\]$ ]]; then
-      local list_val="${val#[}"
-      list_val="${list_val%]}"
-      list_val="${list_val//,/ }"
-      list_val="${list_val//\'/}"
-      list_val="${list_val//\"/}"
-      result+="${key} ${list_val} "
-      continue
-    fi
     # Quote values that contain spaces
     if [[ "$val" == *" "* ]]; then
       val="${val//\"/\\\"}"  # Escape existing quotes

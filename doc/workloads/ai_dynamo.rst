@@ -110,6 +110,61 @@ To use genai-perf, set:
      output-tokens-mean = 500
      request-count = 50
 
+Propagating LMCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo can pass an LMCache YAML config to the worker processes by setting ``LMCACHE_CONFIG_FILE`` inside the
+container. This only propagates the LMCache configuration; the vLLM/SGLang runtime still needs to be launched with the
+appropriate LMCache or KV-transfer connector for that image/version.
+
+The preferred form is inline YAML in ``cmd_args.lmcache_config``. CloudAI writes the YAML to the run output directory,
+mounts that directory as ``/cloudai_run_results``, and passes the generated file path to the workload script:
+
+.. code-block:: toml
+
+   [cmd_args]
+   lmcache_config = '''
+   chunk_size: 256
+   local_cpu: true
+   max_local_cpu_size: 6.0
+   nixl_buffer_size: 2079377920
+   nixl_buffer_device: "cpu"
+   extra_config:
+     enable_nixl_storage: false
+     nixl_backend: "POSIX"
+     nixl_path: "/tmp/"
+     nixl_pool_size: 2048
+   '''
+
+For an example that uses test-in-scenario mode, see
+``conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml``. Because the test is fully defined inside the scenario,
+``--tests-dir`` is not required when running that example:
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml
+
+Alternatively, provide a path that already exists inside the container with ``cmd_args.lmcache_config_path``. Mount the
+host file or its parent directory with ``extra_container_mounts``:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/lmcache:/lmcache"]
+
+   [cmd_args]
+   lmcache_config_path = "/lmcache/config.yaml"
+
+For multi-node LMCache storage tests, any path referenced by the LMCache YAML, such as ``nixl_path`` for POSIX-backed
+storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as
+``/tmp`` is suitable only for single-node smoke tests or configuration propagation checks.
+
+The legacy ``[cmd_args.lmcache]`` section is still supported. It installs the configured LMCache repository, can generate
+a simple LMCache config from structured TOML fields, and can launch ``lmcache_controller`` when ``enable_controller`` and
+``controller_cmd`` are configured. Use this path for older/custom Dynamo images that still expect CloudAI to generate the
+LMCache config and optionally start the controller. For arbitrary LMCache YAML, prefer ``lmcache_config`` or
+``lmcache_config_path``.
+
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -215,6 +270,7 @@ Supported Backends
 The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
 
 - **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
 - **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
 
 Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.
