@@ -22,8 +22,6 @@ from .ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -42,8 +40,6 @@ __all__ = [
     "AIPerf",
     "AIPerfAccuracy",
     "GenAIPerf",
-    "LMCache",
-    "LMCacheArgs",
     "WorkerBaseArgs",
     "WorkerConfig",
 ]

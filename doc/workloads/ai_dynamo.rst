@@ -146,15 +146,13 @@ For an example that uses test-in-scenario mode, see
    uv run cloudai run --system-config <slurm system toml> \
       --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml
 
-Alternatively, provide a path that already exists inside the container with ``cmd_args.lmcache_config_path``. Mount the
-host file or its parent directory with ``extra_container_mounts``:
+Alternatively, mount your own LMCache YAML file with ``extra_container_mounts`` and set ``LMCACHE_CONFIG_FILE`` through
+``extra_env_vars``:
 
 .. code-block:: toml
 
    extra_container_mounts = ["/host/lmcache:/lmcache"]
-
-   [cmd_args]
-   lmcache_config_path = "/lmcache/config.yaml"
+   extra_env_vars = { LMCACHE_CONFIG_FILE = "/lmcache/config.yaml" }
 
 For multi-node LMCache storage tests, any path referenced by the LMCache YAML, such as ``nixl_path`` for POSIX-backed
 storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as

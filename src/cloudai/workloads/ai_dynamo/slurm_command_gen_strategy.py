@@ -47,8 +47,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
-        if lmcache_config_file := self._lmcache_config_file_env_value():
-            env_vars["LMCACHE_CONFIG_FILE"] = lmcache_config_file
+        if self.td.cmd_args.lmcache is not None:
+            env_vars["LMCACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
         return env_vars
 
     @final_env_vars.setter
@@ -100,30 +100,18 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return result
 
-    def _lmcache_config_file_env_value(self) -> str | None:
-        if self.td.cmd_args.lmcache_config_path:
-            return self.td.cmd_args.lmcache_config_path
-        if self.td.cmd_args.lmcache is not None:
-            return f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
-        return None
-
-    def _prepare_lmcache_config(self) -> None:
-        if lmcache_config_file := self._lmcache_config_file_env_value():
-            self.td.extra_env_vars["LMCACHE_CONFIG_FILE"] = lmcache_config_file
-
+    def _prepare_lmcache_config(self):
         if self.td.cmd_args.lmcache is None:
             return
 
-        config_obj = self.td.cmd_args.lmcache.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
-        config_raw = yaml.safe_dump(config_obj, sort_keys=False)
-
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         config_path = self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
-        config_path.write_text(config_raw)
+        config_path.write_text(yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False))
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         self._prepare_lmcache_config()
-        assert td.repo.installed_path
+        if not td.repo.installed_path:
+            raise ValueError("Dynamo repo is not installed")
         args = [
             "--user $USER",
             f"--install-dir {self.CONTAINER_MOUNT_INSTALL}",

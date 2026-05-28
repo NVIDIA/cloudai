@@ -231,24 +231,6 @@ class AIDynamoArgs(BaseModel):
         return self
 
 
-class LMCacheArgs(BaseModel):
-    """Backward-compatible typed shape for common LMCache YAML fields."""
-
-    model_config = ConfigDict(extra="allow")
-
-    chunk_size: int = 256
-    local_cpu: bool = False
-    nixl_buffer_size: int = 10737418240
-    nixl_buffer_device: str = "cuda"
-    extra_config: dict = Field(default_factory=dict)
-
-
-class LMCache(BaseModel):
-    """Raw LMCache YAML configuration."""
-
-    model_config = ConfigDict(extra="allow")
-
-
 class GenAIPerf(Workload):
     """Workload configuration for GenAI performance profiling."""
 
@@ -329,15 +311,7 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
-
-    lmcache: LMCache | None = None
-    lmcache_config_path: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("lmcache-config-path", "lmcache_config_path"),
-        serialization_alias="lmcache-config-path",
-        description="Path to an LMCache YAML config that is already available inside the container.",
-    )
-
+    lmcache: dict | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
     aiperf_accuracy: AIPerfAccuracy | None = None

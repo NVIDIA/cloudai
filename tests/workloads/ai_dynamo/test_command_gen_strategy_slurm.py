@@ -33,7 +33,6 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     GenAIPerf,
-    LMCache,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -229,36 +228,26 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
     assert f"--decode-args-kv-transfer-config '{config}'" in result
 
 
-def test_gen_script_args_uses_container_lmcache_config_path(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.lmcache_config_path = "/opt/shared/lmcache/config.yaml"
-
-    result = strategy._gen_script_args(td)
-
-    assert td.extra_env_vars["LMCACHE_CONFIG_FILE"] == "/opt/shared/lmcache/config.yaml"
-    assert not (strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).exists()
-    assert not any(arg.startswith("--lmcache") for arg in result)
-
-
 def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.lmcache = LMCache.model_validate(
-        {
-            "chunk_size": 512,
-            "local_cpu": True,
-            "extra_config": {
-                "enable_nixl_storage": False,
-                "nixl_backend": "POSIX",
-                "nixl_path": "/tmp/",
-            },
-        }
-    )
+    td.cmd_args.lmcache = {
+        "chunk_size": 512,
+        "local_cpu": True,
+        "extra_config": {
+            "enable_nixl_storage": False,
+            "nixl_backend": "POSIX",
+            "nixl_path": "/tmp/",
+        },
+    }
 
     result = strategy._gen_script_args(td)
 
     config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
     config = yaml.safe_load(config_path.read_text())
-    assert td.extra_env_vars["LMCACHE_CONFIG_FILE"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+    assert (
+        strategy.final_env_vars["LMCACHE_CONFIG_FILE"]
+        == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+    )
     assert config["chunk_size"] == 512
     assert config["local_cpu"] is True
     assert config["extra_config"]["enable_nixl_storage"] is False
