@@ -44,6 +44,7 @@ from cloudai.systems.slurm import SlurmSystem
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
+LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 
 
 class Args(BaseModel):
@@ -352,6 +353,18 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
+    lmcache_config_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("lmcache-config-path", "lmcache_config_path"),
+        serialization_alias="lmcache-config-path",
+        description="Path to an LMCache YAML config that is already available inside the container.",
+    )
+    lmcache_config: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("lmcache-config", "lmcache_config"),
+        serialization_alias="lmcache-config",
+        description="Inline LMCache YAML config. CloudAI writes it to the run output and passes it to workers.",
+    )
     dynamo: AIDynamoArgs
     lmcache: LMCache = Field(default_factory=LMCache)
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
@@ -369,14 +382,24 @@ class AIDynamoCmdArgs(CmdArgs):
                 raise ValueError(f"Invalid workload: {workload}. Available workloads: {allowed_workloads}")
         return ",".join(values)
 
+    @model_validator(mode="after")
+    def validate_lmcache_config(self) -> "AIDynamoCmdArgs":
+        if self.lmcache_config_path and self.lmcache_config:
+            raise ValueError("Only one of lmcache_config_path or lmcache_config can be set")
+        return self
+
     @property
     def workloads_list(self) -> list[str]:
         return [w.strip() for w in self.workloads.split(",")]
 
     @property
     def installables(self) -> list[Installable]:
+        installables: list[Installable] = []
+        if "lmcache" in self.model_fields_set:
+            installables.extend(self.lmcache.installables)
+
         return [
-            *self.lmcache.installables,
+            *installables,
             *self.genai_perf.installables,
             *self.aiperf.installables,
             *(self.aiperf_accuracy.installables if self.aiperf_accuracy else []),

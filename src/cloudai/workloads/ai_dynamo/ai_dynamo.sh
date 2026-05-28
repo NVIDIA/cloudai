@@ -266,9 +266,16 @@ _has_connector() {
   [[ ",$prefill_connectors," == *",$needle,"* ]] || [[ ",$decode_connectors," == *",$needle,"* ]]
 }
 
+_has_lmcache_config() {
+  [[ -n "${lmcache_config["config-path"]:-}" ]]
+}
+
 _apply_connector_settings() {
-  if _has_connector "lmcache"; then
+  if _has_connector "lmcache" || _has_lmcache_config; then
     export ENABLE_LMCACHE=1
+  fi
+  if _has_lmcache_config; then
+    export LMCACHE_CONFIG_FILE="${lmcache_config["config-path"]}"
   fi
   if _has_connector "kvbm"; then
     export ENABLE_KVBM=1
@@ -860,6 +867,11 @@ function launch_lmcache_controller()
     return
   fi
 
+  if [[ -z "${lmcache_config["controller_cmd"]:-}" ]]; then
+    log "LMCache connector is set but no LMCache controller command is configured. Skipping controller launch."
+    return
+  fi
+
   log "Launching LMCache controller with cmd: ${lmcache_config["controller_cmd"]}"
   ${lmcache_config["controller_cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
 }
@@ -962,6 +974,17 @@ function setup_lmcache()
 {
   if ! _has_connector "lmcache"; then
     log "Connector list does not include lmcache. Skipping setup_lmcache"
+    return
+  fi
+
+  if _has_lmcache_config; then
+    log "Using explicit LMCache config file: ${lmcache_config["config-path"]}"
+    setup_cufile
+    return
+  fi
+
+  if [[ -z "${lmcache_config["repo"]:-}" ]]; then
+    log "LMCache connector is set but no generated LMCache config is configured. Skipping setup_lmcache"
     return
   fi
 

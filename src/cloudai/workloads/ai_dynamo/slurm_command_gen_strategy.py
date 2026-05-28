@@ -24,7 +24,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .ai_dynamo import AIDynamoTestDefinition
+from .ai_dynamo import LMCACHE_CONFIG_FILE_NAME, AIDynamoTestDefinition
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -87,6 +87,21 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return result
 
+    def _prepare_lmcache_config(self, td: AIDynamoTestDefinition) -> str | None:
+        if td.cmd_args.lmcache_config_path:
+            return td.cmd_args.lmcache_config_path
+
+        if td.cmd_args.lmcache_config is None:
+            return None
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        config_path = self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+        config_path.write_text(td.cmd_args.lmcache_config)
+        return f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+
+    def _should_emit_lmcache_args(self, td: AIDynamoTestDefinition) -> bool:
+        return "lmcache" in td.cmd_args.model_fields_set
+
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         assert td.repo.installed_path
         args = [
@@ -103,6 +118,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if td.cmd_args.storage_cache_dir:
             args.append(f"--storage-cache-dir {td.cmd_args.storage_cache_dir}")
 
+        if lmcache_config_path := self._prepare_lmcache_config(td):
+            args.append(f"--lmcache-config-path {shlex.quote(lmcache_config_path)}")
+
         args.extend(
             self._get_toml_args(
                 td.cmd_args.dynamo,
@@ -118,7 +136,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
 
-        args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
+        if self._should_emit_lmcache_args(td):
+            args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
+
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
         if td.cmd_args.aiperf_accuracy is not None:

@@ -22,6 +22,18 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/sglang-runtime:1.1.1"
 workloads = "aiperf.sh"
+lmcache_config = '''
+chunk_size: 256
+local_cpu: true
+max_local_cpu_size: 6.0
+nixl_buffer_size: 2079377920
+nixl_buffer_device: "cpu"
+extra_config:
+  enable_nixl_storage: false
+  nixl_backend: "POSIX"
+  nixl_path: "/tmp/"
+  nixl_pool_size: 2048
+'''
 
   [cmd_args.dynamo]
   backend = "sglang"
@@ -58,24 +70,6 @@ workloads = "aiperf.sh"
       disaggregation-bootstrap-port = 12345
       host = "0.0.0.0"
       disaggregation-transfer-backend = "nixl"
-
-  [cmd_args.lmcache]
-  controller_cmd = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
-
-    [cmd_args.lmcache.args]
-    chunk_size = 256
-    local_cpu = false
-    nixl_buffer_size = 10737418240
-    nixl_buffer_device = "cuda"
-    extra_config_enable_nixl_storage = true
-    extra_config_nixl_backend = "GDS_MT"
-    extra_config_nixl_file_pool_size = 64
-
-    enable_controller = true
-    lmcache_instance_id = "lmcache_default_instance"
-    controller_url = "localhost:9001"
-    lmcache_worker_port = 8788
-    distributed_url = "localhost:8789"
 
   [cmd_args.genai_perf]
   cmd = "genai-perf profile"

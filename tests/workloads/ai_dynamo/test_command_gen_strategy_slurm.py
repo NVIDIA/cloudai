@@ -24,6 +24,7 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
@@ -227,3 +228,34 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
 
     assert f"--prefill-args-kv-transfer-config '{config}'" in result
     assert f"--decode-args-kv-transfer-config '{config}'" in result
+
+
+def test_gen_script_args_writes_inline_lmcache_config(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache_config = "chunk_size: 256\nlocal_cpu: true\n"
+
+    result = strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+    assert f"--lmcache-config-path {strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}" in result
+    assert config_path.read_text() == td.cmd_args.lmcache_config
+
+
+def test_gen_script_args_uses_container_lmcache_config_path(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache_config_path = "/opt/shared/lmcache/config.yaml"
+
+    result = strategy._gen_script_args(td)
+
+    assert "--lmcache-config-path /opt/shared/lmcache/config.yaml" in result
+    assert not (strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).exists()
+
+
+def test_lmcache_config_path_and_inline_config_are_mutually_exclusive() -> None:
+    with pytest.raises(ValueError, match="Only one of lmcache_config_path or lmcache_config"):
+        AIDynamoCmdArgs(
+            docker_image_url="url",
+            dynamo=AIDynamoArgs(),
+            lmcache_config_path="/opt/shared/lmcache/config.yaml",
+            lmcache_config="chunk_size: 256\n",
+        )
