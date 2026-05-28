@@ -35,8 +35,6 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -527,14 +525,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "synthetic-input-tokens-mean": 550,
                             "warmup-request-count": 10,
                         }
-                    ),
-                    lmcache=LMCache(
-                        args=LMCacheArgs(),
-                        repo=GitRepo(
-                            url="https://github.com/LMCache/LMCache.git",
-                            commit="ab8530993992db873869ba882320953582d94309",
-                            installed_path=slurm_system.install_path,
-                        ),
                     ),
                 ),
             ),

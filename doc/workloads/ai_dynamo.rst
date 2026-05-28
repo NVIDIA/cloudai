@@ -117,24 +117,25 @@ AIDynamo can pass an LMCache YAML config to the worker processes by setting ``LM
 container. This only propagates the LMCache configuration; the vLLM/SGLang runtime still needs to be launched with the
 appropriate LMCache or KV-transfer connector for that image/version.
 
-The preferred form is inline YAML in ``cmd_args.lmcache_config``. CloudAI writes the YAML to the run output directory,
-mounts that directory as ``/cloudai_run_results``, and passes the generated file path to the workload script:
+The preferred form is structured TOML under ``[cmd_args.lmcache]``. CloudAI converts that object to YAML in the
+run output directory, mounts that directory as ``/cloudai_run_results``, and exports the generated file path as
+``LMCACHE_CONFIG_FILE``:
 
 .. code-block:: toml
 
    [cmd_args]
-   lmcache_config = '''
-   chunk_size: 256
-   local_cpu: true
-   max_local_cpu_size: 6.0
-   nixl_buffer_size: 2079377920
-   nixl_buffer_device: "cpu"
-   extra_config:
-     enable_nixl_storage: false
-     nixl_backend: "POSIX"
-     nixl_path: "/tmp/"
-     nixl_pool_size: 2048
-   '''
+     [cmd_args.lmcache]
+       chunk_size = 256
+       local_cpu = true
+       max_local_cpu_size = 6.0
+       nixl_buffer_size = 2079377920
+       nixl_buffer_device = "cpu"
+
+         [cmd_args.lmcache.extra_config]
+         enable_nixl_storage = false
+         nixl_backend = "POSIX"
+         nixl_path = "/tmp/"
+         nixl_pool_size = 2048
 
 For an example that uses test-in-scenario mode, see
 ``conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml``. Because the test is fully defined inside the scenario,
@@ -159,11 +160,8 @@ For multi-node LMCache storage tests, any path referenced by the LMCache YAML, s
 storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as
 ``/tmp`` is suitable only for single-node smoke tests or configuration propagation checks.
 
-The legacy ``[cmd_args.lmcache]`` section is still supported. It installs the configured LMCache repository, can generate
-a simple LMCache config from structured TOML fields, and can launch ``lmcache_controller`` when ``enable_controller`` and
-``controller_cmd`` are configured. Use this path for older/custom Dynamo images that still expect CloudAI to generate the
-LMCache config and optionally start the controller. For arbitrary LMCache YAML, prefer ``lmcache_config`` or
-``lmcache_config_path``.
+CloudAI does not start an LMCache controller from this section; use the runtime/image-specific deployment mechanism if
+the selected LMCache mode requires one.
 
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

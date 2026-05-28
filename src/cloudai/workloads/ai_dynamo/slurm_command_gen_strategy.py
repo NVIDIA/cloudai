@@ -19,6 +19,7 @@ import shlex
 from pathlib import Path
 from typing import List, cast
 
+import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from cloudai.core import File, GitRepo
@@ -30,21 +31,33 @@ from .ai_dynamo import LMCACHE_CONFIG_FILE_NAME, AIDynamoTestDefinition
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
 
-    def _container_mounts(self) -> list[str]:
-        td = cast(AIDynamoTestDefinition, self.test_run.test)
+    @property
+    def td(self) -> AIDynamoTestDefinition:
+        return cast(AIDynamoTestDefinition, self.test_run.test)
 
+    def _container_mounts(self) -> list[str]:
         result = [f"{self.system.hf_home_path.absolute()}:{self.CONTAINER_MOUNT_HF_HOME}"]
 
-        logging.info(f"storage_cache_dir: {td.cmd_args.storage_cache_dir}")
-        if td.cmd_args.storage_cache_dir:
-            result.append(f"{td.cmd_args.storage_cache_dir}:{td.cmd_args.storage_cache_dir}")
+        logging.info(f"storage_cache_dir: {self.td.cmd_args.storage_cache_dir}")
+        if self.td.cmd_args.storage_cache_dir:
+            result.append(f"{self.td.cmd_args.storage_cache_dir}:{self.td.cmd_args.storage_cache_dir}")
 
         return result
 
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        env_vars = super().final_env_vars
+        if lmcache_config_file := self._lmcache_config_file_env_value():
+            env_vars["LMCACHE_CONFIG_FILE"] = lmcache_config_file
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value
+
     def image_path(self) -> str | None:
-        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test)
-        if tdef.docker_image and tdef.docker_image.installed_path:
-            return str(tdef.docker_image.installed_path)
+        if self.td.docker_image and self.td.docker_image.installed_path:
+            return str(self.td.docker_image.installed_path)
         return None
 
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
@@ -87,22 +100,29 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return result
 
-    def _prepare_lmcache_config(self, td: AIDynamoTestDefinition) -> str | None:
-        if td.cmd_args.lmcache_config_path:
-            return td.cmd_args.lmcache_config_path
+    def _lmcache_config_file_env_value(self) -> str | None:
+        if self.td.cmd_args.lmcache_config_path:
+            return self.td.cmd_args.lmcache_config_path
+        if self.td.cmd_args.lmcache is not None:
+            return f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+        return None
 
-        if td.cmd_args.lmcache_config is None:
-            return None
+    def _prepare_lmcache_config(self) -> None:
+        if lmcache_config_file := self._lmcache_config_file_env_value():
+            self.td.extra_env_vars["LMCACHE_CONFIG_FILE"] = lmcache_config_file
+
+        if self.td.cmd_args.lmcache is None:
+            return
+
+        config_obj = self.td.cmd_args.lmcache.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+        config_raw = yaml.safe_dump(config_obj, sort_keys=False)
 
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         config_path = self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
-        config_path.write_text(td.cmd_args.lmcache_config)
-        return f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
-
-    def _should_emit_lmcache_args(self, td: AIDynamoTestDefinition) -> bool:
-        return "lmcache" in td.cmd_args.model_fields_set
+        config_path.write_text(config_raw)
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
+        self._prepare_lmcache_config()
         assert td.repo.installed_path
         args = [
             "--user $USER",
@@ -117,9 +137,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if td.cmd_args.storage_cache_dir:
             args.append(f"--storage-cache-dir {td.cmd_args.storage_cache_dir}")
-
-        if lmcache_config_path := self._prepare_lmcache_config(td):
-            args.append(f"--lmcache-config-path {shlex.quote(lmcache_config_path)}")
 
         args.extend(
             self._get_toml_args(
@@ -136,9 +153,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
 
-        if self._should_emit_lmcache_args(td):
-            args.extend(self._get_nested_toml_args(td.cmd_args.lmcache, "--lmcache-"))
-
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
         if td.cmd_args.aiperf_accuracy is not None:
@@ -147,7 +161,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return args
 
     def _gen_srun_command(self) -> str:
-        td = cast(AIDynamoTestDefinition, self.test_run.test)
         num_nodes, node_list = self.get_cached_nodes_spec()
 
         out_dir = str(self.test_run.output_path.absolute())
@@ -162,10 +175,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"--output={out_dir}/node-%n-stdout.txt",
                 f"--error={out_dir}/node-%n-stderr.txt",
                 "bash",
-                f"{self.CONTAINER_MOUNT_INSTALL}/{td.script.src.name}",
+                f"{self.CONTAINER_MOUNT_INSTALL}/{self.td.script.src.name}",
             ]
         )
-        srun_cmd.extend(self._gen_script_args(td))
+        srun_cmd.extend(self._gen_script_args(self.td))
         return " \\\n  ".join(srun_cmd) + "\n"
 
     def _validate_worker_nodes(
@@ -204,13 +217,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]
 
-        td = cast(AIDynamoTestDefinition, self.test_run.test)
         prefill_n, prefill_nodes = 0, ""
-        if td.cmd_args.dynamo.prefill_worker:
-            prefill_n = cast(int, td.cmd_args.dynamo.prefill_worker.num_nodes)
-            prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
-        decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
-        decode_nodes = td.cmd_args.dynamo.decode_worker.nodes
+        if self.td.cmd_args.dynamo.prefill_worker:
+            prefill_n = cast(int, self.td.cmd_args.dynamo.prefill_worker.num_nodes)
+            prefill_nodes = self.td.cmd_args.dynamo.prefill_worker.nodes
+        decode_n = self.td.cmd_args.dynamo.decode_worker.num_nodes
+        decode_nodes = self.td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"

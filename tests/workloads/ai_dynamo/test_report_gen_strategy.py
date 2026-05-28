@@ -28,8 +28,6 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -89,7 +87,6 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
                 ),
             ),
             genai_perf=GenAIPerf(),
-            lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
     tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
@@ -121,7 +118,6 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
                 ),
             ),
             aiperf=AIPerf(),
-            lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
     tr = TestRun(name="ai_dynamo_aiperf", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
@@ -148,7 +144,6 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             ),
             aiperf=AIPerf(),
             aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
-            lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
     tr = TestRun(name="ai_dynamo_aiperf_with_split_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
@@ -176,7 +171,6 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             ),
             genai_perf=GenAIPerf(),
             aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
-            lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
     tr = TestRun(

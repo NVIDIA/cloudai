@@ -232,7 +232,7 @@ class AIDynamoArgs(BaseModel):
 
 
 class LMCacheArgs(BaseModel):
-    """Arguments for LMCache."""
+    """Backward-compatible typed shape for common LMCache YAML fields."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -240,38 +240,13 @@ class LMCacheArgs(BaseModel):
     local_cpu: bool = False
     nixl_buffer_size: int = 10737418240
     nixl_buffer_device: str = "cuda"
-    extra_config_enable_nixl_storage: bool = True
-    extra_config_nixl_backend: str = "GDS_MT"
-    extra_config_nixl_file_pool_size: int = 64
-
-    # LMCache controller configuration
-    enable_controller: bool = True
-    lmcache_instance_id: str = "lmcache_default_instance"
-    controller_url: str = "localhost:9001"
-    lmcache_worker_port: int = 8788
-    distributed_url: str = "localhost:8789"
+    extra_config: dict = Field(default_factory=dict)
 
 
 class LMCache(BaseModel):
-    """LMCache configuration."""
+    """Raw LMCache YAML configuration."""
 
-    model_config = ConfigDict(extra="forbid")
-
-    controller_cmd: str = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
-    repo: GitRepo = GitRepo(
-        url="https://github.com/LMCache/LMCache.git", commit="ab8530993992db873869ba882320953582d94309"
-    )
-
-    args: LMCacheArgs = Field(default_factory=LMCacheArgs)
-    extra_args: str | list[str] | None = Field(
-        default=None,
-        serialization_alias="extra-args",
-        validation_alias=AliasChoices("extra-args", "extra_args"),
-    )
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [self.repo]
+    model_config = ConfigDict(extra="allow")
 
 
 class GenAIPerf(Workload):
@@ -353,20 +328,16 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
+    dynamo: AIDynamoArgs
+
+    lmcache: LMCache | None = None
     lmcache_config_path: str | None = Field(
         default=None,
         validation_alias=AliasChoices("lmcache-config-path", "lmcache_config_path"),
         serialization_alias="lmcache-config-path",
         description="Path to an LMCache YAML config that is already available inside the container.",
     )
-    lmcache_config: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("lmcache-config", "lmcache_config"),
-        serialization_alias="lmcache-config",
-        description="Inline LMCache YAML config. CloudAI writes it to the run output and passes it to workers.",
-    )
-    dynamo: AIDynamoArgs
-    lmcache: LMCache = Field(default_factory=LMCache)
+
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
     aiperf_accuracy: AIPerfAccuracy | None = None
@@ -382,24 +353,13 @@ class AIDynamoCmdArgs(CmdArgs):
                 raise ValueError(f"Invalid workload: {workload}. Available workloads: {allowed_workloads}")
         return ",".join(values)
 
-    @model_validator(mode="after")
-    def validate_lmcache_config(self) -> "AIDynamoCmdArgs":
-        if self.lmcache_config_path and self.lmcache_config:
-            raise ValueError("Only one of lmcache_config_path or lmcache_config can be set")
-        return self
-
     @property
     def workloads_list(self) -> list[str]:
         return [w.strip() for w in self.workloads.split(",")]
 
     @property
     def installables(self) -> list[Installable]:
-        installables: list[Installable] = []
-        if "lmcache" in self.model_fields_set:
-            installables.extend(self.lmcache.installables)
-
         return [
-            *installables,
             *self.genai_perf.installables,
             *self.aiperf.installables,
             *(self.aiperf_accuracy.installables if self.aiperf_accuracy else []),

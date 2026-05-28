@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import yaml
 
 from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
@@ -33,7 +34,6 @@ from cloudai.workloads.ai_dynamo import (
     AIPerfAccuracy,
     GenAIPerf,
     LMCache,
-    LMCacheArgs,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -88,7 +88,6 @@ def cmd_args() -> AIDynamoCmdArgs:
                 "request-count": 10,
             }
         ),
-        lmcache=LMCache(args=LMCacheArgs()),
     )
 
 
@@ -230,32 +229,39 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
     assert f"--decode-args-kv-transfer-config '{config}'" in result
 
 
-def test_gen_script_args_writes_inline_lmcache_config(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.lmcache_config = "chunk_size: 256\nlocal_cpu: true\n"
-
-    result = strategy._gen_script_args(td)
-
-    config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
-    assert f"--lmcache-config-path {strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}" in result
-    assert config_path.read_text() == td.cmd_args.lmcache_config
-
-
 def test_gen_script_args_uses_container_lmcache_config_path(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.lmcache_config_path = "/opt/shared/lmcache/config.yaml"
 
     result = strategy._gen_script_args(td)
 
-    assert "--lmcache-config-path /opt/shared/lmcache/config.yaml" in result
+    assert td.extra_env_vars["LMCACHE_CONFIG_FILE"] == "/opt/shared/lmcache/config.yaml"
     assert not (strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).exists()
+    assert not any(arg.startswith("--lmcache") for arg in result)
 
 
-def test_lmcache_config_path_and_inline_config_are_mutually_exclusive() -> None:
-    with pytest.raises(ValueError, match="Only one of lmcache_config_path or lmcache_config"):
-        AIDynamoCmdArgs(
-            docker_image_url="url",
-            dynamo=AIDynamoArgs(),
-            lmcache_config_path="/opt/shared/lmcache/config.yaml",
-            lmcache_config="chunk_size: 256\n",
-        )
+def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache = LMCache.model_validate(
+        {
+            "chunk_size": 512,
+            "local_cpu": True,
+            "extra_config": {
+                "enable_nixl_storage": False,
+                "nixl_backend": "POSIX",
+                "nixl_path": "/tmp/",
+            },
+        }
+    )
+
+    result = strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+    config = yaml.safe_load(config_path.read_text())
+    assert td.extra_env_vars["LMCACHE_CONFIG_FILE"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+    assert config["chunk_size"] == 512
+    assert config["local_cpu"] is True
+    assert config["extra_config"]["enable_nixl_storage"] is False
+    assert config["extra_config"]["nixl_backend"] == "POSIX"
+    assert config["extra_config"]["nixl_path"] == "/tmp/"
+    assert not any(arg.startswith("--lmcache") for arg in result)

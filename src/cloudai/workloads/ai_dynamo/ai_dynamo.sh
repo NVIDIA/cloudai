@@ -31,8 +31,6 @@ declare -A prefill_config
 declare -A prefill_args
 declare -A decode_config
 declare -A decode_args
-declare -A lmcache_args
-declare -A lmcache_config
 declare -A genai_perf_args
 declare -A genai_perf_config
 declare -A aiperf_args
@@ -163,10 +161,6 @@ _parse_cli_pairs() {
         decode_args["--${key#--decode-args-}"]="$2" ;;
       --decode-*)
         decode_config["${key#--decode-}"]="$2" ;;
-      --lmcache-args-*)
-        lmcache_args["${key#--lmcache-args-}"]="$2" ;;
-      --lmcache-*)
-        lmcache_config["${key#--lmcache-}"]="$2" ;;
       --genai_perf-args-*)
         genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
       --genai_perf-*)
@@ -259,27 +253,16 @@ _set_nodelists()
 }
 
 _has_connector() {
-  # Check if a specific connector is in a comma/space/Python-list connector value.
+  # Check if a specific connector is in the comma-separated connector list.
   local needle="$1"
-  local connectors="${prefill_args["--connector"]:-} ${decode_args["--connector"]:-}"
-  connectors="${connectors//[/ }"
-  connectors="${connectors//]/ }"
-  connectors="${connectors//,/ }"
-  connectors="${connectors//\'/ }"
-  connectors="${connectors//\"/ }"
-  [[ " ${connectors} " == *" ${needle} "* ]]
-}
-
-_has_lmcache_config() {
-  [[ -n "${lmcache_config["config-path"]:-}" ]]
+  local prefill_connectors="${prefill_args["--connector"]:-}"
+  local decode_connectors="${decode_args["--connector"]:-}"
+  [[ ",$prefill_connectors," == *",$needle,"* ]] || [[ ",$decode_connectors," == *",$needle,"* ]]
 }
 
 _apply_connector_settings() {
-  if _has_connector "lmcache" || _has_lmcache_config; then
+  if _has_connector "lmcache" || [[ -n "${LMCACHE_CONFIG_FILE:-}" ]]; then
     export ENABLE_LMCACHE=1
-  fi
-  if _has_lmcache_config; then
-    export LMCACHE_CONFIG_FILE="${lmcache_config["config-path"]}"
   fi
   if _has_connector "kvbm"; then
     export ENABLE_KVBM=1
@@ -376,8 +359,7 @@ _dump_args() {
   log "Prefill args:\n$(arg_array_to_string prefill_args)"
   log "Decode config params:\n$(arg_array_to_string decode_config)"
   log "Decode args:\n$(arg_array_to_string decode_args)"
-  log "LMCache config params:\n$(arg_array_to_string lmcache_config)"
-  log "LMCache args:\n$(arg_array_to_string lmcache_args)"
+  log "LMCache config file: ${LMCACHE_CONFIG_FILE:-}"
   log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
   log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
@@ -865,21 +847,6 @@ function launch_prefill()
   done
 }
 
-function launch_lmcache_controller()
-{
-  if ! _has_connector "lmcache"; then
-    return
-  fi
-
-  if [[ -z "${lmcache_config["controller_cmd"]:-}" ]]; then
-    log "LMCache connector is set but no LMCache controller command is configured. Skipping controller launch."
-    return
-  fi
-
-  log "Launching LMCache controller with cmd: ${lmcache_config["controller_cmd"]}"
-  ${lmcache_config["controller_cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
-}
-
 function wait_for_dynamo_frontend()
 {
   local want_prefill=$(_expected_ready_prefill)
@@ -976,53 +943,12 @@ function setup_kvbm()
 
 function setup_lmcache()
 {
-  if ! _has_connector "lmcache"; then
-    log "Connector list does not include lmcache. Skipping setup_lmcache"
+  if [[ -z "${LMCACHE_CONFIG_FILE:-}" ]]; then
+    log "LMCACHE_CONFIG_FILE is not set. Skipping setup_lmcache"
     return
   fi
 
-  if _has_lmcache_config; then
-    log "Using explicit LMCache config file: ${lmcache_config["config-path"]}"
-    setup_cufile
-    return
-  fi
-
-  if [[ -z "${lmcache_config["repo"]:-}" ]]; then
-    log "LMCache connector is set but no generated LMCache config is configured. Skipping setup_lmcache"
-    return
-  fi
-
-  _require_cmd uv
-  local lmcache_path="${lmcache_config["repo"]}"
-  log "Setting up LMCache; installing LMCache using: uv pip install $lmcache_path"
-  uv pip install -e "$lmcache_path"
-
-  setup_storage_cache_dir "lmcache"
-
-  export LMCACHE_CONFIG_FILE=$RESULTS_DIR/lmcache-nixl-config.yaml
-  rm -f $LMCACHE_CONFIG_FILE
-
-  lmcache_args["extra_config_nixl_path"]="$STORAGE_CACHE_DIR"
-
-  for key in "${!lmcache_args[@]}"; do
-    shopt -s nocasematch
-    if [[ "$key" == "extra_config"* ]]; then
-      continue
-    fi
-
-    val="${lmcache_args[$key]}"
-    echo "$key: $val" >> $LMCACHE_CONFIG_FILE
-  done
-
-  echo "extra_config:" >> $LMCACHE_CONFIG_FILE
-  for key in "${!lmcache_args[@]}"; do
-    shopt -s nocasematch
-    if [[ "$key" == "extra_config"* ]]; then
-      nkey="${key#extra_config_}"
-      val="${lmcache_args[$key]}"
-      echo "    $nkey: $val" >> $LMCACHE_CONFIG_FILE
-    fi
-  done
+  log "Using LMCache config file: ${LMCACHE_CONFIG_FILE}"
   setup_cufile
 }
 
@@ -1157,8 +1083,6 @@ function main()
   fi
 
   if _is_frontend_node; then
-    launch_lmcache_controller &
-
     sleep 10
 
     launch_workloads &
