@@ -21,7 +21,7 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.8.1"
-workloads = "genai_perf.sh"
+workloads = "aiperf.sh"
 
   [cmd_args.dynamo]
   backend = "vllm"

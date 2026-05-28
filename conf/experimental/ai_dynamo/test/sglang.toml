@@ -21,7 +21,7 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/sglang-runtime:0.9.0"
-workloads = "genai_perf.sh"
+workloads = "aiperf.sh"
 
   [cmd_args.dynamo]
   backend = "sglang"
