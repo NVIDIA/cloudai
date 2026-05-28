@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Mapping, Tuple
+from typing import TYPE_CHECKING, List, Mapping, Tuple
 
 import toml
 
@@ -172,21 +172,22 @@ def default_test_run_comparison_values(tr: TestRun) -> dict[str, object]:
     }
 
 
-def diff_test_runs(
-    trs: list[TestRun],
-    comparison_values: Callable[[TestRun], Mapping[str, object]] = default_test_run_comparison_values,
-) -> dict[str, list[object]]:
-    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
-    dicts = [comparison_values(tr) for tr in trs]
-    all_keys = set().union(*[d.keys() for d in dicts])
+def diff_comparison_values(values_by_run: list[Mapping[str, object]]) -> dict[str, list[object]]:
+    """Return value differences across comparable TestRun value dictionaries."""
+    all_keys = set().union(*[values.keys() for values in values_by_run])
 
     diff = {}
     for key in all_keys:
-        all_values = [d.get(key) for d in dicts]
+        all_values = [values.get(key) for values in values_by_run]
         if len({repr(v) for v in all_values}) > 1:
             diff[key] = all_values
 
     return diff
+
+
+def diff_test_runs(trs: list[TestRun]) -> dict[str, list[object]]:
+    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
+    return diff_comparison_values([default_test_run_comparison_values(tr) for tr in trs])
 
 
 def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:

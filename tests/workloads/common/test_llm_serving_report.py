@@ -112,9 +112,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
 
     report.load_test_runs()
     assert len(report.trs) == 2
-    tables = report.create_tables(
-        cloudai.report_generator.groups.TestRunsGrouper(report.trs, [], report.comparison_values).groups()
-    )
+    tables = report.create_tables(report.group_test_runs())
     latency_table = tables[0]
     success_table = tables[1]
     throughput_table = tables[2]

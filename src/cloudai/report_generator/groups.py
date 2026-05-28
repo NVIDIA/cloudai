@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,11 +15,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Callable, Mapping
 
 from cloudai.core import TestDefinition, TestRun
 
-from .util import default_test_run_comparison_values, diff_test_runs
+from .util import diff_test_runs
 
 
 @dataclass
@@ -46,7 +45,6 @@ class TestRunsGrouper:
 
     trs: list[TestRun]
     group_by: list[str]
-    comparison_values: Callable[[TestRun], Mapping[str, object]] = default_test_run_comparison_values
 
     def get_value(self, tdef: TestDefinition, field: str) -> str:
         """Get field value for cmd_args or extra_env_vars."""
@@ -69,7 +67,7 @@ class TestRunsGrouper:
         return " ".join(parts).replace("extra_env_vars.", "")
 
     def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedTestRuns:
-        diff = diff_test_runs(trs, self.comparison_values)
+        diff = diff_test_runs(trs)
         items: list[TRGroupItem] = []
         for idx, _ in enumerate(trs):
             name = f"{group_idx}.{idx}"
