@@ -55,6 +55,7 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
         ("TPS/User", "tps_per_user"),
         ("TPS/GPU", "tps_per_gpu"),
     )
+    QUALITY_METRICS = (("Accuracy", "accuracy"),)
 
     @abc.abstractmethod
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
@@ -63,6 +64,10 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
     @abc.abstractmethod
     def parse_results(self, tr: cloudai.core.TestRun) -> tuple[llm_serving.LLMServingBenchReport, int] | None:
         """Parse a workload-specific benchmark result and return it with used GPU count."""
+
+    def parse_accuracy(self, tr: cloudai.core.TestRun) -> float | None:
+        """Parse semantic accuracy, if available for this workload run."""
+        return None
 
     @abc.abstractmethod
     def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> cloudai.models.workload.CmdArgs:
@@ -140,6 +145,18 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
             )
             order += 1
 
+        for label, attr_name in self.QUALITY_METRICS:
+            value = self.parse_accuracy(tr) if attr_name == "accuracy" else getattr(results, attr_name)
+            rows.append(
+                {
+                    "metric_group": "quality",
+                    "metric_order": order,
+                    "metric": label,
+                    "value": self._metric_value(value),
+                }
+            )
+            order += 1
+
         return lazy.pd.DataFrame(rows)
 
     @staticmethod
@@ -177,6 +194,13 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
                         group,
                         dfs=[self._group_df(df, "throughput") for df in extracted_dfs],
                         title="Throughput",
+                        info_columns=["metric"],
+                        data_columns=["value"],
+                    ),
+                    self.create_table(
+                        group,
+                        dfs=[self._group_df(df, "quality") for df in extracted_dfs],
+                        title="Quality",
                         info_columns=["metric"],
                         data_columns=["value"],
                     ),
@@ -261,6 +285,12 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
                         [self._group_df(df, "throughput") for df in extracted_dfs],
                         "Throughput",
                         "Throughput",
+                    ),
+                    self._create_metric_bar_chart(
+                        group,
+                        [self._group_df(df, "quality") for df in extracted_dfs],
+                        "Quality",
+                        "Score",
                     ),
                 ]
             )

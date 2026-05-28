@@ -51,3 +51,6 @@ class VLLMComparisonReport(LLMServingComparisonReport):
         if results is None:
             return None
         return results, strategy.used_gpus_count()
+
+    def parse_accuracy(self, tr: cloudai.core.TestRun) -> float | None:
+        return VLLMBenchReportGenerationStrategy(self.system, tr).parse_semantic_accuracy()

@@ -23,9 +23,11 @@ import cloudai.report_generator.groups
 import cloudai.systems.slurm
 from cloudai.workloads.vllm import (
     VLLM_BENCH_JSON_FILE,
+    VLLM_GSM8K_JSON_FILE,
     VllmBenchCmdArgs,
     VllmCmdArgs,
     VLLMComparisonReport,
+    VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
 
@@ -44,6 +46,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
             test_template_name="vllm",
             cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
             bench_cmd_args=VllmBenchCmdArgs(max_concurrency=8),
+            semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
         ),
         num_nodes=1,
         nodes=[],
@@ -56,6 +59,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
             test_template_name="vllm",
             cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
             bench_cmd_args=VllmBenchCmdArgs(max_concurrency=16),
+            semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
         ),
         num_nodes=1,
         nodes=[],
@@ -78,6 +82,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
             }
         ),
     )
+    _write_result(slurm_system.output_path / tr1.name / "0", VLLM_GSM8K_JSON_FILE, '{"accuracy": 0.81}')
     _write_result(
         slurm_system.output_path / tr2.name / "0",
         VLLM_BENCH_JSON_FILE,
@@ -96,6 +101,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
             }
         ),
     )
+    _write_result(slurm_system.output_path / tr2.name / "0", VLLM_GSM8K_JSON_FILE, '{"accuracy": 0.9}')
 
     report = VLLMComparisonReport(
         slurm_system,
@@ -112,6 +118,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
     latency_table = tables[0]
     success_table = tables[1]
     throughput_table = tables[2]
+    quality_table = tables[3]
 
     assert "bench_cmd_args.max_concurrency=8" in str(latency_table.columns[1].header)
     assert "bench_cmd_args.max_concurrency=16" in str(latency_table.columns[2].header)
@@ -123,6 +130,9 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
     ]
     throughput_row = list(throughput_table.columns[0].cells).index("TPS/GPU")
     assert list(throughput_table.columns[1].cells)[throughput_row] == "150.0"
+    assert list(quality_table.columns[0].cells) == ["Accuracy"]
+    assert list(quality_table.columns[1].cells) == ["0.81"]
+    assert list(quality_table.columns[2].cells) == ["0.9"]
 
     report.generate()
 
