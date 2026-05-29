@@ -19,7 +19,7 @@ job_status_check = false
 
 [[Tests]]
 id = "test.disagg.lmcache-controller"
-name = "vLLM disaggregated LMCache with controller"
+name = "vllm-disagg-lmcache-controller"
 description = "Self-contained AIDynamo scenario wiring vLLM disaggregated inference, LMCache config propagation, and LMCache controller launch."
 test_template_name = "AIDynamo"
 time_limit = "00:10:00"
