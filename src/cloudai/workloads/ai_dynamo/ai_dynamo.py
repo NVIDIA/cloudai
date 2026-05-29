@@ -45,6 +45,7 @@ AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
+LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 
 
 class Args(BaseModel):

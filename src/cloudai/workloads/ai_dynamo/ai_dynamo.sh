@@ -54,7 +54,7 @@ dynamo_args["frontend-node"]=""
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed."
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|pydantic_core._pydantic_core.ValidationError|Unsupported.connector.type"
 
 # sglang_dsr1-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
@@ -970,7 +970,7 @@ function render_lmcache_config()
   mkdir -p "$storage_cache_dir"
   chmod 755 "$storage_cache_dir"
 
-  local rendered_config="${RESULTS_DIR}/lmcache-config-${SLURM_NODEID:-0}.yaml"
+  local rendered_config="${LMCACHE_CONFIG_FILE}.tmp.${SLURM_NODEID:-0}"
   if ! FRONTEND_NODE="$frontend_node" \
     FRONTEND_IP="$frontend_ip" \
     RESULTS_DIR="$RESULTS_DIR" \
@@ -1004,7 +1004,7 @@ PY
     exit 1
   fi
 
-  export LMCACHE_CONFIG_FILE="$rendered_config"
+  mv "$rendered_config" "$LMCACHE_CONFIG_FILE"
   log "Rendered LMCache config file: ${LMCACHE_CONFIG_FILE}"
 }
 

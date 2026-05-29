@@ -25,6 +25,7 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
     AIDynamoCmdArgs,
@@ -234,7 +235,9 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     td.cmd_args.lmcache = {
         "chunk_size": 512,
         "local_cpu": True,
-        "controller_url": "{frontend_node}:9001",
+        "controller_pull_url": "{frontend_node}:8300",
+        "controller_reply_url": "{frontend_node}:8400",
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
         "extra_config": {
             "enable_nixl_storage": False,
             "nixl_backend": "POSIX",
@@ -245,17 +248,22 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     result = strategy._gen_script_args(td)
 
     config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+    backup_path = strategy.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME
     config = yaml.safe_load(config_path.read_text())
+    backup_config = yaml.safe_load(backup_path.read_text())
     assert (
         strategy.final_env_vars["LMCACHE_CONFIG_FILE"]
         == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
     )
     assert config["chunk_size"] == 512
     assert config["local_cpu"] is True
-    assert config["controller_url"] == "{frontend_node}:9001"
+    assert config["controller_pull_url"] == "{frontend_node}:8300"
+    assert config["controller_reply_url"] == "{frontend_node}:8400"
+    assert config["lmcache_worker_ports"] == [8788, 8789, 8790, 8791]
     assert config["extra_config"]["enable_nixl_storage"] is False
     assert config["extra_config"]["nixl_backend"] == "POSIX"
     assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
+    assert backup_config == config
     assert not any(arg.startswith("--lmcache") for arg in result)
 
 

@@ -125,19 +125,20 @@ run output directory, mounts that directory as ``/cloudai_run_results``, and exp
 
    [cmd_args]
      [cmd_args.lmcache]
-       chunk_size = 256
-       local_cpu = true
-       controller_url = "{frontend_node}:9001"
-       distributed_url = "{frontend_node}:8789"
-       max_local_cpu_size = 6.0
-       nixl_buffer_size = 2079377920
-       nixl_buffer_device = "cpu"
+     chunk_size = 256
+     local_cpu = true
+     controller_pull_url = "{frontend_node}:8300"
+     controller_reply_url = "{frontend_node}:8400"
+     lmcache_worker_ports = [8788, 8789, 8790, 8791]
+     max_local_cpu_size = 6.0
+     nixl_buffer_size = 2079377920
+     nixl_buffer_device = "cpu"
 
-         [cmd_args.lmcache.extra_config]
-         enable_nixl_storage = false
-         nixl_backend = "POSIX"
-         nixl_path = "{storage_cache_dir}"
-         nixl_pool_size = 2048
+       [cmd_args.lmcache.extra_config]
+       enable_nixl_storage = false
+       nixl_backend = "POSIX"
+       nixl_path = "{storage_cache_dir}"
+       nixl_pool_size = 2048
 
 For an example that uses test-in-scenario mode, see
 ``conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml``. Because the test is fully defined inside the scenario,
@@ -169,10 +170,12 @@ If the selected LMCache mode needs a controller, CloudAI can start one on the fr
 .. code-block:: toml
 
    [cmd_args.lmcache_controller]
-   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-ports {\"pull\":8300,\"reply\":8400}"
 
-This only launches the process. For disaggregated or multi-node runs, the LMCache YAML still needs a ``controller_url``
-that resolves to the frontend node from every worker, such as ``"{frontend_node}:9001"``.
+This only launches the process. For disaggregated or multi-node runs, the LMCache YAML still needs controller addresses
+that resolve to the frontend node from every worker. With the default controller monitor ports, use
+``controller_pull_url = "{frontend_node}:8300"`` and ``controller_reply_url = "{frontend_node}:8400"``. The
+``lmcache_worker_ports`` list must match the number of worker ranks.
 
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

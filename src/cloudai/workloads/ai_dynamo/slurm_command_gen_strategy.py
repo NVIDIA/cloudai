@@ -25,7 +25,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .ai_dynamo import LMCACHE_CONFIG_FILE_NAME, AIDynamoTestDefinition
+from .ai_dynamo import LMCACHE_CONFIG_BACKUP_FILE_NAME, LMCACHE_CONFIG_FILE_NAME, AIDynamoTestDefinition
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -105,8 +105,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return
 
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        config_path = self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
-        config_path.write_text(yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False))
+        config = yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False)
+        (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
+        (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         self._prepare_lmcache_config()
