@@ -42,6 +42,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
 
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
+AIPERF_COMMANDS_FILE_NAME = "aiperf_commands.json"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
@@ -254,6 +255,7 @@ class AIPerf(Workload):
     name: str = "aiperf"
     cmd: str = "aiperf profile"
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
+    runtime: File = Field(default=File(Path(__file__).parent.parent / "ai_dynamo/runtime/aiperf.py"), exclude=True)
     setup_cmd: str | None = Field(
         default=None,
         serialization_alias="setup-cmd",
@@ -267,7 +269,13 @@ class AIPerf(Workload):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.script]
+        return [self.script, self.runtime]
+
+
+class AIPerfPhase(AIPerf):
+    """Named AIPerf phase that overrides the base AIPerf configuration."""
+
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_.-]+$")
 
 
 class AIPerfAccuracy(BaseModel):
@@ -324,6 +332,7 @@ class AIDynamoCmdArgs(CmdArgs):
     lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
+    aiperf_phases: list[AIPerfPhase] | None = None
     aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
 
@@ -340,6 +349,23 @@ class AIDynamoCmdArgs(CmdArgs):
     @property
     def workloads_list(self) -> list[str]:
         return [w.strip() for w in self.workloads.split(",")]
+
+    @model_validator(mode="after")
+    def validate_aiperf_phases(self) -> "AIDynamoCmdArgs":
+        """Validate AIPerf phases."""
+        if not self.aiperf_phases:
+            return self
+
+        seen = set()
+        duplicates = set()
+        for phase in self.aiperf_phases:
+            if phase.name in seen:
+                duplicates.add(phase.name)
+            seen.add(phase.name)
+        if duplicates:
+            raise ValueError(f"AIPerf phase names must be unique. Duplicates: {sorted(duplicates)}")
+
+        return self
 
     @property
     def installables(self) -> list[Installable]:

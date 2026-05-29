@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import shlex
 from pathlib import Path
 from typing import cast
@@ -25,6 +26,7 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    AIPERF_COMMANDS_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
@@ -33,6 +35,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfAccuracy,
+    AIPerfPhase,
     GenAIPerf,
     LMCacheController,
     WorkerBaseArgs,
@@ -216,6 +219,97 @@ def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamo
 
     assert '--aiperf_accuracy-entrypoint "python /custom_accuracy/dummy_accuracy.py"' in result
     assert f'--aiperf_accuracy-cli "{cli}"' in result
+
+
+def test_gen_script_args_writes_resolved_aiperf_commands(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "setup-cmd": "python -m pip install --upgrade aiperf",
+            "args": {
+                "concurrency": 2,
+                "request-count": 50,
+                "synthetic-input-tokens-mean": 300,
+                "output-tokens-mean": 500,
+            },
+        }
+    )
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
+        AIPerfPhase.model_validate({"name": "round_2", "args": {"request-count": 10}}),
+    ]
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--aiperf-commands-file {strategy.CONTAINER_MOUNT_OUTPUT}/{AIPERF_COMMANDS_FILE_NAME}" in result
+    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
+    assert entries[0] == {
+        "name": "aiperf_setup",
+        "cmd": ["bash", "-lc", "python -m pip install --upgrade aiperf"],
+        "cli": [],
+    }
+    assert entries[1]["name"] == "round_1"
+    assert entries[1]["cmd"] == ["aiperf", "profile"]
+    assert entries[1]["cli"][:9] == [
+        "--model",
+        "model",
+        "--url",
+        "{frontend_url}:8000",
+        "--endpoint-type",
+        "chat",
+        "--streaming",
+        "--artifact-dir",
+        f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1",
+    ]
+    assert entries[1]["cli"][-8:] == [
+        "--concurrency",
+        "1",
+        "--request-count",
+        "50",
+        "--synthetic-input-tokens-mean",
+        "300",
+        "--output-tokens-mean",
+        "500",
+    ]
+    assert entries[1]["log_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log"
+    assert entries[1]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv"
+    assert entries[2]["cli"][-8:] == [
+        "--concurrency",
+        "2",
+        "--request-count",
+        "10",
+        "--synthetic-input-tokens-mean",
+        "300",
+        "--output-tokens-mean",
+        "500",
+    ]
+    assert entries[2]["final_report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
+
+
+def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf_phases = [AIPerfPhase.model_validate({"name": "round_1", "args": {"request-count": 10}})]
+
+    strategy._gen_script_args(td)
+
+    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
+    assert entries[0]["output_folder"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts"
+    assert entries[0]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
+    assert "log_file" not in entries[0]
+
+
+def test_aiperf_phase_names_must_be_unique(cmd_args: AIDynamoCmdArgs) -> None:
+    with pytest.raises(ValueError, match="AIPerf phase names must be unique"):
+        AIDynamoCmdArgs(
+            docker_image_url=cmd_args.docker_image_url,
+            dynamo=cmd_args.dynamo,
+            aiperf_phases=[
+                AIPerfPhase.model_validate({"name": "round_1"}),
+                AIPerfPhase.model_validate({"name": "round_1"}),
+            ],
+        )
 
 
 def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
