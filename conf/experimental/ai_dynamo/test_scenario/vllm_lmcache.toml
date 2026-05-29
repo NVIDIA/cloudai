@@ -23,7 +23,7 @@ name = "vllm-disagg-lmcache-controller"
 description = "Self-contained AIDynamo scenario wiring vLLM disaggregated inference, LMCache config propagation, and LMCache controller launch."
 test_template_name = "AIDynamo"
 time_limit = "00:10:00"
-extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
+extra_container_mounts = ["/run/udev:/run/udev", "/tmp/cloudai:/tmp/"]
 
   [Tests.cmd_args]
   docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"

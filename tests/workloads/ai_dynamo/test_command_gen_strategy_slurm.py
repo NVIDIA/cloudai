@@ -267,6 +267,14 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert not any(arg.startswith("--lmcache") for arg in result)
 
 
+def test_lmcache_list_values_do_not_create_dse_space(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.lmcache = {"lmcache_worker_ports": [8788, 8789, 8790, 8791]}
+
+    assert test_run.is_dse_job is False
+    assert "lmcache.lmcache_worker_ports" not in test_run.param_space
+
+
 def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"

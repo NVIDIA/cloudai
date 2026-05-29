@@ -16,7 +16,7 @@
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
@@ -93,6 +93,7 @@ class TestDefinition(BaseModel, ABC):
     __test__ = False
 
     model_config = ConfigDict(extra="forbid")
+    dse_excluded_cmd_args: ClassVar[tuple[str, ...]] = ()
 
     name: str
     description: str
@@ -131,10 +132,16 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict) -> bool:
+        def is_excluded(path: str) -> bool:
+            return any(path == excluded or path.startswith(f"{excluded}.") for excluded in self.dse_excluded_cmd_args)
+
+        def check_dict(d: dict, parent_key: str = "") -> bool:
             if isinstance(d, dict):
-                for value in d.values():
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
+                for key, value in d.items():
+                    path = f"{parent_key}.{key}" if parent_key else key
+                    if is_excluded(path):
+                        continue
+                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value, path)):
                         return True
             return False
 
