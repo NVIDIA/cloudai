@@ -59,6 +59,9 @@ workloads = "aiperf.sh"
       host = "0.0.0.0"
       disaggregation-transfer-backend = "nixl"
 
+  [cmd_args.lmcache_controller]
+  cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+
   [cmd_args.genai_perf]
   cmd = "genai-perf profile"
   extra-args = "--streaming --verbose -- -v --async"

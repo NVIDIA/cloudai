@@ -303,6 +303,14 @@ class Constraints(BaseModel):
     tp_times_pp_le_gpus_per_node: bool = True
 
 
+class LMCacheController(BaseModel):
+    """Optional LMCache controller process to launch on the frontend node."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cmd: str
+
+
 class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
@@ -312,6 +320,7 @@ class AIDynamoCmdArgs(CmdArgs):
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
     lmcache: dict | None = None
+    lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
     aiperf_accuracy: AIPerfAccuracy | None = None

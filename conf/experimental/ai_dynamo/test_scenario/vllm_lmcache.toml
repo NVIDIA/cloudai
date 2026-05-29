@@ -18,9 +18,9 @@ name = "dynamo-vllm-lmcache"
 job_status_check = false
 
 [[Tests]]
-id = "test.disagg.single-node.lmcache-config"
-name = "vLLM LMCache config propagation"
-description = "Self-contained AIDynamo scenario showing LMCache config generation and propagation to vLLM workers."
+id = "test.disagg.lmcache-controller"
+name = "vLLM disaggregated LMCache with controller"
+description = "Self-contained AIDynamo scenario wiring vLLM disaggregated inference, LMCache config propagation, and LMCache controller launch."
 test_template_name = "AIDynamo"
 time_limit = "00:10:00"
 extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
@@ -30,8 +30,13 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
   workloads = "aiperf.sh"
 
     [Tests.cmd_args.lmcache]
+    enable_controller = true
     chunk_size = 256
     local_cpu = true
+    lmcache_instance_id = "lmcache_default_instance"
+    controller_url = "{frontend_node}:9001"
+    distributed_url = "{frontend_node}:8789"
+    lmcache_worker_port = 8788
     max_local_cpu_size = 6.0
     nixl_buffer_size = 2079377920
     nixl_buffer_device = "cpu"
@@ -39,8 +44,11 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
       [Tests.cmd_args.lmcache.extra_config]
       enable_nixl_storage = false
       nixl_backend = "POSIX"
-      nixl_path = "/tmp/"
+      nixl_path = "{storage_cache_dir}"
       nixl_pool_size = 2048
+
+    [Tests.cmd_args.lmcache_controller]
+    cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
 
     [Tests.cmd_args.dynamo]
     backend = "vllm"
@@ -54,6 +62,7 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
         [Tests.cmd_args.dynamo.prefill_worker.args]
         gpu-memory-utilization = 0.8
+        kv-transfer-config = '{"kv_connector":"PdConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"},{"kv_connector":"NixlConnector","kv_role":"kv_both"}]}}'
         tensor-parallel-size = 4
         pipeline-parallel-size = 1
         data-parallel-size = 1
@@ -66,6 +75,7 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
         [Tests.cmd_args.dynamo.decode_worker.args]
         gpu-memory-utilization = 0.8
+        kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
         tensor-parallel-size = 4
         pipeline-parallel-size = 1
         data-parallel-size = 1

@@ -38,6 +38,8 @@ declare -A aiperf_config
 declare -A aiperf_accuracy_args
 declare -A aiperf_accuracy_config
 
+lmcache_controller_cmd=""
+
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
 dynamo_args["node-setup-cmd"]=""
@@ -161,6 +163,8 @@ _parse_cli_pairs() {
         decode_args["--${key#--decode-args-}"]="$2" ;;
       --decode-*)
         decode_config["${key#--decode-}"]="$2" ;;
+      --lmcache-controller-cmd)
+        lmcache_controller_cmd="$2" ;;
       --genai_perf-args-*)
         genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
       --genai_perf-*)
@@ -360,6 +364,7 @@ _dump_args() {
   log "Decode config params:\n$(arg_array_to_string decode_config)"
   log "Decode args:\n$(arg_array_to_string decode_args)"
   log "LMCache config file: ${LMCACHE_CONFIG_FILE:-}"
+  log "LMCache controller cmd: ${lmcache_controller_cmd}"
   log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
   log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
@@ -928,6 +933,11 @@ function setup_storage_cache_dir()
   chmod 755 "${STORAGE_CACHE_DIR}"
 }
 
+function lmcache_storage_cache_dir()
+{
+  echo "${STORAGE_CACHE_DIR_BASE}/${TEST_USER}/${dynamo_args["frontend-node"]}/lmcache/cache"
+}
+
 function setup_kvbm()
 {
   if ! _has_connector "kvbm"; then
@@ -941,6 +951,63 @@ function setup_kvbm()
   setup_cufile
 }
 
+function render_lmcache_config()
+{
+  if [[ -z "${LMCACHE_CONFIG_FILE:-}" ]]; then
+    return
+  fi
+
+  if [[ ! -f "${LMCACHE_CONFIG_FILE}" ]]; then
+    log "ERROR: LMCACHE_CONFIG_FILE does not exist: ${LMCACHE_CONFIG_FILE}"
+    exit 1
+  fi
+
+  _require_cmd python3
+
+  local frontend_node="${dynamo_args["frontend-node"]}"
+  local frontend_ip="$(_resolve_host_ip "$frontend_node")"
+  local storage_cache_dir="$(lmcache_storage_cache_dir)"
+  mkdir -p "$storage_cache_dir"
+  chmod 755 "$storage_cache_dir"
+
+  local rendered_config="${RESULTS_DIR}/lmcache-config-${SLURM_NODEID:-0}.yaml"
+  if ! FRONTEND_NODE="$frontend_node" \
+    FRONTEND_IP="$frontend_ip" \
+    RESULTS_DIR="$RESULTS_DIR" \
+    STORAGE_CACHE_DIR="$storage_cache_dir" \
+    python3 - "$LMCACHE_CONFIG_FILE" "$rendered_config" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+src, dst = sys.argv[1], sys.argv[2]
+values = {
+    "frontend_node": os.environ["FRONTEND_NODE"],
+    "frontend_ip": os.environ["FRONTEND_IP"],
+    "results_dir": os.environ["RESULTS_DIR"],
+    "storage_cache_dir": os.environ["STORAGE_CACHE_DIR"],
+}
+
+content = Path(src).read_text()
+unknown = sorted(set(re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", content)) - values.keys())
+if unknown:
+    raise SystemExit(f"Unknown LMCache config placeholders: {', '.join(unknown)}")
+
+for key, value in values.items():
+    content = content.replace("{" + key + "}", value)
+
+Path(dst).write_text(content)
+PY
+  then
+    log "ERROR: Failed to render LMCache config template: ${LMCACHE_CONFIG_FILE}"
+    exit 1
+  fi
+
+  export LMCACHE_CONFIG_FILE="$rendered_config"
+  log "Rendered LMCache config file: ${LMCACHE_CONFIG_FILE}"
+}
+
 function setup_lmcache()
 {
   if [[ -z "${LMCACHE_CONFIG_FILE:-}" ]]; then
@@ -950,6 +1017,16 @@ function setup_lmcache()
 
   log "Using LMCache config file: ${LMCACHE_CONFIG_FILE}"
   setup_cufile
+}
+
+function launch_lmcache_controller()
+{
+  if [[ -z "${lmcache_controller_cmd}" ]]; then
+    return
+  fi
+
+  log "Launching LMCache controller with cmd: ${lmcache_controller_cmd}"
+  ${lmcache_controller_cmd} > "${RESULTS_DIR}/lmcache_controller.log" 2>&1
 }
 
 function log_gpu_utilization()
@@ -1054,6 +1131,8 @@ function main()
 
   cd "$RESULTS_DIR" || { log "ERROR: Failed to cd to $RESULTS_DIR"; exit 1; }
 
+  render_lmcache_config
+
   log_gpu_utilization &
 
   if _is_frontend_node; then
@@ -1061,6 +1140,7 @@ function main()
     log_node_role "$(_current_node_name)" "frontend"
     setup_lmcache
     setup_kvbm
+    launch_lmcache_controller &
     launch_etcd &
     launch_nats &
     wait_for_etcd

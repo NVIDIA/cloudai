@@ -125,6 +125,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if td.cmd_args.storage_cache_dir:
             args.append(f"--storage-cache-dir {td.cmd_args.storage_cache_dir}")
+        if td.cmd_args.lmcache_controller:
+            args.append(f"--lmcache-controller-cmd {shlex.quote(td.cmd_args.lmcache_controller.cmd)}")
 
         args.extend(
             self._get_toml_args(

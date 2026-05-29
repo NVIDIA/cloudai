@@ -127,6 +127,8 @@ run output directory, mounts that directory as ``/cloudai_run_results``, and exp
      [cmd_args.lmcache]
        chunk_size = 256
        local_cpu = true
+       controller_url = "{frontend_node}:9001"
+       distributed_url = "{frontend_node}:8789"
        max_local_cpu_size = 6.0
        nixl_buffer_size = 2079377920
        nixl_buffer_device = "cpu"
@@ -134,7 +136,7 @@ run output directory, mounts that directory as ``/cloudai_run_results``, and exp
          [cmd_args.lmcache.extra_config]
          enable_nixl_storage = false
          nixl_backend = "POSIX"
-         nixl_path = "/tmp/"
+         nixl_path = "{storage_cache_dir}"
          nixl_pool_size = 2048
 
 For an example that uses test-in-scenario mode, see
@@ -158,8 +160,19 @@ For multi-node LMCache storage tests, any path referenced by the LMCache YAML, s
 storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as
 ``/tmp`` is suitable only for single-node smoke tests or configuration propagation checks.
 
-CloudAI does not start an LMCache controller from this section; use the runtime/image-specific deployment mechanism if
-the selected LMCache mode requires one.
+LMCache YAML values can use runtime placeholders. CloudAI renders them inside the Slurm job before launching workers:
+``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
+run before worker processes start.
+
+If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
+
+.. code-block:: toml
+
+   [cmd_args.lmcache_controller]
+   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+
+This only launches the process. For disaggregated or multi-node runs, the LMCache YAML still needs a ``controller_url``
+that resolves to the frontend node from every worker, such as ``"{frontend_node}:9001"``.
 
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

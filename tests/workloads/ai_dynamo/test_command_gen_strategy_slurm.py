@@ -33,6 +33,7 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     GenAIPerf,
+    LMCacheController,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -233,10 +234,11 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     td.cmd_args.lmcache = {
         "chunk_size": 512,
         "local_cpu": True,
+        "controller_url": "{frontend_node}:9001",
         "extra_config": {
             "enable_nixl_storage": False,
             "nixl_backend": "POSIX",
-            "nixl_path": "/tmp/",
+            "nixl_path": "{storage_cache_dir}",
         },
     }
 
@@ -250,7 +252,18 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     )
     assert config["chunk_size"] == 512
     assert config["local_cpu"] is True
+    assert config["controller_url"] == "{frontend_node}:9001"
     assert config["extra_config"]["enable_nixl_storage"] is False
     assert config["extra_config"]["nixl_backend"] == "POSIX"
-    assert config["extra_config"]["nixl_path"] == "/tmp/"
+    assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
     assert not any(arg.startswith("--lmcache") for arg in result)
+
+
+def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+    td.cmd_args.lmcache_controller = LMCacheController(cmd=cmd)
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--lmcache-controller-cmd {shlex.quote(cmd)}" in result
