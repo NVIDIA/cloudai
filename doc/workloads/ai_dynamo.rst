@@ -149,6 +149,10 @@ For an example that uses test-in-scenario mode, see
    uv run cloudai run --system-config <slurm system toml> \
       --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml
 
+The example sets ``dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]`` because
+``lmcache_worker_ports`` is a list-valued LMCache setting, not a DSE sweep dimension. Other list-valued LMCache fields
+can still be swept unless their ``cmd_args.`` path is also excluded.
+
 Alternatively, mount your own LMCache YAML file with ``extra_container_mounts`` and set ``LMCACHE_CONFIG_FILE`` through
 ``extra_env_vars``:
 
