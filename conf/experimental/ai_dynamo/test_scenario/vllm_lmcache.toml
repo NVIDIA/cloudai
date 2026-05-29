@@ -88,6 +88,24 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp/cloudai:/tmp/"]
       request-count = 50
       synthetic-input-tokens-mean = 300
 
+    [Tests.cmd_args.aiperf_accuracy]
+    entrypoint = "aiperf profile"
+    setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+    cli = '''
+--model {model}
+--url {url}
+--endpoint-type chat
+--streaming
+--artifact-dir {artifact_dir}
+--no-server-metrics
+--accuracy-benchmark mmlu
+--accuracy-n-shots 5
+--accuracy-tasks abstract_algebra
+--concurrency 10
+--extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+--num-requests 100
+'''
+
   [Tests.extra_env_vars]
   UCX_LOG_LEVEL = "warn"
   HF_HUB_OFFLINE = "0"
