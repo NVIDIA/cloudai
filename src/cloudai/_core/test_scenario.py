@@ -146,16 +146,11 @@ class TestRun:
         cmd_args_dict = flatten_dict(self.test.cmd_args.model_dump())
         extra_env_vars_dict = self.test.extra_env_vars
 
-        def is_excluded_cmd_arg(key: str) -> bool:
-            return any(
-                key == excluded or key.startswith(f"{excluded}.") for excluded in self.test.dse_excluded_cmd_args
-            )
-
         action_space: dict[str, Any] = {
             **{
                 key: value
                 for key, value in cmd_args_dict.items()
-                if isinstance(value, list) and not is_excluded_cmd_arg(key)
+                if isinstance(value, list) and not self.test.is_dse_excluded_arg(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -192,8 +187,11 @@ class TestRun:
                 attrs = key.split(".")
                 obj = tdef.cmd_args
                 for attr in attrs[:-1]:
-                    obj = getattr(obj, attr)
-                setattr(obj, attrs[-1], value)
+                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+                if isinstance(obj, dict):
+                    obj[attrs[-1]] = value
+                else:
+                    setattr(obj, attrs[-1], value)
 
         type(tdef)(**tdef.model_dump())  # trigger validation
 

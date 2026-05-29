@@ -93,6 +93,7 @@ class TestRunModel(BaseModel):
     description: Optional[str] = None
     test_template_name: Optional[str] = None
     cmd_args: Optional[CmdArgs] = None
+    dse_excluded_args: Optional[list[str]] = None
     extra_env_vars: dict[str, str | list[str]] | None = None
     extra_container_mounts: Optional[list[str]] = None
     git_repos: Optional[list[GitRepo]] = None
@@ -114,6 +115,7 @@ class TestRunModel(BaseModel):
             "agent_metrics": self.agent_metrics if "agent_metrics" in self.model_fields_set else None,
             "agent_reward_function": self.agent_reward_function,
             "agent_config": self.agent_config,
+            "dse_excluded_args": self.dse_excluded_args,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,

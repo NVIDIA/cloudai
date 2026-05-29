@@ -24,6 +24,7 @@ description = "Self-contained AIDynamo scenario wiring vLLM disaggregated infere
 test_template_name = "AIDynamo"
 time_limit = "00:10:00"
 extra_container_mounts = ["/run/udev:/run/udev", "/tmp/cloudai:/tmp/"]
+dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
 
   [Tests.cmd_args]
   docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"

@@ -267,12 +267,21 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert not any(arg.startswith("--lmcache") for arg in result)
 
 
-def test_lmcache_list_values_do_not_create_dse_space(test_run: TestRun) -> None:
+def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test)
-    td.cmd_args.lmcache = {"lmcache_worker_ports": [8788, 8789, 8790, 8791]}
+    td.dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+    td.cmd_args.lmcache = {
+        "chunk_size": [256, 512],
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
+    }
 
-    assert test_run.is_dse_job is False
+    assert test_run.is_dse_job is True
+    assert test_run.param_space["lmcache.chunk_size"] == [256, 512]
     assert "lmcache.lmcache_worker_ports" not in test_run.param_space
+
+    new_test_run = test_run.apply_params_set({"lmcache.chunk_size": 512})
+
+    assert cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.lmcache["chunk_size"] == 512  # type: ignore
 
 
 def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:

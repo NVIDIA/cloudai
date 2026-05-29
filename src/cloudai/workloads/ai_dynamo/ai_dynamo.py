@@ -17,7 +17,7 @@
 import csv
 import logging
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, cast
+from typing import Literal, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -354,8 +354,6 @@ class AIDynamoTestDefinition(TestDefinition):
     """Test definition for AI Dynamo."""
 
     model_config = ConfigDict(extra="forbid")
-    dse_excluded_cmd_args: ClassVar[tuple[str, ...]] = ("lmcache",)
-
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
