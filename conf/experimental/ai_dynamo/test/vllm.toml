@@ -39,6 +39,7 @@ workloads = "aiperf.sh"
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
+      kv-transfer-config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
 
     [cmd_args.dynamo.decode_worker]
     num-nodes = 1
@@ -51,6 +52,7 @@ workloads = "aiperf.sh"
       tensor-parallel-size = 8
       pipeline-parallel-size = 1
       data-parallel-size = 1
+      kv-transfer-config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
 
   [cmd_args.lmcache_controller]
   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
