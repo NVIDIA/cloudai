@@ -16,6 +16,7 @@
 
 import logging
 import shlex
+import textwrap
 from pathlib import Path
 from typing import Any, List, cast
 
@@ -204,27 +205,31 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
         setup_cmd = self._resolve_aiperf_phase(phases[0]).setup_cmd
-        lines = [
-            "#!/usr/bin/env bash",
-            "set -Eeuo pipefail",
-            "",
-            'log() { echo "[$(date +%F\\ %T) $(hostname)]: $*"; }',
-            "",
-            ': "${FRONTEND_URL:?FRONTEND_URL is not set}"',
-            f': "${{AIPERF_MODEL:={self.td.cmd_args.dynamo.model}}}"',
-            f': "${{AIPERF_ENDPOINT:={self.td.cmd_args.dynamo.endpoint}}}"',
-            f': "${{AIPERF_FAILURE_MARKER:={self.CONTAINER_MOUNT_OUTPUT}/{self.td.failure_marker}}}"',
-            "",
+        blocks = [
+            textwrap.dedent(
+                f"""\
+                #!/usr/bin/env bash
+                set -Eeuo pipefail
+
+                log() {{ echo "[$(date +%F\\ %T) $(hostname)]: $*"; }}
+
+                : "${{FRONTEND_URL:?FRONTEND_URL is not set}}"
+                : "${{AIPERF_MODEL:={self.td.cmd_args.dynamo.model}}}"
+                : "${{AIPERF_ENDPOINT:={self.td.cmd_args.dynamo.endpoint}}}"
+                : "${{AIPERF_FAILURE_MARKER:={self.CONTAINER_MOUNT_OUTPUT}/{self.td.failure_marker}}}"
+                """
+            ).rstrip()
         ]
 
         if setup_cmd:
             setup_argv = ["bash", "-lc", setup_cmd]
-            lines.extend(
-                [
-                    f"log {shlex.quote(f'Running aiperf setup: {shlex.join(setup_argv)}')}",
-                    shlex.join(setup_argv),
-                    "",
-                ]
+            blocks.append(
+                textwrap.dedent(
+                    f"""\
+                    log {shlex.quote(f"Running aiperf setup: {shlex.join(setup_argv)}")}
+                    {shlex.join(setup_argv)}
+                    """
+                ).rstrip()
             )
 
         write_phase_logs = not single_phase
@@ -241,60 +246,76 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 resolved_phase.extra_args or "",
             ]
             cmd = " ".join(part for part in cmd_parts if part)
-            log_message = f"Running {phase.name}: {cmd}"
-            lines.append(f"rm -rf {shlex.quote(artifact_dir)}")
-            lines.append(f"mkdir -p {shlex.quote(artifact_dir)}")
-            lines.append(f"log {shlex.quote(log_message)}")
-            lines.append("phase_status=0")
             if write_phase_logs:
                 log_file = self._runtime_result_path(f"aiperf_{phase.name}.log")
-                lines.append("set +e")
-                lines.append(f"{cmd} > {shlex.quote(log_file)} 2>&1")
-                lines.append("phase_status=$?")
-                lines.append("set -e")
+                run_cmd = f"{cmd} > {shlex.quote(log_file)} 2>&1"
             else:
-                lines.append("set +e")
-                lines.append(cmd)
-                lines.append("phase_status=$?")
-                lines.append("set -e")
-
-            lines.append('if [[ "$phase_status" -ne 0 ]]; then')
-            lines.append(f"  log {shlex.quote(f'AIPerf phase {phase.name} failed')}")
+                run_cmd = cmd
+            log_message = f"Running {phase.name}: {cmd}"
+            phase_lines = [
+                textwrap.dedent(
+                    f"""\
+                    rm -rf {shlex.quote(artifact_dir)}
+                    mkdir -p {shlex.quote(artifact_dir)}
+                    log {shlex.quote(log_message)}
+                    phase_status=0
+                    set +e
+                    {run_cmd}
+                    phase_status=$?
+                    set -e
+                    if [[ "$phase_status" -ne 0 ]]; then
+                      log {shlex.quote(f"AIPerf phase {phase.name} failed")}
+                    """
+                ).rstrip()
+            ]
             if not resolved_phase.continue_on_phase_failure:
-                lines.append('  exit "$phase_status"')
-            lines.append("fi")
-            lines.append('if [[ "$phase_status" -eq 0 ]]; then')
-
-            lines.append(f"  mkdir -p {shlex.quote(str(Path(report_file).parent))}")
+                phase_lines.append('  exit "$phase_status"')
+            phase_lines.extend(
+                [
+                    "fi",
+                    textwrap.dedent(
+                        f"""\
+                        if [[ "$phase_status" -eq 0 ]]; then
+                          mkdir -p {shlex.quote(str(Path(report_file).parent))}
+                        """
+                    ).rstrip(),
+                ]
+            )
             if report_source != report_file:
-                lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
-            lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
+                phase_lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
+            phase_lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
 
             if not single_phase and idx == len(phases) - 1:
                 final_report_file = self._runtime_result_path("aiperf_report.csv")
-                lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
+                phase_lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
                 if report_file != final_report_file:
-                    lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
-                lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+                    phase_lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
+                phase_lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+
             if not single_phase and idx < len(phases) - 1 and resolved_phase.health_check_between_phases:
-                lines.append('  if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then')
-                lines.append("    log 'FATAL: failure marker found between AIPerf phases'")
-                lines.append("    exit 1")
-                lines.append("  fi")
-                lines.append(
+                health_probe_cmd = (
                     '  if ! curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" '
                     "-H 'Content-Type: application/json' "
                     '-d "{\\"model\\":\\"${AIPERF_MODEL}\\",\\"messages\\":[{\\"role\\":\\"user\\",'
                     '\\"content\\":\\"ping\\"}],\\"stream\\":false,\\"max_tokens\\":1}" '
                     ">/dev/null; then"
                 )
-                lines.append("    log 'FATAL: frontend health probe failed between AIPerf phases'")
-                lines.append("    exit 1")
-                lines.append("  fi")
-            lines.append("fi")
-            lines.append("")
+                phase_lines.extend(
+                    [
+                        '  if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then',
+                        "    log 'FATAL: failure marker found between AIPerf phases'",
+                        "    exit 1",
+                        "  fi",
+                        health_probe_cmd,
+                        "    log 'FATAL: frontend health probe failed between AIPerf phases'",
+                        "    exit 1",
+                        "  fi",
+                    ]
+                )
+            phase_lines.append("fi")
+            blocks.append("\n".join(phase_lines))
 
-        return "\n".join(lines)
+        return "\n\n".join(blocks)
 
     def _prepare_aiperf_script(self) -> str | None:
         if "aiperf.sh" not in self.td.cmd_args.workloads_list:
