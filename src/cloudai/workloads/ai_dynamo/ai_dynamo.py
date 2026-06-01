@@ -272,10 +272,29 @@ class AIPerf(Workload):
         return [self.script, self.runtime]
 
 
-class AIPerfPhase(AIPerf):
+class AIPerfPhase(BaseModel):
     """Named AIPerf phase that overrides the base AIPerf configuration."""
 
-    name: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_.-]+$")
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    name: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_.-]+$")
+    cmd: str | None = None
+    setup_cmd: str | None = Field(
+        default=None,
+        serialization_alias="setup-cmd",
+        validation_alias=AliasChoices("setup-cmd", "setup_cmd"),
+    )
+    report_name: str | None = Field(
+        default=None,
+        serialization_alias="report-name",
+        validation_alias=AliasChoices("report-name", "report_name"),
+    )
+    args: Args = Field(default_factory=Args)
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
 
 
 class AIPerfAccuracy(BaseModel):

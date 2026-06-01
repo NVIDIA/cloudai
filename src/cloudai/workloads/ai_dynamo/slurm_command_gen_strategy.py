@@ -118,7 +118,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
 
-    def _aiperf_config_dict(self, aiperf: AIPerf, *, exclude_unset: bool = False) -> dict[str, Any]:
+    def _aiperf_config_dict(self, aiperf: AIPerf | AIPerfPhase, *, exclude_unset: bool = False) -> dict[str, Any]:
         return aiperf.model_dump(
             by_alias=True,
             exclude={"args", "name", "repo", "script", "runtime"},
@@ -126,7 +126,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             exclude_unset=exclude_unset,
         )
 
-    def _aiperf_args_dict(self, aiperf: AIPerf, *, exclude_unset: bool = False) -> dict[str, Any]:
+    def _aiperf_args_dict(self, aiperf: AIPerf | AIPerfPhase, *, exclude_unset: bool = False) -> dict[str, Any]:
         return aiperf.args.model_dump(by_alias=True, exclude_none=True, exclude_unset=exclude_unset)
 
     def _aiperf_args_argv(self, args: dict[str, Any]) -> list[str]:
@@ -150,11 +150,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return shlex.split(str(value))
 
     def _aiperf_phase_has_explicit_value(self, phase: AIPerfPhase, field_name: str, *extra_aliases: str) -> bool:
-        if field_name in phase.model_fields_set:
+        if field_name in phase.model_fields_set and getattr(phase, field_name) is not None:
             return True
 
         extra = phase.model_extra or {}
-        return any(alias in extra for alias in extra_aliases)
+        return any(extra.get(alias) is not None for alias in extra_aliases)
 
     def _aiperf_phase_manifest_entry(self, base: AIPerf, phase: AIPerfPhase, *, single_phase: bool) -> dict[str, Any]:
         base_config = self._aiperf_config_dict(base)

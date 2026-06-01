@@ -288,6 +288,27 @@ def test_gen_script_args_writes_resolved_aiperf_commands(strategy: AIDynamoSlurm
     assert entries[2]["final_report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
 
 
+def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1"}),
+        AIPerfPhase.model_validate({"name": "round_2"}),
+    ]
+
+    roundtripped = AIDynamoTestDefinition.model_validate(td.model_dump())
+    strategy.test_run.test = roundtripped
+
+    assert roundtripped.cmd_args.aiperf_phases is not None
+    assert [phase.report_name for phase in roundtripped.cmd_args.aiperf_phases] == [None, None]
+
+    strategy._gen_script_args(roundtripped)
+
+    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
+    assert entries[0]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv"
+    assert entries[1]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv"
+
+
 def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"
