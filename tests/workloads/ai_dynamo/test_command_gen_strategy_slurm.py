@@ -429,7 +429,7 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert config["extra_config"]["nixl_backend"] == "POSIX"
     assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
     assert backup_config == config
-    assert not any(arg.startswith("--lmcache") for arg in result)
+    assert "--lmcache" not in result
 
 
 def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
