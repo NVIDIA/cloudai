@@ -398,17 +398,45 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "DCGM_EXPORTER_SRUN_PID=$!",
             'echo "DCGM exporter srun PID: ${DCGM_EXPORTER_SRUN_PID}"',
             "sleep 5",
+            'echo "Checking DCGM exporter metrics endpoints..."',
+            "DCGM_EXPORTER_STARTUP_TIMEOUT=${DCGM_EXPORTER_STARTUP_TIMEOUT:-60}",
         ]
         if node_list:
             block.extend(
                 [
-                    "echo 'DCGM endpoints:' > \"$RESULTS_DIR/dcgm_endpoints.txt\"",
-                    "for n in "
-                    + " ".join(node_list)
-                    + f'; do echo "  http://$n:{port}/metrics" >> "$RESULTS_DIR/dcgm_endpoints.txt"; done',
-                    "",
+                    "dcgm_nodes=(" + " ".join(shlex.quote(node) for node in node_list) + ")",
                 ]
             )
+        else:
+            block.append('mapfile -t dcgm_nodes < <(scontrol show hostnames "$SLURM_JOB_NODELIST")')
+        endpoints_file = shlex.quote(str(out_dir / "dcgm_endpoints.txt"))
+        block.extend(
+            [
+                f": > {endpoints_file}",
+                "dcgm_failed=0",
+                'for node in "${dcgm_nodes[@]}"; do',
+                f'    dcgm_url="http://${{node}}:{port}/metrics"',
+                f'    echo "  ${{dcgm_url}}" >> {endpoints_file}',
+                "    deadline=$((SECONDS + DCGM_EXPORTER_STARTUP_TIMEOUT))",
+                '    until curl -fsS --max-time 2 "${dcgm_url}" >/dev/null; do',
+                "        if (( SECONDS >= deadline )); then",
+                '            echo "FATAL: DCGM exporter metrics endpoint is unreachable: ${dcgm_url}" >&2',
+                "            dcgm_failed=1",
+                "            break",
+                "        fi",
+                "        sleep 2",
+                "    done",
+                "    if (( dcgm_failed != 0 )); then break; fi",
+                '    echo "DCGM exporter reachable: ${dcgm_url}"',
+                "done",
+                "if (( dcgm_failed != 0 )); then",
+                '    kill "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true',
+                '    wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true',
+                "    exit 1",
+                "fi",
+                "",
+            ]
+        )
         return block
 
     def _gen_dcgm_cleanup_command(self) -> str | None:

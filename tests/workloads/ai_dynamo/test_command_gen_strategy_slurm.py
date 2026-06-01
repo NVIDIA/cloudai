@@ -296,6 +296,9 @@ def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSl
     assert '--dynamo-dcgm-exporter-port "9501"' in args
     assert any("--container-image=nvcr.io/test/dcgm:latest" in line for line in block)
     assert any("DCGM_EXPORTER_LISTEN=:9501" in line for line in block)
+    assert any("DCGM_EXPORTER_STARTUP_TIMEOUT" in line for line in block)
+    assert any('curl -fsS --max-time 2 "${dcgm_url}"' in line for line in block)
+    assert any("FATAL: DCGM exporter metrics endpoint is unreachable" in line for line in block)
     assert not any("docker run" in line for line in block)
 
 
