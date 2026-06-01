@@ -7,7 +7,6 @@ log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
 : "${AIPERF_MODEL:=model}"
 : "${AIPERF_ENDPOINT:=v1/chat/completions}"
 : "${AIPERF_FAILURE_MARKER:=/cloudai_run_results/failure-marker.txt}"
-: "${AIPERF_HEALTH_TIMEOUT:=120}"
 
 rm -rf /cloudai_run_results/aiperf_artifacts/round_1
 mkdir -p /cloudai_run_results/aiperf_artifacts/round_1
@@ -27,22 +26,14 @@ if [[ "$phase_status" -eq 0 ]]; then
   log 'AIPerf report saved to /cloudai_run_results/aiperf_round_1_report.csv'
   log 'Running AIPerf between-phase command after round_1: bash -lc '"'"'/cloudai_run_results/routerctl.sh restart --reset-states'"'"''
   bash -lc '/cloudai_run_results/routerctl.sh restart --reset-states'
-  health_deadline=$((SECONDS + AIPERF_HEALTH_TIMEOUT))
   if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then
     log 'FATAL: failure marker found between AIPerf phases'
     exit 1
   fi
-  until curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" -H 'Content-Type: application/json' -d "{\"model\":\"${AIPERF_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"stream\":false,\"max_tokens\":1}" >/dev/null; do
-    if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then
-      log 'FATAL: failure marker found while waiting for frontend between AIPerf phases'
-      exit 1
-    fi
-    if (( SECONDS >= health_deadline )); then
-      log 'FATAL: frontend health probe failed between AIPerf phases'
-      exit 1
-    fi
-    sleep 1
-  done
+  if ! curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" -H 'Content-Type: application/json' -d "{\"model\":\"${AIPERF_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"stream\":false,\"max_tokens\":1}" >/dev/null; then
+    log 'FATAL: frontend health probe failed between AIPerf phases'
+    exit 1
+  fi
 fi
 
 rm -rf /cloudai_run_results/aiperf_artifacts/round_2

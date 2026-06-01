@@ -744,6 +744,8 @@ function write_routerctl()
 {
   export ROUTER_CMD="${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
   export ROUTER_URL="${dynamo_args["url"]}"
+  export ROUTER_HEALTH_ENDPOINT="${dynamo_args["endpoint"]}"
+  export ROUTER_HEALTH_MODEL="${dynamo_args["model"]}"
   export ROUTER_PID_FILE="${RESULTS_DIR}/router.pid"
   export ROUTER_LOG_FILE="${RESULTS_DIR}/dynamo_ingress.log"
   export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-120}"
@@ -757,6 +759,8 @@ log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
 
 : "${ROUTER_CMD:?ROUTER_CMD is not set}"
 : "${ROUTER_URL:?ROUTER_URL is not set}"
+: "${ROUTER_HEALTH_ENDPOINT:?ROUTER_HEALTH_ENDPOINT is not set}"
+: "${ROUTER_HEALTH_MODEL:?ROUTER_HEALTH_MODEL is not set}"
 : "${ROUTER_PID_FILE:?ROUTER_PID_FILE is not set}"
 : "${ROUTER_LOG_FILE:?ROUTER_LOG_FILE is not set}"
 : "${ROUTER_START_TIMEOUT:=120}"
@@ -776,18 +780,21 @@ router_is_running() {
 
 wait_for_router() {
   local deadline=$((SECONDS + ROUTER_START_TIMEOUT))
-  until curl -sS -o /dev/null --connect-timeout 1 --max-time 2 "${ROUTER_URL}"; do
+  until curl -fsS -X POST "${ROUTER_URL}/${ROUTER_HEALTH_ENDPOINT}" \
+    -H 'Content-Type: application/json' \
+    -d "{\"model\":\"${ROUTER_HEALTH_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"stream\":false,\"max_tokens\":1}" \
+    >/dev/null; do
     if ! router_is_running; then
-      log "ERROR: Router process exited before ${ROUTER_URL} became reachable"
+      log "ERROR: Router process exited before ${ROUTER_URL}/${ROUTER_HEALTH_ENDPOINT} became ready"
       return 1
     fi
     if (( SECONDS >= deadline )); then
-      log "ERROR: Router did not become reachable at ${ROUTER_URL} within ${ROUTER_START_TIMEOUT}s"
+      log "ERROR: Router did not become ready at ${ROUTER_URL}/${ROUTER_HEALTH_ENDPOINT} within ${ROUTER_START_TIMEOUT}s"
       return 1
     fi
     sleep 1
   done
-  log "Router is reachable at ${ROUTER_URL}"
+  log "Router is ready at ${ROUTER_URL}/${ROUTER_HEALTH_ENDPOINT}"
 }
 
 start_router() {

@@ -250,7 +250,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 : "${{AIPERF_MODEL:={self.td.cmd_args.dynamo.model}}}"
                 : "${{AIPERF_ENDPOINT:={self.td.cmd_args.dynamo.endpoint}}}"
                 : "${{AIPERF_FAILURE_MARKER:={self.CONTAINER_MOUNT_OUTPUT}/{self.td.failure_marker}}}"
-                : "${{AIPERF_HEALTH_TIMEOUT:=120}}"
                 """
             ).rstrip()
         ]
@@ -330,30 +329,22 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
             if not single_phase and idx < len(phases) - 1 and resolved_phase.health_check_between_phases:
                 health_probe_cmd = (
-                    '  until curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" '
+                    '  if ! curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" '
                     "-H 'Content-Type: application/json' "
                     '-d "{\\"model\\":\\"${AIPERF_MODEL}\\",\\"messages\\":[{\\"role\\":\\"user\\",'
                     '\\"content\\":\\"ping\\"}],\\"stream\\":false,\\"max_tokens\\":1}" '
-                    ">/dev/null; do"
+                    ">/dev/null; then"
                 )
                 phase_lines.extend(
                     [
-                        "  health_deadline=$((SECONDS + AIPERF_HEALTH_TIMEOUT))",
                         '  if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then',
                         "    log 'FATAL: failure marker found between AIPerf phases'",
                         "    exit 1",
                         "  fi",
                         health_probe_cmd,
-                        '    if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then',
-                        "      log 'FATAL: failure marker found while waiting for frontend between AIPerf phases'",
-                        "      exit 1",
-                        "    fi",
-                        "    if (( SECONDS >= health_deadline )); then",
-                        "      log 'FATAL: frontend health probe failed between AIPerf phases'",
-                        "      exit 1",
-                        "    fi",
-                        "    sleep 1",
-                        "  done",
+                        "    log 'FATAL: frontend health probe failed between AIPerf phases'",
+                        "    exit 1",
+                        "  fi",
                     ]
                 )
             phase_lines.append("fi")
