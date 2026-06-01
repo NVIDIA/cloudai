@@ -140,6 +140,20 @@ class WorkerConfig(BaseModel):
     )
 
 
+class DCGMExporter(BaseModel):
+    """Optional DCGM exporter launch configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: bool = False
+    docker_image_url: str = Field(
+        default="nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless",
+        serialization_alias="docker-image-url",
+        validation_alias=AliasChoices("docker-image-url", "docker_image_url", "image-url", "image_url"),
+    )
+    port: int = 9401
+
+
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
@@ -205,6 +219,7 @@ class AIDynamoArgs(BaseModel):
         serialization_alias="nats-port",
         validation_alias=AliasChoices("nats-port", "nats_port"),
     )
+    dcgm_exporter: DCGMExporter = Field(default_factory=DCGMExporter)
 
     decode_worker: WorkerConfig = WorkerConfig(
         cmd="python3 -m dynamo.vllm",
@@ -264,10 +279,61 @@ class AIPerf(Workload):
         serialization_alias="report-name",
         validation_alias=AliasChoices("report-name", "report_name"),
     )
+    artifact_dir_name: str = Field(
+        default=AIPERF_ARTIFACTS_DIR,
+        serialization_alias="artifact-dir-name",
+        validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
+    )
+    health_check_between_phases: bool = Field(
+        default=True,
+        serialization_alias="health-check-between-phases",
+        validation_alias=AliasChoices("health-check-between-phases", "health_check_between_phases"),
+    )
+    continue_on_phase_failure: bool = Field(
+        default=False,
+        serialization_alias="continue-on-phase-failure",
+        validation_alias=AliasChoices("continue-on-phase-failure", "continue_on_phase_failure"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
         return [self.script]
+
+    @model_validator(mode="after")
+    def validate_extra_args(self) -> "AIPerf":
+        if isinstance(self.extra_args, list):
+            raise ValueError("AIPerf extra_args must be a string with explicit CLI syntax")
+        return self
+
+
+class AIPerfPhase(BaseModel):
+    """Named AIPerf phase that overrides the base AIPerf configuration."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    name: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_.-]+$")
+    cmd: str | None = None
+    setup_cmd: str | None = Field(
+        default=None,
+        serialization_alias="setup-cmd",
+        validation_alias=AliasChoices("setup-cmd", "setup_cmd"),
+    )
+    report_name: str | None = Field(
+        default=None,
+        serialization_alias="report-name",
+        validation_alias=AliasChoices("report-name", "report_name"),
+    )
+    artifact_dir_name: str | None = Field(
+        default=None,
+        serialization_alias="artifact-dir-name",
+        validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
+    )
+    args: Args = Field(default_factory=Args)
+    extra_args: str | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
 
 
 class AIPerfAccuracy(BaseModel):
@@ -324,6 +390,7 @@ class AIDynamoCmdArgs(CmdArgs):
     lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
+    aiperf_phases: list[AIPerfPhase] | None = None
     aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
 
@@ -341,6 +408,23 @@ class AIDynamoCmdArgs(CmdArgs):
     def workloads_list(self) -> list[str]:
         return [w.strip() for w in self.workloads.split(",")]
 
+    @model_validator(mode="after")
+    def validate_aiperf_phases(self) -> "AIDynamoCmdArgs":
+        """Validate AIPerf phases."""
+        if not self.aiperf_phases:
+            return self
+
+        seen = set()
+        duplicates = set()
+        for phase in self.aiperf_phases:
+            if phase.name in seen:
+                duplicates.add(phase.name)
+            seen.add(phase.name)
+        if duplicates:
+            raise ValueError(f"AIPerf phase names must be unique. Duplicates: {sorted(duplicates)}")
+
+        return self
+
     @property
     def installables(self) -> list[Installable]:
         return [
@@ -356,6 +440,7 @@ class AIDynamoTestDefinition(TestDefinition):
     model_config = ConfigDict(extra="forbid")
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
+    _dcgm_exporter_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
     repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
@@ -390,6 +475,16 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def dcgm_exporter_image(self) -> DockerImage | None:
+        if not self.cmd_args.dynamo.dcgm_exporter.enabled:
+            return None
+
+        image_url = self.cmd_args.dynamo.dcgm_exporter.docker_image_url
+        if not self._dcgm_exporter_image or self._dcgm_exporter_image.url != image_url:
+            self._dcgm_exporter_image = DockerImage(url=image_url)
+        return self._dcgm_exporter_image
+
+    @property
     def hf_model(self) -> HFModel:
         if not self._hf_model:
             logging.info(f"Creating HFModel for: {self.cmd_args.dynamo.model}")
@@ -399,13 +494,16 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         """Get all installables for this test definition."""
-        return [
+        installables = [
             self.docker_image,
             self.repo,
             self.script,
             self.hf_model,
             *self.cmd_args.installables,
         ]
+        if self.dcgm_exporter_image:
+            installables.append(self.dcgm_exporter_image)
+        return installables
 
     def _has_aiperf_accuracy_results(self, output_path: Path) -> bool:
         accuracy = parse_aiperf_accuracy(output_path)

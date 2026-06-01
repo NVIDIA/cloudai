@@ -34,6 +34,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    AIPerf,
+    AIPerfPhase,
+    DCGMExporter,
     GenAIPerf,
     WorkerBaseArgs,
     WorkerConfig,
@@ -493,11 +496,13 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
+                    workloads="aiperf.sh",
                     dynamo=AIDynamoArgs(
                         model="model",
                         backend="vllm",
                         endpoint="v1/chat/completions",
                         workspace_path="/workspace",
+                        dcgm_exporter=DCGMExporter(enabled=True, port=9501),
                         prefill_worker=WorkerConfig(
                             cmd="python3 -m dynamo.vllm --is-prefill-worker",
                             worker_initialized_regex="VllmWorker.*has.been.initialized",
@@ -526,6 +531,22 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "warmup-request-count": 10,
                         }
                     ),
+                    aiperf=AIPerf.model_validate(
+                        {
+                            "extra-args": "--server-metrics-formats json csv",
+                            "args": {
+                                "concurrency": 2,
+                                "request-count": 50,
+                                "synthetic-input-tokens-mean": 300,
+                                "output-tokens-mean": 500,
+                                "server-metrics": "auto",
+                            },
+                        }
+                    ),
+                    aiperf_phases=[
+                        AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
+                        AIPerfPhase.model_validate({"name": "round_2", "args": {"request-count": 10}}),
+                    ],
                 ),
             ),
         ),
@@ -745,3 +766,10 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
             "__INSTALL_DIR__", str(slurm_system.install_path.absolute())
         )
         assert curr_launcher == ref_launcher, "nixl-ep-launch.sh does not match reference"
+
+    if test_req[1] == "ai-dynamo.sbatch":
+        aiperf_script = slurm_system.output_path / "aiperf.sh"
+        assert aiperf_script.exists(), "aiperf.sh was not generated"
+        curr_aiperf = aiperf_script.read_text().strip()
+        ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
+        assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"

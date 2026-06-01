@@ -18,6 +18,7 @@ name = "vLLM"
 description = "vLLM backend"
 test_template_name = "AIDynamo"
 extra_container_mounts = ["/run/udev:/run/udev"]
+dse_excluded_args = ["cmd_args.aiperf_phases"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
@@ -73,12 +74,32 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  health-check-between-phases = true
+  continue-on-phase-failure = false
     [cmd_args.aiperf.args]
     concurrency = 2
+    endpoint-type = "chat"
     extra-inputs = '{"min_tokens":10}'
     output-tokens-mean = 500
     request-count = 50
+    server-metrics = "auto"
+    streaming = true
     synthetic-input-tokens-mean = 300
+
+  [[cmd_args.aiperf_phases]]
+  name = "round_1"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 2
+    request-count = 50
+
+  [[cmd_args.aiperf_phases]]
+  name = "round_2"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 4
+    request-count = 50
+    streaming = false
 
   [cmd_args.aiperf_accuracy]
   entrypoint = "aiperf profile"
