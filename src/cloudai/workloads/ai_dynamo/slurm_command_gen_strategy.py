@@ -149,6 +149,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return [str(item) for item in value]
         return shlex.split(str(value))
 
+    def _aiperf_phase_has_explicit_value(self, phase: AIPerfPhase, field_name: str, *extra_aliases: str) -> bool:
+        if field_name in phase.model_fields_set:
+            return True
+
+        extra = phase.model_extra or {}
+        return any(alias in extra for alias in extra_aliases)
+
     def _aiperf_phase_manifest_entry(self, base: AIPerf, phase: AIPerfPhase, *, single_phase: bool) -> dict[str, Any]:
         base_config = self._aiperf_config_dict(base)
         phase_config = self._aiperf_config_dict(phase, exclude_unset=True)
@@ -158,10 +165,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         phase_args = self._aiperf_args_dict(phase, exclude_unset=True)
         args = {**base_args, **phase_args}
 
-        if "artifact-dir-name" not in phase_config:
+        if not self._aiperf_phase_has_explicit_value(
+            phase, "artifact_dir_name", "artifact-dir-name", "artifact_dir_name"
+        ):
             base_artifact_dir = base_config.get("artifact-dir-name", AIPERF_ARTIFACTS_DIR)
             config["artifact-dir-name"] = base_artifact_dir if single_phase else f"{base_artifact_dir}/{phase.name}"
-        if "report-name" not in phase_config:
+        if not self._aiperf_phase_has_explicit_value(phase, "report_name", "report-name", "report_name"):
             base_report_name = base_config.get("report-name", "aiperf_report.csv")
             config["report-name"] = base_report_name if single_phase else f"aiperf_{phase.name}_report.csv"
 

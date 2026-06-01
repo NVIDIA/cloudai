@@ -284,6 +284,7 @@ def test_gen_script_args_writes_resolved_aiperf_commands(strategy: AIDynamoSlurm
         "--output-tokens-mean",
         "500",
     ]
+    assert entries[2]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv"
     assert entries[2]["final_report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
 
 

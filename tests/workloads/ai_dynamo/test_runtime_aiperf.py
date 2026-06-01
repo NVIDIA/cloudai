@@ -61,3 +61,36 @@ def test_runtime_executes_entries_and_copies_final_report(tmp_path: Path) -> Non
     assert report_file.read_text(encoding="utf-8") == "url\nhttp://frontend:8000\n"
     assert final_report_file.read_text(encoding="utf-8") == "url\nhttp://frontend:8000\n"
     assert (tmp_path / "aiperf_round_1.log").is_file()
+
+
+def test_runtime_allows_final_report_to_match_report_file(tmp_path: Path) -> None:
+    fake_aiperf = _write_fake_aiperf(tmp_path)
+    commands_file = tmp_path / "aiperf_commands.json"
+    artifact_dir = tmp_path / "aiperf_artifacts"
+    report_file = tmp_path / "aiperf_report.csv"
+    commands_file.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "aiperf",
+                    "cmd": [sys.executable, str(fake_aiperf)],
+                    "cli": [
+                        "--url",
+                        "{frontend_url}:8000",
+                        "--artifact-dir",
+                        str(artifact_dir),
+                    ],
+                    "output_folder": str(artifact_dir),
+                    "report_source": str(artifact_dir / "profile_export_aiperf.csv"),
+                    "report_file": str(report_file),
+                    "final_report_file": str(report_file),
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = aiperf.main(["--url", "http://frontend", "--commands-file", str(commands_file)])
+
+    assert result == 0
+    assert report_file.read_text(encoding="utf-8") == "url\nhttp://frontend:8000\n"

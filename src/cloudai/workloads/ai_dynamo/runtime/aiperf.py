@@ -24,6 +24,18 @@ def substitute_frontend_url(values: list[str], frontend_url: str) -> list[str]:
     return [value.replace("{frontend_url}", frontend_url) for value in values]
 
 
+def copy_file(source: str, destination: str, message: str) -> None:
+    source_path = Path(source)
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    if source_path.resolve() == destination_path.resolve():
+        log(f"{message} {destination_path}")
+        return
+
+    shutil.copy2(source_path, destination_path)
+    log(f"{message} {destination_path}")
+
+
 def run_entry(entry: dict[str, Any], frontend_url: str) -> None:
     argv = substitute_frontend_url([*entry["cmd"], *entry.get("cli", [])], frontend_url)
     output_folder = entry.get("output_folder")
@@ -43,15 +55,11 @@ def run_entry(entry: dict[str, Any], frontend_url: str) -> None:
     report_source = entry.get("report_source")
     report_file = entry.get("report_file")
     if report_source and report_file:
-        report_path = Path(report_file)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(report_source, report_path)
-        log(f"AIPerf report saved to {report_path}")
+        copy_file(report_source, report_file, "AIPerf report saved to")
 
     final_report_file = entry.get("final_report_file")
     if final_report_file and report_file:
-        shutil.copy2(report_file, final_report_file)
-        log(f"Final AIPerf report saved to {final_report_file}")
+        copy_file(report_file, final_report_file, "Final AIPerf report saved to")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
