@@ -916,7 +916,8 @@ _resolve_aiperf_server_metrics_urls() {
   done
 
   if [[ "${dynamo_args["dcgm-exporter-enabled"]}" == "True" || "${dynamo_args["dcgm-exporter-enabled"]}" == "true" ]]; then
-    for node in ${decode_config["node-list"]:-},${prefill_config["node-list"]:-}; do
+    local dcgm_nodes="${decode_config["node-list"]:-},${prefill_config["node-list"]:-}"
+    for node in $dcgm_nodes; do
       [[ -z "$node" ]] && continue
       urls="${urls},http://${node}:${dynamo_args["dcgm-exporter-port"]}/metrics"
     done
