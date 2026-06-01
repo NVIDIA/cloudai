@@ -60,6 +60,8 @@ dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|
 dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
+dynamo_args["dcgm-exporter-enabled"]="False"
+dynamo_args["dcgm-exporter-port"]=9401
 
 function log()
 {
@@ -892,6 +894,38 @@ _query_frontend() {
   curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d @$RESULTS_DIR/curl_cmd.json
 }
 
+_resolve_aiperf_server_metrics_urls() {
+  local urls="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}/metrics"
+  local base_system_port=${DYN_SYSTEM_PORT:-9090}
+  local decode_workers_per_node=${decode_config["workers-per-node"]:-1}
+  local prefill_workers_per_node=${prefill_config["workers-per-node"]:-1}
+  local IFS_SAVE="$IFS"
+  local node i
+
+  IFS=','
+  for node in ${prefill_config["node-list"]:-}; do
+    for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
+      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+    done
+  done
+
+  for node in ${decode_config["node-list"]:-}; do
+    for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
+      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+    done
+  done
+
+  if [[ "${dynamo_args["dcgm-exporter-enabled"]}" == "True" || "${dynamo_args["dcgm-exporter-enabled"]}" == "true" ]]; then
+    for node in ${decode_config["node-list"]:-},${prefill_config["node-list"]:-}; do
+      [[ -z "$node" ]] && continue
+      urls="${urls},http://${node}:${dynamo_args["dcgm-exporter-port"]}/metrics"
+    done
+  fi
+  IFS="$IFS_SAVE"
+
+  echo "$urls"
+}
+
 function setup_cufile()
 {
   export CUFILE_ENV_PATH_JSON="$RESULTS_DIR/cufile.json"
@@ -1059,6 +1093,10 @@ function launch_workload()
   local workload_name="${workload_config_ref["--name"]}"
   local script="${workload_config_ref["--script"]}"
   export FRONTEND_URL="${dynamo_args["url"]}"
+  export AIPERF_MODEL="${dynamo_args["model"]}"
+  export AIPERF_ENDPOINT="${dynamo_args["endpoint"]}"
+  export AIPERF_FAILURE_MARKER="${FATAL_ERROR_MARKER}"
+  export AIPERF_SERVER_METRICS_URLS="$(_resolve_aiperf_server_metrics_urls)"
 
   # Build config and workload args as proper bash arrays to preserve
   # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.

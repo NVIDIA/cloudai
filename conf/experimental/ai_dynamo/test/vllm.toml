@@ -74,11 +74,16 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  health-check-between-phases = true
+  continue-on-phase-failure = false
     [cmd_args.aiperf.args]
     concurrency = 2
+    endpoint-type = "chat"
     extra-inputs = '{"min_tokens":10}'
     output-tokens-mean = 500
     request-count = 50
+    server-metrics = "auto"
+    streaming = true
     synthetic-input-tokens-mean = 300
 
   [[cmd_args.aiperf_phases]]
@@ -94,6 +99,7 @@ workloads = "aiperf.sh"
     [cmd_args.aiperf_phases.args]
     concurrency = 4
     request-count = 50
+    streaming = false
 
   [cmd_args.aiperf_accuracy]
   entrypoint = "aiperf profile"

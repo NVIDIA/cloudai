@@ -256,6 +256,48 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv" in script
 
 
+def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "args": {
+                "model": "custom-model",
+                "endpoint-type": "completions",
+                "streaming": False,
+                "server-metrics": "auto",
+                "request-count": 10,
+            },
+        }
+    )
+
+    strategy._gen_script_args(td)
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "--model custom-model" in script
+    assert "--endpoint-type completions" in script
+    assert "--streaming" not in script
+    assert '--server-metrics "$AIPERF_SERVER_METRICS_URLS"' in script
+    assert "--no-server-metrics" not in script
+
+
+def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.dcgm_exporter.enabled = True
+    td.cmd_args.dynamo.dcgm_exporter.image_url = "nvcr.io/test/dcgm:latest"
+    td.cmd_args.dynamo.dcgm_exporter.port = 9501
+
+    args = strategy._gen_script_args(td)
+    block = strategy._gen_dcgm_launcher_block()
+
+    assert '--dynamo-dcgm-exporter-enabled "True"' in args
+    assert '--dynamo-dcgm-exporter-port "9501"' in args
+    assert any("nvcr.io/test/dcgm:latest" in line for line in block)
+    assert any("DCGM_EXPORTER_LISTEN=:9501" in line for line in block)
+
+
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"

@@ -140,6 +140,20 @@ class WorkerConfig(BaseModel):
     )
 
 
+class DCGMExporter(BaseModel):
+    """Optional DCGM exporter launch configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: bool = False
+    image_url: str = Field(
+        default="nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless",
+        serialization_alias="image-url",
+        validation_alias=AliasChoices("image-url", "image_url"),
+    )
+    port: int = 9401
+
+
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
@@ -205,6 +219,7 @@ class AIDynamoArgs(BaseModel):
         serialization_alias="nats-port",
         validation_alias=AliasChoices("nats-port", "nats_port"),
     )
+    dcgm_exporter: DCGMExporter = Field(default_factory=DCGMExporter)
 
     decode_worker: WorkerConfig = WorkerConfig(
         cmd="python3 -m dynamo.vllm",
@@ -268,6 +283,16 @@ class AIPerf(Workload):
         default=AIPERF_ARTIFACTS_DIR,
         serialization_alias="artifact-dir-name",
         validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
+    )
+    health_check_between_phases: bool = Field(
+        default=True,
+        serialization_alias="health-check-between-phases",
+        validation_alias=AliasChoices("health-check-between-phases", "health_check_between_phases"),
+    )
+    continue_on_phase_failure: bool = Field(
+        default=False,
+        serialization_alias="continue-on-phase-failure",
+        validation_alias=AliasChoices("continue-on-phase-failure", "continue_on_phase_failure"),
     )
 
     @property

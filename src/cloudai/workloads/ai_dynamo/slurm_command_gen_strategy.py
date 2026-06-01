@@ -118,13 +118,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
 
-    def _aiperf_args_argv(self, args: dict[str, Any]) -> list[str]:
-        result = []
+    def _render_aiperf_args(self, args: dict[str, Any]) -> str:
+        parts: list[str] = []
         for key, value in args.items():
-            result.append(f"--{key}")
-            if value is not None:
-                result.append(str(value))
-        return result
+            if value is None or value is False:
+                continue
+
+            parts.append(f"--{key}")
+            if value is True:
+                continue
+
+            values = [",".join(str(item) for item in value)] if isinstance(value, list) else [str(value)]
+            for rendered_value in values:
+                if rendered_value in {"$FRONTEND_URL", "$AIPERF_SERVER_METRICS_URLS"}:
+                    parts.append(f'"{rendered_value}"')
+                else:
+                    parts.append(shlex.quote(rendered_value))
+        return " ".join(parts)
 
     def _runtime_result_path(self, path: str) -> str:
         if Path(path).is_absolute():
@@ -137,6 +147,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if isinstance(value, list):
             return [str(item) for item in value]
         return shlex.split(str(value))
+
+    def _aiperf_phase_args(self, resolved_phase: AIPerf, artifact_dir: str) -> dict[str, Any]:
+        args: dict[str, Any] = {
+            "model": self.td.cmd_args.dynamo.model,
+            "endpoint-type": "chat",
+            "streaming": True,
+            "url": "$FRONTEND_URL",
+        }
+        args.update(resolved_phase.args.model_dump(by_alias=True, exclude_none=True))
+        args["artifact-dir"] = artifact_dir
+
+        if args.get("server-metrics") == "auto":
+            args["server-metrics"] = "$AIPERF_SERVER_METRICS_URLS"
+        if "server-metrics" not in args and "no-server-metrics" not in args:
+            args["no-server-metrics"] = True
+
+        return args
 
     def _resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
         base_data = self.td.cmd_args.aiperf.model_dump(by_alias=True, exclude_none=True)
@@ -161,6 +188,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             'log() { echo "[$(date +%F\\ %T) $(hostname)]: $*"; }',
             "",
             ': "${FRONTEND_URL:?FRONTEND_URL is not set}"',
+            f': "${{AIPERF_MODEL:={self.td.cmd_args.dynamo.model}}}"',
+            f': "${{AIPERF_ENDPOINT:={self.td.cmd_args.dynamo.endpoint}}}"',
+            f': "${{AIPERF_FAILURE_MARKER:={self.CONTAINER_MOUNT_OUTPUT}/{self.td.failure_marker}}}"',
             "",
         ]
 
@@ -180,41 +210,63 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             artifact_dir = self._runtime_result_path(resolved_phase.artifact_dir_name)
             report_source = f"{artifact_dir}/profile_export_aiperf.csv"
             report_file = self._runtime_result_path(resolved_phase.report_name)
-            argv = [
-                *shlex.split(resolved_phase.cmd),
-                "--model",
-                self.td.cmd_args.dynamo.model,
-                "--endpoint-type",
-                "chat",
-                "--streaming",
-                "--artifact-dir",
-                artifact_dir,
-                "--no-server-metrics",
-                *self._aiperf_args_argv(resolved_phase.args.model_dump(by_alias=True, exclude_none=True)),
-                *self._split_extra_args(resolved_phase.extra_args),
+            cmd_parts = [
+                shlex.join(shlex.split(resolved_phase.cmd)),
+                self._render_aiperf_args(self._aiperf_phase_args(resolved_phase, artifact_dir)),
+                shlex.join(self._split_extra_args(resolved_phase.extra_args)),
             ]
-            cmd = f'{shlex.join(argv)} --url "$FRONTEND_URL"'
+            cmd = " ".join(part for part in cmd_parts if part)
             log_message = f"Running {phase.name}: {cmd}"
             lines.append(f"rm -rf {shlex.quote(artifact_dir)}")
             lines.append(f"mkdir -p {shlex.quote(artifact_dir)}")
             lines.append(f"log {shlex.quote(log_message)}")
+            lines.append("phase_status=0")
             if write_phase_logs:
                 log_file = self._runtime_result_path(f"aiperf_{phase.name}.log")
+                lines.append("set +e")
                 lines.append(f"{cmd} > {shlex.quote(log_file)} 2>&1")
+                lines.append("phase_status=$?")
+                lines.append("set -e")
             else:
+                lines.append("set +e")
                 lines.append(cmd)
+                lines.append("phase_status=$?")
+                lines.append("set -e")
 
-            lines.append(f"mkdir -p {shlex.quote(str(Path(report_file).parent))}")
+            lines.append('if [[ "$phase_status" -ne 0 ]]; then')
+            lines.append(f"  log {shlex.quote(f'AIPerf phase {phase.name} failed')}")
+            if not resolved_phase.continue_on_phase_failure:
+                lines.append('  exit "$phase_status"')
+            lines.append("fi")
+            lines.append('if [[ "$phase_status" -eq 0 ]]; then')
+
+            lines.append(f"  mkdir -p {shlex.quote(str(Path(report_file).parent))}")
             if report_source != report_file:
-                lines.append(f"cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
-            lines.append(f"log {shlex.quote(f'AIPerf report saved to {report_file}')}")
+                lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
+            lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
 
             if not single_phase and idx == len(phases) - 1:
                 final_report_file = self._runtime_result_path("aiperf_report.csv")
-                lines.append(f"mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
+                lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
                 if report_file != final_report_file:
-                    lines.append(f"cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
-                lines.append(f"log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+                    lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
+                lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+            if not single_phase and idx < len(phases) - 1 and resolved_phase.health_check_between_phases:
+                lines.append('  if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then')
+                lines.append("    log 'FATAL: failure marker found between AIPerf phases'")
+                lines.append("    exit 1")
+                lines.append("  fi")
+                lines.append(
+                    '  if ! curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" '
+                    "-H 'Content-Type: application/json' "
+                    '-d "{\\"model\\":\\"${AIPERF_MODEL}\\",\\"messages\\":[{\\"role\\":\\"user\\",'
+                    '\\"content\\":\\"ping\\"}],\\"stream\\":false,\\"max_tokens\\":1}" '
+                    ">/dev/null; then"
+                )
+                lines.append("    log 'FATAL: frontend health probe failed between AIPerf phases'")
+                lines.append("    exit 1")
+                lines.append("  fi")
+            lines.append("fi")
             lines.append("")
 
         return "\n".join(lines)
@@ -258,9 +310,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 exclude=[
                     "prefill_worker",
                     "decode_worker",
+                    "dcgm_exporter",
+                    "dcgm-exporter",
                 ],
             )
         )
+        if td.cmd_args.dynamo.dcgm_exporter.enabled:
+            args.append('--dynamo-dcgm-exporter-enabled "True"')
+            args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')
 
         if td.cmd_args.dynamo.prefill_worker:
             args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
@@ -297,6 +354,111 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         srun_cmd.extend(self._gen_script_args(self.td))
         return " \\\n  ".join(srun_cmd) + "\n"
+
+    def _gen_dcgm_launcher_block(self) -> list[str]:
+        if not self.td.cmd_args.dynamo.dcgm_exporter.enabled:
+            return []
+
+        num_nodes, node_list = self.get_cached_nodes_spec()
+        out_dir = self.test_run.output_path.absolute()
+        port = self.td.cmd_args.dynamo.dcgm_exporter.port
+        image_url = self.td.cmd_args.dynamo.dcgm_exporter.image_url
+        wrapper_body = [
+            "#!/bin/bash",
+            "set -e",
+            "nohup docker run --rm --user root --gpus all --cap-add SYS_ADMIN \\",
+            f"  -e DCGM_EXPORTER_LISTEN=:{port} -p {port}:{port} \\",
+            '  -v "${RESULTS_DIR}:/cloudai_run_results" \\',
+            '  "${DCGM_IMAGE}" dcgm-exporter \\',
+            '  >> "${RESULTS_DIR}/dcgm_exporter_node${SLURM_NODEID:-0}.log" 2>&1 &',
+            "disown",
+            "exit 0",
+        ]
+        srun_parts = [
+            "srun",
+            "--export=ALL",
+            f"-N{num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            f"--output={out_dir / 'dcgm-node-%n-stdout.txt'}",
+            f"--error={out_dir / 'dcgm-node-%n-stderr.txt'}",
+            "bash",
+            str(out_dir / "run_dcgm.sh"),
+        ]
+
+        block = [
+            "# Start DCGM exporter via Docker on each node.",
+            f"export RESULTS_DIR={out_dir}",
+            f"export DCGM_IMAGE={shlex.quote(image_url)}",
+            "cat > \"$RESULTS_DIR/run_dcgm.sh\" << 'WRAPPER_DCGM_EOF'",
+            *wrapper_body,
+            "WRAPPER_DCGM_EOF",
+            'chmod +x "$RESULTS_DIR/run_dcgm.sh"',
+            " ".join(srun_parts),
+            "sleep 5",
+        ]
+        if node_list:
+            block.extend(
+                [
+                    "echo 'DCGM endpoints:' > \"$RESULTS_DIR/dcgm_endpoints.txt\"",
+                    "for n in "
+                    + " ".join(node_list)
+                    + f'; do echo "  http://$n:{port}/metrics" >> "$RESULTS_DIR/dcgm_endpoints.txt"; done',
+                    "",
+                ]
+            )
+        return block
+
+    def _gen_dcgm_cleanup_command(self) -> str | None:
+        if not self.td.cmd_args.dynamo.dcgm_exporter.enabled:
+            return None
+
+        num_nodes, node_list = self.get_cached_nodes_spec()
+        kill_cmd = 'docker ps -q -f ancestor="$DCGM_IMAGE" 2>/dev/null | xargs -r docker kill 2>/dev/null || true'
+        parts = [
+            "srun",
+            "--export=ALL",
+            f"-N{num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            "bash",
+            "-c",
+            shlex.quote(kill_cmd),
+        ]
+        return " ".join(parts)
+
+    def gen_exec_command(self) -> str:
+        srun_command = self._gen_srun_command()
+        command_list = []
+        indent = ""
+
+        if self.test_run.pre_test:
+            pre_test_command = self.gen_pre_test(self.test_run.pre_test, self.test_run.output_path)
+            command_list.extend([pre_test_command, "if [ $PRE_TEST_SUCCESS -eq 1 ]; then"])
+            indent = "    "
+
+        dcgm_block = self._gen_dcgm_launcher_block()
+        if dcgm_block:
+            command_list.extend(f"{indent}{line}" for line in dcgm_block)
+
+        command_list.append(f"{indent}{srun_command}")
+
+        dcgm_cleanup = self._gen_dcgm_cleanup_command()
+        if dcgm_cleanup:
+            command_list.append(f"{indent}# Kill DCGM exporter containers when test finishes")
+            command_list.append(f"{indent}{dcgm_cleanup}")
+
+        if self.test_run.post_test:
+            post_test_command = self.gen_post_test(self.test_run.post_test, self.test_run.output_path)
+            command_list.append(f"{indent}{post_test_command}")
+
+        if self.test_run.pre_test:
+            command_list.append("fi")
+
+        full_command = "\n".join(command_list).strip()
+        return self._write_sbatch_script(full_command)
 
     def _validate_worker_nodes(
         self, node_list: list[str], worker_nodes: str | None, num_nodes: int, worker_type: str
