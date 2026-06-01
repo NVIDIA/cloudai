@@ -146,10 +146,10 @@ class DCGMExporter(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     enabled: bool = False
-    image_url: str = Field(
+    docker_image_url: str = Field(
         default="nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless",
-        serialization_alias="image-url",
-        validation_alias=AliasChoices("image-url", "image_url"),
+        serialization_alias="docker-image-url",
+        validation_alias=AliasChoices("docker-image-url", "docker_image_url", "image-url", "image_url"),
     )
     port: int = 9401
 
@@ -434,6 +434,7 @@ class AIDynamoTestDefinition(TestDefinition):
     model_config = ConfigDict(extra="forbid")
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
+    _dcgm_exporter_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
     repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
@@ -468,6 +469,16 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def dcgm_exporter_image(self) -> DockerImage | None:
+        if not self.cmd_args.dynamo.dcgm_exporter.enabled:
+            return None
+
+        image_url = self.cmd_args.dynamo.dcgm_exporter.docker_image_url
+        if not self._dcgm_exporter_image or self._dcgm_exporter_image.url != image_url:
+            self._dcgm_exporter_image = DockerImage(url=image_url)
+        return self._dcgm_exporter_image
+
+    @property
     def hf_model(self) -> HFModel:
         if not self._hf_model:
             logging.info(f"Creating HFModel for: {self.cmd_args.dynamo.model}")
@@ -477,13 +488,16 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         """Get all installables for this test definition."""
-        return [
+        installables = [
             self.docker_image,
             self.repo,
             self.script,
             self.hf_model,
             *self.cmd_args.installables,
         ]
+        if self.dcgm_exporter_image:
+            installables.append(self.dcgm_exporter_image)
+        return installables
 
     def _has_aiperf_accuracy_results(self, output_path: Path) -> bool:
         accuracy = parse_aiperf_accuracy(output_path)

@@ -23,7 +23,7 @@ import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 import cloudai.util
-from cloudai.core import File, GitRepo
+from cloudai.core import File, GitRepo, System, TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import (
@@ -39,6 +39,10 @@ AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
+
+    def __init__(self, system: System, test_run: TestRun) -> None:
+        super().__init__(system, test_run)
+        self._current_image_path: str | None = None
 
     @property
     def td(self) -> AIDynamoTestDefinition:
@@ -65,9 +69,19 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._final_env_vars = value
 
     def image_path(self) -> str | None:
+        if self._current_image_path:
+            return self._current_image_path
         if self.td.docker_image and self.td.docker_image.installed_path:
             return str(self.td.docker_image.installed_path)
         return None
+
+    def _gen_srun_prefix_for_image(self, image_path: str) -> list[str]:
+        current_image_path = self._current_image_path
+        self._current_image_path = image_path
+        try:
+            return self.gen_srun_prefix(with_num_nodes=False)
+        finally:
+            self._current_image_path = current_image_path
 
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
@@ -356,27 +370,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " \\\n  ".join(srun_cmd) + "\n"
 
     def _gen_dcgm_launcher_block(self) -> list[str]:
-        if not self.td.cmd_args.dynamo.dcgm_exporter.enabled:
+        dcgm_image = self.td.dcgm_exporter_image
+        if not dcgm_image:
             return []
 
         num_nodes, node_list = self.get_cached_nodes_spec()
         out_dir = self.test_run.output_path.absolute()
         port = self.td.cmd_args.dynamo.dcgm_exporter.port
-        image_url = self.td.cmd_args.dynamo.dcgm_exporter.image_url
-        wrapper_body = [
-            "#!/bin/bash",
-            "set -e",
-            "nohup docker run --rm --user root --gpus all --cap-add SYS_ADMIN \\",
-            f"  -e DCGM_EXPORTER_LISTEN=:{port} -p {port}:{port} \\",
-            '  -v "${RESULTS_DIR}:/cloudai_run_results" \\',
-            '  "${DCGM_IMAGE}" dcgm-exporter \\',
-            '  >> "${RESULTS_DIR}/dcgm_exporter_node${SLURM_NODEID:-0}.log" 2>&1 &',
-            "disown",
-            "exit 0",
-        ]
+        dcgm_cmd = f"DCGM_EXPORTER_LISTEN=:{port} dcgm-exporter"
         srun_parts = [
-            "srun",
-            "--export=ALL",
+            *self._gen_srun_prefix_for_image(str(dcgm_image.installed_path)),
+            "--overlap",
             f"-N{num_nodes}",
             *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
             f"--ntasks={num_nodes}",
@@ -384,18 +388,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--output={out_dir / 'dcgm-node-%n-stdout.txt'}",
             f"--error={out_dir / 'dcgm-node-%n-stderr.txt'}",
             "bash",
-            str(out_dir / "run_dcgm.sh"),
+            "-lc",
+            shlex.quote(dcgm_cmd),
         ]
 
         block = [
-            "# Start DCGM exporter via Docker on each node.",
-            f"export RESULTS_DIR={out_dir}",
-            f"export DCGM_IMAGE={shlex.quote(image_url)}",
-            "cat > \"$RESULTS_DIR/run_dcgm.sh\" << 'WRAPPER_DCGM_EOF'",
-            *wrapper_body,
-            "WRAPPER_DCGM_EOF",
-            'chmod +x "$RESULTS_DIR/run_dcgm.sh"',
-            " ".join(srun_parts),
+            "# Start DCGM exporter on each node.",
+            'echo "Starting DCGM exporter..."',
+            " ".join(srun_parts) + " &",
+            "DCGM_EXPORTER_SRUN_PID=$!",
+            'echo "DCGM exporter srun PID: ${DCGM_EXPORTER_SRUN_PID}"',
             "sleep 5",
         ]
         if node_list:
@@ -414,20 +416,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not self.td.cmd_args.dynamo.dcgm_exporter.enabled:
             return None
 
-        num_nodes, node_list = self.get_cached_nodes_spec()
-        kill_cmd = 'docker ps -q -f ancestor="$DCGM_IMAGE" 2>/dev/null | xargs -r docker kill 2>/dev/null || true'
-        parts = [
-            "srun",
-            "--export=ALL",
-            f"-N{num_nodes}",
-            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
-            f"--ntasks={num_nodes}",
-            "--ntasks-per-node=1",
-            "bash",
-            "-c",
-            shlex.quote(kill_cmd),
-        ]
-        return " ".join(parts)
+        return (
+            'if [[ -n "${DCGM_EXPORTER_SRUN_PID:-}" ]]; then '
+            'kill "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true; '
+            'wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true; '
+            "fi"
+        )
 
     def gen_exec_command(self) -> str:
         srun_command = self._gen_srun_command()
@@ -447,7 +441,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         dcgm_cleanup = self._gen_dcgm_cleanup_command()
         if dcgm_cleanup:
-            command_list.append(f"{indent}# Kill DCGM exporter containers when test finishes")
+            command_list.append(f"{indent}# Stop DCGM exporter when test finishes")
             command_list.append(f"{indent}{dcgm_cleanup}")
 
         if self.test_run.post_test:

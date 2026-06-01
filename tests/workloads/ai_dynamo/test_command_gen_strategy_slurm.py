@@ -286,7 +286,7 @@ def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto
 def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.dynamo.dcgm_exporter.enabled = True
-    td.cmd_args.dynamo.dcgm_exporter.image_url = "nvcr.io/test/dcgm:latest"
+    td.cmd_args.dynamo.dcgm_exporter.docker_image_url = "nvcr.io/test/dcgm:latest"
     td.cmd_args.dynamo.dcgm_exporter.port = 9501
 
     args = strategy._gen_script_args(td)
@@ -294,8 +294,24 @@ def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSl
 
     assert '--dynamo-dcgm-exporter-enabled "True"' in args
     assert '--dynamo-dcgm-exporter-port "9501"' in args
-    assert any("nvcr.io/test/dcgm:latest" in line for line in block)
+    assert any("--container-image=nvcr.io/test/dcgm:latest" in line for line in block)
     assert any("DCGM_EXPORTER_LISTEN=:9501" in line for line in block)
+    assert not any("docker run" in line for line in block)
+
+
+def test_dcgm_exporter_adds_configured_docker_image_installable(cmd_args: AIDynamoCmdArgs) -> None:
+    cmd_args.dynamo.dcgm_exporter.enabled = True
+    cmd_args.dynamo.dcgm_exporter.docker_image_url = "nvcr.io/test/dcgm:latest"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+    )
+
+    assert tdef.dcgm_exporter_image is not None
+    assert tdef.dcgm_exporter_image.url == "nvcr.io/test/dcgm:latest"
+    assert tdef.dcgm_exporter_image in tdef.installables
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:

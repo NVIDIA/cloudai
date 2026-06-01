@@ -57,6 +57,7 @@ time_limit = "00:10:00"
   [Tests.cmd_args]
     [Tests.cmd_args.dynamo.dcgm_exporter]
     enabled = true
+    docker-image-url = "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless"
 
     [Tests.cmd_args.dynamo.prefill_worker]
     num-nodes = 2
