@@ -23,7 +23,7 @@ import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 import cloudai.util
-from cloudai.core import File, GitRepo, System, TestRun
+from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import (
@@ -39,10 +39,6 @@ AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
-
-    def __init__(self, system: System, test_run: TestRun) -> None:
-        super().__init__(system, test_run)
-        self._current_image_path: str | None = None
 
     @property
     def td(self) -> AIDynamoTestDefinition:
@@ -69,19 +65,22 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._final_env_vars = value
 
     def image_path(self) -> str | None:
-        if self._current_image_path:
-            return self._current_image_path
         if self.td.docker_image and self.td.docker_image.installed_path:
             return str(self.td.docker_image.installed_path)
         return None
 
-    def _gen_srun_prefix_for_image(self, image_path: str) -> list[str]:
-        current_image_path = self._current_image_path
-        self._current_image_path = image_path
-        try:
-            return self.gen_srun_prefix(with_num_nodes=False)
-        finally:
-            self._current_image_path = current_image_path
+    def _gen_dcgm_srun_prefix(self, image_path: str) -> list[str]:
+        srun_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}", f"--container-image={image_path}"]
+        mounts = self.container_mounts()
+        if mounts:
+            srun_parts.append(f"--container-mounts={','.join(mounts)}")
+        if not self.system.container_mount_home:
+            srun_parts.append("--no-container-mount-home")
+        if self.system.extra_srun_args:
+            srun_parts.append(self.system.extra_srun_args)
+        if self.test_run.extra_srun_args:
+            srun_parts.append(self.test_run.extra_srun_args)
+        return srun_parts
 
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
@@ -379,7 +378,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         port = self.td.cmd_args.dynamo.dcgm_exporter.port
         dcgm_cmd = f"DCGM_EXPORTER_LISTEN=:{port} dcgm-exporter"
         srun_parts = [
-            *self._gen_srun_prefix_for_image(str(dcgm_image.installed_path)),
+            *self._gen_dcgm_srun_prefix(str(dcgm_image.installed_path)),
             "--overlap",
             f"-N{num_nodes}",
             *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
