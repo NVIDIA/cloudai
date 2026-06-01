@@ -143,10 +143,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
             values = [",".join(str(item) for item in value)] if isinstance(value, list) else [str(value)]
             for rendered_value in values:
-                if rendered_value in {"$FRONTEND_URL", "$AIPERF_SERVER_METRICS_URLS"}:
-                    parts.append(f'"{rendered_value}"')
-                else:
-                    parts.append(shlex.quote(rendered_value))
+                parts.append(shlex.quote(rendered_value))
         return " ".join(parts)
 
     def _runtime_result_path(self, path: str) -> str:
@@ -166,17 +163,34 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "model": self.td.cmd_args.dynamo.model,
             "endpoint-type": "chat",
             "streaming": True,
-            "url": "$FRONTEND_URL",
         }
         args.update(resolved_phase.args.model_dump(by_alias=True, exclude_none=True))
         args["artifact-dir"] = artifact_dir
 
-        if args.get("server-metrics") == "auto":
-            args["server-metrics"] = "$AIPERF_SERVER_METRICS_URLS"
         if "server-metrics" not in args and "no-server-metrics" not in args:
             args["no-server-metrics"] = True
 
         return args
+
+    def _render_aiperf_phase_args(self, resolved_phase: AIPerf, artifact_dir: str) -> str:
+        args = self._aiperf_phase_args(resolved_phase, artifact_dir)
+        url = args.pop("url", None)
+        server_metrics_auto = args.get("server-metrics") == "auto"
+        if server_metrics_auto:
+            args.pop("server-metrics")
+
+        parts = []
+        for key in ("model", "endpoint-type", "streaming"):
+            if key in args:
+                parts.append(self._render_aiperf_args({key: args.pop(key)}))
+        if url is None:
+            parts.append('--url "$FRONTEND_URL"')
+        else:
+            parts.append(self._render_aiperf_args({"url": url}))
+        parts.append(self._render_aiperf_args(args))
+        if server_metrics_auto:
+            parts.append('--server-metrics "$AIPERF_SERVER_METRICS_URLS"')
+        return " ".join(part for part in parts if part)
 
     def _resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
         base_data = self.td.cmd_args.aiperf.model_dump(by_alias=True, exclude_none=True)
@@ -225,7 +239,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             report_file = self._runtime_result_path(resolved_phase.report_name)
             cmd_parts = [
                 shlex.join(shlex.split(resolved_phase.cmd)),
-                self._render_aiperf_args(self._aiperf_phase_args(resolved_phase, artifact_dir)),
+                self._render_aiperf_phase_args(resolved_phase, artifact_dir),
                 shlex.join(self._split_extra_args(resolved_phase.extra_args)),
             ]
             cmd = " ".join(part for part in cmd_parts if part)
