@@ -44,6 +44,7 @@ from cloudai.systems.slurm import SlurmSystem
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
+AIPERF_DEFAULT_BETWEEN_PHASE_CMD = "/cloudai_run_results/routerctl.sh restart --reset-states"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 
@@ -294,6 +295,11 @@ class AIPerf(Workload):
         serialization_alias="continue-on-phase-failure",
         validation_alias=AliasChoices("continue-on-phase-failure", "continue_on_phase_failure"),
     )
+    between_phase_cmd: str | None = Field(
+        default=AIPERF_DEFAULT_BETWEEN_PHASE_CMD,
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
@@ -333,6 +339,11 @@ class AIPerfPhase(BaseModel):
         default=None,
         serialization_alias="extra-args",
         validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+    between_phase_cmd: str | None = Field(
+        default=None,
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
     )
 
 

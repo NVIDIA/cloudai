@@ -427,6 +427,9 @@ function perform_exit()
     log "Sleeping for ${sleep_before_exit} seconds before exit"
     sleep "${sleep_before_exit}"
   fi
+  if _is_frontend_node && [[ -x "${RESULTS_DIR}/routerctl.sh" ]]; then
+    "${RESULTS_DIR}/routerctl.sh" stop || true
+  fi
   exit "${exit_code}"
 }
 
@@ -733,8 +736,130 @@ function launch_nats()
 
 function launch_ingress()
 {
-  log "Launching ingress with cmd: ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
-  ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]} > ${RESULTS_DIR}/dynamo_ingress.log 2>&1
+  write_routerctl
+  start_router
+}
+
+function write_routerctl()
+{
+  export ROUTER_CMD="${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
+  export ROUTER_URL="${dynamo_args["url"]}"
+  export ROUTER_PID_FILE="${RESULTS_DIR}/router.pid"
+  export ROUTER_LOG_FILE="${RESULTS_DIR}/dynamo_ingress.log"
+  export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-120}"
+  export ROUTER_STOP_TIMEOUT="${ROUTER_STOP_TIMEOUT:-30}"
+
+  cat > "${RESULTS_DIR}/routerctl.sh" <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
+
+: "${ROUTER_CMD:?ROUTER_CMD is not set}"
+: "${ROUTER_URL:?ROUTER_URL is not set}"
+: "${ROUTER_PID_FILE:?ROUTER_PID_FILE is not set}"
+: "${ROUTER_LOG_FILE:?ROUTER_LOG_FILE is not set}"
+: "${ROUTER_START_TIMEOUT:=120}"
+: "${ROUTER_STOP_TIMEOUT:=30}"
+
+router_pid() {
+  if [[ -s "${ROUTER_PID_FILE}" ]]; then
+    cat "${ROUTER_PID_FILE}"
+  fi
+}
+
+router_is_running() {
+  local pid
+  pid="$(router_pid)"
+  [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null
+}
+
+wait_for_router() {
+  local deadline=$((SECONDS + ROUTER_START_TIMEOUT))
+  until curl -sS -o /dev/null --connect-timeout 1 --max-time 2 "${ROUTER_URL}"; do
+    if ! router_is_running; then
+      log "ERROR: Router process exited before ${ROUTER_URL} became reachable"
+      return 1
+    fi
+    if (( SECONDS >= deadline )); then
+      log "ERROR: Router did not become reachable at ${ROUTER_URL} within ${ROUTER_START_TIMEOUT}s"
+      return 1
+    fi
+    sleep 1
+  done
+  log "Router is reachable at ${ROUTER_URL}"
+}
+
+start_router() {
+  local cmd="${ROUTER_CMD}"
+  if [[ "${1:-}" == "--reset-states" && "${cmd}" != *"--router-reset-states"* ]]; then
+    cmd="${cmd} --router-reset-states"
+  fi
+
+  if router_is_running; then
+    log "Router is already running with PID $(router_pid)"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${ROUTER_LOG_FILE}")"
+  log "Starting router with cmd: ${cmd}"
+  nohup bash -lc "${cmd}" >> "${ROUTER_LOG_FILE}" 2>&1 &
+  local pid=$!
+  echo "${pid}" > "${ROUTER_PID_FILE}"
+  log "Router PID: ${pid}"
+  wait_for_router
+}
+
+stop_router() {
+  if ! router_is_running; then
+    rm -f "${ROUTER_PID_FILE}"
+    log "Router is not running"
+    return 0
+  fi
+
+  local pid
+  pid="$(router_pid)"
+  log "Stopping router PID ${pid}"
+  kill -TERM "${pid}" 2>/dev/null || true
+
+  local deadline=$((SECONDS + ROUTER_STOP_TIMEOUT))
+  while kill -0 "${pid}" 2>/dev/null; do
+    if (( SECONDS >= deadline )); then
+      log "ERROR: Router PID ${pid} did not stop within ${ROUTER_STOP_TIMEOUT}s"
+      return 1
+    fi
+    sleep 1
+  done
+
+  rm -f "${ROUTER_PID_FILE}"
+  log "Router stopped"
+}
+
+case "${1:-}" in
+  start)
+    shift
+    start_router "$@"
+    ;;
+  stop)
+    stop_router
+    ;;
+  restart)
+    shift
+    stop_router
+    start_router "$@"
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart} [--reset-states]" >&2
+    exit 2
+    ;;
+esac
+EOF
+  chmod +x "${RESULTS_DIR}/routerctl.sh"
+}
+
+function start_router()
+{
+  "${RESULTS_DIR}/routerctl.sh" start
 }
 
 launch_sgl_http_server() {
@@ -1184,7 +1309,7 @@ function main()
     launch_etcd &
     launch_nats &
     wait_for_etcd
-    launch_ingress &
+    launch_ingress
     if _is_sglang_dsr1; then
       launch_sgl_http_server
     fi
