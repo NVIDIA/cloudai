@@ -283,6 +283,23 @@ def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto
     assert "--no-server-metrics" not in script
 
 
+def test_generated_aiperf_script_rejects_list_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate({"args": {"server-metrics-formats": ["json", "csv"]}})
+
+    with pytest.raises(ValueError, match="AIPerf argument 'server-metrics-formats' must be a scalar value"):
+        strategy._gen_script_args(td)
+
+
+def test_aiperf_extra_args_must_be_string() -> None:
+    with pytest.raises(ValueError):
+        AIPerf.model_validate({"extra-args": ["--server-metrics-formats", "json"]})
+
+    with pytest.raises(ValueError):
+        AIPerfPhase.model_validate({"name": "round_1", "extra-args": ["--server-metrics-formats", "json"]})
+
+
 def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.dynamo.dcgm_exporter.enabled = True
@@ -299,7 +316,10 @@ def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSl
     assert any("DCGM_EXPORTER_STARTUP_TIMEOUT" in line for line in block)
     assert any('curl -fsS --max-time 2 "${dcgm_url}"' in line for line in block)
     assert any("FATAL: DCGM exporter metrics endpoint is unreachable" in line for line in block)
+    assert any('scancel --signal=TERM "${DCGM_EXPORTER_STEP_ID}"' in line for line in block)
+    assert strategy._gen_dcgm_cleanup_command() == "stop_dcgm_exporter"
     assert not any("docker run" in line for line in block)
+    assert not any('kill "${DCGM_EXPORTER_SRUN_PID}"' in line for line in block)
 
 
 def test_dcgm_exporter_adds_configured_docker_image_installable(cmd_args: AIDynamoCmdArgs) -> None:

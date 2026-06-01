@@ -10,10 +10,10 @@ log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
 
 rm -rf /cloudai_run_results/aiperf_artifacts/round_1
 mkdir -p /cloudai_run_results/aiperf_artifacts/round_1
-log 'Running round_1: aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 1 --request-count 50 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_1 --no-server-metrics'
+log 'Running round_1: aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 1 --request-count 50 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_1 --server-metrics "$AIPERF_SERVER_METRICS_URLS" --server-metrics-formats json csv'
 phase_status=0
 set +e
-aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 1 --request-count 50 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_1 --no-server-metrics > /cloudai_run_results/aiperf_round_1.log 2>&1
+aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 1 --request-count 50 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_1 --server-metrics "$AIPERF_SERVER_METRICS_URLS" --server-metrics-formats json csv > /cloudai_run_results/aiperf_round_1.log 2>&1
 phase_status=$?
 set -e
 if [[ "$phase_status" -ne 0 ]]; then
@@ -36,10 +36,10 @@ fi
 
 rm -rf /cloudai_run_results/aiperf_artifacts/round_2
 mkdir -p /cloudai_run_results/aiperf_artifacts/round_2
-log 'Running round_2: aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 2 --request-count 10 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_2 --no-server-metrics'
+log 'Running round_2: aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 2 --request-count 10 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_2 --server-metrics "$AIPERF_SERVER_METRICS_URLS" --server-metrics-formats json csv'
 phase_status=0
 set +e
-aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 2 --request-count 10 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_2 --no-server-metrics > /cloudai_run_results/aiperf_round_2.log 2>&1
+aiperf profile --model model --endpoint-type chat --streaming --url "$FRONTEND_URL" --concurrency 2 --request-count 10 --synthetic-input-tokens-mean 300 --output-tokens-mean 500 --artifact-dir /cloudai_run_results/aiperf_artifacts/round_2 --server-metrics "$AIPERF_SERVER_METRICS_URLS" --server-metrics-formats json csv > /cloudai_run_results/aiperf_round_2.log 2>&1
 phase_status=$?
 set -e
 if [[ "$phase_status" -ne 0 ]]; then

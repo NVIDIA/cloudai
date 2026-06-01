@@ -299,6 +299,12 @@ class AIPerf(Workload):
     def installables(self) -> list[Installable]:
         return [self.script]
 
+    @model_validator(mode="after")
+    def validate_extra_args(self) -> "AIPerf":
+        if isinstance(self.extra_args, list):
+            raise ValueError("AIPerf extra_args must be a string with explicit CLI syntax")
+        return self
+
 
 class AIPerfPhase(BaseModel):
     """Named AIPerf phase that overrides the base AIPerf configuration."""
@@ -323,7 +329,7 @@ class AIPerfPhase(BaseModel):
         validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
     )
     args: Args = Field(default_factory=Args)
-    extra_args: str | list[str] | None = Field(
+    extra_args: str | None = Field(
         default=None,
         serialization_alias="extra-args",
         validation_alias=AliasChoices("extra-args", "extra_args"),

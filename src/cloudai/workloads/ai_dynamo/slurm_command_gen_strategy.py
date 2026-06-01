@@ -136,27 +136,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in args.items():
             if value is None or value is False:
                 continue
+            if isinstance(value, list | dict):
+                raise ValueError(
+                    f"AIPerf argument {key!r} must be a scalar value. "
+                    "Use a string with AIPerf CLI syntax for multi-value arguments."
+                )
 
             parts.append(f"--{key}")
             if value is True:
                 continue
 
-            values = [",".join(str(item) for item in value)] if isinstance(value, list) else [str(value)]
-            for rendered_value in values:
-                parts.append(shlex.quote(rendered_value))
+            parts.append(shlex.quote(str(value)))
         return " ".join(parts)
 
     def _runtime_result_path(self, path: str) -> str:
         if Path(path).is_absolute():
             return path
         return f"{self.CONTAINER_MOUNT_OUTPUT}/{path}"
-
-    def _split_extra_args(self, value: Any) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return [str(item) for item in value]
-        return shlex.split(str(value))
 
     def _aiperf_phase_args(self, resolved_phase: AIPerf, artifact_dir: str) -> dict[str, Any]:
         args: dict[str, Any] = {
@@ -237,10 +233,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             artifact_dir = self._runtime_result_path(resolved_phase.artifact_dir_name)
             report_source = f"{artifact_dir}/profile_export_aiperf.csv"
             report_file = self._runtime_result_path(resolved_phase.report_name)
+            if isinstance(resolved_phase.extra_args, list):
+                raise ValueError("AIPerf extra_args must be a string with explicit CLI syntax")
             cmd_parts = [
                 shlex.join(shlex.split(resolved_phase.cmd)),
                 self._render_aiperf_phase_args(resolved_phase, artifact_dir),
-                shlex.join(self._split_extra_args(resolved_phase.extra_args)),
+                resolved_phase.extra_args or "",
             ]
             cmd = " ".join(part for part in cmd_parts if part)
             log_message = f"Running {phase.name}: {cmd}"
@@ -391,9 +389,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         out_dir = self.test_run.output_path.absolute()
         port = self.td.cmd_args.dynamo.dcgm_exporter.port
         dcgm_cmd = f"DCGM_EXPORTER_LISTEN=:{port} dcgm-exporter"
+        dcgm_step_name = "cloudai-dcgm-exporter"
         srun_parts = [
             *self._gen_dcgm_srun_prefix(str(dcgm_image.installed_path)),
             "--overlap",
+            f"--job-name={dcgm_step_name}",
             f"-N{num_nodes}",
             *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
             f"--ntasks={num_nodes}",
@@ -411,6 +411,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             " ".join(srun_parts) + " &",
             "DCGM_EXPORTER_SRUN_PID=$!",
             'echo "DCGM exporter srun PID: ${DCGM_EXPORTER_SRUN_PID}"',
+            "DCGM_EXPORTER_STEP_ID=",
+            "for _ in {1..10}; do",
+            '    DCGM_EXPORTER_STEP_ID=$(squeue --noheader --steps --job "$SLURM_JOB_ID" '
+            f'--format="%i %j" | awk \'$2 == "{dcgm_step_name}" {{ print $1; exit }}\')',
+            '    if [[ -n "${DCGM_EXPORTER_STEP_ID}" ]]; then break; fi',
+            "    sleep 1",
+            "done",
+            'echo "DCGM exporter step ID: ${DCGM_EXPORTER_STEP_ID:-unknown}"',
+            "function stop_dcgm_exporter()",
+            "{",
+            '    if [[ -n "${DCGM_EXPORTER_STEP_ID:-}" ]]; then',
+            '        scancel --signal=TERM "${DCGM_EXPORTER_STEP_ID}" 2>/dev/null || true',
+            "    fi",
+            '    if [[ -n "${DCGM_EXPORTER_SRUN_PID:-}" ]]; then',
+            '        wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true',
+            "    fi",
+            "}",
             "sleep 5",
             'echo "Checking DCGM exporter metrics endpoints..."',
             "DCGM_EXPORTER_STARTUP_TIMEOUT=${DCGM_EXPORTER_STARTUP_TIMEOUT:-60}",
@@ -444,8 +461,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 '    echo "DCGM exporter reachable: ${dcgm_url}"',
                 "done",
                 "if (( dcgm_failed != 0 )); then",
-                '    kill "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true',
-                '    wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true',
+                "    stop_dcgm_exporter",
                 "    exit 1",
                 "fi",
                 "",
@@ -457,12 +473,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not self.td.cmd_args.dynamo.dcgm_exporter.enabled:
             return None
 
-        return (
-            'if [[ -n "${DCGM_EXPORTER_SRUN_PID:-}" ]]; then '
-            'kill "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true; '
-            'wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true; '
-            "fi"
-        )
+        return "stop_dcgm_exporter"
 
     def gen_exec_command(self) -> str:
         srun_command = self._gen_srun_command()

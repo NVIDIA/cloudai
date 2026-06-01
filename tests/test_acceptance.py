@@ -36,6 +36,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfPhase,
+    DCGMExporter,
     GenAIPerf,
     WorkerBaseArgs,
     WorkerConfig,
@@ -501,6 +502,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                         backend="vllm",
                         endpoint="v1/chat/completions",
                         workspace_path="/workspace",
+                        dcgm_exporter=DCGMExporter(enabled=True, port=9501),
                         prefill_worker=WorkerConfig(
                             cmd="python3 -m dynamo.vllm --is-prefill-worker",
                             worker_initialized_regex="VllmWorker.*has.been.initialized",
@@ -531,12 +533,14 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     ),
                     aiperf=AIPerf.model_validate(
                         {
+                            "extra-args": "--server-metrics-formats json csv",
                             "args": {
                                 "concurrency": 2,
                                 "request-count": 50,
                                 "synthetic-input-tokens-mean": 300,
                                 "output-tokens-mean": 500,
-                            }
+                                "server-metrics": "auto",
+                            },
                         }
                     ),
                     aiperf_phases=[
