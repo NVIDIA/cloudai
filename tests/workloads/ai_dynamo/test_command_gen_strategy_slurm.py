@@ -193,9 +193,10 @@ def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoS
 
     result = strategy._gen_script_args(td)
 
-    assert '--aiperf-args-request-count "50"' in result
-    assert '--aiperf-args-synthetic-input-tokens-mean "300"' in result
-    assert '--aiperf-args-output-tokens-mean "500"' in result
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "--request-count 50" in script
+    assert "--synthetic-input-tokens-mean 300" in script
+    assert "--output-tokens-mean 500" in script
     assert f'--aiperf_accuracy-setup-cmd "{setup_cmd}"' in result
     assert '--aiperf_accuracy-name "aiperf_accuracy"' in result
     assert '--aiperf_accuracy-entrypoint "aiperf profile"' in result

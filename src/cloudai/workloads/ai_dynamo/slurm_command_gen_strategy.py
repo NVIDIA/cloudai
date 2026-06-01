@@ -267,9 +267,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
-        args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
         if aiperf_script:
+            args.append(f'--aiperf-name "{td.cmd_args.aiperf.name}"')
             args.append(f"--aiperf-script {aiperf_script}")
+        else:
+            args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
         if td.cmd_args.aiperf_accuracy is not None:
             args.extend(self._get_nested_toml_args(td.cmd_args.aiperf_accuracy, "--aiperf_accuracy-"))
 
