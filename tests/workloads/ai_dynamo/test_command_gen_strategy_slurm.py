@@ -236,14 +236,24 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     )
     td.cmd_args.aiperf_phases = [
         AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
-        AIPerfPhase.model_validate({"name": "round_2", "args": {"request-count": 10}}),
+        AIPerfPhase.model_validate(
+            {
+                "name": "round_2",
+                "setup-cmd": "python -m pip install --upgrade another-aiperf-plugin",
+                "args": {"request-count": 10},
+            }
+        ),
     ]
 
     result = strategy._gen_script_args(td)
 
     assert f"--aiperf-script {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf.sh" in result
     script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert script.count("Running aiperf setup:") == 1
     assert "bash -lc 'python -m pip install --upgrade aiperf'" in script
+    assert "Running AIPerf phase setup for round_1" not in script
+    assert "Running AIPerf phase setup for round_2" in script
+    assert "bash -lc 'python -m pip install --upgrade another-aiperf-plugin'" in script
     assert ': "${FRONTEND_URL:?FRONTEND_URL is not set}"' in script
     assert '--url "$FRONTEND_URL"' in script
     assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1" in script

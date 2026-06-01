@@ -201,10 +201,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return AIPerf.model_validate(cloudai.util.deep_merge(base_data, phase_data))
 
+    def _render_aiperf_setup_blocks(self, log_message: str, setup_cmd: str | None) -> list[str]:
+        if not setup_cmd:
+            return []
+
+        setup_argv = ["bash", "-lc", setup_cmd]
+        return [
+            textwrap.dedent(
+                f"""\
+                log {shlex.quote(f"{log_message}: {shlex.join(setup_argv)}")}
+                {shlex.join(setup_argv)}
+                """
+            ).rstrip()
+        ]
+
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
-        setup_cmd = self._resolve_aiperf_phase(phases[0]).setup_cmd
         blocks = [
             textwrap.dedent(
                 f"""\
@@ -221,16 +234,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ).rstrip()
         ]
 
-        if setup_cmd:
-            setup_argv = ["bash", "-lc", setup_cmd]
-            blocks.append(
-                textwrap.dedent(
-                    f"""\
-                    log {shlex.quote(f"Running aiperf setup: {shlex.join(setup_argv)}")}
-                    {shlex.join(setup_argv)}
-                    """
-                ).rstrip()
-            )
+        blocks.extend(self._render_aiperf_setup_blocks("Running aiperf setup", self.td.cmd_args.aiperf.setup_cmd))
 
         write_phase_logs = not single_phase
         for idx, phase in enumerate(phases):
@@ -252,7 +256,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 run_cmd = cmd
             log_message = f"Running {phase.name}: {cmd}"
-            phase_lines = [
+            phase_setup = phase.setup_cmd if "setup_cmd" in phase.model_fields_set else None
+            phase_lines = self._render_aiperf_setup_blocks(f"Running AIPerf phase setup for {phase.name}", phase_setup)
+            phase_lines.append(
                 textwrap.dedent(
                     f"""\
                     rm -rf {shlex.quote(artifact_dir)}
@@ -267,7 +273,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                       log {shlex.quote(f"AIPerf phase {phase.name} failed")}
                     """
                 ).rstrip()
-            ]
+            )
             if not resolved_phase.continue_on_phase_failure:
                 phase_lines.append('  exit "$phase_status"')
             phase_lines.extend(
