@@ -42,7 +42,6 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
 
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
-AIPERF_COMMANDS_FILE_NAME = "aiperf_commands.json"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
@@ -255,7 +254,6 @@ class AIPerf(Workload):
     name: str = "aiperf"
     cmd: str = "aiperf profile"
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
-    runtime: File = Field(default=File(Path(__file__).parent.parent / "ai_dynamo/runtime/aiperf.py"), exclude=True)
     setup_cmd: str | None = Field(
         default=None,
         serialization_alias="setup-cmd",
@@ -266,10 +264,15 @@ class AIPerf(Workload):
         serialization_alias="report-name",
         validation_alias=AliasChoices("report-name", "report_name"),
     )
+    artifact_dir_name: str = Field(
+        default=AIPERF_ARTIFACTS_DIR,
+        serialization_alias="artifact-dir-name",
+        validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.script, self.runtime]
+        return [self.script]
 
 
 class AIPerfPhase(BaseModel):
@@ -288,6 +291,11 @@ class AIPerfPhase(BaseModel):
         default=None,
         serialization_alias="report-name",
         validation_alias=AliasChoices("report-name", "report_name"),
+    )
+    artifact_dir_name: str | None = Field(
+        default=None,
+        serialization_alias="artifact-dir-name",
+        validation_alias=AliasChoices("artifact-dir-name", "artifact_dir_name"),
     )
     args: Args = Field(default_factory=Args)
     extra_args: str | list[str] | None = Field(

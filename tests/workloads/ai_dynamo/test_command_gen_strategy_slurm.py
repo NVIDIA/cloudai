@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import shlex
 from pathlib import Path
 from typing import cast
@@ -26,7 +25,6 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
-    AIPERF_COMMANDS_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
@@ -221,7 +219,7 @@ def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamo
     assert f'--aiperf_accuracy-cli "{cli}"' in result
 
 
-def test_gen_script_args_writes_resolved_aiperf_commands(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf = AIPerf.model_validate(
@@ -242,50 +240,19 @@ def test_gen_script_args_writes_resolved_aiperf_commands(strategy: AIDynamoSlurm
 
     result = strategy._gen_script_args(td)
 
-    assert f"--aiperf-commands-file {strategy.CONTAINER_MOUNT_OUTPUT}/{AIPERF_COMMANDS_FILE_NAME}" in result
-    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
-    assert entries[0] == {
-        "name": "aiperf_setup",
-        "cmd": ["bash", "-lc", "python -m pip install --upgrade aiperf"],
-        "cli": [],
-    }
-    assert entries[1]["name"] == "round_1"
-    assert entries[1]["cmd"] == ["aiperf", "profile"]
-    assert entries[1]["cli"][:9] == [
-        "--model",
-        "model",
-        "--url",
-        "{frontend_url}:8000",
-        "--endpoint-type",
-        "chat",
-        "--streaming",
-        "--artifact-dir",
-        f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1",
-    ]
-    assert entries[1]["cli"][-8:] == [
-        "--concurrency",
-        "1",
-        "--request-count",
-        "50",
-        "--synthetic-input-tokens-mean",
-        "300",
-        "--output-tokens-mean",
-        "500",
-    ]
-    assert entries[1]["log_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log"
-    assert entries[1]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv"
-    assert entries[2]["cli"][-8:] == [
-        "--concurrency",
-        "2",
-        "--request-count",
-        "10",
-        "--synthetic-input-tokens-mean",
-        "300",
-        "--output-tokens-mean",
-        "500",
-    ]
-    assert entries[2]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv"
-    assert entries[2]["final_report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
+    assert f"--aiperf-script {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf.sh" in result
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "bash -lc 'python -m pip install --upgrade aiperf'" in script
+    assert ': "${FRONTEND_URL:?FRONTEND_URL is not set}"' in script
+    assert '--url "$FRONTEND_URL"' in script
+    assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1" in script
+    assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_2" in script
+    assert "--concurrency 1 --request-count 50" in script
+    assert "--concurrency 2 --request-count 10" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv" in script
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
@@ -304,9 +271,9 @@ def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDy
 
     strategy._gen_script_args(roundtripped)
 
-    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
-    assert entries[0]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv"
-    assert entries[1]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv"
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv" in script
 
 
 def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
@@ -316,10 +283,10 @@ def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSl
 
     strategy._gen_script_args(td)
 
-    entries = json.loads((strategy.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).read_text())
-    assert entries[0]["output_folder"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts"
-    assert entries[0]["report_file"] == f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv"
-    assert "log_file" not in entries[0]
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log" not in script
 
 
 def test_aiperf_phase_names_must_be_unique(cmd_args: AIDynamoCmdArgs) -> None:

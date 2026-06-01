@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .ai_dynamo import (
-    AIPERF_COMMANDS_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
@@ -34,7 +33,6 @@ from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
 __all__ = [
-    "AIPERF_COMMANDS_FILE_NAME",
     "LMCACHE_CONFIG_BACKUP_FILE_NAME",
     "LMCACHE_CONFIG_FILE_NAME",
     "AIDynamoArgs",

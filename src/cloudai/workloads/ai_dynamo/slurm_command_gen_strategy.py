@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import shlex
 from pathlib import Path
@@ -27,14 +26,14 @@ from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import (
-    AIPERF_ARTIFACTS_DIR,
-    AIPERF_COMMANDS_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfPhase,
 )
+
+AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -118,17 +117,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
 
-    def _aiperf_config_dict(self, aiperf: AIPerf | AIPerfPhase, *, exclude_unset: bool = False) -> dict[str, Any]:
-        return aiperf.model_dump(
-            by_alias=True,
-            exclude={"args", "name", "repo", "script", "runtime"},
-            exclude_none=True,
-            exclude_unset=exclude_unset,
-        )
-
-    def _aiperf_args_dict(self, aiperf: AIPerf | AIPerfPhase, *, exclude_unset: bool = False) -> dict[str, Any]:
-        return aiperf.args.model_dump(by_alias=True, exclude_none=True, exclude_unset=exclude_unset)
-
     def _aiperf_args_argv(self, args: dict[str, Any]) -> list[str]:
         result = []
         for key, value in args.items():
@@ -156,106 +144,110 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra = phase.model_extra or {}
         return any(extra.get(alias) is not None for alias in extra_aliases)
 
-    def _aiperf_phase_manifest_entry(self, base: AIPerf, phase: AIPerfPhase, *, single_phase: bool) -> dict[str, Any]:
-        base_config = self._aiperf_config_dict(base)
-        phase_config = self._aiperf_config_dict(phase, exclude_unset=True)
-        config = {**base_config, **phase_config}
+    def _resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
+        resolved = self.td.cmd_args.aiperf.model_copy(deep=True)
+        resolved.name = phase.name
+        single_phase = self.td.cmd_args.aiperf_phases is None or len(self.td.cmd_args.aiperf_phases) == 1
 
-        base_args = self._aiperf_args_dict(base)
-        phase_args = self._aiperf_args_dict(phase, exclude_unset=True)
-        args = {**base_args, **phase_args}
+        for field_name in ("cmd", "setup_cmd", "report_name", "artifact_dir_name", "extra_args"):
+            if self._aiperf_phase_has_explicit_value(phase, field_name, field_name.replace("_", "-")):
+                setattr(resolved, field_name, getattr(phase, field_name))
 
-        if not self._aiperf_phase_has_explicit_value(
-            phase, "artifact_dir_name", "artifact-dir-name", "artifact_dir_name"
-        ):
-            base_artifact_dir = base_config.get("artifact-dir-name", AIPERF_ARTIFACTS_DIR)
-            config["artifact-dir-name"] = base_artifact_dir if single_phase else f"{base_artifact_dir}/{phase.name}"
-        if not self._aiperf_phase_has_explicit_value(phase, "report_name", "report-name", "report_name"):
-            base_report_name = base_config.get("report-name", "aiperf_report.csv")
-            config["report-name"] = base_report_name if single_phase else f"aiperf_{phase.name}_report.csv"
+        if not self._aiperf_phase_has_explicit_value(phase, "artifact_dir_name", "artifact-dir-name"):
+            base_artifact_dir = resolved.artifact_dir_name
+            resolved.artifact_dir_name = base_artifact_dir if single_phase else f"{base_artifact_dir}/{phase.name}"
+        if not self._aiperf_phase_has_explicit_value(phase, "report_name", "report-name"):
+            base_report_name = resolved.report_name
+            resolved.report_name = base_report_name if single_phase else f"aiperf_{phase.name}_report.csv"
 
-        return {
-            "name": phase.name,
-            "config": config,
-            "profile_args": self._aiperf_args_argv(args),
-        }
+        resolved.args = resolved.args.model_copy(
+            update=phase.args.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+        )
+        return resolved
 
-    def _aiperf_entries(self) -> list[dict[str, Any]]:
+    def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
-        return [
-            self._aiperf_phase_manifest_entry(
-                self.td.cmd_args.aiperf,
-                phase,
-                single_phase=len(phases) == 1,
-            )
-            for phase in phases
+        single_phase = len(phases) == 1
+        setup_cmd = self._resolve_aiperf_phase(phases[0]).setup_cmd
+        lines = [
+            "#!/usr/bin/env bash",
+            "set -Eeuo pipefail",
+            "",
+            'log() { echo "[$(date +%F\\ %T) $(hostname)]: $*"; }',
+            "",
+            ': "${FRONTEND_URL:?FRONTEND_URL is not set}"',
+            "",
         ]
 
-    def _aiperf_run_entry(self, entry: dict[str, Any], *, write_phase_log: bool, is_final: bool) -> dict[str, Any]:
-        config = entry["config"]
-        artifact_dir_name = config["artifact-dir-name"]
-        artifact_dir = self._runtime_result_path(artifact_dir_name)
-        runtime_entry = {
-            "name": entry["name"],
-            "cmd": shlex.split(config["cmd"]),
-            "cli": [
+        if setup_cmd:
+            setup_argv = ["bash", "-lc", setup_cmd]
+            lines.extend(
+                [
+                    f"log {shlex.quote(f'Running aiperf setup: {shlex.join(setup_argv)}')}",
+                    shlex.join(setup_argv),
+                    "",
+                ]
+            )
+
+        write_phase_logs = not single_phase
+        for idx, phase in enumerate(phases):
+            resolved_phase = self._resolve_aiperf_phase(phase)
+            artifact_dir = self._runtime_result_path(resolved_phase.artifact_dir_name)
+            report_source = f"{artifact_dir}/profile_export_aiperf.csv"
+            report_file = self._runtime_result_path(resolved_phase.report_name)
+            argv = [
+                *shlex.split(resolved_phase.cmd),
                 "--model",
                 self.td.cmd_args.dynamo.model,
-                "--url",
-                f"{{frontend_url}}:{self.td.cmd_args.dynamo.port}",
                 "--endpoint-type",
                 "chat",
                 "--streaming",
                 "--artifact-dir",
                 artifact_dir,
                 "--no-server-metrics",
-                *entry["profile_args"],
-                *self._split_extra_args(config.get("extra-args")),
-            ],
-            "output_folder": artifact_dir,
-            "report_source": f"{artifact_dir}/profile_export_aiperf.csv",
-            "report_file": self._runtime_result_path(config["report-name"]),
-        }
-        if write_phase_log:
-            runtime_entry["log_file"] = self._runtime_result_path(f"aiperf_{entry['name']}.log")
-        if is_final:
-            runtime_entry["final_report_file"] = self._runtime_result_path("aiperf_report.csv")
-        return runtime_entry
+                *self._aiperf_args_argv(resolved_phase.args.model_dump(by_alias=True, exclude_none=True)),
+                *self._split_extra_args(resolved_phase.extra_args),
+            ]
+            cmd = f'{shlex.join(argv)} --url "$FRONTEND_URL"'
+            log_message = f"Running {phase.name}: {cmd}"
+            lines.append(f"rm -rf {shlex.quote(artifact_dir)}")
+            lines.append(f"mkdir -p {shlex.quote(artifact_dir)}")
+            lines.append(f"log {shlex.quote(log_message)}")
+            if write_phase_logs:
+                log_file = self._runtime_result_path(f"aiperf_{phase.name}.log")
+                lines.append(f"{cmd} > {shlex.quote(log_file)} 2>&1")
+            else:
+                lines.append(cmd)
 
-    def _aiperf_setup_entry(self, setup_cmd: str) -> dict[str, Any]:
-        return {
-            "name": "aiperf_setup",
-            "cmd": ["bash", "-lc", setup_cmd],
-            "cli": [],
-        }
+            lines.append(f"mkdir -p {shlex.quote(str(Path(report_file).parent))}")
+            if report_source != report_file:
+                lines.append(f"cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
+            lines.append(f"log {shlex.quote(f'AIPerf report saved to {report_file}')}")
 
-    def _prepare_aiperf_commands(self) -> str | None:
+            if not single_phase and idx == len(phases) - 1:
+                final_report_file = self._runtime_result_path("aiperf_report.csv")
+                lines.append(f"mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
+                if report_file != final_report_file:
+                    lines.append(f"cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
+                lines.append(f"log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _prepare_aiperf_script(self) -> str | None:
         if "aiperf.sh" not in self.td.cmd_args.workloads_list:
             return None
 
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        entries = self._aiperf_entries()
-        runtime_entries = []
-        setup_cmd = entries[0]["config"].get("setup-cmd")
-        if setup_cmd:
-            runtime_entries.append(self._aiperf_setup_entry(setup_cmd))
 
-        write_phase_logs = len(entries) > 1
-        for idx, entry in enumerate(entries):
-            runtime_entries.append(
-                self._aiperf_run_entry(
-                    entry,
-                    write_phase_log=write_phase_logs,
-                    is_final=len(entries) > 1 and idx == len(entries) - 1,
-                )
-            )
-
-        (self.test_run.output_path / AIPERF_COMMANDS_FILE_NAME).write_text(json.dumps(runtime_entries, indent=2))
-        return f"{self.CONTAINER_MOUNT_OUTPUT}/{AIPERF_COMMANDS_FILE_NAME}"
+        script_path = self.test_run.output_path / AIPERF_SCRIPT_FILE_NAME
+        script_path.write_text(self._render_aiperf_script() + "\n")
+        script_path.chmod(0o755)
+        return f"{self.CONTAINER_MOUNT_OUTPUT}/{AIPERF_SCRIPT_FILE_NAME}"
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         self._prepare_lmcache_config()
-        aiperf_commands_file = self._prepare_aiperf_commands()
+        aiperf_script = self._prepare_aiperf_script()
         if not td.repo.installed_path:
             raise ValueError("Dynamo repo is not installed")
         args = [
@@ -291,8 +283,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         args.extend(self._get_nested_toml_args(td.cmd_args.aiperf, "--aiperf-"))
-        if aiperf_commands_file:
-            args.append(f"--aiperf-commands-file {aiperf_commands_file}")
+        if aiperf_script:
+            args.append(f"--aiperf-script {aiperf_script}")
         if td.cmd_args.aiperf_accuracy is not None:
             args.extend(self._get_nested_toml_args(td.cmd_args.aiperf_accuracy, "--aiperf_accuracy-"))
 

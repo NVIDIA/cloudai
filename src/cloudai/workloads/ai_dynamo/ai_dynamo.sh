@@ -1058,6 +1058,7 @@ function launch_workload()
 
   local workload_name="${workload_config_ref["--name"]}"
   local script="${workload_config_ref["--script"]}"
+  export FRONTEND_URL="${dynamo_args["url"]}"
 
   # Build config and workload args as proper bash arrays to preserve
   # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.

@@ -5,5 +5,6 @@
 
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 "${SCRIPT_DIR}/aiperf.py" "$@"
+echo "AIPerf scripts are generated per test run by the AIDynamo Slurm command generator." >&2
+echo "This installable placeholder should be overridden by --aiperf-script /cloudai_run_results/aiperf.sh." >&2
+exit 1

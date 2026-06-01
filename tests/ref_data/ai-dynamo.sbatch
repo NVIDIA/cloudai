@@ -32,7 +32,7 @@ srun \
   --results-dir /cloudai_run_results \
   --dynamo-repo /cloudai_install/dynamo__f7e468c7e8ff0d1426db987564e60572167e8464 \
   --hf-home /cloudai_install/huggingface \
-  --workloads genai_perf.sh \
+  --workloads aiperf.sh \
   --failure-marker /cloudai_run_results/failure-marker.txt \
   --success-marker /cloudai_run_results/success-marker.txt \
   --storage-cache-dir /tmp \
@@ -75,4 +75,10 @@ srun \
   --aiperf-name "aiperf" \
   --aiperf-cmd "aiperf profile" \
   --aiperf-script "/cloudai_install/aiperf.sh" \
-  --aiperf-report-name "aiperf_report.csv"
+  --aiperf-report-name "aiperf_report.csv" \
+  --aiperf-artifact-dir-name "aiperf_artifacts" \
+  --aiperf-args-concurrency "2" \
+  --aiperf-args-request-count "50" \
+  --aiperf-args-synthetic-input-tokens-mean "300" \
+  --aiperf-args-output-tokens-mean "500" \
+  --aiperf-script /cloudai_run_results/aiperf.sh
