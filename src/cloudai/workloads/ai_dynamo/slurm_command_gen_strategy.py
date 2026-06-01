@@ -22,6 +22,7 @@ from typing import Any, List, cast
 import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+import cloudai.util
 from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -137,33 +138,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return [str(item) for item in value]
         return shlex.split(str(value))
 
-    def _aiperf_phase_has_explicit_value(self, phase: AIPerfPhase, field_name: str, *extra_aliases: str) -> bool:
-        if field_name in phase.model_fields_set and getattr(phase, field_name) is not None:
-            return True
-
-        extra = phase.model_extra or {}
-        return any(extra.get(alias) is not None for alias in extra_aliases)
-
     def _resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
-        resolved = self.td.cmd_args.aiperf.model_copy(deep=True)
-        resolved.name = phase.name
+        base_data = self.td.cmd_args.aiperf.model_dump(by_alias=True, exclude_none=True)
+        phase_data = phase.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
         single_phase = self.td.cmd_args.aiperf_phases is None or len(self.td.cmd_args.aiperf_phases) == 1
 
-        for field_name in ("cmd", "setup_cmd", "report_name", "artifact_dir_name", "extra_args"):
-            if self._aiperf_phase_has_explicit_value(phase, field_name, field_name.replace("_", "-")):
-                setattr(resolved, field_name, getattr(phase, field_name))
+        if "artifact-dir-name" not in phase_data and not single_phase:
+            phase_data["artifact-dir-name"] = f"{self.td.cmd_args.aiperf.artifact_dir_name}/{phase.name}"
+        if "report-name" not in phase_data and not single_phase:
+            phase_data["report-name"] = f"aiperf_{phase.name}_report.csv"
 
-        if not self._aiperf_phase_has_explicit_value(phase, "artifact_dir_name", "artifact-dir-name"):
-            base_artifact_dir = resolved.artifact_dir_name
-            resolved.artifact_dir_name = base_artifact_dir if single_phase else f"{base_artifact_dir}/{phase.name}"
-        if not self._aiperf_phase_has_explicit_value(phase, "report_name", "report-name"):
-            base_report_name = resolved.report_name
-            resolved.report_name = base_report_name if single_phase else f"aiperf_{phase.name}_report.csv"
-
-        resolved.args = resolved.args.model_copy(
-            update=phase.args.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
-        )
-        return resolved
+        return AIPerf.model_validate(cloudai.util.deep_merge(base_data, phase_data))
 
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
