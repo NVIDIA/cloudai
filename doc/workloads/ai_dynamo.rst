@@ -110,6 +110,77 @@ To use genai-perf, set:
      output-tokens-mean = 500
      request-count = 50
 
+Propagating LMCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo can pass an LMCache YAML config to the worker processes by setting ``LMCACHE_CONFIG_FILE`` inside the
+container. This only propagates the LMCache configuration; the vLLM/SGLang runtime still needs to be launched with the
+appropriate LMCache or KV-transfer connector for that image/version.
+
+The preferred form is structured TOML under ``[cmd_args.lmcache]``. CloudAI converts that object to YAML in the
+run output directory, mounts that directory as ``/cloudai_run_results``, and exports the generated file path as
+``LMCACHE_CONFIG_FILE``:
+
+.. code-block:: toml
+
+   [cmd_args]
+     [cmd_args.lmcache]
+     chunk_size = 256
+     local_cpu = true
+     controller_pull_url = "{frontend_node}:8300"
+     controller_reply_url = "{frontend_node}:8400"
+     lmcache_worker_ports = [8788, 8789, 8790, 8791]
+     max_local_cpu_size = 6.0
+     nixl_buffer_size = 2079377920
+     nixl_buffer_device = "cpu"
+
+       [cmd_args.lmcache.extra_config]
+       enable_nixl_storage = false
+       nixl_backend = "POSIX"
+       nixl_path = "{storage_cache_dir}"
+       nixl_pool_size = 2048
+
+For an example that uses test-in-scenario mode, see
+``conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml``. Because the test is fully defined inside the scenario,
+``--tests-dir`` is not required when running that example:
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml
+
+The example sets ``dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]`` because
+``lmcache_worker_ports`` is a list-valued LMCache setting, not a DSE sweep dimension. Other list-valued LMCache fields
+can still be swept unless their ``cmd_args.`` path is also excluded.
+
+Alternatively, mount your own LMCache YAML file with ``extra_container_mounts`` and set ``LMCACHE_CONFIG_FILE`` through
+``extra_env_vars``:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/lmcache:/lmcache"]
+   extra_env_vars = { LMCACHE_CONFIG_FILE = "/lmcache/config.yaml" }
+
+For multi-node LMCache storage tests, any path referenced by the LMCache YAML, such as ``nixl_path`` for POSIX-backed
+storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as
+``/tmp`` is suitable only for single-node smoke tests or configuration propagation checks.
+
+LMCache YAML values can use runtime placeholders. CloudAI renders them inside the Slurm job before launching workers:
+``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
+run before worker processes start.
+
+If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
+
+.. code-block:: toml
+
+   [cmd_args.lmcache_controller]
+   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-ports {\"pull\":8300,\"reply\":8400}"
+
+This only launches the process. For disaggregated or multi-node runs, the LMCache YAML still needs controller addresses
+that resolve to the frontend node from every worker. With the default controller monitor ports, use
+``controller_pull_url = "{frontend_node}:8300"`` and ``controller_reply_url = "{frontend_node}:8400"``. The
+``lmcache_worker_ports`` list must match the number of worker ranks.
+
 Semantic Degradation With AIPerf Accuracy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -215,6 +286,7 @@ Supported Backends
 The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
 
 - **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
 - **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
 
 Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.

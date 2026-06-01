@@ -29,8 +29,6 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoKubernetesJsonGenStrategy,
     AIDynamoTestDefinition,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -54,7 +52,6 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
                 )
             ),
             genai_perf=GenAIPerf(),
-            lmcache=LMCache(args=LMCacheArgs()),
         ),
     )
     if request.param == "disagg":

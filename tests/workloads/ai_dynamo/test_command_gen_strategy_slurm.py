@@ -19,11 +19,14 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import yaml
 
 from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    LMCACHE_CONFIG_BACKUP_FILE_NAME,
+    LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
@@ -31,8 +34,7 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
+    LMCacheController,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -87,7 +89,6 @@ def cmd_args() -> AIDynamoCmdArgs:
                 "request-count": 10,
             }
         ),
-        lmcache=LMCache(args=LMCacheArgs()),
     )
 
 
@@ -227,3 +228,67 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
 
     assert f"--prefill-args-kv-transfer-config '{config}'" in result
     assert f"--decode-args-kv-transfer-config '{config}'" in result
+
+
+def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache = {
+        "chunk_size": 512,
+        "local_cpu": True,
+        "controller_pull_url": "{frontend_node}:8300",
+        "controller_reply_url": "{frontend_node}:8400",
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
+        "extra_config": {
+            "enable_nixl_storage": False,
+            "nixl_backend": "POSIX",
+            "nixl_path": "{storage_cache_dir}",
+        },
+    }
+
+    result = strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+    backup_path = strategy.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME
+    config = yaml.safe_load(config_path.read_text())
+    backup_config = yaml.safe_load(backup_path.read_text())
+    assert (
+        strategy.final_env_vars["LMCACHE_CONFIG_FILE"]
+        == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+    )
+    assert config["chunk_size"] == 512
+    assert config["local_cpu"] is True
+    assert config["controller_pull_url"] == "{frontend_node}:8300"
+    assert config["controller_reply_url"] == "{frontend_node}:8400"
+    assert config["lmcache_worker_ports"] == [8788, 8789, 8790, 8791]
+    assert config["extra_config"]["enable_nixl_storage"] is False
+    assert config["extra_config"]["nixl_backend"] == "POSIX"
+    assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
+    assert backup_config == config
+    assert "--lmcache" not in result
+
+
+def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+    td.cmd_args.lmcache = {
+        "chunk_size": [256, 512],
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
+    }
+
+    assert test_run.is_dse_job is True
+    assert test_run.param_space["lmcache.chunk_size"] == [256, 512]
+    assert "lmcache.lmcache_worker_ports" not in test_run.param_space
+
+    new_test_run = test_run.apply_params_set({"lmcache.chunk_size": 512})
+
+    assert cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.lmcache["chunk_size"] == 512  # type: ignore
+
+
+def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+    td.cmd_args.lmcache_controller = LMCacheController(cmd=cmd)
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--lmcache-controller-cmd {shlex.quote(cmd)}" in result

@@ -93,11 +93,11 @@ class TestDefinition(BaseModel, ABC):
     __test__ = False
 
     model_config = ConfigDict(extra="forbid")
-
     name: str
     description: str
     test_template_name: str
     cmd_args: Any
+    dse_excluded_args: list[str] = Field(default_factory=list)
     extra_env_vars: dict[str, Union[str, List[str]]] = {}
     extra_cmd_args: dict[str, str] = {}
     extra_container_mounts: list[str] = []
@@ -115,6 +115,11 @@ class TestDefinition(BaseModel, ABC):
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
         return self.cmd_args.model_dump()
 
+    def is_dse_excluded_arg(self, path: str) -> bool:
+        """Return whether a dot-separated cmd_args path should be ignored by DSE."""
+        path = f"cmd_args.{path}"
+        return any(path == excluded or path.startswith(f"{excluded}.") for excluded in self.dse_excluded_args)
+
     @property
     def extra_args_str(self) -> str:
         parts = []
@@ -131,14 +136,40 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict) -> bool:
+        def check_dict(d: dict, parent_key: str = "") -> bool:
             if isinstance(d, dict):
-                for value in d.values():
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
+                for key, value in d.items():
+                    path = f"{parent_key}.{key}" if parent_key else key
+                    if self.is_dse_excluded_arg(path):
+                        continue
+                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value, path)):
                         return True
             return False
 
         return check_dict(self.cmd_args_dict) or check_dict(self.extra_env_vars)
+
+    @field_validator("dse_excluded_args", mode="before")
+    @classmethod
+    def normalize_dse_excluded_args(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+
+        normalized = []
+        for prefix in value:
+            if not isinstance(prefix, str):
+                raise ValueError("DSE excluded cmd_args prefixes must be strings.")
+
+            prefix = prefix.strip()
+            if not prefix.startswith("cmd_args."):
+                raise ValueError(f"DSE excluded arg must start with 'cmd_args.': {prefix!r}")
+            if prefix == "cmd_args." or prefix.endswith(".") or ".." in prefix:
+                raise ValueError(f"Invalid DSE excluded cmd_args prefix: {prefix!r}")
+
+            normalized.append(prefix)
+
+        return normalized
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         return JobStatusResult(is_successful=True)

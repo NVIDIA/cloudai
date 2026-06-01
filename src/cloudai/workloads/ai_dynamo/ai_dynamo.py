@@ -44,6 +44,8 @@ from cloudai.systems.slurm import SlurmSystem
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
+LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
+LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 
 
 class Args(BaseModel):
@@ -230,49 +232,6 @@ class AIDynamoArgs(BaseModel):
         return self
 
 
-class LMCacheArgs(BaseModel):
-    """Arguments for LMCache."""
-
-    model_config = ConfigDict(extra="allow")
-
-    chunk_size: int = 256
-    local_cpu: bool = False
-    nixl_buffer_size: int = 10737418240
-    nixl_buffer_device: str = "cuda"
-    extra_config_enable_nixl_storage: bool = True
-    extra_config_nixl_backend: str = "GDS_MT"
-    extra_config_nixl_file_pool_size: int = 64
-
-    # LMCache controller configuration
-    enable_controller: bool = True
-    lmcache_instance_id: str = "lmcache_default_instance"
-    controller_url: str = "localhost:9001"
-    lmcache_worker_port: int = 8788
-    distributed_url: str = "localhost:8789"
-
-
-class LMCache(BaseModel):
-    """LMCache configuration."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    controller_cmd: str = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
-    repo: GitRepo = GitRepo(
-        url="https://github.com/LMCache/LMCache.git", commit="ab8530993992db873869ba882320953582d94309"
-    )
-
-    args: LMCacheArgs = Field(default_factory=LMCacheArgs)
-    extra_args: str | list[str] | None = Field(
-        default=None,
-        serialization_alias="extra-args",
-        validation_alias=AliasChoices("extra-args", "extra_args"),
-    )
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [self.repo]
-
-
 class GenAIPerf(Workload):
     """Workload configuration for GenAI performance profiling."""
 
@@ -345,6 +304,14 @@ class Constraints(BaseModel):
     tp_times_pp_le_gpus_per_node: bool = True
 
 
+class LMCacheController(BaseModel):
+    """Optional LMCache controller process to launch on the frontend node."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cmd: str
+
+
 class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
@@ -353,7 +320,8 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
-    lmcache: LMCache = Field(default_factory=LMCache)
+    lmcache: dict | None = None
+    lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
     aiperf_accuracy: AIPerfAccuracy | None = None
@@ -376,7 +344,6 @@ class AIDynamoCmdArgs(CmdArgs):
     @property
     def installables(self) -> list[Installable]:
         return [
-            *self.lmcache.installables,
             *self.genai_perf.installables,
             *self.aiperf.installables,
             *(self.aiperf_accuracy.installables if self.aiperf_accuracy else []),
@@ -387,7 +354,6 @@ class AIDynamoTestDefinition(TestDefinition):
     """Test definition for AI Dynamo."""
 
     model_config = ConfigDict(extra="forbid")
-
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")

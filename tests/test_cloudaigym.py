@@ -213,6 +213,22 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
     assert action_space["NUM_NODES"] == tr.num_nodes
 
 
+def test_action_space_excludes_configured_cmd_arg_prefix(
+    nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]
+):
+    tr, _ = setup_env
+    nemorun.cmd_args.trainer = Trainer(
+        max_steps=[1000, 2000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2])
+    )
+    nemorun.dse_excluded_args = ["cmd_args.trainer.strategy"]
+    tr.test = nemorun
+
+    action_space = tr.param_space
+
+    assert action_space["trainer.max_steps"] == [1000, 2000]
+    assert "trainer.strategy.tensor_model_parallel_size" not in action_space
+
+
 @pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
 def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner], num_nodes: int):
     tr, _ = setup_env
