@@ -84,14 +84,6 @@ The job progress monitoring can be done using either of the following options:
 
 The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch the configured benchmark tool (``aiperf`` by default), which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
 
-Recent AIDynamo Slurm features:
-
-- Multi-phase AIPerf runs with base config plus per-phase overrides.
-- Optional between-phase bash hook for backend-specific cleanup; the default hook is a no-op.
-- ``server-metrics = "auto"`` support, including CloudAI-started DCGM exporters.
-- LMCache config propagation from structured TOML to worker-visible YAML, with optional LMCache controller launch.
-- ``dse_excluded_args`` for list-valued config that must not become a DSE sweep dimension.
-
 Choosing a Benchmark Tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
