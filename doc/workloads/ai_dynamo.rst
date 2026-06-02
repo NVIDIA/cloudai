@@ -84,6 +84,14 @@ The job progress monitoring can be done using either of the following options:
 
 The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch the configured benchmark tool (``aiperf`` by default), which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
 
+Recent AIDynamo Slurm features:
+
+- Multi-phase AIPerf runs with base config plus per-phase overrides.
+- Optional between-phase bash hook for backend-specific cleanup; the default hook is a no-op.
+- ``server-metrics = "auto"`` support, including CloudAI-started DCGM exporters.
+- LMCache config propagation from structured TOML to worker-visible YAML, with optional LMCache controller launch.
+- ``dse_excluded_args`` for list-valued config that must not become a DSE sweep dimension.
+
 Choosing a Benchmark Tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -109,6 +117,47 @@ To use genai-perf, set:
      endpoint-type = "chat"
      output-tokens-mean = 500
      request-count = 50
+
+AIPerf Multi-Phase Runs
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``cmd_args.aiperf`` is the base AIPerf config. ``cmd_args.aiperf_phases`` can run several AIPerf rounds against the
+same live Dynamo stack without restarting prefill, decode, or router processes:
+
+.. code-block:: toml
+
+   dse_excluded_args = ["cmd_args.aiperf_phases"]
+
+   [cmd_args.aiperf]
+   health-check-between-phases = true
+   between-phase-cmd = "true"  # default no-op
+
+     [cmd_args.aiperf.args]
+     request-count = 50
+     server-metrics = "auto"
+
+   [[cmd_args.aiperf_phases]]
+   name = "round_1"
+     [cmd_args.aiperf_phases.args]
+     concurrency = 2
+
+   [[cmd_args.aiperf_phases]]
+   name = "round_2"
+     [cmd_args.aiperf_phases.args]
+     concurrency = 4
+
+Single-phase runs keep the old artifact layout: ``aiperf_artifacts/``, ``aiperf.log``, and ``aiperf_report.csv``.
+Multi-phase runs write per-phase artifacts/logs/reports and copy the last phase report to ``aiperf_report.csv`` for
+existing report generation.
+
+``between-phase-cmd`` is a bash command run after each non-final phase. The default is a no-op. Set it explicitly for
+backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart --reset-states`` if a test needs
+to restart the Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
+
+AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
+as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =
+"auto"`` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM
+exporters.
 
 Propagating LMCache Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
