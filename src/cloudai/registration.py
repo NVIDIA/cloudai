@@ -79,10 +79,14 @@ def register_all():
         DDLBTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.deepep import (
-        DeepEPReportGenerationStrategy,
         DeepEPSlurmCommandGenStrategy,
         DeepEPTestDefinition,
-        DeepEPMoEThroughputReporter,
+    )
+    from cloudai.workloads.moe_benchmark import (
+        MoEBenchmarkReportGenerationStrategy,
+        MoEBenchmarkSlurmCommandGenStrategy,
+        MoEBenchmarkTestDefinition,
+        MoEBenchmarkThroughputReporter,
     )
     from cloudai.workloads.dynamo_mocker import (
         DynamoMockerReportGenerationStrategy,
@@ -234,6 +238,7 @@ def register_all():
 
     Registry().add_command_gen_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplaySlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, DeepEPTestDefinition, DeepEPSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, MoEBenchmarkTestDefinition, MoEBenchmarkSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SlurmContainerTestDefinition, SlurmContainerCommandGenStrategy)
     Registry().add_command_gen_strategy(
         SlurmSystem, TritonInferenceTestDefinition, TritonInferenceSlurmCommandGenStrategy
@@ -263,6 +268,7 @@ def register_all():
     Registry().add_test_definition("DDLBTest", DDLBTestDefinition)
     Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
     Registry().add_test_definition("DeepEP", DeepEPTestDefinition)
+    Registry().add_test_definition("MoEBenchmark", MoEBenchmarkTestDefinition)
     Registry().add_test_definition("Sleep", SleepTestDefinition)
     Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
     Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
@@ -288,7 +294,7 @@ def register_all():
     Registry().add_agent("grid_search", GridSearchAgent)
 
     Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
-    Registry().add_report(DeepEPTestDefinition, DeepEPReportGenerationStrategy)
+    Registry().add_report(MoEBenchmarkTestDefinition, MoEBenchmarkReportGenerationStrategy)
     Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
@@ -312,7 +318,7 @@ def register_all():
     Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
-    Registry().add_scenario_report("deepep_moe_throughput", DeepEPMoEThroughputReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("moe_benchmark_throughput", MoEBenchmarkThroughputReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("dse", DSEReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))

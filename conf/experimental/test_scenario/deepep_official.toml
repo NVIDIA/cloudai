@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "deepep-official-tests"
+
+[[Tests]]
+id = "Tests.deepep_test_internode"
+test_name = "deepep_test_internode"
+num_nodes = 2
+time_limit = "00:30:00"

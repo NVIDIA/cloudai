@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "moe-benchmark"
+
+[[Tests]]
+id = "Tests.moe_benchmark"
+test_name = "moe_benchmark_standard"
+num_nodes = 2
+time_limit = "00:30:00"
+
+[[Tests]]
+id = "Tests.ucc_alltoallv"
+test_name = "ucc_alltoallv_deepep"
+num_nodes = 2
+time_limit = "00:30:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.moe_benchmark"
+
+[[Tests]]
+id = "Tests.nccl_alltoallv"
+test_name = "nccl_test_alltoallv"
+num_nodes = 2
+time_limit = "00:30:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.ucc_alltoallv"

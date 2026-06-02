@@ -13,23 +13,23 @@ import re
 from pathlib import Path
 
 from cloudai._core.base_reporter import Reporter
-from cloudai.workloads.deepep.deepep import DeepEPTestDefinition
-from cloudai.workloads.deepep.deepep_combined_report import deepep_results_json_files
+from cloudai.workloads.moe_benchmark.combined_report import moe_benchmark_results_json_files
+from cloudai.workloads.moe_benchmark.moe_benchmark import MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
 from cloudai.workloads.ucc_test.ucc import UCCTestDefinition
 
 
-def _deepep_dispatch_combine_bars(test_output: Path) -> list[tuple[str, float, str]]:
+def _moe_benchmark_dispatch_combine_bars(test_output: Path) -> list[tuple[str, float, str]]:
     """From latest ``results.json``: one bar per ``dispatch`` / ``combine`` row (``bus_bw_avg``)."""
-    paths = deepep_results_json_files(test_output)
+    paths = moe_benchmark_results_json_files(test_output)
     if not paths:
         return []
     latest = max(paths, key=lambda p: p.stat().st_mtime)
     try:
         rows = json.loads(latest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        logging.debug("DeepEP results.json unreadable %s: %s", latest, e)
+        logging.debug("MoE benchmark results.json unreadable %s: %s", latest, e)
         return []
     if not isinstance(rows, list):
         return []
@@ -50,11 +50,10 @@ def _deepep_dispatch_combine_bars(test_output: Path) -> list[tuple[str, float, s
             continue
 
     out: list[tuple[str, float, str]] = []
-    # Stable order: dispatch then combine, only if present in JSON
     if "dispatch" in by_op:
-        out.append(("DeepEP dispatch", by_op["dispatch"], "#2ca02c"))
+        out.append(("MoE dispatch", by_op["dispatch"], "#2ca02c"))
     if "combine" in by_op:
-        out.append(("DeepEP combine", by_op["combine"], "#31a354"))
+        out.append(("MoE combine", by_op["combine"], "#31a354"))
     return out
 
 
@@ -70,7 +69,7 @@ def _mean_ucc_bus_bw_gb_s(test_output: Path) -> float | None:
 
 
 def _parse_ucc_perftest_mean_bus_avg(path: Path) -> float | None:
-    """Mean of ``Bus Bandwidth … avg`` column over numeric data rows (8 fields)."""
+    """Mean of ``Bus Bandwidth ... avg`` column over numeric data rows (8 fields)."""
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -153,13 +152,9 @@ def _write_moe_throughput_svg(
 
     for g in (0.25, 0.5, 0.75):
         gy = y0 - g * ih
-        parts.append(
-            f'<line x1="{ml}" y1="{gy:.1f}" x2="{ml + iw}" y2="{gy:.1f}" stroke="#ddd" stroke-width="1"/>'
-        )
+        parts.append(f'<line x1="{ml}" y1="{gy:.1f}" x2="{ml + iw}" y2="{gy:.1f}" stroke="#ddd" stroke-width="1"/>')
         gv = vmin + g * (vmax - vmin)
-        parts.append(
-            f'<text x="{ml - 8}" y="{gy + 4:.1f}" font-size="11" text-anchor="end" fill="#444">{gv:.1f}</text>'
-        )
+        parts.append(f'<text x="{ml - 8}" y="{gy + 4:.1f}" font-size="11" text-anchor="end" fill="#444">{gv:.1f}</text>')
 
     for cx, val, col, lab in zip(centers, values, colors, labels, strict=True):
         top = ypx(val)
@@ -171,23 +166,11 @@ def _write_moe_throughput_svg(
         )
 
     for (cx, cy), val, col, lab in zip(pts, values, colors, labels, strict=True):
-        parts.append(
-            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{html.escape(col)}" '
-            f'stroke="#222" stroke-width="1"/>'
-        )
-        parts.append(
-            f'<text x="{cx:.1f}" y="{cy - 14:.1f}" font-size="12" text-anchor="middle" '
-            f'font-weight="600" fill="#111">{val:.2f}</text>'
-        )
-        parts.append(
-            f'<text x="{cx:.1f}" y="{y0 + 22:.1f}" font-size="13" text-anchor="middle" fill="#111">'
-            f"{html.escape(lab)}</text>"
-        )
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{html.escape(col)}" stroke="#222" stroke-width="1"/>')
+        parts.append(f'<text x="{cx:.1f}" y="{cy - 14:.1f}" font-size="12" text-anchor="middle" font-weight="600" fill="#111">{val:.2f}</text>')
+        parts.append(f'<text x="{cx:.1f}" y="{y0 + 22:.1f}" font-size="13" text-anchor="middle" fill="#111">{html.escape(lab)}</text>')
 
-    parts.append(
-        f'<text transform="translate(20 {mt + ih / 2:.1f}) rotate(-90)" '
-        f'font-size="12" text-anchor="middle" fill="#444">{html.escape(y_axis_label)}</text>'
-    )
+    parts.append(f'<text transform="translate(20 {mt + ih / 2:.1f}) rotate(-90)" font-size="12" text-anchor="middle" fill="#444">{html.escape(y_axis_label)}</text>')
 
     leg_y = y0 + 38
     parts.append(f'<text x="{ml}" y="{leg_y}" font-size="11" font-weight="600" fill="#333">Summary</text>')
@@ -199,32 +182,31 @@ def _write_moe_throughput_svg(
         )
 
     parts.append("</svg>")
-
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
-class DeepEPMoEThroughputReporter(Reporter):
+class MoEBenchmarkThroughputReporter(Reporter):
     """After the scenario finishes, write one standalone SVG chart under the results root."""
 
     def generate(self) -> None:
         self.load_test_runs()
-        deepep_trs = [tr for tr in self.trs if isinstance(tr.test, DeepEPTestDefinition)]
-        if not deepep_trs:
-            logging.debug("Skipping deepep_moe_throughput: no DeepEP test in scenario.")
+        moe_trs = [tr for tr in self.trs if isinstance(tr.test, MoEBenchmarkTestDefinition)]
+        if not moe_trs:
+            logging.debug("Skipping moe_benchmark_throughput: no MoEBenchmark test in scenario.")
             return
 
         categories: list[str] = []
         values: list[float] = []
         colors: list[str] = []
 
-        deepep_bars = _deepep_dispatch_combine_bars(deepep_trs[0].output_path)
-        if not deepep_bars:
+        moe_bars = _moe_benchmark_dispatch_combine_bars(moe_trs[0].output_path)
+        if not moe_bars:
             logging.warning(
-                "Skipping deepep_moe_throughput: no dispatch/combine bus_bw_avg in DeepEP results.json under %s",
-                deepep_trs[0].output_path,
+                "Skipping moe_benchmark_throughput: no dispatch/combine bus_bw_avg in results.json under %s",
+                moe_trs[0].output_path,
             )
             return
-        for lab, val, col in deepep_bars:
+        for lab, val, col in moe_bars:
             categories.append(lab)
             values.append(val)
             colors.append(col)
@@ -258,4 +240,3 @@ class DeepEPMoEThroughputReporter(Reporter):
             colors=colors,
             y_axis_label="Mean bus bandwidth (GB/s)",
         )
-        logging.info("Generated MoE throughput comparison at %s", out)

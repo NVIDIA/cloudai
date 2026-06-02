@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "deepep_test_internode"
+description = "Official DeepEP V1 legacy test_internode"
+test_template_name = "DeepEP"
+
+[cmd_args]
+docker_image_url = "/your/path/to/the/container"
+subtest_name = "test_internode"
+legacy_tests_root = "/path/in/the/container/to/the/tests/folder"
+num_processes = 8
+num_tokens = 4096
+hidden = 7168
+num_topk = 8
+num_experts = 256
+pressure_test_mode = 0
+test_ll_compatibility = false

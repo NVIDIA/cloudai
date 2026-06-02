@@ -41,10 +41,13 @@ from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDyna
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.deepep import (
-    DeepEPReportGenerationStrategy,
     DeepEPTestDefinition,
 )
 from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
+from cloudai.workloads.moe_benchmark import (
+    MoEBenchmarkReportGenerationStrategy, 
+    MoEBenchmarkTestDefinition
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -687,7 +690,7 @@ class TestReporters:
         "tdef,expected_reporters",
         [
             (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
-            (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
+            (MoEBenchmarkTestDefinition, {MoEBenchmarkReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (

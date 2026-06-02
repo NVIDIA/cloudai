@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.deepep.deepep_combined_report import DEEPEP_PREV_MOUNT, deepep_benchmark_root
+from cloudai.workloads.moe_benchmark.combined_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
 
@@ -52,7 +52,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
-        root = deepep_benchmark_root(self.test_run)
+        root = moe_benchmark_root(self.test_run)
         if root is None:
             return None
         return _nccl_matrix_path_under_deepep_output(root)
@@ -69,9 +69,9 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         dest = tdef.cmd_args.alltoallv_matrix_container_path
         mounts: List[str] = [f"{matrix_host.resolve()}:{dest}"]
 
-        dr = deepep_benchmark_root(self.test_run)
+        dr = moe_benchmark_root(self.test_run)
         if dr is not None:
-            mounts.append(f"{dr.resolve()}:{DEEPEP_PREV_MOUNT}:ro")
+            mounts.append(f"{dr.resolve()}:{MOE_BENCHMARK_PREV_MOUNT}:ro")
         return mounts
 
     @property

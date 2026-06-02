@@ -1,18 +1,6 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 from __future__ import annotations
 
@@ -25,33 +13,27 @@ from typing import TYPE_CHECKING
 from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.deepep.deepep_combined_report import deepep_results_json_files
+from cloudai.workloads.moe_benchmark.combined_report import moe_benchmark_results_json_files
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
-    """Strategy for generating reports from DeepEP benchmark outputs."""
+class MoEBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
+    """Strategy for generating reports from MoE benchmark outputs."""
 
     def can_handle_directory(self) -> bool:
-        """
-        Check if this directory contains DeepEP benchmark results.
-
-        Returns:
-            bool: True if directory contains DeepEP results.
-        """
         directory_path = self.test_run.output_path
-        return bool(deepep_results_json_files(directory_path))
+        return bool(moe_benchmark_results_json_files(directory_path))
 
     def generate_report(self) -> None:
-        """Generate a report from DeepEP benchmark results."""
+        """Generate a report from MoE benchmark results."""
         directory_path = self.test_run.output_path
         test_name = self.test_run.test.name
 
         all_results = []
 
-        for results_json in deepep_results_json_files(directory_path):
+        for results_json in moe_benchmark_results_json_files(directory_path):
             result_dir = results_json.parent
 
             try:
@@ -105,14 +87,6 @@ class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
             self._generate_csv_report(df, directory_path, test_name)
 
     def _generate_csv_report(self, df: pd.DataFrame, directory_path: Path, test_name: str) -> None:
-        """
-        Generate a CSV report from the DataFrame.
-
-        Args:
-            df (pd.DataFrame): DataFrame containing the benchmark results.
-            directory_path (Path): Output directory path for saving the CSV report.
-            test_name (str): Name of the test.
-        """
         csv_report_tool = CSVReportTool(directory_path)
         csv_report_tool.set_dataframe(df)
         csv_report_tool.finalize_report(Path(f"cloudai_{test_name}_report.csv"))

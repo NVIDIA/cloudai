@@ -14,21 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "deepep-with-ucc-alltoallv"
+name = "ucc_alltoallv_deepep"
+description = "UCC AlltoAllv"
+test_template_name = "UCCTest"
 
-# First run the DeepEP benchmark which generates the traffic matrix
-[[Tests]]
-id = "Tests.deepep"
-test_name = "deepep_standard"
-num_nodes = 2
-time_limit = "00:30:00"
+[cmd_args]
+docker_image_url = "/your/path/to/the/container"
+collective = "alltoallv"
+b = 1
+e = "8M"
+use_deepep_matrix = true
 
-# Then run UCC AlltoAllv test using the generated matrix (auto-converted)
-[[Tests]]
-id = "Tests.ucc_alltoallv"
-test_name = "ucc_alltoallv_deepep"
-num_nodes = 2
-time_limit = "00:30:00"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.deepep"
+[extra_env_vars]
+UCX_IB_GID_INDEX = "auto"
+UCX_TLS = "cuda_copy,rc"
+UCX_RNDV_THRESH = "0"
+UCX_RNDV_SCHEME = "get_zcopy"
+MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+UCC_CL_HIER_FULL_SBGP_TLS = "ucp"
+UCC_CL_HIER_NODE_SBGP_TLS = "cuda"
+UCC_TLS = "ucp,cuda"
+UCC_CL_HIER_TUNE = "alltoallv:0-inf:@node_split"
+UCC_TL_UCP_ALLTOALLV_PAIRWISE_NUM_POSTS = "8"
+UCC_CLS = "basic,hier"

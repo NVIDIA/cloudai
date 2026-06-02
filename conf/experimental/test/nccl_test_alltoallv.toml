@@ -19,8 +19,7 @@ description = "NCCL AlltoAllv"
 test_template_name = "NcclTest"
 
 [cmd_args]
-docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
-# Container provides /opt/nccl-tests/build/alltoallv_perf.
+docker_image_url = "/your/path/to/the/container"
 subtest_name = "alltoallv_perf_mpi"
 nthreads = 1
 ngpus = 1
@@ -32,3 +31,7 @@ warmup_iters = 1
 check = 1
 blocking = 0
 use_deepep_matrix = true
+
+[extra_env_vars]
+NCCL_P2P_DISABLE = "1"
+NCCL_SHM_DISABLE = "1"

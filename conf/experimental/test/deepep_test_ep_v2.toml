@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "deepep_test_ep_v2"
+description = "Official DeepEP V2 elastic test_ep"
+test_template_name = "DeepEP"
+
+[cmd_args]
+docker_image_url = "/your/path/to/the/container"
+subtest_name = "test_ep"
+elastic_tests_root = "/path/in/the/container/to/the/tests/folder"
+num_processes = 8
+num_sms = 0
+num_qps = 0
+num_allocated_qps = 0
+num_tokens = 4096
+hidden = 7168
+num_topk = 8
+num_experts = 256
+do_cpu_sync = 1
+allow_hybrid_mode = 1
+allow_multiple_reduction = 1
+prefer_overlap_with_compute = 0
+seed = 0
+skip_check = false
+skip_perf_test = false

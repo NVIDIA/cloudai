@@ -46,6 +46,10 @@ from cloudai.workloads.deepep import (
     DeepEPCmdArgs,
     DeepEPTestDefinition,
 )
+from cloudai.workloads.moe_benchmark import (
+    MoEBenchmarkCmdArgs,
+    MoEBenchmarkTestDefinition
+)
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -273,7 +277,7 @@ def build_special_test_run(
         "ai-dynamo",
         "nixl-perftest",
         "nixl-kvbench",
-        "deepep-benchmark",
+        "moe-benchmark",
         "osu-bench",
         "sglang",
         "sglang-disagg",
@@ -550,14 +554,14 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
             ),
         ),
-        "deepep-benchmark": lambda: create_test_run(
+        "moe-benchmark": lambda: create_test_run(
             partial_tr,
-            "deepep-benchmark",
-            DeepEPTestDefinition(
-                name="deepep-benchmark",
-                description="DeepEP MoE Benchmark",
-                test_template_name="deepep-benchmark",
-                cmd_args=DeepEPCmdArgs(
+            "moe-benchmark",
+            MoEBenchmarkTestDefinition(
+                name="moe-benchmark",
+                description="MoE Benchmark",
+                test_template_name="MoEBenchmark",
+                cmd_args=MoEBenchmarkCmdArgs(
                     docker_image_url="docker/image:url",
                 ),
             ),
@@ -698,7 +702,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
-        if request.param == "deepep-benchmark":
+        if request.param == "moe-benchmark":
             tr.num_nodes = 2
         if request.param in {"sglang-disagg-2nodes", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2

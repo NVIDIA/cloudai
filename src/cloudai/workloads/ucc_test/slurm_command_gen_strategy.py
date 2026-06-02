@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.deepep.deepep_combined_report import DEEPEP_PREV_MOUNT, deepep_benchmark_root
+from cloudai.workloads.moe_benchmark.combined_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -45,7 +45,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
-        dep_out = deepep_benchmark_root(self.test_run)
+        dep_out = moe_benchmark_root(self.test_run)
         if dep_out is None:
             return None
         return _ucc_matrix_path_under_deepep_output(dep_out)
@@ -55,7 +55,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not tdef.cmd_args.use_deepep_matrix:
             return []
 
-        deepep_root = deepep_benchmark_root(self.test_run)
+        deepep_root = moe_benchmark_root(self.test_run)
         if deepep_root is None:
             return []
 
@@ -65,7 +65,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return [
             f"{matrix_host.resolve()}:{_UCC_GEN_MATRIX_CONTAINER}",
-            f"{deepep_root.resolve()}:{DEEPEP_PREV_MOUNT}:ro",
+            f"{deepep_root.resolve()}:{MOE_BENCHMARK_PREV_MOUNT}:ro",
         ]
 
     def image_path(self) -> str | None:

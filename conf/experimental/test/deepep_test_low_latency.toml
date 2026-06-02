@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "deepep_test_low_latency"
+description = "Official DeepEP V1 legacy test_low_latency"
+test_template_name = "DeepEP"
+
+[cmd_args]
+docker_image_url = "/your/path/to/the/container"
+subtest_name = "test_low_latency"
+legacy_tests_root = "/path/in/the/container/to/the/tests/folder"
+num_processes = 8
+num_tokens = 128
+hidden = 7168
+num_topk = 8
+num_experts = 288
+allow_mnnvl = false
+disable_nvlink = false
+use_logfmt = false
+pressure_test = false
+shrink_test = false

@@ -46,6 +46,11 @@ from cloudai.workloads.dynamo_mocker import (
     DynamoMockerStandaloneCommandGenStrategy,
     DynamoMockerTestDefinition,
 )
+from cloudai.workloads.moe_benchmark import (
+    MoEBenchmarkSlurmCommandGenStrategy,
+    MoEBenchmarkTestDefinition,
+    MoEBenchmarkThroughputReporter,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -133,6 +138,7 @@ def test_runners():
 CMD_GEN_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
     (SlurmSystem, DeepEPTestDefinition): DeepEPSlurmCommandGenStrategy,
+    (SlurmSystem, MoEBenchmarkTestDefinition): MoEBenchmarkSlurmCommandGenStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
@@ -239,6 +245,7 @@ def test_definitions():
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
         ("DeepEP", DeepEPTestDefinition),
+        ("MoEBenchmark", MoEBenchmarkTestDefinition),
         ("Sleep", SleepTestDefinition),
         ("NeMoLauncher", NeMoLauncherTestDefinition),
         ("NeMoRun", NeMoRunTestDefinition),
@@ -268,6 +275,7 @@ def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
     assert list(scenario_reports.keys()) == [
         "per_test",
+        "moe_benchmark_throughput",
         "status",
         "dse",
         "tarball",
@@ -277,6 +285,7 @@ def test_scenario_reports():
     ]
     assert list(scenario_reports.values()) == [
         PerTestReporter,
+        MoEBenchmarkThroughputReporter,
         StatusReporter,
         DSEReporter,
         TarballReporter,
@@ -290,6 +299,7 @@ def test_report_configs():
     configs = Registry().report_configs
     assert list(configs.keys()) == [
         "per_test",
+        "moe_benchmark_throughput",
         "status",
         "dse",
         "tarball",
