@@ -28,6 +28,10 @@ Test and Scenario Examples
    max_concurrency = 16
    num_prompts = 30
 
+   [semantic_eval_cmd_args]
+   entrypoint = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+   cli = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+
 
 .. code-block:: toml
    :caption: scenario.toml (scenario with one test)
@@ -66,6 +70,25 @@ Test-in-Scenario example
    random_output_len = 128
    max_concurrency = 16
    num_prompts = 30
+
+
+Semantic Validation
+-------------------
+To run GSM8K semantic validation after the serving benchmark, add ``semantic_eval_cmd_args``. CloudAI reports
+``accuracy`` from the eval output, but does not enforce an accuracy threshold.
+
+.. code-block:: toml
+   :caption: test.toml (semantic validation)
+
+   [semantic_eval_cmd_args]
+   entrypoint = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+   cli = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+
+If the runtime image does not contain the eval script, mount a vLLM repository with existing ``git_repos`` support and
+point ``entrypoint`` at the mounted path.
+
+The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{output_path}``, and ``{result_dir}``
+placeholders.
 
 
 Controlling the Number of GPUs
@@ -151,6 +174,13 @@ Benchmark Command Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: cloudai.workloads.vllm.vllm.VllmBenchCmdArgs
+   :members:
+   :show-inheritance:
+
+Semantic Eval Command Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: cloudai.workloads.vllm.vllm.VllmSemanticEvalCmdArgs
    :members:
    :show-inheritance:
 

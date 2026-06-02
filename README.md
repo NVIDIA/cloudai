@@ -34,6 +34,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |ChakraReplay|✅|❌|❌|❌|
 |DDLB|✅|❌|❌|❌|
 |DeepEP|✅|❌|❌|❌|
+|DynamoMocker|❌|❌|❌|✅|
 |JaxToolbox workloads (DEPRECATED)|✅|❌|❌|❌|
 |MegatronRun|✅|❌|❌|❌|
 |NCCL|✅|✅|✅|❌|
@@ -42,10 +43,12 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |NIXL benchmark|✅|❌|❌|❌|
 |NIXL kvbench|✅|❌|❌|❌|
 |NIXL CTPerf|✅|❌|❌|❌|
+|SGLang|✅|❌|❌|❌|
 |Sleep|✅|✅|❌|✅|
 |SlurmContainer|✅|❌|❌|❌|
 |Triton Inference|✅|❌|❌|❌|
 |UCC|✅|❌|❌|❌|
+|vLLM|✅|❌|❌|❌|
 
 Note: Deprecated means that a workload support exists, but we are not maintaining it actively anymore and newer configurations might not work.
 

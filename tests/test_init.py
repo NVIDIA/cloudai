@@ -42,6 +42,10 @@ from cloudai.workloads.deepep import (
     DeepEPSlurmCommandGenStrategy,
     DeepEPTestDefinition,
 )
+from cloudai.workloads.dynamo_mocker import (
+    DynamoMockerStandaloneCommandGenStrategy,
+    DynamoMockerTestDefinition,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -143,6 +147,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, MegatronBridgeTestDefinition): MegatronBridgeSlurmCommandGenStrategy,
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (StandaloneSystem, AiconfiguratorTestDefinition): AiconfiguratorStandaloneCommandGenStrategy,
+    (StandaloneSystem, DynamoMockerTestDefinition): DynamoMockerStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
     (SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
     (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
@@ -227,7 +232,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 25
+    assert len(test_defs) == 26
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -254,6 +259,7 @@ def test_definitions():
         ("OSUBench", OSUBenchTestDefinition),
         ("sglang", SglangTestDefinition),
         ("vllm", VllmTestDefinition),
+        ("DynamoMocker", DynamoMockerTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

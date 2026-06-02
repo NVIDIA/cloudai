@@ -87,9 +87,15 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]]:
         """
         Select an action from the action space.
+
+        Args:
+            observation: Latest observation produced by the environment (``env.reset()`` on the
+                first call, then the result of the prior ``env.step()``). Stateless agents such
+                as grid search or Bayesian optimization may ignore this; observation-conditioned
+                agents (RL, contextual bandits) should use it.
 
         Returns:
             Tuple[int, Dict[str, Any]]: The current step index and a dictionary mapping action keys to selected values.

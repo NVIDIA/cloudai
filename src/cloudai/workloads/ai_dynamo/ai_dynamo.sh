@@ -31,10 +31,14 @@ declare -A prefill_config
 declare -A prefill_args
 declare -A decode_config
 declare -A decode_args
-declare -A lmcache_args
-declare -A lmcache_config
 declare -A genai_perf_args
 declare -A genai_perf_config
+declare -A aiperf_args
+declare -A aiperf_config
+declare -A aiperf_accuracy_args
+declare -A aiperf_accuracy_config
+
+lmcache_controller_cmd=""
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -50,12 +54,14 @@ dynamo_args["frontend-node"]=""
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed."
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|pydantic_core._pydantic_core.ValidationError|Unsupported.connector.type"
 
 # sglang_dsr1-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
+dynamo_args["dcgm-exporter-enabled"]="False"
+dynamo_args["dcgm-exporter-port"]=9401
 
 function log()
 {
@@ -96,6 +102,10 @@ _resolve_host_ip() {
     exit 1
   fi
   echo "$ip"
+}
+
+_current_node_ip() {
+  _resolve_host_ip "$(_current_node_name)"
 }
 
 _apply_sglang_dsr1_section_args() {
@@ -155,14 +165,20 @@ _parse_cli_pairs() {
         decode_args["--${key#--decode-args-}"]="$2" ;;
       --decode-*)
         decode_config["${key#--decode-}"]="$2" ;;
-      --lmcache-args-*)
-        lmcache_args["${key#--lmcache-args-}"]="$2" ;;
-      --lmcache-*)
-        lmcache_config["${key#--lmcache-}"]="$2" ;;
+      --lmcache-controller-cmd)
+        lmcache_controller_cmd="$2" ;;
       --genai_perf-args-*)
         genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
       --genai_perf-*)
         genai_perf_config["--${key#--genai_perf-}"]="$2" ;;
+      --aiperf-args-*)
+        aiperf_args["--${key#--aiperf-args-}"]="$2" ;;
+      --aiperf-*)
+        aiperf_config["--${key#--aiperf-}"]="$2" ;;
+      --aiperf_accuracy-args-*)
+        aiperf_accuracy_args["--${key#--aiperf_accuracy-args-}"]="$2" ;;
+      --aiperf_accuracy-*)
+        aiperf_accuracy_config["--${key#--aiperf_accuracy-}"]="$2" ;;
       --hf-home)
         HUGGINGFACE_HOME="$2" ;;
       --storage-cache-dir)
@@ -251,7 +267,7 @@ _has_connector() {
 }
 
 _apply_connector_settings() {
-  if _has_connector "lmcache"; then
+  if _has_connector "lmcache" || [[ -n "${LMCACHE_CONFIG_FILE:-}" ]]; then
     export ENABLE_LMCACHE=1
   fi
   if _has_connector "kvbm"; then
@@ -349,10 +365,14 @@ _dump_args() {
   log "Prefill args:\n$(arg_array_to_string prefill_args)"
   log "Decode config params:\n$(arg_array_to_string decode_config)"
   log "Decode args:\n$(arg_array_to_string decode_args)"
-  log "LMCache config params:\n$(arg_array_to_string lmcache_config)"
-  log "LMCache args:\n$(arg_array_to_string lmcache_args)"
+  log "LMCache config file: ${LMCACHE_CONFIG_FILE:-}"
+  log "LMCache controller cmd: ${lmcache_controller_cmd}"
   log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
   log "GenAI-Perf args:\n$(arg_array_to_string genai_perf_args)"
+  log "AIPerf config params:\n$(arg_array_to_string aiperf_config)"
+  log "AIPerf args:\n$(arg_array_to_string aiperf_args)"
+  log "AIPerf accuracy config params:\n$(arg_array_to_string aiperf_accuracy_config)"
+  log "AIPerf accuracy args:\n$(arg_array_to_string aiperf_accuracy_args)"
   log "--------------------------------"
 }
 
@@ -412,6 +432,10 @@ function perform_exit()
 
 exit_on_error() {
   local fatal=$(_detect_fatal_once)
+  if [ -f "${FATAL_ERROR_MARKER}" ]; then
+    log "FATAL_ERROR_MARKER found. Terminating."
+    perform_exit 1
+  fi
   if [ -f "${DONE_MARKER}" ]; then
     log "DONE_MARKER found. Skipping error check."
     return
@@ -503,6 +527,14 @@ _is_prefill_node() {
 
 _is_genai_perf_workload() {
   [[ "${dynamo_args["workloads"]}" == *"genai_perf.sh"* ]]
+}
+
+_is_aiperf_workload() {
+  [[ "${dynamo_args["workloads"]}" == *"aiperf.sh"* ]]
+}
+
+_is_aiperf_accuracy_enabled() {
+  [[ -n "${aiperf_accuracy_config["--script"]:-}" ]]
 }
 
 _init_runtime_env() {
@@ -677,6 +709,13 @@ function mark_done()
   touch "$DONE_MARKER"
 }
 
+function mark_failed()
+{
+  local message="$1"
+  log "ERROR: ${message}"
+  printf '%s\n' "${message}" > "${FATAL_ERROR_MARKER}"
+}
+
 function launch_etcd()
 {
   log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}"
@@ -721,6 +760,8 @@ function launch_decode()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -742,10 +783,10 @@ function launch_decode()
       args_arr+=($key "${decode_args[$key]}")
     done
 
-    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
@@ -776,6 +817,8 @@ function launch_prefill()
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
   local kvbm_port_stride=2
+  local side_channel_host
+  side_channel_host="$(_current_node_ip)"
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -797,10 +840,10 @@ function launch_prefill()
       args_arr+=($key "${prefill_args[$key]}")
     done
 
-    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
+    log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
-      VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
+      VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
@@ -809,16 +852,6 @@ function launch_prefill()
       ${args_arr[@]} \
       ${prefill_config["extra-args"]} > $log_file 2>&1 &
   done
-}
-
-function launch_lmcache_controller()
-{
-  if ! _has_connector "lmcache"; then
-    return
-  fi
-
-  log "Launching LMCache controller with cmd: ${lmcache_config["controller_cmd"]}"
-  ${lmcache_config["controller_cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
 }
 
 function wait_for_dynamo_frontend()
@@ -859,6 +892,39 @@ _query_frontend() {
 
   echo "$json" > "$RESULTS_DIR/curl_cmd.json"
   curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d @$RESULTS_DIR/curl_cmd.json
+}
+
+_resolve_aiperf_server_metrics_urls() {
+  local urls="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}/metrics"
+  local base_system_port=${DYN_SYSTEM_PORT:-9090}
+  local decode_workers_per_node=${decode_config["workers-per-node"]:-1}
+  local prefill_workers_per_node=${prefill_config["workers-per-node"]:-1}
+  local IFS_SAVE="$IFS"
+  local node i
+
+  IFS=','
+  for node in ${prefill_config["node-list"]:-}; do
+    for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
+      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+    done
+  done
+
+  for node in ${decode_config["node-list"]:-}; do
+    for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
+      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+    done
+  done
+
+  if [[ "${dynamo_args["dcgm-exporter-enabled"]}" == "True" || "${dynamo_args["dcgm-exporter-enabled"]}" == "true" ]]; then
+    local dcgm_nodes="${decode_config["node-list"]:-},${prefill_config["node-list"]:-}"
+    for node in $dcgm_nodes; do
+      [[ -z "$node" ]] && continue
+      urls="${urls},http://${node}:${dynamo_args["dcgm-exporter-port"]}/metrics"
+    done
+  fi
+  IFS="$IFS_SAVE"
+
+  echo "$urls"
 }
 
 function setup_cufile()
@@ -902,6 +968,11 @@ function setup_storage_cache_dir()
   chmod 755 "${STORAGE_CACHE_DIR}"
 }
 
+function lmcache_storage_cache_dir()
+{
+  echo "${STORAGE_CACHE_DIR_BASE}/${TEST_USER}/${dynamo_args["frontend-node"]}/lmcache/cache"
+}
+
 function setup_kvbm()
 {
   if ! _has_connector "kvbm"; then
@@ -915,45 +986,82 @@ function setup_kvbm()
   setup_cufile
 }
 
-function setup_lmcache()
+function render_lmcache_config()
 {
-  if ! _has_connector "lmcache"; then
-    log "Connector list does not include lmcache. Skipping setup_lmcache"
+  if [[ -z "${LMCACHE_CONFIG_FILE:-}" ]]; then
     return
   fi
 
-  _require_cmd uv
-  local lmcache_path="${lmcache_config["repo"]}"
-  log "Setting up LMCache; installing LMCache using: uv pip install $lmcache_path"
-  uv pip install -e "$lmcache_path"
+  if [[ ! -f "${LMCACHE_CONFIG_FILE}" ]]; then
+    log "ERROR: LMCACHE_CONFIG_FILE does not exist: ${LMCACHE_CONFIG_FILE}"
+    exit 1
+  fi
 
-  setup_storage_cache_dir "lmcache"
+  _require_cmd python3
 
-  export LMCACHE_CONFIG_FILE=$RESULTS_DIR/lmcache-nixl-config.yaml
-  rm -f $LMCACHE_CONFIG_FILE
+  local frontend_node="${dynamo_args["frontend-node"]}"
+  local frontend_ip="$(_resolve_host_ip "$frontend_node")"
+  local storage_cache_dir="$(lmcache_storage_cache_dir)"
+  mkdir -p "$storage_cache_dir"
+  chmod 755 "$storage_cache_dir"
 
-  lmcache_args["extra_config_nixl_path"]="$STORAGE_CACHE_DIR"
+  local rendered_config="${LMCACHE_CONFIG_FILE}.tmp.${SLURM_NODEID:-0}"
+  if ! FRONTEND_NODE="$frontend_node" \
+    FRONTEND_IP="$frontend_ip" \
+    RESULTS_DIR="$RESULTS_DIR" \
+    STORAGE_CACHE_DIR="$storage_cache_dir" \
+    python3 - "$LMCACHE_CONFIG_FILE" "$rendered_config" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
 
-  for key in "${!lmcache_args[@]}"; do
-    shopt -s nocasematch
-    if [[ "$key" == "extra_config"* ]]; then
-      continue
-    fi
+src, dst = sys.argv[1], sys.argv[2]
+values = {
+    "frontend_node": os.environ["FRONTEND_NODE"],
+    "frontend_ip": os.environ["FRONTEND_IP"],
+    "results_dir": os.environ["RESULTS_DIR"],
+    "storage_cache_dir": os.environ["STORAGE_CACHE_DIR"],
+}
 
-    val="${lmcache_args[$key]}"
-    echo "$key: $val" >> $LMCACHE_CONFIG_FILE
-  done
+content = Path(src).read_text()
+unknown = sorted(set(re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", content)) - values.keys())
+if unknown:
+    raise SystemExit(f"Unknown LMCache config placeholders: {', '.join(unknown)}")
 
-  echo "extra_config:" >> $LMCACHE_CONFIG_FILE
-  for key in "${!lmcache_args[@]}"; do
-    shopt -s nocasematch
-    if [[ "$key" == "extra_config"* ]]; then
-      nkey="${key#extra_config_}"
-      val="${lmcache_args[$key]}"
-      echo "    $nkey: $val" >> $LMCACHE_CONFIG_FILE
-    fi
-  done
+for key, value in values.items():
+    content = content.replace("{" + key + "}", value)
+
+Path(dst).write_text(content)
+PY
+  then
+    log "ERROR: Failed to render LMCache config template: ${LMCACHE_CONFIG_FILE}"
+    exit 1
+  fi
+
+  mv "$rendered_config" "$LMCACHE_CONFIG_FILE"
+  log "Rendered LMCache config file: ${LMCACHE_CONFIG_FILE}"
+}
+
+function setup_lmcache()
+{
+  if [[ -z "${LMCACHE_CONFIG_FILE:-}" ]]; then
+    log "LMCACHE_CONFIG_FILE is not set. Skipping setup_lmcache"
+    return
+  fi
+
+  log "Using LMCache config file: ${LMCACHE_CONFIG_FILE}"
   setup_cufile
+}
+
+function launch_lmcache_controller()
+{
+  if [[ -z "${lmcache_controller_cmd}" ]]; then
+    return
+  fi
+
+  log "Launching LMCache controller with cmd: ${lmcache_controller_cmd}"
+  ${lmcache_controller_cmd} > "${RESULTS_DIR}/lmcache_controller.log" 2>&1
 }
 
 function log_gpu_utilization()
@@ -985,6 +1093,11 @@ function launch_workload()
 
   local workload_name="${workload_config_ref["--name"]}"
   local script="${workload_config_ref["--script"]}"
+  export FRONTEND_URL="${dynamo_args["url"]}"
+  export AIPERF_MODEL="${dynamo_args["model"]}"
+  export AIPERF_ENDPOINT="${dynamo_args["endpoint"]}"
+  export AIPERF_FAILURE_MARKER="${FATAL_ERROR_MARKER}"
+  export AIPERF_SERVER_METRICS_URLS="$(_resolve_aiperf_server_metrics_urls)"
 
   # Build config and workload args as proper bash arrays to preserve
   # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
@@ -1014,6 +1127,11 @@ function launch_workload()
     --decode-nodes "${decode_config["node-list"]}" \
     "${config_arr[@]}" \
     -- "${args_arr[@]}" > "${RESULTS_DIR}/$workload_name.log" 2>&1
+  local workload_status=$?
+  if [[ "${workload_status}" -ne 0 ]]; then
+    mark_failed "Workload ${workload_name} failed with exit code ${workload_status}. See ${RESULTS_DIR}/${workload_name}.log"
+    return "${workload_status}"
+  fi
 
   log "Done with $workload_name run"
 }
@@ -1023,7 +1141,15 @@ function launch_workloads()
   wait_for_dynamo_frontend
 
   if _is_genai_perf_workload; then
-    launch_workload genai_perf_config genai_perf_args
+    launch_workload genai_perf_config genai_perf_args || return $?
+  fi
+
+  if _is_aiperf_workload; then
+    launch_workload aiperf_config aiperf_args || return $?
+  fi
+
+  if _is_aiperf_accuracy_enabled; then
+    launch_workload aiperf_accuracy_config aiperf_accuracy_args || return $?
   fi
 
   mark_done
@@ -1045,6 +1171,8 @@ function main()
 
   cd "$RESULTS_DIR" || { log "ERROR: Failed to cd to $RESULTS_DIR"; exit 1; }
 
+  render_lmcache_config
+
   log_gpu_utilization &
 
   if _is_frontend_node; then
@@ -1052,6 +1180,7 @@ function main()
     log_node_role "$(_current_node_name)" "frontend"
     setup_lmcache
     setup_kvbm
+    launch_lmcache_controller &
     launch_etcd &
     launch_nats &
     wait_for_etcd
@@ -1074,8 +1203,6 @@ function main()
   fi
 
   if _is_frontend_node; then
-    launch_lmcache_controller &
-
     sleep 10
 
     launch_workloads &

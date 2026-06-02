@@ -21,7 +21,7 @@ from pathlib import Path
 
 from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy, all_gpu_ids
 
-from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition
+from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition, parse_vllm_semantic_accuracy
 
 
 class VLLMBenchReport(LLMServingBenchReport):
@@ -61,6 +61,9 @@ class VLLMBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[VllmT
 
     def parse_output(self, path: Path) -> VLLMBenchReport | None:
         return parse_vllm_bench_output(path)
+
+    def parse_semantic_accuracy(self) -> float | None:
+        return parse_vllm_semantic_accuracy(self.test_run.output_path)
 
     def all_gpu_ids(self, tdef: VllmTestDefinition, gpus_per_node: int | None) -> list[int]:
         return all_gpu_ids(tdef, gpus_per_node)

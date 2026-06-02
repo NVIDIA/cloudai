@@ -123,8 +123,17 @@ class CloudAIGymEnv(BaseGym):
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:
             logging.info(
-                "Retrieved cached result from trajectory with reward %s. Skipping step.",
+                "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
                 cached_result.reward,
+                cached_result.step,
+            )
+            self.write_trajectory(
+                TrajectoryEntry(
+                    step=self.test_run.step,
+                    action=action,
+                    reward=cached_result.reward,
+                    observation=cached_result.observation,
+                )
             )
             return cached_result.observation, cached_result.reward, False, {}
 

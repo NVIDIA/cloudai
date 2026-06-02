@@ -206,6 +206,31 @@ action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
 
+DSE parameter exclusions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+CloudAI builds the DSE parameter space implicitly from list-valued fields under ``cmd_args``, list-valued
+``extra_env_vars``, and list-valued ``num_nodes``. If a list-valued ``cmd_args`` field is configuration data rather than
+a sweep dimension, exclude it with ``dse_excluded_args`` in the test or scenario definition.
+
+Entries in ``dse_excluded_args`` must be dot-separated paths that start with ``cmd_args.``. Each entry excludes that
+field and any nested fields below it from DSE parameter discovery:
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "Tests.1"
+   test_name = "my_test"
+   dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+
+     [Tests.cmd_args.lmcache]
+     chunk_size = [256, 512]
+     lmcache_worker_ports = [8788, 8789, 8790, 8791]
+
+In this example, ``cmd_args.lmcache.chunk_size`` is still swept, while
+``cmd_args.lmcache.lmcache_worker_ports`` is treated as a single configuration value. The exclusion mechanism currently
+applies only to ``cmd_args`` paths; it does not exclude ``extra_env_vars`` or ``num_nodes`` from DSE.
+
 Metric errors and report strategies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

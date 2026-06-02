@@ -47,7 +47,7 @@ Node Configuration for AI Dynamo
 
 AI Dynamo jobs use three distinct types of nodes:
 
-- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker
+- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`aiperf` by default, configurable via ``workloads`` in the test TOML), and the first decode worker
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
@@ -82,32 +82,214 @@ The job progress monitoring can be done using either of the following options:
 
    watch tail -n 4 ./results/<scenario name>/*.txt
 
-The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch ``genai-perf``, which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
+The frontend node will initially wait to allow weight loading on all nodes. Once ready, it will launch the configured benchmark tool (``aiperf`` by default), which begins generating requests to the frontend server. All servers cooperate to complete inference, and the output will appear in ``stdout.txt``.
 
-Review genai-perf Benchmark Results
------------------------------------
+Choosing a Benchmark Tool
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After job completion, CloudAI will place the output logs and result files in the designated results directory. To analyze performance metrics and validate inference outcomes:
+The benchmark tool is controlled by the ``workloads`` field in the test TOML. Set ``aiperf.sh`` to use AIPerf:
 
-- Navigate to the results directory (e.g., ``./results/...``)
-- Most importantly, open the ``profile_genai_perf.csv`` file to examine the final benchmarking results
+.. code-block:: toml
 
-This CSV file includes detailed metrics collected by genai-perf, such as request latency, throughput, and system utilization statistics. Use this data to evaluate the model's performance and identify potential bottlenecks or optimization opportunities.
+   [cmd_args]
+   workloads = "aiperf.sh"   # uses aiperf, writes aiperf_report.csv
+
+To use genai-perf, set:
+
+.. code-block:: toml
+
+   [cmd_args]
+   workloads = "genai_perf.sh"   # uses genai-perf, writes genai_perf_report.csv
+
+   [cmd_args.genai_perf]
+   cmd = "genai-perf profile"
+   extra-args = "--streaming --verbose -- -v --async"
+
+     [cmd_args.genai_perf.args]
+     endpoint-type = "chat"
+     output-tokens-mean = 500
+     request-count = 50
+
+Propagating LMCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo can pass an LMCache YAML config to the worker processes by setting ``LMCACHE_CONFIG_FILE`` inside the
+container. This only propagates the LMCache configuration; the vLLM/SGLang runtime still needs to be launched with the
+appropriate LMCache or KV-transfer connector for that image/version.
+
+The preferred form is structured TOML under ``[cmd_args.lmcache]``. CloudAI converts that object to YAML in the
+run output directory, mounts that directory as ``/cloudai_run_results``, and exports the generated file path as
+``LMCACHE_CONFIG_FILE``:
+
+.. code-block:: toml
+
+   [cmd_args]
+     [cmd_args.lmcache]
+     chunk_size = 256
+     local_cpu = true
+     controller_pull_url = "{frontend_node}:8300"
+     controller_reply_url = "{frontend_node}:8400"
+     lmcache_worker_ports = [8788, 8789, 8790, 8791]
+     max_local_cpu_size = 6.0
+     nixl_buffer_size = 2079377920
+     nixl_buffer_device = "cpu"
+
+       [cmd_args.lmcache.extra_config]
+       enable_nixl_storage = false
+       nixl_backend = "POSIX"
+       nixl_path = "{storage_cache_dir}"
+       nixl_pool_size = 2048
+
+For an example that uses test-in-scenario mode, see
+``conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml``. Because the test is fully defined inside the scenario,
+``--tests-dir`` is not required when running that example:
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_lmcache.toml
+
+The example sets ``dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]`` because
+``lmcache_worker_ports`` is a list-valued LMCache setting, not a DSE sweep dimension. Other list-valued LMCache fields
+can still be swept unless their ``cmd_args.`` path is also excluded.
+
+Alternatively, mount your own LMCache YAML file with ``extra_container_mounts`` and set ``LMCACHE_CONFIG_FILE`` through
+``extra_env_vars``:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/lmcache:/lmcache"]
+   extra_env_vars = { LMCACHE_CONFIG_FILE = "/lmcache/config.yaml" }
+
+For multi-node LMCache storage tests, any path referenced by the LMCache YAML, such as ``nixl_path`` for POSIX-backed
+storage, must be visible and writable from every node that is expected to share cached data. A node-local path such as
+``/tmp`` is suitable only for single-node smoke tests or configuration propagation checks.
+
+LMCache YAML values can use runtime placeholders. CloudAI renders them inside the Slurm job before launching workers:
+``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
+run before worker processes start.
+
+If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
+
+.. code-block:: toml
+
+   [cmd_args.lmcache_controller]
+   cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-ports {\"pull\":8300,\"reply\":8400}"
+
+This only launches the process. For disaggregated or multi-node runs, the LMCache YAML still needs controller addresses
+that resolve to the frontend node from every worker. With the default controller monitor ports, use
+``controller_pull_url = "{frontend_node}:8300"`` and ``controller_reply_url = "{frontend_node}:8400"``. The
+``lmcache_worker_ports`` list must match the number of worker ranks.
+
+Semantic Degradation With AIPerf Accuracy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+AIDynamo uses AIPerf accuracy mode as its semantic degradation signal. Enable it with
+``[cmd_args.aiperf_accuracy]``. This runs after the configured performance workload, so it can be used with either
+``aiperf.sh`` or ``genai_perf.sh``:
+
+.. code-block:: toml
+
+   [cmd_args]
+   workloads = "aiperf.sh"
+
+   [cmd_args.aiperf]
+     [cmd_args.aiperf.args]
+     request-count = 50
+     synthetic-input-tokens-mean = 300
+     output-tokens-mean = 500
+     concurrency = 2
+
+   [cmd_args.aiperf_accuracy]
+   entrypoint = "aiperf profile"
+   setup-cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
+   cli = '''
+   --model {model}
+   --url {url}
+   --endpoint-type chat
+   --streaming
+   --artifact-dir {artifact_dir}
+   --no-server-metrics
+   --accuracy-benchmark mmlu
+   --accuracy-n-shots 5
+   --accuracy-tasks abstract_algebra
+   --concurrency 10
+   --extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+   --num-requests 100
+   '''
+
+When ``cmd_args.aiperf_accuracy`` is configured, CloudAI expects AIPerf to produce ``accuracy_results.csv`` and exposes
+the ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt
+and token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
+
+The ``entrypoint`` and ``cli`` fields form the accuracy command. CloudAI expands ``{model}``, ``{url}``,
+``{endpoint}``, ``{result_dir}``, and ``{artifact_dir}`` in ``cli`` before launching it. The ``setup-cmd`` field is
+optional. It is useful for Dynamo images that include an older system ``aiperf`` build without the accuracy benchmark
+plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
+MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
+running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
+For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
+
+Custom Accuracy Scripts
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``cmd_args.aiperf_accuracy`` can also launch a custom mounted script instead of AIPerf. Mount the script or its parent
+directory with ``extra_container_mounts`` and set ``entrypoint`` to the in-container command:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/host/custom_accuracy:/custom_accuracy"]
+
+   [cmd_args.aiperf_accuracy]
+   entrypoint = "python /custom_accuracy/dummy_accuracy.py"
+   cli = "--model {model} --url {url} --endpoint {endpoint} --artifact-dir {artifact_dir} --prompt ping"
+
+CloudAI expands placeholders in ``cli`` and runs ``entrypoint`` with that CLI string. The custom command must write
+``accuracy_results.csv`` inside ``{artifact_dir}`` with an ``OVERALL`` row. CloudAI copies that file to the run output
+directory and exposes the same ``accuracy`` metric as AIPerf accuracy mode.
+
+Review Benchmark Results
+------------------------
+
+After job completion, CloudAI places output logs and result files in the designated results directory. The result file name depends on the configured ``workloads`` field:
+
+- ``aiperf.sh`` → ``aiperf_report.csv``
+- ``genai_perf.sh`` → ``genai_perf_report.csv``
+- ``cmd_args.aiperf_accuracy`` → ``accuracy_results.csv``
+
+If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/accuracy_results.csv`` to
+``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced.
+
+Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
+
+Example ``aiperf_report.csv``:
 
 ::
 
-   Metric,avg,min,max,p99,p95,p90,p75,p50,p25
-   Time To First Token (ms),"1,146.31",249.48,"3,485.23","3,457.97","3,349.56","3,215.06","1,330.93",640.07,286.52
-   Time To Second Token (ms),26.05,0.00,133.51,96.12,36.56,34.88,34.35,33.55,1.78
-   Request Latency (ms),"6,406.20","5,371.47","9,608.72","9,436.13","9,046.58","9,028.16","6,549.60","5,690.23","5,493.63"
-   Inter Token Latency (ms),30.35,27.59,35.60,35.23,33.88,32.53,31.05,30.13,29.04
-   Output Sequence Length (tokens),174.45,164.00,187.00,186.22,183.10,180.10,177.00,174.00,171.75
-   Input Sequence Length (tokens),"3,000.05","2,999.00","3,001.00","3,001.00","3,001.00","3,000.00","3,000.00","3,000.00","3,000.00"
+   Metric,avg,min,max,p25,p50,p75,p99,std
+   Inter Token Latency (ms),2.81,2.66,2.88,2.79,2.83,2.84,2.87,0.04
+   Time to First Token (ms),49.87,17.15,99.91,49.35,49.87,50.52,92.31,9.20
+   Time to Second Token (ms),0.50,0.03,4.05,0.03,0.04,0.04,3.47,1.08
+   Request Latency (ms),1652.30,1203.61,6433.87,1453.19,1462.99,1466.72,6431.16,976.18
+   Output Sequence Length (tokens),498.06,410.00,501.00,500.00,500.00,500.00,501.00,12.62
+   Input Sequence Length (tokens),300.00,300.00,300.00,300.00,300.00,300.00,300.00,0.00
 
    Metric,Value
-   Output Token Throughput (per sec),261.25
-   Request Throughput (per sec),1.50
-   Request Count (count),40.00
+   Output Token Throughput (tokens/sec),598.78
+   Total Token Throughput (tokens/sec),962.32
+   Request Throughput (requests/sec),1.20
+   Request Count,50.00
+
+Supported Backends
+------------------
+
+The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
+
+- **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
+- **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
+
+Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.
 
 
 API Documentation

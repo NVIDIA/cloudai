@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+import shlex
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Generic, TypeVar, cast
@@ -33,6 +35,19 @@ TestDefT = TypeVar("TestDefT", bound="LLMServingTestDefinition[Any]")
 ReportT = TypeVar("ReportT", bound="LLMServingBenchReport")
 LLMServingArgsT = TypeVar("LLMServingArgsT", bound="LLMServingArgs")
 LLMServingCmdArgsT = TypeVar("LLMServingCmdArgsT", bound="LLMServingCmdArgs")
+
+CustomBash = str | dict[str, str]
+
+
+def validate_custom_bash_patterns(custom_bash: CustomBash | None) -> CustomBash | None:
+    """Validate regex keys for workload-specific custom bash injection."""
+    if isinstance(custom_bash, dict):
+        for pattern in custom_bash:
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid custom_bash regex '{pattern}': {e}") from e
+    return custom_bash
 
 
 def parse_gpu_ids(gpu_ids: str | list[str] | None) -> list[int]:
@@ -217,6 +232,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         "throughput",
         "tps-per-user",
         "tps-per-gpu",
+        "accuracy",
     ]
 
     @property
@@ -240,6 +256,10 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
     def parse_results(self) -> ReportT | None:
         return self.parse_output(self.test_run.output_path / self.result_file_name)
 
+    def parse_semantic_accuracy(self) -> float | None:
+        """Parse semantic validation accuracy, if supported by the workload."""
+        return None
+
     def can_handle_directory(self) -> bool:
         return self.parse_results() is not None
 
@@ -260,6 +280,13 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
     def get_metric(self, metric: str) -> MetricValue:
         if metric not in self.metrics:
             return METRIC_ERROR
+
+        if metric == "accuracy":
+            tdef = cast(TestDefT, self.test_run.test)
+            if getattr(tdef, "semantic_eval_cmd_args", None) is None:
+                return METRIC_ERROR
+            accuracy = self.parse_semantic_accuracy()
+            return accuracy if accuracy is not None else METRIC_ERROR
 
         results = self.parse_results()
         if results is None:
@@ -286,7 +313,8 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         table.add_column("TPOT Mean, ms", justify="right")
         table.add_column("TPOT Median, ms", justify="right")
         table.add_column("TPOT P99, ms", justify="right")
-        table.add_row(
+
+        row = [
             f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
             f"{results.mean_ttft_ms:.4f}",
             f"{results.median_ttft_ms:.4f}",
@@ -294,7 +322,14 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
             f"{results.mean_tpot_ms:.4f}",
             f"{results.median_tpot_ms:.4f}",
             f"{results.p99_tpot_ms:.4f}",
-        )
+        ]
+
+        accuracy = self.get_metric("accuracy")
+        if accuracy != METRIC_ERROR:
+            table.add_column("Accuracy", justify="right")
+            row.append(f"{accuracy:.4f}")
+
+        table.add_row(*row)
         console.print(table)
 
 
@@ -366,6 +401,23 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         env_parts = ["env", *[f'{key}="{value}"' for key, value in env_vars.items()], *command]
         return " ".join(env_parts)
 
+    def _custom_bash_for_command(self, command_tail: str) -> str | None:
+        custom_bash = getattr(self.tdef, "custom_bash", None)
+        if isinstance(custom_bash, str):
+            return custom_bash or None
+        if isinstance(custom_bash, dict):
+            for pattern, bash in custom_bash.items():
+                if re.search(pattern, command_tail):
+                    return bash or None
+        return None
+
+    def _with_custom_bash(self, command_tail: str) -> str:
+        custom_bash = self._custom_bash_for_command(command_tail)
+        if not custom_bash:
+            return command_tail
+
+        return "bash -c " + shlex.quote(f"{custom_bash}; exec {command_tail}")
+
     def disaggregated_role_host(self, role: str) -> str:
         if role == "prefill":
             return "${PREFILL_NODE}"
@@ -399,8 +451,8 @@ fi
 """
         return f"""\
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-PREFILL_NODE=${{NODES[0]}}
-DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
+export PREFILL_NODE=${{NODES[0]}}
+export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
 if [ -z "$PREFILL_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated {self.workload_name}"
     exit 1
@@ -523,6 +575,11 @@ trap cleanup EXIT"""
         return f"{self.workload_slug}-bench.log"
 
     @property
+    def semantic_eval_log_file(self) -> str:
+        """Semantic validation log file name."""
+        return f"{self.workload_slug}-semantic-eval.log"
+
+    @property
     def serve_pid_var(self) -> str:
         """Shell variable holding the aggregated serve PID."""
         return "SERVE_PID"
@@ -558,6 +615,36 @@ trap cleanup EXIT"""
     def get_helper_command(self) -> list[str]:
         """Return the helper process command for disaggregated mode."""
 
+    def get_semantic_eval_command(self) -> list[str] | None:
+        """Return the optional semantic validation command."""
+        return None
+
+    def _expand_semantic_eval_args(self, args: str, *, host: str) -> str:
+        replacements = {
+            "{model}": self.tdef.cmd_args.model,
+            "{host}": host,
+            "{port}": str(self.serve_port),
+            "{url}": f"{host}:{self.serve_port}",
+            "{output_path}": str(self.test_run.output_path.absolute()),
+            "{result_dir}": str(self.test_run.output_path.absolute()),
+        }
+        for placeholder, value in replacements.items():
+            args = args.replace(placeholder, value)
+        return args
+
+    def _gen_semantic_eval_block(self, srun_prefix: str) -> str:
+        semantic_cmd = self.get_semantic_eval_command()
+        if not semantic_cmd:
+            return ""
+        semantic_cmd_full = self._with_custom_bash(" ".join(semantic_cmd))
+
+        return f"""\
+
+echo "Running semantic validation..."
+{srun_prefix} \\
+    --output={(self.test_run.output_path / self.semantic_eval_log_file).absolute()} \\
+    {semantic_cmd_full}"""
+
     def _gen_srun_command(self) -> str:
         serve_commands = self.get_serve_commands()
         srun_command = self._gen_llm_serving_srun_command(serve_commands)
@@ -585,7 +672,7 @@ trap cleanup EXIT"""
 echo "Starting {self.workload_name} instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.serve_log_file).absolute()} \\
-    {serve_cmd_with_env} &
+    {self._with_custom_bash(serve_cmd_with_env)} &
 {self.serve_pid_var}=$!
 
 {wait_block}
@@ -593,7 +680,9 @@ echo "Starting {self.workload_name} instances..."
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}"""
+    {self._with_custom_bash(bench_cmd)}
+
+{self._gen_semantic_eval_block(f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1")}""".strip()
 
     def _gen_disaggregated_script(self, serve_commands: list[list[str]], bench_cmd: str) -> str:
         prefill_cmd, decode_cmd = serve_commands
@@ -630,12 +719,12 @@ echo "Running benchmark..."
 echo "Starting {self.workload_name} instances..."
 {prefill_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.prefill_log_file} \\
-    {prefill_cmd_with_env} &
+    {self._with_custom_bash(prefill_cmd_with_env)} &
 PREFILL_PID=$!
 
 {decode_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.decode_log_file} \\
-    {decode_cmd_with_env} &
+    {self._with_custom_bash(decode_cmd_with_env)} &
 DECODE_PID=$!
 
 {wait_block}
@@ -643,7 +732,7 @@ DECODE_PID=$!
 echo "Starting {self.proxy_router_name}..."
 {prefill_srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
-    {" ".join(helper_cmd)} &
+    {self._with_custom_bash(" ".join(helper_cmd))} &
 {self.proxy_router_pid_var}=$!
 
 {wait_block_helper}
@@ -651,4 +740,6 @@ echo "Starting {self.proxy_router_name}..."
 echo "Running benchmark..."
 {prefill_srun_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
-    {bench_cmd}"""
+    {self._with_custom_bash(bench_cmd)}
+
+{self._gen_semantic_eval_block(prefill_srun_prefix)}""".strip()

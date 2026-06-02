@@ -25,6 +25,7 @@ from cloudai.workloads.vllm import (
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
     VllmSlurmCommandGenStrategy,
     VllmTestDefinition,
 )
@@ -184,6 +185,69 @@ class TestVllmBenchCommand:
         assert "--extra-3 3" in cmd
 
 
+class TestVllmSemanticEvalCommand:
+    def test_get_vllm_semantic_eval_command_defaults(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy):
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+
+        command = vllm_cmd_gen_strategy.get_semantic_eval_command()
+
+        assert command == [
+            "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py",
+            "--host http://${NODE} --port 8000 "
+            "--num-questions 200 --save-results "
+            f"{vllm_cmd_gen_strategy.test_run.output_path.absolute()}/vllm-gsm8k.json",
+        ]
+
+    def test_get_vllm_semantic_eval_command_supports_custom_entrypoint_and_cli(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs(
+            entrypoint="python3 /custom/eval.py",
+            cli="--model {model} --api {url} --out {result_dir}/vllm-gsm8k.json",
+        )
+
+        command = vllm_cmd_gen_strategy.get_semantic_eval_command()
+
+        assert command == [
+            "python3 /custom/eval.py",
+            f"--model Qwen/Qwen3-0.6B --api http://${{NODE}}:8000 "
+            f"--out {vllm_cmd_gen_strategy.test_run.output_path.absolute()}/vllm-gsm8k.json",
+        ]
+
+    def test_gen_srun_command_contains_vllm_semantic_eval(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert "Running benchmark..." in srun_command
+        assert "Running semantic validation..." in srun_command
+        assert (
+            "--output=" + str((vllm_cmd_gen_strategy.test_run.output_path / "vllm-semantic-eval.log").absolute())
+            in srun_command
+        )
+        assert "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py --host http://${NODE} --port 8000" in srun_command
+
+    def test_gen_srun_command_contains_vllm_semantic_eval_in_disagg(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm_disagg_test = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        vllm_disagg_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "Running semantic validation..." in srun_command
+        assert (
+            "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py --host http://${PREFILL_NODE} --port 8000"
+            in srun_command
+        )
+
+
 class TestVllmAggregatedMode:
     """Tests for vLLM non-disaggregated mode with 1 GPU."""
 
@@ -286,6 +350,30 @@ cleanup
 """
 
         assert srun_command == expected
+
+    def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.custom_bash = "echo setup"
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 2
+        assert "echo setup; exec vllm serve" in srun_command
+        assert "echo setup; exec vllm bench serve" in srun_command
+
+    def test_custom_bash_regex_can_target_only_aggregated_benchmark(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ):
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.custom_bash = {"vllm bench serve": "echo bench setup"}
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 1
+        assert "echo bench setup; exec vllm bench serve" in srun_command
+        assert "echo bench setup; exec vllm serve" not in srun_command
 
 
 class TestVllmDisaggregatedMode:
@@ -405,13 +493,13 @@ trap cleanup EXIT
 
 {health_func}
 
-PORT_OFFSET=$((SLURM_JOB_ID % 1000))
-PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(strategy.gpu_ids)}))
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
+export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(strategy.gpu_ids)}))
 
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-PREFILL_NODE=${{NODES[0]}}
-DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
+export PREFILL_NODE=${{NODES[0]}}
+export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
 if [ -z "$PREFILL_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated vLLM"
     exit 1
@@ -451,6 +539,26 @@ cleanup
 """
 
         assert srun_command == expected
+
+    def test_custom_bash_regex_can_target_disaggregated_commands(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        tdef.custom_bash = {
+            r'CUDA_VISIBLE_DEVICES="0,1".*vllm serve': "echo prefill setup",
+            r'CUDA_VISIBLE_DEVICES="2,3".*vllm serve': "echo decode setup",
+            "toy_proxy_server": "echo router setup",
+            "vllm bench serve": "echo bench setup",
+        }
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert srun_command.count("bash -c ") == 4
+        assert "echo prefill setup; exec env" in srun_command
+        assert "echo decode setup; exec env" in srun_command
+        assert "echo router setup; exec python3" in srun_command
+        assert "echo bench setup; exec vllm bench serve" in srun_command
 
     def test_gen_srun_command_disagg_two_nodes_flow(
         self, vllm_disagg_2node_tr: TestRun, slurm_system: SlurmSystem

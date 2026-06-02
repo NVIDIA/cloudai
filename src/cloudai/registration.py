@@ -84,6 +84,11 @@ def register_all():
         DeepEPTestDefinition,
         DeepEPMoEThroughputReporter,
     )
+    from cloudai.workloads.dynamo_mocker import (
+        DynamoMockerReportGenerationStrategy,
+        DynamoMockerStandaloneCommandGenStrategy,
+        DynamoMockerTestDefinition,
+    )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
         GrokTestDefinition,
@@ -205,6 +210,9 @@ def register_all():
     Registry().add_command_gen_strategy(
         StandaloneSystem, AiconfiguratorTestDefinition, AiconfiguratorStandaloneCommandGenStrategy
     )
+    Registry().add_command_gen_strategy(
+        StandaloneSystem, DynamoMockerTestDefinition, DynamoMockerStandaloneCommandGenStrategy
+    )
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
@@ -272,6 +280,7 @@ def register_all():
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
+    Registry().add_test_definition("DynamoMocker", DynamoMockerTestDefinition)
     Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
     Registry().add_test_definition("sglang", SglangTestDefinition)
     Registry().add_test_definition("vllm", VllmTestDefinition)
@@ -296,6 +305,7 @@ def register_all():
     Registry().add_report(NixlEPTestDefinition, NixlEPReportGenerationStrategy)
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
     Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
+    Registry().add_report(DynamoMockerTestDefinition, DynamoMockerReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
     Registry().add_report(OSUBenchTestDefinition, OSUBenchReportGenerationStrategy)
     Registry().add_report(SglangTestDefinition, SGLangBenchReportGenerationStrategy)

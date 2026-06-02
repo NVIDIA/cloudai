@@ -23,6 +23,7 @@ from .sglang import (
     SglangArgs,
     SglangBenchCmdArgs,
     SglangCmdArgs,
+    SglangSemanticEvalCmdArgs,
     SglangTestDefinition,
 )
 
@@ -122,6 +123,15 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
             command.append("--pd-separated")
 
         return command
+
+    def get_semantic_eval_command(self) -> list[str] | None:
+        eval_args: SglangSemanticEvalCmdArgs | None = self.tdef.semantic_eval_cmd_args
+        if eval_args is None:
+            return None
+
+        host = self.bench_host
+        cli = self._expand_semantic_eval_args(eval_args.cli, host=host)
+        return [eval_args.entrypoint, cli] if cli else [eval_args.entrypoint]
 
     def aggregated_serve_env(self) -> dict[str, str]:
         return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in self.gpu_ids)}

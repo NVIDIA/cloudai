@@ -16,25 +16,33 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
+from functools import cache
+from pathlib import Path
 from typing import Optional, cast
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
+    CustomBash,
     LLMServingArgs,
     LLMServingCmdArgs,
     LLMServingTestDefinition,
     all_gpu_ids,
     calculate_decode_gpu_ids,
     calculate_prefill_gpu_ids,
+    validate_custom_bash_patterns,
 )
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
+VLLM_GSM8K_JSON_FILE = "vllm-gsm8k.json"
+VLLM_SEMANTIC_EVAL_LOG_FILE = "vllm-semantic-eval.log"
 
 
 class VllmArgs(LLMServingArgs):
@@ -81,11 +89,27 @@ class VllmBenchCmdArgs(CmdArgs):
     num_prompts: int = 30
 
 
+class VllmSemanticEvalCmdArgs(CmdArgs):
+    """vLLM semantic validation command arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entrypoint: str = "python3 /opt/vllm/tests/evals/gsm8k/gsm8k_eval.py"
+    cli: str = "--host {host} --port {port} --num-questions 200 --save-results {output_path}/vllm-gsm8k.json"
+
+
 class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     """Test object for vLLM."""
 
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
+    semantic_eval_cmd_args: VllmSemanticEvalCmdArgs | None = None
     proxy_script_repo: GitRepo | None = None
+    custom_bash: CustomBash | None = None
+
+    @field_validator("custom_bash", mode="after")
+    @classmethod
+    def validate_custom_bash(cls, custom_bash: CustomBash | None) -> CustomBash | None:
+        return validate_custom_bash_patterns(custom_bash)
 
     @property
     def extra_installables(self) -> list[Installable]:
@@ -165,6 +189,13 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
                     try:
                         num_successful_requests = int(line.split()[2])
                         if num_successful_requests > 0:
+                            if self.semantic_eval_cmd_args is not None:
+                                accuracy = parse_vllm_semantic_accuracy(tr.output_path)
+                                if accuracy is None:
+                                    return JobStatusResult(
+                                        is_successful=False,
+                                        error_message=f"vLLM semantic accuracy not found in {tr.output_path}.",
+                                    )
                             return JobStatusResult(is_successful=True)
                     except Exception as e:
                         logging.debug(f"Error parsing number of successful requests: {e}")
@@ -172,3 +203,30 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         return JobStatusResult(
             is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."
         )
+
+
+@cache
+def parse_vllm_semantic_accuracy(output_path: Path) -> float | None:
+    """Parse vLLM semantic validation accuracy from JSON results or the eval log."""
+    json_path = output_path / VLLM_GSM8K_JSON_FILE
+    if json_path.is_file():
+        try:
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+            accuracy = data.get("accuracy") if isinstance(data, dict) else None
+            if isinstance(accuracy, (int, float)):
+                return float(accuracy)
+        except Exception as e:
+            logging.debug(f"Error parsing vLLM semantic JSON output: {e}")
+
+    log_path = output_path / VLLM_SEMANTIC_EVAL_LOG_FILE
+    if not log_path.is_file():
+        return None
+
+    pattern = re.compile(r"\bAccuracy:\s*([0-9]*\.?[0-9]+)")
+    with log_path.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            match = pattern.search(line)
+            if match:
+                return float(match.group(1))
+
+    return None

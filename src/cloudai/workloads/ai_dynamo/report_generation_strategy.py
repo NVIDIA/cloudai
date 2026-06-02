@@ -21,6 +21,7 @@ from pathlib import Path
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition, parse_aiperf_accuracy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
@@ -44,7 +45,16 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def get_metric(self, metric: str) -> MetricValue:
         logging.info(f"Getting metric: {metric}")
-        benchmark_name = "genai_perf"
+
+        if metric.lower() == "accuracy":
+            tdef = self.test_run.test
+            if not isinstance(tdef, AIDynamoTestDefinition):
+                return METRIC_ERROR
+            if tdef.cmd_args.aiperf_accuracy is None:
+                return METRIC_ERROR
+            accuracy = parse_aiperf_accuracy(self.test_run.output_path)
+            return accuracy if accuracy is not None else METRIC_ERROR
+
         metric_name = metric
         metric_type = "avg"
 
@@ -54,6 +64,10 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
                 logging.warning(f"Invalid metric format: {metric}. Expected 'benchmark:metric_name:metric_type'")
                 return METRIC_ERROR
             benchmark_name, metric_name, metric_type = parts
+        else:
+            # Derive from the configured workload script (e.g. "aiperf.sh" → "aiperf").
+            workloads_list = getattr(getattr(self.test_run.test, "cmd_args", None), "workloads_list", None)
+            benchmark_name = Path(workloads_list[0]).stem if workloads_list else "aiperf"
 
         source_csv = self.test_run.output_path / f"{benchmark_name}_report.csv"
         logging.info(f"CSV file: {source_csv}")

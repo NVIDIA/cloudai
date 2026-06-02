@@ -213,6 +213,22 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
     assert action_space["NUM_NODES"] == tr.num_nodes
 
 
+def test_action_space_excludes_configured_cmd_arg_prefix(
+    nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]
+):
+    tr, _ = setup_env
+    nemorun.cmd_args.trainer = Trainer(
+        max_steps=[1000, 2000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2])
+    )
+    nemorun.dse_excluded_args = ["cmd_args.trainer.strategy"]
+    tr.test = nemorun
+
+    action_space = tr.param_space
+
+    assert action_space["trainer.max_steps"] == [1000, 2000]
+    assert "trainer.strategy.tensor_model_parallel_size" not in action_space
+
+
 @pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
 def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner], num_nodes: int):
     tr, _ = setup_env
@@ -377,3 +393,45 @@ def test_get_cached_trajectory_result(
         assert expected_step is None
     else:
         assert actual.step == expected_step
+
+
+def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """Cache hits must still append a row to trajectory.csv so the visible step list matches agent_steps."""
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    test_run = TestRun(
+        name="cache_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        reports={NeMoRunReportGenerationStrategy},
+    )
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    cached_action = {"trainer.max_steps": 1000}
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [TrajectoryEntry(step=1, action=cached_action, reward=0.42, observation=[0.84])]}
+
+    env.test_run.step = 5
+    obs, reward, done, _info = env.step(cached_action)
+
+    runner.run.assert_not_called()
+    assert reward == 0.42
+    assert obs == [0.84]
+    assert done is False
+    rows = env.trajectory[0]
+    assert len(rows) == 2
+    assert rows[-1].step == 5
+    assert rows[-1].reward == 0.42
+    assert rows[-1].action == cached_action
+
+    csv_path = env.trajectory_file_path
+    assert csv_path.exists()
+    contents = csv_path.read_text().strip().splitlines()
+    assert contents[0] == "step,action,reward,observation"
+    assert contents[-1].startswith("5,")

@@ -18,7 +18,14 @@ from pathlib import Path
 
 from cloudai.workloads.common.llm_serving import LLMServingReportGenerationStrategy, all_gpu_ids
 
-from .sglang import SGLANG_BENCH_JSONL_FILE, SGLangBenchReport, SglangTestDefinition, parse_sglang_bench_output
+from .sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_SEMANTIC_EVAL_LOG_FILE,
+    SGLangBenchReport,
+    SglangTestDefinition,
+    parse_sglang_bench_output,
+    parse_sglang_semantic_accuracy,
+)
 
 
 class SGLangBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[SglangTestDefinition, SGLangBenchReport]):
@@ -34,6 +41,9 @@ class SGLangBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[Sgl
 
     def parse_output(self, path: Path) -> SGLangBenchReport | None:
         return parse_sglang_bench_output(path)
+
+    def parse_semantic_accuracy(self) -> float | None:
+        return parse_sglang_semantic_accuracy(self.test_run.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
 
     def all_gpu_ids(self, tdef: SglangTestDefinition, gpus_per_node: int | None) -> list[int]:
         return all_gpu_ids(tdef, gpus_per_node)

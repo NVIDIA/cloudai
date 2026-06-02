@@ -51,13 +51,13 @@ wait_for_health() {
     return 1
 }
 
-PORT_OFFSET=$((SLURM_JOB_ID % 1000))
-PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 4))
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
+export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 4))
 
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-PREFILL_NODE=${NODES[0]}
-DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}
+export PREFILL_NODE=${NODES[0]}
+export DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}
 if [ -z "$PREFILL_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated vLLM"
     exit 1

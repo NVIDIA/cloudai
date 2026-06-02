@@ -21,7 +21,7 @@ from typing import Set, Type
 import pytest
 import toml
 
-from cloudai._core.exceptions import MissingTestError
+from cloudai._core.exceptions import MissingTestError, TestConfigParsingError
 from cloudai.core import (
     CmdArgs,
     GitRepo,
@@ -44,6 +44,7 @@ from cloudai.workloads.deepep import (
     DeepEPReportGenerationStrategy,
     DeepEPTestDefinition,
 )
+from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -614,6 +615,62 @@ class TestInScenario:
             "start_action": "random",
         }
 
+    def test_dse_excluded_args_can_be_set_from_scenario_toml(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            dse_excluded_args = ["cmd_args.foo", "cmd_args.bar.baz"]
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.dse_excluded_args == ["cmd_args.foo", "cmd_args.bar.baz"]
+
+    def test_dse_excluded_args_must_use_cmd_args_prefix(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            dse_excluded_args = ["foo"]
+            """
+            )
+        )
+
+        with pytest.raises(TestConfigParsingError) as excinfo:
+            test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert "DSE excluded arg must start with 'cmd_args.'" in str(excinfo.value.__cause__)
+
 
 class TestReporters:
     def test_default(self):
@@ -624,7 +681,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 20
+        assert len(Registry().reports_map) == 21
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -649,6 +706,7 @@ class TestReporters:
             (OSUBenchTestDefinition, {OSUBenchReportGenerationStrategy}),
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
+            (DynamoMockerTestDefinition, {DynamoMockerReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
         ],

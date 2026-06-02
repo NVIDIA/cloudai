@@ -157,16 +157,26 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
         agent = agent_class(env, agent_config)
 
-        for step in range(agent.max_steps):
-            result = agent.select_action()
+        observation, _ = env.reset()
+        for _ in range(agent.max_steps):
+            result = agent.select_action(observation=observation)
             if result is None:
                 break
             step, action = result
             env.test_run.step = step
             logging.info(f"Running step {step} (of {agent.max_steps}) with action {action}")
-            observation, reward, *_ = env.step(action)
-            feedback = {"trial_index": step, "value": reward}
-            agent.update_policy(feedback)
+            prev_observation = observation
+            observation, reward, done, *_ = env.step(action)
+            agent.update_policy(
+                {
+                    "trial_index": step,
+                    "value": reward,
+                    "observation": observation,
+                    "prev_observation": prev_observation,
+                    "action": action,
+                    "done": done,
+                }
+            )
             logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 
     if args.mode == "run":

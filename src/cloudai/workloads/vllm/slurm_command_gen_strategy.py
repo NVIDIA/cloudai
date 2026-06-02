@@ -22,6 +22,7 @@ from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrate
 from .vllm import (
     VLLM_BENCH_JSON_FILE,
     VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
 
@@ -72,9 +73,9 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
     def disaggregated_script_preamble(self) -> str:
         return f"""\
-PORT_OFFSET=$((SLURM_JOB_ID % 1000))
-PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
+export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
 """
 
@@ -121,3 +122,13 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             "--save-result",
             *extras,
         ]
+
+    def get_semantic_eval_command(self) -> list[str] | None:
+        eval_args: VllmSemanticEvalCmdArgs | None = self.tdef.semantic_eval_cmd_args
+        if eval_args is None:
+            return None
+
+        host = self.bench_host
+        http_host = host if host.startswith("http://") or host.startswith("https://") else f"http://{host}"
+        cli = self._expand_semantic_eval_args(eval_args.cli, host=http_host)
+        return [eval_args.entrypoint, cli] if cli else [eval_args.entrypoint]

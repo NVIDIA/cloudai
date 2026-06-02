@@ -16,15 +16,27 @@
 
 from .report_generation_strategy import VLLMBenchReport, VLLMBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import VllmSlurmCommandGenStrategy
-from .vllm import VLLM_BENCH_LOG_FILE, VllmArgs, VllmBenchCmdArgs, VllmCmdArgs, VllmTestDefinition
+from .vllm import (
+    VLLM_BENCH_LOG_FILE,
+    VLLM_GSM8K_JSON_FILE,
+    VLLM_SEMANTIC_EVAL_LOG_FILE,
+    VllmArgs,
+    VllmBenchCmdArgs,
+    VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
+    VllmTestDefinition,
+)
 
 __all__ = [
     "VLLM_BENCH_LOG_FILE",
+    "VLLM_GSM8K_JSON_FILE",
+    "VLLM_SEMANTIC_EVAL_LOG_FILE",
     "VLLMBenchReport",
     "VLLMBenchReportGenerationStrategy",
     "VllmArgs",
     "VllmBenchCmdArgs",
     "VllmCmdArgs",
+    "VllmSemanticEvalCmdArgs",
     "VllmSlurmCommandGenStrategy",
     "VllmTestDefinition",
 ]

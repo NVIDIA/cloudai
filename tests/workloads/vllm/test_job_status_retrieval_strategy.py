@@ -15,7 +15,13 @@
 # limitations under the License.
 
 from cloudai.core import TestRun
-from cloudai.workloads.vllm import VLLM_BENCH_LOG_FILE, VllmCmdArgs, VllmTestDefinition
+from cloudai.workloads.vllm import (
+    VLLM_BENCH_LOG_FILE,
+    VLLM_GSM8K_JSON_FILE,
+    VllmCmdArgs,
+    VllmSemanticEvalCmdArgs,
+    VllmTestDefinition,
+)
 
 
 class TestVllmSuccessCheck:
@@ -72,3 +78,35 @@ Successful requests:                     0
         result = self.vllm_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == f"vLLM bench log does not contain benchmark result in {base_tr.output_path}."
+
+    def test_semantic_eval_successful_with_low_accuracy(self, base_tr: TestRun) -> None:
+        self.vllm_tdef.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
+        log_file.write_text(
+            """
+============ Serving Benchmark Result ============
+Successful requests:                     1
+"""
+        )
+        (base_tr.output_path / VLLM_GSM8K_JSON_FILE).write_text('{"accuracy": 0.0}')
+
+        result = self.vllm_tdef.was_run_successful(base_tr)
+
+        assert result.is_successful
+
+    def test_semantic_eval_requires_parseable_accuracy(self, base_tr: TestRun) -> None:
+        self.vllm_tdef.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
+        log_file.write_text(
+            """
+============ Serving Benchmark Result ============
+Successful requests:                     1
+"""
+        )
+
+        result = self.vllm_tdef.was_run_successful(base_tr)
+
+        assert not result.is_successful
+        assert result.error_message == f"vLLM semantic accuracy not found in {base_tr.output_path}."
