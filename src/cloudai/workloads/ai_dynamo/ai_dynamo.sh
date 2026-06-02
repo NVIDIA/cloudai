@@ -39,6 +39,7 @@ declare -A aiperf_accuracy_args
 declare -A aiperf_accuracy_config
 
 lmcache_controller_cmd=""
+SHARED_NODE_DISAGG="false"
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -86,6 +87,18 @@ _csv_index_of() {
     fi
   done
   echo "-1"
+}
+
+_csv_lists_overlap() {
+  local left="$1"
+  local right="$2"
+  local item
+  for item in $(echo "$left" | tr ',' ' '); do
+    if [[ ",${right}," == *",${item},"* ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 _gpus_per_node() {
@@ -238,7 +251,15 @@ _set_nodelists()
   fi
 
   if [[ -z "${prefill_config["node-list"]}" ]]; then
-    prefill_config["node-list"]=$(_populate_nodelist "${prefill_config["num-nodes"]}" "${decode_config["node-list"]}")
+    local allocated_nodes
+    local requested_role_nodes
+    allocated_nodes=$(_csv_len "$DYNAMO_NODELIST")
+    requested_role_nodes=$(( ${decode_config["num-nodes"]:-0} + ${prefill_config["num-nodes"]:-0} ))
+    if [[ "$allocated_nodes" -lt "$requested_role_nodes" ]]; then
+      prefill_config["node-list"]=$(_populate_nodelist "${prefill_config["num-nodes"]}" "")
+    else
+      prefill_config["node-list"]=$(_populate_nodelist "${prefill_config["num-nodes"]}" "${decode_config["node-list"]}")
+    fi
   fi
 
   # Prefill nodelist should match prefill node count (skip validation if num-nodes is 0)
@@ -255,6 +276,12 @@ _set_nodelists()
   if [[ "${decode_nodelist_count}" -ne "${decode_config["num-nodes"]}" ]]; then
     log "ERROR: number of nodes in decode nodelist (${decode_nodelist_count}) does not match decode node count (${decode_config["num-nodes"]})"
     exit 1
+  fi
+
+  SHARED_NODE_DISAGG="false"
+  if _csv_lists_overlap "${prefill_config["node-list"]}" "${decode_config["node-list"]}"; then
+    SHARED_NODE_DISAGG="true"
+    log "Shared-node disaggregated mode: prefill and decode workers share node(s)"
   fi
 }
 
@@ -322,18 +349,33 @@ _compute_worker_allocation_vllm() {
     exit 1
   fi
 
-  if [[ "${prefill_config["multiple-workers-per-node"]}" != "true" ]]; then
-    prefill_config["gpus-per-worker"]=$num_gpus
-  fi
+  decode_config["gpu-offset"]=0
+  prefill_config["gpu-offset"]=0
 
-  if [[ "${decode_config["multiple-workers-per-node"]}" != "true" ]]; then
-    decode_config["gpus-per-worker"]=$num_gpus
+  if [[ "${SHARED_NODE_DISAGG}" == "true" ]]; then
+    local shared_gpus_needed=$(( prefill_config["gpus-per-worker"] + decode_config["gpus-per-worker"] ))
+    if [[ "$shared_gpus_needed" -gt "$num_gpus" ]]; then
+      log "ERROR: Not enough GPUs for shared-node disaggregated mode: need ${decode_config["gpus-per-worker"]} decode + ${prefill_config["gpus-per-worker"]} prefill, but only have ${num_gpus}"
+      exit 1
+    fi
+    decode_config["workers-per-node"]=1
+    prefill_config["workers-per-node"]=1
+    prefill_config["gpu-offset"]=${decode_config["gpus-per-worker"]}
+  else
+    if [[ "${prefill_config["multiple-workers-per-node"]}" != "true" ]]; then
+      prefill_config["gpus-per-worker"]=$num_gpus
+    fi
+
+    if [[ "${decode_config["multiple-workers-per-node"]}" != "true" ]]; then
+      decode_config["gpus-per-worker"]=$num_gpus
+    fi
+
+    prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
+    decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
   fi
 
   log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${decode_config["gpus-per-worker"]}"
-  log "PREFILL: num GPUs: $num_gpus, GPUs per worker: ${prefill_config["gpus-per-worker"]}"
-  prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
-  decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+  log "PREFILL: num GPUs: $num_gpus, GPUs per worker: ${prefill_config["gpus-per-worker"]}, GPU offset: ${prefill_config["gpu-offset"]}"
   log "DECODE: workers per node: ${decode_config["workers-per-node"]}"
   log "PREFILL: workers per node: ${prefill_config["workers-per-node"]}"
 
@@ -491,6 +533,15 @@ _gpu_list_for_worker() {
   local per_worker=$1
   local idx=$2
   local start=$(( 1 + (idx * per_worker) ))
+  local end=$(( start + per_worker - 1 ))
+  echo "$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})"
+}
+
+_gpu_list_for_worker_offset() {
+  local per_worker=$1
+  local idx=$2
+  local offset=${3:-0}
+  local start=$(( 1 + offset + (idx * per_worker) ))
   local end=$(( start + per_worker - 1 ))
   echo "$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})"
 }
@@ -891,6 +942,7 @@ function launch_decode()
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
+  local base_system_port=${DYN_SYSTEM_PORT:-9090}
   local kvbm_port_stride=2
   local side_channel_host
   side_channel_host="$(_current_node_ip)"
@@ -907,6 +959,7 @@ function launch_decode()
     local kv_event_port=$((base_kv_event_port + i))
     local kvbm_pub_port=$((base_kvbm_pub_port + (i * kvbm_port_stride)))
     local kvbm_ack_port=$((base_kvbm_ack_port + (i * kvbm_port_stride)))
+    local system_port=$((base_system_port + i))
 
     # Build decode args as proper bash arrays to preserve
     # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
@@ -918,6 +971,7 @@ function launch_decode()
     log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
+      DYN_SYSTEM_PORT=$system_port \
       VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
@@ -948,13 +1002,27 @@ function launch_prefill()
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
   local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
+  local base_system_port=${DYN_SYSTEM_PORT:-9090}
   local kvbm_port_stride=2
+  local gpu_offset=${prefill_config["gpu-offset"]:-0}
   local side_channel_host
   side_channel_host="$(_current_node_ip)"
+
+  if [[ "${SHARED_NODE_DISAGG}" == "true" ]]; then
+    local decode_workers=${decode_config["workers-per-node"]}
+    local decode_tp=${decode_args["--tensor-parallel-size"]}
+    base_nixl_port=$((base_nixl_port + (decode_workers * decode_tp)))
+    base_kv_event_port=$((base_kv_event_port + decode_workers))
+    base_kvbm_pub_port=$((base_kvbm_pub_port + (decode_workers * kvbm_port_stride)))
+    base_kvbm_ack_port=$((base_kvbm_ack_port + (decode_workers * kvbm_port_stride)))
+    base_system_port=$((base_system_port + decode_workers))
+    log "Shared-node prefill offsets: GPU offset=$gpu_offset, NIXL base=$base_nixl_port, KV event base=$base_kv_event_port, KVBM pub/ack base=$base_kvbm_pub_port/$base_kvbm_ack_port, system base=$base_system_port"
+  fi
+
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${prefill_config["gpus-per-worker"]}" "$i")
+    local gpu_list=$(_gpu_list_for_worker_offset "${prefill_config["gpus-per-worker"]}" "$i" "$gpu_offset")
     local log_file=$(_log_file_for_worker "prefill" "$i")
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
@@ -964,6 +1032,7 @@ function launch_prefill()
     local kv_event_port=$((base_kv_event_port + i))
     local kvbm_pub_port=$((base_kvbm_pub_port + (i * kvbm_port_stride)))
     local kvbm_ack_port=$((base_kvbm_ack_port + (i * kvbm_port_stride)))
+    local system_port=$((base_system_port + i))
 
     # Build prefill args as proper bash arrays to preserve
     # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
@@ -975,6 +1044,7 @@ function launch_prefill()
     log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
+      DYN_SYSTEM_PORT=$system_port \
       VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
@@ -1031,19 +1101,24 @@ _resolve_aiperf_server_metrics_urls() {
   local base_system_port=${DYN_SYSTEM_PORT:-9090}
   local decode_workers_per_node=${decode_config["workers-per-node"]:-1}
   local prefill_workers_per_node=${prefill_config["workers-per-node"]:-1}
+  local prefill_system_port_offset=0
   local IFS_SAVE="$IFS"
   local node i
 
+  if [[ "${SHARED_NODE_DISAGG}" == "true" ]]; then
+    prefill_system_port_offset=$decode_workers_per_node
+  fi
+
   IFS=','
-  for node in ${prefill_config["node-list"]:-}; do
-    for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
+  for node in ${decode_config["node-list"]:-}; do
+    for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
       urls="${urls},http://${node}:$((base_system_port + i))/metrics"
     done
   done
 
-  for node in ${decode_config["node-list"]:-}; do
-    for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
-      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+  for node in ${prefill_config["node-list"]:-}; do
+    for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
+      urls="${urls},http://${node}:$((base_system_port + prefill_system_port_offset + i))/metrics"
     done
   done
 

@@ -303,6 +303,15 @@ If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/a
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
 
+Shared-Node Disaggregated Runs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and
+``decode_worker.num-nodes`` to run both roles on the same allocated node(s). For example, ``num_nodes = 1`` with
+``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on
+the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's
+``tensor-parallel-size * pipeline-parallel-size``. The combined role GPU count must fit on one node.
+
 Example ``aiperf_report.csv``:
 
 ::
