@@ -121,7 +121,7 @@ dse_excluded_args = [
 --accuracy-n-shots 5
 --accuracy-tasks abstract_algebra
 --concurrency 10
---extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+--extra-inputs '{"temperature":0,"stop":["\n"],"chat_template_kwargs":{"enable_thinking":false}}'
 --num-requests 100
 '''
 

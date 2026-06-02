@@ -294,6 +294,11 @@ class AIPerf(Workload):
         serialization_alias="continue-on-phase-failure",
         validation_alias=AliasChoices("continue-on-phase-failure", "continue_on_phase_failure"),
     )
+    between_phase_cmd: str | None = Field(
+        default="true",
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
@@ -333,6 +338,11 @@ class AIPerfPhase(BaseModel):
         default=None,
         serialization_alias="extra-args",
         validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+    between_phase_cmd: str | None = Field(
+        default=None,
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
     )
 
 

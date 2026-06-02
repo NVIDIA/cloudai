@@ -226,6 +226,7 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
             "setup-cmd": "python -m pip install --upgrade aiperf",
+            "between-phase-cmd": "curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true",
             "args": {
                 "concurrency": 2,
                 "request-count": 50,
@@ -254,6 +255,9 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     assert "Running AIPerf phase setup for round_1" not in script
     assert "Running AIPerf phase setup for round_2" in script
     assert "bash -lc 'python -m pip install --upgrade another-aiperf-plugin'" in script
+    assert script.count("Running AIPerf between-phase command after") == 1
+    assert "Running AIPerf between-phase command after round_1" in script
+    assert "bash -lc 'curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true'" in script
     assert ': "${FRONTEND_URL:?FRONTEND_URL is not set}"' in script
     assert '--url "$FRONTEND_URL"' in script
     assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1" in script

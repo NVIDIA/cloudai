@@ -215,6 +215,26 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ).rstrip()
         ]
 
+    def _render_between_aiperf_phases_block(
+        self,
+        phase_name: str,
+        cmd: str | None,
+    ) -> list[str]:
+        if not cmd:
+            return []
+
+        cleanup_argv = ["bash", "-lc", cmd]
+        return (
+            textwrap.dedent(
+                f"""\
+            log {shlex.quote(f"Running AIPerf between-phase command after {phase_name}: {shlex.join(cleanup_argv)}")}
+            {shlex.join(cleanup_argv)}
+            """
+            )
+            .rstrip()
+            .splitlines()
+        )
+
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
@@ -297,6 +317,15 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 if report_file != final_report_file:
                     phase_lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
                 phase_lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+
+            if not single_phase and idx < len(phases) - 1:
+                phase_lines.extend(
+                    "  " + line
+                    for line in self._render_between_aiperf_phases_block(
+                        phase_name=phase.name,
+                        cmd=resolved_phase.between_phase_cmd,
+                    )
+                )
 
             if not single_phase and idx < len(phases) - 1 and resolved_phase.health_check_between_phases:
                 health_probe_cmd = (
