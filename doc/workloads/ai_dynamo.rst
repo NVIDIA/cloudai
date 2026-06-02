@@ -51,13 +51,15 @@ AI Dynamo jobs use three distinct types of nodes:
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of required nodes must be:
+By default, when ``num_nodes`` is omitted, CloudAI allocates separate nodes for prefill and decode workers:
 
 ::
 
    num_prefill_nodes + num_decode_nodes
 
-If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.
+Set top-level ``num_nodes`` explicitly to control the Slurm allocation. A value lower than
+``num_prefill_nodes + num_decode_nodes`` enables shared-node disaggregated inference, where prefill and decode roles
+run on the same allocated node(s) with separate GPU slices.
 
 All node role assignments and orchestration are automatically managed by CloudAI.
 
@@ -302,6 +304,15 @@ If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/a
 ``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
+
+Shared-Node Disaggregated Runs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and
+``decode_worker.num-nodes`` to run both roles on the same allocated node(s). For example, ``num_nodes = 1`` with
+``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on
+the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's
+``tensor-parallel-size * pipeline-parallel-size``. The combined role GPU count must fit on one node.
 
 Example ``aiperf_report.csv``:
 

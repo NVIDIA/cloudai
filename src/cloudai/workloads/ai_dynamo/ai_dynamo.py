@@ -604,6 +604,23 @@ class AIDynamoTestDefinition(TestDefinition):
             return False
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
 
+        role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
+        prefill_nodes = set(prefill_worker.nodes.split(",")) if prefill_worker.nodes else set()
+        decode_nodes = set(decode_worker.nodes.split(",")) if decode_worker.nodes else set()
+        has_explicit_allocation = getattr(tr, "num_nodes_explicit", False) or bool(tr.nodes)
+        shared_node_disagg = bool(prefill_nodes & decode_nodes) or (
+            has_explicit_allocation and tr.nnodes < role_total_nodes
+        )
+        if (
+            shared_node_disagg
+            and gpus_per_node > 0
+            and self.constraints.tp_times_pp_le_gpus_per_node
+            and (prefill_tp * prefill_pp + decode_tp * decode_pp > gpus_per_node)
+        ):
+            logging.info("constraint_check failed for: shared_node_tp_pp_sum_le_gpus_per_node")
+            return False
+        logging.info("constraint_check passed for: shared_node_tp_pp_sum_le_gpus_per_node")
+
         return True
 
 

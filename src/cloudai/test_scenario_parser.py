@@ -210,6 +210,7 @@ class TestScenarioParser:
             reports=get_reporters(test_info, tdef),
             extra_srun_args=test_info.extra_srun_args,
             exclude_nodes=test_info.exclude_nodes,
+            num_nodes_explicit="num_nodes" in test_info.model_fields_set,
         )
 
         return tr
