@@ -28,6 +28,7 @@ workloads = "aiperf.sh"
   backend = "sglang"
   model = "Qwen/Qwen3-0.6B"
   endpoint = "v1/chat/completions"
+  ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1

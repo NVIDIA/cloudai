@@ -114,7 +114,7 @@ AIPerf Multi-Phase Runs
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 ``cmd_args.aiperf`` is the base AIPerf config. ``cmd_args.aiperf_phases`` can run several AIPerf rounds against the
-same live Dynamo stack without restarting prefill, decode, or router processes:
+same live Dynamo stack. By default, CloudAI does not restart prefill, decode, or router processes between phases:
 
 .. code-block:: toml
 
@@ -143,8 +143,8 @@ Multi-phase runs write per-phase artifacts/logs/reports and copy the last phase 
 existing report generation.
 
 ``between-phase-cmd`` is a bash command run after each non-final phase. The default is a no-op. Set it explicitly for
-backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart --reset-states`` if a test needs
-to restart the Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
+backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart`` if a test needs to restart the
+Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
 
 AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
 as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =

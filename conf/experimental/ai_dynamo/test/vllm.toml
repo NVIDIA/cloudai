@@ -27,6 +27,7 @@ workloads = "aiperf.sh"
   [cmd_args.dynamo]
   backend = "vllm"
   model = "Qwen/Qwen3-0.6B"
+  ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
