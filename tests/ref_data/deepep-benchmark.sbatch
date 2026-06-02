@@ -7,6 +7,7 @@
 #SBATCH -N 2
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
+#SBATCH --ntasks-per-node=1
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
@@ -19,9 +20,12 @@ echo Nodes: $SLURM_JOB_NODELIST
 echo Num Nodes: ${#nodes[@]}
 echo Head Node IP: $head_node_ip
 
+export MASTER_ADDR=$head_node_ip
+export MASTER_PORT=29500
 
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:/workspace/dp-benchmark/results --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:/workspace/dp-benchmark/results --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:/workspace/dp-benchmark/results bash -c "source __OUTPUT_DIR__/output/env_vars.sh; torchrun --nnodes=2 --nproc_per_node=1 --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$head_node_ip:29500 /workspace/dp-benchmark/benchmark/benchmark.py __OUTPUT_DIR__/output/config.yaml"
+srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+
+srun --export=ALL --mpi=pmix --nodes=2 --ntasks=2 --ntasks-per-node=1 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output bash -c "source __OUTPUT_DIR__/output/env_vars.sh; torchrun --nnodes=2 --nproc_per_node=1 --rdzv_id=\${SLURM_JOB_ID:-0} --rdzv_backend=c10d --rdzv_endpoint=\${MASTER_ADDR}:\${MASTER_PORT} /workspace/DeepEP/tests/legacy/test_internode.py --num-processes 8 --num-tokens 4096 --hidden 7168 --num-topk 8 --pressure-test-mode 0 --num-experts 256"

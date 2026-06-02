@@ -278,6 +278,7 @@ def build_special_test_run(
         "nixl-perftest",
         "nixl-kvbench",
         "moe-benchmark",
+        "deepep-benchmark",
         "osu-bench",
         "sglang",
         "sglang-disagg",
@@ -566,6 +567,19 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
             ),
         ),
+        "deepep-benchmark": lambda: create_test_run(
+            partial_tr,
+            "deepep-benchmark",
+            DeepEPTestDefinition(
+                name="deepep-benchmark",
+                description="DeepEP internode test",
+                test_template_name="DeepEP",
+                cmd_args=DeepEPCmdArgs(
+                    docker_image_url="docker/image:url",
+                    subtest_name="test_internode",
+                ),
+            ),
+        ),
         "megatron-bridge": lambda: create_test_run(
             partial_tr,
             "megatron-bridge",
@@ -702,7 +716,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
-        if request.param == "moe-benchmark":
+        if request.param in {"moe-benchmark", "deepep-benchmark"}:
             tr.num_nodes = 2
         if request.param in {"sglang-disagg-2nodes", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2

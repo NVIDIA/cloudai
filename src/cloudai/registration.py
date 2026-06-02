@@ -318,7 +318,11 @@ def register_all():
     Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
-    Registry().add_scenario_report("moe_benchmark_throughput", MoEBenchmarkThroughputReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report(
+        "moe_benchmark_throughput",
+        MoEBenchmarkThroughputReporter,
+        ReportConfig(enable=True),
+    )
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("dse", DSEReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))

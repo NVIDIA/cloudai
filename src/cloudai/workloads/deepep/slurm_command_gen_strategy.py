@@ -155,9 +155,14 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _script_path(self, cmd_args: DeepEPCmdArgs) -> str:
         deep_ep_root = PurePosixPath(cmd_args.deep_ep_root)
         if cmd_args.subtest_name in _LEGACY_SUBTESTS:
-            tests_root = PurePosixPath(cmd_args.legacy_tests_root) if cmd_args.legacy_tests_root else deep_ep_root / "tests" / "legacy"
+            if cmd_args.legacy_tests_root:
+                tests_root = PurePosixPath(cmd_args.legacy_tests_root)
+            else:
+                tests_root = deep_ep_root / "tests" / "legacy"
+        elif cmd_args.elastic_tests_root:
+            tests_root = PurePosixPath(cmd_args.elastic_tests_root)
         else:
-            tests_root = PurePosixPath(cmd_args.elastic_tests_root) if cmd_args.elastic_tests_root else deep_ep_root / "tests" / "elastic"
+            tests_root = deep_ep_root / "tests" / "elastic"
 
         return str(tests_root / f"{cmd_args.subtest_name}.py")
 
@@ -167,10 +172,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         flag = _flag_name(field_name)
         if isinstance(value, bool):
-            if field_name in _BOOL_VALUE_FIELDS:
-                if value:
-                    parts.extend([flag, str(value)])
-            elif value:
+            if value:
                 parts.append(flag)
             return
 

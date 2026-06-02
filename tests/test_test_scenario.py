@@ -40,14 +40,7 @@ from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporte
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from cloudai.workloads.deepep import (
-    DeepEPTestDefinition,
-)
 from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
-from cloudai.workloads.moe_benchmark import (
-    MoEBenchmarkReportGenerationStrategy, 
-    MoEBenchmarkTestDefinition
-)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -61,6 +54,7 @@ from cloudai.workloads.megatron_run import (
     MegatronRunReportGenerationStrategy,
     MegatronRunTestDefinition,
 )
+from cloudai.workloads.moe_benchmark import MoEBenchmarkReportGenerationStrategy, MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test import (
     NCCLCmdArgs,
     NCCLTestDefinition,

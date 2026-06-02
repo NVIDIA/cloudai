@@ -46,8 +46,6 @@ class DeepEPCmdArgs(CmdArgs):
     shrink_test: bool = False
     disable_nvlink: bool = False
     use_logfmt: bool = False
-    shuffle_expert_columns: bool = False
-    shuffle_seed: int = 1
 
     # V2 elastic/test_ep flags.
     num_sms: int = 0

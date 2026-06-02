@@ -12,7 +12,7 @@ import logging
 import re
 from pathlib import Path
 
-from cloudai._core.base_reporter import Reporter
+from cloudai.core import Reporter
 from cloudai.workloads.moe_benchmark.combined_report import moe_benchmark_results_json_files
 from cloudai.workloads.moe_benchmark.moe_benchmark import MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
@@ -20,34 +20,41 @@ from cloudai.workloads.nccl_test.performance_report_generation_strategy import e
 from cloudai.workloads.ucc_test.ucc import UCCTestDefinition
 
 
-def _moe_benchmark_dispatch_combine_bars(test_output: Path) -> list[tuple[str, float, str]]:
-    """From latest ``results.json``: one bar per ``dispatch`` / ``combine`` row (``bus_bw_avg``)."""
+def _read_latest_moe_results_rows(test_output: Path) -> list[object]:
     paths = moe_benchmark_results_json_files(test_output)
     if not paths:
         return []
     latest = max(paths, key=lambda p: p.stat().st_mtime)
     try:
-        rows = json.loads(latest.read_text(encoding="utf-8"))
+        data = json.loads(latest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         logging.debug("MoE benchmark results.json unreadable %s: %s", latest, e)
         return []
-    if not isinstance(rows, list):
-        return []
+    return data if isinstance(data, list) else []
 
+
+def _extract_moe_bus_bw(row: object) -> tuple[str, float] | None:
+    if not isinstance(row, dict):
+        return None
+    op = row.get("operation")
+    if not isinstance(op, str) or "bus_bw_avg" not in row:
+        return None
+    op_l = op.lower()
+    if op_l not in ("dispatch", "combine"):
+        return None
+    try:
+        return op_l, float(row["bus_bw_avg"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _moe_benchmark_dispatch_combine_bars(test_output: Path) -> list[tuple[str, float, str]]:
+    """From latest ``results.json``: one bar per ``dispatch`` / ``combine`` row (``bus_bw_avg``)."""
     by_op: dict[str, float] = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        op = row.get("operation")
-        if not isinstance(op, str) or "bus_bw_avg" not in row:
-            continue
-        op_l = op.lower()
-        if op_l not in ("dispatch", "combine"):
-            continue
-        try:
-            by_op[op_l] = float(row["bus_bw_avg"])
-        except (TypeError, ValueError):
-            continue
+    for row in _read_latest_moe_results_rows(test_output):
+        extracted = _extract_moe_bus_bw(row)
+        if extracted is not None:
+            by_op[extracted[0]] = extracted[1]
 
     out: list[tuple[str, float, str]] = []
     if "dispatch" in by_op:
@@ -154,9 +161,11 @@ def _write_moe_throughput_svg(
         gy = y0 - g * ih
         parts.append(f'<line x1="{ml}" y1="{gy:.1f}" x2="{ml + iw}" y2="{gy:.1f}" stroke="#ddd" stroke-width="1"/>')
         gv = vmin + g * (vmax - vmin)
-        parts.append(f'<text x="{ml - 8}" y="{gy + 4:.1f}" font-size="11" text-anchor="end" fill="#444">{gv:.1f}</text>')
+        parts.append(
+            f'<text x="{ml - 8}" y="{gy + 4:.1f}" font-size="11" text-anchor="end" fill="#444">{gv:.1f}</text>'
+        )
 
-    for cx, val, col, lab in zip(centers, values, colors, labels, strict=True):
+    for cx, val, col, _ in zip(centers, values, colors, labels, strict=True):
         top = ypx(val)
         x1 = cx - bar_w / 2
         hbar = y0 - top
@@ -166,11 +175,24 @@ def _write_moe_throughput_svg(
         )
 
     for (cx, cy), val, col, lab in zip(pts, values, colors, labels, strict=True):
-        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{html.escape(col)}" stroke="#222" stroke-width="1"/>')
-        parts.append(f'<text x="{cx:.1f}" y="{cy - 14:.1f}" font-size="12" text-anchor="middle" font-weight="600" fill="#111">{val:.2f}</text>')
-        parts.append(f'<text x="{cx:.1f}" y="{y0 + 22:.1f}" font-size="13" text-anchor="middle" fill="#111">{html.escape(lab)}</text>')
+        col_esc = html.escape(col)
+        parts.append(
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{col_esc}" stroke="#222" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{cx:.1f}" y="{cy - 14:.1f}" font-size="12" text-anchor="middle" '
+            f'font-weight="600" fill="#111">{val:.2f}</text>'
+        )
+        parts.append(
+            f'<text x="{cx:.1f}" y="{y0 + 22:.1f}" font-size="13" text-anchor="middle" fill="#111">'
+            f"{html.escape(lab)}</text>"
+        )
 
-    parts.append(f'<text transform="translate(20 {mt + ih / 2:.1f}) rotate(-90)" font-size="12" text-anchor="middle" fill="#444">{html.escape(y_axis_label)}</text>')
+    y_axis_mid = mt + ih / 2
+    parts.append(
+        f'<text transform="translate(20 {y_axis_mid:.1f}) rotate(-90)" font-size="12" '
+        f'text-anchor="middle" fill="#444">{html.escape(y_axis_label)}</text>'
+    )
 
     leg_y = y0 + 38
     parts.append(f'<text x="{ml}" y="{leg_y}" font-size="11" font-weight="600" fill="#333">Summary</text>')

@@ -30,6 +30,3 @@ results_dir = "/workspace/dp-benchmark/results"
 [extra_env_vars]
 NUM_QPS_PER_RANK = "12"
 NUM_SMS = "24"
-
-
-

@@ -46,11 +46,6 @@ from cloudai.workloads.dynamo_mocker import (
     DynamoMockerStandaloneCommandGenStrategy,
     DynamoMockerTestDefinition,
 )
-from cloudai.workloads.moe_benchmark import (
-    MoEBenchmarkSlurmCommandGenStrategy,
-    MoEBenchmarkTestDefinition,
-    MoEBenchmarkThroughputReporter,
-)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -63,6 +58,11 @@ from cloudai.workloads.megatron_bridge import (
     MegatronBridgeTestDefinition,
 )
 from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
+from cloudai.workloads.moe_benchmark import (
+    MoEBenchmarkSlurmCommandGenStrategy,
+    MoEBenchmarkTestDefinition,
+    MoEBenchmarkThroughputReporter,
+)
 from cloudai.workloads.nccl_test import (
     NcclComparisonReport,
     NCCLTestDefinition,
@@ -238,7 +238,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 26
+    assert len(test_defs) == 27
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
