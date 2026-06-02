@@ -51,13 +51,15 @@ AI Dynamo jobs use three distinct types of nodes:
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of required nodes must be:
+By default, when ``num_nodes`` is omitted, CloudAI allocates separate nodes for prefill and decode workers:
 
 ::
 
    num_prefill_nodes + num_decode_nodes
 
-If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.
+Set top-level ``num_nodes`` explicitly to control the Slurm allocation. A value lower than
+``num_prefill_nodes + num_decode_nodes`` enables shared-node disaggregated inference, where prefill and decode roles
+run on the same allocated node(s) with separate GPU slices.
 
 All node role assignments and orchestration are automatically managed by CloudAI.
 

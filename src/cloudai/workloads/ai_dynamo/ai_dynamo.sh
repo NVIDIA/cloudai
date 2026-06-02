@@ -543,7 +543,7 @@ _gpu_list_for_worker_offset() {
   local offset=${3:-0}
   local start=$(( 1 + offset + (idx * per_worker) ))
   local end=$(( start + per_worker - 1 ))
-  echo "$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})"
+  echo "$CUDA_VISIBLE_DEVICES" | cut -d',' -f"${start}-${end}"
 }
 
 _log_file_for_worker() {
@@ -949,7 +949,8 @@ function launch_decode()
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${decode_config["gpus-per-worker"]}" "$i")
+    local gpu_list
+    gpu_list=$(_gpu_list_for_worker "${decode_config["gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "decode" "$i")
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
@@ -1022,7 +1023,8 @@ function launch_prefill()
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker_offset "${prefill_config["gpus-per-worker"]}" "$i" "$gpu_offset")
+    local gpu_list
+    gpu_list=$(_gpu_list_for_worker_offset "${prefill_config["gpus-per-worker"]}" "$i" "$gpu_offset")
     local log_file=$(_log_file_for_worker "prefill" "$i")
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
