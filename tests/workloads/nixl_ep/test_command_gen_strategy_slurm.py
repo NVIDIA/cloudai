@@ -130,6 +130,10 @@ def normalize_stages(strategy: NixlEPSlurmCommandGenStrategy) -> list[tuple[int,
     return normalized_stages
 
 
+def normalize_stage_rank_ids(strategy: NixlEPSlurmCommandGenStrategy) -> list[tuple[int, tuple[tuple[int, ...], ...]]]:
+    return [(stage.idx, tuple(launch.rank_ids for launch in stage.launches)) for stage in strategy.plan_stages]
+
+
 def read_launcher_script(strategy: NixlEPSlurmCommandGenStrategy) -> str:
     srun_command = strategy.gen_srun_command()
     assert srun_command == f"bash {strategy.launcher_script_path.absolute()}"
@@ -662,6 +666,44 @@ def test_multi_node_stages_match_public_two_node_single_expansion(
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
     assert normalize_stages(strategy) == [(0, (4, 0)), (1, (0, 4))]
+
+
+def test_multi_node_stages_mark_launches_with_planned_rank_removal(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=json.dumps([[0, 1], [0, 1, 2, 3], [0, -2, 3], [0, 1, 2, 3]]),
+            num_processes_per_node=3,
+        ),
+    )
+    test_run = TestRun(
+        name="nixl-ep",
+        num_nodes=2,
+        nodes=[],
+        test=tdef,
+        output_path=slurm_system.output_path,
+    )
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    assert normalize_stages(strategy) == [(0, (2, 0)), (1, (1, 1)), (2, (0, 0)), (3, (0, 2))]
+    assert normalize_stage_rank_ids(strategy) == [(0, ((0, 1),)), (1, ((2,), (3,))), (2, ()), (3, ((1, 2),))]
+    assert [[launch.expects_planned_removal for launch in stage.launches] for stage in strategy.plan_stages] == [
+        [False],
+        [True, False],
+        [],
+        [False],
+    ]
+
+    launcher_script = read_launcher_script(strategy)
+
+    assert launcher_script.count('launch_expected_removal+=( "1" )') == 1
+    assert "Ignoring expected NIXL EP planned-rank-removal exit" in launcher_script
+    assert "wait -n" not in launcher_script
 
 
 def test_multi_node_single_stage_plan_splits_initial_launches_across_nodes(

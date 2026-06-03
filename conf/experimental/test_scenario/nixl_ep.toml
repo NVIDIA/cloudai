@@ -1,0 +1,73 @@
+name = "NIXL-EP-Example.Inter-node"
+
+[[Tests]]
+id = "NIXL.EP.No-expansion"
+num_nodes = 2
+time_limit = "00:10:00"
+
+name = "NIXL.EP.No-expansion"
+description = "NIXL EP Example: No-expansion plan"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = ""
+  plan = "[[0, 1]]"
+  num_processes_per_node = 1
+  num_tokens = 256
+  num_experts_per_rank = 36
+  num_topk = 8
+  kineto = true
+
+[[Tests]]
+id = "NIXL.EP.Single-expansion"
+num_nodes = 2
+time_limit = "00:10:00"
+
+name = "NIXL.EP.Single-expansion"
+description = "NIXL EP Example: Single-expansion plan"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = ""
+  plan = "[[0, 1], [0, 1, 2, 3]]"
+  num_processes_per_node = 2
+  num_tokens = 256
+  num_experts_per_rank = 36
+  num_topk = 8
+  kineto = true
+
+[[Tests]]
+id = "NIXL.EP.Double-expansion"
+num_nodes = 2
+time_limit = "00:10:00"
+
+name = "NIXL.EP.Double-expansion"
+description = "NIXL EP Example: Double-expansion plan"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = ""
+  plan = "[[0], [0, 1], [0, 1, 2, 3]]"
+  num_processes_per_node = 2
+  num_tokens = 256
+  num_experts_per_rank = 36
+  num_topk = 8
+  kineto = true
+
+[[Tests]]
+id = "NIXL.EP.Expansion-contraction"
+num_nodes = 2
+time_limit = "00:10:00"
+
+name = "NIXL.EP.Expansion-contraction"
+description = "NIXL EP Example: Expansion-contraction plan (elasticity testing)"
+test_template_name = "NixlEP"
+
+  [Tests.cmd_args]
+  docker_image_url = ""
+  plan = "[[0, 1], [0, 1, 2, 3], [0, -2, 3], [0, 1, 2, 3]]"
+  num_processes_per_node = 3
+  num_tokens = 256
+  num_experts_per_rank = 36
+  num_topk = 8
+  kineto = true

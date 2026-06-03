@@ -36,6 +36,8 @@ class NixlEPLaunch:
     num_processes: int
     include_tcp_server: bool
     append_output: bool = False
+    rank_ids: tuple[int, ...] = ()
+    expects_planned_removal: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,15 +103,19 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_plan_phases = max(len(self.tdef.cmd_args.parse_plan()), 1)
         return max(phase_timeout // num_plan_phases, 1)
 
-    def _new_process_counts_by_phase(self) -> list[int]:
-        counts: list[int] = []
+    def _new_rank_ids_by_phase(self) -> list[tuple[int, ...]]:
+        rank_ids_by_phase: list[tuple[int, ...]] = []
         previous_positive_ranks: set[int] = set()
         for positive_ranks in [{rank for rank in phase if rank >= 0} for phase in self.tdef.cmd_args.parse_plan()]:
-            counts.append(len(positive_ranks - previous_positive_ranks))
+            rank_ids_by_phase.append(tuple(sorted(positive_ranks - previous_positive_ranks)))
             previous_positive_ranks = positive_ranks
 
+        counts = [len(rank_ids) for rank_ids in rank_ids_by_phase]
         self._validate_requested_processes(counts)
-        return counts
+        return rank_ids_by_phase
+
+    def _planned_removal_ranks_after_phase(self, phase_idx: int) -> set[int]:
+        return {abs(rank) for phase in self.tdef.cmd_args.parse_plan()[phase_idx + 1 :] for rank in phase if rank < 0}
 
     def _validate_requested_processes(self, new_process_counts: list[int]) -> None:
         total_requested_processes = sum(new_process_counts)
@@ -132,52 +138,56 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
 
     def _allocate_stage_launches(
-        self, phase_idx: int, new_process_count: int, remaining_capacity: list[int]
+        self, phase_idx: int, new_rank_ids: tuple[int, ...], remaining_capacity: list[int]
     ) -> tuple[NixlEPLaunch, ...]:
-        if new_process_count == 0:
+        if not new_rank_ids:
             return ()
 
         launches: list[NixlEPLaunch] = []
-        remaining_phase_processes = new_process_count
+        remaining_phase_rank_ids = list(new_rank_ids)
         is_initial_phase = phase_idx == 0
+        planned_removal_ranks = self._planned_removal_ranks_after_phase(phase_idx)
         for node_idx, node_capacity in enumerate(remaining_capacity):
-            if remaining_phase_processes == 0:
+            if not remaining_phase_rank_ids:
                 break
 
-            assignable = min(node_capacity, remaining_phase_processes)
+            assignable = min(node_capacity, len(remaining_phase_rank_ids))
             if assignable == 0:
                 continue
 
+            rank_ids = tuple(remaining_phase_rank_ids[:assignable])
+            remaining_phase_rank_ids = remaining_phase_rank_ids[assignable:]
             remaining_capacity[node_idx] -= assignable
-            remaining_phase_processes -= assignable
             launches.append(
                 NixlEPLaunch(
                     node_idx=node_idx,
                     num_processes=assignable,
                     include_tcp_server=(not is_initial_phase) or node_idx != 0,
                     append_output=not is_initial_phase,
+                    rank_ids=rank_ids,
+                    expects_planned_removal=any(rank in planned_removal_ranks for rank in rank_ids),
                 )
             )
 
-        if remaining_phase_processes != 0:
+        if remaining_phase_rank_ids:
             num_nodes, _ = self.get_cached_nodes_spec()
             raise ValueError(
                 "For multi-node NIXL EP runs, the plan-derived launches cannot be packed onto "
                 f"{num_nodes} nodes with per-node capacity {self.num_processes_per_node}. "
-                f"Remaining phase size: {remaining_phase_processes}."
+                f"Remaining phase size: {len(remaining_phase_rank_ids)}."
             )
 
         return tuple(launches)
 
     @property
     def plan_stages(self) -> tuple[NixlEPStage, ...]:
-        new_process_counts = self._new_process_counts_by_phase()
+        new_rank_ids_by_phase = self._new_rank_ids_by_phase()
 
         num_nodes, _ = self.get_cached_nodes_spec()
         remaining_capacity = [self.num_processes_per_node] * num_nodes
         stages: list[NixlEPStage] = []
-        for phase_idx, new_process_count in enumerate(new_process_counts):
-            launches = self._allocate_stage_launches(phase_idx, new_process_count, remaining_capacity)
+        for phase_idx, new_rank_ids in enumerate(new_rank_ids_by_phase):
+            launches = self._allocate_stage_launches(phase_idx, new_rank_ids, remaining_capacity)
             stages.append(NixlEPStage(idx=phase_idx, launches=launches))
 
         return tuple(stages)
@@ -289,7 +299,14 @@ wait_for_phase_completion() {{
     def _background_launches_lines(self, launches: tuple[NixlEPLaunch, ...]) -> list[str]:
         lines: list[str] = []
         for launch in launches:
-            lines.extend([self._render_launch(launch) + " &", "active_srun_count=$((active_srun_count + 1))"])
+            expected_removal = "1" if launch.expects_planned_removal else "0"
+            lines.extend(
+                [
+                    self._render_launch(launch) + " &",
+                    'launch_pids+=( "$!" )',
+                    f'launch_expected_removal+=( "{expected_removal}" )',
+                ]
+            )
         return lines
 
     @staticmethod
@@ -307,11 +324,15 @@ wait_for_phase_completion() {{
         return [
             "",
             "rc=0",
-            'while [ "$active_srun_count" -gt 0 ]; do',
-            "    wait -n",
+            'for idx in "${!launch_pids[@]}"; do',
+            '    wait "${launch_pids[$idx]}"',
             "    wait_rc=$?",
-            "    active_srun_count=$((active_srun_count - 1))",
-            '    if [ "$wait_rc" -ne 0 ] && [ "$rc" -eq 0 ]; then',
+            '    if [ "$wait_rc" -eq 0 ]; then',
+            "        continue",
+            "    fi",
+            '    if [ "${launch_expected_removal[$idx]}" = "1" ] && [ "$wait_rc" -eq 143 ]; then',
+            ('        echo "Ignoring expected NIXL EP planned-rank-removal exit from launch PID ${launch_pids[$idx]}"'),
+            '    elif [ "$rc" -eq 0 ]; then',
             "        rc=$wait_rc",
             "    fi",
             "done",
@@ -357,14 +378,17 @@ wait_for_phase_completion() {{
 
     def _initial_stage_lines(self, stage: NixlEPStage, has_followers: bool) -> list[str]:
         primary_launch = stage.launches[0]
+        expected_removal = "1" if primary_launch.expects_planned_removal else "0"
         master_service_lines = self._wait_for_master_services_lines() if has_followers else []
         header_lines = [
-            "active_srun_count=0",
+            "launch_pids=()",
+            "launch_expected_removal=()",
             "",
             'echo "Starting initial NIXL EP stage on the master node..."',
             self._render_launch(primary_launch) + " &",
             "primary_pid=$!",
-            "active_srun_count=$((active_srun_count + 1))",
+            'launch_pids+=( "$primary_pid" )',
+            f'launch_expected_removal+=( "{expected_removal}" )',
         ]
         return header_lines + master_service_lines + self._initial_follower_launch_lines(stage)
 
