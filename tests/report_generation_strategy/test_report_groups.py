@@ -39,9 +39,7 @@ class GroupingComparisonReport(ComparisonReport):
         return []
 
 
-def _comparison_report(
-    slurm_system: SlurmSystem, trs: list[TestRun], group_by: list[str]
-) -> GroupingComparisonReport:
+def _comparison_report(slurm_system: SlurmSystem, trs: list[TestRun], group_by: list[str]) -> GroupingComparisonReport:
     report = GroupingComparisonReport(
         slurm_system,
         TestScenario(name="comparison", test_runs=[]),
@@ -59,9 +57,7 @@ class TestGrouping:
         assert groups[0].name == "all-in-one"
         assert groups[0].items[0].name == "0.0"
 
-    def test_multiple_trs_no_group_by_fields_same_trs(
-        self, slurm_system: SlurmSystem, nccl_tr: TestRun
-    ) -> None:
+    def test_multiple_trs_no_group_by_fields_same_trs(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         groups = _comparison_report(slurm_system, [nccl_tr, nccl_tr], group_by=[]).group_test_runs()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
@@ -157,9 +153,7 @@ class TestComparisonValues:
 
         assert diff == {}
 
-    def test_default_comparison_values_include_cmd_args(
-        self, slurm_system: SlurmSystem, nccl_tr: TestRun
-    ) -> None:
+    def test_default_comparison_values_include_cmd_args(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
         nccl1.test.cmd_args.subtest_name = "all_gather_perf"
@@ -170,9 +164,7 @@ class TestComparisonValues:
 
         assert diff == {"subtest_name": ["all_gather_perf", "all_reduce_perf"]}
 
-    def test_default_comparison_values_include_num_nodes(
-        self, slurm_system: SlurmSystem, nccl_tr: TestRun
-    ) -> None:
+    def test_default_comparison_values_include_num_nodes(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
         nccl1.num_nodes = 1
