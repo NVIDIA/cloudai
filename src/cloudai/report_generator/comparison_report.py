@@ -35,7 +35,6 @@ from .groups import GroupedTestRuns, TRGroupItem
 from .util import (
     bokeh_size_unit_js_tick_formatter,
     calculate_power_of_two_ticks,
-    default_test_run_comparison_values,
     diff_comparison_values,
 )
 
@@ -74,7 +73,11 @@ class ComparisonReport(Reporter, ABC):
 
     def comparison_values(self, tr: TestRun) -> dict[str, object]:
         """Return TestRun values used to label differences between compared runs."""
-        return default_test_run_comparison_values(tr)
+        return {
+            "NUM_NODES": tr.num_nodes,
+            **tr.test.cmd_args.model_dump(),
+            **{f"extra_env_vars.{key}": value for key, value in tr.test.extra_env_vars.items()},
+        }
 
     def get_group_value(self, tr: TestRun, field: str) -> str:
         """Get grouping field value for a TestRun's cmd_args or extra_env_vars."""

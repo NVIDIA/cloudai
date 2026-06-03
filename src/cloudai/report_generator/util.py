@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, List, Mapping, Tuple
 
 import toml
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystemMetadata
 from cloudai.util.lazy_imports import lazy
 
@@ -165,18 +164,11 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
     return df, unit
 
 
-def default_test_run_comparison_values(tr: TestRun) -> dict[str, object]:
-    """Return generic TestRun values used to label differences in comparison reports."""
-    return {
-        "NUM_NODES": tr.num_nodes,
-        **tr.test.cmd_args.model_dump(),
-        **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
-    }
-
-
 def diff_comparison_values(values_by_run: list[Mapping[str, object]]) -> dict[str, list[object]]:
     """Return value differences across comparable TestRun value dictionaries."""
-    all_keys = set().union(*[values.keys() for values in values_by_run])
+    all_keys: list[str] = []
+    for values in values_by_run:
+        all_keys.extend(key for key in values if key not in all_keys)
 
     diff = {}
     for key in all_keys:
@@ -214,11 +206,6 @@ def _normalize_comparison_value(value: object) -> object:
         return [_normalize_comparison_value(nested_value) for nested_value in value]
 
     return value
-
-
-def diff_test_runs(trs: list[TestRun]) -> dict[str, list[object]]:
-    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
-    return diff_comparison_values([default_test_run_comparison_values(tr) for tr in trs])
 
 
 def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:
