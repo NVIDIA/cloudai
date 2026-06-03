@@ -118,6 +118,16 @@ class TestDiffTrs:
 
         assert diff == {}
 
+    def test_diff_comparison_values_normalizes_nested_numeric_equivalents(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {"extra": {"limits": [1, {"max": 2.0}], "enabled": True}},
+                {"extra": {"enabled": True, "limits": [1.0, {"max": 2}]}},
+            ]
+        )
+
+        assert diff == {}
+
     def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)

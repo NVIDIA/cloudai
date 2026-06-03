@@ -189,17 +189,30 @@ def diff_comparison_values(values_by_run: list[Mapping[str, object]]) -> dict[st
 
 
 def _canonical_comparison_value(value: object) -> object:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, (collections.abc.Mapping, list, tuple)):
+    value = _normalize_comparison_value(value)
+    if isinstance(value, (collections.abc.Mapping, list)):
         return json.dumps(value, sort_keys=True, default=str)
 
     try:
         hash(value)
     except TypeError:
         return str(value)
+    return value
+
+
+def _normalize_comparison_value(value: object) -> object:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, collections.abc.Mapping):
+        return {
+            str(_normalize_comparison_value(key)): _normalize_comparison_value(nested_value)
+            for key, nested_value in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_normalize_comparison_value(nested_value) for nested_value in value]
+
     return value
 
 
