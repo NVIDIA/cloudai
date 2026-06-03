@@ -16,10 +16,9 @@
 from __future__ import annotations
 
 import collections.abc
-import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Mapping, Tuple
+from typing import TYPE_CHECKING, List, Mapping, Tuple, cast
 
 import toml
 
@@ -173,39 +172,40 @@ def diff_comparison_values(values_by_run: list[Mapping[str, object]]) -> dict[st
     diff = {}
     for key in all_keys:
         all_values = [values.get(key) for values in values_by_run]
-        canonical_values = [_canonical_comparison_value(value) for value in all_values]
-        if len(set(canonical_values)) > 1:
-            diff[key] = all_values
+        diff_values = _diff_value_list(all_values)
+        if diff_values is not None:
+            diff[key] = diff_values
 
     return diff
 
 
-def _canonical_comparison_value(value: object) -> object:
-    value = _normalize_comparison_value(value)
-    if isinstance(value, (collections.abc.Mapping, list)):
-        return json.dumps(value, sort_keys=True, default=str)
-
-    try:
-        hash(value)
-    except TypeError:
-        return str(value)
-    return value
+def _diff_value_list(values: list[object]) -> list[object] | None:
+    if all(isinstance(value, collections.abc.Mapping) for value in values):
+        return _diff_mapping_values(values)
+    if all(value == values[0] for value in values[1:]):
+        return None
+    return values
 
 
-def _normalize_comparison_value(value: object) -> object:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, collections.abc.Mapping):
-        return {
-            str(_normalize_comparison_value(key)): _normalize_comparison_value(nested_value)
-            for key, nested_value in value.items()
-        }
-    if isinstance(value, (list, tuple)):
-        return [_normalize_comparison_value(nested_value) for nested_value in value]
+def _diff_mapping_values(values: list[object]) -> list[object] | None:
+    mappings = [cast(collections.abc.Mapping[object, object], value) for value in values]
+    all_keys: list[object] = []
+    for mapping in mappings:
+        all_keys.extend(key for key in mapping if key not in all_keys)
 
-    return value
+    diff_by_run: list[object] = [{} for _ in mappings]
+    for key in all_keys:
+        nested_values = [mapping.get(key) for mapping in mappings]
+        nested_diff = _diff_value_list(nested_values)
+        if nested_diff is None:
+            continue
+
+        for idx, nested_value in enumerate(nested_diff):
+            cast(dict[object, object], diff_by_run[idx])[key] = nested_value
+
+    if any(diff_by_run):
+        return diff_by_run
+    return None
 
 
 def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:

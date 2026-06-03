@@ -153,6 +153,45 @@ class TestComparisonValues:
 
         assert diff == {}
 
+    def test_diff_comparison_values_prunes_equal_mapping_fields(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {
+                    "prefill": {
+                        "gpu_ids": None,
+                        "enforce_eager": "",
+                        "tensor_parallel_size": 2,
+                        "max_num_batched_tokens": 1024,
+                    }
+                },
+                {
+                    "prefill": {
+                        "gpu_ids": "0,1",
+                        "enforce_eager": "",
+                        "tensor_parallel_size": 1,
+                        "max_num_batched_tokens": 1024,
+                    }
+                },
+            ]
+        )
+
+        assert diff == {
+            "prefill": [
+                {"gpu_ids": None, "tensor_parallel_size": 2},
+                {"gpu_ids": "0,1", "tensor_parallel_size": 1},
+            ]
+        }
+
+    def test_diff_comparison_values_keeps_lists_as_whole_values(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {"prefill": {"gpu_ids": ["0", "1"], "enforce_eager": ""}},
+                {"prefill": {"gpu_ids": ["2", "3"], "enforce_eager": ""}},
+            ]
+        )
+
+        assert diff == {"prefill": [{"gpu_ids": ["0", "1"]}, {"gpu_ids": ["2", "3"]}]}
+
     def test_default_comparison_values_include_cmd_args(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
