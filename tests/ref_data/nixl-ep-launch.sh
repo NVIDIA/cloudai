@@ -19,11 +19,11 @@ cleanup_nixl_ep() {
         return 0
     fi
     echo "Cleaning up NIXL EP background launches..."
-    kill -TERM $pids >/dev/null 2>&1 || true
+    scancel --signal=TERM "$SLURM_JOB_ID" >/dev/null 2>&1 || true
     sleep 2
     pids="$(jobs -pr)"
     if [ -n "$pids" ]; then
-        kill -KILL $pids >/dev/null 2>&1 || true
+        scancel --signal=KILL "$SLURM_JOB_ID" >/dev/null 2>&1 || true
     fi
     wait >/dev/null 2>&1 || true
 }
@@ -111,6 +111,14 @@ srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest -
 launch_pids+=( "$!" )
 launch_expected_removal+=( "0" )
 
+pending_term=0
+ignored_expected_removal=0
+on_nixl_ep_deferred_term() {
+    pending_term=1
+    echo "Deferring TERM while collecting NIXL EP launch statuses"
+}
+trap on_nixl_ep_deferred_term TERM
+
 rc=0
 for idx in "${!launch_pids[@]}"; do
     wait "${launch_pids[$idx]}"
@@ -120,10 +128,17 @@ for idx in "${!launch_pids[@]}"; do
     fi
     if [ "${launch_expected_removal[$idx]}" = "1" ] && [ "$wait_rc" -eq 143 ]; then
         echo "Ignoring expected NIXL EP planned-rank-removal exit from launch PID ${launch_pids[$idx]}"
+        ignored_expected_removal=1
+    elif [ "$pending_term" -ne 0 ] && [ "$wait_rc" -eq 143 ]; then
+        echo "Ignoring deferred TERM wait interruption for launch PID ${launch_pids[$idx]}"
     elif [ "$rc" -eq 0 ]; then
         rc=$wait_rc
     fi
 done
+
+if [ "$pending_term" -ne 0 ] && [ "$ignored_expected_removal" -eq 0 ] && [ "$rc" -eq 0 ]; then
+    rc=143
+fi
 
 if [ "$rc" -eq 0 ]; then
     echo "All NIXL EP launches completed successfully"

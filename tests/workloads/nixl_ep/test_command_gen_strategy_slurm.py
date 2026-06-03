@@ -511,6 +511,10 @@ def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_syste
     assert_launcher_sruns_are_explicitly_routed(launcher_script)
     assert "trap cleanup_nixl_ep EXIT" in launcher_script
     assert "jobs -pr" in launcher_script
+    assert 'scancel --signal=TERM "$SLURM_JOB_ID"' in launcher_script
+    assert 'scancel --signal=KILL "$SLURM_JOB_ID"' in launcher_script
+    assert "kill -TERM" not in launcher_script
+    assert "kill -KILL" not in launcher_script
 
 
 def test_gen_srun_command_single_node_static_plan(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
@@ -702,6 +706,7 @@ def test_multi_node_stages_mark_launches_with_planned_rank_removal(
     launcher_script = read_launcher_script(strategy)
 
     assert launcher_script.count('launch_expected_removal+=( "1" )') == 1
+    assert "Deferring TERM while collecting NIXL EP launch statuses" in launcher_script
     assert "Ignoring expected NIXL EP planned-rank-removal exit" in launcher_script
     assert "wait -n" not in launcher_script
 
