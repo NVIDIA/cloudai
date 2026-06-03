@@ -21,7 +21,8 @@ import pathlib
 import cloudai.core
 import cloudai.report_generator.comparison_report
 from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
-from cloudai.workloads.sglang import SglangBenchCmdArgs, SGLangBenchReportGenerationStrategy, SglangTestDefinition
+from cloudai.workloads.sglang.report_generation_strategy import SGLangBenchReportGenerationStrategy
+from cloudai.workloads.sglang.sglang import SglangBenchCmdArgs, SglangTestDefinition
 
 
 class SGLangComparisonReport(LLMServingComparisonReport):

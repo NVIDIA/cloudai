@@ -21,7 +21,8 @@ import pathlib
 import cloudai.core
 import cloudai.report_generator.comparison_report
 from cloudai.workloads.common.llm_serving_report import LLMServingComparisonReport
-from cloudai.workloads.vllm import VllmBenchCmdArgs, VLLMBenchReportGenerationStrategy, VllmTestDefinition
+from cloudai.workloads.vllm.report_generation_strategy import VLLMBenchReportGenerationStrategy
+from cloudai.workloads.vllm.vllm import VllmBenchCmdArgs, VllmTestDefinition
 
 
 class VLLMComparisonReport(LLMServingComparisonReport):

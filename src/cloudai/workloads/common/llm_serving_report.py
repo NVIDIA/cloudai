@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import abc
 import itertools
+import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
 import rich.table
@@ -57,6 +58,16 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
     )
     QUALITY_METRICS = (("Accuracy", "accuracy"),)
 
+    def __init__(
+        self,
+        system: cloudai.core.System,
+        test_scenario: cloudai.core.TestScenario,
+        results_root: pathlib.Path,
+        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
+    ) -> None:
+        super().__init__(system, test_scenario, results_root, config)
+        self._df_cache: dict[tuple[str, int, int, str], pd.DataFrame] = {}
+
     @abc.abstractmethod
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
         """Return whether the report should include the given test run."""
@@ -87,6 +98,16 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
         if value is None:
             return "n/a"
         return round(float(value), 4)
+
+    @staticmethod
+    def _df_cache_key(tr: cloudai.core.TestRun) -> tuple[str, int, int, str]:
+        return (tr.name, tr.current_iteration, tr.step, str(tr.output_path))
+
+    def _extract_data_as_df_cached(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
+        key = self._df_cache_key(tr)
+        if key not in self._df_cache:
+            self._df_cache[key] = self.extract_data_as_df(tr)
+        return self._df_cache[key]
 
     def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
         empty_df = lazy.pd.DataFrame(
@@ -173,7 +194,7 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
     ) -> list[rich.table.Table]:
         tables: list[rich.table.Table] = []
         for group in cmp_groups:
-            extracted_dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            extracted_dfs = [self._extract_data_as_df_cached(item.tr) for item in group.items]
             tables.extend(
                 [
                     self.create_table(
@@ -265,7 +286,7 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
     def create_charts(self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]) -> list[bk.figure]:
         charts: list[bk.figure] = []
         for group in cmp_groups:
-            extracted_dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            extracted_dfs = [self._extract_data_as_df_cached(item.tr) for item in group.items]
             charts.extend(
                 [
                     self._create_metric_bar_chart(

@@ -20,7 +20,7 @@ import pandas as pd
 
 from cloudai import TestRun
 from cloudai.report_generator.groups import TestRunsGrouper
-from cloudai.report_generator.util import diff_test_runs
+from cloudai.report_generator.util import diff_comparison_values, diff_test_runs
 
 
 class TestGrouping:
@@ -103,6 +103,21 @@ class TestGrouping:
 
 
 class TestDiffTrs:
+    def test_diff_comparison_values_normalizes_numeric_equivalents(self) -> None:
+        diff = diff_comparison_values([{"max_concurrency": 1}, {"max_concurrency": 1.0}])
+
+        assert diff == {}
+
+    def test_diff_comparison_values_normalizes_mapping_order(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {"extra": {"backend": "nixl", "mode": "decode"}},
+                {"extra": {"mode": "decode", "backend": "nixl"}},
+            ]
+        )
+
+        assert diff == {}
+
     def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)

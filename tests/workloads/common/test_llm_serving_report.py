@@ -21,6 +21,15 @@ import cloudai.core
 import cloudai.report_generator.comparison_report
 import cloudai.report_generator.groups
 import cloudai.systems.slurm
+from cloudai.workloads.sglang import (
+    SGLANG_BENCH_JSONL_FILE,
+    SGLANG_SEMANTIC_EVAL_LOG_FILE,
+    SglangBenchCmdArgs,
+    SglangCmdArgs,
+    SGLangComparisonReport,
+    SglangSemanticEvalCmdArgs,
+    SglangTestDefinition,
+)
 from cloudai.workloads.vllm import (
     VLLM_BENCH_JSON_FILE,
     VLLM_GSM8K_JSON_FILE,
@@ -135,3 +144,105 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
     report.generate()
 
     assert (slurm_system.output_path / "vllm_comparison.html").exists()
+
+
+def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
+    tr1 = cloudai.core.TestRun(
+        name="sglang-8",
+        test=SglangTestDefinition(
+            name="sglang",
+            description="SGLang benchmark",
+            test_template_name="sglang",
+            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
+            semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
+        ),
+        num_nodes=1,
+        nodes=[],
+    )
+    tr2 = cloudai.core.TestRun(
+        name="sglang-16",
+        test=SglangTestDefinition(
+            name="sglang",
+            description="SGLang benchmark",
+            test_template_name="sglang",
+            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=16),
+            semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
+        ),
+        num_nodes=1,
+        nodes=[],
+    )
+    _write_result(
+        slurm_system.output_path / tr1.name / "0",
+        SGLANG_BENCH_JSONL_FILE,
+        json.dumps(
+            {
+                "num_prompts": 30,
+                "completed": 24,
+                "mean_ttft_ms": 120.0,
+                "median_ttft_ms": 110.0,
+                "p99_ttft_ms": 180.0,
+                "mean_tpot_ms": 12.0,
+                "median_tpot_ms": 11.0,
+                "p99_tpot_ms": 18.0,
+                "request_throughput": 960.0,
+                "max_concurrency": 8,
+            }
+        )
+        + "\n",
+    )
+    _write_result(slurm_system.output_path / tr1.name / "0", SGLANG_SEMANTIC_EVAL_LOG_FILE, "Score: 0.81\n")
+    _write_result(
+        slurm_system.output_path / tr2.name / "0",
+        SGLANG_BENCH_JSONL_FILE,
+        json.dumps(
+            {
+                "num_prompts": 30,
+                "completed": 30,
+                "mean_ttft_ms": 90.0,
+                "median_ttft_ms": 85.0,
+                "p99_ttft_ms": 140.0,
+                "mean_tpot_ms": 9.0,
+                "median_tpot_ms": 8.0,
+                "p99_tpot_ms": 14.0,
+                "request_throughput": 1760.0,
+                "max_concurrency": 16,
+            }
+        )
+        + "\n",
+    )
+    _write_result(slurm_system.output_path / tr2.name / "0", SGLANG_SEMANTIC_EVAL_LOG_FILE, "Score: 0.9\n")
+
+    report = SGLangComparisonReport(
+        slurm_system,
+        cloudai.core.TestScenario(name="sglang-comparison", test_runs=[tr1, tr2]),
+        slurm_system.output_path,
+        cloudai.report_generator.comparison_report.ComparisonReportConfig(enable=True, group_by=[]),
+    )
+
+    report.load_test_runs()
+    assert len(report.trs) == 2
+    tables = report.create_tables(report.group_test_runs())
+    latency_table = tables[0]
+    success_table = tables[1]
+    throughput_table = tables[2]
+    quality_table = tables[3]
+
+    assert "bench_cmd_args.max_concurrency=8" in str(latency_table.columns[1].header)
+    assert "bench_cmd_args.max_concurrency=16" in str(latency_table.columns[2].header)
+    assert list(latency_table.columns[0].cells)[:3] == ["Mean TTFT (ms)", "Median TTFT (ms)", "P99 TTFT (ms)"]
+    assert list(success_table.columns[0].cells) == ["Successful Prompts", "Successful Prompts (%)"]
+    assert list(success_table.columns[3].cells) == [
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(24.0, 30.0),
+        cloudai.report_generator.comparison_report.ComparisonReport._format_diff_cell(80.0, 100.0),
+    ]
+    throughput_row = list(throughput_table.columns[0].cells).index("TPS/User")
+    assert list(throughput_table.columns[1].cells)[throughput_row] == "120.0"
+    assert list(quality_table.columns[0].cells) == ["Accuracy"]
+    assert list(quality_table.columns[1].cells) == ["0.81"]
+    assert list(quality_table.columns[2].cells) == ["0.9"]
+
+    report.generate()
+
+    assert (slurm_system.output_path / "sglang_comparison.html").exists()
