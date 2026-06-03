@@ -17,7 +17,8 @@
 name = "vLLM"
 description = "vLLM backend"
 test_template_name = "AIDynamo"
-extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
+extra_container_mounts = ["/run/udev:/run/udev"]
+dse_excluded_args = ["cmd_args.aiperf_phases"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
@@ -26,6 +27,7 @@ workloads = "aiperf.sh"
   [cmd_args.dynamo]
   backend = "vllm"
   model = "Qwen/Qwen3-0.6B"
+  ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
@@ -53,23 +55,8 @@ workloads = "aiperf.sh"
       data-parallel-size = 1
       kv-transfer-config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
 
-  [cmd_args.lmcache]
-  controller_cmd = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
-
-    [cmd_args.lmcache.args]
-    chunk_size = 256
-    local_cpu = false
-    nixl_buffer_size = 10737418240
-    nixl_buffer_device = "cuda"
-    extra_config_enable_nixl_storage = true
-    extra_config_nixl_backend = "GDS_MT"
-    extra_config_nixl_file_pool_size = 64
-
-    enable_controller = true
-    lmcache_instance_id = "lmcache_default_instance"
-    controller_url = "localhost:9001"
-    lmcache_worker_port = 8788
-    distributed_url = "localhost:8789"
+  [cmd_args.lmcache_controller]
+  cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
 
   [cmd_args.genai_perf]
   cmd = "genai-perf profile"
@@ -88,12 +75,32 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  health-check-between-phases = true
+  continue-on-phase-failure = false
     [cmd_args.aiperf.args]
     concurrency = 2
+    endpoint-type = "chat"
     extra-inputs = '{"min_tokens":10}'
     output-tokens-mean = 500
     request-count = 50
+    server-metrics = "auto"
+    streaming = true
     synthetic-input-tokens-mean = 300
+
+  [[cmd_args.aiperf_phases]]
+  name = "round_1"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 2
+    request-count = 50
+
+  [[cmd_args.aiperf_phases]]
+  name = "round_2"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 4
+    request-count = 50
+    streaming = false
 
   [cmd_args.aiperf_accuracy]
   entrypoint = "aiperf profile"
@@ -109,7 +116,7 @@ workloads = "aiperf.sh"
 --accuracy-n-shots 5
 --accuracy-tasks abstract_algebra
 --concurrency 10
---extra-inputs '{"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}'
+--extra-inputs '{"temperature":0,"stop":["\n"],"chat_template_kwargs":{"enable_thinking":false}}'
 --num-requests 100
 '''
 

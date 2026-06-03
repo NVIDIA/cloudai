@@ -206,6 +206,38 @@ action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
 
+DSE parameter exclusions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+CloudAI builds the DSE parameter space implicitly from list-valued fields under ``cmd_args``, list-valued
+``extra_env_vars``, and list-valued ``num_nodes``. Most lists mean "try each value", but some workload settings are
+real list-valued configuration, such as worker port lists or ordered benchmark phases.
+
+Use ``dse_excluded_args`` when a list under ``cmd_args`` should stay intact instead of becoming a sweep dimension.
+Entries must be dot-separated paths that start with ``cmd_args.`` and may point to either a single field or a parent
+object. Matching is prefix-based, so excluding ``cmd_args.foo`` also excludes nested list-valued fields such as
+``cmd_args.foo.bar`` from DSE parameter discovery.
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "Tests.1"
+   test_name = "my_test"
+   dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+
+     [Tests.cmd_args.lmcache]
+     chunk_size = [256, 512]
+     lmcache_worker_ports = [8788, 8789, 8790, 8791]
+
+In this example, ``cmd_args.lmcache.chunk_size`` is still swept, while
+``cmd_args.lmcache.lmcache_worker_ports`` is passed through as one list value. The exclusion does not remove or mutate
+the field; it only prevents CloudAI from adding that path to the DSE parameter space.
+
+``dse_excluded_args`` currently applies only to ``cmd_args`` paths. It does not exclude list-valued ``extra_env_vars``
+or ``num_nodes``; those lists are still interpreted as sweep dimensions. To exclude many nested list fields at once,
+exclude their common parent path. Common examples are ``cmd_args.aiperf_phases`` and
+``cmd_args.lmcache.lmcache_worker_ports``.
+
 Metric errors and report strategies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

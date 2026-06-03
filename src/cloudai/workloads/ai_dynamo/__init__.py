@@ -15,14 +15,17 @@
 # limitations under the License.
 
 from .ai_dynamo import (
+    LMCACHE_CONFIG_BACKUP_FILE_NAME,
+    LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfAccuracy,
+    AIPerfPhase,
+    DCGMExporter,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
+    LMCacheController,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -31,6 +34,8 @@ from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
 __all__ = [
+    "LMCACHE_CONFIG_BACKUP_FILE_NAME",
+    "LMCACHE_CONFIG_FILE_NAME",
     "AIDynamoArgs",
     "AIDynamoCmdArgs",
     "AIDynamoKubernetesJsonGenStrategy",
@@ -39,9 +44,10 @@ __all__ = [
     "AIDynamoTestDefinition",
     "AIPerf",
     "AIPerfAccuracy",
+    "AIPerfPhase",
+    "DCGMExporter",
     "GenAIPerf",
-    "LMCache",
-    "LMCacheArgs",
+    "LMCacheController",
     "WorkerBaseArgs",
     "WorkerConfig",
 ]

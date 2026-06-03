@@ -14,6 +14,53 @@ srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.0
 
 srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
+# Start DCGM exporter on each node.
+echo "Starting DCGM exporter..."
+srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --overlap --job-name=cloudai-dcgm-exporter -N2 --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/dcgm-node-%n-stdout.txt --error=__OUTPUT_DIR__/output/dcgm-node-%n-stderr.txt bash -lc 'DCGM_EXPORTER_LISTEN=:9501 dcgm-exporter' &
+DCGM_EXPORTER_SRUN_PID=$!
+echo "DCGM exporter srun PID: ${DCGM_EXPORTER_SRUN_PID}"
+DCGM_EXPORTER_STEP_ID=
+for _ in {1..10}; do
+    DCGM_EXPORTER_STEP_ID=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" | awk '$2 == "cloudai-dcgm-exporter" { print $1; exit }')
+    if [[ -n "${DCGM_EXPORTER_STEP_ID}" ]]; then break; fi
+    sleep 1
+done
+echo "DCGM exporter step ID: ${DCGM_EXPORTER_STEP_ID:-unknown}"
+function stop_dcgm_exporter()
+{
+    if [[ -n "${DCGM_EXPORTER_STEP_ID:-}" ]]; then
+        scancel --signal=TERM "${DCGM_EXPORTER_STEP_ID}" 2>/dev/null || true
+    fi
+    if [[ -n "${DCGM_EXPORTER_SRUN_PID:-}" ]]; then
+        wait "${DCGM_EXPORTER_SRUN_PID}" 2>/dev/null || true
+    fi
+}
+sleep 5
+echo "Checking DCGM exporter metrics endpoints..."
+DCGM_EXPORTER_STARTUP_TIMEOUT=${DCGM_EXPORTER_STARTUP_TIMEOUT:-60}
+mapfile -t dcgm_nodes < <(scontrol show hostnames "$SLURM_JOB_NODELIST")
+: > __OUTPUT_DIR__/output/dcgm_endpoints.txt
+dcgm_failed=0
+for node in "${dcgm_nodes[@]}"; do
+    dcgm_url="http://${node}:9501/metrics"
+    echo "  ${dcgm_url}" >> __OUTPUT_DIR__/output/dcgm_endpoints.txt
+    deadline=$((SECONDS + DCGM_EXPORTER_STARTUP_TIMEOUT))
+    until curl -fsS --max-time 2 "${dcgm_url}" >/dev/null; do
+        if (( SECONDS >= deadline )); then
+            echo "FATAL: DCGM exporter metrics endpoint is unreachable: ${dcgm_url}" >&2
+            dcgm_failed=1
+            break
+        fi
+        sleep 2
+    done
+    if (( dcgm_failed != 0 )); then break; fi
+    echo "DCGM exporter reachable: ${dcgm_url}"
+done
+if (( dcgm_failed != 0 )); then
+    stop_dcgm_exporter
+    exit 1
+fi
+
 srun \
   --export=ALL \
   --mpi=pmix \
@@ -32,7 +79,7 @@ srun \
   --results-dir /cloudai_run_results \
   --dynamo-repo /cloudai_install/dynamo__f7e468c7e8ff0d1426db987564e60572167e8464 \
   --hf-home /cloudai_install/huggingface \
-  --workloads genai_perf.sh \
+  --workloads aiperf.sh \
   --failure-marker /cloudai_run_results/failure-marker.txt \
   --success-marker /cloudai_run_results/success-marker.txt \
   --storage-cache-dir /tmp \
@@ -47,6 +94,8 @@ srun \
   --dynamo-etcd-port "2379" \
   --dynamo-nats-cmd "nats-server -js" \
   --dynamo-nats-port "4222" \
+  --dynamo-dcgm-exporter-enabled "True" \
+  --dynamo-dcgm-exporter-port "9501" \
   --prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
   --prefill-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --prefill-multiple-workers-per-node "False" \
@@ -61,20 +110,6 @@ srun \
   --decode-args-model "model" \
   --decode-args-pipeline-parallel-size "1" \
   --decode-args-tensor-parallel-size "1" \
-  --lmcache-controller_cmd "lmcache_controller --host localhost --port 9000 --monitor-port 9001" \
-  --lmcache-repo "/cloudai_install/LMCache__ab8530993992db873869ba882320953582d94309" \
-  --lmcache-args-chunk_size "256" \
-  --lmcache-args-local_cpu "False" \
-  --lmcache-args-nixl_buffer_size "10737418240" \
-  --lmcache-args-nixl_buffer_device "cuda" \
-  --lmcache-args-extra_config_enable_nixl_storage "True" \
-  --lmcache-args-extra_config_nixl_backend "GDS_MT" \
-  --lmcache-args-extra_config_nixl_file_pool_size "64" \
-  --lmcache-args-enable_controller "True" \
-  --lmcache-args-lmcache_instance_id "lmcache_default_instance" \
-  --lmcache-args-controller_url "localhost:9001" \
-  --lmcache-args-lmcache_worker_port "8788" \
-  --lmcache-args-distributed_url "localhost:8789" \
   --genai_perf-name "genai_perf" \
   --genai_perf-cmd "genai-perf profile" \
   --genai_perf-script "/cloudai_install/genai_perf.sh" \
@@ -87,6 +122,7 @@ srun \
   --genai_perf-synthetic-input-tokens-mean "550" \
   --genai_perf-warmup-request-count "10" \
   --aiperf-name "aiperf" \
-  --aiperf-cmd "aiperf profile" \
-  --aiperf-script "/cloudai_install/aiperf.sh" \
-  --aiperf-report-name "aiperf_report.csv"
+  --aiperf-script /cloudai_run_results/aiperf.sh
+
+# Stop DCGM exporter when test finishes
+stop_dcgm_exporter

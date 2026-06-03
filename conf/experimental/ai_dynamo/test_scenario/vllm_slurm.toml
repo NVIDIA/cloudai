@@ -36,12 +36,27 @@ time_limit = "00:10:00"
       tensor-parallel-size = 4
       pipeline-parallel-size = 1
 
+    [[Tests.cmd_args.aiperf_phases]]
+    name = "round_1"
+      [Tests.cmd_args.aiperf_phases.args]
+      concurrency = 2
+      request-count = 50
+      server-metrics = "auto"
+
+    [[Tests.cmd_args.aiperf_phases]]
+    name = "round_2"
+      [Tests.cmd_args.aiperf_phases.args]
+      concurrency = 4
+      request-count = 50
+
 [[Tests]]
-id = "test.disagg.multinode"
+id = "test.disagg.shared-node"
 test_name = "vLLM"
+num_nodes = 2
 time_limit = "00:10:00"
 
   [Tests.cmd_args]
+
     [Tests.cmd_args.dynamo.prefill_worker]
     num-nodes = 2
       [Tests.cmd_args.dynamo.prefill_worker.args]
@@ -53,3 +68,46 @@ time_limit = "00:10:00"
       [Tests.cmd_args.dynamo.decode_worker.args]
       tensor-parallel-size = 4
       pipeline-parallel-size = 1
+
+    [[Tests.cmd_args.aiperf_phases]]
+    name = "shared_node_smoke"
+      [Tests.cmd_args.aiperf_phases.args]
+      concurrency = 2
+      request-count = 50
+      server-metrics = "auto"
+
+[[Tests]]
+id = "test.disagg.multinode"
+test_name = "vLLM"
+time_limit = "00:10:00"
+
+  [Tests.cmd_args]
+    [Tests.cmd_args.dynamo.dcgm_exporter]
+    enabled = true
+    docker-image-url = "nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless"
+
+    [Tests.cmd_args.dynamo.prefill_worker]
+    num-nodes = 2
+      [Tests.cmd_args.dynamo.prefill_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+
+    [Tests.cmd_args.dynamo.decode_worker]
+    num-nodes = 2
+      [Tests.cmd_args.dynamo.decode_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+
+    [[Tests.cmd_args.aiperf_phases]]
+    name = "round_1"
+      [Tests.cmd_args.aiperf_phases.args]
+      concurrency = 4
+      request-count = 50
+      server-metrics = "auto"
+
+    [[Tests.cmd_args.aiperf_phases]]
+    name = "round_2"
+      [Tests.cmd_args.aiperf_phases.args]
+      concurrency = 8
+      request-count = 50
+      server-metrics = "auto"

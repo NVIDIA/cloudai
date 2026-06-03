@@ -19,20 +19,23 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import yaml
 
 from cloudai._core.test_scenario import TestRun
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    LMCACHE_CONFIG_BACKUP_FILE_NAME,
+    LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfAccuracy,
+    AIPerfPhase,
     GenAIPerf,
-    LMCache,
-    LMCacheArgs,
+    LMCacheController,
     WorkerBaseArgs,
     WorkerConfig,
 )
@@ -87,7 +90,6 @@ def cmd_args() -> AIDynamoCmdArgs:
                 "request-count": 10,
             }
         ),
-        lmcache=LMCache(args=LMCacheArgs()),
     )
 
 
@@ -191,9 +193,10 @@ def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoS
 
     result = strategy._gen_script_args(td)
 
-    assert '--aiperf-args-request-count "50"' in result
-    assert '--aiperf-args-synthetic-input-tokens-mean "300"' in result
-    assert '--aiperf-args-output-tokens-mean "500"' in result
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "--request-count 50" in script
+    assert "--synthetic-input-tokens-mean 300" in script
+    assert "--output-tokens-mean 500" in script
     assert f'--aiperf_accuracy-setup-cmd "{setup_cmd}"' in result
     assert '--aiperf_accuracy-name "aiperf_accuracy"' in result
     assert '--aiperf_accuracy-entrypoint "aiperf profile"' in result
@@ -217,6 +220,307 @@ def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamo
     assert f'--aiperf_accuracy-cli "{cli}"' in result
 
 
+def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "setup-cmd": "python -m pip install --upgrade aiperf",
+            "between-phase-cmd": "curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true",
+            "args": {
+                "concurrency": 2,
+                "request-count": 50,
+                "synthetic-input-tokens-mean": 300,
+                "output-tokens-mean": 500,
+            },
+        }
+    )
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
+        AIPerfPhase.model_validate(
+            {
+                "name": "round_2",
+                "setup-cmd": "python -m pip install --upgrade another-aiperf-plugin",
+                "args": {"request-count": 10},
+            }
+        ),
+    ]
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--aiperf-script {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf.sh" in result
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert script.count("Running aiperf setup:") == 1
+    assert "bash -lc 'python -m pip install --upgrade aiperf'" in script
+    assert "Running AIPerf phase setup for round_1" not in script
+    assert "Running AIPerf phase setup for round_2" in script
+    assert "bash -lc 'python -m pip install --upgrade another-aiperf-plugin'" in script
+    assert script.count("Running AIPerf between-phase command after") == 1
+    assert "Running AIPerf between-phase command after round_1" in script
+    assert "bash -lc 'curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true'" in script
+    assert ': "${FRONTEND_URL:?FRONTEND_URL is not set}"' in script
+    assert '--url "$FRONTEND_URL"' in script
+    assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1" in script
+    assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_2" in script
+    assert "--concurrency 1 --request-count 50" in script
+    assert "--concurrency 2 --request-count 10" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv" in script
+
+
+def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate(
+        {
+            "args": {
+                "model": "custom-model",
+                "endpoint-type": "completions",
+                "streaming": False,
+                "server-metrics": "auto",
+                "request-count": 10,
+            },
+        }
+    )
+
+    strategy._gen_script_args(td)
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "--model custom-model" in script
+    assert "--endpoint-type completions" in script
+    assert "--streaming" not in script
+    assert '--server-metrics "$AIPERF_SERVER_METRICS_URLS"' in script
+    assert "--no-server-metrics" not in script
+
+
+def test_generated_aiperf_script_rejects_list_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf = AIPerf.model_validate({"args": {"server-metrics-formats": ["json", "csv"]}})
+
+    with pytest.raises(ValueError, match="AIPerf argument 'server-metrics-formats' must be a scalar value"):
+        strategy._gen_script_args(td)
+
+
+def test_aiperf_extra_args_must_be_string() -> None:
+    with pytest.raises(ValueError):
+        AIPerf.model_validate({"extra-args": ["--server-metrics-formats", "json"]})
+
+    with pytest.raises(ValueError):
+        AIPerfPhase.model_validate({"name": "round_1", "extra-args": ["--server-metrics-formats", "json"]})
+
+
+def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.dcgm_exporter.enabled = True
+    td.cmd_args.dynamo.dcgm_exporter.docker_image_url = "nvcr.io/test/dcgm:latest"
+    td.cmd_args.dynamo.dcgm_exporter.port = 9501
+
+    args = strategy._gen_script_args(td)
+    block = strategy._gen_dcgm_launcher_block()
+
+    assert '--dynamo-dcgm-exporter-enabled "True"' in args
+    assert '--dynamo-dcgm-exporter-port "9501"' in args
+    assert any("--container-image=nvcr.io/test/dcgm:latest" in line for line in block)
+    assert any("DCGM_EXPORTER_LISTEN=:9501" in line for line in block)
+    assert any("DCGM_EXPORTER_STARTUP_TIMEOUT" in line for line in block)
+    assert any('curl -fsS --max-time 2 "${dcgm_url}"' in line for line in block)
+    assert any("FATAL: DCGM exporter metrics endpoint is unreachable" in line for line in block)
+    assert any('scancel --signal=TERM "${DCGM_EXPORTER_STEP_ID}"' in line for line in block)
+    assert strategy._gen_dcgm_cleanup_command() == "stop_dcgm_exporter"
+    assert not any("docker run" in line for line in block)
+    assert not any('kill "${DCGM_EXPORTER_SRUN_PID}"' in line for line in block)
+
+
+def test_dcgm_exporter_adds_configured_docker_image_installable(cmd_args: AIDynamoCmdArgs) -> None:
+    cmd_args.dynamo.dcgm_exporter.enabled = True
+    cmd_args.dynamo.dcgm_exporter.docker_image_url = "nvcr.io/test/dcgm:latest"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+    )
+
+    assert tdef.dcgm_exporter_image is not None
+    assert tdef.dcgm_exporter_image.url == "nvcr.io/test/dcgm:latest"
+    assert tdef.dcgm_exporter_image in tdef.installables
+
+
+def test_shared_node_disagg_preserves_explicit_smaller_node_count(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(
+        name="run",
+        test=tdef,
+        nodes=["n0"],
+        num_nodes=1,
+        output_path=tmp_path,
+        num_nodes_explicit=True,
+    )
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    assert strategy.get_cached_nodes_spec() == (1, ["n0"])
+
+    srun = strategy._gen_srun_command()
+    assert "--nodes=1" in srun
+    assert "--nodelist=n0" in srun
+
+
+def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    strategy.test_run.nodes = []
+    strategy.test_run.num_nodes = 1
+    strategy.test_run.num_nodes_explicit = False
+
+    assert strategy.get_cached_nodes_spec()[0] == 2
+
+
+def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    cmd_args.dynamo.prefill_worker.nodes = "n0"
+    cmd_args.dynamo.decode_worker.nodes = "n0"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(name="run", test=tdef, nodes=[], num_nodes=1, output_path=tmp_path)
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    assert strategy.get_cached_nodes_spec() == (1, ["n0"])
+    args = strategy._gen_script_args(tdef)
+    assert "--prefill-node-list n0" in args
+    assert "--decode-node-list n0" in args
+
+
+def test_explicit_overlapping_worker_nodes_reject_extra_allocated_nodes(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    cmd_args.dynamo.prefill_worker.nodes = "n0"
+    cmd_args.dynamo.decode_worker.nodes = "n0"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(
+        name="run",
+        test=tdef,
+        nodes=["n0", "n1"],
+        num_nodes=2,
+        output_path=tmp_path,
+        num_nodes_explicit=True,
+    )
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    with pytest.raises(ValueError, match="Overlapping prefill/decode node lists"):
+        strategy.get_cached_nodes_spec()
+
+
+def test_constraint_allows_shared_node_split_that_fits(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 4
+    test_run.num_nodes = 1
+    test_run.nodes = ["n0"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_shared_node_split_that_exceeds_node_gpus(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
+    test_run.num_nodes = 1
+    test_run.nodes = ["n0"]
+    test_run.num_nodes_explicit = True
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_allows_separate_node_roles_using_all_node_gpus(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 8
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
+    test_run.num_nodes = 2
+    test_run.nodes = ["n0", "n1"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1"}),
+        AIPerfPhase.model_validate({"name": "round_2"}),
+    ]
+
+    roundtripped = AIDynamoTestDefinition.model_validate(td.model_dump())
+    strategy.test_run.test = roundtripped
+
+    assert roundtripped.cmd_args.aiperf_phases is not None
+    assert [phase.report_name for phase in roundtripped.cmd_args.aiperf_phases] == [None, None]
+
+    strategy._gen_script_args(roundtripped)
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv" in script
+
+
+def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.aiperf_phases = [AIPerfPhase.model_validate({"name": "round_1", "args": {"request-count": 10}})]
+
+    strategy._gen_script_args(td)
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_report.csv" in script
+    assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_1.log" not in script
+
+
+def test_aiperf_phase_names_must_be_unique(cmd_args: AIDynamoCmdArgs) -> None:
+    with pytest.raises(ValueError, match="AIPerf phase names must be unique"):
+        AIDynamoCmdArgs(
+            docker_image_url=cmd_args.docker_image_url,
+            dynamo=cmd_args.dynamo,
+            aiperf_phases=[
+                AIPerfPhase.model_validate({"name": "round_1"}),
+                AIPerfPhase.model_validate({"name": "round_1"}),
+            ],
+        )
+
+
 def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
@@ -227,3 +531,67 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
 
     assert f"--prefill-args-kv-transfer-config '{config}'" in result
     assert f"--decode-args-kv-transfer-config '{config}'" in result
+
+
+def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache = {
+        "chunk_size": 512,
+        "local_cpu": True,
+        "controller_pull_url": "{frontend_node}:8300",
+        "controller_reply_url": "{frontend_node}:8400",
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
+        "extra_config": {
+            "enable_nixl_storage": False,
+            "nixl_backend": "POSIX",
+            "nixl_path": "{storage_cache_dir}",
+        },
+    }
+
+    result = strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / LMCACHE_CONFIG_FILE_NAME
+    backup_path = strategy.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME
+    config = yaml.safe_load(config_path.read_text())
+    backup_config = yaml.safe_load(backup_path.read_text())
+    assert (
+        strategy.final_env_vars["LMCACHE_CONFIG_FILE"]
+        == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
+    )
+    assert config["chunk_size"] == 512
+    assert config["local_cpu"] is True
+    assert config["controller_pull_url"] == "{frontend_node}:8300"
+    assert config["controller_reply_url"] == "{frontend_node}:8400"
+    assert config["lmcache_worker_ports"] == [8788, 8789, 8790, 8791]
+    assert config["extra_config"]["enable_nixl_storage"] is False
+    assert config["extra_config"]["nixl_backend"] == "POSIX"
+    assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
+    assert backup_config == config
+    assert "--lmcache" not in result
+
+
+def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+    td.cmd_args.lmcache = {
+        "chunk_size": [256, 512],
+        "lmcache_worker_ports": [8788, 8789, 8790, 8791],
+    }
+
+    assert test_run.is_dse_job is True
+    assert test_run.param_space["lmcache.chunk_size"] == [256, 512]
+    assert "lmcache.lmcache_worker_ports" not in test_run.param_space
+
+    new_test_run = test_run.apply_params_set({"lmcache.chunk_size": 512})
+
+    assert cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.lmcache["chunk_size"] == 512  # type: ignore
+
+
+def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
+    td.cmd_args.lmcache_controller = LMCacheController(cmd=cmd)
+
+    result = strategy._gen_script_args(td)
+
+    assert f"--lmcache-controller-cmd {shlex.quote(cmd)}" in result

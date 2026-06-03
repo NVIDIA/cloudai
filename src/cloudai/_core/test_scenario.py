@@ -96,6 +96,7 @@ class TestRun:
     post_test: Optional[TestScenario] = None
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
     extra_srun_args: str | None = None
+    num_nodes_explicit: bool = False
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -147,7 +148,11 @@ class TestRun:
         extra_env_vars_dict = self.test.extra_env_vars
 
         action_space: dict[str, Any] = {
-            **{key: value for key, value in cmd_args_dict.items() if isinstance(value, list)},
+            **{
+                key: value
+                for key, value in cmd_args_dict.items()
+                if isinstance(value, list) and not self.test.is_dse_excluded_arg(key)
+            },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
         if isinstance(self.num_nodes, list):
@@ -183,8 +188,11 @@ class TestRun:
                 attrs = key.split(".")
                 obj = tdef.cmd_args
                 for attr in attrs[:-1]:
-                    obj = getattr(obj, attr)
-                setattr(obj, attrs[-1], value)
+                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+                if isinstance(obj, dict):
+                    obj[attrs[-1]] = value
+                else:
+                    setattr(obj, attrs[-1], value)
 
         type(tdef)(**tdef.model_dump())  # trigger validation
 
