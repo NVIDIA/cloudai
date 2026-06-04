@@ -316,7 +316,8 @@ wait_for_phase_completion() {{
             '    echo "All NIXL EP launches completed successfully"',
             "fi",
             "",
-            "exit $rc",
+            'echo "NIXL EP launcher exiting with rc=$rc"',
+            'exit "$rc"',
         ]
 
     @classmethod
@@ -470,7 +471,9 @@ wait_for_phase_completion() {{
             "",
             "on_nixl_ep_signal() {",
             '    local rc="$1"',
+            '    echo "NIXL EP launcher received signal, rc=$rc"',
             "    cleanup_nixl_ep",
+            '    echo "NIXL EP launcher exiting with rc=$rc"',
             '    exit "$rc"',
             "}",
             "",

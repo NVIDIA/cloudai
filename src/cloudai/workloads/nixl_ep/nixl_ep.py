@@ -27,6 +27,11 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from .log_parsing import parse_nixl_ep_bandwidth_samples
 
 GENERATED_PLAN_FILE_NAME = "nixl-ep-plan.json"
+LAUNCHER_EXIT_MARKER = "NIXL EP launcher exiting with rc="
+LAUNCHER_START_MARKERS = (
+    "Starting initial NIXL EP stage",
+    "Starting NIXL EP on the master node",
+)
 
 
 class NixlEPCmdArgs(CmdArgs):
@@ -217,6 +222,25 @@ class NixlEPTestDefinition(TestDefinition):
 
         return JobStatusResult(is_successful=False, error_message=error_message)
 
+    def _check_launcher_terminal_verdict(self, stdout_path: Path) -> JobStatusResult | None:
+        if not stdout_path.is_file():
+            return None
+
+        content = stdout_path.read_text(encoding="utf-8", errors="ignore")
+        if LAUNCHER_EXIT_MARKER in content:
+            return None
+        if not any(marker in content for marker in LAUNCHER_START_MARKERS):
+            return None
+
+        tail = self._tail(stdout_path)
+        error_message = (
+            "The NIXL EP launcher started but exited before printing its terminal verdict. "
+            f"Expected '{LAUNCHER_EXIT_MARKER}<rc>' in {stdout_path}."
+        )
+        if tail:
+            error_message += f"\n{tail}"
+        return JobStatusResult(is_successful=False, error_message=error_message)
+
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
         expected_node_logs = [tr.output_path / f"nixl-ep-node-{node_idx}.log" for node_idx in range(tr.nnodes)]
@@ -241,5 +265,9 @@ class NixlEPTestDefinition(TestDefinition):
         benchmark_output_result = self._check_benchmark_output(expected_node_logs)
         if benchmark_output_result is not None:
             return benchmark_output_result
+
+        launcher_verdict_result = self._check_launcher_terminal_verdict(output_path / "stdout.txt")
+        if launcher_verdict_result is not None:
+            return launcher_verdict_result
 
         return JobStatusResult(is_successful=True)

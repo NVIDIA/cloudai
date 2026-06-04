@@ -69,6 +69,39 @@ class TestNixlEPStatusCheck:
         assert result.is_successful
         assert result.error_message == ""
 
+    def test_successful_job_with_launcher_terminal_verdict(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(num_nodes(nixl_ep_tr)):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "stdout.txt").write_text(
+            "Starting initial NIXL EP stage on the master node...\n"
+            "All NIXL EP launches completed successfully\n"
+            "NIXL EP launcher exiting with rc=0\n",
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert result.is_successful
+
+    def test_started_launcher_without_terminal_verdict_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(num_nodes(nixl_ep_tr)):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "stdout.txt").write_text(
+            "Starting initial NIXL EP stage on the master node...\nStarting launches for phase 3...\n",
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "exited before printing its terminal verdict" in result.error_message
+
     def test_planned_srun_termination_is_ignored_when_benchmark_output_exists(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         for node_idx in range(num_nodes(nixl_ep_tr)):

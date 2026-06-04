@@ -513,6 +513,8 @@ def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_syste
     assert "jobs -pr" in launcher_script
     assert 'scancel --signal=TERM "$SLURM_JOB_ID"' in launcher_script
     assert 'scancel --signal=KILL "$SLURM_JOB_ID"' in launcher_script
+    assert "NIXL EP launcher exiting with rc=$rc" in launcher_script
+    assert "NIXL EP launcher received signal, rc=$rc" in launcher_script
     assert "kill -TERM" not in launcher_script
     assert "kill -KILL" not in launcher_script
 
@@ -872,7 +874,8 @@ def test_gen_srun_command_single_launch_reports_success(
     assert "master_ip=$(" in launcher_script
     assert 'echo "All NIXL EP launches completed successfully"' in launcher_script
     assert 'if [ "$rc" -eq 0 ]; then' in launcher_script
-    assert "exit $rc" in launcher_script
+    assert 'echo "NIXL EP launcher exiting with rc=$rc"' in launcher_script
+    assert 'exit "$rc"' in launcher_script
 
 
 def test_gen_exec_command_matches_reference(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
