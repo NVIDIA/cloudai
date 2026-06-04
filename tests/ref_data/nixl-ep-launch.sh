@@ -12,6 +12,36 @@ echo "Num Nodes: ${#nodes_array[@]}"
 echo "Master Node: $master_node"
 echo "Master IP: $master_ip"
 
+wait_for_launch_step_id() {
+    local step_name="$1"
+    local step_id
+    for _ in {1..10}; do
+        step_id=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" | awk -v step_name="$step_name" '$2 == step_name { print $1; exit }')
+        if [ -n "$step_id" ]; then
+            echo "$step_id"
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+signal_nixl_ep_steps() {
+    local signal="$1"
+    local idx
+    local step_id
+    for idx in "${!launch_step_names[@]}"; do
+        step_id="${launch_step_ids[$idx]:-}"
+        if [ -z "$step_id" ]; then
+            step_id="$(wait_for_launch_step_id "${launch_step_names[$idx]}" || true)"
+            launch_step_ids[$idx]="$step_id"
+        fi
+        if [ -n "$step_id" ]; then
+            scancel --signal="$signal" "$step_id" >/dev/null 2>&1 || true
+        fi
+    done
+}
+
 cleanup_nixl_ep() {
     local pids
     pids="$(jobs -pr)"
@@ -19,11 +49,11 @@ cleanup_nixl_ep() {
         return 0
     fi
     echo "Cleaning up NIXL EP background launches..."
-    scancel --signal=TERM "$SLURM_JOB_ID" >/dev/null 2>&1 || true
+    signal_nixl_ep_steps "TERM"
     sleep 2
     pids="$(jobs -pr)"
     if [ -n "$pids" ]; then
-        scancel --signal=KILL "$SLURM_JOB_ID" >/dev/null 2>&1 || true
+        signal_nixl_ep_steps "KILL"
     fi
     wait >/dev/null 2>&1 || true
 }
@@ -86,12 +116,18 @@ wait_for_phase_completion() {
 }
 
 launch_pids=()
+launch_step_names=()
+launch_step_ids=()
 launch_expected_removal=()
 
 echo "Starting initial NIXL EP stage on the master node..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist="${nodes_array[0]}" --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/output/nixl-ep-node-0.log --error=__OUTPUT_DIR__/output/nixl-ep-node-0.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 4 --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
+launch_step_names+=( "nixl-ep-p0-l0" )
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --job-name=nixl-ep-p0-l0 --nodelist="${nodes_array[0]}" --ntasks-per-node=1 --ntasks=1 -N1 --output=__OUTPUT_DIR__/output/nixl-ep-node-0.log --error=__OUTPUT_DIR__/output/nixl-ep-node-0.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 4 --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
 primary_pid=$!
 launch_pids+=( "$primary_pid" )
+launch_step_id="$(wait_for_launch_step_id "nixl-ep-p0-l0" || true)"
+echo "NIXL EP launch nixl-ep-p0-l0 step ID: ${launch_step_id:-unknown}"
+launch_step_ids+=( "$launch_step_id" )
 launch_expected_removal+=( "0" )
 
 echo "Waiting for NIXL EP master services..."
@@ -101,16 +137,24 @@ echo "Waiting for phase 0 before starting phase 1..."
 wait_for_phase_completion "0" "__OUTPUT_DIR__/output/nixl-ep-node-0.log" "$primary_pid" || exit 1
 
 echo "Starting launches for phase 1..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist="${nodes_array[1]}" --ntasks-per-node=1 --ntasks=1 -N1 --open-mode=append --output=__OUTPUT_DIR__/output/nixl-ep-node-1.log --error=__OUTPUT_DIR__/output/nixl-ep-node-1.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 4 --tcp-server $master_ip --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
+launch_step_names+=( "nixl-ep-p1-l0" )
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --job-name=nixl-ep-p1-l0 --nodelist="${nodes_array[1]}" --ntasks-per-node=1 --ntasks=1 -N1 --open-mode=append --output=__OUTPUT_DIR__/output/nixl-ep-node-1.log --error=__OUTPUT_DIR__/output/nixl-ep-node-1.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 4 --tcp-server $master_ip --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
 launch_pids+=( "$!" )
+launch_step_id="$(wait_for_launch_step_id "nixl-ep-p1-l0" || true)"
+echo "NIXL EP launch nixl-ep-p1-l0 step ID: ${launch_step_id:-unknown}"
+launch_step_ids+=( "$launch_step_id" )
 launch_expected_removal+=( "1" )
 
 echo "Waiting for phase 2 before starting phase 3..."
 wait_for_phase_completion "2" "__OUTPUT_DIR__/output/nixl-ep-node-0.log" "$primary_pid" || exit 1
 
 echo "Starting launches for phase 3..."
-srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist="${nodes_array[2]}" --ntasks-per-node=1 --ntasks=1 -N1 --open-mode=append --output=__OUTPUT_DIR__/output/nixl-ep-node-2.log --error=__OUTPUT_DIR__/output/nixl-ep-node-2.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 2 --tcp-server $master_ip --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
+launch_step_names+=( "nixl-ep-p3-l0" )
+srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --job-name=nixl-ep-p3-l0 --nodelist="${nodes_array[2]}" --ntasks-per-node=1 --ntasks=1 -N1 --open-mode=append --output=__OUTPUT_DIR__/output/nixl-ep-node-2.log --error=__OUTPUT_DIR__/output/nixl-ep-node-2.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 2 --tcp-server $master_ip --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
 launch_pids+=( "$!" )
+launch_step_id="$(wait_for_launch_step_id "nixl-ep-p3-l0" || true)"
+echo "NIXL EP launch nixl-ep-p3-l0 step ID: ${launch_step_id:-unknown}"
+launch_step_ids+=( "$launch_step_id" )
 launch_expected_removal+=( "0" )
 
 pending_term=0

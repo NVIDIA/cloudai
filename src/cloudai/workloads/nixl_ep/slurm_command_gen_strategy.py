@@ -35,6 +35,7 @@ class NixlEPLaunch:
     node_idx: int
     num_processes: int
     include_tcp_server: bool
+    step_name: str = ""
     append_output: bool = False
     rank_ids: tuple[int, ...] = ()
     expects_planned_removal: bool = False
@@ -163,6 +164,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     node_idx=node_idx,
                     num_processes=assignable,
                     include_tcp_server=(not is_initial_phase) or node_idx != 0,
+                    step_name=f"nixl-ep-p{phase_idx}-l{len(launches)}",
                     append_output=not is_initial_phase,
                     rank_ids=rank_ids,
                     expects_planned_removal=any(rank in planned_removal_ranks for rank in rank_ids),
@@ -236,11 +238,13 @@ wait_for_master_services() {{
     return 1
 }}"""
 
-    def _launch_srun_prefix(self, node_idx: int) -> str:
+    def _launch_srun_prefix(self, launch: NixlEPLaunch) -> str:
+        node_idx = launch.node_idx
         target_arg = f'--nodelist="${{nodes_array[{node_idx}]}}"'
         parts = [
             *self.gen_srun_prefix(with_num_nodes=False),
             "--overlap",
+            f"--job-name={launch.step_name}",
             target_arg,
             "--ntasks-per-node=1",
             "--ntasks=1",
@@ -255,7 +259,7 @@ wait_for_master_services() {{
         open_mode_arg = " --open-mode=append" if launch.append_output else ""
         script = f"source {shlex.quote(str(env_file))}; {command}".replace('"', '\\"')
         return (
-            f"{self._launch_srun_prefix(launch.node_idx)}{open_mode_arg} "
+            f"{self._launch_srun_prefix(launch)}{open_mode_arg} "
             f'--output={log_file} --error={log_file} bash -c "{script}"'
         )
 
@@ -302,8 +306,12 @@ wait_for_phase_completion() {{
             expected_removal = "1" if launch.expects_planned_removal else "0"
             lines.extend(
                 [
+                    f'launch_step_names+=( "{launch.step_name}" )',
                     self._render_launch(launch) + " &",
                     'launch_pids+=( "$!" )',
+                    f'launch_step_id="$(wait_for_launch_step_id "{launch.step_name}" || true)"',
+                    f'echo "NIXL EP launch {launch.step_name} step ID: ${{launch_step_id:-unknown}}"',
+                    'launch_step_ids+=( "$launch_step_id" )',
                     f'launch_expected_removal+=( "{expected_removal}" )',
                 ]
             )
@@ -398,12 +406,18 @@ wait_for_phase_completion() {{
         master_service_lines = self._wait_for_master_services_lines() if has_followers else []
         header_lines = [
             "launch_pids=()",
+            "launch_step_names=()",
+            "launch_step_ids=()",
             "launch_expected_removal=()",
             "",
             'echo "Starting initial NIXL EP stage on the master node..."',
+            f'launch_step_names+=( "{primary_launch.step_name}" )',
             self._render_launch(primary_launch) + " &",
             "primary_pid=$!",
             'launch_pids+=( "$primary_pid" )',
+            f'launch_step_id="$(wait_for_launch_step_id "{primary_launch.step_name}" || true)"',
+            f'echo "NIXL EP launch {primary_launch.step_name} step ID: ${{launch_step_id:-unknown}}"',
+            'launch_step_ids+=( "$launch_step_id" )',
             f'launch_expected_removal+=( "{expected_removal}" )',
         ]
         return header_lines + master_service_lines + self._initial_follower_launch_lines(stage)
@@ -453,6 +467,37 @@ wait_for_phase_completion() {{
     @staticmethod
     def _cleanup_function_lines() -> list[str]:
         return [
+            "wait_for_launch_step_id() {",
+            '    local step_name="$1"',
+            "    local step_id",
+            "    for _ in {1..10}; do",
+            '        step_id=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" '
+            "| awk -v step_name=\"$step_name\" '$2 == step_name { print $1; exit }')",
+            '        if [ -n "$step_id" ]; then',
+            '            echo "$step_id"',
+            "            return 0",
+            "        fi",
+            "        sleep 1",
+            "    done",
+            "    return 1",
+            "}",
+            "",
+            "signal_nixl_ep_steps() {",
+            '    local signal="$1"',
+            "    local idx",
+            "    local step_id",
+            '    for idx in "${!launch_step_names[@]}"; do',
+            '        step_id="${launch_step_ids[$idx]:-}"',
+            '        if [ -z "$step_id" ]; then',
+            '            step_id="$(wait_for_launch_step_id "${launch_step_names[$idx]}" || true)"',
+            '            launch_step_ids[$idx]="$step_id"',
+            "        fi",
+            '        if [ -n "$step_id" ]; then',
+            '            scancel --signal="$signal" "$step_id" >/dev/null 2>&1 || true',
+            "        fi",
+            "    done",
+            "}",
+            "",
             "cleanup_nixl_ep() {",
             "    local pids",
             '    pids="$(jobs -pr)"',
@@ -460,11 +505,11 @@ wait_for_phase_completion() {{
             "        return 0",
             "    fi",
             '    echo "Cleaning up NIXL EP background launches..."',
-            '    scancel --signal=TERM "$SLURM_JOB_ID" >/dev/null 2>&1 || true',
+            '    signal_nixl_ep_steps "TERM"',
             "    sleep 2",
             '    pids="$(jobs -pr)"',
             '    if [ -n "$pids" ]; then',
-            '        scancel --signal=KILL "$SLURM_JOB_ID" >/dev/null 2>&1 || true',
+            '        signal_nixl_ep_steps "KILL"',
             "    fi",
             "    wait >/dev/null 2>&1 || true",
             "}",
