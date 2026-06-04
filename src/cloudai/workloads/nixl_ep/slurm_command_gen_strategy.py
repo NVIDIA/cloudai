@@ -472,7 +472,7 @@ wait_for_phase_completion() {{
             "    local step_id",
             "    for _ in {1..10}; do",
             '        step_id=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" '
-            "| awk -v step_name=\"$step_name\" '$2 == step_name { print $1; exit }')",
+            + "| awk -v step_name=\"$step_name\" '$2 == step_name { print $1; exit }')",
             '        if [ -n "$step_id" ]; then',
             '            echo "$step_id"',
             "            return 0",
