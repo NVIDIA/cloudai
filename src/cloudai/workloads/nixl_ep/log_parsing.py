@@ -31,8 +31,10 @@ _COMBINED_BW_RE = re.compile(
 )
 _KINETO_BW_RE = re.compile(
     rf"\[rank (?P<rank>\d+)\] Dispatch bandwidth: "
-    rf"(?P<dispatch_bandwidth>{_FLOAT_RE}) GB/s \| "
+    rf"(?P<dispatch_bandwidth>{_FLOAT_RE}) GB/s"
+    rf"(?:, avg_t={_FLOAT_RE} us)? \| "
     rf"Combine bandwidth: (?P<combine_bandwidth>{_FLOAT_RE}) GB/s"
+    rf"(?:, avg_t={_FLOAT_RE} us)?"
 )
 
 
