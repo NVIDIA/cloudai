@@ -136,6 +136,7 @@ def register_all():
         NIXLBenchTestDefinition,
     )
     from cloudai.workloads.nixl_ep import (
+        NixlEPComparisonReport,
         NixlEPReportGenerationStrategy,
         NixlEPSlurmCommandGenStrategy,
         NixlEPTestDefinition,
@@ -320,6 +321,11 @@ def register_all():
         "nixl_bench_summary",
         NIXLBenchComparisonReport,
         ComparisonReportConfig(enable=True, group_by=["backend", "op_type"]),
+    )
+    Registry().add_scenario_report(
+        "nixl_ep_comparison",
+        NixlEPComparisonReport,
+        ComparisonReportConfig(enable=True),
     )
     Registry().add_scenario_report(
         "nccl_comparison", NcclComparisonReport, ComparisonReportConfig(enable=True, group_by=["subtest_name"])
