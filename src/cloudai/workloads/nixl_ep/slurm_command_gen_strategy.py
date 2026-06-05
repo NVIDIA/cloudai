@@ -111,6 +111,9 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._validate_requested_processes(counts)
         return counts
 
+    def _has_planned_rank_removal(self) -> bool:
+        return any(rank < 0 for phase in self.tdef.cmd_args.parse_plan() for rank in phase)
+
     def _validate_requested_processes(self, new_process_counts: list[int]) -> None:
         total_requested_processes = sum(new_process_counts)
         num_nodes, _ = self.get_cached_nodes_spec()
@@ -302,22 +305,42 @@ wait_for_phase_completion() {{
             "exit $rc",
         ]
 
-    @classmethod
-    def _wait_for_workers_lines(cls) -> list[str]:
-        return [
+    def _wait_for_workers_lines(self) -> list[str]:
+        allow_planned_removal_143 = "1" if self._has_planned_rank_removal() else "0"
+        final_phase = len(self.tdef.cmd_args.parse_plan()) - 1
+        lines = [
             "",
+            f"allow_planned_removal_143={allow_planned_removal_143}",
+            "ignored_planned_removal_143=0",
             "rc=0",
             'while [ "$active_srun_count" -gt 0 ]; do',
             "    wait -n",
             "    wait_rc=$?",
             "    active_srun_count=$((active_srun_count - 1))",
-            '    if [ "$wait_rc" -ne 0 ] && [ "$rc" -eq 0 ]; then',
+            '    if [ "$allow_planned_removal_143" -eq 1 ] && [ "$wait_rc" -eq 143 ]; then',
+            '        echo "Ignoring provisional NIXL EP planned-rank-removal exit 143"',
+            "        ignored_planned_removal_143=1",
+            '    elif [ "$wait_rc" -ne 0 ] && [ "$rc" -eq 0 ]; then',
             "        rc=$wait_rc",
             "    fi",
             "done",
             "",
-            *cls._finish_with_rc_lines(),
         ]
+        if self._has_planned_rank_removal():
+            final_phase_wait = (
+                f'    wait_for_phase_completion "{final_phase}" "{self.node_log_path(0).absolute()}" "$primary_pid" '
+                "|| rc=143"
+            )
+            lines.extend(
+                [
+                    'if [ "$ignored_planned_removal_143" -eq 1 ] && [ "$rc" -eq 0 ]; then',
+                    final_phase_wait,
+                    "fi",
+                    "",
+                ]
+            )
+        lines.extend(self._finish_with_rc_lines())
+        return lines
 
     @staticmethod
     def _has_follower_launches(stages: list[NixlEPStage]) -> bool:

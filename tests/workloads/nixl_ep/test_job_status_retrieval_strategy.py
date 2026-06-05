@@ -69,6 +69,51 @@ class TestNixlEPStatusCheck:
         assert result.is_successful
         assert result.error_message == ""
 
+    def test_planned_srun_termination_is_ignored_when_benchmark_output_exists(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(num_nodes(nixl_ep_tr)):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "stderr.txt").write_text(
+            "\n".join(
+                [
+                    "srun: error: node001: task 0: Terminated",
+                    "srun: Terminating StepId=123.4",
+                    "srun: Force Terminated StepId=123.4",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert result.is_successful
+
+    def test_unplanned_srun_termination_is_reported(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        test_def = cast(NixlEPTestDefinition, nixl_ep_tr.test)
+        test_def.cmd_args = NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
+            plan="[[0, 1], [0, 1, 2, 3]]",
+            num_processes_per_node=4,
+        )
+        for node_idx in range(num_nodes(nixl_ep_tr)):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "stderr.txt").write_text(
+            "srun: error: node001: task 0: Terminated\n",
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "srun failure" in result.error_message
+
     def test_launcher_path_error_is_reported(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(

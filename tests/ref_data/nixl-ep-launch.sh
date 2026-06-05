@@ -107,15 +107,24 @@ echo "Starting launches for phase 3..."
 srun --export=ALL --mpi=pmix --container-image=docker.io/nvidia/nixl-ep:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist="${nodes_array[2]}" --ntasks-per-node=1 --ntasks=1 -N1 --open-mode=append --output=__OUTPUT_DIR__/output/nixl-ep-node-2.log --error=__OUTPUT_DIR__/output/nixl-ep-node-2.log bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python3 /workspace/nixl/examples/device/ep/tests/elastic/elastic.py --plan __OUTPUT_DIR__/output/nixl-ep-plan.json --num-processes 2 --tcp-server $master_ip --disable-ll-nvlink --hidden-dim 8192 --kineto --num-experts-per-rank 4 --num-tokens 256 --num-topk 6" &
 active_srun_count=$((active_srun_count + 1))
 
+allow_planned_removal_143=1
+ignored_planned_removal_143=0
 rc=0
 while [ "$active_srun_count" -gt 0 ]; do
     wait -n
     wait_rc=$?
     active_srun_count=$((active_srun_count - 1))
-    if [ "$wait_rc" -ne 0 ] && [ "$rc" -eq 0 ]; then
+    if [ "$allow_planned_removal_143" -eq 1 ] && [ "$wait_rc" -eq 143 ]; then
+        echo "Ignoring provisional NIXL EP planned-rank-removal exit 143"
+        ignored_planned_removal_143=1
+    elif [ "$wait_rc" -ne 0 ] && [ "$rc" -eq 0 ]; then
         rc=$wait_rc
     fi
 done
+
+if [ "$ignored_planned_removal_143" -eq 1 ] && [ "$rc" -eq 0 ]; then
+    wait_for_phase_completion "3" "__OUTPUT_DIR__/output/nixl-ep-node-0.log" "$primary_pid" || rc=143
+fi
 
 if [ "$rc" -eq 0 ]; then
     echo "All NIXL EP launches completed successfully"

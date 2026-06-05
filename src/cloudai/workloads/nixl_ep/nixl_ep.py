@@ -149,8 +149,26 @@ class NixlEPTestDefinition(TestDefinition):
 
         return f"The primary NIXL EP launch exited before phase {phase} completed."
 
+    @staticmethod
+    def _looks_like_planned_srun_termination(content: str) -> bool:
+        allowed_patterns = (
+            re.compile(r"^srun: error: .+: task \d+: Terminated$"),
+            re.compile(r"^srun: Terminating StepId=\S+$"),
+            re.compile(r"^srun: Force Terminated StepId=\S+$"),
+        )
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        return bool(lines) and all(any(pattern.match(line) for pattern in allowed_patterns) for line in lines)
+
+    def _has_planned_rank_removal(self) -> bool:
+        plans = self.cmd_args.plan if isinstance(self.cmd_args.plan, list) else [self.cmd_args.plan]
+        return any(rank < 0 for plan in plans for phase in NixlEPCmdArgs._parse_plan(plan) for rank in phase)
+
     def _scan_log_for_failures(self, path: Path) -> JobStatusResult | None:
         if not path.is_file():
+            return None
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        if self._has_planned_rank_removal() and self._looks_like_planned_srun_termination(content):
             return None
 
         launcher_failure_patterns = (
@@ -164,7 +182,6 @@ class NixlEPTestDefinition(TestDefinition):
             ("srun: error:", "Slurm reported an srun failure."),
             ("Exited with exit code", "A Slurm step exited with a non-zero status."),
         )
-        content = path.read_text(encoding="utf-8", errors="ignore")
         primary_launch_error = self._primary_launch_exit_error_message(content)
         if primary_launch_error is not None:
             tail = self._tail(path)

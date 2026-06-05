@@ -747,6 +747,66 @@ def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_bef
     assert launcher_script.count("--open-mode=append") == 1
 
 
+def test_gen_srun_command_planned_rank_removal_tolerates_143_after_final_phase(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=json.dumps([[0, 1], [0, 1, 2, 3], [0, -2, 3], [0, 1, 2, 3]]),
+            num_processes_per_node=3,
+        ),
+    )
+    test_run = TestRun(
+        name="nixl-ep",
+        num_nodes=2,
+        nodes=[],
+        test=tdef,
+        output_path=slurm_system.output_path,
+    )
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    launcher_script = read_launcher_script(strategy)
+
+    assert "allow_planned_removal_143=1" in launcher_script
+    assert 'if [ "$allow_planned_removal_143" -eq 1 ] && [ "$wait_rc" -eq 143 ]; then' in launcher_script
+    assert "Ignoring provisional NIXL EP planned-rank-removal exit 143" in launcher_script
+    assert 'wait_for_phase_completion "3"' in launcher_script
+    assert "|| rc=143" in launcher_script
+
+
+def test_gen_srun_command_without_planned_rank_removal_keeps_143_fatal(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=SINGLE_EXPANSION_PLAN_STR,
+            num_processes_per_node=4,
+        ),
+    )
+    test_run = TestRun(
+        name="nixl-ep",
+        num_nodes=2,
+        nodes=[],
+        test=tdef,
+        output_path=slurm_system.output_path,
+    )
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    launcher_script = read_launcher_script(strategy)
+
+    assert "allow_planned_removal_143=0" in launcher_script
+    assert "Ignoring provisional NIXL EP planned-rank-removal exit 143" in launcher_script
+    assert 'wait_for_phase_completion "1"' not in launcher_script
+
+
 def test_gen_srun_command_multi_node_single_stage_starts_followers(
     slurm_system: SlurmSystem,
 ) -> None:
