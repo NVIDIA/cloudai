@@ -279,6 +279,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 container_path = _installed_container_path()
 
         mounts: list[str] = [str(m).strip() for m in (tdef.extra_container_mounts or []) if str(m).strip()]
+        output_dir = self.test_run.output_path.absolute()
+        mounts.append(f"{output_dir}:{self.CONTAINER_MOUNT_OUTPUT}")
 
         # When the user sets mount_as on the Megatron-Bridge git repo, bind-mount the
         # installed clone into the container to override the image's built-in copy.
