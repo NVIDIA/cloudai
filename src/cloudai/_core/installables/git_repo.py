@@ -61,12 +61,15 @@ class GitRepo(Installable, BaseModel):
 
     def check_submodules_state(self, repo_path: Path) -> tuple[bool, str]:
         """Check if submodules state in the cloned repo matches self.init_submodules."""
-        result = subprocess.run(
-            ["git", "submodule", "status", "--recursive"],
-            cwd=str(repo_path),
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "submodule", "status", "--recursive"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+            )
+        except OSError as e:
+            return False, f"Failed to get submodule status: {e}"
         if result.returncode != 0:
             return False, f"Failed to get submodule status: {result.stderr}"
         output = [line for line in result.stdout.splitlines() if line.strip()]
@@ -92,9 +95,12 @@ class GitRepo(Installable, BaseModel):
             return False, submodules_are_ok_msg
 
         cmd = ["update", "--init", "--recursive"] if self.init_submodules else ["deinit", "--all", "--force"]
-        result = subprocess.run(["git", "submodule", *cmd], cwd=str(repo_path), capture_output=True, text=True)
+        action = "initialize" if self.init_submodules else "deinitialize"
+        try:
+            result = subprocess.run(["git", "submodule", *cmd], cwd=str(repo_path), capture_output=True, text=True)
+        except OSError as e:
+            return False, f"Failed to {action} submodules: {e}"
         if result.returncode != 0:
-            action = "initialize" if self.init_submodules else "deinitialize"
             return False, f"Failed to {action} submodules: {result.stderr}"
 
         return True, ""
@@ -182,14 +188,20 @@ class GitRepo(Installable, BaseModel):
         clone_cmd.extend([self.url, str(path)])
 
         logging.debug(f"Running git clone command: {' '.join(clone_cmd)}")
-        result = subprocess.run(clone_cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(clone_cmd, capture_output=True, text=True)
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to clone repository: {e}")
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
         return InstallStatusResult(True)
 
     def _checkout_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
         logging.debug(f"Checking out specific commit in {path}: {commit_hash}")
-        result = subprocess.run(["git", "checkout", commit_hash], cwd=str(path), capture_output=True, text=True)
+        try:
+            result = subprocess.run(["git", "checkout", commit_hash], cwd=str(path), capture_output=True, text=True)
+        except OSError as e:
+            return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {e}")
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to checkout commit {commit_hash}: {result.stderr}")
         return InstallStatusResult(True)
