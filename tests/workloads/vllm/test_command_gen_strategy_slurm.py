@@ -357,7 +357,7 @@ SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{cmd_args.port}/healthcheck" || exit 1
+wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -392,6 +392,20 @@ cleanup
         assert srun_command.count("bash -c ") == 1
         assert "echo bench setup; exec vllm bench serve" in srun_command
         assert "echo bench setup; exec vllm serve" not in srun_command
+
+    def test_custom_healthcheck_endpoints(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.cmd_args.healthcheck = "/ready"
+        vllm_tr.test = vllm
+        aggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${NODE}:8000/ready"' in aggregated
+
+        vllm.cmd_args.prefill = VllmArgs()
+        vllm.cmd_args.proxy_healthcheck = "/router-ready"
+        vllm_tr.num_nodes = 2
+        disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${PREFILL_NODE}:8000/router-ready"' in disaggregated
 
 
 class TestVllmDisaggregatedMode:

@@ -642,6 +642,11 @@ trap cleanup EXIT"""
         return f"{self.workload_slug}-{self.proxy_router_name}.log"
 
     @property
+    def proxy_router_healthcheck(self) -> str:
+        """Healthcheck endpoint for the helper/proxy process in disaggregated mode."""
+        return self.tdef.cmd_args.healthcheck
+
+    @property
     def bench_log_file(self) -> str:
         """Benchmark log file name."""
         return f"{self.workload_slug}-bench.log"
@@ -833,7 +838,7 @@ echo "Running benchmark..."
         )
         wait_block_helper = self.generate_wait_for_health_block(
             self.workload_name,
-            [f"http://{self.disaggregated_role_host('prefill')}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"],
+            [f"http://{self.disaggregated_role_host('prefill')}:{self.serve_port}{self.proxy_router_healthcheck}"],
             host_setup="",
             host_display="$PREFILL_NODE server",
         )

@@ -108,7 +108,7 @@ exit 1' &
 SERVE_PID=$!
 
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${NODE}:8300/healthcheck" || exit 1
+wait_for_health "http://${NODE}:8300/health" || exit 1
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \

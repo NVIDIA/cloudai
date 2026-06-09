@@ -125,6 +125,10 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             pid_vars.insert(insert_at, "DECODE_RAY_PID")
         return pid_vars
 
+    @property
+    def proxy_router_healthcheck(self) -> str:
+        return self.tdef.cmd_args.proxy_healthcheck
+
     def render_serve_launch(
         self,
         role: str,
