@@ -53,29 +53,6 @@ wait_for_health() {
 
 export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 export SERVE_RAY_PORT=$((6379 + PORT_OFFSET))
-
-wait_for_ray_cluster() {
-    local head_node="$1"
-    local ray_port="$2"
-    local expected_nodes="$3"
-    local timeout=300
-    local interval=5
-    local end_time=$(($(date +%s) + timeout))
-
-    while [ "$(date +%s)" -lt "$end_time" ]; do
-        if srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="$head_node" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
-            python3 -c 'import ray, sys; ray.init(address=f"{sys.argv[1]}:{sys.argv[2]}"); sys.exit(0 if len(ray.nodes()) >= int(sys.argv[3]) else 1)' \
-            "$head_node" "$ray_port" "$expected_nodes"; then
-            echo "Ray cluster is ready on $head_node:$ray_port with $expected_nodes nodes"
-            return 0
-        fi
-        sleep "$interval"
-    done
-
-    echo "Timeout waiting for Ray cluster on $head_node:$ray_port"
-    return 1
-}
-
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
 SERVE_NODES=( "${NODES[@]:0:2}" )
 if [ "${#SERVE_NODES[@]}" -ne 2 ]; then
@@ -90,21 +67,44 @@ echo "Node roles: serve=${SERVE_NODES[*]}"
 echo "Starting vLLM instances..."
 (
     trap 'kill -TERM $(jobs -pr) 2>/dev/null' TERM EXIT
-    srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
-        --output=__OUTPUT_DIR__/output/vllm-serve-ray-head.log \
-        bash -c "ray stop --force >/dev/null 2>&1 || true; exec ray start --head --port=${SERVE_RAY_PORT} --block" &
     for node in "${SERVE_NODES[@]:1}"; do
         srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="$node" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
             --output=__OUTPUT_DIR__/output/vllm-serve-ray-worker-%N.log \
-            bash -c "ray stop --force >/dev/null 2>&1 || true; exec ray start --address=${SERVE_NODE}:${SERVE_RAY_PORT} --block" &
+            bash -lc 'ray stop --force >/dev/null 2>&1 || true
+for (( i=0; i < 300; i+=5 )); do
+    if ray start --address=${SERVE_NODE}:${SERVE_RAY_PORT} --block; then
+        echo "Ray worker connected to ${SERVE_NODE}:${SERVE_RAY_PORT}"
+        exit 0
+    fi
+    echo "Waiting until the Ray worker can connect to ${SERVE_NODE}:${SERVE_RAY_PORT}..."
+    sleep 5
+done
+echo "Ray worker startup timed out for ${SERVE_NODE}:${SERVE_RAY_PORT}"
+exit 1' &
     done
     wait
 ) &
 SERVE_RAY_PID=$!
-wait_for_ray_cluster "${SERVE_NODE}" "${SERVE_RAY_PORT}" "2" || exit 1
 srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
     --output=__OUTPUT_DIR__/output/vllm-serve.log \
-    env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --tensor-parallel-size 2 --port 8300 --distributed-executor-backend ray &
+    --error=__OUTPUT_DIR__/output/vllm-serve-ray-head.log \
+    bash -lc 'ray stop --force >/dev/null 2>&1 || true
+ray start --head --port="${SERVE_RAY_PORT}"
+
+active_nodes=0
+for (( i=0; i < 300; i+=5 )); do
+    active_nodes=$(python3 -c '"'"'import ray; ray.init(); print(sum(node["Alive"] for node in ray.nodes()))'"'"')
+    if [ "$active_nodes" -eq "2" ]; then
+        echo "All Ray workers are active: $active_nodes/2"
+        ray status || true
+        exec env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --tensor-parallel-size 2 --port 8300 --distributed-executor-backend ray
+    fi
+    echo "Waiting for Ray workers: $active_nodes/2 active"
+    sleep 5
+done
+
+echo "Waiting for Ray workers timed out: $active_nodes/2 active"
+exit 1' &
 SERVE_PID=$!
 
 echo "Waiting for vLLM on $NODE to be ready..."

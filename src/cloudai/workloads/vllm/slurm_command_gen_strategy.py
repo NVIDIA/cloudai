@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import shlex
 from typing import Any, cast
 
 from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
@@ -88,55 +89,21 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
         return commands
 
-    def _ray_wait_function(self) -> str:
-        srun_prefix = " ".join(self.gen_srun_prefix(with_num_nodes=False))
-        ray_node_count_check = (
-            "import ray, sys; "
-            'ray.init(address=f"{sys.argv[1]}:{sys.argv[2]}"); '
-            "sys.exit(0 if len(ray.nodes()) >= int(sys.argv[3]) else 1)"
-        )
-        return f"""\
-wait_for_ray_cluster() {{
-    local head_node="$1"
-    local ray_port="$2"
-    local expected_nodes="$3"
-    local timeout={self.tdef.cmd_args.serve_wait_seconds}
-    local interval=5
-    local end_time=$(($(date +%s) + timeout))
-
-    while [ "$(date +%s)" -lt "$end_time" ]; do
-        if {srun_prefix} --overlap --nodelist="$head_node" --nodes=1 --ntasks=1 --ntasks-per-node=1 \\
-            python3 -c '{ray_node_count_check}' \\
-            "$head_node" "$ray_port" "$expected_nodes"; then
-            echo "Ray cluster is ready on $head_node:$ray_port with $expected_nodes nodes"
-            return 0
-        fi
-        sleep "$interval"
-    done
-
-    echo "Timeout waiting for Ray cluster on $head_node:$ray_port"
-    return 1
-}}
-
-"""
-
     def aggregated_script_preamble(self) -> str:
         if not self._needs_ray("serve"):
             return ""
-        return f"""\
+        return """\
 export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 export SERVE_RAY_PORT=$((6379 + PORT_OFFSET))
-
-{self._ray_wait_function()}"""
+"""
 
     def disaggregated_script_preamble(self) -> str:
         ray_preamble = ""
         if self._needs_ray("prefill") or self._needs_ray("decode"):
-            ray_preamble = f"""\
+            ray_preamble = """\
 export PREFILL_RAY_PORT=$((6379 + PORT_OFFSET))
 export DECODE_RAY_PORT=$((7379 + PORT_OFFSET))
-
-{self._ray_wait_function()}"""
+"""
         return f"""\
 export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
@@ -184,33 +151,56 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         worker_prefix = self._role_srun_prefix("$node")
         head_prefix = self._single_role_srun_prefix(head_node_var)
         serve_cmd = self._with_custom_bash(f'env RAY_ADDRESS="{head_node_expr}:${{{ray_port_var}}}" {command_tail}')
-        ray_head_command = (
-            'bash -c "ray stop --force >/dev/null 2>&1 || true; '
-            f'exec ray start --head --port=${{{ray_port_var}}} --block"'
+        ray_head_command = shlex.quote(
+            f"""\
+ray stop --force >/dev/null 2>&1 || true
+ray start --head --port="${{{ray_port_var}}}"
+
+active_nodes=0
+for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
+    active_nodes=$(python3 -c 'import ray; ray.init(); print(sum(node["Alive"] for node in ray.nodes()))')
+    if [ "$active_nodes" -eq "{node_count}" ]; then
+        echo "All Ray workers are active: $active_nodes/{node_count}"
+        ray status || true
+        exec {serve_cmd}
+    fi
+    echo "Waiting for Ray workers: $active_nodes/{node_count} active"
+    sleep 5
+done
+
+echo "Waiting for Ray workers timed out: $active_nodes/{node_count} active"
+exit 1"""
         )
-        ray_worker_command = (
-            'bash -c "ray stop --force >/dev/null 2>&1 || true; '
-            f'exec ray start --address={head_node_expr}:${{{ray_port_var}}} --block"'
+        ray_worker_command = shlex.quote(
+            f"""\
+ray stop --force >/dev/null 2>&1 || true
+for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
+    if ray start --address={head_node_expr}:${{{ray_port_var}}} --block; then
+        echo "Ray worker connected to {head_node_expr}:${{{ray_port_var}}}"
+        exit 0
+    fi
+    echo "Waiting until the Ray worker can connect to {head_node_expr}:${{{ray_port_var}}}..."
+    sleep 5
+done
+echo "Ray worker startup timed out for {head_node_expr}:${{{ray_port_var}}}"
+exit 1"""
         )
 
         return f"""\
 (
     trap 'kill -TERM $(jobs -pr) 2>/dev/null' TERM EXIT
-    {head_prefix} \\
-        --output={self.test_run.output_path.absolute()}/{ray_head_log} \\
-        {ray_head_command} &
     for node in "${{{node_array_var}[@]:1}}"; do
         {worker_prefix} \\
             --output={self.test_run.output_path.absolute()}/{ray_worker_log} \\
-            {ray_worker_command} &
+            bash -lc {ray_worker_command} &
     done
     wait
 ) &
 {ray_pid_var}=$!
-wait_for_ray_cluster "{head_node_expr}" "${{{ray_port_var}}}" "{node_count}" || exit 1
 {head_prefix} \\
     --output={serve_log} \\
-    {serve_cmd} &
+    --error={self.test_run.output_path.absolute()}/{ray_head_log} \\
+    bash -lc {ray_head_command} &
 {pid_var}=$!"""
 
     def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:

@@ -292,7 +292,9 @@ class TestVllmAggregatedMode:
         assert 'SERVE_NODES=( "${NODES[@]:0:2}" )' in srun_command
         assert "export SERVE_RAY_PORT=$((6379 + PORT_OFFSET))" in srun_command
         assert "SERVE_RAY_PID=$!" in srun_command
-        assert 'wait_for_ray_cluster "${SERVE_NODE}" "${SERVE_RAY_PORT}" "2"' in srun_command
+        assert 'sum(node["Alive"] for node in ray.nodes())' in srun_command
+        assert "ray.init(address=" not in srun_command
+        assert 'exec env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}" vllm serve' in srun_command
         assert 'env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}"' in srun_command
 
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
@@ -641,7 +643,7 @@ cleanup
         assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in srun_command
         assert "PREFILL_RAY_PID=$!" in srun_command
         assert "DECODE_RAY_PID=$!" in srun_command
-        assert 'wait_for_ray_cluster "${PREFILL_NODE}" "${PREFILL_RAY_PORT}" "2"' in srun_command
-        assert 'wait_for_ray_cluster "${DECODE_NODE}" "${DECODE_RAY_PORT}" "2"' in srun_command
+        assert srun_command.count('sum(node["Alive"] for node in ray.nodes())') == 2
+        assert "ray.init(address=" not in srun_command
         assert 'env RAY_ADDRESS="${PREFILL_NODE}:${PREFILL_RAY_PORT}"' in srun_command
         assert 'env RAY_ADDRESS="${DECODE_NODE}:${DECODE_RAY_PORT}"' in srun_command
