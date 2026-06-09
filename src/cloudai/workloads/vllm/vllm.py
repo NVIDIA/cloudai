@@ -156,22 +156,31 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         system_gpus_per_node = getattr(system, "gpus_per_node", None) if system is not None else None
         num_nodes = tr.nnodes
+        local_gpu_count = len(all_gpu_ids(self, system_gpus_per_node))
 
         if self.cmd_args.prefill is None:
             return self._validate_vllm_parallelism_constraints(
                 role="decode",
                 args=self.cmd_args.decode,
-                gpu_count=len(all_gpu_ids(self, system_gpus_per_node)),
+                gpu_count=local_gpu_count * num_nodes,
             )
+
+        prefill_nodes = 1
+        decode_nodes = 1
+        if num_nodes > 2:
+            prefill_nodes_value = self.cmd_args.prefill.num_nodes
+            decode_nodes_value = self.cmd_args.decode.num_nodes
+            prefill_nodes = prefill_nodes_value if isinstance(prefill_nodes_value, int) else prefill_nodes
+            decode_nodes = decode_nodes_value if isinstance(decode_nodes_value, int) else decode_nodes
 
         return self._validate_vllm_parallelism_constraints(
             role="prefill",
             args=self.cmd_args.prefill,
-            gpu_count=len(calculate_prefill_gpu_ids(self, num_nodes, system_gpus_per_node)),
+            gpu_count=len(calculate_prefill_gpu_ids(self, num_nodes, system_gpus_per_node)) * prefill_nodes,
         ) and self._validate_vllm_parallelism_constraints(
             role="decode",
             args=self.cmd_args.decode,
-            gpu_count=len(calculate_decode_gpu_ids(self, num_nodes, system_gpus_per_node)),
+            gpu_count=len(calculate_decode_gpu_ids(self, num_nodes, system_gpus_per_node)) * decode_nodes,
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

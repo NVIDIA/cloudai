@@ -23,15 +23,7 @@ num_nodes = 2
 time_limit = "00:10:00"
 
   [Tests.cmd_args.decode]
-  mem_fraction_static = 0.75
-
-[[Tests]]
-id = "sglang.agg.1node"
-test_name = "sglang"
-num_nodes = 1
-time_limit = "00:10:00"
-
-  [Tests.cmd_args.decode]
+  tp = 8
   mem_fraction_static = 0.75
 
 [[Tests]]
@@ -42,28 +34,12 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.prefill]
   gpu_ids = "0,1"
-  tensor_parallel_size = 2
+  tp = 2
   mem_fraction_static = 0.75
 
   [Tests.cmd_args.decode]
   gpu_ids = "2,3"
-  tensor_parallel_size = 2
-  mem_fraction_static = 0.75
-
-[[Tests]]
-id = "sglang.disagg.async"
-test_name = "sglang"
-num_nodes = 1
-time_limit = "00:10:00"
-
-  [Tests.cmd_args.prefill]
-  gpu_ids = "0,1"
-  tensor_parallel_size = 2
-  mem_fraction_static = 0.75
-
-  [Tests.cmd_args.decode]
-  gpu_ids = "2,3"
-  tensor_parallel_size = 2
+  tp = 2
   mem_fraction_static = 0.75
 
 [[Tests]]
@@ -73,9 +49,25 @@ num_nodes = 2
 time_limit = "00:10:00"
 
   [Tests.cmd_args.prefill]
-  tensor_parallel_size = 4
+  tp = 4
   mem_fraction_static = 0.75
 
   [Tests.cmd_args.decode]
-  tensor_parallel_size = 4
+  tp = 4
+  mem_fraction_static = 0.75
+
+[[Tests]]
+id = "sglang.disagg.4nodes"
+test_name = "sglang"
+num_nodes = 4
+time_limit = "00:30:00"
+
+  [Tests.cmd_args.prefill]
+  num_nodes = 2
+  tp = 8
+  mem_fraction_static = 0.75
+
+  [Tests.cmd_args.decode]
+  num_nodes = 2
+  tp = 8
   mem_fraction_static = 0.75

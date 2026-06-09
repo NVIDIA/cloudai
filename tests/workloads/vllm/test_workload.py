@@ -118,3 +118,36 @@ def test_constraint_check_uses_all_node_gpus_per_role_for_two_node_disagg(tmp_pa
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
+
+
+def test_constraint_check_uses_all_allocated_gpus_for_multinode_aggregated(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            decode=VllmArgs.model_validate({"tensor_parallel_size": 8}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
+
+
+def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 2, "tensor_parallel_size": 8}),
+            decode=VllmArgs.model_validate({"num_nodes": 2, "tensor_parallel_size": 8}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
