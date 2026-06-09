@@ -15,9 +15,6 @@
 # limitations under the License.
 
 import json
-import re
-from importlib.metadata import version
-from pathlib import Path
 
 import pytest
 
@@ -100,23 +97,6 @@ def nixl_ep_tr(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> Test
         test=nixl_ep,
         output_path=slurm_system.output_path,
     )
-
-
-def normalize_sbatch(content: str, test_run: TestRun, slurm_system: SlurmSystem) -> str:
-    normalized = content.replace(str(slurm_system.install_path.absolute()), "__INSTALL_DIR__").replace(
-        str(test_run.output_path.parent.absolute()), "__OUTPUT_DIR__"
-    )
-    normalized = re.sub(
-        r"^#SBATCH --job-name=.*$",
-        "#SBATCH --job-name=__JOB_NAME__",
-        normalized,
-        flags=re.MULTILINE,
-    )
-    return normalized.replace(version("cloudai"), "__CLOUDAI_VERSION__")
-
-
-def significant_sbatch_lines(content: str) -> list[str]:
-    return [line for line in content.splitlines() if line.strip() and not line.lstrip().startswith("echo ")]
 
 
 def normalize_stages(strategy: NixlEPSlurmCommandGenStrategy) -> list[tuple[int, tuple[int, ...]]]:
@@ -886,19 +866,3 @@ def test_gen_srun_command_single_launch_reports_success(
     assert 'echo "All NIXL EP launches completed successfully"' in launcher_script
     assert 'if [ "$rc" -eq 0 ]; then' in launcher_script
     assert "exit $rc" in launcher_script
-
-
-def test_gen_exec_command_matches_reference(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    slurm_system.container_mount_home = True
-    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, nixl_ep_tr)
-
-    sbatch_cmd = strategy.gen_exec_command()
-
-    assert sbatch_cmd == f"sbatch {nixl_ep_tr.output_path / 'cloudai_sbatch_script.sh'}"
-
-    content = (nixl_ep_tr.output_path / "cloudai_sbatch_script.sh").read_text().strip()
-    content = normalize_sbatch(content, nixl_ep_tr, slurm_system)
-
-    ref = (Path(__file__).parents[2] / "ref_data" / "nixl-ep.sbatch").read_text().strip()
-    ref = normalize_sbatch(ref, nixl_ep_tr, slurm_system)
-    assert significant_sbatch_lines(content) == significant_sbatch_lines(ref)

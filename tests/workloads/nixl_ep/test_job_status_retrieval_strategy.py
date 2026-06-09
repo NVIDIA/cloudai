@@ -24,6 +24,7 @@ from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 EXPANSION_CONTRACTION_PLAN = (
     "[[0, 1, 2, 3], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, -6, 7], [0, 1, 2, 3, 4, 5, 6, 7]]"
 )
+NO_RANK_REMOVAL_PLAN = "[[0, 1], [0, 1, 2, 3]]"
 SUCCESSFUL_BANDWIDTH_LINE = (
     "[rank 0] Dispatch + combine bandwidth: 12.34 GB/s, avg_t=56.7 us, min_t=50.0 us, max_t=60.0 us\n"
 )
@@ -34,6 +35,22 @@ TCPSTORE_TIMEOUT_LINE = (
 
 def num_nodes(test_run: TestRun) -> int:
     return cast(int, test_run.num_nodes)
+
+
+def write_successful_node_logs(test_run: TestRun) -> None:
+    test_run.output_path.mkdir(parents=True, exist_ok=True)
+    for node_idx in range(num_nodes(test_run)):
+        (test_run.output_path / f"nixl-ep-node-{node_idx}.log").write_text(SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8")
+
+
+def set_plan(test_run: TestRun, plan: str) -> None:
+    test_def = cast(NixlEPTestDefinition, test_run.test)
+    test_def.cmd_args = NixlEPCmdArgs(
+        docker_image_url="docker.io/nvidia/nixl-ep:latest",
+        elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
+        plan=plan,
+        num_processes_per_node=4,
+    )
 
 
 @pytest.fixture
@@ -53,91 +70,74 @@ def nixl_ep_tr(tmp_path) -> TestRun:
 
 
 class TestNixlEPStatusCheck:
-    def test_successful_job(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
-        (nixl_ep_tr.output_path / "slurm-job.toml").write_text(
-            'state = "COMPLETED"\nexit_code = "0:0"\n',
-            encoding="utf-8",
-        )
-
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
-
-        assert result.is_successful
-        assert result.error_message == ""
-
-    def test_planned_srun_termination_is_ignored_when_benchmark_output_exists(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
+    @pytest.mark.parametrize(
+        ("plan", "stderr_content", "expected_fragment"),
+        [
+            pytest.param(
+                EXPANSION_CONTRACTION_PLAN,
+                (
+                    "srun: error: node001: task 0: Terminated\n"
+                    "Ignoring provisional NIXL EP planned-rank-removal exit 143\n"
+                    "srun: Terminating StepId=123.4\n"
+                    "srun: Force Terminated StepId=123.4\n"
+                ),
+                None,
+                id="planned-rank-removal-full-srun-signature-is-ignored",
+            ),
+            pytest.param(
+                EXPANSION_CONTRACTION_PLAN,
+                "srun: error: node001: task 0: Terminated\n",
+                "srun failure",
+                id="planned-rank-removal-incomplete-srun-signature-is-reported",
+            ),
+            pytest.param(
+                EXPANSION_CONTRACTION_PLAN,
+                (
+                    "srun: error: node001: task 0: Terminated\n"
+                    "Traceback (most recent call last):\n"
+                    "srun: Terminating StepId=123.4\n"
+                    "srun: Force Terminated StepId=123.4\n"
+                ),
+                "Python traceback",
+                id="planned-rank-removal-keeps-non-srun-failures",
+            ),
+            pytest.param(
+                EXPANSION_CONTRACTION_PLAN,
+                (
+                    "srun: error: node001: task 0: Terminated\n"
+                    "srun: Terminating StepId=123.4\n"
+                    "srun: Force Terminated StepId=123.4\n"
+                    "srun: error: Unable to allocate resources: Invalid node name\n"
+                ),
+                "srun failure",
+                id="planned-rank-removal-keeps-other-srun-failures",
+            ),
+            pytest.param(
+                NO_RANK_REMOVAL_PLAN,
+                "srun: error: node001: task 0: Terminated\n",
+                "srun failure",
+                id="unplanned-rank-removal-srun-termination-is-reported",
+            ),
+        ],
+    )
+    def test_srun_termination_detection(
+        self, nixl_ep_tr: TestRun, plan: str, stderr_content: str, expected_fragment: str | None
+    ) -> None:
+        set_plan(nixl_ep_tr, plan)
+        write_successful_node_logs(nixl_ep_tr)
         (nixl_ep_tr.output_path / "stderr.txt").write_text(
-            "\n".join(
-                [
-                    "srun: error: node001: task 0: Terminated",
-                    "Ignoring provisional NIXL EP planned-rank-removal exit 143",
-                    "srun: Terminating StepId=123.4",
-                    "srun: Force Terminated StepId=123.4",
-                ]
-            )
-            + "\n",
+            stderr_content,
             encoding="utf-8",
         )
 
         result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
 
-        assert result.is_successful
-
-    def test_planned_srun_termination_still_reports_other_failures(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
-        (nixl_ep_tr.output_path / "stderr.txt").write_text(
-            "\n".join(
-                [
-                    "srun: error: node001: task 0: Terminated",
-                    "Traceback (most recent call last):",
-                    "srun: Terminating StepId=123.4",
-                    "srun: Force Terminated StepId=123.4",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
-
-        assert not result.is_successful
-        assert "Python traceback" in result.error_message
-
-    def test_unplanned_srun_termination_is_reported(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        test_def = cast(NixlEPTestDefinition, nixl_ep_tr.test)
-        test_def.cmd_args = NixlEPCmdArgs(
-            docker_image_url="docker.io/nvidia/nixl-ep:latest",
-            elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
-            plan="[[0, 1], [0, 1, 2, 3]]",
-            num_processes_per_node=4,
-        )
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
-        (nixl_ep_tr.output_path / "stderr.txt").write_text(
-            "srun: error: node001: task 0: Terminated\n",
-            encoding="utf-8",
-        )
-
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
-
-        assert not result.is_successful
-        assert "srun failure" in result.error_message
+        if expected_fragment is None:
+            assert result.is_successful
+            assert result.error_message == ""
+        else:
+            assert not result.is_successful
+            assert expected_fragment in result.error_message
 
     def test_launcher_path_error_is_reported(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -165,11 +165,7 @@ class TestNixlEPStatusCheck:
         assert "nixl-ep-node-1.log, nixl-ep-node-2.log" in result.error_message
 
     def test_plan_mismatch_is_reported(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
+        write_successful_node_logs(nixl_ep_tr)
         (nixl_ep_tr.output_path / "nixl-ep-node-1.log").write_text(
             "Process 0 -> no plan phases were found for rank 9 after phase None, exiting\n",
             encoding="utf-8",
@@ -185,11 +181,7 @@ class TestNixlEPStatusCheck:
         assert "never appears in the plan" in result.error_message
 
     def test_tcpstore_timeout_is_reported(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
+        write_successful_node_logs(nixl_ep_tr)
         (nixl_ep_tr.output_path / "nixl-ep-node-2.log").write_text(
             TCPSTORE_TIMEOUT_LINE,
             encoding="utf-8",
@@ -205,11 +197,7 @@ class TestNixlEPStatusCheck:
         assert "lost its TCPStore connection" in result.error_message
 
     def test_primary_launch_exit_before_phase_completion_is_reported(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
+        write_successful_node_logs(nixl_ep_tr)
         (nixl_ep_tr.output_path / "nixl-ep-node-1.log").write_text(
             "Primary NIXL EP launch exited before phase 1 completed\n",
             encoding="utf-8",
@@ -243,11 +231,7 @@ class TestNixlEPStatusCheck:
         assert "some node logs may be absent" in result.error_message
 
     def test_ucx_remote_memory_view_failure_is_reported(self, nixl_ep_tr: TestRun) -> None:
-        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
-        for node_idx in range(num_nodes(nixl_ep_tr)):
-            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
-                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
-            )
+        write_successful_node_logs(nixl_ep_tr)
         (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(
             "E0319 04:13:25.442619  950677 ucx_backend.cpp:1486] "
             "Failed to prepare remote memory view: Failed to create device memory list(remote): No such device\n",

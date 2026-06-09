@@ -158,7 +158,11 @@ class NixlEPTestDefinition(TestDefinition):
         )
         lines = [line.strip() for line in content.splitlines() if line.strip()]
         srun_lines = [line for line in lines if line.startswith("srun:")]
-        return bool(srun_lines) and all(any(pattern.match(line) for pattern in allowed_patterns) for line in srun_lines)
+        return (
+            bool(srun_lines)
+            and all(any(pattern.match(line) for pattern in allowed_patterns) for line in srun_lines)
+            and all(any(pattern.match(line) for line in srun_lines) for pattern in allowed_patterns)
+        )
 
     def _has_planned_rank_removal(self) -> bool:
         plans = self.cmd_args.plan if isinstance(self.cmd_args.plan, list) else [self.cmd_args.plan]
