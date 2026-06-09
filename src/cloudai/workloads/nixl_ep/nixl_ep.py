@@ -157,7 +157,8 @@ class NixlEPTestDefinition(TestDefinition):
             re.compile(r"^srun: Force Terminated StepId=\S+$"),
         )
         lines = [line.strip() for line in content.splitlines() if line.strip()]
-        return bool(lines) and all(any(pattern.match(line) for pattern in allowed_patterns) for line in lines)
+        srun_lines = [line for line in lines if line.startswith("srun:")]
+        return bool(srun_lines) and all(any(pattern.match(line) for pattern in allowed_patterns) for line in srun_lines)
 
     def _has_planned_rank_removal(self) -> bool:
         plans = self.cmd_args.plan if isinstance(self.cmd_args.plan, list) else [self.cmd_args.plan]
@@ -169,7 +170,7 @@ class NixlEPTestDefinition(TestDefinition):
 
         content = path.read_text(encoding="utf-8", errors="ignore")
         if self._has_planned_rank_removal() and self._looks_like_planned_srun_termination(content):
-            return None
+            content = "\n".join(line for line in content.splitlines() if not line.strip().startswith("srun:"))
 
         launcher_failure_patterns = (
             ("python3: can't open file", "The benchmark entrypoint could not be opened."),

@@ -79,6 +79,7 @@ class TestNixlEPStatusCheck:
             "\n".join(
                 [
                     "srun: error: node001: task 0: Terminated",
+                    "Ignoring provisional NIXL EP planned-rank-removal exit 143",
                     "srun: Terminating StepId=123.4",
                     "srun: Force Terminated StepId=123.4",
                 ]
@@ -90,6 +91,30 @@ class TestNixlEPStatusCheck:
         result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
 
         assert result.is_successful
+
+    def test_planned_srun_termination_still_reports_other_failures(self, nixl_ep_tr: TestRun) -> None:
+        nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
+        for node_idx in range(num_nodes(nixl_ep_tr)):
+            (nixl_ep_tr.output_path / f"nixl-ep-node-{node_idx}.log").write_text(
+                SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8"
+            )
+        (nixl_ep_tr.output_path / "stderr.txt").write_text(
+            "\n".join(
+                [
+                    "srun: error: node001: task 0: Terminated",
+                    "Traceback (most recent call last):",
+                    "srun: Terminating StepId=123.4",
+                    "srun: Force Terminated StepId=123.4",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+
+        assert not result.is_successful
+        assert "Python traceback" in result.error_message
 
     def test_unplanned_srun_termination_is_reported(self, nixl_ep_tr: TestRun) -> None:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
