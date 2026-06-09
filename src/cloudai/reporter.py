@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import contextlib
+import json
 import logging
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import jinja2
 import toml
@@ -31,7 +32,7 @@ from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
 
-from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .core import METRIC_ERROR, CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
 
 
@@ -205,6 +206,97 @@ class DSEReporter(Reporter):
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
+
+
+class SummaryReporter(Reporter):
+    """Generate a machine-readable scenario summary for automation."""
+
+    SUMMARY_FILE_NAME = "cloudai-summary.json"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+        report_path = self.results_root / self.SUMMARY_FILE_NAME
+        with report_path.open("w") as f:
+            json.dump(self.build_summary(), f, indent=2)
+            f.write("\n")
+
+        logging.info("Generated scenario summary at %s", report_path)
+
+    def build_summary(self) -> dict[str, Any]:
+        test_runs = [self._test_run_summary(tr) for tr in self.trs]
+        return {
+            "schema_version": "1.0",
+            "scenario": self.test_scenario.name,
+            "status": self._scenario_status(test_runs),
+            "system": {
+                "name": self.system.name,
+                "scheduler": self.system.scheduler,
+            },
+            "result_dir": self._relative_path(self.results_root),
+            "reports": self._scenario_artifacts(),
+            "test_runs": test_runs,
+        }
+
+    def _scenario_status(self, test_runs: list[dict[str, Any]]) -> str:
+        if not test_runs:
+            return "unknown"
+        if all(tr["status"] == "completed" for tr in test_runs):
+            return "completed"
+        return "failed"
+
+    def _test_run_summary(self, tr: TestRun) -> dict[str, Any]:
+        status = tr.test.was_run_successful(tr)
+        summary = {
+            "name": tr.name,
+            "case": case_name(tr),
+            "description": tr.test.description,
+            "iteration": tr.current_iteration,
+            "step": tr.step,
+            "status": "completed" if status.is_successful else "failed",
+            "error_message": status.error_message,
+            "output_path": self._relative_path(tr.output_path),
+            "artifacts": self._artifacts(tr.output_path),
+            "metrics": self._metrics(tr),
+        }
+        return summary
+
+    def _metrics(self, tr: TestRun) -> dict[str, float]:
+        metrics = {}
+        for metric in tr.test.agent_metrics:
+            value = tr.get_metric_value(self.system, metric)
+            if value is METRIC_ERROR:
+                continue
+            metrics[metric] = float(value)
+
+        return metrics
+
+    def _scenario_artifacts(self) -> list[dict[str, str]]:
+        if not self.results_root.is_dir():
+            return []
+
+        return [
+            self._artifact(path)
+            for path in sorted(self.results_root.iterdir())
+            if path.is_file() and path.name != self.SUMMARY_FILE_NAME
+        ]
+
+    def _artifacts(self, root: Path) -> list[dict[str, str]]:
+        if not root.is_dir():
+            return []
+
+        return [self._artifact(path) for path in sorted(root.rglob("*")) if path.is_file()]
+
+    def _artifact(self, path: Path) -> dict[str, str]:
+        return {
+            "path": self._relative_path(path),
+            "format": path.suffix.removeprefix(".") or "unknown",
+        }
+
+    def _relative_path(self, path: Path) -> str:
+        try:
+            return str(path.relative_to(self.results_root))
+        except ValueError:
+            return str(path)
 
 
 class TarballReporter(Reporter):

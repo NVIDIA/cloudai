@@ -16,6 +16,7 @@
 
 import copy
 import csv
+import json
 import tarfile
 from dataclasses import asdict
 from pathlib import Path
@@ -29,7 +30,7 @@ from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
+from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, SummaryReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -339,9 +340,55 @@ class TestSlurmReportItem:
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
-    assert reports[-3][0] == "status"
-    assert reports[-2][0] == "dse"
+    assert reports[-4][0] == "status"
+    assert reports[-3][0] == "dse"
+    assert reports[-2][0] == "summary"
     assert reports[-1][0] == "tarball"
+
+
+def test_summary_reporter_writes_machine_readable_summary(
+    slurm_system: SlurmSystem,
+    benchmark_tr: TestRun,
+) -> None:
+    report_path = slurm_system.output_path / "test_scenario.html"
+    report_path.write_text("<html></html>")
+    output_path = slurm_system.output_path / benchmark_tr.name / "0"
+    (output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+    (output_path / "cloudai_nccl_test_csv_report.csv").write_text("size,bw\n1,2\n")
+
+    scenario = TestScenario(name="test_scenario", test_runs=[benchmark_tr])
+    reporter = SummaryReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig())
+    reporter.generate()
+
+    summary_path = slurm_system.output_path / SummaryReporter.SUMMARY_FILE_NAME
+    summary = json.loads(summary_path.read_text())
+
+    assert summary["schema_version"] == "1.0"
+    assert summary["scenario"] == "test_scenario"
+    assert summary["status"] == "failed"
+    assert summary["system"] == {"name": "test_system", "scheduler": "slurm"}
+    assert summary["result_dir"] == "."
+    assert summary["reports"] == [{"path": "test_scenario.html", "format": "html"}]
+    assert len(summary["test_runs"]) == 3
+
+    first_run = summary["test_runs"][0]
+    assert first_run["name"] == "benchmark"
+    assert first_run["case"] == "benchmark"
+    assert first_run["description"] == "NCCL test"
+    assert first_run["iteration"] == 0
+    assert first_run["step"] == 0
+    assert first_run["status"] == "completed"
+    assert first_run["error_message"] == ""
+    assert first_run["output_path"] == "benchmark/0"
+    assert first_run["artifacts"] == [
+        {"path": "benchmark/0/cloudai_nccl_test_csv_report.csv", "format": "csv"},
+        {"path": "benchmark/0/stdout.txt", "format": "txt"},
+    ]
+    assert first_run["metrics"] == {}
+
+    failed_run = summary["test_runs"][1]
+    assert failed_run["status"] == "failed"
+    assert "stdout.txt file not found" in failed_run["error_message"]
 
 
 def _write_slurm_job(step_dir: Path, elapsed_time_sec: int) -> None:
