@@ -141,6 +141,7 @@ def register_all():
         NIXLBenchTestDefinition,
     )
     from cloudai.workloads.nixl_ep import (
+        NixlEPComparisonReport,
         NixlEPReportGenerationStrategy,
         NixlEPSlurmCommandGenStrategy,
         NixlEPTestDefinition,
@@ -159,6 +160,7 @@ def register_all():
     )
     from cloudai.workloads.sglang import (
         SGLangBenchReportGenerationStrategy,
+        SGLangComparisonReport,
         SglangSlurmCommandGenStrategy,
         SglangTestDefinition,
     )
@@ -184,6 +186,7 @@ def register_all():
     )
     from cloudai.workloads.vllm import (
         VLLMBenchReportGenerationStrategy,
+        VLLMComparisonReport,
         VllmSlurmCommandGenStrategy,
         VllmTestDefinition,
     )
@@ -332,12 +335,27 @@ def register_all():
         ComparisonReportConfig(enable=True, group_by=["backend", "op_type"]),
     )
     Registry().add_scenario_report(
+        "nixl_ep_comparison",
+        NixlEPComparisonReport,
+        ComparisonReportConfig(enable=True),
+    )
+    Registry().add_scenario_report(
         "nccl_comparison", NcclComparisonReport, ComparisonReportConfig(enable=True, group_by=["subtest_name"])
     )
     Registry().add_scenario_report(
         "osu_bench_comparison",
         OSUBenchComparisonReport,
         ComparisonReportConfig(enable=True, group_by=["benchmark"]),
+    )
+    Registry().add_scenario_report(
+        "vllm_comparison",
+        VLLMComparisonReport,
+        ComparisonReportConfig(enable=True),
+    )
+    Registry().add_scenario_report(
+        "sglang_comparison",
+        SGLangComparisonReport,
+        ComparisonReportConfig(enable=True),
     )
 
     Registry().add_reward_function("inverse", inverse_reward)

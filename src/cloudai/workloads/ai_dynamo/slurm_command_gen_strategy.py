@@ -115,8 +115,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return args
 
-    def _get_nested_toml_args(self, base_model: BaseModel, prefix: str) -> List[str]:
-        result = self._get_toml_args(base_model, prefix, exclude=["args"])
+    def _get_nested_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
+        result = self._get_toml_args(base_model, prefix, exclude=["args", *(exclude or [])])
 
         if (nested_args := getattr(base_model, "args", None)) is not None:
             result.extend(self._get_toml_args(nested_args, prefix + "args-"))
@@ -215,6 +215,26 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ).rstrip()
         ]
 
+    def _render_between_aiperf_phases_block(
+        self,
+        phase_name: str,
+        cmd: str | None,
+    ) -> list[str]:
+        if not cmd:
+            return []
+
+        cleanup_argv = ["bash", "-lc", cmd]
+        return (
+            textwrap.dedent(
+                f"""\
+            log {shlex.quote(f"Running AIPerf between-phase command after {phase_name}: {shlex.join(cleanup_argv)}")}
+            {shlex.join(cleanup_argv)}
+            """
+            )
+            .rstrip()
+            .splitlines()
+        )
+
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
@@ -298,6 +318,15 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     phase_lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
                 phase_lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
 
+            if not single_phase and idx < len(phases) - 1:
+                phase_lines.extend(
+                    "  " + line
+                    for line in self._render_between_aiperf_phases_block(
+                        phase_name=phase.name,
+                        cmd=resolved_phase.between_phase_cmd,
+                    )
+                )
+
             if not single_phase and idx < len(phases) - 1 and resolved_phase.health_check_between_phases:
                 health_probe_cmd = (
                     '  if ! curl -fsS -X POST "${FRONTEND_URL}/${AIPERF_ENDPOINT}" '
@@ -372,8 +401,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')
 
         if td.cmd_args.dynamo.prefill_worker:
-            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
-        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
+            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-", exclude=["nodes"]))
+            if td.cmd_args.dynamo.prefill_worker.nodes:
+                args.append(f"--prefill-node-list {shlex.quote(td.cmd_args.dynamo.prefill_worker.nodes)}")
+        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
+        if td.cmd_args.dynamo.decode_worker.nodes:
+            args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
@@ -548,12 +581,18 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not all(node in node_list for node in worker_node_list):
             raise ValueError(f"Some {worker_type} nodes are not in the allocated node list")
 
-    def _validate_node_overlap(self, prefill_nodes: str, decode_nodes: str) -> None:
-        """Validate that there is no overlap between prefill and decode nodes."""
-        prefill_set = set(prefill_nodes.split(","))
-        decode_set = set(decode_nodes.split(","))
-        if prefill_set & decode_set:
-            raise ValueError("Overlap found between prefill and decode node lists")
+    @staticmethod
+    def _split_node_list(nodes: str | None) -> list[str]:
+        if not nodes:
+            return []
+        return [node for node in nodes.split(",") if node]
+
+    @staticmethod
+    def _unique_nodes(nodes: list[str]) -> list[str]:
+        return list(dict.fromkeys(nodes))
+
+    def _worker_nodes_overlap(self, prefill_nodes: str | None, decode_nodes: str | None) -> bool:
+        return bool(set(self._split_node_list(prefill_nodes)) & set(self._split_node_list(decode_nodes)))
 
     def get_cached_nodes_spec(self) -> tuple[int, list[str]]:
         cache_key = ":".join(
@@ -579,36 +618,56 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
 
-        if prefill_nodes and decode_nodes:
-            self.test_run.nodes = prefill_nodes.split(",") + decode_nodes.split(",") + self.test_run.nodes
-            self.test_run.num_nodes = len(self.test_run.nodes)
-            prefill_n = len(prefill_nodes.split(","))
-            decode_n = len(decode_nodes.split(","))
-        else:
-            self.test_run.num_nodes = prefill_n + decode_n
+        role_total_nodes = prefill_n + decode_n
+        role_nodes = self._unique_nodes(
+            self._split_node_list(prefill_nodes) + self._split_node_list(decode_nodes) + self.test_run.nodes
+        )
+        has_explicit_allocation = getattr(self.test_run, "num_nodes_explicit", False) or bool(self.test_run.nodes)
 
-        total_nodes = prefill_n + decode_n
+        if prefill_nodes or decode_nodes:
+            self.test_run.nodes = role_nodes
+            self.test_run.num_nodes = len(role_nodes)
+            prefill_n = len(self._split_node_list(prefill_nodes)) if prefill_nodes else prefill_n
+            decode_n = len(self._split_node_list(decode_nodes)) if decode_nodes else decode_n
+            role_total_nodes = prefill_n + decode_n
+        elif not has_explicit_allocation:
+            self.test_run.num_nodes = role_total_nodes
 
-        logging.info("Setting num_nodes from %d to %d", self.test_run.num_nodes, total_nodes)
-
-        self.test_run.num_nodes = total_nodes
+        logging.info("Using %d allocated node(s) for %d role node(s)", self.test_run.nnodes, role_total_nodes)
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        shared_node_disagg = self._worker_nodes_overlap(prefill_nodes, decode_nodes) or (
+            prefill_n > 0 and requested_nodes < role_total_nodes
+        )
+
+        if shared_node_disagg and requested_nodes < max(prefill_n, decode_n):
+            raise ValueError(
+                f"Not enough nodes requested for shared-node disaggregated run: need at least "
+                f"{max(prefill_n, decode_n)} node(s) to satisfy role node counts "
+                f"({prefill_n} prefill, {decode_n} decode), but only got {requested_nodes}"
+            )
 
         if prefill_nodes or decode_nodes:
             self._validate_worker_nodes(node_list, prefill_nodes, prefill_n, "prefill")
             self._validate_worker_nodes(node_list, decode_nodes, decode_n, "decode")
-            if prefill_nodes and decode_nodes:
-                self._validate_node_overlap(prefill_nodes, decode_nodes)
+            if self._worker_nodes_overlap(prefill_nodes, decode_nodes):
+                unique_worker_nodes = self._unique_nodes(
+                    self._split_node_list(prefill_nodes) + self._split_node_list(decode_nodes)
+                )
+                if requested_nodes != len(unique_worker_nodes):
+                    raise ValueError(
+                        "Overlapping prefill/decode node lists require the allocated node count to match "
+                        f"the unique worker node count ({len(unique_worker_nodes)}), but got {requested_nodes}"
+                    )
 
-        if total_nodes > requested_nodes:
+        if not shared_node_disagg and role_total_nodes > requested_nodes:
             raise ValueError(
-                f"Not enough nodes requested: need {total_nodes} total nodes "
+                f"Not enough nodes requested: need {role_total_nodes} total nodes "
                 f"({prefill_n} prefill + {decode_n} decode), "
                 f"but only got {requested_nodes}"
             )
 
-        result = (total_nodes, node_list)
+        result = (requested_nodes, node_list)
         self._node_spec_cache[cache_key] = result
         return result
 

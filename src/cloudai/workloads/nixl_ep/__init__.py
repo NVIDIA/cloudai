@@ -15,11 +15,13 @@
 # limitations under the License.
 
 from .nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
+from .nixl_ep_comparison_report import NixlEPComparisonReport
 from .report_generation_strategy import NixlEPReportGenerationStrategy
 from .slurm_command_gen_strategy import NixlEPSlurmCommandGenStrategy
 
 __all__ = [
     "NixlEPCmdArgs",
+    "NixlEPComparisonReport",
     "NixlEPReportGenerationStrategy",
     "NixlEPSlurmCommandGenStrategy",
     "NixlEPTestDefinition",

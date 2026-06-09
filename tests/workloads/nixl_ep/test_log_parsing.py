@@ -39,7 +39,7 @@ def test_parse_combined_bandwidth_output(tmp_path: Path) -> None:
 def test_parse_kineto_bandwidth_output(tmp_path: Path) -> None:
     log_path = tmp_path / "nixl-ep-node-0.log"
     log_path.write_text(
-        "[rank 7] Dispatch bandwidth: 30.25 GB/s | Combine bandwidth: 28.75 GB/s\n",
+        "[rank 7] Dispatch bandwidth: 30.25 GB/s, avg_t=40.5 us | Combine bandwidth: 28.75 GB/s, avg_t=43.2 us\n",
         encoding="utf-8",
     )
 
