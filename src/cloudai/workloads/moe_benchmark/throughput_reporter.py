@@ -176,9 +176,7 @@ def _write_moe_throughput_svg(
 
     for (cx, cy), val, col, lab in zip(pts, values, colors, labels, strict=True):
         col_esc = html.escape(col)
-        parts.append(
-            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{col_esc}" stroke="#222" stroke-width="1"/>'
-        )
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="6" fill="{col_esc}" stroke="#222" stroke-width="1"/>')
         parts.append(
             f'<text x="{cx:.1f}" y="{cy - 14:.1f}" font-size="12" text-anchor="middle" '
             f'font-weight="600" fill="#111">{val:.2f}</text>'

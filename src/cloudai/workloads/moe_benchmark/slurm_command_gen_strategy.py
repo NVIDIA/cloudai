@@ -82,5 +82,5 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         output_file = self.test_run.output_path / "stdout.txt"
         return (
             'grep -Eq "global_bw|RDMA BW \\(GB/s\\)|NVLink BW \\(GB/s\\)|Bus BW \\(GB/s\\)|Global BW \\(GB/s\\)" '
-            f'{output_file} && echo 1 || echo 0'
+            f"{output_file} && echo 1 || echo 0"
         )

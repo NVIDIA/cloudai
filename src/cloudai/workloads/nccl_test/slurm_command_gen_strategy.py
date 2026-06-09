@@ -20,7 +20,7 @@ from typing import List, cast
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.workloads.moe_benchmark.combined_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
-from .nccl import NCCLCmdArgs, NCCLTestDefinition
+from .nccl import NCCLTestDefinition
 
 _ALLTOALLV_MATRIX_ENV = "ALLTOALLV_MATRIX_FILE"
 _NCCL_TESTS_ALLTOALLV_PERF = "/opt/nccl-tests/build/alltoallv_perf"

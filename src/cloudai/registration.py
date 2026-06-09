@@ -82,12 +82,6 @@ def register_all():
         DeepEPSlurmCommandGenStrategy,
         DeepEPTestDefinition,
     )
-    from cloudai.workloads.moe_benchmark import (
-        MoEBenchmarkReportGenerationStrategy,
-        MoEBenchmarkSlurmCommandGenStrategy,
-        MoEBenchmarkTestDefinition,
-        MoEBenchmarkThroughputReporter,
-    )
     from cloudai.workloads.dynamo_mocker import (
         DynamoMockerReportGenerationStrategy,
         DynamoMockerStandaloneCommandGenStrategy,
@@ -111,6 +105,12 @@ def register_all():
         MegatronRunReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
         MegatronRunTestDefinition,
+    )
+    from cloudai.workloads.moe_benchmark import (
+        MoEBenchmarkReportGenerationStrategy,
+        MoEBenchmarkSlurmCommandGenStrategy,
+        MoEBenchmarkTestDefinition,
+        MoEBenchmarkThroughputReporter,
     )
     from cloudai.workloads.nccl_test import (
         ComparisonReportConfig,

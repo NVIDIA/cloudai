@@ -9,7 +9,6 @@ from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
 
-
 _LEGACY_SUBTESTS = {"test_internode", "test_intranode", "test_low_latency"}
 
 _CLI_FIELDS_BY_SUBTEST = {
@@ -73,6 +72,7 @@ _CLI_FIELDS_BY_SUBTEST = {
         "ignore_local_traffic",
     ),
 }
+
 
 def _flag_name(field_name: str) -> str:
     return f"--{field_name.replace('_', '-')}"

@@ -46,10 +46,6 @@ from cloudai.workloads.deepep import (
     DeepEPCmdArgs,
     DeepEPTestDefinition,
 )
-from cloudai.workloads.moe_benchmark import (
-    MoEBenchmarkCmdArgs,
-    MoEBenchmarkTestDefinition
-)
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -64,6 +60,7 @@ from cloudai.workloads.megatron_run import (
     MegatronRunCmdArgs,
     MegatronRunTestDefinition,
 )
+from cloudai.workloads.moe_benchmark import MoEBenchmarkCmdArgs, MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
