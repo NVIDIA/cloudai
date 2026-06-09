@@ -31,10 +31,11 @@ from cloudai.core import Reporter, System, TestRun, TestScenario
 from cloudai.models.scenario import ReportConfig
 from cloudai.util.lazy_imports import lazy
 
-from .groups import GroupedTestRuns, TestRunsGrouper
+from .groups import GroupedTestRuns, TRGroupItem
 from .util import (
     bokeh_size_unit_js_tick_formatter,
     calculate_power_of_two_ticks,
+    diff_comparison_values,
 )
 
 if TYPE_CHECKING:
@@ -70,8 +71,62 @@ class ComparisonReport(Reporter, ABC):
     @abstractmethod
     def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]: ...
 
+    def comparison_values(self, tr: TestRun) -> dict[str, object]:
+        """Return TestRun values used to label differences between compared runs."""
+        return {
+            "NUM_NODES": tr.num_nodes,
+            **tr.test.cmd_args.model_dump(),
+            **{f"extra_env_vars.{key}": value for key, value in tr.test.extra_env_vars.items()},
+        }
+
+    def get_group_value(self, tr: TestRun, field: str) -> str:
+        """Get grouping field value for a TestRun's cmd_args or extra_env_vars."""
+        if field.startswith("extra_env_vars."):
+            field_name = field[len("extra_env_vars.") :]
+            return str(tr.test.extra_env_vars.get(field_name))
+        return getattr(tr.test.cmd_args, field)
+
+    def group_name(self, trs: list[TestRun]) -> str:
+        """Return display name for a group of TestRuns."""
+        if not self.group_by:
+            return "all-in-one"
+        parts = [f"{field}={self.get_group_value(trs[0], field)}" for field in self.group_by]
+        return " ".join(parts).replace("extra_env_vars.", "")
+
+    def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedTestRuns:
+        """Create a comparison group using report-specific comparison values."""
+        diff = diff_comparison_values([self.comparison_values(tr) for tr in trs])
+        items: list[TRGroupItem] = []
+        for idx, tr in enumerate(trs):
+            name = f"{group_idx}.{idx}"
+            if diff:
+                item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
+                name = " ".join(item_name_parts).replace("extra_env_vars.", "")
+            items.append(TRGroupItem(name=name, tr=tr))
+        return GroupedTestRuns(name=self.group_name(trs), items=items)
+
+    def group_test_runs(self) -> list[GroupedTestRuns]:
+        """Group loaded TestRuns for this comparison report."""
+        if not self.group_by:
+            return [self.create_group(self.trs)]
+
+        groups: list[list[TestRun]] = []
+        for tr in self.trs:
+            for group in groups:
+                matched = all(
+                    self.get_group_value(tr, field) == self.get_group_value(group[0], field) for field in self.group_by
+                )
+
+                if matched:
+                    group.append(tr)
+                    break
+            else:
+                groups.append([tr])
+
+        return [self.create_group(group, group_idx=str(group_idx)) for group_idx, group in enumerate(groups)]
+
     def get_bokeh_html(self) -> tuple[str, str]:
-        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
+        cmp_groups = self.group_test_runs()
         charts: list[bk.figure] = self.create_charts(cmp_groups)
 
         # layout with 2 charts per row
@@ -93,7 +148,7 @@ class ComparisonReport(Reporter, ABC):
             return
 
         console = Console(record=True)
-        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
+        cmp_groups = self.group_test_runs()
 
         tables = self.create_tables(cmp_groups)
         for table in tables:

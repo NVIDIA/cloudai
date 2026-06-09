@@ -226,6 +226,7 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
             "setup-cmd": "python -m pip install --upgrade aiperf",
+            "between-phase-cmd": "curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true",
             "args": {
                 "concurrency": 2,
                 "request-count": 50,
@@ -254,6 +255,9 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
     assert "Running AIPerf phase setup for round_1" not in script
     assert "Running AIPerf phase setup for round_2" in script
     assert "bash -lc 'python -m pip install --upgrade another-aiperf-plugin'" in script
+    assert script.count("Running AIPerf between-phase command after") == 1
+    assert "Running AIPerf between-phase command after round_1" in script
+    assert "bash -lc 'curl -fsS -X POST ${FRONTEND_URL}/reset_prefix_cache || true'" in script
     assert ': "${FRONTEND_URL:?FRONTEND_URL is not set}"' in script
     assert '--url "$FRONTEND_URL"' in script
     assert f"--artifact-dir {strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_artifacts/round_1" in script
@@ -345,6 +349,130 @@ def test_dcgm_exporter_adds_configured_docker_image_installable(cmd_args: AIDyna
     assert tdef.dcgm_exporter_image is not None
     assert tdef.dcgm_exporter_image.url == "nvcr.io/test/dcgm:latest"
     assert tdef.dcgm_exporter_image in tdef.installables
+
+
+def test_shared_node_disagg_preserves_explicit_smaller_node_count(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(
+        name="run",
+        test=tdef,
+        nodes=["n0"],
+        num_nodes=1,
+        output_path=tmp_path,
+        num_nodes_explicit=True,
+    )
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    assert strategy.get_cached_nodes_spec() == (1, ["n0"])
+
+    srun = strategy._gen_srun_command()
+    assert "--nodes=1" in srun
+    assert "--nodelist=n0" in srun
+
+
+def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    strategy.test_run.nodes = []
+    strategy.test_run.num_nodes = 1
+    strategy.test_run.num_nodes_explicit = False
+
+    assert strategy.get_cached_nodes_spec()[0] == 2
+
+
+def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    cmd_args.dynamo.prefill_worker.nodes = "n0"
+    cmd_args.dynamo.decode_worker.nodes = "n0"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(name="run", test=tdef, nodes=[], num_nodes=1, output_path=tmp_path)
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    assert strategy.get_cached_nodes_spec() == (1, ["n0"])
+    args = strategy._gen_script_args(tdef)
+    assert "--prefill-node-list n0" in args
+    assert "--decode-node-list n0" in args
+
+
+def test_explicit_overlapping_worker_nodes_reject_extra_allocated_nodes(
+    slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
+) -> None:
+    cmd_args.dynamo.prefill_worker.nodes = "n0"
+    cmd_args.dynamo.decode_worker.nodes = "n0"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        repo=GitRepo(url="https://github.com/ai-dynamo/dynamo.git", commit="main", installed_path=tmp_path),
+    )
+    tr = TestRun(
+        name="run",
+        test=tdef,
+        nodes=["n0", "n1"],
+        num_nodes=2,
+        output_path=tmp_path,
+        num_nodes_explicit=True,
+    )
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
+
+    with pytest.raises(ValueError, match="Overlapping prefill/decode node lists"):
+        strategy.get_cached_nodes_spec()
+
+
+def test_constraint_allows_shared_node_split_that_fits(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 4
+    test_run.num_nodes = 1
+    test_run.nodes = ["n0"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_shared_node_split_that_exceeds_node_gpus(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
+    test_run.num_nodes = 1
+    test_run.nodes = ["n0"]
+    test_run.num_nodes_explicit = True
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_allows_separate_node_roles_using_all_node_gpus(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 8
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 8
+    td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
+    test_run.num_nodes = 2
+    test_run.nodes = ["n0", "n1"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:

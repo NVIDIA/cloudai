@@ -15,13 +15,13 @@
 # limitations under the License.
 from __future__ import annotations
 
+import collections.abc
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, List, Mapping, Tuple, cast
 
 import toml
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystemMetadata
 from cloudai.util.lazy_imports import lazy
 
@@ -163,26 +163,49 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
     return df, unit
 
 
-def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
-    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
-    dicts: list[dict] = []
-    for tr in trs:
-        dicts.append(
-            {
-                "NUM_NODES": tr.num_nodes,
-                **tr.test.cmd_args.model_dump(),
-                **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
-            }
-        )
-    all_keys = set().union(*[d.keys() for d in dicts])
+def diff_comparison_values(values_by_run: list[Mapping[str, object]]) -> dict[str, list[object]]:
+    """Return value differences across comparable TestRun value dictionaries."""
+    all_keys: list[str] = []
+    for values in values_by_run:
+        all_keys.extend(key for key in values if key not in all_keys)
 
     diff = {}
     for key in all_keys:
-        all_values = [d[key] for d in dicts]
-        if len(set(all_values)) > 1:
-            diff[key] = all_values
+        all_values = [values.get(key) for values in values_by_run]
+        diff_values = _diff_value_list(all_values)
+        if diff_values is not None:
+            diff[key] = diff_values
 
     return diff
+
+
+def _diff_value_list(values: list[object]) -> list[object] | None:
+    if all(isinstance(value, collections.abc.Mapping) for value in values):
+        return _diff_mapping_values(values)
+    if all(value == values[0] for value in values[1:]):
+        return None
+    return values
+
+
+def _diff_mapping_values(values: list[object]) -> list[object] | None:
+    mappings = [cast(collections.abc.Mapping[object, object], value) for value in values]
+    all_keys: list[object] = []
+    for mapping in mappings:
+        all_keys.extend(key for key in mapping if key not in all_keys)
+
+    diff_by_run: list[object] = [{} for _ in mappings]
+    for key in all_keys:
+        nested_values = [mapping.get(key) for mapping in mappings]
+        nested_diff = _diff_value_list(nested_values)
+        if nested_diff is None:
+            continue
+
+        for idx, nested_value in enumerate(nested_diff):
+            cast(dict[object, object], diff_by_run[idx])[key] = nested_value
+
+    if any(diff_by_run):
+        return diff_by_run
+    return None
 
 
 def load_system_metadata(run_dir: Path, results_root: Path) -> SlurmSystemMetadata | None:

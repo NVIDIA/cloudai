@@ -85,7 +85,7 @@ from cloudai.workloads.nixl_bench import (
     NIXLBenchSlurmCommandGenStrategy,
     NIXLBenchTestDefinition,
 )
-from cloudai.workloads.nixl_ep import NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
+from cloudai.workloads.nixl_ep import NixlEPComparisonReport, NixlEPSlurmCommandGenStrategy, NixlEPTestDefinition
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import (
@@ -93,7 +93,7 @@ from cloudai.workloads.osu_bench import (
     OSUBenchSlurmCommandGenStrategy,
     OSUBenchTestDefinition,
 )
-from cloudai.workloads.sglang import SglangSlurmCommandGenStrategy, SglangTestDefinition
+from cloudai.workloads.sglang import SGLangComparisonReport, SglangSlurmCommandGenStrategy, SglangTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -112,7 +112,7 @@ from cloudai.workloads.ucc_test import (
     UCCTestGradingStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
-from cloudai.workloads.vllm import VllmSlurmCommandGenStrategy, VllmTestDefinition
+from cloudai.workloads.vllm import VLLMComparisonReport, VllmSlurmCommandGenStrategy, VllmTestDefinition
 
 
 def test_systems():
@@ -280,8 +280,11 @@ def test_scenario_reports():
         "dse",
         "tarball",
         "nixl_bench_summary",
+        "nixl_ep_comparison",
         "nccl_comparison",
         "osu_bench_comparison",
+        "vllm_comparison",
+        "sglang_comparison",
     ]
     assert list(scenario_reports.values()) == [
         PerTestReporter,
@@ -290,8 +293,11 @@ def test_scenario_reports():
         DSEReporter,
         TarballReporter,
         NIXLBenchComparisonReport,
+        NixlEPComparisonReport,
         NcclComparisonReport,
         OSUBenchComparisonReport,
+        VLLMComparisonReport,
+        SGLangComparisonReport,
     ]
 
 
@@ -304,8 +310,11 @@ def test_report_configs():
         "dse",
         "tarball",
         "nixl_bench_summary",
+        "nixl_ep_comparison",
         "nccl_comparison",
         "osu_bench_comparison",
+        "vllm_comparison",
+        "sglang_comparison",
     ]
     for name, rep_config in configs.items():
         assert rep_config.enable is True, f"Report {name} is not enabled by default"

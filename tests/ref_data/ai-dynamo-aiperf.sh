@@ -24,6 +24,8 @@ if [[ "$phase_status" -eq 0 ]]; then
   mkdir -p /cloudai_run_results
   cp /cloudai_run_results/aiperf_artifacts/round_1/profile_export_aiperf.csv /cloudai_run_results/aiperf_round_1_report.csv
   log 'AIPerf report saved to /cloudai_run_results/aiperf_round_1_report.csv'
+  log 'Running AIPerf between-phase command after round_1: bash -lc true'
+  bash -lc true
   if [[ -f "$AIPERF_FAILURE_MARKER" ]]; then
     log 'FATAL: failure marker found between AIPerf phases'
     exit 1

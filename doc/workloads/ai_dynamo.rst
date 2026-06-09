@@ -51,13 +51,15 @@ AI Dynamo jobs use three distinct types of nodes:
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of required nodes must be:
+By default, when ``num_nodes`` is omitted, CloudAI allocates separate nodes for prefill and decode workers:
 
 ::
 
    num_prefill_nodes + num_decode_nodes
 
-If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.
+Set top-level ``num_nodes`` explicitly to control the Slurm allocation. A value lower than
+``num_prefill_nodes + num_decode_nodes`` enables shared-node disaggregated inference, where prefill and decode roles
+run on the same allocated node(s) with separate GPU slices.
 
 All node role assignments and orchestration are automatically managed by CloudAI.
 
@@ -109,6 +111,47 @@ To use genai-perf, set:
      endpoint-type = "chat"
      output-tokens-mean = 500
      request-count = 50
+
+AIPerf Multi-Phase Runs
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``cmd_args.aiperf`` is the base AIPerf config. ``cmd_args.aiperf_phases`` can run several AIPerf rounds against the
+same live Dynamo stack. By default, CloudAI does not restart prefill, decode, or router processes between phases:
+
+.. code-block:: toml
+
+   dse_excluded_args = ["cmd_args.aiperf_phases"]
+
+   [cmd_args.aiperf]
+   health-check-between-phases = true
+   between-phase-cmd = "true"  # default no-op
+
+     [cmd_args.aiperf.args]
+     request-count = 50
+     server-metrics = "auto"
+
+   [[cmd_args.aiperf_phases]]
+   name = "round_1"
+     [cmd_args.aiperf_phases.args]
+     concurrency = 2
+
+   [[cmd_args.aiperf_phases]]
+   name = "round_2"
+     [cmd_args.aiperf_phases.args]
+     concurrency = 4
+
+Single-phase runs keep the old artifact layout: ``aiperf_artifacts/``, ``aiperf.log``, and ``aiperf_report.csv``.
+Multi-phase runs write per-phase artifacts/logs/reports and copy the last phase report to ``aiperf_report.csv`` for
+existing report generation.
+
+``between-phase-cmd`` is a bash command run after each non-final phase. The default is a no-op. Set it explicitly for
+backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart`` if a test needs to restart the
+Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
+
+AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
+as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =
+"auto"`` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM
+exporters.
 
 Propagating LMCache Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -261,6 +304,15 @@ If AIPerf accuracy mode is enabled, CloudAI copies ``aiperf_accuracy_artifacts/a
 ``accuracy_results.csv`` in the run output directory and marks the run failed if that file is not produced.
 
 Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine performance metrics.
+
+Shared-Node Disaggregated Runs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and
+``decode_worker.num-nodes`` to run both roles on the same allocated node(s). For example, ``num_nodes = 1`` with
+``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on
+the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's
+``tensor-parallel-size * pipeline-parallel-size``. The combined role GPU count must fit on one node.
 
 Example ``aiperf_report.csv``:
 

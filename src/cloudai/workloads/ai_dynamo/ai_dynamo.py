@@ -294,6 +294,11 @@ class AIPerf(Workload):
         serialization_alias="continue-on-phase-failure",
         validation_alias=AliasChoices("continue-on-phase-failure", "continue_on_phase_failure"),
     )
+    between_phase_cmd: str | None = Field(
+        default="true",
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
+    )
 
     @property
     def installables(self) -> list[Installable]:
@@ -333,6 +338,11 @@ class AIPerfPhase(BaseModel):
         default=None,
         serialization_alias="extra-args",
         validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+    between_phase_cmd: str | None = Field(
+        default=None,
+        serialization_alias="between-phase-cmd",
+        validation_alias=AliasChoices("between-phase-cmd", "between_phase_cmd"),
     )
 
 
@@ -593,6 +603,23 @@ class AIDynamoTestDefinition(TestDefinition):
             logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
             return False
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
+
+        role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
+        prefill_nodes = set(prefill_worker.nodes.split(",")) if prefill_worker.nodes else set()
+        decode_nodes = set(decode_worker.nodes.split(",")) if decode_worker.nodes else set()
+        has_explicit_allocation = getattr(tr, "num_nodes_explicit", False) or bool(tr.nodes)
+        shared_node_disagg = bool(prefill_nodes & decode_nodes) or (
+            has_explicit_allocation and tr.nnodes < role_total_nodes
+        )
+        if (
+            shared_node_disagg
+            and gpus_per_node > 0
+            and self.constraints.tp_times_pp_le_gpus_per_node
+            and (prefill_tp * prefill_pp + decode_tp * decode_pp > gpus_per_node)
+        ):
+            logging.info("constraint_check failed for: shared_node_tp_pp_sum_le_gpus_per_node")
+            return False
+        logging.info("constraint_check passed for: shared_node_tp_pp_sum_le_gpus_per_node")
 
         return True
 
