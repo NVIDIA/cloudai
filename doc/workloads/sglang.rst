@@ -135,6 +135,61 @@ For more control, one can specify the GPU IDs explicitly in ``prefill`` and ``de
 
 In this case ``CUDA_VISIBLE_DEVICES`` will be ignored and only the GPUs specified in ``gpu_ids`` will be used.
 
+Multi-node serving
+------------------
+For non-disaggregated serving, set ``num_nodes`` on the test to more than one. CloudAI starts one
+``sglang.launch_server`` task per serving node with a shared ``--dist-init-addr``, ``--nnodes``, and
+``--node-rank "$SLURM_NODEID"``.
+
+.. code-block:: toml
+   :caption: scenario.toml (multi-node aggregated serving)
+
+   [[Tests]]
+   id = "sglang.multi_node"
+   num_nodes = 2
+   test_template_name = "sglang"
+
+   [Tests.cmd_args]
+   docker_image_url = "lmsysorg/sglang:dev-cu13"
+   model = "Qwen/Qwen3-8B"
+
+   [Tests.cmd_args.decode]
+   tp = 2
+
+   [Tests.extra_env_vars]
+   CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+For disaggregated prefill/decode serving, existing 1-node and 2-node behavior is preserved by default. To span more
+than two nodes, set both role sizes explicitly. CloudAI assigns contiguous node slices to prefill and decode and starts
+one distributed SGLang launch per role with separate init ports. Benchmark and semantic validation run from the prefill
+head node.
+
+.. code-block:: toml
+   :caption: scenario.toml (multi-node disaggregated serving)
+
+   [[Tests]]
+   id = "sglang.pd_multi_node"
+   num_nodes = 4
+   test_template_name = "sglang"
+
+   [Tests.cmd_args]
+   docker_image_url = "lmsysorg/sglang:dev-cu13"
+   model = "Qwen/Qwen3-8B"
+
+   [Tests.cmd_args.prefill]
+   num_nodes = 2
+   tp = 2
+
+   [Tests.cmd_args.decode]
+   num_nodes = 2
+   tp = 2
+
+   [Tests.extra_env_vars]
+   CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+``CUDA_VISIBLE_DEVICES`` and ``gpu_ids`` are interpreted as local GPU IDs on each serving node, not as cluster-global GPU
+IDs.
+
 API Documentation
 -----------------
 

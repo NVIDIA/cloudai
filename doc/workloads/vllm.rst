@@ -133,6 +133,62 @@ For more control, users can specify the GPU IDs explicitly in ``prefill`` and ``
 In this case ``CUDA_VISIBLE_DEVICES`` will be ignored and only the GPUs specified in ``gpu_ids`` will be used.
 
 
+Multi-node serving
+------------------
+For non-disaggregated serving, set ``num_nodes`` on the test to more than one. CloudAI starts a Ray head on the first
+allocated serving node, Ray workers on the remaining serving nodes, waits for the Ray cluster to reach the requested
+size, and runs ``vllm serve`` with ``--distributed-executor-backend ray`` on the head node.
+
+.. code-block:: toml
+   :caption: scenario.toml (multi-node aggregated serving)
+
+   [[Tests]]
+   id = "vllm.multi_node"
+   num_nodes = 2
+   test_template_name = "vllm"
+
+   [Tests.cmd_args]
+   docker_image_url = "nvcr.io/nvidia/vllm:latest"
+   model = "Qwen/Qwen3-0.6B"
+
+   [Tests.cmd_args.decode]
+   tensor_parallel_size = 2
+
+   [Tests.extra_env_vars]
+   CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+For disaggregated prefill/decode serving, existing 1-node and 2-node behavior is preserved by default. To span more
+than two nodes, set both role sizes explicitly. CloudAI assigns contiguous node slices to prefill and decode, creates a
+separate Ray cluster for each role whose ``num_nodes`` is greater than one, and runs benchmark and semantic validation
+from the prefill head node.
+
+.. code-block:: toml
+   :caption: scenario.toml (multi-node disaggregated serving)
+
+   [[Tests]]
+   id = "vllm.pd_multi_node"
+   num_nodes = 4
+   test_template_name = "vllm"
+
+   [Tests.cmd_args]
+   docker_image_url = "nvcr.io/nvidia/vllm:latest"
+   model = "Qwen/Qwen3-0.6B"
+
+   [Tests.cmd_args.prefill]
+   num_nodes = 2
+   tensor_parallel_size = 2
+
+   [Tests.cmd_args.decode]
+   num_nodes = 2
+   tensor_parallel_size = 2
+
+   [Tests.extra_env_vars]
+   CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+``CUDA_VISIBLE_DEVICES`` and ``gpu_ids`` are interpreted as local GPU IDs on each serving node, not as cluster-global GPU
+IDs.
+
+
 Controlling ``proxy_script``
 -----------------------------
 ``proxy_script`` is used to proxy the requests from the client to the prefill and decode instances. It is ignored for non-disaggregated mode. Default value can be found below.

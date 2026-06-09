@@ -209,8 +209,10 @@ def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slur
 
     assert "Starting SGLang instances" in srun_command
     assert "Starting router" in srun_command
-    assert "PREFILL_NODE=${NODES[0]}" in srun_command
-    assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
+    assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
+    assert 'DECODE_NODES=( "${NODES[@]:0:1}" )' in srun_command
+    assert "PREFILL_NODE=${PREFILL_NODES[0]}" in srun_command
+    assert "DECODE_NODE=${DECODE_NODES[0]}" in srun_command
     assert 'env CUDA_VISIBLE_DEVICES="0,1"' in srun_command
     assert 'env CUDA_VISIBLE_DEVICES="2,3"' in srun_command
     assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
@@ -228,10 +230,12 @@ def test_gen_srun_command_contains_expected_two_node_flow(
 
     srun_command = strategy._gen_srun_command()
 
-    assert "PREFILL_NODE=${NODES[0]}" in srun_command
-    assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
-    assert srun_command.count("--relative=0 -N1") == 3
-    assert srun_command.count("--relative=1 -N1") == 1
+    assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
+    assert 'DECODE_NODES=( "${NODES[@]:1:1}" )' in srun_command
+    assert "PREFILL_NODE=${PREFILL_NODES[0]}" in srun_command
+    assert "DECODE_NODE=${DECODE_NODES[0]}" in srun_command
+    assert srun_command.count('--nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 3
+    assert srun_command.count('--nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 1
     assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3"' in srun_command
     assert srun_command.count("--host 0.0.0.0") >= 2
     assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
@@ -245,8 +249,54 @@ def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm
     sglang_disagg_tr.num_nodes = 3
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
-    with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
+    with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
         _ = strategy._gen_srun_command()
+
+
+def test_gen_srun_command_multinode_aggregated_uses_sglang_distributed_launch(
+    sglang: SglangTestDefinition, tmp_path: Path, slurm_system: SlurmSystem
+) -> None:
+    sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+    tr = TestRun(test=sglang, num_nodes=2, nodes=[], output_path=tmp_path, name="sglang-multinode-job")
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert 'SERVE_NODES=( "${NODES[@]:0:2}" )' in srun_command
+    assert "export SERVE_DIST_INIT_PORT=$((20000 + PORT_OFFSET))" in srun_command
+    assert '--nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
+    assert (
+        '--dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        in srun_command
+    )
+
+
+def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_launches(
+    sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    assert tdef.cmd_args.prefill is not None
+    tdef.cmd_args.prefill.num_nodes = 2
+    tdef.cmd_args.decode.num_nodes = 2
+    sglang_disagg_tr.num_nodes = 4
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert 'PREFILL_NODES=( "${NODES[@]:0:2}" )' in srun_command
+    assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in srun_command
+    assert "export PREFILL_DIST_INIT_PORT=$((20000 + PORT_OFFSET))" in srun_command
+    assert "export DECODE_DIST_INIT_PORT=$((21000 + PORT_OFFSET))" in srun_command
+    assert '--nodelist="${PREFILL_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
+    assert '--nodelist="${DECODE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
+    assert (
+        '--dist-init-addr "${PREFILL_NODE}:${PREFILL_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        in srun_command
+    )
+    assert (
+        '--dist-init-addr "${DECODE_NODE}:${DECODE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        in srun_command
+    )
 
 
 def test_gen_srun_command_contains_cuda_visible_devices_for_aggregated(

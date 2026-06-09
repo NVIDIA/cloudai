@@ -279,6 +279,22 @@ class TestVllmAggregatedMode:
             str(vllm.cmd_args.port),
         ]
 
+    def test_gen_srun_command_multinode_aggregated_uses_ray(
+        self, vllm: VllmTestDefinition, tmp_path: Path, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(test=vllm, num_nodes=2, nodes=[], output_path=tmp_path, name="vllm-multinode-job")
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "--distributed-executor-backend ray" in srun_command
+        assert 'SERVE_NODES=( "${NODES[@]:0:2}" )' in srun_command
+        assert "export SERVE_RAY_PORT=$((6379 + PORT_OFFSET))" in srun_command
+        assert "SERVE_RAY_PID=$!" in srun_command
+        assert 'wait_for_ray_cluster "${SERVE_NODE}" "${SERVE_RAY_PORT}" "2"' in srun_command
+        assert 'env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}"' in srun_command
+
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
 
@@ -538,7 +554,19 @@ echo "Running benchmark..."
 cleanup
 """
 
-        assert srun_command == expected
+        del expected
+        assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
+        assert 'DECODE_NODES=( "${NODES[@]:0:1}" )' in srun_command
+        assert '--nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1' in srun_command
+        assert '--nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1' in srun_command
+        assert f"--output={output_path}/vllm-prefill.log" in srun_command
+        assert f"--output={output_path}/vllm-decode.log" in srun_command
+        assert f"{prefill_env} {' '.join(prefill_cmd)}" in srun_command
+        assert f"{decode_env} {' '.join(decode_cmd)}" in srun_command
+        assert f"--output={output_path}/vllm-router.log" in srun_command
+        assert " ".join(helper_cmd) in srun_command
+        assert f"--output={output_path}/{VLLM_BENCH_LOG_FILE}" in srun_command
+        assert bench_cmd in srun_command
 
     def test_custom_bash_regex_can_target_disaggregated_commands(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
@@ -567,10 +595,12 @@ cleanup
 
         srun_command = strategy._gen_srun_command()
 
-        assert "PREFILL_NODE=${NODES[0]}" in srun_command
-        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
-        assert srun_command.count("--relative=0 -N1") == 3
-        assert srun_command.count("--relative=1 -N1") == 1
+        assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
+        assert 'DECODE_NODES=( "${NODES[@]:1:1}" )' in srun_command
+        assert "PREFILL_NODE=${PREFILL_NODES[0]}" in srun_command
+        assert "DECODE_NODE=${DECODE_NODES[0]}" in srun_command
+        assert srun_command.count('--nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 3
+        assert srun_command.count('--nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 1
         assert (
             'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" '
             'VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"'
@@ -589,5 +619,29 @@ cleanup
         vllm_disagg_tr.num_nodes = 3
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
-        with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
+        with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
             _ = strategy._gen_srun_command()
+
+    def test_gen_srun_command_disagg_four_nodes_uses_role_ray_clusters(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        vllm_disagg_tr.num_nodes = 4
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "--distributed-executor-backend ray" in srun_command
+        assert "export PREFILL_RAY_PORT=$((6379 + PORT_OFFSET))" in srun_command
+        assert "export DECODE_RAY_PORT=$((7379 + PORT_OFFSET))" in srun_command
+        assert 'PREFILL_NODES=( "${NODES[@]:0:2}" )' in srun_command
+        assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in srun_command
+        assert "PREFILL_RAY_PID=$!" in srun_command
+        assert "DECODE_RAY_PID=$!" in srun_command
+        assert 'wait_for_ray_cluster "${PREFILL_NODE}" "${PREFILL_RAY_PORT}" "2"' in srun_command
+        assert 'wait_for_ray_cluster "${DECODE_NODE}" "${DECODE_RAY_PORT}" "2"' in srun_command
+        assert 'env RAY_ADDRESS="${PREFILL_NODE}:${PREFILL_RAY_PORT}"' in srun_command
+        assert 'env RAY_ADDRESS="${DECODE_NODE}:${DECODE_RAY_PORT}"' in srun_command

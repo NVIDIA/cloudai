@@ -276,9 +276,11 @@ def build_special_test_run(
         "deepep-benchmark",
         "osu-bench",
         "sglang",
+        "sglang-multinode",
         "sglang-disagg",
         "sglang-disagg-2nodes",
         "vllm",
+        "vllm-multinode",
         "vllm-disagg",
         "vllm-disagg-2nodes",
     ]
@@ -602,6 +604,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
             ),
         ),
+        "vllm-multinode": lambda: create_test_run(
+            partial_tr,
+            "vllm-multinode",
+            VllmTestDefinition(
+                name="vllm-multinode",
+                description="vLLM distributed benchmark on 2 nodes",
+                test_template_name="Vllm",
+                cmd_args=VllmCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/vllm:latest",
+                    model="Qwen/Qwen3-0.6B",
+                    decode=VllmArgs.model_validate({"tensor_parallel_size": 2}),
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
+            ),
+        ),
         "sglang": lambda: create_test_run(
             partial_tr,
             "sglang",
@@ -614,6 +631,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     model="Qwen/Qwen3-8B",
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
+            ),
+        ),
+        "sglang-multinode": lambda: create_test_run(
+            partial_tr,
+            "sglang-multinode",
+            SglangTestDefinition(
+                name="sglang-multinode",
+                description="SGLang distributed benchmark on 2 nodes",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(
+                    docker_image_url="docker.io/lmsysorg/sglang:dev",
+                    model="Qwen/Qwen3-8B",
+                    decode=SglangArgs.model_validate({"tp": 2}),
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),
         ),
         "sglang-disagg": lambda: create_test_run(
@@ -700,7 +732,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 2
         if request.param == "deepep-benchmark":
             tr.num_nodes = 2
-        if request.param in {"sglang-disagg-2nodes", "vllm-disagg-2nodes"}:
+        if request.param in {"sglang-multinode", "sglang-disagg-2nodes", "vllm-multinode", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2
         return tr, f"{request.param}.sbatch", None
 

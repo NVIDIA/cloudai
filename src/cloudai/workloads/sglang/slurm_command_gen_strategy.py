@@ -135,3 +135,52 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
     def aggregated_serve_env(self) -> dict[str, str]:
         return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in self.gpu_ids)}
+
+    def _needs_distributed_launch(self, role: str) -> bool:
+        return self.role_node_count(role) > 1
+
+    def aggregated_script_preamble(self) -> str:
+        if not self._needs_distributed_launch("serve"):
+            return ""
+        return """\
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export SERVE_DIST_INIT_PORT=$((20000 + PORT_OFFSET))
+
+"""
+
+    def disaggregated_script_preamble(self) -> str:
+        if not (self._needs_distributed_launch("prefill") or self._needs_distributed_launch("decode")):
+            return ""
+        return """\
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_DIST_INIT_PORT=$((20000 + PORT_OFFSET))
+export DECODE_DIST_INIT_PORT=$((21000 + PORT_OFFSET))
+
+"""
+
+    def render_serve_launch(
+        self,
+        role: str,
+        command_tail: str,
+        pid_var: str,
+        log_file: str,
+        node_count: int,
+        head_node_var: str,
+        nodelist_var: str,
+    ) -> str:
+        if node_count <= 1:
+            return super().render_serve_launch(
+                role, command_tail, pid_var, log_file, node_count, head_node_var, nodelist_var
+            )
+
+        role_prefix = role.upper()
+        dist_port_var = f"{role_prefix}_DIST_INIT_PORT"
+        dist_command = (
+            f'{command_tail} --dist-init-addr "${{{head_node_var}}}:${{{dist_port_var}}}" '
+            f'--nnodes {node_count} --node-rank "$SLURM_NODEID"'
+        )
+        return f"""\
+{self._role_srun_prefix(f"${{{nodelist_var}}}", node_count, node_count)} \\
+    --output={self.test_run.output_path.absolute()}/{log_file}-%N \\
+    {self._with_custom_bash(dist_command)} &
+{pid_var}=$!"""

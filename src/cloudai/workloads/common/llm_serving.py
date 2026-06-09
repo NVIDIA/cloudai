@@ -78,7 +78,7 @@ def calculate_prefill_gpu_ids(
         return parse_gpu_ids(tdef.cmd_args.prefill.gpu_ids)
 
     gpu_ids = all_gpu_ids(tdef, system_gpus_per_node)
-    if num_nodes == 2:
+    if num_nodes > 1 or tdef.cmd_args.prefill.num_nodes is not None:
         return gpu_ids
     mid = len(gpu_ids) // 2
     return gpu_ids[:mid]
@@ -95,7 +95,7 @@ def calculate_decode_gpu_ids(
     gpu_ids = all_gpu_ids(tdef, system_gpus_per_node)
     if not tdef.cmd_args.prefill:
         return gpu_ids
-    if num_nodes == 2:
+    if num_nodes > 1 or tdef.cmd_args.decode.num_nodes is not None:
         return gpu_ids
     mid = len(gpu_ids) // 2
     return gpu_ids[mid:]
@@ -107,11 +107,15 @@ class LLMServingArgs(CmdArgs):
     gpu_ids: str | list[str] | None = Field(
         default=None, description="Comma-separated GPU IDs. If not set, all available GPUs will be used."
     )
+    num_nodes: int | list[int] | None = Field(
+        default=None,
+        description="Number of Slurm nodes assigned to this role in disaggregated serving mode.",
+    )
 
     @property
     def serve_args_exclude(self) -> set[str]:
         """Fields consumed internally and excluded from generic serve args."""
-        return {"gpu_ids"}
+        return {"gpu_ids", "num_nodes"}
 
     def serialize_serve_arg(self, key: str, value: Any) -> list[str]:
         """Serialize a single serve argument to CLI tokens."""
@@ -369,15 +373,52 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     def is_disaggregated(self) -> bool:
         return self.tdef.cmd_args.prefill is not None
 
+    @staticmethod
+    def _role_num_nodes(value: int | list[int] | None, role: str) -> int | None:
+        if isinstance(value, list):
+            raise ValueError(f"{role}.num_nodes must be a single integer for command generation.")
+        return value
+
     @property
-    def is_two_node_disaggregated(self) -> bool:
-        if not self.is_disaggregated:
-            return False
+    def aggregated_node_count(self) -> int:
+        num_nodes, _ = self.get_cached_nodes_spec()
+        return num_nodes
+
+    def disaggregated_role_node_counts(self) -> tuple[int, int]:
+        if not self.is_disaggregated or self.tdef.cmd_args.prefill is None:
+            return (0, 0)
 
         num_nodes, _ = self.get_cached_nodes_spec()
-        if num_nodes not in (1, 2):
-            raise ValueError(f"Disaggregated {self.workload_name} supports only 1 or 2 nodes, got {num_nodes}.")
-        return num_nodes == 2
+        prefill_nodes = self._role_num_nodes(self.tdef.cmd_args.prefill.num_nodes, "prefill")
+        decode_nodes = self._role_num_nodes(self.tdef.cmd_args.decode.num_nodes, "decode")
+
+        if prefill_nodes is None and decode_nodes is None:
+            if num_nodes in (1, 2):
+                return (1, 1)
+            raise ValueError(
+                f"Disaggregated {self.workload_name} over more than 2 nodes requires both "
+                "prefill.num_nodes and decode.num_nodes."
+            )
+        if prefill_nodes is None or decode_nodes is None:
+            raise ValueError("Both prefill.num_nodes and decode.num_nodes must be set or both must be omitted.")
+        if prefill_nodes <= 0 or decode_nodes <= 0:
+            raise ValueError("prefill.num_nodes and decode.num_nodes must be positive integers.")
+        if prefill_nodes + decode_nodes != num_nodes:
+            raise ValueError(
+                f"prefill.num_nodes + decode.num_nodes must equal allocated nodes ({num_nodes}), "
+                f"got {prefill_nodes + decode_nodes}."
+            )
+        return (prefill_nodes, decode_nodes)
+
+    def role_node_count(self, role: str) -> int:
+        if role == "serve":
+            return self.aggregated_node_count
+        prefill_nodes, decode_nodes = self.disaggregated_role_node_counts()
+        if role == "prefill":
+            return prefill_nodes
+        if role == "decode":
+            return decode_nodes
+        raise ValueError(f"Unknown serving role: {role}")
 
     @property
     def prefill_gpu_ids(self) -> list[int]:
@@ -387,12 +428,21 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
     def decode_gpu_ids(self) -> list[int]:
         return calculate_decode_gpu_ids(self.tdef, self.test_run.nnodes, self.system.gpus_per_node)
 
-    def _disagg_srun_prefix(self, relative: int | None = None) -> str:
-        srun_command_parts = self.gen_srun_prefix(with_num_nodes=(relative is None))
-        srun_command_parts.extend(["--overlap", "--ntasks-per-node=1", "--ntasks=1"])
-        if relative is not None:
-            srun_command_parts.extend([f"--relative={relative}", "-N1"])
+    def _role_srun_prefix(self, nodelist_expr: str, node_count: int = 1, task_count: int = 1) -> str:
+        srun_command_parts = self.gen_srun_prefix(with_num_nodes=False)
+        srun_command_parts.extend(
+            [
+                "--overlap",
+                f'--nodelist="{nodelist_expr}"',
+                f"--nodes={node_count}",
+                f"--ntasks={task_count}",
+                "--ntasks-per-node=1",
+            ]
+        )
         return " ".join(srun_command_parts)
+
+    def _single_role_srun_prefix(self, node_var: str) -> str:
+        return self._role_srun_prefix(f"${{{node_var}}}")
 
     @staticmethod
     def _with_env(command: list[str], env_vars: dict[str, str]) -> str:
@@ -438,27 +488,49 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
             return "${PREFILL_NODE}"
         return "${NODE}"
 
+    def generate_aggregated_node_setup(self, node_count: int) -> str:
+        if node_count <= 1:
+            return ""
+        return f"""\
+NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
+SERVE_NODES=( "${{NODES[@]:0:{node_count}}}" )
+if [ "${{#SERVE_NODES[@]}}" -ne {node_count} ]; then
+    echo "Expected {node_count} allocated nodes for {self.workload_name}, got: ${{NODES[*]}}"
+    exit 1
+fi
+export SERVE_NODE=${{SERVE_NODES[0]}}
+export NODE=$SERVE_NODE
+SERVE_NODELIST=$(IFS=,; echo "${{SERVE_NODES[*]}}")
+echo "Node roles: serve=${{SERVE_NODES[*]}}"
+
+"""
+
     def generate_disaggregated_node_setup(self) -> str:
         if not self.is_disaggregated:
             return ""
-        decode_node_check = ""
-        if self.is_two_node_disaggregated:
-            decode_node_check = f"""\
-if [ -z "${{NODES[1]}}" ]; then
-    echo "Expected 2 allocated nodes for disaggregated {self.workload_name}, got: ${{NODES[*]}}"
-    exit 1
-fi
-"""
+        allocated_nodes, _ = self.get_cached_nodes_spec()
+        prefill_nodes, decode_nodes = self.disaggregated_role_node_counts()
+        decode_start = 0 if allocated_nodes == 1 and prefill_nodes == 1 and decode_nodes == 1 else prefill_nodes
+        role_error = (
+            f"Expected {prefill_nodes} prefill and {decode_nodes} decode nodes for disaggregated {self.workload_name}"
+        )
         return f"""\
 NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-export PREFILL_NODE=${{NODES[0]}}
-export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
-if [ -z "$PREFILL_NODE" ]; then
+PREFILL_NODES=( "${{NODES[@]:0:{prefill_nodes}}}" )
+DECODE_NODES=( "${{NODES[@]:{decode_start}:{decode_nodes}}}" )
+if [ "${{#PREFILL_NODES[@]}}" -ne {prefill_nodes} ] || [ "${{#DECODE_NODES[@]}}" -ne {decode_nodes} ]; then
+    echo "{role_error}, got: ${{NODES[*]}}"
+    exit 1
+fi
+export PREFILL_NODE=${{PREFILL_NODES[0]}}
+export DECODE_NODE=${{DECODE_NODES[0]}}
+PREFILL_NODELIST=$(IFS=,; echo "${{PREFILL_NODES[*]}}")
+DECODE_NODELIST=$(IFS=,; echo "${{DECODE_NODES[*]}}")
+if [ -z "$PREFILL_NODE" ] || [ -z "$DECODE_NODE" ]; then
     echo "Failed to resolve allocated nodes for disaggregated {self.workload_name}"
     exit 1
 fi
-{decode_node_check}\
-echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
+echo "Node roles: prefill=${{PREFILL_NODES[*]}} decode=${{DECODE_NODES[*]}}"
 
 """
 
@@ -597,6 +669,15 @@ trap cleanup EXIT"""
     def disaggregated_script_preamble(self) -> str:
         return ""
 
+    def aggregated_script_preamble(self) -> str:
+        return ""
+
+    def aggregated_cleanup_pid_vars(self) -> list[str]:
+        return [self.serve_pid_var]
+
+    def disaggregated_cleanup_pid_vars(self) -> list[str]:
+        return ["PREFILL_PID", "DECODE_PID", self.proxy_router_pid_var]
+
     def aggregated_serve_env(self) -> dict[str, str]:
         return {}
 
@@ -618,6 +699,23 @@ trap cleanup EXIT"""
     def get_semantic_eval_command(self) -> list[str] | None:
         """Return the optional semantic validation command."""
         return None
+
+    def render_serve_launch(
+        self,
+        role: str,
+        command_tail: str,
+        pid_var: str,
+        log_file: str,
+        node_count: int,
+        head_node_var: str,
+        nodelist_var: str,
+    ) -> str:
+        del role, node_count, nodelist_var
+        return f"""\
+{self._single_role_srun_prefix(head_node_var)} \\
+    --output={self.test_run.output_path.absolute()}/{log_file} \\
+    {self._with_custom_bash(command_tail)} &
+{pid_var}=$!"""
 
     def _expand_semantic_eval_args(self, args: str, *, host: str) -> str:
         replacements = {
@@ -658,39 +756,70 @@ echo "Running semantic validation..."
         return self._gen_disaggregated_script(serve_commands, bench_cmd)
 
     def _gen_aggregated_script(self, serve_cmd: list[str], bench_cmd: str) -> str:
-        srun_prefix = " ".join(self.gen_srun_prefix())
+        serve_node_count = self.role_node_count("serve")
+        legacy_single_node = serve_node_count == 1
+        srun_prefix = (
+            " ".join(self.gen_srun_prefix()) if legacy_single_node else self._single_role_srun_prefix("SERVE_NODE")
+        )
+        host_setup = (
+            "" if not legacy_single_node else "NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)\n"
+        )
         serve_cmd_with_env = self._with_env(serve_cmd, self.aggregated_serve_env())
         health_func = self.generate_wait_for_health_function()
         wait_block = self.generate_wait_for_health_block(
-            self.workload_name, [f"http://${{NODE}}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"]
+            self.workload_name,
+            [f"http://${{NODE}}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"],
+            host_setup=host_setup,
         )
-        return f"""\
-{self.generate_cleanup_function([self.serve_pid_var])}
-
-{health_func}
-
-echo "Starting {self.workload_name} instances..."
+        node_setup = self.generate_aggregated_node_setup(serve_node_count)
+        preamble = self.aggregated_script_preamble()
+        if legacy_single_node:
+            serve_launch = f"""\
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={(self.test_run.output_path / self.serve_log_file).absolute()} \\
     {self._with_custom_bash(serve_cmd_with_env)} &
-{self.serve_pid_var}=$!
+{self.serve_pid_var}=$!"""
+        else:
+            serve_launch = self.render_serve_launch(
+                "serve",
+                serve_cmd_with_env,
+                self.serve_pid_var,
+                self.serve_log_file,
+                serve_node_count,
+                "SERVE_NODE",
+                "SERVE_NODELIST",
+            )
+        semantic_prefix = (
+            f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1"
+            if legacy_single_node
+            else self._single_role_srun_prefix("SERVE_NODE")
+        )
+        bench_prefix = semantic_prefix
+        return f"""\
+{self.generate_cleanup_function(self.aggregated_cleanup_pid_vars())}
+
+{health_func}
+
+{preamble}{node_setup}\
+echo "Starting {self.workload_name} instances..."
+{serve_launch}
 
 {wait_block}
 
 echo "Running benchmark..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+{bench_prefix} \\
     --output={(self.test_run.output_path / self.bench_log_file).absolute()} \\
     {self._with_custom_bash(bench_cmd)}
 
-{self._gen_semantic_eval_block(f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1")}""".strip()
+{self._gen_semantic_eval_block(semantic_prefix)}""".strip()
 
     def _gen_disaggregated_script(self, serve_commands: list[list[str]], bench_cmd: str) -> str:
         prefill_cmd, decode_cmd = serve_commands
         health_func = self.generate_wait_for_health_function()
         prefill_cmd_with_env = self._with_env(prefill_cmd, self.disaggregated_role_env("prefill", self.prefill_gpu_ids))
         decode_cmd_with_env = self._with_env(decode_cmd, self.disaggregated_role_env("decode", self.decode_gpu_ids))
-        prefill_srun_prefix = self._disagg_srun_prefix(0 if self.is_two_node_disaggregated else None)
-        decode_srun_prefix = self._disagg_srun_prefix(1 if self.is_two_node_disaggregated else None)
+        prefill_nodes, decode_nodes = self.disaggregated_role_node_counts()
+        prefill_srun_prefix = self._single_role_srun_prefix("PREFILL_NODE")
         helper_cmd = self.get_helper_command()
         node_setup = self.generate_disaggregated_node_setup()
         wait_block = self.generate_wait_for_health_block(
@@ -709,23 +838,35 @@ echo "Running benchmark..."
             host_display="$PREFILL_NODE server",
         )
         preamble = self.disaggregated_script_preamble()
+        prefill_launch = self.render_serve_launch(
+            "prefill",
+            prefill_cmd_with_env,
+            "PREFILL_PID",
+            self.prefill_log_file,
+            prefill_nodes,
+            "PREFILL_NODE",
+            "PREFILL_NODELIST",
+        )
+        decode_launch = self.render_serve_launch(
+            "decode",
+            decode_cmd_with_env,
+            "DECODE_PID",
+            self.decode_log_file,
+            decode_nodes,
+            "DECODE_NODE",
+            "DECODE_NODELIST",
+        )
 
         return f"""\
-{self.generate_cleanup_function(["PREFILL_PID", "DECODE_PID", self.proxy_router_pid_var])}
+{self.generate_cleanup_function(self.disaggregated_cleanup_pid_vars())}
 
 {health_func}
 
 {preamble}{node_setup}\
 echo "Starting {self.workload_name} instances..."
-{prefill_srun_prefix} \\
-    --output={self.test_run.output_path.absolute()}/{self.prefill_log_file} \\
-    {self._with_custom_bash(prefill_cmd_with_env)} &
-PREFILL_PID=$!
+{prefill_launch}
 
-{decode_srun_prefix} \\
-    --output={self.test_run.output_path.absolute()}/{self.decode_log_file} \\
-    {self._with_custom_bash(decode_cmd_with_env)} &
-DECODE_PID=$!
+{decode_launch}
 
 {wait_block}
 
