@@ -25,7 +25,7 @@ mount_as = "/vllm_repo"
 
 [cmd_args]
 docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:1.1.1"
-model = "Qwen/Qwen2.5-7B-Instruct"
+model = "Qwen/Qwen3-8B"
 
 [bench_cmd_args]
 random_input_len = 512
