@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,20 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "deepep_standard"
-description = "DeepEP MoE Benchmark - Standard Mode"
-test_template_name = "DeepEP"
+name = "moe_benchmark_low_latency"
+description = "MoE Benchmark - DeepEP low-latency mode plus matrix export"
+test_template_name = "MoEBenchmark"
 
 [cmd_args]
-# Local .sqsh file:
-# docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
-# Container registry (uses your Docker credentials):
-docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
-
-mode = "standard"
-
-tokens = 1024
-num_experts = 256
+docker_image_url = "/your/path/to/the/container"
+benchmark_root = "/path/in/the/container/to/the/tests/folder"
+mode = "low_latency"
+tokens = 128
+num_experts = 288
 num_topk = 8
 hidden_size = 7168
 data_type = "bfloat16"
@@ -39,5 +35,10 @@ num_warmups = 20
 num_iterations = 50
 shuffle_columns = false
 use_kineto_profiler = false
+enable_tuning = false
 config_file_path = "/tmp/config.yaml"
 results_dir = "/workspace/dp-benchmark/results"
+
+[extra_env_vars]
+NUM_QPS_PER_RANK = "12"
+NUM_SMS = "24"

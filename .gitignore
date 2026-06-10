@@ -87,6 +87,7 @@ ehthumbs.db
 Thumbs.db
 
 *.log
+slurm-*
 install/
 results/
 .*
