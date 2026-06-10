@@ -23,6 +23,7 @@ num_nodes = 1
 time_limit = "01:00:00"
 
   [Tests.cmd_args.decode]
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 4
   max_num_batched_tokens = 8192
@@ -35,6 +36,7 @@ num_nodes = 2
 time_limit = "01:00:00"
 
   [Tests.cmd_args.decode]
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
@@ -47,6 +49,7 @@ num_nodes = 4
 time_limit = "01:00:00"
 
   [Tests.cmd_args.decode]
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
@@ -60,6 +63,7 @@ time_limit = "01:00:00"
 
   [Tests.cmd_args.prefill]
   num_nodes = 2
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
@@ -67,6 +71,7 @@ time_limit = "01:00:00"
 
   [Tests.cmd_args.decode]
   num_nodes = 2
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
@@ -80,6 +85,7 @@ time_limit = "01:30:00"
 
   [Tests.cmd_args.prefill]
   num_nodes = 3
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
@@ -87,6 +93,7 @@ time_limit = "01:30:00"
 
   [Tests.cmd_args.decode]
   num_nodes = 4
+  gpu_ids = "0,1,2,3"
   enforce_eager = ""
   tensor_parallel_size = 8
   max_num_batched_tokens = 8192
