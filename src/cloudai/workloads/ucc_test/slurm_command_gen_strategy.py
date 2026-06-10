@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.moe_benchmark.combined_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
+from cloudai.workloads.common.moe_benchmark_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -45,28 +45,43 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
+
         dep_out = moe_benchmark_root(self.test_run)
-        if dep_out is None:
+        matrix = _ucc_matrix_path_under_deepep_output(dep_out) if dep_out is not None else None
+        if matrix is not None:
+            return matrix
+
+        if tdef.cmd_args.gen is not None:
             return None
-        return _ucc_matrix_path_under_deepep_output(dep_out)
+
+        ctx = (
+            f"UCC test '{self.test_run.name}' (iteration {self.test_run.current_iteration}, step {self.test_run.step})"
+        )
+        detail = (
+            "moe_benchmark_root() could not locate the DeepEP/MoE benchmark output directory by walking the "
+            "'start_post_comp' dependency chain"
+            if dep_out is None
+            else f"_ucc_matrix_path_under_deepep_output() found no 'ucc_matrix.txt' under the resolved root '{dep_out}'"
+        )
+        raise FileNotFoundError(
+            f"use_deepep_matrix=True was requested for {ctx}, but {detail}. Provide the DeepEP matrix via the "
+            "dependency, or set a manual generation spec in cmd_args.gen (--gen ...)."
+        )
 
     def _container_mounts(self) -> List[str]:
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
         if not tdef.cmd_args.use_deepep_matrix:
             return []
 
-        deepep_root = moe_benchmark_root(self.test_run)
-        if deepep_root is None:
-            return []
-
         matrix_host = self._deepep_ucc_matrix_host_path()
         if matrix_host is None:
             return []
 
-        return [
-            f"{matrix_host.resolve()}:{_UCC_GEN_MATRIX_CONTAINER}",
-            f"{deepep_root.resolve()}:{MOE_BENCHMARK_PREV_MOUNT}:ro",
-        ]
+        mounts = [f"{matrix_host.resolve()}:{_UCC_GEN_MATRIX_CONTAINER}"]
+        deepep_root = moe_benchmark_root(self.test_run)
+        if deepep_root is not None:
+            mounts.append(f"{deepep_root.resolve()}:{MOE_BENCHMARK_PREV_MOUNT}:ro")
+        return mounts
 
     def image_path(self) -> str | None:
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)

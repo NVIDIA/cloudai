@@ -18,12 +18,20 @@ from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.moe_benchmark.combined_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
+from cloudai.workloads.common.moe_benchmark_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .nccl import NCCLTestDefinition
 
 _ALLTOALLV_MATRIX_ENV = "ALLTOALLV_MATRIX_FILE"
 _NCCL_TESTS_ALLTOALLV_PERF = "/opt/nccl-tests/build/alltoallv_perf"
+
+# cmd_args fields that are CloudAI metadata, not nccl-tests CLI flags, and must never be forwarded to the binary.
+_ALLTOALLV_SKIP_CLI = {
+    "docker_image_url",
+    "subtest_name",
+    "use_deepep_matrix",
+    "alltoallv_matrix_container_path",
+}
 
 
 def _nccl_cmd_scalar(value: object) -> object:
@@ -52,10 +60,25 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
+
+        ctx = (
+            f"NCCL test '{self.test_run.name}' (iteration {self.test_run.current_iteration}, step {self.test_run.step})"
+        )
         root = moe_benchmark_root(self.test_run)
         if root is None:
-            return None
-        return _nccl_matrix_path_under_deepep_output(root)
+            raise RuntimeError(
+                f"use_deepep_matrix=True was requested for {ctx}, but moe_benchmark_root() could not locate the "
+                "MoE benchmark output directory by walking the 'start_post_comp' dependency chain."
+            )
+
+        matrix = _nccl_matrix_path_under_deepep_output(root)
+        if matrix is None:
+            raise RuntimeError(
+                f"use_deepep_matrix=True was requested for {ctx}, but _nccl_matrix_path_under_deepep_output() found "
+                f"no 'nccl_matrix.txt' under the resolved MoE benchmark root '{root}'."
+            )
+
+        return matrix
 
     def _container_mounts(self) -> List[str]:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
@@ -90,37 +113,50 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
+    def _alltoallv_test_command(self, tdef: NCCLTestDefinition) -> List[str]:
+        a = tdef.cmd_args
+        parts: List[str] = [
+            _NCCL_TESTS_ALLTOALLV_PERF,
+            "-b",
+            str(_nccl_cmd_scalar(a.minbytes)),
+            "-e",
+            str(_nccl_cmd_scalar(a.maxbytes)),
+            "-g",
+            str(_nccl_cmd_scalar(a.ngpus)),
+            "-w",
+            str(_nccl_cmd_scalar(a.warmup_iters)),
+            "-n",
+            str(_nccl_cmd_scalar(a.iters)),
+        ]
+        # Forward the remaining configured NCCL options (e.g. nthreads, stepbytes, op, datatype, root,
+        # check, blocking, cudagraph, stepfactor, ...) so TOML-configured settings are not silently dropped.
+        # nccl-tests long option names match the cmd_args field names. The flags already emitted above and
+        # the non-CLI metadata fields are skipped.
+        already_emitted = {"minbytes", "maxbytes", "ngpus", "warmup_iters", "iters"}
+        for field_name in a.model_dump():
+            if field_name in already_emitted or field_name in _ALLTOALLV_SKIP_CLI:
+                continue
+            value = _nccl_cmd_scalar(getattr(a, field_name))
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                if value:
+                    parts.append(f"--{field_name}")
+                continue
+            parts.extend([f"--{field_name}", str(value)])
+        if self.test_run.test.extra_cmd_args:
+            parts.append(self.test_run.test.extra_args_str)
+        return parts
+
     def generate_test_command(self) -> List[str]:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         if tdef.cmd_args.subtest_name == "alltoallv_perf_mpi":
-            a = tdef.cmd_args
-            parts: List[str] = [
-                _NCCL_TESTS_ALLTOALLV_PERF,
-                "-b",
-                str(_nccl_cmd_scalar(a.minbytes)),
-                "-e",
-                str(_nccl_cmd_scalar(a.maxbytes)),
-                "-g",
-                str(_nccl_cmd_scalar(a.ngpus)),
-                "-w",
-                str(_nccl_cmd_scalar(a.warmup_iters)),
-                "-n",
-                str(_nccl_cmd_scalar(a.iters)),
-            ]
-            if self.test_run.test.extra_cmd_args:
-                parts.append(self.test_run.test.extra_args_str)
-            return parts
+            return self._alltoallv_test_command(tdef)
 
         srun_command_parts = [f"{tdef.cmd_args.subtest_name}"]
-        skip_cli = {
-            "docker_image_url",
-            "subtest_name",
-            "use_deepep_matrix",
-            "alltoallv_matrix_container_path",
-        }
         nccl_test_args = tdef.cmd_args.model_dump().keys()
         for arg in nccl_test_args:
-            if arg in skip_cli:
+            if arg in _ALLTOALLV_SKIP_CLI:
                 continue
 
             value = getattr(tdef.cmd_args, arg)

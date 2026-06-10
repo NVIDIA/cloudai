@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.moe_benchmark.combined_report import moe_benchmark_results_json_files
+from cloudai.workloads.common.moe_benchmark_report import moe_benchmark_results_json_files
 
 if TYPE_CHECKING:
     import pandas as pd

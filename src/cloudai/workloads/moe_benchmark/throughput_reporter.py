@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 from cloudai.core import Reporter
-from cloudai.workloads.moe_benchmark.combined_report import moe_benchmark_results_json_files
+from cloudai.workloads.common.moe_benchmark_report import moe_benchmark_results_json_files
 from cloudai.workloads.moe_benchmark.moe_benchmark import MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data

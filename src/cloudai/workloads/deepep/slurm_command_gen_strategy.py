@@ -117,25 +117,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
 
     def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
-        num_nodes, node_list = self.get_cached_nodes_spec()
-
-        self._add_reservation(batch_script_content)
-        batch_script_content.append(f"#SBATCH --output={self.test_run.output_path.absolute() / 'stdout.txt'}")
-        batch_script_content.append(f"#SBATCH --error={self.test_run.output_path.absolute() / 'stderr.txt'}")
-        batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
-        if self.system.account:
-            batch_script_content.append(f"#SBATCH --account={self.system.account}")
-        if node_list:
-            batch_script_content.append(f"#SBATCH --nodelist={','.join(node_list)}")
-        batch_script_content.append(f"#SBATCH -N {num_nodes}")
-        batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
-        batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
-        batch_script_content.append("#SBATCH --ntasks-per-node=1")
-        if self.test_run.time_limit:
-            batch_script_content.append(f"#SBATCH --time={self.test_run.time_limit}")
-        batch_script_content.append(
-            "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
-        )
+        super()._append_sbatch_directives(batch_script_content)
         self._append_head_node_detection(batch_script_content)
 
     def _gen_srun_command(self) -> str:

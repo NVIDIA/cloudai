@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MoE benchmark dependency helpers for Slurm UCC/NCCL."""
+"""Shared MoE benchmark dependency helpers (one-directional import for UCC/NCCL/MoE)."""
 
 from __future__ import annotations
 

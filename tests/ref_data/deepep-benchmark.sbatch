@@ -7,7 +7,6 @@
 #SBATCH -N 2
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
-#SBATCH --ntasks-per-node=1
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
