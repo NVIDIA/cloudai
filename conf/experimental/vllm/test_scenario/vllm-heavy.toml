@@ -49,7 +49,6 @@ time_limit = "01:00:00"
   [Tests.cmd_args.decode]
   enforce_eager = ""
   tensor_parallel_size = 8
-  pipeline_parallel_size = 2
   max_num_batched_tokens = 8192
   max_model_len = 8192
 
@@ -82,15 +81,13 @@ time_limit = "01:30:00"
   [Tests.cmd_args.prefill]
   num_nodes = 3
   enforce_eager = ""
-  tensor_parallel_size = 4
-  pipeline_parallel_size = 3
+  tensor_parallel_size = 8
   max_num_batched_tokens = 8192
   max_model_len = 8192
 
   [Tests.cmd_args.decode]
   num_nodes = 4
   enforce_eager = ""
-  tensor_parallel_size = 4
-  pipeline_parallel_size = 4
+  tensor_parallel_size = 8
   max_num_batched_tokens = 8192
   max_model_len = 8192
