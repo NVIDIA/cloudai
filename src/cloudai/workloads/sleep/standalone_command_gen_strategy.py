@@ -21,16 +21,18 @@ import toml
 from cloudai.core import CommandGenStrategy
 from cloudai.models.scenario import TestRunDetails
 
-from .sleep import SleepCmdArgs, SleepTestDefinition
+from .sleep import SleepTestDefinition
 
 
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     """Command generation strategy for the Sleep test on standalone systems."""
 
-    def store_test_run(self) -> None:
+    def _generate_sleep_command(self) -> str:
         tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
-        sec = tdef.cmd_args.seconds
-        test_cmd = f"sleep {sec}"
+        return f"sleep {tdef.cmd_args.seconds}"
+
+    def store_test_run(self) -> None:
+        test_cmd = self._generate_sleep_command()
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as f:
             trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
@@ -38,7 +40,4 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
 
     def gen_exec_command(self) -> str:
         self.store_test_run()
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
-        tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
-        sec = tdef_cmd_args.seconds
-        return f"sleep {sec}"
+        return self._generate_sleep_command()
