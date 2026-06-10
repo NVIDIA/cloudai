@@ -61,7 +61,7 @@ echo "Node roles: serve=${SERVE_NODES[*]}"
 echo "Starting SGLang instances..."
 srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1 \
     --output=__OUTPUT_DIR__/output/sglang-serve.log-%N \
-    env CUDA_VISIBLE_DEVICES="0,1,2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8300 --tp 2 --dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID" &
+    bash -c 'exec env CUDA_VISIBLE_DEVICES="0,1,2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8300 --tp 2 --dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"' &
 SERVE_PID=$!
 
 echo "Waiting for SGLang on $NODE to be ready..."

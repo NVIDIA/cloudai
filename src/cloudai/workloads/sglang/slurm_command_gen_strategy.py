@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
@@ -175,12 +176,15 @@ export DECODE_DIST_INIT_PORT=$((21000 + PORT_OFFSET))
 
         role_prefix = role.upper()
         dist_port_var = f"{role_prefix}_DIST_INIT_PORT"
+        custom_bash = self._custom_bash_for_command(command_tail)
+        custom_prefix = f"{custom_bash}; " if custom_bash else ""
         dist_command = (
             f'{command_tail} --dist-init-addr "${{{head_node_var}}}:${{{dist_port_var}}}" '
-            f'--nnodes {node_count} --node-rank "$SLURM_NODEID"'
+            f'--nnodes {node_count} --node-rank "$SLURM_PROCID"'
         )
+        task_command = "bash -c " + shlex.quote(f"{custom_prefix}exec {dist_command}")
         return f"""\
 {self._role_srun_prefix(f"${{{nodelist_var}}}", node_count, node_count)} \\
     --output={self.test_run.output_path.absolute()}/{log_file}-%N \\
-    {self._with_custom_bash(dist_command)} &
+    {task_command} &
 {pid_var}=$!"""

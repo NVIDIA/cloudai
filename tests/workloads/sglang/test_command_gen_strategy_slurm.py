@@ -81,6 +81,15 @@ class TestGpuDetection:
         strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
         assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
 
+    def test_aggregated_gpu_ids_from_decode_config(self, sglang_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        tdef = cast(SglangTestDefinition, sglang_tr.test)
+        tdef.extra_env_vars = {}
+        tdef.cmd_args.decode.gpu_ids = "0,1,2,3"
+        strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
+
+        assert strategy.gpu_ids == [0, 1, 2, 3]
+        assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3"' in strategy._gen_srun_command()
+
     def test_multinode_disagg_uses_shared_gpu_ids_per_role(
         self, sglang_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
@@ -266,9 +275,10 @@ def test_gen_srun_command_multinode_aggregated_uses_sglang_distributed_launch(
     assert "export SERVE_DIST_INIT_PORT=$((20000 + PORT_OFFSET))" in srun_command
     assert '--nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
     assert (
-        '--dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        '--dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"'
         in srun_command
     )
+    assert "bash -c" in srun_command
 
 
 def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_launches(
@@ -290,11 +300,11 @@ def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_lau
     assert '--nodelist="${PREFILL_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
     assert '--nodelist="${DECODE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
     assert (
-        '--dist-init-addr "${PREFILL_NODE}:${PREFILL_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        '--dist-init-addr "${PREFILL_NODE}:${PREFILL_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"'
         in srun_command
     )
     assert (
-        '--dist-init-addr "${DECODE_NODE}:${DECODE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_NODEID"'
+        '--dist-init-addr "${DECODE_NODE}:${DECODE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"'
         in srun_command
     )
 
