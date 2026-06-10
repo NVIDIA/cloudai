@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
-from .slurm_command_gen_strategy import DeepEPSlurmCommandGenStrategy
+from .moe_benchmark import MoEBenchmarkCmdArgs, MoEBenchmarkTestDefinition
+from .report_generation_strategy import MoEBenchmarkReportGenerationStrategy
+from .slurm_command_gen_strategy import MoEBenchmarkSlurmCommandGenStrategy
+from .throughput_reporter import MoEBenchmarkThroughputReporter
 
 __all__ = [
-    "DeepEPCmdArgs",
-    "DeepEPSlurmCommandGenStrategy",
-    "DeepEPTestDefinition",
+    "MoEBenchmarkCmdArgs",
+    "MoEBenchmarkReportGenerationStrategy",
+    "MoEBenchmarkSlurmCommandGenStrategy",
+    "MoEBenchmarkTestDefinition",
+    "MoEBenchmarkThroughputReporter",
 ]

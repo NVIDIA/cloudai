@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
-from .slurm_command_gen_strategy import DeepEPSlurmCommandGenStrategy
+name = "nccl_test_alltoallv"
+description = "NCCL AlltoAllv"
+test_template_name = "NcclTest"
 
-__all__ = [
-    "DeepEPCmdArgs",
-    "DeepEPSlurmCommandGenStrategy",
-    "DeepEPTestDefinition",
-]
+[cmd_args]
+docker_image_url = "/your/path/to/the/container"
+subtest_name = "alltoallv_perf_mpi"
+nthreads = 1
+ngpus = 1
+minbytes = "512M"
+maxbytes = "512M"
+stepfactor = 2
+iters = 10
+warmup_iters = 1
+check = 1
+blocking = 0
+use_deepep_matrix = true
+
+[extra_env_vars]
+NCCL_P2P_DISABLE = "1"
+NCCL_SHM_DISABLE = "1"
