@@ -78,7 +78,7 @@ echo "Starting vLLM instances..."
             --output=__OUTPUT_DIR__/output/vllm-serve-ray-worker-%N.log \
             bash -lc 'ray stop --force >/dev/null 2>&1 || true
 for (( i=0; i < 300; i+=5 )); do
-    if ray start --address=${SERVE_NODE}:${SERVE_RAY_PORT} --block; then
+    if ray start --address=${SERVE_NODE}:${SERVE_RAY_PORT} --block --num-gpus=4 --num-cpus=64 --disable-usage-stats; then
         echo "Ray worker connected to ${SERVE_NODE}:${SERVE_RAY_PORT}"
         exit 0
     fi
@@ -95,7 +95,7 @@ srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --cont
     --output=__OUTPUT_DIR__/output/vllm-serve.log \
     --error=__OUTPUT_DIR__/output/vllm-serve-ray-head.log \
     bash -lc 'ray stop --force >/dev/null 2>&1 || true
-ray start --head --port="${SERVE_RAY_PORT}"
+ray start --head --port="${SERVE_RAY_PORT}" --num-gpus=4 --num-cpus=64 --disable-usage-stats
 
 active_nodes=0
 for (( i=0; i < 300; i+=5 )); do

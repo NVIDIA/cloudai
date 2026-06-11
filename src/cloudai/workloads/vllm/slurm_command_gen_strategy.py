@@ -22,7 +22,9 @@ from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrate
 
 from .vllm import (
     VLLM_BENCH_JSON_FILE,
+    VllmArgs,
     VllmCmdArgs,
+    VllmRayStartArgs,
     VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
@@ -51,6 +53,45 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
     def _needs_ray(self, role: str) -> bool:
         return self.role_node_count(role) > 1
+
+    @staticmethod
+    def _format_ray_value(value: Any) -> str:
+        if isinstance(value, dict):
+            return shlex.quote(json.dumps(value, separators=(",", ":")))
+        return str(value)
+
+    @classmethod
+    def _serialize_ray_start_args(cls, args: dict[str, Any]) -> str:
+        parts: list[str] = []
+        for key, value in args.items():
+            if value is None:
+                continue
+            opt = f"--{key.replace('_', '-')}"
+            if isinstance(value, bool):
+                if value:
+                    parts.append(opt)
+                continue
+            parts.append(f"{opt}={cls._format_ray_value(value)}")
+        return " ".join(parts)
+
+    def _role_args(self, role: str) -> VllmArgs:
+        if role == "prefill":
+            if self.tdef.cmd_args.prefill is None:
+                raise ValueError("Prefill role requested for non-disaggregated vLLM.")
+            return self.tdef.cmd_args.prefill
+        return self.tdef.cmd_args.decode
+
+    def _ray_start_args(self, role: str, kind: str, generated: dict[str, Any]) -> str:
+        role_args = self._role_args(role)
+        ray_args: VllmRayStartArgs | None = role_args.ray_head if kind == "head" else role_args.ray_worker
+        if ray_args is None:
+            return self._serialize_ray_start_args(generated)
+
+        fields_set = ray_args.model_fields_set
+        user_args = ray_args.model_dump(exclude_none=True)
+        merged_args = {key: value for key, value in generated.items() if key not in fields_set}
+        merged_args.update(user_args)
+        return self._serialize_ray_start_args(merged_args)
 
     def get_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
@@ -200,10 +241,16 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         worker_prefix = self._role_srun_prefix("$node")
         head_prefix = self._single_role_srun_prefix(head_node_var)
         serve_cmd = self._with_custom_bash(f'env RAY_ADDRESS="{head_node_expr}:${{{ray_port_var}}}" {command_tail}')
+        ray_head_args = self._ray_start_args(role, "head", {"head": True, "port": f'"${{{ray_port_var}}}"'})
+        ray_worker_args = self._ray_start_args(
+            role,
+            "worker",
+            {"address": f"{head_node_expr}:${{{ray_port_var}}}", "block": True},
+        )
         ray_head_command = shlex.quote(
             f"""\
 ray stop --force >/dev/null 2>&1 || true
-ray start --head --port="${{{ray_port_var}}}"
+ray start {ray_head_args}
 
 active_nodes=0
 for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
@@ -224,7 +271,7 @@ exit 1"""
             f"""\
 ray stop --force >/dev/null 2>&1 || true
 for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
-    if ray start --address={head_node_expr}:${{{ray_port_var}}} --block; then
+    if ray start {ray_worker_args}; then
         echo "Ray worker connected to {head_node_expr}:${{{ray_port_var}}}"
         exit 0
     fi

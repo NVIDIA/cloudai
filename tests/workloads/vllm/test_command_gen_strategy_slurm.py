@@ -25,6 +25,7 @@ from cloudai.workloads.vllm import (
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,
+    VllmRayStartArgs,
     VllmSemanticEvalCmdArgs,
     VllmSlurmCommandGenStrategy,
     VllmTestDefinition,
@@ -394,3 +395,31 @@ class TestVllmDisaggregatedMode:
         assert "ray.init(address=" not in srun_command
         assert 'env RAY_ADDRESS="${PREFILL_NODE}:${PREFILL_RAY_PORT}"' in srun_command
         assert 'env RAY_ADDRESS="${DECODE_NODE}:${DECODE_RAY_PORT}"' in srun_command
+
+    def test_ray_head_and_worker_topology_args_can_be_overridden(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        tdef.cmd_args.prefill.ray_head = VllmRayStartArgs(
+            head=False,
+            port=9123,
+            num_gpus=4,
+            dashboard_host="0.0.0.0",
+        )
+        tdef.cmd_args.prefill.ray_worker = VllmRayStartArgs(
+            address="custom-prefill-head:9123",
+            block=False,
+            num_gpus=4,
+        )
+        vllm_disagg_tr.num_nodes = 4
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "ray start --port=9123 --num-gpus=4 --dashboard-host=0.0.0.0" in srun_command
+        assert "ray start --head --port=9123" not in srun_command
+        assert "ray start --address=custom-prefill-head:9123 --num-gpus=4" in srun_command
+        assert "ray start --address=custom-prefill-head:9123 --block" not in srun_command

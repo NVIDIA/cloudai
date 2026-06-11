@@ -21,7 +21,7 @@ import logging
 import re
 from functools import cache
 from pathlib import Path
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -48,6 +48,14 @@ VLLM_SEMANTIC_EVAL_LOG_FILE = "vllm-semantic-eval.log"
 class VllmArgs(LLMServingArgs):
     """Base command arguments for vLLM instances."""
 
+    ray_head: VllmRayStartArgs | None = Field(
+        default=None,
+        description="Arguments appended to the Ray head startup command for multi-node vLLM roles.",
+    )
+    ray_worker: VllmRayStartArgs | None = Field(
+        default=None,
+        description="Arguments appended to the Ray worker startup command for multi-node vLLM roles.",
+    )
     nixl_threads: int | list[int] | None = Field(
         default=None,
         description="Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument.",
@@ -55,13 +63,55 @@ class VllmArgs(LLMServingArgs):
 
     @property
     def serve_args_exclude(self) -> set[str]:
-        return super().serve_args_exclude | {"nixl_threads"}
+        return super().serve_args_exclude | {"nixl_threads", "ray_head", "ray_worker"}
 
     def serialize_serve_arg(self, key: str, value: object) -> list[str]:
         opt = f"--{key.replace('_', '-')}"
         if isinstance(value, bool):
             return [opt] if value else [f"--no-{key.replace('_', '-')}"]
         return super().serialize_serve_arg(key, value)
+
+
+class VllmRayStartArgs(CmdArgs):
+    """Ray startup arguments for vLLM multi-node serving roles."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    head: bool | list[bool] | None = Field(default=None, description="Emit ``--head`` for Ray head startup.")
+    port: int | str | list[int] | list[str] | None = Field(default=None, description="Ray head port.")
+    address: str | list[str] | None = Field(default=None, description="Ray head address for worker startup.")
+    block: bool | list[bool] | None = Field(default=None, description="Emit ``--block`` for Ray worker startup.")
+    num_gpus: int | float | str | list[int] | list[float] | list[str] | None = Field(
+        default=None,
+        description="Number of GPUs Ray should advertise on this node.",
+    )
+    num_cpus: int | float | str | list[int] | list[float] | list[str] | None = Field(
+        default=None,
+        description="Number of CPUs Ray should advertise on this node.",
+    )
+    object_store_memory: int | str | list[int] | list[str] | None = Field(
+        default=None,
+        description="Ray object store memory in bytes.",
+    )
+    dashboard_host: str | list[str] | None = Field(default=None, description="Ray dashboard bind host.")
+    dashboard_port: int | str | list[int] | list[str] | None = Field(default=None, description="Ray dashboard port.")
+    include_dashboard: bool | str | list[bool] | list[str] | None = Field(
+        default=None,
+        description="Whether Ray should start the dashboard.",
+    )
+    disable_usage_stats: bool | list[bool] | None = Field(
+        default=None,
+        description="Emit ``--disable-usage-stats`` for Ray startup.",
+    )
+    temp_dir: str | list[str] | None = Field(default=None, description="Ray temporary directory.")
+    resources: dict[str, Any] | str | list[str] | None = Field(
+        default=None,
+        description="Ray custom resources.",
+    )
+    labels: dict[str, Any] | str | list[str] | None = Field(
+        default=None,
+        description="Ray node labels.",
+    )
 
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):

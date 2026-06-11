@@ -24,6 +24,7 @@ from .vllm import (
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,
+    VllmRayStartArgs,
     VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "VllmArgs",
     "VllmBenchCmdArgs",
     "VllmCmdArgs",
+    "VllmRayStartArgs",
     "VllmSemanticEvalCmdArgs",
     "VllmSlurmCommandGenStrategy",
     "VllmTestDefinition",
