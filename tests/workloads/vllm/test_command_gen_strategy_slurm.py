@@ -403,16 +403,20 @@ class TestVllmDisaggregatedMode:
         assert tdef.cmd_args.prefill is not None
         tdef.cmd_args.prefill.num_nodes = 2
         tdef.cmd_args.decode.num_nodes = 2
-        tdef.cmd_args.prefill.ray_head = VllmRayStartArgs(
-            head=False,
-            port=9123,
-            num_gpus=4,
-            dashboard_host="0.0.0.0",
+        tdef.cmd_args.prefill.ray_head = VllmRayStartArgs.model_validate(
+            {
+                "head": False,
+                "port": 9123,
+                "num_gpus": 4,
+                "dashboard_host": "0.0.0.0",
+            }
         )
-        tdef.cmd_args.prefill.ray_worker = VllmRayStartArgs(
-            address="custom-prefill-head:9123",
-            block=False,
-            num_gpus=4,
+        tdef.cmd_args.prefill.ray_worker = VllmRayStartArgs.model_validate(
+            {
+                "address": "custom-prefill-head:9123",
+                "block": False,
+                "num_gpus": 4,
+            }
         )
         vllm_disagg_tr.num_nodes = 4
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)

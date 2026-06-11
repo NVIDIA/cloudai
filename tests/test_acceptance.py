@@ -617,8 +617,12 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     decode=VllmArgs.model_validate(
                         {
                             "tensor_parallel_size": 8,
-                            "ray_head": VllmRayStartArgs(num_gpus=4, num_cpus=64, disable_usage_stats=True),
-                            "ray_worker": VllmRayStartArgs(num_gpus=4, num_cpus=64, disable_usage_stats=True),
+                            "ray_head": VllmRayStartArgs.model_validate(
+                                {"num_gpus": 4, "num_cpus": 64, "disable_usage_stats": True}
+                            ),
+                            "ray_worker": VllmRayStartArgs.model_validate(
+                                {"num_gpus": 4, "num_cpus": 64, "disable_usage_stats": True}
+                            ),
                         }
                     ),
                 ),
