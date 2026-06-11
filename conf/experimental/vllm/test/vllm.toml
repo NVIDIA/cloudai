@@ -25,6 +25,7 @@ mount_as = "/vllm_repo"
 
 [cmd_args]
 docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:1.1.1"
+serve_healthcheck = "/health"
 
 [semantic_eval_cmd_args]
 entrypoint = "python3 /vllm_repo/tests/evals/gsm8k/gsm8k_eval.py"

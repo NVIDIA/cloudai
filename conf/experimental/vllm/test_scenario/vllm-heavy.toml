@@ -40,3 +40,6 @@ time_limit = "01:30:00"
     tensor_parallel_size = 16
     max_num_batched_tokens = 8192
     max_model_len = 8192
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
