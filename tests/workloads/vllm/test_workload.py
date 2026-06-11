@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmTestDefinition
@@ -151,3 +153,33 @@ def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_s
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
+
+
+@pytest.mark.parametrize(
+    ("prefill_nodes", "decode_nodes"),
+    [
+        (None, 2),
+        (2, None),
+        (1, 1),
+    ],
+)
+def test_constraint_check_rejects_invalid_multinode_disagg_role_nodes(
+    prefill_nodes: int | None,
+    decode_nodes: int | None,
+    tmp_path,
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": prefill_nodes}),
+            decode=VllmArgs.model_validate({"num_nodes": decode_nodes}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is False

@@ -561,8 +561,7 @@ wait_for_health() {{
     return 1
 }}"""
 
-    @staticmethod
-    def generate_cleanup_function(pid_vars: list[str], timeout: int = 15) -> str:
+    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 15) -> str:
         if len(pid_vars) == 1:
             pid_var = pid_vars[0]
             return f"""\
@@ -651,6 +650,11 @@ trap cleanup EXIT"""
     def proxy_router_healthcheck(self) -> str:
         """Healthcheck endpoint for the helper/proxy process in disaggregated mode."""
         return self.tdef.cmd_args.healthcheck
+
+    @property
+    def role_server_healthcheck(self) -> str:
+        """Healthcheck endpoint for prefill/decode server processes in disaggregated mode."""
+        return "/health"
 
     @property
     def bench_log_file(self) -> str:
@@ -836,8 +840,8 @@ echo "Running benchmark..."
         wait_block = self.generate_wait_for_health_block(
             self.workload_name,
             [
-                f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}/health",
-                f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}/health",
+                f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}{self.role_server_healthcheck}",
+                f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}{self.role_server_healthcheck}",
             ],
             host_setup="",
             host_display="$PREFILL_NODE and $DECODE_NODE",

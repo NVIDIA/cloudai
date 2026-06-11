@@ -312,6 +312,10 @@ wait_for_health() {{
         vllm.cmd_args.proxy_healthcheck = "/router-ready"
         vllm_tr.num_nodes = 2
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/ready"' in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/ready"' in disaggregated
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' not in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' not in disaggregated
         assert 'wait_for_health "http://${PREFILL_NODE}:8000/router-ready"' in disaggregated
         assert (
             'wait_for_health "http://${PREFILL_NODE}:8000/router-ready" "http://${PREFILL_NODE}:8000/ready"'

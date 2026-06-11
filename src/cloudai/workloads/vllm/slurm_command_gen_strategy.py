@@ -126,11 +126,50 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         return pid_vars
 
     @property
+    def role_server_healthcheck(self) -> str:
+        return self.tdef.cmd_args.healthcheck or "/health"
+
+    @property
     def proxy_router_healthcheck(self) -> str:
         fields_set = self.tdef.cmd_args.model_fields_set
         if "proxy_healthcheck" not in fields_set and "healthcheck" in fields_set:
             return self.tdef.cmd_args.healthcheck
         return self.tdef.cmd_args.proxy_healthcheck
+
+    def _ray_stop_cleanup_block(self) -> str:
+        role_specs: list[tuple[str, str, int]] = []
+        if not self.is_disaggregated and self._needs_ray("serve"):
+            role_specs.append(("SERVE_NODELIST", "serve", self.role_node_count("serve")))
+        if self.is_disaggregated:
+            if self._needs_ray("prefill"):
+                role_specs.append(("PREFILL_NODELIST", "prefill", self.role_node_count("prefill")))
+            if self._needs_ray("decode"):
+                role_specs.append(("DECODE_NODELIST", "decode", self.role_node_count("decode")))
+
+        if not role_specs:
+            return ""
+
+        lines = ['    echo "Stopping Ray clusters..."']
+        for nodelist_var, role, node_count in role_specs:
+            stop_prefix = self._role_srun_prefix(f"${{{nodelist_var}}}", node_count, node_count)
+            stop_command = f"{stop_prefix} bash -lc 'ray stop --force >/dev/null 2>&1 || true' >/dev/null 2>&1 || true"
+            lines.extend(
+                [
+                    f'    if [ -n "${{{nodelist_var}:-}}" ]; then',
+                    f"        {stop_command}",
+                    "    else",
+                    f'        echo "Skipping Ray stop for {role}: node list is not set"',
+                    "    fi",
+                ]
+            )
+        return "\n".join(lines)
+
+    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 15) -> str:
+        cleanup = super().generate_cleanup_function(pid_vars, timeout)
+        ray_stop_block = self._ray_stop_cleanup_block()
+        if not ray_stop_block:
+            return cleanup
+        return cleanup.replace("cleanup() {\n", f"cleanup() {{\n{ray_stop_block}\n", 1)
 
     @staticmethod
     def _compat_health_args(endpoint: str) -> str:

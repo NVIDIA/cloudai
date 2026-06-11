@@ -142,6 +142,8 @@ Multi-node serving
 For non-disaggregated serving, set ``num_nodes`` on the test to more than one. CloudAI starts a Ray head on the first
 allocated serving node, Ray workers on the remaining serving nodes, waits for the Ray cluster to reach the requested
 size, and runs ``vllm serve`` with ``--distributed-executor-backend ray`` on the head node.
+``tensor_parallel_size`` is the total tensor-parallel size across the Ray serving role. With two nodes and
+``CUDA_VISIBLE_DEVICES = "0,1,2,3"`` on each node, set ``tensor_parallel_size = 8`` to use all eight visible GPUs.
 
 .. code-block:: toml
    :caption: scenario.toml (multi-node aggregated serving)
@@ -156,7 +158,7 @@ size, and runs ``vllm serve`` with ``--distributed-executor-backend ray`` on the
    model = "Qwen/Qwen3-0.6B"
 
    [Tests.cmd_args.decode]
-   tensor_parallel_size = 2
+   tensor_parallel_size = 8
 
    [Tests.extra_env_vars]
    CUDA_VISIBLE_DEVICES = "0,1,2,3"
@@ -165,6 +167,8 @@ For disaggregated prefill/decode serving, existing 1-node and 2-node behavior is
 than two nodes, set both role sizes explicitly. CloudAI assigns contiguous node slices to prefill and decode, creates a
 separate Ray cluster for each role whose ``num_nodes`` is greater than one, and runs benchmark and semantic validation
 from the prefill head node.
+Role ``tensor_parallel_size`` values are total per Ray role, not per node. For example, ``num_nodes = 2`` with four
+visible GPUs per node uses ``tensor_parallel_size = 8`` to consume all GPUs in that role.
 
 .. code-block:: toml
    :caption: scenario.toml (multi-node disaggregated serving)
@@ -180,11 +184,11 @@ from the prefill head node.
 
    [Tests.cmd_args.prefill]
    num_nodes = 2
-   tensor_parallel_size = 2
+   tensor_parallel_size = 8
 
    [Tests.cmd_args.decode]
    num_nodes = 2
-   tensor_parallel_size = 2
+   tensor_parallel_size = 8
 
    [Tests.extra_env_vars]
    CUDA_VISIBLE_DEVICES = "0,1,2,3"

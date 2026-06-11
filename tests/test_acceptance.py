@@ -614,7 +614,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=VllmCmdArgs(
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
                     model="Qwen/Qwen3-0.6B",
-                    decode=VllmArgs.model_validate({"tensor_parallel_size": 2}),
+                    decode=VllmArgs.model_validate({"tensor_parallel_size": 8}),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),
@@ -643,7 +643,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SglangCmdArgs(
                     docker_image_url="docker.io/lmsysorg/sglang:dev",
                     model="Qwen/Qwen3-8B",
-                    decode=SglangArgs.model_validate({"tp": 2}),
+                    decode=SglangArgs.model_validate({"tp": 8}),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),

@@ -145,6 +145,8 @@ Multi-node serving
 For non-disaggregated serving, set ``num_nodes`` on the test to more than one. CloudAI starts one
 ``sglang.launch_server`` task per serving node with a shared ``--dist-init-addr``, ``--nnodes``, and
 ``--node-rank "$SLURM_NODEID"``.
+SGLang ``tp`` is the total tensor-parallel size for the distributed serving role. With two nodes and
+``CUDA_VISIBLE_DEVICES = "0,1,2,3"`` on each node, set ``tp = 8`` to use all eight visible GPUs.
 
 .. code-block:: toml
    :caption: scenario.toml (multi-node aggregated serving)
@@ -159,7 +161,7 @@ For non-disaggregated serving, set ``num_nodes`` on the test to more than one. C
    model = "Qwen/Qwen3-8B"
 
    [Tests.cmd_args.decode]
-   tp = 2
+   tp = 8
 
    [Tests.extra_env_vars]
    CUDA_VISIBLE_DEVICES = "0,1,2,3"
@@ -168,6 +170,8 @@ For disaggregated prefill/decode serving, existing 1-node and 2-node behavior is
 than two nodes, set both role sizes explicitly. CloudAI assigns contiguous node slices to prefill and decode and starts
 one distributed SGLang launch per role with separate init ports. Benchmark and semantic validation run from the prefill
 head node.
+Role ``tp`` values are total per distributed role, not per node. For example, ``num_nodes = 2`` with four visible GPUs
+per node uses ``tp = 8`` to consume all GPUs in that role.
 
 .. code-block:: toml
    :caption: scenario.toml (multi-node disaggregated serving)
@@ -183,11 +187,11 @@ head node.
 
    [Tests.cmd_args.prefill]
    num_nodes = 2
-   tp = 2
+   tp = 8
 
    [Tests.cmd_args.decode]
    num_nodes = 2
-   tp = 2
+   tp = 8
 
    [Tests.extra_env_vars]
    CUDA_VISIBLE_DEVICES = "0,1,2,3"

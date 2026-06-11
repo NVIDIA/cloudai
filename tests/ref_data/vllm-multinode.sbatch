@@ -15,6 +15,12 @@ srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
+    echo "Stopping Ray clusters..."
+    if [ -n "${SERVE_NODELIST:-}" ]; then
+        srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1 bash -lc 'ray stop --force >/dev/null 2>&1 || true' >/dev/null 2>&1 || true
+    else
+        echo "Skipping Ray stop for serve: node list is not set"
+    fi
     echo "Cleaning up PIDs: SERVE_RAY_PID=$SERVE_RAY_PID SERVE_PID=$SERVE_PID"
 
     for pid in "$SERVE_RAY_PID" "$SERVE_PID"; do
@@ -99,7 +105,7 @@ for (( i=0; i < 300; i+=5 )); do
     if [ "$active_nodes" -eq "2" ]; then
         echo "All Ray workers are active: $active_nodes/2"
         ray status || true
-        exec env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --tensor-parallel-size 2 --port 8300 --distributed-executor-backend ray
+        exec env RAY_ADDRESS="${SERVE_NODE}:${SERVE_RAY_PORT}" vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --tensor-parallel-size 8 --port 8300 --distributed-executor-backend ray
     fi
     echo "Waiting for Ray workers: $active_nodes/2 active"
     sleep 5

@@ -174,8 +174,23 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         if num_nodes > 2:
             prefill_nodes_value = self.cmd_args.prefill.num_nodes
             decode_nodes_value = self.cmd_args.decode.num_nodes
-            prefill_nodes = prefill_nodes_value if isinstance(prefill_nodes_value, int) else prefill_nodes
-            decode_nodes = decode_nodes_value if isinstance(decode_nodes_value, int) else decode_nodes
+            if not isinstance(prefill_nodes_value, int) or not isinstance(decode_nodes_value, int):
+                logging.error(
+                    "vLLM disaggregated mode over more than 2 nodes requires both prefill.num_nodes and "
+                    "decode.num_nodes."
+                )
+                return False
+            if prefill_nodes_value + decode_nodes_value != num_nodes:
+                logging.error(
+                    "vLLM disaggregated role node counts must sum to allocated nodes. prefill=%s decode=%s "
+                    "allocated=%s",
+                    prefill_nodes_value,
+                    decode_nodes_value,
+                    num_nodes,
+                )
+                return False
+            prefill_nodes = prefill_nodes_value
+            decode_nodes = decode_nodes_value
 
         return self._validate_vllm_parallelism_constraints(
             role="prefill",

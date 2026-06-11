@@ -86,8 +86,8 @@ srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --cont
 DECODE_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8400/health" "http://${PREFILL_NODE}:8400/healthcheck" || exit 1
-wait_for_health "http://${DECODE_NODE}:8500/health" "http://${DECODE_NODE}:8500/healthcheck" || exit 1
+wait_for_health "http://${PREFILL_NODE}:8400/healthcheck" "http://${PREFILL_NODE}:8400/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8500/healthcheck" "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
 srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \

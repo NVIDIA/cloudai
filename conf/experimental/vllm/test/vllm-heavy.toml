@@ -20,7 +20,7 @@ test_template_name = "vllm"
 
 [[git_repos]]
 url = "https://github.com/vllm-project/vllm.git"
-commit = "main"
+commit = "a8887c208f34c04c3b021cf3949ed6545d77bb01"
 mount_as = "/vllm_repo"
 
 [cmd_args]
