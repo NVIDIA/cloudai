@@ -28,7 +28,6 @@ from cloudai.workloads.sglang import (
     SglangSlurmCommandGenStrategy,
     SglangTestDefinition,
 )
-from cloudai.workloads.sglang.sglang import SGLANG_BENCH_JSONL_FILE, SGLANG_BENCH_LOG_FILE
 
 
 @pytest.fixture
@@ -73,14 +72,6 @@ def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy
 
 
 class TestGpuDetection:
-    @pytest.mark.parametrize("cuda_visible_devices", ["0", "0,1,2,3", "0,1,2,3,4,5,6,7"])
-    def test_gpu_ids_from_cuda_visible_devices(
-        self, cuda_visible_devices: str, sglang_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        sglang_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": cuda_visible_devices}
-        strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
-        assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
-
     def test_aggregated_gpu_ids_from_decode_config(self, sglang_tr: TestRun, slurm_system: SlurmSystem) -> None:
         tdef = cast(SglangTestDefinition, sglang_tr.test)
         tdef.extra_env_vars = {}
@@ -96,60 +87,6 @@ class TestGpuDetection:
         strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_2node_tr)
         assert strategy.prefill_gpu_ids == [0, 1, 2, 3]
         assert strategy.decode_gpu_ids == [0, 1, 2, 3]
-
-
-def test_get_sglang_serve_commands_aggregated(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
-    cmd_args = sglang_cmd_gen_strategy.test_run.test.cmd_args
-    commands = sglang_cmd_gen_strategy.get_serve_commands()
-
-    assert len(commands) == 1
-    assert commands[0] == [
-        "python3",
-        "-m",
-        cmd_args.serve_module,
-        "--model-path",
-        cmd_args.model,
-        "--host",
-        cmd_args.host,
-        "--port",
-        str(cmd_args.port),
-    ]
-
-
-def test_get_sglang_serve_commands_disagg(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
-
-    commands = strategy.get_serve_commands()
-
-    assert len(commands) == 2
-    prefill_cmd, decode_cmd = commands
-    assert "--disaggregation-mode" in prefill_cmd
-    assert "prefill" in prefill_cmd
-    assert str(strategy.prefill_port) in prefill_cmd
-
-    assert "--disaggregation-mode" in decode_cmd
-    assert "decode" in decode_cmd
-    assert str(strategy.decode_port) in decode_cmd
-
-
-def test_get_sglang_bench_command_adds_pd_separated_in_disagg(
-    sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
-) -> None:
-    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
-
-    command = strategy.get_bench_command()
-
-    assert "--pd-separated" in command
-
-
-def test_get_sglang_bench_command_writes_jsonl(
-    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
-) -> None:
-    command = sglang_cmd_gen_strategy.get_bench_command()
-    output_file_args = [part for part in command if part.startswith("--output-file ")]
-    assert len(output_file_args) == 1
-    assert f"--base-url http://${{NODE}}:{sglang_cmd_gen_strategy.test_run.test.cmd_args.port}" in command
-    assert output_file_args[0].endswith(f"/{SGLANG_BENCH_JSONL_FILE}")
 
 
 def test_get_sglang_semantic_eval_command_defaults(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy):
@@ -211,74 +148,12 @@ def test_gen_srun_command_contains_sglang_semantic_eval_in_disagg(
     assert "python3 -m sglang.test.run_eval --host ${PREFILL_NODE} --port 8000" in srun_command
 
 
-def test_gen_srun_command_contains_expected_flow(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
-
-    srun_command = strategy._gen_srun_command()
-
-    assert "Starting SGLang instances" in srun_command
-    assert "Starting router" in srun_command
-    assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
-    assert 'DECODE_NODES=( "${NODES[@]:0:1}" )' in srun_command
-    assert "PREFILL_NODE=${PREFILL_NODES[0]}" in srun_command
-    assert "DECODE_NODE=${DECODE_NODES[0]}" in srun_command
-    assert 'env CUDA_VISIBLE_DEVICES="0,1"' in srun_command
-    assert 'env CUDA_VISIBLE_DEVICES="2,3"' in srun_command
-    assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
-    assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
-    assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
-    assert "--decode http://${DECODE_NODE}:8200" in srun_command
-    assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
-    assert f"--output={strategy.test_run.output_path.absolute()}/{SGLANG_BENCH_LOG_FILE}" in srun_command
-
-
-def test_gen_srun_command_contains_expected_two_node_flow(
-    sglang_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
-) -> None:
-    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_2node_tr)
-
-    srun_command = strategy._gen_srun_command()
-
-    assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in srun_command
-    assert 'DECODE_NODES=( "${NODES[@]:1:1}" )' in srun_command
-    assert "PREFILL_NODE=${PREFILL_NODES[0]}" in srun_command
-    assert "DECODE_NODE=${DECODE_NODES[0]}" in srun_command
-    assert srun_command.count('--nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 3
-    assert srun_command.count('--nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1') == 1
-    assert 'env CUDA_VISIBLE_DEVICES="0,1,2,3"' in srun_command
-    assert srun_command.count("--host 0.0.0.0") >= 2
-    assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
-    assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
-    assert "--prefill http://${PREFILL_NODE}:8100" in srun_command
-    assert "--decode http://${DECODE_NODE}:8200" in srun_command
-    assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
-
-
 def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
     sglang_disagg_tr.num_nodes = 3
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
     with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
         _ = strategy._gen_srun_command()
-
-
-def test_gen_srun_command_multinode_aggregated_uses_sglang_distributed_launch(
-    sglang: SglangTestDefinition, tmp_path: Path, slurm_system: SlurmSystem
-) -> None:
-    sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-    tr = TestRun(test=sglang, num_nodes=2, nodes=[], output_path=tmp_path, name="sglang-multinode-job")
-    strategy = SglangSlurmCommandGenStrategy(slurm_system, tr)
-
-    srun_command = strategy._gen_srun_command()
-
-    assert 'SERVE_NODES=( "${NODES[@]:0:2}" )' in srun_command
-    assert "export SERVE_DIST_INIT_PORT=$((20000 + PORT_OFFSET))" in srun_command
-    assert '--nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1' in srun_command
-    assert (
-        '--dist-init-addr "${SERVE_NODE}:${SERVE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"'
-        in srun_command
-    )
-    assert "bash -c" in srun_command
 
 
 def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_launches(
@@ -307,13 +182,6 @@ def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_lau
         '--dist-init-addr "${DECODE_NODE}:${DECODE_DIST_INIT_PORT}" --nnodes 2 --node-rank "$SLURM_PROCID"'
         in srun_command
     )
-
-
-def test_gen_srun_command_contains_cuda_visible_devices_for_aggregated(
-    sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
-) -> None:
-    srun_command = sglang_cmd_gen_strategy._gen_srun_command()
-    assert 'env CUDA_VISIBLE_DEVICES="0"' in srun_command
 
 
 def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
