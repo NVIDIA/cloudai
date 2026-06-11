@@ -23,8 +23,11 @@ num_nodes = 2
 time_limit = "00:10:00"
 
   [Tests.cmd_args.decode]
-  tensor_parallel_size = 2
+  tensor_parallel_size = 8
   mem_fraction_static = 0.75
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
 
 [[Tests]]
 id = "sglang.agg.1node"
@@ -33,7 +36,11 @@ num_nodes = 1
 time_limit = "00:10:00"
 
   [Tests.cmd_args.decode]
+  tensor_parallel_size = 4
   mem_fraction_static = 0.75
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
 
 [[Tests]]
 id = "sglang.disagg.sync"
@@ -51,6 +58,9 @@ time_limit = "00:10:00"
   tensor_parallel_size = 2
   mem_fraction_static = 0.75
 
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
 [[Tests]]
 id = "sglang.disagg.async"
 test_name = "sglang"
@@ -67,6 +77,9 @@ time_limit = "00:10:00"
   tensor_parallel_size = 2
   mem_fraction_static = 0.75
 
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
 [[Tests]]
 id = "sglang.disagg.2nodes"
 test_name = "sglang"
@@ -80,3 +93,6 @@ time_limit = "00:10:00"
   [Tests.cmd_args.decode]
   tensor_parallel_size = 4
   mem_fraction_static = 0.75
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
