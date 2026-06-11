@@ -34,20 +34,22 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_health() {
-    local endpoint="$1"
+    local endpoints=("$@")
     local timeout=300
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        if curl -sf "$endpoint" > /dev/null 2>&1; then
-            echo "Health check passed: $endpoint"
-            return 0
-        fi
+        for endpoint in "${endpoints[@]}"; do
+            if curl -sf "$endpoint" > /dev/null 2>&1; then
+                echo "Health check passed: $endpoint"
+                return 0
+            fi
+        done
         sleep "$interval"
     done
 
-    echo "Timeout waiting for: $endpoint"
+    echo "Timeout waiting for: ${endpoints[*]}"
     return 1
 }
 
@@ -84,8 +86,8 @@ srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --cont
 DECODE_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
-wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
+wait_for_health "http://${PREFILL_NODE}:8400/health" "http://${PREFILL_NODE}:8400/healthcheck" || exit 1
+wait_for_health "http://${DECODE_NODE}:8500/health" "http://${DECODE_NODE}:8500/healthcheck" || exit 1
 
 echo "Starting router..."
 srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
@@ -94,7 +96,7 @@ srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --cont
 HELPER_PID=$!
 
 echo "Waiting for vLLM on $PREFILL_NODE server to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8300/healthcheck" || exit 1
+wait_for_health "http://${PREFILL_NODE}:8300/healthcheck" "http://${PREFILL_NODE}:8300/health" || exit 1
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/install/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \

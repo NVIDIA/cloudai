@@ -95,9 +95,13 @@ Controlling the Number of GPUs
 -------------------------------
 The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
 1. ``gpus_per_node`` system property (scalar value)
-2. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
-3. ``gpu_ids`` command argument for ``prefill`` and ``decode`` configurations (comma-separated list of GPU IDs). If disaggregated mode is used (``prefill`` is set), both ``prefill`` and ``decode`` should define ``gpu_ids``, or none of them should set it.
+2. ``decode.gpu_ids`` command argument in non-disaggregated mode when ``CUDA_VISIBLE_DEVICES`` is not set
+3. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
+4. ``gpu_ids`` command argument for both ``prefill`` and ``decode`` configurations in disaggregated mode
 
+For backward compatibility, non-disaggregated configs that set both ``CUDA_VISIBLE_DEVICES`` and ``decode.gpu_ids`` use
+``CUDA_VISIBLE_DEVICES``. In disaggregated mode (``prefill`` is set), both ``prefill`` and ``decode`` should define
+``gpu_ids``, or none of them should set it.
 
 Controlling Disaggregation
 --------------------------
@@ -187,6 +191,21 @@ from the prefill head node.
 
 ``CUDA_VISIBLE_DEVICES`` and ``gpu_ids`` are interpreted as local GPU IDs on each serving node, not as cluster-global GPU
 IDs.
+
+
+Readiness health checks
+-----------------------
+CloudAI waits for vLLM servers to become ready before starting the benchmark. The default vLLM server endpoint remains
+``/healthcheck`` for backward compatibility with existing configs and runtime images. For vLLM images that expose the
+newer ``/health`` endpoint, generated Slurm scripts also try the matching compatibility endpoint when either
+``/healthcheck`` or ``/health`` is configured.
+
+In disaggregated mode, ``healthcheck`` controls the prefill/decode vLLM server readiness endpoint, while
+``proxy_healthcheck`` controls the proxy/router readiness endpoint. Existing disaggregated configs that set
+``healthcheck`` and do not set ``proxy_healthcheck`` continue to use ``healthcheck`` for the proxy/router check.
+
+For custom runtime images with a different readiness path, set ``healthcheck`` and, when using disaggregated mode,
+``proxy_healthcheck`` explicitly. Custom paths are used as configured.
 
 
 Controlling ``proxy_script``

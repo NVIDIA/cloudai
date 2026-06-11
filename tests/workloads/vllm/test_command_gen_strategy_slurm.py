@@ -304,20 +304,22 @@ class TestVllmAggregatedMode:
 
         expected = f"""\
 wait_for_health() {{
-    local endpoint="$1"
+    local endpoints=("$@")
     local timeout={cmd_args.serve_wait_seconds}
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        if curl -sf "$endpoint" > /dev/null 2>&1; then
-            echo "Health check passed: $endpoint"
-            return 0
-        fi
+        for endpoint in "${{endpoints[@]}}"; do
+            if curl -sf "$endpoint" > /dev/null 2>&1; then
+                echo "Health check passed: $endpoint"
+                return 0
+            fi
+        done
         sleep "$interval"
     done
 
-    echo "Timeout waiting for: $endpoint"
+    echo "Timeout waiting for: ${{endpoints[*]}}"
     return 1
 }}"""
 
@@ -357,7 +359,7 @@ SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
+wait_for_health "http://${{NODE}}:{cmd_args.port}/healthcheck" "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
@@ -400,12 +402,29 @@ cleanup
         vllm_tr.test = vllm
         aggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
         assert 'wait_for_health "http://${NODE}:8000/ready"' in aggregated
+        assert 'wait_for_health "http://${NODE}:8000/ready" "http://${NODE}:8000/healthcheck"' not in aggregated
 
         vllm.cmd_args.prefill = VllmArgs()
         vllm.cmd_args.proxy_healthcheck = "/router-ready"
         vllm_tr.num_nodes = 2
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
         assert 'wait_for_health "http://${PREFILL_NODE}:8000/router-ready"' in disaggregated
+        assert (
+            'wait_for_health "http://${PREFILL_NODE}:8000/router-ready" "http://${PREFILL_NODE}:8000/ready"'
+            not in disaggregated
+        )
+
+    def test_disagg_custom_healthcheck_preserves_legacy_proxy_endpoint(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.cmd_args.healthcheck = "/legacy-ready"
+        vllm.cmd_args.prefill = VllmArgs()
+        vllm_tr.test = vllm
+        vllm_tr.num_nodes = 2
+
+        disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+
+        assert 'wait_for_health "http://${PREFILL_NODE}:8000/legacy-ready"' in disaggregated
 
 
 class TestVllmDisaggregatedMode:

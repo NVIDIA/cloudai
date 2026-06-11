@@ -100,8 +100,13 @@ Control number of GPUs
 ----------------------
 The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
 1. ``gpus_per_node`` system property (scalar value)
-2. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
-3. ``gpu_ids`` command argument for ``prefill`` and ``decode`` configurations (comma-separated list of GPU IDs). If disaggregated mode is used (``prefill`` is set), both ``prefill`` and ``decode`` should define ``gpu_ids``, or none of them should set it.
+2. ``decode.gpu_ids`` command argument in non-disaggregated mode when ``CUDA_VISIBLE_DEVICES`` is not set
+3. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
+4. ``gpu_ids`` command argument for both ``prefill`` and ``decode`` configurations in disaggregated mode
+
+For backward compatibility, non-disaggregated configs that set both ``CUDA_VISIBLE_DEVICES`` and ``decode.gpu_ids`` use
+``CUDA_VISIBLE_DEVICES``. In disaggregated mode (``prefill`` is set), both ``prefill`` and ``decode`` should define
+``gpu_ids``, or none of them should set it.
 
 
 Control disaggregation

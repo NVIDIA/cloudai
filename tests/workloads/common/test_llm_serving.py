@@ -155,8 +155,16 @@ class TestAllGpuIds:
 
         assert all_gpu_ids(cast(Any, llm_tdef), gpus_per_node) == list(range(gpus_per_node or 1))
 
-    def test_decode_gpu_ids_override_defaults_in_aggregated_mode(self, llm_tdef: FakeLLMTestDefinition) -> None:
+    def test_cuda_visible_devices_wins_over_decode_gpu_ids_in_aggregated_mode(
+        self, llm_tdef: FakeLLMTestDefinition
+    ) -> None:
         llm_tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        llm_tdef.cmd_args.decode.gpu_ids = "4,5"
+
+        assert all_gpu_ids(cast(Any, llm_tdef), 8) == [0, 1, 2, 3]
+
+    def test_decode_gpu_ids_override_system_gpu_count_in_aggregated_mode(self, llm_tdef: FakeLLMTestDefinition) -> None:
+        llm_tdef.extra_env_vars = {}
         llm_tdef.cmd_args.decode.gpu_ids = "4,5"
 
         assert all_gpu_ids(cast(Any, llm_tdef), 8) == [4, 5]

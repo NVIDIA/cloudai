@@ -63,8 +63,11 @@ def all_gpu_ids(tdef: LLMServingTestDefinition[LLMServingCmdArgsT], system_gpus_
     if tdef.cmd_args.prefill:
         if tdef.cmd_args.prefill.gpu_ids and tdef.cmd_args.decode.gpu_ids:
             return parse_gpu_ids(tdef.cmd_args.prefill.gpu_ids) + parse_gpu_ids(tdef.cmd_args.decode.gpu_ids)
-    elif tdef.cmd_args.decode.gpu_ids:
-        return parse_gpu_ids(tdef.cmd_args.decode.gpu_ids)
+    else:
+        if cuda_devices:
+            return parse_gpu_ids(cuda_devices)
+        if tdef.cmd_args.decode.gpu_ids:
+            return parse_gpu_ids(tdef.cmd_args.decode.gpu_ids)
     if cuda_devices:
         return parse_gpu_ids(cuda_devices)
     return list(range(system_gpus_per_node or 1))

@@ -127,7 +127,57 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
     @property
     def proxy_router_healthcheck(self) -> str:
+        fields_set = self.tdef.cmd_args.model_fields_set
+        if "proxy_healthcheck" not in fields_set and "healthcheck" in fields_set:
+            return self.tdef.cmd_args.healthcheck
         return self.tdef.cmd_args.proxy_healthcheck
+
+    @staticmethod
+    def _compat_health_args(endpoint: str) -> str:
+        endpoints = [endpoint]
+        if endpoint.endswith("/health"):
+            endpoints.append(endpoint[: -len("/health")] + "/healthcheck")
+        elif endpoint.endswith("/healthcheck"):
+            endpoints.append(endpoint[: -len("/healthcheck")] + "/health")
+        return " ".join(f'"{value}"' for value in endpoints)
+
+    def generate_wait_for_health_function(self) -> str:
+        return f"""\
+wait_for_health() {{
+    local endpoints=("$@")
+    local timeout={self.tdef.cmd_args.serve_wait_seconds}
+    local interval=5
+    local end_time=$(($(date +%s) + timeout))
+
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        for endpoint in "${{endpoints[@]}}"; do
+            if curl -sf "$endpoint" > /dev/null 2>&1; then
+                echo "Health check passed: $endpoint"
+                return 0
+            fi
+        done
+        sleep "$interval"
+    done
+
+    echo "Timeout waiting for: ${{endpoints[*]}}"
+    return 1
+}}"""
+
+    @staticmethod
+    def generate_wait_for_health_block(
+        service_name: str,
+        endpoints: list[str],
+        *,
+        host_setup: str = "NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)\n",
+        host_display: str = "$NODE",
+    ) -> str:
+        waits = "\n".join(
+            f"wait_for_health {VllmSlurmCommandGenStrategy._compat_health_args(endpoint)} || exit 1"
+            for endpoint in endpoints
+        )
+        return f"""\
+{host_setup}echo "Waiting for {service_name} on {host_display} to be ready..."
+{waits}"""
 
     def render_serve_launch(
         self,

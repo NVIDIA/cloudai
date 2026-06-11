@@ -70,7 +70,7 @@ class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
     model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
 
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
-    healthcheck: str = Field(default="/health", description="vLLM server healthcheck endpoint.")
+    healthcheck: str = Field(default="/healthcheck", description="vLLM server healthcheck endpoint.")
     proxy_healthcheck: str = Field(
         default="/healthcheck",
         description="vLLM disaggregated proxy/router healthcheck endpoint.",
