@@ -149,7 +149,11 @@ class LLMServingCmdArgs(CmdArgs, Generic[LLMServingArgsT]):
         default=None,
         description="Hostname used by the benchmark client. Defaults to the allocated node hostname.",
     )
-    healthcheck: str = Field(default="")
+    healthcheck: str = Field(default="/health")
+    serve_healthcheck: str | None = Field(
+        default=None,
+        description="Readiness endpoint for serve, prefill, and decode server processes. Defaults to healthcheck.",
+    )
     serve_wait_seconds: int = 300
     prefill: LLMServingArgsT | None = Field(default=None)
     decode: LLMServingArgsT
@@ -651,10 +655,9 @@ trap cleanup EXIT"""
         """Healthcheck endpoint for the helper/proxy process in disaggregated mode."""
         return self.tdef.cmd_args.healthcheck
 
-    @property
-    def role_server_healthcheck(self) -> str:
-        """Healthcheck endpoint for prefill/decode server processes in disaggregated mode."""
-        return "/health"
+    def serve_healthcheck(self, role: str) -> str:
+        """Healthcheck endpoint for serve, prefill, and decode server processes."""
+        return self.tdef.cmd_args.serve_healthcheck or self.tdef.cmd_args.healthcheck
 
     @property
     def bench_log_file(self) -> str:
@@ -783,7 +786,7 @@ echo "Running semantic validation..."
         health_func = self.generate_wait_for_health_function()
         wait_block = self.generate_wait_for_health_block(
             self.workload_name,
-            [f"http://${{NODE}}:{self.serve_port}{self.tdef.cmd_args.healthcheck}"],
+            [f"http://${{NODE}}:{self.serve_port}{self.serve_healthcheck('serve')}"],
             host_setup=host_setup,
         )
         node_setup = self.generate_aggregated_node_setup(serve_node_count)
@@ -840,8 +843,8 @@ echo "Running benchmark..."
         wait_block = self.generate_wait_for_health_block(
             self.workload_name,
             [
-                f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}{self.role_server_healthcheck}",
-                f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}{self.role_server_healthcheck}",
+                f"http://{self.disaggregated_role_host('prefill')}:{self.prefill_port}{self.serve_healthcheck('prefill')}",
+                f"http://{self.disaggregated_role_host('decode')}:{self.decode_port}{self.serve_healthcheck('decode')}",
             ],
             host_setup="",
             host_display="$PREFILL_NODE and $DECODE_NODE",

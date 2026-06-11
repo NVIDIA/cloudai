@@ -200,16 +200,19 @@ IDs.
 Readiness health checks
 -----------------------
 CloudAI waits for vLLM servers to become ready before starting the benchmark. The default vLLM server endpoint remains
-``/healthcheck`` for backward compatibility with existing configs and runtime images. For vLLM images that expose the
-newer ``/health`` endpoint, generated Slurm scripts also try the matching compatibility endpoint when either
-``/healthcheck`` or ``/health`` is configured.
+``/healthcheck`` for backward compatibility with existing configs and runtime images. Generated Slurm scripts wait for
+the configured endpoint exactly.
 
-In disaggregated mode, ``healthcheck`` controls the prefill/decode vLLM server readiness endpoint, while
-``proxy_healthcheck`` controls the proxy/router readiness endpoint. Existing disaggregated configs that set
-``healthcheck`` and do not set ``proxy_healthcheck`` continue to use ``healthcheck`` for the proxy/router check.
+Use ``serve_healthcheck`` to override the readiness endpoint for the vLLM serve process, including prefill/decode server
+processes in disaggregated mode. If ``serve_healthcheck`` is not set, aggregated serving uses ``healthcheck``.
+Disaggregated prefill/decode serving keeps the legacy ``/health`` default.
 
-For custom runtime images with a different readiness path, set ``healthcheck`` and, when using disaggregated mode,
-``proxy_healthcheck`` explicitly. Custom paths are used as configured.
+In disaggregated mode, ``proxy_healthcheck`` controls the proxy/router readiness endpoint. Existing disaggregated
+configs that set ``healthcheck`` and do not set ``proxy_healthcheck`` continue to use ``healthcheck`` for the
+proxy/router check.
+
+For custom runtime images with a different readiness path, set ``serve_healthcheck`` for vLLM server processes and,
+when using disaggregated mode, ``proxy_healthcheck`` for the proxy/router.
 
 
 Controlling ``proxy_script``

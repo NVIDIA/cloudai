@@ -27,22 +27,20 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_health() {
-    local endpoints=("$@")
+    local endpoint="$1"
     local timeout=300
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 
     while [ "$(date +%s)" -lt "$end_time" ]; do
-        for endpoint in "${endpoints[@]}"; do
-            if curl -sf "$endpoint" > /dev/null 2>&1; then
-                echo "Health check passed: $endpoint"
-                return 0
-            fi
-        done
+        if curl -sf "$endpoint" > /dev/null 2>&1; then
+            echo "Health check passed: $endpoint"
+            return 0
+        fi
         sleep "$interval"
     done
 
-    echo "Timeout waiting for: ${endpoints[*]}"
+    echo "Timeout waiting for: $endpoint"
     return 1
 }
 
@@ -54,7 +52,7 @@ SERVE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${NODE}:8300/healthcheck" "http://${NODE}:8300/health" || exit 1
+wait_for_health "http://${NODE}:8300/healthcheck" || exit 1
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \

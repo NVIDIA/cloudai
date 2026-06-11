@@ -96,6 +96,13 @@ The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{o
 placeholders.
 
 
+Readiness health checks
+-----------------------
+CloudAI waits for SGLang servers to become ready before starting the benchmark. The default SGLang readiness endpoint is
+``/v1/models``. Set ``serve_healthcheck`` to override the endpoint used for aggregated serve processes and
+disaggregated prefill/decode server processes. In disaggregated mode, the router readiness check uses ``healthcheck``.
+
+
 Control number of GPUs
 ----------------------
 The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
