@@ -18,17 +18,28 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition, parse_aiperf_accuracy
 
 
+class _AnyMetricSet(list):
+    """List subclass that reports containment for any item; used to mark a reporter as handling all metrics."""
+
+    def __contains__(self, item: object) -> bool:
+        return True
+
+
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from AI Dynamo run directories."""
 
+    # Accepts any metric string — get_metric parses "benchmark:metric_name:column" dynamically.
+    metrics: ClassVar[list[str]] = _AnyMetricSet()
+
     def extract_metric_from_csv(self, csv_file: Path, metric_name: str, metric_type: str) -> MetricValue:
-        df = lazy.pd.read_csv(csv_file)
+        df = lazy.pd.read_csv(csv_file, on_bad_lines="skip")
 
         if "Metric" not in df.columns or metric_type not in df.columns:
             logging.info(f"Metric type: {metric_type} not in CSV file: {df.columns}")

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +14,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.workloads.common.moe_benchmark_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .ucc import UCCCmdArgs, UCCTestDefinition
+
+_UCC_GEN_MATRIX_CONTAINER = "/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"
+
+
+def _ucc_matrix_path_under_deepep_output(dep_out: Path) -> Path | None:
+    """DeepEP writes ucc_matrix.txt under a timestamped benchmark subdir; resolve either layout."""
+    direct = dep_out / "ucc_matrix.txt"
+    if direct.is_file():
+        return direct
+    nested = sorted(
+        dep_out.glob("**/ucc_matrix.txt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return nested[0] if nested else None
 
 
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
+    def _deepep_ucc_matrix_host_path(self) -> Path | None:
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        if not tdef.cmd_args.use_deepep_matrix:
+            return None
+
+        dep_out = moe_benchmark_root(self.test_run)
+        matrix = _ucc_matrix_path_under_deepep_output(dep_out) if dep_out is not None else None
+        if matrix is not None:
+            return matrix
+
+        if tdef.cmd_args.gen is not None:
+            return None
+
+        ctx = (
+            f"UCC test '{self.test_run.name}' (iteration {self.test_run.current_iteration}, step {self.test_run.step})"
+        )
+        detail = (
+            "moe_benchmark_root() could not locate the DeepEP/MoE benchmark output directory by walking the "
+            "'start_post_comp' dependency chain"
+            if dep_out is None
+            else f"_ucc_matrix_path_under_deepep_output() found no 'ucc_matrix.txt' under the resolved root '{dep_out}'"
+        )
+        raise FileNotFoundError(
+            f"use_deepep_matrix=True was requested for {ctx}, but {detail}. Provide the DeepEP matrix via the "
+            "dependency, or set a manual generation spec in cmd_args.gen (--gen ...)."
+        )
+
     def _container_mounts(self) -> List[str]:
-        return []
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        if not tdef.cmd_args.use_deepep_matrix:
+            return []
+
+        matrix_host = self._deepep_ucc_matrix_host_path()
+        if matrix_host is None:
+            return []
+
+        mounts = [f"{matrix_host.resolve()}:{_UCC_GEN_MATRIX_CONTAINER}"]
+        deepep_root = moe_benchmark_root(self.test_run)
+        if deepep_root is not None:
+            mounts.append(f"{deepep_root.resolve()}:{MOE_BENCHMARK_PREV_MOUNT}:ro")
+        return mounts
 
     def image_path(self) -> str | None:
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
@@ -41,6 +97,8 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append(f"-e {tdef_cmd_args.e}")
         if tdef_cmd_args.gen is not None:
             srun_command_parts.append(f"--gen {tdef_cmd_args.gen}")
+        elif self._deepep_ucc_matrix_host_path() is not None:
+            srun_command_parts.append(f"--gen file:name={_UCC_GEN_MATRIX_CONTAINER}")
         srun_command_parts.append("-m cuda")
         srun_command_parts.append("-F")
 

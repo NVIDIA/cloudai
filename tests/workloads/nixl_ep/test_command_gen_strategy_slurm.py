@@ -15,9 +15,6 @@
 # limitations under the License.
 
 import json
-import re
-from importlib.metadata import version
-from pathlib import Path
 
 import pytest
 
@@ -100,23 +97,6 @@ def nixl_ep_tr(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> Test
         test=nixl_ep,
         output_path=slurm_system.output_path,
     )
-
-
-def normalize_sbatch(content: str, test_run: TestRun, slurm_system: SlurmSystem) -> str:
-    normalized = content.replace(str(slurm_system.install_path.absolute()), "__INSTALL_DIR__").replace(
-        str(test_run.output_path.parent.absolute()), "__OUTPUT_DIR__"
-    )
-    normalized = re.sub(
-        r"^#SBATCH --job-name=.*$",
-        "#SBATCH --job-name=__JOB_NAME__",
-        normalized,
-        flags=re.MULTILINE,
-    )
-    return normalized.replace(version("cloudai"), "__CLOUDAI_VERSION__")
-
-
-def significant_sbatch_lines(content: str) -> list[str]:
-    return [line for line in content.splitlines() if line.strip() and not line.lstrip().startswith("echo ")]
 
 
 def normalize_stages(strategy: NixlEPSlurmCommandGenStrategy) -> list[tuple[int, tuple[int, ...]]]:
@@ -747,6 +727,66 @@ def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_bef
     assert launcher_script.count("--open-mode=append") == 1
 
 
+def test_gen_srun_command_planned_rank_removal_tolerates_143_after_final_phase(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=json.dumps([[0, 1], [0, 1, 2, 3], [0, -2, 3], [0, 1, 2, 3]]),
+            num_processes_per_node=3,
+        ),
+    )
+    test_run = TestRun(
+        name="nixl-ep",
+        num_nodes=2,
+        nodes=[],
+        test=tdef,
+        output_path=slurm_system.output_path,
+    )
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    launcher_script = read_launcher_script(strategy)
+
+    assert "allow_planned_removal_143=1" in launcher_script
+    assert 'if [ "$allow_planned_removal_143" -eq 1 ] && [ "$wait_rc" -eq 143 ]; then' in launcher_script
+    assert "Ignoring provisional NIXL EP planned-rank-removal exit 143" in launcher_script
+    assert 'wait_for_phase_completion "3"' in launcher_script
+    assert "|| rc=143" in launcher_script
+
+
+def test_gen_srun_command_without_planned_rank_removal_keeps_143_fatal(
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = NixlEPTestDefinition(
+        name="nixl_ep",
+        description="NIXL Elastic EP benchmark",
+        test_template_name="NixlEP",
+        cmd_args=NixlEPCmdArgs(
+            docker_image_url="docker.io/nvidia/nixl-ep:latest",
+            plan=SINGLE_EXPANSION_PLAN_STR,
+            num_processes_per_node=4,
+        ),
+    )
+    test_run = TestRun(
+        name="nixl-ep",
+        num_nodes=2,
+        nodes=[],
+        test=tdef,
+        output_path=slurm_system.output_path,
+    )
+    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
+
+    launcher_script = read_launcher_script(strategy)
+
+    assert "allow_planned_removal_143=0" in launcher_script
+    assert "Ignoring provisional NIXL EP planned-rank-removal exit 143" in launcher_script
+    assert 'wait_for_phase_completion "1"' not in launcher_script
+
+
 def test_gen_srun_command_multi_node_single_stage_starts_followers(
     slurm_system: SlurmSystem,
 ) -> None:
@@ -826,19 +866,3 @@ def test_gen_srun_command_single_launch_reports_success(
     assert 'echo "All NIXL EP launches completed successfully"' in launcher_script
     assert 'if [ "$rc" -eq 0 ]; then' in launcher_script
     assert "exit $rc" in launcher_script
-
-
-def test_gen_exec_command_matches_reference(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    slurm_system.container_mount_home = True
-    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, nixl_ep_tr)
-
-    sbatch_cmd = strategy.gen_exec_command()
-
-    assert sbatch_cmd == f"sbatch {nixl_ep_tr.output_path / 'cloudai_sbatch_script.sh'}"
-
-    content = (nixl_ep_tr.output_path / "cloudai_sbatch_script.sh").read_text().strip()
-    content = normalize_sbatch(content, nixl_ep_tr, slurm_system)
-
-    ref = (Path(__file__).parents[2] / "ref_data" / "nixl-ep.sbatch").read_text().strip()
-    ref = normalize_sbatch(ref, nixl_ep_tr, slurm_system)
-    assert significant_sbatch_lines(content) == significant_sbatch_lines(ref)

@@ -60,6 +60,7 @@ from cloudai.workloads.megatron_run import (
     MegatronRunCmdArgs,
     MegatronRunTestDefinition,
 )
+from cloudai.workloads.moe_benchmark import MoEBenchmarkCmdArgs, MoEBenchmarkTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
@@ -273,6 +274,7 @@ def build_special_test_run(
         "ai-dynamo",
         "nixl-perftest",
         "nixl-kvbench",
+        "moe-benchmark",
         "deepep-benchmark",
         "osu-bench",
         "sglang",
@@ -550,15 +552,28 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
             ),
         ),
+        "moe-benchmark": lambda: create_test_run(
+            partial_tr,
+            "moe-benchmark",
+            MoEBenchmarkTestDefinition(
+                name="moe-benchmark",
+                description="MoE Benchmark",
+                test_template_name="MoEBenchmark",
+                cmd_args=MoEBenchmarkCmdArgs(
+                    docker_image_url="docker/image:url",
+                ),
+            ),
+        ),
         "deepep-benchmark": lambda: create_test_run(
             partial_tr,
             "deepep-benchmark",
             DeepEPTestDefinition(
                 name="deepep-benchmark",
-                description="DeepEP MoE Benchmark",
-                test_template_name="deepep-benchmark",
+                description="DeepEP internode test",
+                test_template_name="DeepEP",
                 cmd_args=DeepEPCmdArgs(
                     docker_image_url="docker/image:url",
+                    subtest_name="test_internode",
                 ),
             ),
         ),
@@ -698,7 +713,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
-        if request.param == "deepep-benchmark":
+        if request.param in {"moe-benchmark", "deepep-benchmark"}:
             tr.num_nodes = 2
         if request.param in {"sglang-disagg-2nodes", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,7 @@ class NCCLCmdArgs(CmdArgs):
             "all_reduce_perf_mpi",
             "all_gather_perf_mpi",
             "alltoall_perf_mpi",
+            "alltoallv_perf_mpi",
             "broadcast_perf_mpi",
             "gather_perf_mpi",
             "hypercube_perf_mpi",
@@ -41,6 +42,7 @@ class NCCLCmdArgs(CmdArgs):
             "all_reduce_perf",
             "all_gather_perf",
             "alltoall_perf",
+            "alltoallv_perf",
             "broadcast_perf",
             "gather_perf",
             "hypercube_perf",
@@ -55,6 +57,7 @@ class NCCLCmdArgs(CmdArgs):
                 "all_reduce_perf_mpi",
                 "all_gather_perf_mpi",
                 "alltoall_perf_mpi",
+                "alltoallv_perf_mpi",
                 "broadcast_perf_mpi",
                 "gather_perf_mpi",
                 "hypercube_perf_mpi",
@@ -67,6 +70,7 @@ class NCCLCmdArgs(CmdArgs):
                 "all_reduce_perf",
                 "all_gather_perf",
                 "alltoall_perf",
+                "alltoallv_perf",
                 "broadcast_perf",
                 "gather_perf",
                 "hypercube_perf",
@@ -97,6 +101,8 @@ class NCCLCmdArgs(CmdArgs):
     blocking: Union[int, list[int]] = 0
     cudagraph: Union[int, list[int]] = 0
     stepfactor: Optional[Union[int, list[int]]] = None
+    use_deepep_matrix: bool = False
+    alltoallv_matrix_container_path: str = "/tmp/traffic_matrix.txt"
 
 
 class NCCLTestDefinition(TestDefinition):
