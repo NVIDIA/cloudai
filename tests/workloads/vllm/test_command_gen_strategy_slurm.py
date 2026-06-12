@@ -409,6 +409,7 @@ class TestVllmDisaggregatedMode:
                 "port": 9123,
                 "num_gpus": 4,
                 "dashboard_host": "0.0.0.0",
+                "temp_dir": "/tmp/ray with spaces",
             }
         )
         tdef.cmd_args.prefill.ray_worker = VllmRayStartArgs.model_validate(
@@ -423,7 +424,9 @@ class TestVllmDisaggregatedMode:
 
         srun_command = strategy._gen_srun_command()
 
-        assert "ray start --port=9123 --num-gpus=4 --dashboard-host=0.0.0.0" in srun_command
+        assert (
+            "ray start --port=9123 --num-gpus=4 --dashboard-host=0.0.0.0 --temp-dir='\"'\"'/tmp/ray with spaces'\"'\"'"
+        ) in srun_command
         assert "ray start --head --port=9123" not in srun_command
         assert "ray start --address=custom-prefill-head:9123 --num-gpus=4" in srun_command
         assert "ray start --address=custom-prefill-head:9123 --block" not in srun_command

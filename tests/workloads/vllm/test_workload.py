@@ -157,6 +157,23 @@ def test_constraint_check_rejects_explicit_disagg_role_nodes_that_do_not_match_t
     assert tdef.constraint_check(tr, slurm_system) is False
 
 
+def test_constraint_check_allows_explicit_single_node_disagg_role_nodes(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 1, "gpu_ids": "0,1", "tensor_parallel_size": 2}),
+            decode=VllmArgs.model_validate({"num_nodes": 1, "gpu_ids": "2,3", "tensor_parallel_size": 2}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
+
+
 def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_system: SlurmSystem) -> None:
     tdef = VllmTestDefinition(
         name="test",

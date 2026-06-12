@@ -209,6 +209,9 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
                 decode_nodes_value,
             )
             return False
+        elif num_nodes == 1 and prefill_nodes_value == 1 and decode_nodes_value == 1:
+            prefill_nodes = 1
+            decode_nodes = 1
         elif prefill_nodes_value + decode_nodes_value != num_nodes:
             logging.error(
                 "vLLM disaggregated role node counts must sum to allocated nodes. prefill=%s decode=%s allocated=%s",

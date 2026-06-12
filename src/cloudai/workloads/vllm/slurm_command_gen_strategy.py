@@ -58,6 +58,8 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
     def _format_ray_value(value: Any) -> str:
         if isinstance(value, dict):
             return shlex.quote(json.dumps(value, separators=(",", ":")))
+        if isinstance(value, str):
+            return shlex.quote(value)
         return str(value)
 
     @classmethod
