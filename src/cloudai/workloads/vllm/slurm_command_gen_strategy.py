@@ -55,15 +55,15 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
         return self.role_node_count(role) > 1
 
     @staticmethod
-    def _format_ray_value(value: Any) -> str:
+    def _format_ray_value(value: Any, *, quote_strings: bool = True) -> str:
         if isinstance(value, dict):
             return shlex.quote(json.dumps(value, separators=(",", ":")))
-        if isinstance(value, str):
+        if quote_strings and isinstance(value, str):
             return shlex.quote(value)
         return str(value)
 
     @classmethod
-    def _serialize_ray_start_args(cls, args: dict[str, Any]) -> str:
+    def _serialize_ray_start_args(cls, args: dict[str, Any], *, quote_strings: bool = True) -> str:
         parts: list[str] = []
         for key, value in args.items():
             if value is None:
@@ -73,7 +73,7 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
                 if value:
                     parts.append(opt)
                 continue
-            parts.append(f"{opt}={cls._format_ray_value(value)}")
+            parts.append(f"{opt}={cls._format_ray_value(value, quote_strings=quote_strings)}")
         return " ".join(parts)
 
     def _role_args(self, role: str) -> VllmArgs:
@@ -87,13 +87,19 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
         role_args = self._role_args(role)
         ray_args: VllmRayStartArgs | None = role_args.ray_head if kind == "head" else role_args.ray_worker
         if ray_args is None:
-            return self._serialize_ray_start_args(generated)
+            return self._serialize_ray_start_args(generated, quote_strings=False)
 
         fields_set = ray_args.model_fields_set
         user_args = ray_args.model_dump(exclude_none=True)
-        merged_args = {key: value for key, value in generated.items() if key not in fields_set}
-        merged_args.update(user_args)
-        return self._serialize_ray_start_args(merged_args)
+        generated_args = {key: value for key, value in generated.items() if key not in fields_set}
+        return " ".join(
+            part
+            for part in (
+                self._serialize_ray_start_args(generated_args, quote_strings=False),
+                self._serialize_ray_start_args(user_args),
+            )
+            if part
+        )
 
     def get_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
