@@ -134,6 +134,13 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
         cli = self._expand_semantic_eval_args(eval_args.cli, host=host)
         return [eval_args.entrypoint, cli] if cli else [eval_args.entrypoint]
 
+    def serve_healthcheck(self, role: str) -> str:
+        if self.tdef.cmd_args.serve_healthcheck:
+            return self.tdef.cmd_args.serve_healthcheck
+        if role in {"prefill", "decode"}:
+            return "/health"
+        return self.tdef.cmd_args.healthcheck
+
     def aggregated_serve_env(self) -> dict[str, str]:
         return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in self.gpu_ids)}
 

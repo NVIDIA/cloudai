@@ -138,6 +138,25 @@ def test_constraint_check_uses_all_allocated_gpus_for_multinode_aggregated(tmp_p
     assert tdef.constraint_check(tr, slurm_system) is True
 
 
+def test_constraint_check_rejects_explicit_disagg_role_nodes_that_do_not_match_two_node_allocation(
+    tmp_path, slurm_system: SlurmSystem
+) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 2}),
+            decode=VllmArgs.model_validate({"num_nodes": 1}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is False
+
+
 def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_system: SlurmSystem) -> None:
     tdef = VllmTestDefinition(
         name="test",

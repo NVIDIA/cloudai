@@ -148,6 +148,18 @@ def test_gen_srun_command_contains_sglang_semantic_eval_in_disagg(
     assert "python3 -m sglang.test.run_eval --host ${PREFILL_NODE} --port 8000" in srun_command
 
 
+def test_disaggregated_server_healthcheck_defaults_to_legacy_health_endpoint(
+    sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
+) -> None:
+    strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
+
+    srun_command = strategy._gen_srun_command()
+
+    assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
+    assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
+    assert 'wait_for_health "http://${PREFILL_NODE}:8000/v1/models"' in srun_command
+
+
 def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
     sglang_disagg_tr.num_nodes = 3
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)

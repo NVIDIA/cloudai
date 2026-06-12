@@ -80,8 +80,8 @@ srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --c
 DECODE_PID=$!
 
 echo "Waiting for SGLang on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${PREFILL_NODE}:8400/v1/models" || exit 1
-wait_for_health "http://${DECODE_NODE}:8500/v1/models" || exit 1
+wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
+wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
 srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \

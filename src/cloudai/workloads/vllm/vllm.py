@@ -188,26 +188,36 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
                 gpu_count=local_gpu_count * num_nodes,
             )
 
-        prefill_nodes = 1
-        decode_nodes = 1
-        if num_nodes > 2:
-            prefill_nodes_value = self.cmd_args.prefill.num_nodes
-            decode_nodes_value = self.cmd_args.decode.num_nodes
-            if not isinstance(prefill_nodes_value, int) or not isinstance(decode_nodes_value, int):
+        prefill_nodes_value = self.cmd_args.prefill.num_nodes
+        decode_nodes_value = self.cmd_args.decode.num_nodes
+        if prefill_nodes_value is None and decode_nodes_value is None:
+            if num_nodes > 2:
                 logging.error(
                     "vLLM disaggregated mode over more than 2 nodes requires both prefill.num_nodes and "
                     "decode.num_nodes."
                 )
                 return False
-            if prefill_nodes_value + decode_nodes_value != num_nodes:
-                logging.error(
-                    "vLLM disaggregated role node counts must sum to allocated nodes. prefill=%s decode=%s "
-                    "allocated=%s",
-                    prefill_nodes_value,
-                    decode_nodes_value,
-                    num_nodes,
-                )
-                return False
+            prefill_nodes = 1
+            decode_nodes = 1
+        elif not isinstance(prefill_nodes_value, int) or not isinstance(decode_nodes_value, int):
+            logging.error("vLLM disaggregated role node counts must both be single integers or both be omitted.")
+            return False
+        elif prefill_nodes_value <= 0 or decode_nodes_value <= 0:
+            logging.error(
+                "vLLM disaggregated role node counts must be positive integers. prefill=%s decode=%s",
+                prefill_nodes_value,
+                decode_nodes_value,
+            )
+            return False
+        elif prefill_nodes_value + decode_nodes_value != num_nodes:
+            logging.error(
+                "vLLM disaggregated role node counts must sum to allocated nodes. prefill=%s decode=%s allocated=%s",
+                prefill_nodes_value,
+                decode_nodes_value,
+                num_nodes,
+            )
+            return False
+        else:
             prefill_nodes = prefill_nodes_value
             decode_nodes = decode_nodes_value
 
