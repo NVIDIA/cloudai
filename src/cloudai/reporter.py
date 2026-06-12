@@ -223,15 +223,10 @@ class SummaryReporter(Reporter):
         logging.info("Generated scenario summary at %s", report_path)
 
     def build_summary(self) -> dict[str, Any]:
-        test_runs = [self._test_run_summary(tr) for tr in self.trs]
+        test_runs = self._test_runs_summary()
         return {
-            "schema_version": "1.0",
             "scenario": self.test_scenario.name,
             "status": self._scenario_status(test_runs),
-            "system": {
-                "name": self.system.name,
-                "scheduler": self.system.scheduler,
-            },
             "result_dir": self._relative_path(self.results_root),
             "reports": self._scenario_artifacts(),
             "test_runs": test_runs,
@@ -244,20 +239,46 @@ class SummaryReporter(Reporter):
             return "completed"
         return "failed"
 
+    def _test_runs_summary(self) -> list[dict[str, Any]]:
+        loaded_by_name: dict[str, list[TestRun]] = {}
+        for tr in self.trs:
+            loaded_by_name.setdefault(tr.name, []).append(tr)
+
+        summary: list[dict[str, Any]] = []
+        for test_run in self.test_scenario.test_runs:
+            loaded_runs = loaded_by_name.get(test_run.name, [])
+            if test_run.is_dse_job:
+                summary.append(self._sweep_test_run_summary(test_run, loaded_runs))
+            else:
+                summary.extend(self._test_run_summary(tr) for tr in loaded_runs)
+
+        return summary
+
+    def _sweep_test_run_summary(self, tr: TestRun, sweeps: list[TestRun]) -> dict[str, Any]:
+        sweep_summaries = [self._test_run_summary(sweep) for sweep in sweeps]
+        summary = {
+            "name": tr.name,
+            "status": self._scenario_status(sweep_summaries),
+            "output_path": self._relative_path(self.results_root / tr.name),
+            "artifacts": self._artifacts_excluding(
+                self.results_root / tr.name, [sweep.output_path for sweep in sweeps]
+            ),
+            "metrics": {},
+            "sweeps": sweep_summaries,
+        }
+        return summary
+
     def _test_run_summary(self, tr: TestRun) -> dict[str, Any]:
         status = tr.test.was_run_successful(tr)
         summary = {
-            "name": tr.name,
-            "case": case_name(tr),
-            "description": tr.test.description,
-            "iteration": tr.current_iteration,
-            "step": tr.step,
+            "name": case_name(tr),
             "status": "completed" if status.is_successful else "failed",
-            "error_message": status.error_message,
             "output_path": self._relative_path(tr.output_path),
             "artifacts": self._artifacts(tr.output_path),
             "metrics": self._metrics(tr),
         }
+        if status.error_message:
+            summary["error_message"] = status.error_message
         return summary
 
     def _metrics(self, tr: TestRun) -> dict[str, float]:
@@ -285,6 +306,23 @@ class SummaryReporter(Reporter):
             return []
 
         return [self._artifact(path) for path in sorted(root.rglob("*")) if path.is_file()]
+
+    def _artifacts_excluding(self, root: Path, excluded_roots: list[Path]) -> list[dict[str, str]]:
+        if not root.is_dir():
+            return []
+
+        return [
+            self._artifact(path)
+            for path in sorted(root.rglob("*"))
+            if path.is_file() and not any(self._is_relative_to(path, excluded_root) for excluded_root in excluded_roots)
+        ]
+
+    def _is_relative_to(self, path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return False
+        return True
 
     def _artifact(self, path: Path) -> dict[str, str]:
         return {
