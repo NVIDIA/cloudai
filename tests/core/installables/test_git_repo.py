@@ -138,6 +138,14 @@ def test_check_submodules_state_status_failure(git_unmocked: GitRepo):
     assert message == "Failed to get submodule status: err"
 
 
+def test_check_submodules_state_oserror(git_unmocked: GitRepo):
+    with patch("subprocess.run", side_effect=OSError("No such file or directory")):
+        result, message = git_unmocked.check_submodules_state(Path("/repo"))
+
+    assert result is False
+    assert "Failed to get submodule status" in message
+
+
 @pytest.mark.parametrize(
     ("init_submodules", "stdout", "expected_command"),
     [
@@ -216,6 +224,28 @@ def test_ensure_submodules_state_status_fails(git_unmocked: GitRepo):
     assert mock_run.call_count == 1
 
 
+@pytest.mark.parametrize(
+    ("init_submodules", "expected_message"),
+    [
+        (True, "Failed to initialize submodules"),
+        (False, "Failed to deinitialize submodules"),
+    ],
+)
+def test_ensure_submodules_state_reconcile_oserror(git_unmocked: GitRepo, init_submodules: bool, expected_message: str):
+    git_unmocked.init_submodules = init_submodules
+    stdout = "-0123456789abcdef path/to/submodule\n" if init_submodules else " 0123456789abcdef path/to/submodule\n"
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            CompletedProcess(args=[], returncode=0, stdout=stdout, stderr=""),
+            OSError("No such file or directory"),
+        ]
+        result, message = git_unmocked.ensure_submodules_state(Path("/repo"))
+
+    assert result is False
+    assert expected_message in message
+
+
 def test_repo_exists_with_correct_commit(installer: BaseInstaller, git: GitRepo):
     repo_path = installer.system.install_path / git.repo_name
     repo_path.mkdir()
@@ -254,6 +284,14 @@ def test_error_cloning_repo(installer: BaseInstaller, git: GitRepo):
     assert res.message == "Failed to clone repository: err"
 
 
+def test_clone_repository_oserror(installer: BaseInstaller, git: GitRepo):
+    repo_path = installer.system.install_path / git.repo_name
+    with patch("subprocess.run", side_effect=OSError("No such file or directory")):
+        res = git._clone_repository(installer, repo_path)
+    assert not res.success
+    assert "Failed to clone repository" in res.message
+
+
 def test_commit_checked_out(installer: BaseInstaller, git: GitRepo):
     repo_path = installer.system.install_path / git.repo_name
     repo_path.mkdir()
@@ -274,6 +312,15 @@ def test_error_checking_out_commit(installer: BaseInstaller, git: GitRepo):
         res = git._checkout_commit(git.commit, repo_path)
     assert not res.success
     assert res.message == f"Failed to checkout commit {git.commit}: err"
+
+
+def test_checkout_commit_oserror(installer: BaseInstaller, git: GitRepo):
+    repo_path = installer.system.install_path / git.repo_name
+    repo_path.mkdir()
+    with patch("subprocess.run", side_effect=OSError("No such file or directory")):
+        res = git._checkout_commit(git.commit, repo_path)
+    assert not res.success
+    assert f"Failed to checkout commit {git.commit}" in res.message
 
 
 def test_checkout_failure_cleans_up_repo(installer: BaseInstaller, git: GitRepo):
