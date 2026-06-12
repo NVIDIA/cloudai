@@ -352,43 +352,104 @@ def test_summary_reporter_writes_machine_readable_summary(
 ) -> None:
     report_path = slurm_system.output_path / "test_scenario.html"
     report_path.write_text("<html></html>")
-    output_path = slurm_system.output_path / benchmark_tr.name / "0"
-    (output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
-    (output_path / "cloudai_nccl_test_csv_report.csv").write_text("size,bw\n1,2\n")
 
-    scenario = TestScenario(name="test_scenario", test_runs=[benchmark_tr])
+    for iteration in range(benchmark_tr.iterations):
+        output_path = slurm_system.output_path / benchmark_tr.name / str(iteration)
+        (output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+    (slurm_system.output_path / benchmark_tr.name / "0" / "cloudai_nccl_test_csv_report.csv").write_text(
+        "size,bw\n1,2\n"
+    )
+
+    sweep_tr = TestRun(
+        name="sweep",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="NCCL sweep",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            extra_env_vars={"VAR1": ["value1", "value2"]},
+            agent_steps=2,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+    )
+    sweep_iteration = slurm_system.output_path / sweep_tr.name / "0"
+    sweep_iteration.mkdir(parents=True)
+    (sweep_iteration / "trajectory.csv").write_text("step,action,reward,observation\n")
+    for step in range(sweep_tr.test.agent_steps):
+        step_path = sweep_iteration / str(step)
+        step_path.mkdir()
+        (step_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+        (step_path / "some-report.html").write_text("<html></html>")
+
+    scenario = TestScenario(name="test_scenario", test_runs=[benchmark_tr, sweep_tr])
     reporter = SummaryReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig())
     reporter.generate()
 
     summary_path = slurm_system.output_path / SummaryReporter.SUMMARY_FILE_NAME
     summary = json.loads(summary_path.read_text())
 
-    assert summary["schema_version"] == "1.0"
-    assert summary["scenario"] == "test_scenario"
-    assert summary["status"] == "failed"
-    assert summary["system"] == {"name": "test_system", "scheduler": "slurm"}
-    assert summary["result_dir"] == "."
-    assert summary["reports"] == [{"path": "test_scenario.html", "format": "html"}]
-    assert len(summary["test_runs"]) == 3
-
-    first_run = summary["test_runs"][0]
-    assert first_run["name"] == "benchmark"
-    assert first_run["case"] == "benchmark"
-    assert first_run["description"] == "NCCL test"
-    assert first_run["iteration"] == 0
-    assert first_run["step"] == 0
-    assert first_run["status"] == "completed"
-    assert first_run["error_message"] == ""
-    assert first_run["output_path"] == "benchmark/0"
-    assert first_run["artifacts"] == [
-        {"path": "benchmark/0/cloudai_nccl_test_csv_report.csv", "format": "csv"},
-        {"path": "benchmark/0/stdout.txt", "format": "txt"},
-    ]
-    assert first_run["metrics"] == {}
-
-    failed_run = summary["test_runs"][1]
-    assert failed_run["status"] == "failed"
-    assert "stdout.txt file not found" in failed_run["error_message"]
+    assert summary == {
+        "scenario": "test_scenario",
+        "status": "completed",
+        "result_dir": ".",
+        "reports": [{"path": "test_scenario.html", "format": "html"}],
+        "test_runs": [
+            {
+                "name": "benchmark",
+                "status": "completed",
+                "output_path": "benchmark/0",
+                "artifacts": [
+                    {"path": "benchmark/0/cloudai_nccl_test_csv_report.csv", "format": "csv"},
+                    {"path": "benchmark/0/stdout.txt", "format": "txt"},
+                ],
+                "metrics": {},
+            },
+            {
+                "name": "benchmark iter=1",
+                "status": "completed",
+                "output_path": "benchmark/1",
+                "artifacts": [{"path": "benchmark/1/stdout.txt", "format": "txt"}],
+                "metrics": {},
+            },
+            {
+                "name": "benchmark iter=2",
+                "status": "completed",
+                "output_path": "benchmark/2",
+                "artifacts": [{"path": "benchmark/2/stdout.txt", "format": "txt"}],
+                "metrics": {},
+            },
+            {
+                "name": "sweep",
+                "status": "completed",
+                "output_path": "sweep",
+                "artifacts": [{"path": "sweep/0/trajectory.csv", "format": "csv"}],
+                "metrics": {},
+                "sweeps": [
+                    {
+                        "name": "sweep",
+                        "status": "completed",
+                        "output_path": "sweep/0/0",
+                        "artifacts": [
+                            {"path": "sweep/0/0/some-report.html", "format": "html"},
+                            {"path": "sweep/0/0/stdout.txt", "format": "txt"},
+                        ],
+                        "metrics": {},
+                    },
+                    {
+                        "name": "sweep step=1",
+                        "status": "completed",
+                        "output_path": "sweep/0/1",
+                        "artifacts": [
+                            {"path": "sweep/0/1/some-report.html", "format": "html"},
+                            {"path": "sweep/0/1/stdout.txt", "format": "txt"},
+                        ],
+                        "metrics": {},
+                    },
+                ],
+            },
+        ],
+    }
 
 
 def _write_slurm_job(step_dir: Path, elapsed_time_sec: int) -> None:
