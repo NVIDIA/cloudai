@@ -241,7 +241,8 @@ def test_gen_nixl_srun_command(
         assert "-N1" in cmd
         if backend == "UCX":
             if nnodes > 1:
-                assert f"--relative={idx}" in cmd
+                assert f"--nodelist=$(scontrol show hostname $SLURM_JOB_NODELIST | sed -n '{idx + 1}p')" in cmd
+                assert "--relative" not in cmd
             else:
                 assert "--relative" not in cmd
                 assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd

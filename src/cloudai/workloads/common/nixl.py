@@ -335,7 +335,14 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             nnodes, _ = self.get_cached_nodes_spec()
             if nnodes > 1:
                 cmds = [
-                    [*prefix_part, "--overlap", f"--relative={idx}", *tpn_part, *bash_part] for idx in range(nnodes)
+                    [
+                        *prefix_part,
+                        "--overlap",
+                        f"--nodelist=$(scontrol show hostname $SLURM_JOB_NODELIST | sed -n '{idx + 1}p')",
+                        *tpn_part,
+                        *bash_part,
+                    ]
+                    for idx in range(nnodes)
                 ]
             else:
                 cmds *= max(2, nnodes)
