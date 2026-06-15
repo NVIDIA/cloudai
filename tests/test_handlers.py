@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import copy
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
@@ -284,7 +285,7 @@ class CustomRunStubAgent(BaseAgent):
     def configure(self, config: dict[str, Any]) -> None:
         raise NotImplementedError
 
-    def select_action(self) -> tuple[int, dict[str, Any]]:  # pragma: no cover - never called
+    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]]:
         raise AssertionError("select_action must not be called when run() is overridden")
 
     def update_policy(self, _feedback: dict[str, Any]) -> None:
@@ -343,3 +344,86 @@ def test_handle_dse_job_propagates_agent_run_nonzero_rc(
 
     assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
     assert CustomRunStubAgent.run_calls == 1
+
+
+def test_handle_dse_job_accumulates_nonzero_rc_and_continues(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_run_agent_name: str,
+) -> None:
+    """Graceful failure: a non-zero rc accumulates via ``err |= rc`` and the sweep continues.
+
+    A ``run()`` that returns a non-zero rc (the convention for recoverable failures, e.g.
+    ``rllib_run`` catching a training error) must not abort the scenario: the remaining
+    independent ``TestRun`` still executes and the accumulated error is reported.
+    """
+    CustomRunStubAgent.run_returns = 1
+    dse_tr.test.agent = custom_run_agent_name
+    second_tr = copy.deepcopy(dse_tr)
+    second_tr.name = "dse_second"
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert CustomRunStubAgent.run_calls == 2
+
+
+def test_handle_dse_job_propagates_agent_run_exception(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_run_agent_name: str,
+) -> None:
+    """Hard failure: an exception out of ``agent.run()`` propagates instead of being swallowed.
+
+    Unexpected exceptions signal framework/agent bugs and must surface (hard-fail) rather than
+    be masked as a non-zero rc; recoverable failures are expected to return a non-zero rc.
+    """
+    CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
+    dse_tr.test.agent = custom_run_agent_name
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    with pytest.raises(RuntimeError, match="agent blew up"):
+        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+    assert CustomRunStubAgent.run_calls == 1
+
+
+def test_handle_dse_job_hard_fail_aborts_remaining_runs(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_run_agent_name: str,
+) -> None:
+    """A raising ``agent.run()`` aborts the scenario; subsequent ``TestRun`` are not started."""
+    CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
+    dse_tr.test.agent = custom_run_agent_name
+    second_tr = copy.deepcopy(dse_tr)
+    second_tr.name = "dse_second"
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+
+    with pytest.raises(RuntimeError, match="agent blew up"):
+        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+    assert CustomRunStubAgent.run_calls == 1
+
+
+def test_handle_dse_job_documents_failure_in_reports_before_raising(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_run_agent_name: str,
+    tmp_path: Path,
+) -> None:
+    """On a hard-fail, reports are still generated and the aborting error is documented, then re-raised."""
+    CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
+    dse_tr.test.agent = custom_run_agent_name
+    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+    runner.runner.scenario_root = tmp_path
+
+    with pytest.raises(RuntimeError, match="agent blew up"):
+        handle_dse_job(runner, argparse.Namespace(mode="run"))
+
+    failure_report = tmp_path / "dse_failure.txt"
+    assert failure_report.exists()
+    contents = failure_report.read_text()
+    assert "RuntimeError" in contents
+    assert "agent blew up" in contents

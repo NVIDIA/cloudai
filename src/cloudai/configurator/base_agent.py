@@ -122,9 +122,21 @@ class BaseAgent(ABC):
         own training loop (e.g. RLlib-based agents calling ``algo.train()``)
         override this method.
 
+        Failure contract (``handle_dse_job`` consumes the result via
+        ``err |= agent.run()``):
+
+        - Return a non-zero code for *recoverable* failures (e.g. a workload run
+          that failed but should not abort the rest of the sweep). The code is
+          accumulated and the next ``TestRun`` still executes. Workload-level
+          failures are already surfaced this way: ``CloudAIGymEnv.step`` maps a
+          failed metric to ``rewards.metric_failure`` rather than raising, and
+          ``rllib_run`` catches training errors and returns ``rc=1``.
+        - Raise for *unexpected* failures (framework/agent bugs). Exceptions
+          propagate out of ``handle_dse_job`` and hard-fail the job so the bug
+          is surfaced instead of masked as a penalizing reward.
+
         Returns:
-            int: Process-style return code (``0`` success, non-zero failure).
-            ``handle_dse_job`` accumulates this via ``err |= agent.run()``.
+            int: Process-style return code (``0`` success, non-zero recoverable failure).
         """
         observation, _ = self.env.reset()
         for _ in range(self.max_steps):

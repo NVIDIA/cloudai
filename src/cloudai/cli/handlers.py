@@ -18,6 +18,7 @@ import argparse
 import copy
 import logging
 import signal
+import traceback
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -132,43 +133,78 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         return 1
 
     err = 0
-    for tr in runner.runner.test_scenario.test_runs:
-        test_run = copy.deepcopy(tr)
+    # Recoverable failures return a non-zero rc and are accumulated here; an unexpected exception
+    # (a bug) is a hard-fail. We capture it so reports still generate, then re-raise below.
+    run_error: Exception | None = None
+    try:
+        for tr in runner.runner.test_scenario.test_runs:
+            test_run = copy.deepcopy(tr)
 
-        agent_type = test_run.test.agent
-        agent_class = registry.agents_map.get(agent_type)
-        if agent_class is None:
-            logging.error(
-                f"No agent available for type: {agent_type}. Please make sure {agent_type} "
-                f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+            agent_type = test_run.test.agent
+            agent_class = registry.agents_map.get(agent_type)
+            if agent_class is None:
+                logging.error(
+                    f"No agent available for type: {agent_type}. Please make sure {agent_type} "
+                    f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+                )
+                err = 1
+                continue
+
+            agent_config_data = test_run.test.agent_config or {}
+            agent_config = agent_class.get_config_class()(**agent_config_data)
+            env = CloudAIGymEnv(
+                test_run=test_run,
+                runner=runner.runner,
+                rewards=agent_config.rewards,
             )
-            err = 1
-            continue
+            if agent_config.start_action == "first":
+                logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
-        agent_config_data = test_run.test.agent_config or {}
-        agent_config = agent_class.get_config_class()(**agent_config_data)
-        env = CloudAIGymEnv(
-            test_run=test_run,
-            runner=runner.runner,
-            rewards=agent_config.rewards,
-        )
-        if agent_config.start_action == "first":
-            logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
+            agent = agent_class(env, agent_config)
 
-        agent = agent_class(env, agent_config)
-
-        err |= agent.run()
+            err |= agent.run()
+    except Exception as exc:
+        run_error = exc
+        logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
 
     if args.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
-        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+        generate_reports(
+            runner.runner.system,
+            runner.runner.test_scenario,
+            runner.runner.scenario_root,
+            error=run_error,
+        )
+
+    if run_error is not None:
+        raise run_error
 
     logging.info("All jobs are complete.")
     return err
 
 
-def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
+def _record_run_failure(result_dir: Path, error: BaseException) -> None:
+    """Persist an aborting error into the results dir so the failure is documented with the reports."""
+    failure_path = result_dir / "dse_failure.txt"
+    tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+    try:
+        result_dir.mkdir(parents=True, exist_ok=True)
+        failure_path.write_text(f"DSE job aborted by an unexpected {type(error).__name__}: {error}\n\n{tb}")
+        logging.info(f"Documented the aborting error in {failure_path}")
+    except OSError:
+        logging.exception(f"Failed to write failure report to {failure_path}")
+
+
+def generate_reports(
+    system: System,
+    test_scenario: TestScenario,
+    result_dir: Path,
+    error: BaseException | None = None,
+) -> None:
     registry = Registry()
+
+    if error is not None:
+        _record_run_failure(result_dir, error)
 
     for name, reporter_class in registry.ordered_scenario_reports():
         logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
