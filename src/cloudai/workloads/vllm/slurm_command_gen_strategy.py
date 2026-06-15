@@ -15,13 +15,16 @@
 # limitations under the License.
 
 import json
+import shlex
 from typing import Any, cast
 
 from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
 
 from .vllm import (
     VLLM_BENCH_JSON_FILE,
+    VllmArgs,
     VllmCmdArgs,
+    VllmRayStartArgs,
     VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
@@ -42,42 +45,267 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
     def _to_json_str_arg(config: dict) -> str:
         return "'" + json.dumps(config, separators=(",", ":")) + "'"
 
+    @staticmethod
+    def _with_ray_backend(command: list[str], enabled: bool) -> list[str]:
+        if not enabled or "--distributed-executor-backend" in command:
+            return command
+        return [*command, "--distributed-executor-backend", "ray"]
+
+    def _needs_ray(self, role: str) -> bool:
+        return self.role_node_count(role) > 1
+
+    @staticmethod
+    def _format_ray_value(value: Any, *, quote_strings: bool = True) -> str:
+        if isinstance(value, dict):
+            return shlex.quote(json.dumps(value, separators=(",", ":")))
+        if quote_strings and isinstance(value, str):
+            return shlex.quote(value)
+        return str(value)
+
+    @classmethod
+    def _serialize_ray_start_args(cls, args: dict[str, Any], *, quote_strings: bool = True) -> str:
+        parts: list[str] = []
+        for key, value in args.items():
+            if value is None:
+                continue
+            opt = f"--{key.replace('_', '-')}"
+            if isinstance(value, bool):
+                if value:
+                    parts.append(opt)
+                continue
+            parts.append(f"{opt}={cls._format_ray_value(value, quote_strings=quote_strings)}")
+        return " ".join(parts)
+
+    def _role_args(self, role: str) -> VllmArgs:
+        if role == "prefill":
+            if self.tdef.cmd_args.prefill is None:
+                raise ValueError("Prefill role requested for non-disaggregated vLLM.")
+            return self.tdef.cmd_args.prefill
+        return self.tdef.cmd_args.decode
+
+    def _ray_start_args(self, role: str, kind: str, generated: dict[str, Any]) -> str:
+        role_args = self._role_args(role)
+        ray_args: VllmRayStartArgs | None = role_args.ray_head if kind == "head" else role_args.ray_worker
+        if ray_args is None:
+            return self._serialize_ray_start_args(generated, quote_strings=False)
+
+        fields_set = ray_args.model_fields_set
+        user_args = ray_args.model_dump(exclude_none=True)
+        generated_args = {key: value for key, value in generated.items() if key not in fields_set}
+        return " ".join(
+            part
+            for part in (
+                self._serialize_ray_start_args(generated_args, quote_strings=False),
+                self._serialize_ray_start_args(user_args),
+            )
+            if part
+        )
+
     def get_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
 
         base_cmd = ["vllm", "serve", cmd_args.model, "--host", self.bind_host]
         if not tdef.cmd_args.prefill:
-            return [[*base_cmd, *tdef.cmd_args.decode.serve_args, "--port", str(self.serve_port)]]
+            return [
+                self._with_ray_backend(
+                    [*base_cmd, *tdef.cmd_args.decode.serve_args, "--port", str(self.serve_port)],
+                    self._needs_ray("serve"),
+                )
+            ]
 
         commands: list[list[str]] = []
-        for port, role, args in [
-            (self.prefill_port, "kv_producer", tdef.cmd_args.prefill),
-            (self.decode_port, "kv_consumer", tdef.cmd_args.decode),
+        for port, role, kv_role, args in [
+            (self.prefill_port, "prefill", "kv_producer", tdef.cmd_args.prefill),
+            (self.decode_port, "decode", "kv_consumer", tdef.cmd_args.decode),
         ]:
-            kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector", "kv_role": role}
+            kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector", "kv_role": kv_role}
             if args.nixl_threads is not None:
                 kv_transfer_config["kv_connector_extra_config"] = {"num_threads": cast(int, args.nixl_threads)}
             commands.append(
-                [
-                    *base_cmd,
-                    "--port",
-                    str(port),
-                    "--kv-transfer-config",
-                    self._to_json_str_arg(kv_transfer_config),
-                    *args.serve_args,
-                ]
+                self._with_ray_backend(
+                    [
+                        *base_cmd,
+                        "--port",
+                        str(port),
+                        "--kv-transfer-config",
+                        self._to_json_str_arg(kv_transfer_config),
+                        *args.serve_args,
+                    ],
+                    self._needs_ray(role),
+                )
             )
 
         return commands
 
+    def aggregated_script_preamble(self) -> str:
+        if not self._needs_ray("serve"):
+            return ""
+        return """\
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export SERVE_RAY_PORT=$((6379 + PORT_OFFSET))
+"""
+
     def disaggregated_script_preamble(self) -> str:
+        ray_preamble = ""
+        if self._needs_ray("prefill") or self._needs_ray("decode"):
+            ray_preamble = """\
+export PREFILL_RAY_PORT=$((6379 + PORT_OFFSET))
+export DECODE_RAY_PORT=$((7379 + PORT_OFFSET))
+"""
         return f"""\
 export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
 export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
 
-"""
+{ray_preamble}"""
+
+    def aggregated_cleanup_pid_vars(self) -> list[str]:
+        if not self._needs_ray("serve"):
+            return super().aggregated_cleanup_pid_vars()
+        return ["SERVE_RAY_PID", self.serve_pid_var]
+
+    def disaggregated_cleanup_pid_vars(self) -> list[str]:
+        pid_vars = super().disaggregated_cleanup_pid_vars()
+        if self._needs_ray("prefill"):
+            pid_vars.insert(0, "PREFILL_RAY_PID")
+        if self._needs_ray("decode"):
+            insert_at = 1 if self._needs_ray("prefill") else 0
+            pid_vars.insert(insert_at, "DECODE_RAY_PID")
+        return pid_vars
+
+    @property
+    def proxy_router_healthcheck(self) -> str:
+        fields_set = self.tdef.cmd_args.model_fields_set
+        if "proxy_healthcheck" not in fields_set and "healthcheck" in fields_set:
+            return self.tdef.cmd_args.healthcheck
+        return self.tdef.cmd_args.proxy_healthcheck
+
+    def serve_healthcheck(self, role: str) -> str:
+        if self.tdef.cmd_args.serve_healthcheck:
+            return self.tdef.cmd_args.serve_healthcheck
+        if role in {"prefill", "decode"}:
+            return "/health"
+        return self.tdef.cmd_args.healthcheck
+
+    def _ray_stop_cleanup_block(self) -> str:
+        role_specs: list[tuple[str, str, int]] = []
+        if not self.is_disaggregated and self._needs_ray("serve"):
+            role_specs.append(("SERVE_NODELIST", "serve", self.role_node_count("serve")))
+        if self.is_disaggregated:
+            if self._needs_ray("prefill"):
+                role_specs.append(("PREFILL_NODELIST", "prefill", self.role_node_count("prefill")))
+            if self._needs_ray("decode"):
+                role_specs.append(("DECODE_NODELIST", "decode", self.role_node_count("decode")))
+
+        if not role_specs:
+            return ""
+
+        lines = ['    echo "Stopping Ray clusters..."']
+        for nodelist_var, role, node_count in role_specs:
+            stop_prefix = self._role_srun_prefix(f"${{{nodelist_var}}}", node_count, node_count)
+            stop_command = f"{stop_prefix} bash -lc 'ray stop --force >/dev/null 2>&1 || true' >/dev/null 2>&1 || true"
+            lines.extend(
+                [
+                    f'    if [ -n "${{{nodelist_var}:-}}" ]; then',
+                    f"        {stop_command}",
+                    "    else",
+                    f'        echo "Skipping Ray stop for {role}: node list is not set"',
+                    "    fi",
+                ]
+            )
+        return "\n".join(lines)
+
+    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 15) -> str:
+        cleanup = super().generate_cleanup_function(pid_vars, timeout)
+        ray_stop_block = self._ray_stop_cleanup_block()
+        if not ray_stop_block:
+            return cleanup
+        return cleanup.replace("cleanup() {\n", f"cleanup() {{\n{ray_stop_block}\n", 1)
+
+    def render_serve_launch(
+        self,
+        role: str,
+        command_tail: str,
+        pid_var: str,
+        log_file: str,
+        node_count: int,
+        head_node_var: str,
+        nodelist_var: str,
+    ) -> str:
+        if node_count <= 1:
+            return super().render_serve_launch(
+                role, command_tail, pid_var, log_file, node_count, head_node_var, nodelist_var
+            )
+
+        role_prefix = role.upper()
+        ray_pid_var = f"{role_prefix}_RAY_PID"
+        ray_port_var = f"{role_prefix}_RAY_PORT"
+        node_array_var = f"{role_prefix}_NODES"
+        ray_head_log = f"{self.workload_slug}-{role}-ray-head.log"
+        ray_worker_log = f"{self.workload_slug}-{role}-ray-worker-%N.log"
+        serve_log = f"{self.test_run.output_path.absolute()}/{log_file}"
+        head_node_expr = f"${{{head_node_var}}}"
+        worker_prefix = self._role_srun_prefix("$node")
+        head_prefix = self._single_role_srun_prefix(head_node_var)
+        serve_cmd = self._with_custom_bash(f'env RAY_ADDRESS="{head_node_expr}:${{{ray_port_var}}}" {command_tail}')
+        ray_head_args = self._ray_start_args(role, "head", {"head": True, "port": f'"${{{ray_port_var}}}"'})
+        ray_worker_args = self._ray_start_args(
+            role,
+            "worker",
+            {"address": f"{head_node_expr}:${{{ray_port_var}}}", "block": True},
+        )
+        ray_head_command = shlex.quote(
+            f"""\
+ray stop --force >/dev/null 2>&1 || true
+ray start {ray_head_args}
+
+active_nodes=0
+for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
+    active_nodes=$(python3 -c 'import ray; ray.init(); print(sum(node["Alive"] for node in ray.nodes()))')
+    if [ "$active_nodes" -eq "{node_count}" ]; then
+        echo "All Ray workers are active: $active_nodes/{node_count}"
+        ray status || true
+        exec {serve_cmd}
+    fi
+    echo "Waiting for Ray workers: $active_nodes/{node_count} active"
+    sleep 5
+done
+
+echo "Waiting for Ray workers timed out: $active_nodes/{node_count} active"
+exit 1"""
+        )
+        ray_worker_command = shlex.quote(
+            f"""\
+ray stop --force >/dev/null 2>&1 || true
+for (( i=0; i < {self.tdef.cmd_args.serve_wait_seconds}; i+=5 )); do
+    if ray start {ray_worker_args}; then
+        echo "Ray worker connected to {head_node_expr}:${{{ray_port_var}}}"
+        exit 0
+    fi
+    echo "Waiting until the Ray worker can connect to {head_node_expr}:${{{ray_port_var}}}..."
+    sleep 5
+done
+echo "Ray worker startup timed out for {head_node_expr}:${{{ray_port_var}}}"
+exit 1"""
+        )
+
+        return f"""\
+(
+    trap 'kill -TERM $(jobs -pr) 2>/dev/null' TERM EXIT
+    for node in "${{{node_array_var}[@]:1}}"; do
+        {worker_prefix} \\
+            --output={self.test_run.output_path.absolute()}/{ray_worker_log} \\
+            bash -lc {ray_worker_command} &
+    done
+    wait
+) &
+{ray_pid_var}=$!
+{head_prefix} \\
+    --output={serve_log} \\
+    --error={self.test_run.output_path.absolute()}/{ray_head_log} \\
+    bash -lc {ray_head_command} &
+{pid_var}=$!"""
 
     def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:
         env = super().disaggregated_role_env(role, gpu_ids)

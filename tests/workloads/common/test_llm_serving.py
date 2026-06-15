@@ -155,11 +155,19 @@ class TestAllGpuIds:
 
         assert all_gpu_ids(cast(Any, llm_tdef), gpus_per_node) == list(range(gpus_per_node or 1))
 
-    def test_decode_gpu_ids_override_defaults_in_aggregated_mode(self, llm_tdef: FakeLLMTestDefinition) -> None:
+    def test_cuda_visible_devices_wins_over_decode_gpu_ids_in_aggregated_mode(
+        self, llm_tdef: FakeLLMTestDefinition
+    ) -> None:
         llm_tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         llm_tdef.cmd_args.decode.gpu_ids = "4,5"
 
         assert all_gpu_ids(cast(Any, llm_tdef), 8) == [0, 1, 2, 3]
+
+    def test_decode_gpu_ids_override_system_gpu_count_in_aggregated_mode(self, llm_tdef: FakeLLMTestDefinition) -> None:
+        llm_tdef.extra_env_vars = {}
+        llm_tdef.cmd_args.decode.gpu_ids = "4,5"
+
+        assert all_gpu_ids(cast(Any, llm_tdef), 8) == [4, 5]
 
     def test_prefill_and_decode_gpu_ids_override_cuda_visible_devices(self, llm_tdef: FakeLLMTestDefinition) -> None:
         llm_tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
@@ -274,8 +282,12 @@ class TestLLMServingSlurmHelpers:
         assert strategy.bench_log_file == "fake-llm-bench.log"
         assert strategy.serve_log_file == "fake-llm-serve.log"
         assert strategy.get_helper_command() == ["helper", "${PREFILL_NODE}", "${DECODE_NODE}"]
-        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
-        assert "Expected 2 allocated nodes for disaggregated Fake LLM" in strategy.generate_disaggregated_node_setup()
+        assert strategy.disaggregated_role_node_counts() == (1, 1)
+        node_setup = strategy.generate_disaggregated_node_setup()
+        assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in node_setup
+        assert 'DECODE_NODES=( "${NODES[@]:1:1}" )' in node_setup
+        assert "PREFILL_NODE=${PREFILL_NODES[0]}" in node_setup
+        assert "DECODE_NODE=${DECODE_NODES[0]}" in node_setup
 
     def test_single_node_disagg_wait_block_uses_role_hosts(self, slurm_system: SlurmSystem, tmp_path) -> None:
         tdef = make_tdef(create_prefill=True)
@@ -298,16 +310,43 @@ echo "Waiting for Fake LLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
 wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
 wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1"""
         )
-        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in strategy.generate_disaggregated_node_setup()
+        node_setup = strategy.generate_disaggregated_node_setup()
+        assert 'PREFILL_NODES=( "${NODES[@]:0:1}" )' in node_setup
+        assert 'DECODE_NODES=( "${NODES[@]:0:1}" )' in node_setup
 
-    def test_more_than_two_disagg_nodes_are_rejected(self, slurm_system: SlurmSystem, tmp_path) -> None:
+    def test_disagg_more_than_two_nodes_requires_role_sizes(self, slurm_system: SlurmSystem, tmp_path) -> None:
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(name="llm", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path)
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
-        with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
-            _ = strategy.is_two_node_disaggregated
+        with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
+            strategy.disaggregated_role_node_counts()
+
+    def test_disagg_explicit_role_sizes_plan_contiguous_node_slices(self, slurm_system: SlurmSystem, tmp_path) -> None:
+        tdef = make_tdef(create_prefill=True)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(name="llm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        assert strategy.disaggregated_role_node_counts() == (2, 2)
+        node_setup = strategy.generate_disaggregated_node_setup()
+        assert 'PREFILL_NODES=( "${NODES[@]:0:2}" )' in node_setup
+        assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in node_setup
+
+    def test_disagg_role_sizes_must_match_allocation(self, slurm_system: SlurmSystem, tmp_path) -> None:
+        tdef = make_tdef(create_prefill=True)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        tr = TestRun(name="llm", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        with pytest.raises(ValueError, match=r"must equal allocated nodes \(3\)"):
+            strategy.disaggregated_role_node_counts()
 
 
 def test_generate_report_uses_shared_table_builder(

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmTestDefinition
@@ -118,3 +120,102 @@ def test_constraint_check_uses_all_node_gpus_per_role_for_two_node_disagg(tmp_pa
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
+
+
+def test_constraint_check_uses_all_allocated_gpus_for_multinode_aggregated(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            decode=VllmArgs.model_validate({"tensor_parallel_size": 8}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
+
+
+def test_constraint_check_rejects_explicit_disagg_role_nodes_that_do_not_match_two_node_allocation(
+    tmp_path, slurm_system: SlurmSystem
+) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 2}),
+            decode=VllmArgs.model_validate({"num_nodes": 1}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is False
+
+
+def test_constraint_check_allows_explicit_single_node_disagg_role_nodes(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 1, "gpu_ids": "0,1", "tensor_parallel_size": 2}),
+            decode=VllmArgs.model_validate({"num_nodes": 1, "gpu_ids": "2,3", "tensor_parallel_size": 2}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
+
+
+def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_system: SlurmSystem) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": 2, "tensor_parallel_size": 8}),
+            decode=VllmArgs.model_validate({"num_nodes": 2, "tensor_parallel_size": 8}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is True
+
+
+@pytest.mark.parametrize(
+    ("prefill_nodes", "decode_nodes"),
+    [
+        (None, 2),
+        (2, None),
+        (1, 1),
+    ],
+)
+def test_constraint_check_rejects_invalid_multinode_disagg_role_nodes(
+    prefill_nodes: int | None,
+    decode_nodes: int | None,
+    tmp_path,
+    slurm_system: SlurmSystem,
+) -> None:
+    tdef = VllmTestDefinition(
+        name="test",
+        description="test",
+        test_template_name="vllm",
+        cmd_args=VllmCmdArgs(
+            docker_image_url="test_url",
+            prefill=VllmArgs.model_validate({"num_nodes": prefill_nodes}),
+            decode=VllmArgs.model_validate({"num_nodes": decode_nodes}),
+        ),
+    )
+    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    slurm_system.gpus_per_node = 4
+
+    assert tdef.constraint_check(tr, slurm_system) is False

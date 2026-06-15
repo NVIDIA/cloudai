@@ -93,11 +93,14 @@ placeholders.
 
 Controlling the Number of GPUs
 -------------------------------
-The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
-1. ``gpus_per_node`` system property (scalar value)
-2. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
-3. ``gpu_ids`` command argument for ``prefill`` and ``decode`` configurations (comma-separated list of GPU IDs). If disaggregated mode is used (``prefill`` is set), both ``prefill`` and ``decode`` should define ``gpu_ids``, or none of them should set it.
+GPU selection priority, from lowest to highest:
 
+1. ``gpus_per_node`` system property (scalar value)
+2. ``decode.gpu_ids`` command argument in non-disaggregated mode when ``CUDA_VISIBLE_DEVICES`` is not set
+3. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
+4. ``gpu_ids`` command argument for both ``prefill`` and ``decode`` configurations in disaggregated mode
+
+In disaggregated mode, define both ``prefill.gpu_ids`` and ``decode.gpu_ids``, or omit both.
 
 Controlling Disaggregation
 --------------------------
@@ -131,6 +134,53 @@ For more control, users can specify the GPU IDs explicitly in ``prefill`` and ``
    gpu_ids = "2,3"
 
 In this case ``CUDA_VISIBLE_DEVICES`` will be ignored and only the GPUs specified in ``gpu_ids`` will be used.
+
+
+Multi-node serving
+------------------
+For non-disaggregated ``num_nodes > 1``, CloudAI creates one Ray cluster and starts ``vllm serve`` on the head node with
+``--distributed-executor-backend ray``.
+
+For disaggregated serving over more than two nodes, set explicit role sizes:
+
+- ``prefill.num_nodes + decode.num_nodes`` must equal the test ``num_nodes``.
+- CloudAI assigns contiguous node slices: prefill first, decode second.
+- ``tensor_parallel_size`` is total per role, not per node.
+- ``CUDA_VISIBLE_DEVICES`` and ``gpu_ids`` are local GPU IDs on each serving node.
+
+Example: four prefill nodes and four decode nodes, each with four visible GPUs:
+
+.. code-block:: toml
+   :caption: scenario.toml (multi-node disaggregated serving)
+
+   [[Tests]]
+   id = "vllm.pd_multi_node"
+   num_nodes = 8
+   test_template_name = "vllm"
+
+   [Tests.cmd_args.prefill]
+   num_nodes = 4
+   tensor_parallel_size = 16
+
+   [Tests.cmd_args.decode]
+   num_nodes = 4
+   tensor_parallel_size = 16
+
+   [Tests.extra_env_vars]
+   CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+
+Readiness health checks
+-----------------------
+Healthcheck fields:
+
+- ``healthcheck``: aggregated server endpoint, default ``/healthcheck``.
+- ``serve_healthcheck``: optional override for serve, prefill, and decode servers.
+- ``proxy_healthcheck``: disaggregated proxy/router endpoint, default ``/healthcheck``.
+
+If ``serve_healthcheck`` is omitted, disaggregated prefill/decode servers keep the legacy ``/health`` endpoint. If a
+disaggregated config sets ``healthcheck`` but omits ``proxy_healthcheck``, the proxy/router uses ``healthcheck`` for
+backward compatibility.
 
 
 Controlling ``proxy_script``

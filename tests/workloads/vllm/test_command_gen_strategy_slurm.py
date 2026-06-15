@@ -25,11 +25,11 @@ from cloudai.workloads.vllm import (
     VllmArgs,
     VllmBenchCmdArgs,
     VllmCmdArgs,
+    VllmRayStartArgs,
     VllmSemanticEvalCmdArgs,
     VllmSlurmCommandGenStrategy,
     VllmTestDefinition,
 )
-from cloudai.workloads.vllm.vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE
 
 
 @pytest.fixture
@@ -148,29 +148,6 @@ class TestVllmServeCommand:
 
 
 class TestVllmBenchCommand:
-    def test_get_vllm_bench_command(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
-        cmd_args = tdef.cmd_args
-        bench_args = tdef.bench_cmd_args
-
-        command = vllm_cmd_gen_strategy.get_bench_command()
-
-        expected = [
-            "vllm",
-            "bench",
-            "serve",
-            f"--model {cmd_args.model}",
-            f"--base-url http://${{NODE}}:{cmd_args.port}",
-            f"--random-input-len {bench_args.random_input_len}",
-            f"--random-output-len {bench_args.random_output_len}",
-            f"--max-concurrency {bench_args.max_concurrency}",
-            f"--num-prompts {bench_args.num_prompts}",
-            f"--result-dir {vllm_cmd_gen_strategy.test_run.output_path.absolute()}",
-            f"--result-filename {VLLM_BENCH_JSON_FILE}",
-            "--save-result",
-        ]
-        assert command == expected
-
     def test_get_vllm_bench_command_with_extra_args(
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
@@ -251,14 +228,6 @@ class TestVllmSemanticEvalCommand:
 class TestVllmAggregatedMode:
     """Tests for vLLM non-disaggregated mode with 1 GPU."""
 
-    def test_get_vllm_serve_commands_single_gpu(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
-
-        commands = vllm_cmd_gen_strategy.get_serve_commands()
-
-        assert len(commands) == 1
-        assert commands[0] == ["vllm", "serve", cmd_args.model, "--host", cmd_args.host, "--port", str(cmd_args.port)]
-
     def test_get_vllm_serve_commands_convert_boolean_flags(
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
@@ -305,52 +274,6 @@ wait_for_health() {{
 
         assert func == expected
 
-    def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        tdef = vllm_cmd_gen_strategy.test_run.test
-        cmd_args = tdef.cmd_args
-        output_path = vllm_cmd_gen_strategy.test_run.output_path.absolute()
-        srun_prefix = " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
-        serve_cmd = " ".join(vllm_cmd_gen_strategy.get_serve_commands()[0])
-        bench_cmd = " ".join(vllm_cmd_gen_strategy.get_bench_command())
-        health_func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
-
-        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
-
-        expected = f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-    kill -TERM "$SERVE_PID" 2>/dev/null
-    i=0
-    while kill -0 "$SERVE_PID" 2>/dev/null; do
-        [ "$i" -ge 15 ] && echo "PID did not exit in time" && return 1
-        sleep 1
-        i=$((i+1))
-    done
-}}
-trap cleanup EXIT
-
-{health_func}
-
-echo "Starting vLLM instances..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_SERVE_LOG_FILE} \\
-    {serve_cmd} &
-SERVE_PID=$!
-
-NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{cmd_args.port}/healthcheck" || exit 1
-
-echo "Running benchmark..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
-    {bench_cmd}
-
-cleanup
-"""
-
-        assert srun_command == expected
-
     def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
     ) -> None:
@@ -375,170 +298,52 @@ cleanup
         assert "echo bench setup; exec vllm bench serve" in srun_command
         assert "echo bench setup; exec vllm serve" not in srun_command
 
+    def test_custom_healthcheck_endpoints(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.cmd_args.healthcheck = "/ready"
+        vllm_tr.test = vllm
+        aggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${NODE}:8000/ready"' in aggregated
+        assert 'wait_for_health "http://${NODE}:8000/ready" "http://${NODE}:8000/healthcheck"' not in aggregated
+
+        vllm.cmd_args.prefill = VllmArgs()
+        vllm.cmd_args.proxy_healthcheck = "/router-ready"
+        vllm_tr.num_nodes = 2
+        disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in disaggregated
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/ready"' not in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/ready"' not in disaggregated
+        assert 'wait_for_health "http://${PREFILL_NODE}:8000/router-ready"' in disaggregated
+        assert (
+            'wait_for_health "http://${PREFILL_NODE}:8000/router-ready" "http://${PREFILL_NODE}:8000/ready"'
+            not in disaggregated
+        )
+
+        vllm.cmd_args.serve_healthcheck = "/serve-ready"
+        disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/serve-ready"' in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/serve-ready"' in disaggregated
+        assert 'wait_for_health "http://${PREFILL_NODE}:8000/router-ready"' in disaggregated
+
+    def test_disagg_custom_healthcheck_preserves_legacy_proxy_endpoint(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.cmd_args.healthcheck = "/legacy-ready"
+        vllm.cmd_args.prefill = VllmArgs()
+        vllm_tr.test = vllm
+        vllm_tr.num_nodes = 2
+
+        disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
+
+        assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in disaggregated
+        assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in disaggregated
+        assert 'wait_for_health "http://${PREFILL_NODE}:8000/legacy-ready"' in disaggregated
+
 
 class TestVllmDisaggregatedMode:
     """Tests for vLLM disaggregated mode with multiple GPUs."""
-
-    def test_prefill_gpu_ids(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        """Prefill gets first half of GPUs."""
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
-        assert strategy.prefill_gpu_ids == [0, 1]
-
-    def test_decode_gpu_ids(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        """Decode gets second half of GPUs."""
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
-        assert strategy.decode_gpu_ids == [2, 3]
-
-    def test_get_vllm_serve_commands_returns_two(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        """Disagg mode returns prefill and decode commands."""
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
-        cmd_args = vllm_disagg_tr.test.cmd_args
-
-        commands = strategy.get_serve_commands()
-
-        assert len(commands) == 2
-        prefill_cmd, decode_cmd = commands
-
-        assert prefill_cmd == [
-            "vllm",
-            "serve",
-            cmd_args.model,
-            "--host",
-            cmd_args.host,
-            "--port",
-            str(cmd_args.port + 100),
-            "--kv-transfer-config",
-            '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
-        ]
-        assert decode_cmd == [
-            "vllm",
-            "serve",
-            cmd_args.model,
-            "--host",
-            cmd_args.host,
-            "--port",
-            str(cmd_args.port + 200),
-            "--kv-transfer-config",
-            '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
-        ]
-
-    def test_get_helper_command(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        """Helper command routes to prefill and decode ports."""
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
-        cmd_args = vllm_disagg_tr.test.cmd_args
-
-        command = strategy.get_helper_command()
-
-        assert command == [
-            "python3",
-            cmd_args.proxy_script,
-            "--host",
-            cmd_args.host,
-            "--port",
-            str(cmd_args.port),
-            "--prefiller-hosts",
-            "${PREFILL_NODE}",
-            "--prefiller-ports",
-            str(cmd_args.port + 100),
-            "--decoder-hosts",
-            "${DECODE_NODE}",
-            "--decoder-ports",
-            str(cmd_args.port + 200),
-        ]
-
-    def test_gen_srun_command_disagg_flow(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        """Disagg mode starts prefill, decode, and helper, waits for health checks."""
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
-        cmd_args = vllm_disagg_tr.test.cmd_args
-        output_path = vllm_disagg_tr.output_path.absolute()
-        srun_prefix = " ".join(strategy.gen_srun_prefix())
-        prefill_cmd, decode_cmd = strategy.get_serve_commands()
-        helper_cmd = strategy.get_helper_command()
-        bench_cmd = " ".join(strategy.get_bench_command())
-        health_func = strategy.generate_wait_for_health_function()
-        prefill_gpus = ",".join(str(g) for g in strategy.prefill_gpu_ids)
-        decode_gpus = ",".join(str(g) for g in strategy.decode_gpu_ids)
-        prefill_env = (
-            f'env CUDA_VISIBLE_DEVICES="{prefill_gpus}" '
-            'VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" '
-            'VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"'
-        )
-        decode_env = (
-            f'env CUDA_VISIBLE_DEVICES="{decode_gpus}" '
-            'VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" '
-            'VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT"'
-        )
-
-        srun_command = strategy._gen_srun_command()
-
-        expected = f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
-
-    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
-    done
-
-    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
-        [ -z "$pid" ] && continue
-        i=0
-        while kill -0 "$pid" 2>/dev/null; do
-            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
-            sleep 1
-            i=$((i+1))
-        done
-    done
-}}
-trap cleanup EXIT
-
-{health_func}
-
-export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
-export PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(strategy.gpu_ids)}))
-
-NODES=( $(scontrol show hostname $SLURM_JOB_NODELIST) )
-export PREFILL_NODE=${{NODES[0]}}
-export DECODE_NODE=${{NODES[1]:-${{PREFILL_NODE}}}}
-if [ -z "$PREFILL_NODE" ]; then
-    echo "Failed to resolve allocated nodes for disaggregated vLLM"
-    exit 1
-fi
-echo "Node roles: prefill=$PREFILL_NODE decode=$DECODE_NODE"
-
-echo "Starting vLLM instances..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-prefill.log \\
-    {prefill_env} {" ".join(prefill_cmd)} &
-PREFILL_PID=$!
-
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-decode.log \\
-    {decode_env} {" ".join(decode_cmd)} &
-DECODE_PID=$!
-
-echo "Waiting for vLLM on $PREFILL_NODE and $DECODE_NODE to be ready..."
-wait_for_health "http://${{PREFILL_NODE}}:{cmd_args.port + 100}/health" || exit 1
-wait_for_health "http://${{DECODE_NODE}}:{cmd_args.port + 200}/health" || exit 1
-
-echo "Starting router..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-router.log \\
-    {" ".join(helper_cmd)} &
-HELPER_PID=$!
-
-echo "Waiting for vLLM on $PREFILL_NODE server to be ready..."
-wait_for_health "http://${{PREFILL_NODE}}:{cmd_args.port}/healthcheck" || exit 1
-
-echo "Running benchmark..."
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
-    {bench_cmd}
-
-cleanup
-"""
-
-        assert srun_command == expected
 
     def test_custom_bash_regex_can_target_disaggregated_commands(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
@@ -560,34 +365,68 @@ cleanup
         assert "echo router setup; exec python3" in srun_command
         assert "echo bench setup; exec vllm bench serve" in srun_command
 
-    def test_gen_srun_command_disagg_two_nodes_flow(
-        self, vllm_disagg_2node_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_2node_tr)
-
-        srun_command = strategy._gen_srun_command()
-
-        assert "PREFILL_NODE=${NODES[0]}" in srun_command
-        assert "DECODE_NODE=${NODES[1]:-${PREFILL_NODE}}" in srun_command
-        assert srun_command.count("--relative=0 -N1") == 3
-        assert srun_command.count("--relative=1 -N1") == 1
-        assert (
-            'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${PREFILL_NODE}" '
-            'VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT"'
-        ) in srun_command
-        assert (
-            'env CUDA_VISIBLE_DEVICES="0,1,2,3" VLLM_NIXL_SIDE_CHANNEL_HOST="${DECODE_NODE}" '
-            'VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT"'
-        ) in srun_command
-        assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in srun_command
-        assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in srun_command
-        assert "--prefiller-hosts ${PREFILL_NODE}" in srun_command
-        assert "--decoder-hosts ${DECODE_NODE}" in srun_command
-        assert "--base-url http://${PREFILL_NODE}:8000" in srun_command
-
     def test_disagg_more_than_two_nodes_is_rejected(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
         vllm_disagg_tr.num_nodes = 3
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
-        with pytest.raises(ValueError, match="supports only 1 or 2 nodes"):
+        with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
             _ = strategy._gen_srun_command()
+
+    def test_gen_srun_command_disagg_four_nodes_uses_role_ray_clusters(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        vllm_disagg_tr.num_nodes = 4
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert "--distributed-executor-backend ray" in srun_command
+        assert "export PREFILL_RAY_PORT=$((6379 + PORT_OFFSET))" in srun_command
+        assert "export DECODE_RAY_PORT=$((7379 + PORT_OFFSET))" in srun_command
+        assert 'PREFILL_NODES=( "${NODES[@]:0:2}" )' in srun_command
+        assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in srun_command
+        assert "PREFILL_RAY_PID=$!" in srun_command
+        assert "DECODE_RAY_PID=$!" in srun_command
+        assert srun_command.count('sum(node["Alive"] for node in ray.nodes())') == 2
+        assert "ray.init(address=" not in srun_command
+        assert 'env RAY_ADDRESS="${PREFILL_NODE}:${PREFILL_RAY_PORT}"' in srun_command
+        assert 'env RAY_ADDRESS="${DECODE_NODE}:${DECODE_RAY_PORT}"' in srun_command
+
+    def test_ray_head_and_worker_topology_args_can_be_overridden(
+        self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        assert tdef.cmd_args.prefill is not None
+        tdef.cmd_args.prefill.num_nodes = 2
+        tdef.cmd_args.decode.num_nodes = 2
+        tdef.cmd_args.prefill.ray_head = VllmRayStartArgs.model_validate(
+            {
+                "head": False,
+                "port": 9123,
+                "num_gpus": 4,
+                "dashboard_host": "0.0.0.0",
+                "temp_dir": "/tmp/ray with spaces",
+            }
+        )
+        tdef.cmd_args.prefill.ray_worker = VllmRayStartArgs.model_validate(
+            {
+                "address": "custom-prefill-head:9123",
+                "block": False,
+                "num_gpus": 4,
+            }
+        )
+        vllm_disagg_tr.num_nodes = 4
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
+
+        srun_command = strategy._gen_srun_command()
+
+        assert (
+            "ray start --port=9123 --num-gpus=4 --dashboard-host=0.0.0.0 --temp-dir='\"'\"'/tmp/ray with spaces'\"'\"'"
+        ) in srun_command
+        assert "ray start --head --port=9123" not in srun_command
+        assert "ray start --address=custom-prefill-head:9123 --num-gpus=4" in srun_command
+        assert "ray start --address=custom-prefill-head:9123 --block" not in srun_command

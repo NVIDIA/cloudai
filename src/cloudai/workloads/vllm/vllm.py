@@ -48,6 +48,14 @@ VLLM_SEMANTIC_EVAL_LOG_FILE = "vllm-semantic-eval.log"
 class VllmArgs(LLMServingArgs):
     """Base command arguments for vLLM instances."""
 
+    ray_head: VllmRayStartArgs | None = Field(
+        default=None,
+        description="Arguments appended to the Ray head startup command for multi-node vLLM roles.",
+    )
+    ray_worker: VllmRayStartArgs | None = Field(
+        default=None,
+        description="Arguments appended to the Ray worker startup command for multi-node vLLM roles.",
+    )
     nixl_threads: int | list[int] | None = Field(
         default=None,
         description="Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument.",
@@ -55,13 +63,24 @@ class VllmArgs(LLMServingArgs):
 
     @property
     def serve_args_exclude(self) -> set[str]:
-        return super().serve_args_exclude | {"nixl_threads"}
+        return super().serve_args_exclude | {"nixl_threads", "ray_head", "ray_worker"}
 
     def serialize_serve_arg(self, key: str, value: object) -> list[str]:
         opt = f"--{key.replace('_', '-')}"
         if isinstance(value, bool):
             return [opt] if value else [f"--no-{key.replace('_', '-')}"]
         return super().serialize_serve_arg(key, value)
+
+
+class VllmRayStartArgs(CmdArgs):
+    """Ray startup arguments for vLLM multi-node serving roles."""
+
+    model_config = ConfigDict(extra="allow")
+
+    head: bool | list[bool] | None = Field(default=None, description="Emit ``--head`` for Ray head startup.")
+    port: int | str | list[int] | list[str] | None = Field(default=None, description="Ray head port.")
+    address: str | list[str] | None = Field(default=None, description="Ray head address for worker startup.")
+    block: bool | list[bool] | None = Field(default=None, description="Emit ``--block`` for Ray worker startup.")
 
 
 class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
@@ -71,6 +90,10 @@ class VllmCmdArgs(LLMServingCmdArgs[VllmArgs]):
 
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
     healthcheck: str = Field(default="/healthcheck", description="vLLM server healthcheck endpoint.")
+    proxy_healthcheck: str = Field(
+        default="/healthcheck",
+        description="vLLM disaggregated proxy/router healthcheck endpoint.",
+    )
 
     model: str = "Qwen/Qwen3-0.6B"
     prefill: VllmArgs | None = Field(
@@ -156,22 +179,59 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         system_gpus_per_node = getattr(system, "gpus_per_node", None) if system is not None else None
         num_nodes = tr.nnodes
+        local_gpu_count = len(all_gpu_ids(self, system_gpus_per_node))
 
         if self.cmd_args.prefill is None:
             return self._validate_vllm_parallelism_constraints(
                 role="decode",
                 args=self.cmd_args.decode,
-                gpu_count=len(all_gpu_ids(self, system_gpus_per_node)),
+                gpu_count=local_gpu_count * num_nodes,
             )
+
+        prefill_nodes_value = self.cmd_args.prefill.num_nodes
+        decode_nodes_value = self.cmd_args.decode.num_nodes
+        if prefill_nodes_value is None and decode_nodes_value is None:
+            if num_nodes > 2:
+                logging.error(
+                    "vLLM disaggregated mode over more than 2 nodes requires both prefill.num_nodes and "
+                    "decode.num_nodes."
+                )
+                return False
+            prefill_nodes = 1
+            decode_nodes = 1
+        elif not isinstance(prefill_nodes_value, int) or not isinstance(decode_nodes_value, int):
+            logging.error("vLLM disaggregated role node counts must both be single integers or both be omitted.")
+            return False
+        elif prefill_nodes_value <= 0 or decode_nodes_value <= 0:
+            logging.error(
+                "vLLM disaggregated role node counts must be positive integers. prefill=%s decode=%s",
+                prefill_nodes_value,
+                decode_nodes_value,
+            )
+            return False
+        elif num_nodes == 1 and prefill_nodes_value == 1 and decode_nodes_value == 1:
+            prefill_nodes = 1
+            decode_nodes = 1
+        elif prefill_nodes_value + decode_nodes_value != num_nodes:
+            logging.error(
+                "vLLM disaggregated role node counts must sum to allocated nodes. prefill=%s decode=%s allocated=%s",
+                prefill_nodes_value,
+                decode_nodes_value,
+                num_nodes,
+            )
+            return False
+        else:
+            prefill_nodes = prefill_nodes_value
+            decode_nodes = decode_nodes_value
 
         return self._validate_vllm_parallelism_constraints(
             role="prefill",
             args=self.cmd_args.prefill,
-            gpu_count=len(calculate_prefill_gpu_ids(self, num_nodes, system_gpus_per_node)),
+            gpu_count=len(calculate_prefill_gpu_ids(self, num_nodes, system_gpus_per_node)) * prefill_nodes,
         ) and self._validate_vllm_parallelism_constraints(
             role="decode",
             args=self.cmd_args.decode,
-            gpu_count=len(calculate_decode_gpu_ids(self, num_nodes, system_gpus_per_node)),
+            gpu_count=len(calculate_decode_gpu_ids(self, num_nodes, system_gpus_per_node)) * decode_nodes,
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
