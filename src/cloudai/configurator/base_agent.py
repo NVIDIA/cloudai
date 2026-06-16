@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Literal
 
@@ -111,3 +112,50 @@ class BaseAgent(ABC):
             feedback (Dict[str, Any]): Feedback information from the environment.
         """
         pass
+
+    def run(self) -> int:
+        """
+        Orchestrate this agent's exploration over ``self.env``.
+
+        Default: a step loop driven by the dispatcher (``select_action`` →
+        ``env.step`` → ``update_policy`` per trial). Agents that drive their
+        own training loop (e.g. RLlib-based agents calling ``algo.train()``)
+        override this method.
+
+        Failure contract (``handle_dse_job`` consumes the result via
+        ``err |= agent.run()``):
+
+        - Return a non-zero code for *recoverable* failures (e.g. a workload run
+          that failed but should not abort the rest of the sweep). The code is
+          accumulated and the next ``TestRun`` still executes. Workload-level
+          failures are already surfaced this way: ``CloudAIGymEnv.step`` maps a
+          failed metric to ``rewards.metric_failure`` rather than raising, and
+          ``rllib_run`` catches training errors and returns ``rc=1``.
+        - Raise for *unexpected* failures (framework/agent bugs). Exceptions
+          propagate out of ``handle_dse_job`` and hard-fail the job so the bug
+          is surfaced instead of masked as a penalizing reward.
+
+        Returns:
+            int: Process-style return code (``0`` success, non-zero recoverable failure).
+        """
+        observation, _ = self.env.reset()
+        for _ in range(self.max_steps):
+            result = self.select_action(observation=observation)
+            if result is None:
+                break
+            step, action = result
+            logging.info(f"Running step {step} (of {self.max_steps}) with action {action}")
+            prev_observation = observation
+            observation, reward, done, *_ = self.env.step(action)
+            self.update_policy(
+                {
+                    "trial_index": step,
+                    "value": reward,
+                    "observation": observation,
+                    "prev_observation": prev_observation,
+                    "action": action,
+                    "done": done,
+                }
+            )
+            logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
+        return 0
