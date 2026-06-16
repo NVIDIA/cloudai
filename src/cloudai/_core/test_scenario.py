@@ -142,6 +142,17 @@ class TestRun:
         return self.test.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
+    def is_agent_driven(self) -> bool:
+        """
+        True for runs orchestrated by ``agent.run()`` rather than the grid-unrolled path.
+
+        A DSE sweep declares a search space (``is_dse_job``). An online live-RL run carries no sweep
+        (so ``is_dse_job`` is False) but still drives the agent's own ``run()`` loop; it opts in via
+        ``cmd_args.live_rl_mode``.
+        """
+        return self.is_dse_job or bool(getattr(self.test.cmd_args, "live_rl_mode", False))
+
+    @property
     def nnodes(self) -> int:
         """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
         if isinstance(self.num_nodes, list):

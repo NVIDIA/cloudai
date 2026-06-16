@@ -212,13 +212,14 @@ class EnvParamsSink:
 
 def validate_dse_env_params(test_scenario: "TestScenario") -> None:
     """
-    Reject prepped configs that declare env_params no agent will sample.
+    Reject prepped configs that declare env_params nothing will sample.
 
-    env_params are sampled per-trial by CloudAIGymEnv, but the sampling only matters for an agent
-    that opts into it via ``BaseAgent.samples_env_params``. A non-DSE run has no per-trial loop, and
-    an agent that does not opt in ignores env_params, so declaring them there is a silent no-op.
-    is_dse_job and the agent both resolve only on the fully prepped config, so this is validated
-    here rather than at parse time.
+    env_params are sampled per-trial by CloudAIGymEnv on an agent-driven run: a DSE sweep on an agent
+    that opts in via ``BaseAgent.samples_env_params``, or an online live-RL run (``cmd_args.live_rl_mode``),
+    which drives the agent's own loop and samples regardless of agent kind. A plain run has no per-trial
+    loop, and a non-opting agent ignores env_params, so declaring them there is a silent no-op. is_dse_job,
+    the agent, and live_rl_mode all resolve only on the fully prepped config, so this is validated here
+    rather than at parse time.
     """
     agents = Registry().agents_map
 
@@ -228,15 +229,16 @@ def validate_dse_env_params(test_scenario: "TestScenario") -> None:
             continue
 
         agent = agents.get(tr.test.agent)
+        live_rl = bool(getattr(tr.test.cmd_args, "live_rl_mode", False))
         # Unknown agent: defer to the dedicated agent-resolution error rather than masking it here.
-        sampled = tr.is_dse_job and (agent is None or agent.samples_env_params)
+        sampled = live_rl or (tr.is_dse_job and (agent is None or agent.samples_env_params))
         if not sampled:
             offenders.append(tr.name)
 
     if offenders:
         raise TestScenarioParsingError(
             f"Tests {offenders} declare env_params but no agent will sample them. env_params are sampled "
-            "per-trial only by a DSE run on an agent that opts into env_params sampling. Add a sweep "
-            "(a list-valued cmd_args/extra_env_vars entry or num_nodes) and use such an agent, or remove "
-            "env_params."
+            "per-trial only on an agent-driven run: a DSE sweep on an agent that opts into env_params "
+            "sampling, or cmd_args.live_rl_mode. Add a sweep (a list-valued cmd_args/extra_env_vars entry "
+            "or num_nodes) with such an agent, set live_rl_mode, or remove env_params."
         )

@@ -18,13 +18,14 @@ import argparse
 import copy
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
 from cloudai.cli.handlers import (
+    handle_dry_run_and_run,
     handle_dse_job,
     validate_dse_env_params,
     verify_system_configs,
@@ -35,10 +36,12 @@ from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
+    CmdArgs,
     Parser,
     Registry,
     RewardOverrides,
     Runner,
+    TestDefinition,
     TestDependency,
     TestRun,
     TestScenario,
@@ -513,3 +516,70 @@ def test_verify_test_scenarios_allows_env_params_with_dse(
     monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0
+
+
+def test_validate_dse_env_params_allows_live_rl_run() -> None:
+    cmd_args = CmdArgs.model_validate({"live_rl_mode": True})
+    tdef = TestDefinition(name="lr", description="d", test_template_name="tt", cmd_args=cmd_args)
+    tdef.env_params = {"ball_speed": EnvParamSpec()}
+    tr = TestRun(name="lr", test=tdef, num_nodes=1, nodes=[])
+    assert tr.is_dse_job is False  # precondition: live-RL is not a DSE sweep, but is agent-driven
+    validate_dse_env_params(TestScenario(name="s", test_runs=[tr]))  # no exception == pass
+
+
+def _routing_tr(name: str, *, live_rl: bool = False, num_nodes: Any = 1) -> TestRun:
+    cmd_args = CmdArgs.model_validate({"live_rl_mode": True}) if live_rl else CmdArgs()
+    tdef = TestDefinition(name=name, description="d", test_template_name="tt", cmd_args=cmd_args)
+    return TestRun(name=name, test=tdef, num_nodes=num_nodes, nodes=[])
+
+
+@pytest.mark.parametrize(
+    "live_rl, num_nodes, expected",
+    [
+        pytest.param(False, 1, False, id="plain-job"),
+        pytest.param(True, 1, True, id="live-rl-job"),
+        pytest.param(False, [1, 2], True, id="dse-via-num-nodes"),
+    ],
+)
+def test_is_agent_driven(live_rl: bool, num_nodes: Any, expected: bool) -> None:
+    assert _routing_tr("tr", live_rl=live_rl, num_nodes=num_nodes).is_agent_driven is expected
+
+
+def _run_routing(test_runs: list[TestRun]) -> tuple[int, MagicMock, MagicMock]:
+    system = MagicMock()
+    scenario = TestScenario(name="s", test_runs=test_runs)
+    installer = MagicMock()
+    installer.mark_as_installed.return_value = MagicMock(success=True)
+    with (
+        patch("cloudai.cli.handlers._setup_system_and_scenario", return_value=(system, scenario, [])),
+        patch("cloudai.cli.handlers._check_installation", return_value=MagicMock(success=True)),
+        patch("cloudai.cli.handlers.prepare_installation", return_value=([], installer)),
+        patch("cloudai.cli.handlers.Runner"),
+        patch("cloudai.cli.handlers.register_signal_handlers"),
+        patch("cloudai.cli.handlers.handle_dse_job", return_value=0) as dse,
+        patch("cloudai.cli.handlers.handle_non_dse_job") as non_dse,
+    ):
+        rc = handle_dry_run_and_run(argparse.Namespace(mode="dry-run", single_sbatch=False))
+    return rc, dse, non_dse
+
+
+def test_handle_dry_run_routes_live_rl_to_dse_handler() -> None:
+    """A live_rl_mode run (no TOML sweep, so not is_dse_job) must reach handle_dse_job (agent.run())."""
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True)])
+    dse.assert_called_once()
+    non_dse.assert_not_called()
+    assert rc == 0
+
+
+def test_handle_dry_run_routes_plain_job_to_non_dse_handler() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("plain")])
+    non_dse.assert_called_once()
+    dse.assert_not_called()
+    assert rc == 0
+
+
+def test_handle_dry_run_mixed_live_rl_and_plain_errors() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True), _routing_tr("plain")])
+    assert rc == 1
+    dse.assert_not_called()
+    non_dse.assert_not_called()
