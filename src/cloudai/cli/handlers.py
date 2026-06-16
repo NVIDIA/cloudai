@@ -342,15 +342,15 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     register_signal_handlers(runner.cancel_on_signal)
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
-    has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
+    agent_driven = [tr.is_agent_driven for tr in test_scenario.test_runs]
+    if args.single_sbatch or not any(agent_driven):  # in this mode cases are unrolled using grid search
         handle_non_dse_job(runner, args)
         return 0
 
-    if all(tr.is_dse_job for tr in test_scenario.test_runs):
+    if all(agent_driven):
         return handle_dse_job(runner, args)
 
-    logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+    logging.error("Mixing agent-driven (DSE / live-RL) and plain jobs is not allowed.")
     return 1
 
 

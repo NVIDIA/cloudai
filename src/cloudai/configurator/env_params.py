@@ -210,13 +210,15 @@ def write_env_params(path: Path, step: int, sample: Dict[str, Any]) -> None:
 
 def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:
     """
-    Reject prepped configs that declare domain randomization no agent will run.
+    Reject prepped configs that declare domain randomization nothing will run.
 
-    env_params drive per-trial domain randomization, which only happens on a DSE run whose agent
-    opts into sampling (``TestRun.is_domain_randomization_active``). Declaring env_params anywhere
-    else is a silent no-op: domain randomization is enabled but never active. DSE-ness
-    (``num_nodes``) and the agent both resolve only on the fully prepped config, so this is checked
-    here rather than at parse time.
+    env_params drive per-trial domain randomization, sampled by CloudAIGymEnv on an agent-driven run:
+    a DSE sweep on an agent that opts in via ``BaseAgent.samples_env_params``, or an online live-RL run
+    (``cmd_args.live_rl_mode``), which drives the agent's own loop and samples regardless of agent kind.
+    A plain run has no per-trial loop, and a non-opting agent ignores env_params, so declaring them there
+    is a silent no-op: domain randomization is enabled but never active. is_dse_job, the agent, and
+    live_rl_mode all resolve only on the fully prepped config, so this is checked here rather than at
+    parse time (see ``TestRun.is_domain_randomization_active``).
     """
     offenders = [
         tr.name
@@ -227,7 +229,7 @@ def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:
     if offenders:
         raise TestScenarioParsingError(
             f"Tests {offenders} declare env_params but no agent will sample them. env_params are sampled "
-            "per-trial only by a DSE run on an agent that opts into env_params sampling. Add a sweep "
-            "(a list-valued cmd_args/extra_env_vars entry or num_nodes) and use such an agent, or remove "
-            "env_params."
+            "per-trial only on an agent-driven run: a DSE sweep on an agent that opts into env_params "
+            "sampling, or cmd_args.live_rl_mode. Add a sweep (a list-valued cmd_args/extra_env_vars entry "
+            "or num_nodes) with such an agent, set live_rl_mode, or remove env_params."
         )

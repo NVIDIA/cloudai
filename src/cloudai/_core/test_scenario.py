@@ -146,16 +146,32 @@ class TestRun:
         """
         Whether this run will actually env-sample (domain-randomize) per trial.
 
-        True only when domain randomization is declared (``env_params`` present), the run is a DSE
-        job (so a per-trial loop exists - including a ``num_nodes`` sweep), and the agent opts into
-        sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
-        surfaces instead of this one.
+        True only when domain randomization is declared (``env_params`` present) and the run drives a
+        per-trial loop that samples them: a DSE job (so a per-trial loop exists - including a
+        ``num_nodes`` sweep) on an agent that opts into sampling, or an online live-RL run
+        (``cmd_args.live_rl_mode``), which drives the agent's own loop and samples regardless of agent
+        kind. An unknown agent is treated as opted-in so the dedicated agent-resolution error surfaces
+        instead of this one.
         """
         if not self.test.is_domain_randomization_enabled:
             return False
 
+        if bool(getattr(self.test.cmd_args, "live_rl_mode", False)):
+            return True
+
         agent = Registry().agents_map.get(self.test.agent)
         return self.is_dse_job and (agent is None or agent.supports_variable_environment)
+
+    @property
+    def is_agent_driven(self) -> bool:
+        """
+        True for runs orchestrated by ``agent.run()`` rather than the grid-unrolled path.
+
+        A DSE sweep declares a search space (``is_dse_job``). An online live-RL run carries no sweep
+        (so ``is_dse_job`` is False) but still drives the agent's own ``run()`` loop; it opts in via
+        ``cmd_args.live_rl_mode``.
+        """
+        return self.is_dse_job or bool(getattr(self.test.cmd_args, "live_rl_mode", False))
 
     @property
     def nnodes(self) -> int:
