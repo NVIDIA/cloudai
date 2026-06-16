@@ -397,6 +397,6 @@ def test_obs_leaf_descriptor_rejects_bad_dim_and_extra_fields() -> None:
     with pytest.raises(ValidationError, match="dim must be"):
         ObsLeafDescriptor(kind="box", dim=0)
     with pytest.raises(ValidationError):
-        ObsLeafDescriptor(kind="box", dim=1, unexpected=1)
+        ObsLeafDescriptor(kind="box", dim=1, unexpected=1)  # type: ignore
     with pytest.raises(ValidationError):
-        ObsLeafDescriptor(kind="categorical", dim=1)
+        ObsLeafDescriptor(kind="categorical", dim=1)  # type: ignore
