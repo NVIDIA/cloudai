@@ -50,7 +50,7 @@ from ._core.runner import Runner
 from ._core.system import System
 from ._core.test_scenario import METRIC_ERROR, MetricErrorSentinel, MetricValue, TestDependency, TestRun, TestScenario
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
-from .configurator.cloudai_gym import CloudAIGymEnv
+from .configurator.cloudai_gym import CloudAIGymEnv, GymServer
 from .configurator.env_params import ObsLeafDescriptor, StructuredObservation
 from .configurator.grid_search import GridSearchAgent
 from .configurator.gymnasium_adapter import GymnasiumAdapter
@@ -77,6 +77,7 @@ __all__ = [
     "Grader",
     "GradingStrategy",
     "GridSearchAgent",
+    "GymServer",
     "GymnasiumAdapter",
     "HFModel",
     "InstallStatusResult",
