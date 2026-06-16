@@ -21,8 +21,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
+from cloudai.configurator.cloudai_gym import _create_gym_server
 from cloudai.configurator.env_params import EnvParamSpec
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, CmdArgs, RewardOverrides, Runner, TestDefinition, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -840,3 +841,121 @@ def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition,
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
     assert not env.env_params_record_path.exists()
+
+
+class FakeGymServer:
+    """In-process GymServer stub for online (live-RL) mode tests."""
+
+    def __init__(self, n_actions: int = 2):
+        self.n_actions = n_actions
+        self.reset_calls = 0
+        self.step_calls = 0
+        self.last_action: object = None
+
+    def reset(self) -> tuple[list[float], dict[str, object]]:
+        self.reset_calls += 1
+        return [0.0] * self.n_actions, {"reset": True}
+
+    def step(self, action: dict[str, object]) -> tuple[list[float], float, bool, dict[str, object]]:
+        self.step_calls += 1
+        self.last_action = action
+        return [1.0, 2.0], 3.5, False, {"served": True}
+
+    def get_action_space(self) -> dict[str, object]:
+        return {"a": [0, 1], "b": [0, 1]}
+
+    def get_observation_space(self) -> list[float]:
+        return [0.0, 0.0]
+
+
+def test_default_mode_is_offline(base_tr: TestRun) -> None:
+    """Workloads without live_rl_mode keep the runner-backed (offline) behavior."""
+    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides())
+    assert env._is_online is False
+    assert env._gym_server is None
+
+
+def test_online_mode_delegates_to_gym_server(base_tr: TestRun, tmp_path: Path) -> None:
+    """An injected GymServer drives action/observation spaces, reset, and step without the runner."""
+    base_tr.output_path = tmp_path / "out"
+    server = FakeGymServer(n_actions=2)
+    runner = MagicMock(spec=BaseRunner)
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides(), gym_server=server)
+
+    assert env._is_online is True
+    assert env.define_action_space() == {"a": [0, 1], "b": [0, 1]}
+    assert env.define_observation_space() == [0.0, 0.0]
+
+    obs, info = env.reset()
+    assert obs == [0.0, 0.0]
+    assert info == {"reset": True}
+
+    obs, reward, done, info = env.step({"a": 1})
+    assert obs == [1.0, 2.0]
+    assert reward == 3.5
+    assert done is False
+    assert info == {"served": True}
+
+    runner.run.assert_not_called()
+    assert server.step_calls == 1
+    assert server.last_action == {"a": 1}
+
+
+def test_online_step_writes_trajectory_to_output_path(base_tr: TestRun, tmp_path: Path) -> None:
+    """Online steps still produce trajectory.csv (under output_path), step-counted from reset()."""
+    base_tr.output_path = tmp_path / "out"
+    env = CloudAIGymEnv(
+        test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides(), gym_server=FakeGymServer()
+    )
+
+    env.reset()
+    env.step({"a": 1})
+    env.step({"a": 0})
+
+    traj = env.trajectory_file_path
+    assert traj == base_tr.output_path / "trajectory.csv"
+    lines = traj.read_text().strip().splitlines()
+    assert lines[0] == "step,action,reward,observation"
+    assert lines[1].startswith("1,")
+    assert lines[2].startswith("2,")
+
+
+def test_create_gym_server_imports_and_filters_kwargs() -> None:
+    """env_class is imported and cmd_args are forwarded, filtered to the server's __init__ signature."""
+    tr = MagicMock()
+    tr.test.cmd_args.model_dump.return_value = {
+        "env_class": f"{FakeGymServer.__module__}.FakeGymServer",
+        "live_rl_mode": True,
+        "docker_image_url": "https://docker/url",
+        "n_actions": 3,
+        "unknown_param": 99,
+    }
+
+    server = _create_gym_server(tr)
+
+    assert isinstance(server, FakeGymServer)
+    assert server.n_actions == 3
+
+
+def test_create_gym_server_requires_env_class() -> None:
+    tr = MagicMock()
+    tr.test.cmd_args.model_dump.return_value = {"live_rl_mode": True}
+
+    with pytest.raises(ValueError, match="env_class"):
+        _create_gym_server(tr)
+
+
+def test_live_rl_mode_auto_detected(tmp_path: Path) -> None:
+    """live_rl_mode=true in cmd_args builds the GymServer from env_class during __init__."""
+    cmd_args = CmdArgs.model_validate(
+        {"live_rl_mode": True, "env_class": f"{FakeGymServer.__module__}.FakeGymServer", "n_actions": 4}
+    )
+    tdef = TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=cmd_args)
+    test_run = TestRun(name="online_tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out")
+
+    env = CloudAIGymEnv(test_run=test_run, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides())
+
+    assert env._is_online is True
+    assert isinstance(env._gym_server, FakeGymServer)
+    assert env._gym_server.n_actions == 4

@@ -17,11 +17,14 @@
 import copy
 import csv
 import dataclasses
+import importlib
+import inspect
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+from cloudai.util import flatten_dict
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -40,6 +43,58 @@ class TrajectoryEntry:
     env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
+class GymServer(Protocol):
+    """
+    In-process environment server backing ``CloudAIGymEnv``'s online (live-RL) mode.
+
+    An online env delegates each trial to a ``GymServer`` instead of launching a
+    workload through the runner: the server owns the simulation/state and returns
+    the reward directly, so the agent-facing interface is identical to the
+    runner-backed mode. Online mode is selected when ``cmd_args.live_rl_mode`` is
+    true (the server is built from ``cmd_args.env_class``) or when a server is
+    passed explicitly to :class:`CloudAIGymEnv`.
+    """
+
+    def reset(self) -> Tuple[List[float], Dict[str, Any]]: ...
+
+    def step(self, action: Dict[str, Any]) -> Tuple[List[float], float, bool, Dict[str, Any]]: ...
+
+    def get_action_space(self) -> Dict[str, Any]: ...
+
+    def get_observation_space(self) -> List[float]: ...
+
+
+def _create_gym_server(test_run: TestRun) -> GymServer:
+    """
+    Instantiate the ``GymServer`` named by ``cmd_args.env_class`` for online mode.
+
+    ``env_class`` is a dotted import path (``"pkg.module.Class"``). The remaining
+    cmd_args are passed as keyword arguments, filtered to the server's
+    ``__init__`` signature unless it accepts ``**kwargs``; framework-only keys
+    (``live_rl_mode``, ``docker_image_url``) are dropped.
+    """
+    args_dict = flatten_dict(test_run.test.cmd_args.model_dump())
+
+    env_class_path = args_dict.pop("env_class", None)
+    if not env_class_path:
+        raise ValueError(
+            "online mode (live_rl_mode=true) requires 'env_class' in cmd_args pointing to a GymServer class"
+        )
+    for key in ("live_rl_mode", "docker_image_url"):
+        args_dict.pop(key, None)
+
+    module_path, class_name = str(env_class_path).rsplit(".", 1)
+    server_cls = getattr(importlib.import_module(module_path), class_name)
+
+    sig = inspect.signature(server_cls.__init__)
+    accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+    if not accepts_kwargs:
+        valid = set(sig.parameters) - {"self"}
+        args_dict = {k: v for k, v in args_dict.items() if k in valid}
+
+    return server_cls(**args_dict)
+
+
 class CloudAIGymEnv(BaseGym):
     """
     Custom Gym environment for CloudAI integration.
@@ -47,7 +102,13 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: BaseRunner, rewards: RewardOverrides):
+    def __init__(
+        self,
+        test_run: TestRun,
+        runner: BaseRunner,
+        rewards: RewardOverrides,
+        gym_server: GymServer | None = None,
+    ):
         """
         Initialize the Gym environment using the TestRun object.
 
@@ -55,6 +116,9 @@ class CloudAIGymEnv(BaseGym):
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
+            gym_server: Optional in-process server enabling online (live-RL) mode. When omitted,
+                online mode is auto-detected from ``cmd_args.live_rl_mode``; otherwise the env runs
+                in the default runner-backed mode.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -64,14 +128,29 @@ class CloudAIGymEnv(BaseGym):
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
+        self._online_step_count = 0
+        if gym_server is not None:
+            self._gym_server: GymServer | None = gym_server
+        elif getattr(test_run.test.cmd_args, "live_rl_mode", False):
+            self._gym_server = _create_gym_server(test_run)
+        else:
+            self._gym_server = None
         super().__init__()
+
+    @property
+    def _is_online(self) -> bool:
+        """True when the env delegates steps to an in-process GymServer (live-RL mode)."""
+        return self._gym_server is not None
 
     @property
     def env_params_record_path(self) -> Path:
         """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
         return self.iteration_dir / "env.csv"
 
-    def define_action_space(self) -> Dict[str, list[Any]]:
+    def define_action_space(self) -> Dict[str, Any]:
+        server = self._gym_server
+        if server is not None:
+            return server.get_action_space()
         return self.test_run.param_space
 
     @property
@@ -84,9 +163,13 @@ class CloudAIGymEnv(BaseGym):
         Define the observation space for the environment.
 
         Returns:
-            list: One float slot per agent metric (at least one), giving the correct shape
-            for adapters that derive ``gymnasium.spaces.Box`` from this output.
+            list: In online mode, the GymServer's observation space. Otherwise one float slot per
+            agent metric (at least one), giving the correct shape for adapters that derive
+            ``gymnasium.spaces.Box`` from this output.
         """
+        server = self._gym_server
+        if server is not None:
+            return server.get_observation_space()
         return [0.0] * max(len(self.test_run.test.agent_metrics), 1)
 
     def reset(
@@ -108,6 +191,10 @@ class CloudAIGymEnv(BaseGym):
         """
         if seed is not None:
             lazy.np.random.seed(seed)
+        server = self._gym_server
+        if server is not None:
+            self._online_step_count = 0
+            return server.reset()
         self.test_run.current_iteration = 0
         observation = self.define_observation_space()
         info = {}
@@ -127,6 +214,10 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        server = self._gym_server
+        if server is not None:
+            return self._online_step(server, action)
+
         self.test_run.increment_step()
         # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
         sampled_env_params = self.params.sample(self.test_run.step) if self.params else {}
@@ -189,6 +280,26 @@ class CloudAIGymEnv(BaseGym):
 
         return observation, reward, False, {}
 
+    def _online_step(self, server: GymServer, action: Any) -> Tuple[list, float, bool, dict]:
+        """
+        Execute one step against the in-process GymServer (online / live-RL mode).
+
+        Bypasses the runner, constraint check, env_params observers, and trajectory cache: the
+        server owns the simulation and returns the reward directly. A trajectory row is still
+        written so online runs produce the same ``trajectory.csv`` artifact.
+        """
+        self._online_step_count += 1
+        observation, reward, done, info = server.step(action)
+        self.write_trajectory(
+            TrajectoryEntry(
+                step=self._online_step_count,
+                action=action,
+                reward=reward,
+                observation=observation,
+            )
+        )
+        return observation, reward, done, info
+
     def render(self, mode: str = "human"):
         """
         Render the current state of the TestRun.
@@ -196,7 +307,10 @@ class CloudAIGymEnv(BaseGym):
         Args:
             mode (str): The mode to render with. Default is "human".
         """
-        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
+        if self._is_online:
+            logging.info(f"CloudAIGymEnv [online] step {self._online_step_count}")
+        else:
+            print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
 
     def seed(self, seed: Optional[int] = None):
         """
@@ -272,6 +386,8 @@ class CloudAIGymEnv(BaseGym):
 
     @property
     def trajectory_file_path(self) -> Path:
+        if self._is_online:
+            return self.test_run.output_path / "trajectory.csv"
         return self.iteration_dir / "trajectory.csv"
 
     @property
