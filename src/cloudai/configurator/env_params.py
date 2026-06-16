@@ -140,7 +140,7 @@ class EnvParamSpec(BaseModel):
 
 
 @runtime_checkable
-class StructuredObservation(Protocol):
+class StructuredObservationProducer(Protocol):
     """
     Optional env hooks exposing the env_params behind the (unchanged, flat) observation.
 
@@ -150,8 +150,8 @@ class StructuredObservation(Protocol):
     declaring per-leaf :class:`ObsLeafDescriptor` for its env_params via
     ``structured_observation_descriptors`` (``None`` when none are declared) and encoding a regime
     into the matching named leaves via ``encode_env_params``. ``GymnasiumAdapter`` merges the flat
-    metrics with these env leaves into a ``gymnasium.spaces.Dict``. The hooks are duck-typed, so
-    envs need not subclass this Protocol.
+    metrics with these env_param leaves into its structured observation ``gymnasium.spaces.Dict``.
+    The hooks are duck-typed, so envs need not subclass this Protocol.
     """
 
     def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]: ...

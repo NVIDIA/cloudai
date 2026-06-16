@@ -96,9 +96,10 @@ class CloudAIGymEnv(BaseGym):
         Define the observation space for the environment.
 
         Returns:
-            list: The observation space.
+            list: One float slot per agent metric (at least one), giving the correct shape
+            for adapters that derive ``gymnasium.spaces.Box`` from this output.
         """
-        return [0.0]
+        return [0.0] * max(len(self.test_run.test.agent_metrics), 1)
 
     def reset(
         self,
@@ -120,7 +121,6 @@ class CloudAIGymEnv(BaseGym):
         if seed is not None:
             lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
-
         info: dict[str, Any] = {}
         if self.params is not None:
             info["env_params"] = self.params.sample(self.upcoming_trial)
@@ -263,8 +263,8 @@ class CloudAIGymEnv(BaseGym):
         """
         Per-leaf descriptors for the env_param regime, or ``None`` when none are declared.
 
-        The flat observation (metrics) is unchanged; these describe the extra env_param leaves
-        the ``GymnasiumAdapter`` merges with the metrics leaf to build its ``spaces.Dict``.
+        The flat observation (metrics) is unchanged; these describe the env_param leaves the
+        ``GymnasiumAdapter`` merges with it into its structured observation ``spaces.Dict``.
         """
         return self.params.observation_descriptors() if self.params is not None else None
 

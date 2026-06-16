@@ -34,7 +34,7 @@ from __future__ import annotations
 import dataclasses
 import random
 from pathlib import Path
-from typing import List, Union
+from typing import Any, List, Union
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -444,10 +444,10 @@ def test_custom_encoding_plugs_into_env_param() -> None:
     """
 
     class _BoxEncoding:
-        def observation_descriptor(self, candidates: list) -> ObsLeafDescriptor:
+        def observation_descriptor(self, candidates: List[Any]) -> ObsLeafDescriptor:
             return ObsLeafDescriptor(kind="box", dim=1)
 
-        def encode(self, value: object, candidates: list) -> list:
+        def encode(self, value: Any, candidates: List[Any]) -> list:
             return [float(value)]
 
     knob = EnvParam(candidates=[10, 20, 30], encoding=_BoxEncoding())

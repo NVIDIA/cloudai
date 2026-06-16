@@ -867,7 +867,7 @@ def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEn
 
 
 class TestStructuredObservationProducer:
-    """CloudAIGymEnv produces the StructuredObservation the adapter consumes for DR runs."""
+    """CloudAIGymEnv produces the StructuredObservationProducer output the adapter consumes for DR runs."""
 
     def test_descriptor_is_one_discrete_leaf_per_env_param(self, tmp_path: Path) -> None:
         """Each env_param becomes a categorical leaf sized to its candidate list."""
