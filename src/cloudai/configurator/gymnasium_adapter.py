@@ -38,26 +38,7 @@ from typing import Any, ClassVar, Optional, cast
 from cloudai._core.action_space import ContinuousSpace
 from cloudai.configurator.base_gym import BaseGym
 from cloudai.configurator.env_params import StructuredObservation
-
-_GYMNASIUM_INSTALL_HINT = "gymnasium is required for GymnasiumAdapter. Install it with: pip install 'cloudai[rl]'"
-
-
-def _import_gymnasium():
-    """
-    Import gymnasium + numpy lazily; raise a clear, actionable error when absent.
-
-    Kept as a single seam so cloudai installs without the ``[rl]`` extra
-    continue to work for non-RL agents, and tests can patch this helper to
-    simulate a missing install.
-    """
-    try:
-        import gymnasium
-        import numpy as np
-        from gymnasium import spaces
-
-        return gymnasium, spaces, np
-    except ImportError as exc:
-        raise ImportError(_GYMNASIUM_INSTALL_HINT) from exc
+from cloudai.util.lazy_imports import lazy
 
 
 class GymnasiumAdapter:
@@ -82,10 +63,8 @@ class GymnasiumAdapter:
     metadata: ClassVar[dict[str, Any]] = {"render_modes": ["human"]}
 
     def __init__(self, env: BaseGym) -> None:
-        _, spaces, np = _import_gymnasium()
-
-        self._np = np
-        self._spaces = spaces
+        np = self._np = lazy.np
+        spaces = self._spaces = lazy.gymnasium.spaces
         self._env = env
 
         raw_action_space = env.define_action_space()
