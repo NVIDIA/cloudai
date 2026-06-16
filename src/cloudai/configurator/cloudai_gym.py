@@ -83,7 +83,10 @@ def _create_gym_server(test_run: TestRun) -> GymServer:
     for key in ("live_rl_mode", "docker_image_url"):
         args_dict.pop(key, None)
 
-    module_path, class_name = str(env_class_path).rsplit(".", 1)
+    env_class_str = str(env_class_path)
+    if "." not in env_class_str:
+        raise ValueError(f"env_class must be a dotted import path (e.g. 'pkg.module.Class'); got {env_class_path!r}")
+    module_path, class_name = env_class_str.rsplit(".", 1)
     server_cls = getattr(importlib.import_module(module_path), class_name)
 
     sig = inspect.signature(server_cls.__init__)
