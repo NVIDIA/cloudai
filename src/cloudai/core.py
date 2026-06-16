@@ -53,6 +53,7 @@ from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.env_params import ObsLeafDescriptor, StructuredObservation
 from .configurator.grid_search import GridSearchAgent
+from .configurator.gymnasium_adapter import GymnasiumAdapter
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import PerTestReporter, StatusReporter, TarballReporter
@@ -76,6 +77,7 @@ __all__ = [
     "Grader",
     "GradingStrategy",
     "GridSearchAgent",
+    "GymnasiumAdapter",
     "HFModel",
     "InstallStatusResult",
     "Installable",
