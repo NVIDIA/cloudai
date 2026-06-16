@@ -284,13 +284,15 @@ class TestAdapterDispatchesContinuousSpace:
         gym_env = _ContinuousStubBaseGym(self._action_space())
         adapter = GymnasiumAdapter(gym_env)
 
-        assert isinstance(adapter.action_space["threshold"], gymnasium.spaces.Box)
-        assert adapter.action_space["threshold"].shape == (1,)
-        assert float(adapter.action_space["threshold"].low[0]) == pytest.approx(0.0)
-        assert float(adapter.action_space["threshold"].high[0]) == pytest.approx(200.0)
+        threshold = adapter.action_space["threshold"]
+        assert isinstance(threshold, gymnasium.spaces.Box)
+        assert threshold.shape == (1,)
+        assert float(threshold.low[0]) == pytest.approx(0.0)
+        assert float(threshold.high[0]) == pytest.approx(200.0)
 
-        assert isinstance(adapter.action_space["discrete"], gymnasium.spaces.Discrete)
-        assert int(adapter.action_space["discrete"].n) == 3
+        discrete = adapter.action_space["discrete"]
+        assert isinstance(discrete, gymnasium.spaces.Discrete)
+        assert int(discrete.n) == 3
 
         assert "fixed" not in adapter.action_space, "single-element lists are fixed, not tunable"
 
@@ -464,7 +466,9 @@ class TestCategoricalLeafSubspace:
         }
         adapter = GymnasiumAdapter(_StructuredStubBaseGym(descriptors=descriptors))
 
-        variant_space = adapter.observation_space.spaces["variant"]
+        observation_space = adapter.observation_space
+        assert isinstance(observation_space, gymnasium.spaces.Dict)
+        variant_space = observation_space.spaces["variant"]
         assert isinstance(variant_space, gymnasium.spaces.Discrete)
         assert int(variant_space.n) == 3
 
