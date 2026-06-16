@@ -520,9 +520,7 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     assert result is not None and result.step == 1
 
 
-def test_step_reruns_workload_when_env_params_change(
-    nemorun: NeMoRunTestDefinition, tmp_path: Path
-) -> None:
+def test_step_reruns_workload_when_env_params_change(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
     """Integration: env.step() with same action but different env_params re-runs the workload.
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
