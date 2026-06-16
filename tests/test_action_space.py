@@ -42,9 +42,9 @@ def test_continuous_space_rejects_low_ge_high() -> None:
 
 def test_continuous_space_rejects_unknown_dtype() -> None:
     with pytest.raises(ValidationError):
-        ContinuousSpace(low=0.0, high=1.0, dtype="double")
+        ContinuousSpace(low=0.0, high=1.0, dtype="double")  # type: ignore
 
 
 def test_continuous_space_forbids_extra_fields() -> None:
     with pytest.raises(ValidationError):
-        ContinuousSpace(low=0.0, high=1.0, step=0.1)
+        ContinuousSpace(low=0.0, high=1.0, step=0.1)  # type: ignore
