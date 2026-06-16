@@ -152,10 +152,13 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
     _, action = agent.select_action()
-    env.test_run.step = 42
+    env.test_run.step = 41
     env.step(action)
 
-    assert env.test_run.output_path.name == "42"
+    assert env.test_run.output_path.name == "42", (
+        "CloudAIGymEnv.step() must advance test_run.step before computing output_path; "
+        "starting at 41, step #42's artifacts must land in dir '42'."
+    )
 
 
 @pytest.mark.parametrize(
@@ -417,7 +420,7 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     env.test_run.current_iteration = 0
     env.trajectory = {0: [TrajectoryEntry(step=1, action=cached_action, reward=0.42, observation=[0.84])]}
 
-    env.test_run.step = 5
+    env.test_run.step = 4
     obs, reward, done, _info = env.step(cached_action)
 
     runner.run.assert_not_called()
@@ -426,7 +429,10 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     assert done is False
     rows = env.trajectory[0]
     assert len(rows) == 2
-    assert rows[-1].step == 5
+    assert rows[-1].step == 5, (
+        "CloudAIGymEnv.step() advances test_run.step before recording the trajectory row; "
+        "the cached row must be tagged with the advanced trial index, not the pre-step value."
+    )
     assert rows[-1].reward == 0.42
     assert rows[-1].action == cached_action
 
