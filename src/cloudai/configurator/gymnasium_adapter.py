@@ -203,7 +203,7 @@ class GymnasiumAdapter:
         obs, info = self._env.reset(seed=seed, options=options)
         return self._as_obs_array(obs), info
 
-    def step(self, action: dict[str, int]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+    def step(self, action: dict[str, Any]) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         params = {**self._fixed_params, **self.decode_action(action)}
         return self._step_with_params(params)
 
