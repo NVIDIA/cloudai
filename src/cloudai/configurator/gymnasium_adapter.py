@@ -249,7 +249,8 @@ class GymnasiumAdapter:
             return self._np.asarray(obs, dtype=self._np.float32)
         env = cast(StructuredObservation, self._env)
         encoded = env.encode_observation(list(obs))
-        return {name: self._leaf_to_value(descriptors[name], leaf) for name, leaf in encoded.items()}
+        self._assert_keys(encoded.keys(), set(descriptors), "encoded observation")
+        return {name: self._leaf_to_value(descriptors[name], encoded[name]) for name in descriptors}
 
     def _leaf_to_value(self, descriptor: Any, leaf: Any) -> Any:
         """Coerce one encoded leaf to its gymnasium subspace dtype."""
