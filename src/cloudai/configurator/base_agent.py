@@ -88,7 +88,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]] | None:
         """
         Select an action from the action space.
 
@@ -99,7 +99,8 @@ class BaseAgent(ABC):
                 agents (RL, contextual bandits) should use it.
 
         Returns:
-            Tuple[int, Dict[str, Any]]: The current step index and a dictionary mapping action keys to selected values.
+            Tuple[int, Dict[str, Any]] | None: The current step index and a dictionary mapping action keys
+                to selected values, or ``None`` to signal termination of the agent loop (``run()`` stops).
         """
         pass
 
