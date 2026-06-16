@@ -44,6 +44,7 @@ from cloudai.configurator.env_params import (
     EnvParams,
     EnvParamSpec,
     EnvParamsSink,
+    ObsLeafDescriptor,
 )
 from cloudai.core import TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -371,3 +372,31 @@ def test_apply_params_set_accepts_weighted_env_param_draw() -> None:
 
     assert new_tr.test.cmd_args.ball_speed == 1
     assert new_tr.current_env_params == {"ball_speed": 1}
+
+
+# --- ObsLeafDescriptor: structured-observation leaf schema ---
+
+
+def test_obs_leaf_descriptor_box_defaults() -> None:
+    leaf = ObsLeafDescriptor(kind="box", dim=2)
+    assert leaf.kind == "box"
+    assert leaf.dim == 2
+    assert leaf.n is None
+
+
+def test_obs_leaf_descriptor_discrete_requires_n() -> None:
+    leaf = ObsLeafDescriptor(kind="discrete", dim=1, n=3)
+    assert leaf.n == 3
+    with pytest.raises(ValidationError, match="requires n"):
+        ObsLeafDescriptor(kind="discrete", dim=1)
+    with pytest.raises(ValidationError, match="requires n"):
+        ObsLeafDescriptor(kind="discrete", dim=1, n=0)
+
+
+def test_obs_leaf_descriptor_rejects_bad_dim_and_extra_fields() -> None:
+    with pytest.raises(ValidationError, match="dim must be"):
+        ObsLeafDescriptor(kind="box", dim=0)
+    with pytest.raises(ValidationError):
+        ObsLeafDescriptor(kind="box", dim=1, unexpected=1)
+    with pytest.raises(ValidationError):
+        ObsLeafDescriptor(kind="categorical", dim=1)

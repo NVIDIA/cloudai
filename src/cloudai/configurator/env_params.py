@@ -32,7 +32,7 @@ import dataclasses
 import math
 import random
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
@@ -74,6 +74,50 @@ class EnvParamSpec(BaseModel):
         if abs(total - 1.0) > 1e-6:
             raise ValueError(f"env_params weights must sum to 1.0; got {total}")
         return self
+
+
+class ObsLeafDescriptor(BaseModel):
+    """
+    Description of one leaf of a structured (named) observation.
+
+    A structured observation maps each observed name to a self-describing leaf
+    so adapters can build the matching subspace without guessing: a ``"box"``
+    leaf becomes a continuous vector of width ``dim`` (e.g. a log-encoded
+    env_param as ``dim=2``); a ``"discrete"`` leaf becomes a categorical of
+    size ``n``. Stateless agents that consume the flat observation ignore this.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["box", "discrete"]
+    dim: int = 1
+    n: Optional[int] = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.dim < 1:
+            raise ValueError(f"ObsLeafDescriptor dim must be >= 1; got {self.dim}")
+        if self.kind == "discrete" and (self.n is None or self.n < 1):
+            raise ValueError(f"ObsLeafDescriptor(kind='discrete') requires n >= 1; got n={self.n}")
+        return self
+
+
+@runtime_checkable
+class StructuredObservation(Protocol):
+    """
+    Optional env hooks that expose a structured (per-leaf) observation.
+
+    An env opts in by returning per-leaf :class:`ObsLeafDescriptor` from
+    ``structured_observation_descriptors`` (``None`` keeps the flat-vector
+    path) and encoding a raw observation into the matching named leaves via
+    ``encode_observation``. ``GymnasiumAdapter`` consumes these to expose a
+    ``gymnasium.spaces.Dict`` observation; the hooks are duck-typed, so envs
+    need not subclass this Protocol.
+    """
+
+    def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]: ...
+
+    def encode_observation(self, observation: list) -> Dict[str, Any]: ...
 
 
 @dataclasses.dataclass(frozen=True)
