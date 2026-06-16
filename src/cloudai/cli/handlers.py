@@ -178,7 +178,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         )
 
     if run_error is not None:
-        raise run_error
+        raise run_error.with_traceback(run_error.__traceback__)
 
     logging.info("All jobs are complete.")
     return err
