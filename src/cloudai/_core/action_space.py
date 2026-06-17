@@ -52,4 +52,8 @@ class ContinuousSpace(BaseModel):
     def _validate_bounds(self) -> Self:
         if self.low >= self.high:
             raise ValueError(f"ContinuousSpace requires low < high; got low={self.low}, high={self.high}")
+        if self.dtype == "int" and (not self.low.is_integer() or not self.high.is_integer()):
+            raise ValueError(
+                f"ContinuousSpace(dtype='int') requires integer bounds; got low={self.low}, high={self.high}"
+            )
         return self

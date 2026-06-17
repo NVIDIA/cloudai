@@ -40,6 +40,15 @@ def test_continuous_space_rejects_low_ge_high() -> None:
         ContinuousSpace(low=2.0, high=1.0)
 
 
+def test_continuous_space_int_dtype_rejects_non_integer_bounds() -> None:
+    # round-after-clamp decoding on non-integer bounds (e.g. [0.2, 0.8]) can land
+    # outside the declared range (rounds to 1), so int spaces require integer bounds.
+    with pytest.raises(ValidationError, match="integer bounds"):
+        ContinuousSpace(low=0.2, high=0.8, dtype="int")
+    with pytest.raises(ValidationError, match="integer bounds"):
+        ContinuousSpace(low=0.0, high=5.5, dtype="int")
+
+
 def test_continuous_space_rejects_unknown_dtype() -> None:
     with pytest.raises(ValidationError):
         ContinuousSpace(low=0.0, high=1.0, dtype="double")  # type: ignore
