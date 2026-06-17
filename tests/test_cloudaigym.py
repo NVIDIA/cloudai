@@ -499,7 +499,8 @@ def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: 
     env.test_run.current_env_params = {"drop_rate": 0.001}  # type: ignore[attr-defined]
 
     result = env.get_cached_trajectory_result({"x": 10})
-    assert result is not None and result.step == 1
+    assert result is not None
+    assert result.step == 1
 
 
 def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path) -> None:
@@ -517,7 +518,8 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     # Note: neither the cached entry nor test_run carries env_params -> existing behavior.
 
     result = env.get_cached_trajectory_result({"x": 10})
-    assert result is not None and result.step == 1
+    assert result is not None
+    assert result.step == 1
 
 
 def test_step_reruns_workload_when_env_params_change(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
