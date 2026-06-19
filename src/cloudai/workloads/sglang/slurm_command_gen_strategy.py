@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 from cloudai.workloads.common.llm_serving import LLMServingSlurmCommandGenStrategy
@@ -133,5 +134,64 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
         cli = self._expand_semantic_eval_args(eval_args.cli, host=host)
         return [eval_args.entrypoint, cli] if cli else [eval_args.entrypoint]
 
+    def serve_healthcheck(self, role: str) -> str:
+        if self.tdef.cmd_args.serve_healthcheck:
+            return self.tdef.cmd_args.serve_healthcheck
+        if role in {"prefill", "decode"}:
+            return "/health"
+        return self.tdef.cmd_args.healthcheck
+
     def aggregated_serve_env(self) -> dict[str, str]:
         return {"CUDA_VISIBLE_DEVICES": ",".join(str(gpu_id) for gpu_id in self.gpu_ids)}
+
+    def _needs_distributed_launch(self, role: str) -> bool:
+        return self.role_node_count(role) > 1
+
+    def aggregated_script_preamble(self) -> str:
+        if not self._needs_distributed_launch("serve"):
+            return ""
+        return """\
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export SERVE_DIST_INIT_PORT=$((20000 + PORT_OFFSET))
+
+"""
+
+    def disaggregated_script_preamble(self) -> str:
+        if not (self._needs_distributed_launch("prefill") or self._needs_distributed_launch("decode")):
+            return ""
+        return """\
+export PORT_OFFSET=$((SLURM_JOB_ID % 1000))
+export PREFILL_DIST_INIT_PORT=$((20000 + PORT_OFFSET))
+export DECODE_DIST_INIT_PORT=$((21000 + PORT_OFFSET))
+
+"""
+
+    def render_serve_launch(
+        self,
+        role: str,
+        command_tail: str,
+        pid_var: str,
+        log_file: str,
+        node_count: int,
+        head_node_var: str,
+        nodelist_var: str,
+    ) -> str:
+        if node_count <= 1:
+            return super().render_serve_launch(
+                role, command_tail, pid_var, log_file, node_count, head_node_var, nodelist_var
+            )
+
+        role_prefix = role.upper()
+        dist_port_var = f"{role_prefix}_DIST_INIT_PORT"
+        custom_bash = self._custom_bash_for_command(command_tail)
+        custom_prefix = f"{custom_bash}; " if custom_bash else ""
+        dist_command = (
+            f'{command_tail} --dist-init-addr "${{{head_node_var}}}:${{{dist_port_var}}}" '
+            f'--nnodes {node_count} --node-rank "$SLURM_PROCID"'
+        )
+        task_command = "bash -c " + shlex.quote(f"{custom_prefix}exec {dist_command}")
+        return f"""\
+{self._role_srun_prefix(f"${{{nodelist_var}}}", node_count, node_count)} \\
+    --output={self.test_run.output_path.absolute()}/{log_file}-%N \\
+    {task_command} &
+{pid_var}=$!"""

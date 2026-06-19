@@ -17,6 +17,34 @@
 name = "vllm"
 
 [[Tests]]
+id = "vllm.agg.1node"
+test_name = "vllm"
+num_nodes = 1
+time_limit = "00:10:00"
+
+  [Tests.cmd_args.decode]
+  enforce_eager = ""
+  tensor_parallel_size = 4
+  max_num_batched_tokens = 1024
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+[[Tests]]
+id = "vllm.agg.2nodes"
+test_name = "vllm"
+num_nodes = 2
+time_limit = "00:30:00"
+
+  [Tests.cmd_args.decode]
+  enforce_eager = ""
+  tensor_parallel_size = 8
+  max_num_batched_tokens = 1024
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
+
+[[Tests]]
 id = "vllm.disagg.sync"
 test_name = "vllm"
 num_nodes = 2
@@ -24,13 +52,16 @@ time_limit = "00:30:00"
 
   [Tests.cmd_args.prefill]
   enforce_eager = ""
-  tensor_parallel_size = 2
+  tensor_parallel_size = 4
   max_num_batched_tokens = 1024
 
   [Tests.cmd_args.decode]
   enforce_eager = ""
-  tensor_parallel_size = 2
+  tensor_parallel_size = 4
   max_num_batched_tokens = 1024
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
 
 [[Tests]]
 id = "vllm.disagg.async"
@@ -41,7 +72,7 @@ time_limit = "00:10:00"
   [Tests.cmd_args.prefill]
   gpu_ids = "0,1"
   enforce_eager = ""
-  tensor_parallel_size = 1
+  tensor_parallel_size = 2
   max_num_batched_tokens = 1024
 
   [Tests.cmd_args.decode]
@@ -49,3 +80,6 @@ time_limit = "00:10:00"
   enforce_eager = ""
   tensor_parallel_size = 2
   max_num_batched_tokens = 1024
+
+  [Tests.extra_env_vars]
+  CUDA_VISIBLE_DEVICES = "0,1,2,3"
