@@ -156,11 +156,16 @@ class TestRun:
         if not self.test.is_domain_randomization_enabled:
             return False
 
-        if bool(getattr(self.test.cmd_args, "live_rl_mode", False)):
+        if self.is_live_rl:
             return True
 
         agent = Registry().agents_map.get(self.test.agent)
         return self.is_dse_job and (agent is None or agent.supports_variable_environment)
+
+    @property
+    def is_live_rl(self) -> bool:
+        """True for online live-RL runs, which opt in via ``cmd_args.live_rl_mode``."""
+        return bool(getattr(self.test.cmd_args, "live_rl_mode", False))
 
     @property
     def is_agent_driven(self) -> bool:
@@ -171,7 +176,7 @@ class TestRun:
         (so ``is_dse_job`` is False) but still drives the agent's own ``run()`` loop; it opts in via
         ``cmd_args.live_rl_mode``.
         """
-        return self.is_dse_job or bool(getattr(self.test.cmd_args, "live_rl_mode", False))
+        return self.is_dse_job or self.is_live_rl
 
     @property
     def nnodes(self) -> int:
