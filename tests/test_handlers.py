@@ -25,7 +25,7 @@ import pytest
 from pydantic import Field
 
 from cloudai.cli.handlers import (
-    handle_dry_run_and_run,
+    _dispatch_agent_driven_run,
     handle_dse_job,
     validate_dse_env_params,
     verify_system_configs,
@@ -545,21 +545,14 @@ def test_is_agent_driven(live_rl: bool, num_nodes: Any, expected: bool) -> None:
     assert _routing_tr("tr", live_rl=live_rl, num_nodes=num_nodes).is_agent_driven is expected
 
 
-def _run_routing(test_runs: list[TestRun]) -> tuple[int, MagicMock, MagicMock]:
-    system = MagicMock()
+def _run_routing(test_runs: list[TestRun], *, single_sbatch: bool = False) -> tuple[int, MagicMock, MagicMock]:
     scenario = TestScenario(name="s", test_runs=test_runs)
-    installer = MagicMock()
-    installer.mark_as_installed.return_value = MagicMock(success=True)
+    runner = MagicMock()
     with (
-        patch("cloudai.cli.handlers._setup_system_and_scenario", return_value=(system, scenario, [])),
-        patch("cloudai.cli.handlers._check_installation", return_value=MagicMock(success=True)),
-        patch("cloudai.cli.handlers.prepare_installation", return_value=([], installer)),
-        patch("cloudai.cli.handlers.Runner"),
-        patch("cloudai.cli.handlers.register_signal_handlers"),
         patch("cloudai.cli.handlers.handle_dse_job", return_value=0) as dse,
         patch("cloudai.cli.handlers.handle_non_dse_job") as non_dse,
     ):
-        rc = handle_dry_run_and_run(argparse.Namespace(mode="dry-run", single_sbatch=False))
+        rc = _dispatch_agent_driven_run(argparse.Namespace(single_sbatch=single_sbatch), runner, scenario)
     return rc, dse, non_dse
 
 
@@ -583,3 +576,21 @@ def test_handle_dry_run_mixed_live_rl_and_plain_errors() -> None:
     assert rc == 1
     dse.assert_not_called()
     non_dse.assert_not_called()
+
+
+def test_handle_dry_run_single_sbatch_with_live_rl_errors() -> None:
+    """single_sbatch has no live-RL path; the combination must hard-error, not silently run static.
+
+    Tracked for a proper routing rework: https://github.com/NVIDIA/cloudai/issues/937.
+    """
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True)], single_sbatch=True)
+    assert rc == 1
+    dse.assert_not_called()
+    non_dse.assert_not_called()
+
+
+def test_handle_dry_run_single_sbatch_with_plain_job_grid_unrolls() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("plain")], single_sbatch=True)
+    assert rc == 0
+    non_dse.assert_called_once()
+    dse.assert_not_called()

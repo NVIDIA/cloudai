@@ -342,7 +342,22 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     register_signal_handlers(runner.cancel_on_signal)
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
+    return _dispatch_agent_driven_run(args, runner, test_scenario)
+
+
+def _dispatch_agent_driven_run(args: argparse.Namespace, runner: Runner, test_scenario: TestScenario) -> int:
+    """Route a parsed scenario to the DSE, grid-unroll, or error path based on its test runs."""
     agent_driven = [tr.is_agent_driven for tr in test_scenario.test_runs]
+
+    # Stopgap guard: single_sbatch grid-unrolls DSE param spaces inside one allocation, but
+    # SingleSbatchRunner has no live-RL path, so a live_rl_mode job would silently run once as a
+    # static job instead of driving the in-process GymServer loop. Reject the combination here.
+    # TODO(https://github.com/NVIDIA/cloudai/issues/937): replace with a proper single_sbatch vs
+    # agent-driven routing rework (mixed-job guard ordering + per-agent-type semantics).
+    if args.single_sbatch and any(tr.is_live_rl for tr in test_scenario.test_runs):
+        logging.error("Single sbatch is not supported for live-RL (live_rl_mode) jobs.")
+        return 1
+
     if args.single_sbatch or not any(agent_driven):  # in this mode cases are unrolled using grid search
         handle_non_dse_job(runner, args)
         return 0

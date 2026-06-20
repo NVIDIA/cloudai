@@ -142,6 +142,11 @@ class TestRun:
         return self.test.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
+    def is_live_rl(self) -> bool:
+        """True for online live-RL runs, which opt in via ``cmd_args.live_rl_mode``."""
+        return bool(getattr(self.test.cmd_args, "live_rl_mode", False))
+
+    @property
     def is_agent_driven(self) -> bool:
         """
         True for runs orchestrated by ``agent.run()`` rather than the grid-unrolled path.
@@ -150,7 +155,7 @@ class TestRun:
         (so ``is_dse_job`` is False) but still drives the agent's own ``run()`` loop; it opts in via
         ``cmd_args.live_rl_mode``.
         """
-        return self.is_dse_job or bool(getattr(self.test.cmd_args, "live_rl_mode", False))
+        return self.is_dse_job or self.is_live_rl
 
     @property
     def nnodes(self) -> int:
