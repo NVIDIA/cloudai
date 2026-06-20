@@ -39,6 +39,7 @@ from cloudai.core import (
     System,
     TestParser,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
@@ -297,11 +298,34 @@ def _check_installation(
     return result
 
 
+def validate_dse_env_params(test_scenario: TestScenario) -> None:
+    """
+    Reject prepped configs that declare env_params on a non-DSE test run.
+
+    env_params are sampled only during DSE (by CloudAIGymEnv); on a non-DSE run they would be
+    silently ignored. is_dse_job is a property of the fully prepped config, so this is validated
+    here rather than at parse time.
+    """
+    offenders = [tr.name for tr in test_scenario.test_runs if tr.test.env_params and not tr.is_dse_job]
+    if offenders:
+        raise TestScenarioParsingError(
+            f"Tests {offenders} declare env_params but are not DSE jobs. env_params are sampled only during "
+            "DSE (by CloudAIGymEnv); add a sweep (a list-valued cmd_args/extra_env_vars entry or num_nodes) "
+            "or remove env_params."
+        )
+
+
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     setup_result = _setup_system_and_scenario(args)
     if setup_result is None:
         return 1
     system, test_scenario, tests = setup_result
+
+    try:
+        validate_dse_env_params(test_scenario)
+    except TestScenarioParsingError as e:
+        logging.error(str(e))
+        return 1
 
     if not _handle_single_sbatch(args, system):
         return 1
@@ -491,7 +515,8 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            validate_dse_env_params(scenario)
         except Exception:
             nfailed += 1
 
