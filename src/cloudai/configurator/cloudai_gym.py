@@ -19,13 +19,14 @@ import csv
 import dataclasses
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
+from .env_params import CsvSink, EnvParamsObserver, EnvParamsSink, StepObserver
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,6 +37,7 @@ class TrajectoryEntry:
     action: dict[str, Any]
     reward: float
     observation: list
+    env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class CloudAIGymEnv(BaseGym):
@@ -61,7 +63,27 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
+        self._env_sink: EnvParamsSink | None = None
+        self.observers: List[StepObserver] = self._build_observers()
         super().__init__()
+
+    def _build_observers(self) -> List[StepObserver]:
+        """
+        Construct the per-step observers implied by the TestDefinition.
+
+        Workloads opt in to env_params via a TOML ``[env_params.<name>]`` block;
+        an empty mapping yields no observers and zero overhead.
+        """
+        observers: List[StepObserver] = []
+        if self.test_run.test.env_params:
+            seed = int((self.test_run.test.agent_config or {}).get("random_seed", 0))
+            self._env_sink = CsvSink(self._env_csv_path())
+            observers.append(EnvParamsObserver(self.test_run.test.env_params, seed))
+        return observers
+
+    def _env_csv_path(self) -> Path:
+        """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
+        return self.trajectory_file_path.parent / "env.csv"
 
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
@@ -121,6 +143,9 @@ class CloudAIGymEnv(BaseGym):
         self.test_run.increment_step()
         self.test_run = self.test_run.apply_params_set(action)
 
+        for observer in self.observers:
+            observer.before_step(self.test_run)
+
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:
             logging.info(
@@ -134,8 +159,11 @@ class CloudAIGymEnv(BaseGym):
                     action=action,
                     reward=cached_result.reward,
                     observation=cached_result.observation,
+                    env_params=dict(self.test_run.current_env_params),
                 )
             )
+            for observer in self.observers:
+                observer.after_step(self.test_run, cached_result.observation, cached_result.reward)
             return cached_result.observation, cached_result.reward, False, {}
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
@@ -162,6 +190,11 @@ class CloudAIGymEnv(BaseGym):
             self.test_run.step = new_tr.step
             self.test_run.output_path = new_tr.output_path
 
+        # Rebuilding/replacing test_run above can drop the per-trial env_params sample;
+        # restore it so the trajectory entry, the cache key, and env.csv all record the
+        # params the trial actually ran with.
+        self.test_run.current_env_params = new_tr.current_env_params
+
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)
 
@@ -171,8 +204,12 @@ class CloudAIGymEnv(BaseGym):
                 action=action,
                 reward=reward,
                 observation=observation,
+                env_params=dict(self.test_run.current_env_params),
             )
         )
+
+        for observer in self.observers:
+            observer.after_step(self.test_run, observation, reward)
 
         return observation, reward, False, {}
 
@@ -230,7 +267,14 @@ class CloudAIGymEnv(BaseGym):
         return observation
 
     def write_trajectory(self, entry: TrajectoryEntry):
-        """Append the trajectory to the CSV file and to the local attribute."""
+        """
+        Append the entry to the in-memory cache and trajectory.csv (plus env.csv when declared).
+
+        ``trajectory.csv`` and the ``env.csv`` projection are sunk from the same
+        ``TrajectoryEntry`` here, so a trial that never produces an entry (e.g. a
+        constraint failure returns before this call) lands in neither file and the
+        two stay 1:1 step-aligned.
+        """
         self.current_trajectory.append(entry)
 
         file_exists = self.trajectory_file_path.exists()
@@ -243,6 +287,9 @@ class CloudAIGymEnv(BaseGym):
                 writer.writerow(["step", "action", "reward", "observation"])
             writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
+        if self._env_sink is not None:
+            self._env_sink.write(entry.step, entry.env_params)
+
     @property
     def trajectory_file_path(self) -> Path:
         return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
@@ -252,8 +299,21 @@ class CloudAIGymEnv(BaseGym):
         return self.trajectory.setdefault(self.test_run.current_iteration, [])
 
     def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
+        """
+        Return a cached entry only when the full trial identity matches.
+
+        Trial identity is ``(action, env_params)``: env-randomized parameters
+        change the workload's behaviour, so a trial repeating the same action
+        under a different ``env_params`` sample must miss and re-run. Empty
+        env_params on both sides is the back-compat path for workloads that
+        do not declare any ``[env_params.*]`` block.
+        """
+        current_env_params = getattr(self.test_run, "current_env_params", {}) or {}
         for entry in self.current_trajectory:
-            if self._values_match_exact(entry.action, action):
+            if not self._values_match_exact(entry.action, action):
+                continue
+            entry_env = getattr(entry, "env_params", {}) or {}
+            if self._values_match_exact(entry_env, current_env_params):
                 return entry
 
         return None

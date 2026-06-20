@@ -97,6 +97,7 @@ class TestRun:
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
     extra_srun_args: str | None = None
     num_nodes_explicit: bool = False
+    current_env_params: dict[str, Any] = field(default_factory=dict)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

@@ -26,19 +26,23 @@ from pydantic import Field
 
 from cloudai.cli.handlers import (
     handle_dse_job,
+    validate_dse_env_params,
     verify_system_configs,
     verify_test_configs,
     verify_test_scenarios,
 )
+from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
+    Parser,
     Registry,
     RewardOverrides,
     Runner,
     TestDependency,
     TestRun,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import StatusReporter
@@ -427,3 +431,49 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+
+
+def test_validate_dse_env_params_rejects_non_dse(base_tr: TestRun) -> None:
+    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    scenario = TestScenario(name="s", test_runs=[base_tr])
+    with pytest.raises(TestScenarioParsingError, match="declare env_params but are not DSE jobs"):
+        validate_dse_env_params(scenario)
+
+
+def test_validate_dse_env_params_allows_dse_run(dse_tr: TestRun) -> None:
+    dse_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    assert dse_tr.is_dse_job is True  # precondition: DSE + env_params is the allowed combination
+    validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
+
+
+def test_validate_dse_env_params_allows_num_nodes_sweep(base_tr: TestRun) -> None:
+    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    base_tr.num_nodes = [1, 2]
+    assert base_tr.is_dse_job is True  # a num_nodes list sweep makes it DSE, so env_params is allowed
+    validate_dse_env_params(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_validate_dse_env_params_allows_non_dse_without_env_params(base_tr: TestRun) -> None:
+    assert base_tr.is_dse_job is False  # precondition: not DSE, but also no env_params declared
+    assert not base_tr.test.env_params
+    validate_dse_env_params(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_verify_test_scenarios_rejects_env_params_without_dse(
+    base_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    bad = TestScenario(name="s", test_runs=[base_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: bad)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
+
+
+def test_verify_test_scenarios_allows_env_params_with_dse(dse_tr: TestRun, monkeypatch: pytest.MonkeyPatch) -> None:
+    dse_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    good = TestScenario(name="s", test_runs=[dse_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0

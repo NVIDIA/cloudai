@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
+from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
@@ -441,3 +442,324 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     contents = csv_path.read_text().strip().splitlines()
     assert contents[0] == "step,action,reward,observation"
     assert contents[-1].startswith("5,")
+
+
+def _seed_cached_entry_with_env_params(
+    env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
+) -> None:
+    """Seed env.trajectory with one entry carrying the given env_params."""
+    entry = TrajectoryEntry(step=1, action=action, reward=0.5, observation=[100.0], env_params=env_params)
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [entry]}
+
+
+def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> None:
+    """Cache MUST miss when env_params differ, even if action is identical.
+
+    Without this property the agent receives stale rewards on every cache hit
+    under domain randomization. PPO/DQN/BO all silently train on labels that
+    do not correspond to the env they were nominally generated under.
+    """
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"drop_rate": 0.001})
+
+    env.test_run.current_env_params = {"drop_rate": 0.01}
+
+    assert env.get_cached_trajectory_result({"x": 10}) is None, (
+        "Cache must include env_params in its key. The current implementation "
+        "keys on action alone, so trials repeating the same action under a "
+        "different env_params sample receive a stale cached reward. See "
+        "env-params-cloudai-corpus-plan.md."
+    )
+
+
+def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: Path) -> None:
+    """Same action AND same env_params must still HIT the cache."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"drop_rate": 0.001})
+
+    env.test_run.current_env_params = {"drop_rate": 0.001}
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None
+    assert result.step == 1
+
+
+def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path) -> None:
+    """Workloads without env_params behave exactly as today (back-compat)."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [TrajectoryEntry(step=1, action={"x": 10}, reward=0.5, observation=[100.0])]}
+    # Note: neither the cached entry nor test_run carries env_params -> existing behavior.
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None
+    assert result.step == 1
+
+
+def test_step_reruns_workload_when_env_params_change(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """Integration: env.step() with same action but different env_params re-runs the workload.
+
+    Counterpart to test_cache_miss_when_env_params_differ but exercising the
+    full step() flow: increment_step -> apply_params_set -> cache lookup ->
+    runner.run() -> write_trajectory.
+    """
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+    runner.shutting_down = False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    action = {"trainer.max_steps": 1000}
+    fake_obs = iter([[100.0], [50.0]])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
+        env.test_run.step = 0
+        env.test_run.current_env_params = {"drop_rate": 0.001}
+        obs1, _r1, *_ = env.step(action)
+
+        env.test_run.current_env_params = {"drop_rate": 0.01}
+        obs2, _r2, *_ = env.step(action)
+
+    assert runner.run.call_count == 2, (
+        "Different env_params between two env.step() calls with the same action "
+        "must trigger a workload re-run; the cache lookup must miss."
+    )
+    assert obs1 != obs2, "fresh workload run should produce a fresh observation"
+
+
+def test_env_csv_is_step_aligned_with_trajectory(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """env.csv must have exactly one row per env.step() call, with steps aligned 1:1 to trajectory.csv.
+
+    This pins the corpus-friendly contract: a downstream consumer can
+    ``pd.merge(traj, env, on="step")`` without losing rows on either side,
+    independent of whether the trial hit the trajectory cache.
+    """
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    tdef.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.001, 0.01])}
+    tdef.agent_config = {"random_seed": 42}
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    action_a, action_b = {"trainer.max_steps": 1000}, {"trainer.max_steps": 2000}
+    fake_obs = iter([[100.0], [50.0], [25.0]])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
+        env.test_run.step = 0
+        for action in (action_a, action_b, action_a):
+            env.step(action)
+
+    env_csv = env._env_csv_path()
+    traj_csv = env.trajectory_file_path
+    assert env_csv.exists(), "env.csv must be written when env_params is declared"
+
+    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
+    traj_steps = [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
+    assert env_steps == traj_steps == [1, 2, 3], (
+        f"step columns must align 1:1 across env.csv ({env_steps}) and trajectory.csv ({traj_steps})"
+    )
+
+
+def test_env_csv_step_alignment_holds_on_constraint_failure(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """A constraint failure must not desync env.csv from trajectory.csv.
+
+    Runs three steps where the middle one fails ``constraint_check`` and the
+    other two succeed. ``env.csv`` is sunk inside ``write_trajectory`` from the
+    same ``TrajectoryEntry``, which is never reached on the early-return
+    constraint-failure path - so the failed step lands in neither file. The
+    corpus-friendly contract (``pd.merge(traj, env, on="step")`` loses no rows)
+    therefore holds via shared absence: both files record exactly the surviving
+    steps, aligned 1:1.
+    """
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    tdef.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.001, 0.01])}
+    tdef.agent_config = {"random_seed": 42}
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+    # Step 2 fails the constraint; steps 1 and 3 survive. get_observation is only
+    # reached on the surviving steps, so it yields exactly two values.
+    fake_obs = iter([[100.0], [25.0]])
+    with (
+        patch.object(NeMoRunTestDefinition, "constraint_check", side_effect=[True, False, True]),
+        patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)),
+    ):
+        env.test_run.step = 0
+        for action in ({"trainer.max_steps": 1000}, {"trainer.max_steps": 2000}, {"trainer.max_steps": 3000}):
+            env.step(action)
+
+    env_csv = env._env_csv_path()
+    traj_csv = env.trajectory_file_path
+
+    assert env_csv.exists(), "surviving steps declare env_params -> env.csv must exist"
+    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
+    traj_steps = (
+        [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
+        if traj_csv.exists()
+        else []
+    )
+    assert env_steps == traj_steps == [1, 3], (
+        f"the constraint-failed step (2) must appear in neither file; env.csv ({env_steps}) "
+        f"and trajectory.csv ({traj_steps}) must stay 1:1 aligned on the surviving steps"
+    )
+
+
+def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(
+    nemorun: NeMoRunTestDefinition, tmp_path: Path
+) -> None:
+    """End-to-end: cache HIT under observer-driven env_params still records env.csv.
+
+    A cache hit still calls ``write_trajectory``, which sinks the trajectory row
+    and the matching env.csv row from the same entry - keeping the two files
+    step-aligned even when the workload itself is short-circuited.
+    Asserts: (a) the workload is NOT re-run (cache short-circuit), (b)
+    env.csv gains a row, (c) trajectory.csv gains a row carrying the
+    sampled env_params.
+    """
+    import random as _random
+
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    tdef.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.001, 0.01])}
+    tdef.agent_config = {"random_seed": 42}
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    assert env.observers, "TestDefinition.env_params declared -> observer must be built"
+
+    expected_sample = {"drop_rate": _random.Random("42:drop_rate:1").choice([0.0, 0.001, 0.01])}
+    action = {"trainer.max_steps": 1000}
+    env.test_run.current_iteration = 0
+    env.trajectory = {
+        0: [TrajectoryEntry(step=0, action=action, reward=0.42, observation=[0.84], env_params=expected_sample)]
+    }
+    env.test_run.step = 0
+
+    with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
+        obs, reward, _done, _info = env.step(action)
+
+    runner.run.assert_not_called()
+    assert reward == 0.42 and obs == [0.84]
+
+    env_csv = env._env_csv_path()
+    assert env_csv.exists(), "cache HIT must NOT skip the observer; env.csv must record the trial"
+    env_rows = env_csv.read_text().strip().splitlines()
+    assert env_rows[0] == "step,env"
+    assert env_rows[1].startswith("1,"), f"expected step 1 row in env.csv, got {env_rows[1]!r}"
+
+    traj_rows = env.trajectory[0]
+    assert len(traj_rows) == 2 and traj_rows[-1].env_params == expected_sample, (
+        "cache-hit trajectory entry must record the per-trial env_params sample"
+    )
+
+
+def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """Workloads without [env_params.*] pay zero overhead: no observer, no env.csv."""
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    test_run = TestRun(
+        name="plain_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "plain_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+    assert env.observers == [], "no env_params declared -> no per-step observers"
+    assert not env._env_csv_path().exists()

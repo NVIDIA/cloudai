@@ -23,6 +23,8 @@ from typing_extensions import Self
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
 
+from ..configurator.env_params import EnvParamSpec
+
 
 class CmdArgs(BaseModel):
     """Test command arguments."""
@@ -110,6 +112,14 @@ class TestDefinition(BaseModel, ABC):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
+    env_params: dict[str, EnvParamSpec] = Field(
+        default_factory=dict,
+        description=(
+            "Domain-randomized parameters sampled by the env per trial. Sibling to "
+            "cmd_args; not part of the agent's action space. CloudAIGymEnv samples, "
+            "persists to env.csv, and includes them in the trajectory cache key."
+        ),
+    )
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
