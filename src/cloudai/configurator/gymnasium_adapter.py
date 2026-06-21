@@ -33,15 +33,23 @@ property.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from cloudai._core.action_space import ContinuousSpace
 from cloudai.configurator.base_gym import BaseGym
 from cloudai.configurator.env_params import StructuredObservation
 from cloudai.util.lazy_imports import lazy
 
+if TYPE_CHECKING:
+    from gymnasium import Env as _GymnasiumEnvBase
+else:
+    try:  # ``gymnasium`` is an optional [rl] dependency; fall back to ``object`` when absent.
+        from gymnasium import Env as _GymnasiumEnvBase
+    except ImportError:
+        _GymnasiumEnvBase = object
 
-class GymnasiumAdapter:
+
+class GymnasiumAdapter(_GymnasiumEnvBase):
     """
     Expose a CloudAI :class:`BaseGym` as a ``gymnasium.Env``-shaped object.
 
@@ -60,7 +68,9 @@ class GymnasiumAdapter:
     instantiating the adapter without them raises ``ImportError``.
     """
 
-    metadata: ClassVar[dict[str, Any]] = {"render_modes": ["human"]}
+    # Overrides gymnasium.Env.metadata (a non-ClassVar instance attribute); matching that
+    # shape satisfies pyright's override check, so RUF012's ClassVar suggestion is silenced.
+    metadata: dict[str, Any] = {"render_modes": ["human"]}  # noqa: RUF012
 
     def __init__(self, env: BaseGym) -> None:
         np = self._np = lazy.np
@@ -132,7 +142,8 @@ class GymnasiumAdapter:
         return self._spaces.Box(low=-self._np.inf, high=self._np.inf, shape=(descriptor.dim,), dtype=self._np.float32)
 
     @property
-    def unwrapped(self) -> BaseGym:
+    def cloudai_env(self) -> BaseGym:
+        """Return the wrapped CloudAI :class:`BaseGym` (gymnasium's ``unwrapped`` returns ``self``)."""
         return self._env
 
     def decode_action(self, action: dict[str, Any]) -> dict[str, Any]:
