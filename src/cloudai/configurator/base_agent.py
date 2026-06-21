@@ -145,7 +145,7 @@ class BaseAgent(ABC):
             if result is None:
                 break
             step, action = result
-            logging.info(f"Running step {step} (of {self.max_steps}) with action {action}")
+            logging.info("Running step %s (of %s) with action %s", step, self.max_steps, action)
             prev_observation = observation
             observation, reward, done, *_ = self.env.step(action)
             self.update_policy(
@@ -158,5 +158,10 @@ class BaseAgent(ABC):
                     "done": done,
                 }
             )
-            logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
+            logging.info(
+                "Step %s: Observation: %s, Reward: %.4f",
+                step,
+                [round(obs, 4) for obs in observation],
+                reward,
+            )
         return 0
