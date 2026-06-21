@@ -132,7 +132,6 @@ class CloudAIGymEnv(BaseGym):
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.env_params_sink = EnvParamsSink()
-        self._online_step_count = 0
         if gym_server is not None:
             self._gym_server: GymServer | None = gym_server
         elif getattr(test_run.test.cmd_args, "live_rl_mode", False):
@@ -197,7 +196,6 @@ class CloudAIGymEnv(BaseGym):
             lazy.np.random.seed(seed)
         server = self._gym_server
         if server is not None:
-            self._online_step_count = 0
             return server.reset()
         self.test_run.current_iteration = 0
         observation = self.define_observation_space()
@@ -293,13 +291,15 @@ class CloudAIGymEnv(BaseGym):
 
         Bypasses the runner, constraint check, env_params observers, and trajectory cache: the
         server owns the simulation and returns the reward directly. A trajectory row is still
-        written so online runs produce the same ``trajectory.csv`` artifact.
+        written so online runs produce the same ``trajectory.csv`` artifact. Steps use the
+        monotonic ``test_run.step`` (not reset per ``reset()``), so under reset-per-episode
+        rollouts trajectory rows keep increasing instead of collapsing back to 1.
         """
-        self._online_step_count += 1
+        self.test_run.increment_step()
         observation, reward, done, info = server.step(action)
         self.write_trajectory(
             TrajectoryEntry(
-                step=self._online_step_count,
+                step=self.test_run.step,
                 action=action,
                 reward=reward,
                 observation=observation,
@@ -315,7 +315,7 @@ class CloudAIGymEnv(BaseGym):
             mode (str): The mode to render with. Default is "human".
         """
         if self._is_online:
-            logging.info(f"CloudAIGymEnv [online] step {self._online_step_count}")
+            logging.info("CloudAIGymEnv [online] step %s", self.test_run.step)
         else:
             print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
 

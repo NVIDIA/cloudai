@@ -907,7 +907,7 @@ def test_online_mode_delegates_to_gym_server(base_tr: TestRun, tmp_path: Path) -
 
 
 def test_online_step_writes_trajectory_to_output_path(base_tr: TestRun, tmp_path: Path) -> None:
-    """Online steps still produce trajectory.csv (under output_path), step-counted from reset()."""
+    """Online steps still produce trajectory.csv (under output_path), counted via test_run.step."""
     base_tr.output_path = tmp_path / "out"
     env = CloudAIGymEnv(
         test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides(), gym_server=FakeGymServer()
@@ -923,6 +923,25 @@ def test_online_step_writes_trajectory_to_output_path(base_tr: TestRun, tmp_path
     assert lines[0] == "step,action,reward,observation"
     assert lines[1].startswith("1,")
     assert lines[2].startswith("2,")
+
+
+def test_online_step_numbering_is_monotonic_across_resets(base_tr: TestRun, tmp_path: Path) -> None:
+    """reset() must not rewind online step numbering: under reset-per-episode rollouts the
+    trajectory rows keep increasing (via monotonic test_run.step) instead of collapsing to 1.
+    """
+    base_tr.output_path = tmp_path / "out"
+    env = CloudAIGymEnv(
+        test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides(), gym_server=FakeGymServer()
+    )
+
+    env.reset()
+    env.step({"a": 1})
+    env.step({"a": 0})
+    env.reset()
+    env.step({"a": 1})
+
+    lines = env.trajectory_file_path.read_text().strip().splitlines()
+    assert [line.split(",", 1)[0] for line in lines[1:]] == ["1", "2", "3"]
 
 
 def test_create_gym_server_imports_and_filters_kwargs() -> None:
