@@ -368,6 +368,50 @@ class TestAdapterDispatchesContinuousSpace:
         assert isinstance(decoded["knob"], float)
 
 
+class TestEncodeDecodeAreInverse:
+    """``encode_action`` is the inverse of ``decode_action`` on native values.
+
+    Consumers (e.g. RLlib warm-start / behavioral cloning) must be able to
+    express a recorded native config in the policy's action space without
+    reaching into adapter internals. The public pair guarantees
+    ``decode_action(encode_action(v)) == v`` for any native ``v``.
+    """
+
+    def test_discrete_round_trip_decode_of_encode_is_identity(self) -> None:
+        adapter = GymnasiumAdapter(_StubBaseGym())
+        native = {"param_a": 3, "param_b": 10}
+        assert adapter.decode_action(adapter.encode_action(native)) == native
+
+    def test_discrete_encode_of_decode_is_identity(self) -> None:
+        adapter = GymnasiumAdapter(_StubBaseGym())
+        action = {"param_a": 2, "param_b": 1}
+        assert adapter.encode_action(adapter.decode_action(action)) == action
+
+    def test_encode_maps_value_to_candidate_index(self) -> None:
+        adapter = GymnasiumAdapter(_StubBaseGym())
+        assert adapter.encode_action({"param_a": 2, "param_b": 20}) == {"param_a": 1, "param_b": 1}
+
+    def test_encode_rejects_non_candidate_value(self) -> None:
+        adapter = GymnasiumAdapter(_StubBaseGym())
+        with pytest.raises(ValueError, match="not a candidate"):
+            adapter.encode_action({"param_a": 7, "param_b": 10})
+
+    def test_encode_rejects_key_mismatch(self) -> None:
+        adapter = GymnasiumAdapter(_StubBaseGym())
+        with pytest.raises(ValueError, match="keys mismatch"):
+            adapter.encode_action({"param_a": 1})  # missing param_b
+
+    def test_continuous_int_round_trips_through_rounding(self) -> None:
+        action_space: dict[str, Any] = {
+            "threshold": ContinuousSpace(low=0.0, high=200.0, dtype="int"),
+            "discrete": [10, 20, 30],
+            "fixed": [99],
+        }
+        adapter = GymnasiumAdapter(_ContinuousStubBaseGym(action_space))
+        native = {"threshold": 47, "discrete": 20}
+        assert adapter.decode_action(adapter.encode_action(native)) == native
+
+
 class _StructuredStubBaseGym(BaseGym):
     """BaseGym stub that opts in/out of the structured (Dict) obs path.
 

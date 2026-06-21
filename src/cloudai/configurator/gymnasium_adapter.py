@@ -184,6 +184,50 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
         clamped = min(max(scalar, space.low), space.high)
         return round(clamped) if space.dtype == "int" else clamped
 
+    def encode_action(self, values: dict[str, Any]) -> dict[str, Any]:
+        """
+        Map native parameter values back to raw gym actions; inverse of :meth:`decode_action`.
+
+        Discrete values resolve to their index in the candidate list; continuous
+        values are wrapped in the 1-D ``float32`` array the ``Box`` space expects
+        (clamped to the declared range). Together with :meth:`decode_action` this
+        is an invertible pair on native values:
+        ``decode_action(encode_action(v)) == v`` for any ``v`` drawn from the
+        tunable params (continuous ``dtype="int"`` round-trips through the same
+        rounding ``decode_action`` applies).
+
+        Consumers that need to express known native configs in the policy's
+        action space — e.g. warm-start / behavioral cloning from a recorded
+        trajectory — call this instead of reaching into the adapter internals.
+
+        Raises:
+            ValueError: if ``values`` does not cover exactly the tunable params,
+                or carries a discrete value absent from its candidate list.
+        """
+        expected = set(self._discrete_params) | set(self._continuous_params)
+        self._assert_keys(values.keys(), expected, "values")
+        encoded: dict[str, Any] = {}
+        for name, value in values.items():
+            if name in self._discrete_params:
+                encoded[name] = self._encode_discrete(name, value)
+            else:
+                encoded[name] = self._encode_continuous(name, value)
+        return encoded
+
+    def _encode_discrete(self, name: str, value: Any) -> int:
+        values = self._discrete_params[name]
+        try:
+            return values.index(value)
+        except ValueError:
+            raise ValueError(
+                f"Value {value!r} for '{name}' is not a candidate; expected one of {values}"
+            ) from None
+
+    def _encode_continuous(self, name: str, value: Any) -> Any:
+        space = self._continuous_params[name]
+        clamped = min(max(float(value), space.low), space.high)
+        return self._np.asarray([clamped], dtype=self._np.float32)
+
     def reset(
         self,
         *,
