@@ -35,7 +35,7 @@ exclusively by ``CloudAIGymEnv.step()``.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import pytest
 
@@ -284,17 +284,18 @@ class TestAdapterDispatchesContinuousSpace:
         gym_env = _ContinuousStubBaseGym(self._action_space())
         adapter = GymnasiumAdapter(gym_env)
 
-        threshold = adapter.action_space["threshold"]
+        action_space = cast(gymnasium.spaces.Dict, adapter.action_space)
+        threshold = action_space["threshold"]
         assert isinstance(threshold, gymnasium.spaces.Box)
         assert threshold.shape == (1,)
         assert float(threshold.low[0]) == pytest.approx(0.0)
         assert float(threshold.high[0]) == pytest.approx(200.0)
 
-        discrete = adapter.action_space["discrete"]
+        discrete = action_space["discrete"]
         assert isinstance(discrete, gymnasium.spaces.Discrete)
         assert int(discrete.n) == 3
 
-        assert "fixed" not in adapter.action_space, "single-element lists are fixed, not tunable"
+        assert "fixed" not in action_space, "single-element lists are fixed, not tunable"
 
     def test_decode_action_rounds_dtype_int(self) -> None:
         import numpy as np
