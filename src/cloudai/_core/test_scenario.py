@@ -110,6 +110,11 @@ class TestRun:
         """
         return self.current_iteration + 1 < self.iterations
 
+    def increment_step(self) -> int:
+        """Advance the trial counter and return the new value."""
+        self.step += 1
+        return self.step
+
     @property
     def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
         if not self.reports:
