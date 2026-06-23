@@ -78,7 +78,7 @@ class CloudAIGymEnv(BaseGym):
         if self.test_run.test.env_params:
             seed = int((self.test_run.test.agent_config or {}).get("random_seed", 0))
             self._env_sink = CsvSink(self._env_csv_path())
-            observers.append(EnvParamsObserver(self.test_run.test.env_params, seed))
+            observers.append(EnvParamsObserver(self.test_run.test.env_params, self.test_run.test.cmd_args, seed))
         return observers
 
     def _env_csv_path(self) -> Path:
@@ -145,6 +145,19 @@ class CloudAIGymEnv(BaseGym):
 
         for observer in self.observers:
             observer.before_step(self.test_run)
+
+        # Overlay this trial's sampled env_params onto cmd_args so the workload actually
+        # runs with the sampled values - the env-side twin of apply_params_set(action).
+        # Sampling, persistence (env.csv), and the trajectory cache key are handled
+        # separately; this is the single, workload-agnostic injection point. Keys are
+        # validated to be cmd_args fields at TestDefinition build time; we re-filter to
+        # those fields here so a programmatically-built run can't inject unknown attrs.
+        if self.test_run.current_env_params:
+            cmd_args = self.test_run.test.cmd_args
+            fields = getattr(type(cmd_args), "model_fields", {})
+            overlay = {k: v for k, v in self.test_run.current_env_params.items() if k in fields}
+            if overlay:
+                self.test_run.test.cmd_args = cmd_args.model_copy(update=overlay)
 
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:
