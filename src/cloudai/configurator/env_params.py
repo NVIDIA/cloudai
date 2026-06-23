@@ -15,19 +15,23 @@
 # limitations under the License.
 
 """
-Domain-randomization primitives for CloudAI DSE.
+Per-trial environment-parameter primitives for CloudAI DSE.
 
-An env-randomized parameter is a workload knob whose value the environment
-samples per trial (categorical, optional weights). It is sibling to
-``cmd_args`` on a ``TestDefinition`` and does not enter the agent's action
-space; the policy learns a robust mapping under that variation.
+An env-randomized parameter is a workload knob whose candidate values live in
+``cmd_args`` (a plain list - the single source of truth, exactly like an
+action-space dimension) but which the environment *samples* per trial rather
+than letting the agent search it. ``env_params`` is the annotation that marks
+such a field: ``env_params.<name>`` reclassifies ``cmd_args.<name>`` from
+action-space to env-sampled and carries only *how* to sample (optional
+``weights``), never the values. The policy learns a robust mapping under that
+variation; the knob never enters the agent's action space.
 
-This module owns the data schema (``EnvParamSpec``), the deterministic
+This module owns the annotation schema (``EnvParamSpec``), the deterministic
 sampler (``EnvParamsSampler``), the persistence interface
 (``EnvParamsSink`` + ``CsvSink``) and the per-step observer
 (``EnvParamsObserver``). ``CloudAIGymEnv`` consumes these directly so the
 artifacts (``env.csv``) and the cache key align 1:1 with ``trajectory.csv``
-regardless of agent (PPO, BO, GA, MAB) or workload.
+regardless of agent or workload.
 """
 
 from __future__ import annotations
@@ -43,59 +47,71 @@ from typing_extensions import Self
 
 
 class EnvParamSpec(BaseModel):
-    """Specification of one env-randomized parameter (categorical)."""
+    """
+    Annotation marking one cmd_args field as env-sampled.
+
+    Carries only *how* to sample - the candidate values themselves live in
+    ``cmd_args.<name>`` as a plain list. ``weights`` (optional) are positional,
+    aligned 1:1 with that candidate list; omit for uniform sampling. The
+    length match against the candidate list is a cross-field check enforced by
+    ``TestDefinition`` (which can see ``cmd_args``); here we validate only the
+    weights' intrinsic shape.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    values: List[Any] = Field(
-        min_length=2,
-        description="Candidate values; a single-valued parameter is just a fixed cmd_args entry.",
-    )
     weights: Optional[List[float]] = Field(
         default=None,
-        description="Optional probability weights aligned with values; uniform if omitted.",
+        description="Optional probability weights aligned with the cmd_args candidate list; uniform if omitted.",
     )
 
     @model_validator(mode="after")
     def _validate_weights(self) -> Self:
         if self.weights is None:
             return self
-        if len(self.weights) != len(self.values):
-            raise ValueError(
-                f"env_params weights length {len(self.weights)} does not match values length {len(self.values)}"
-            )
         for w in self.weights:
             if not math.isfinite(w) or w < 0:
                 raise ValueError(f"env_params weights must be finite and non-negative; got {w}")
-        if sum(self.weights) <= 0:
-            raise ValueError("env_params weights must have a positive sum")
+        total = sum(self.weights)
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"env_params weights must sum to 1.0; got {total}")
         return self
 
 
 class EnvParamsSampler:
     """
-    Per-trial categorical sampler.
+    Per-trial categorical sampler over candidate lists.
+
+    Candidates are resolved from ``cmd_args`` by the caller and passed in as
+    ``{name: [v0, v1, ...]}``; optional ``weights`` mirror that mapping.
 
     Determinism contract: ``sample(t)`` returns the same dict on every call
-    (across processes) for the same ``(seed, env_params, t)``.
+    (across processes) for the same ``(seed, candidates, t)``.
 
     Independence contract: each parameter uses an RNG seeded by
     ``f"{seed}:{name}:{trial}"`` so adding or removing an unrelated
     parameter does not perturb existing parameters' draw sequences.
     """
 
-    def __init__(self, env_params: Dict[str, EnvParamSpec], seed: int) -> None:
-        self._env_params = env_params
+    def __init__(
+        self,
+        candidates: Dict[str, List[Any]],
+        seed: int,
+        weights: Optional[Dict[str, List[float]]] = None,
+    ) -> None:
+        self._candidates = candidates
+        self._weights = weights or {}
         self._seed = seed
 
     def sample(self, trial: int) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
-        for name, spec in self._env_params.items():
+        for name, choices in self._candidates.items():
             rng = random.Random(f"{self._seed}:{name}:{trial}")
-            if spec.weights is not None:
-                out[name] = rng.choices(spec.values, weights=spec.weights, k=1)[0]
+            weights = self._weights.get(name)
+            if weights is not None:
+                out[name] = rng.choices(choices, weights=weights, k=1)[0]
             else:
-                out[name] = rng.choice(spec.values)
+                out[name] = rng.choice(choices)
         return out
 
 
@@ -150,17 +166,31 @@ class EnvParamsObserver:
     """
     Sample env_params per step and stash them for the cache and the workload.
 
-    Pre-step: samples ``test_run.test.env_params`` for ``test_run.step`` and
-    stashes the result on ``test_run.current_env_params`` so the cache key and
-    the workload's substitution both see it. Persistence is owned by
+    Construction: resolves each annotated knob's candidate list from
+    ``cmd_args`` (the single source of truth) once, up front. A knob whose
+    ``cmd_args`` value is a scalar (not a list) is fixed - its annotation is a
+    no-op and it is skipped, so nothing is sampled or stashed for it.
+
+    Pre-step: samples the resolved candidates for ``test_run.step`` and stashes
+    the result on ``test_run.current_env_params`` so the cache key and the
+    cmd_args overlay both see it. Persistence is owned by
     ``CloudAIGymEnv.write_trajectory``, which sinks ``trajectory.csv`` and the
     ``env.csv`` projection from the single ``TrajectoryEntry`` - so a trial that
     writes no trajectory row writes no env.csv row either, keeping the two files
     1:1 step-aligned. Post-step: no-op.
     """
 
-    def __init__(self, env_params: Dict[str, EnvParamSpec], seed: int) -> None:
-        self._sampler = EnvParamsSampler(env_params, seed=seed)
+    def __init__(self, env_params: Dict[str, EnvParamSpec], cmd_args: Any, seed: int) -> None:
+        candidates: Dict[str, List[Any]] = {}
+        weights: Dict[str, List[float]] = {}
+        for name, spec in env_params.items():
+            value = getattr(cmd_args, name, None)
+            if not isinstance(value, list):
+                continue  # scalar cmd_args knob is fixed; the annotation is a no-op
+            candidates[name] = value
+            if spec.weights is not None:
+                weights[name] = spec.weights
+        self._sampler = EnvParamsSampler(candidates, seed=seed, weights=weights)
 
     def before_step(self, test_run: Any) -> None:
         test_run.current_env_params = self._sampler.sample(test_run.step)

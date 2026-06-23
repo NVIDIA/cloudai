@@ -434,20 +434,31 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
 
 
 def test_validate_dse_env_params_rejects_non_dse(base_tr: TestRun) -> None:
-    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     scenario = TestScenario(name="s", test_runs=[base_tr])
-    with pytest.raises(TestScenarioParsingError, match="declare env_params but are not DSE jobs"):
+    with pytest.raises(TestScenarioParsingError, match="will not sample them"):
         validate_dse_env_params(scenario)
 
 
-def test_validate_dse_env_params_allows_dse_run(dse_tr: TestRun) -> None:
-    dse_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
-    assert dse_tr.is_dse_job is True  # precondition: DSE + env_params is the allowed combination
+def test_validate_dse_env_params_rejects_grid_search(dse_tr: TestRun) -> None:
+    """A DSE job on grid_search exhaustively searches the space, so env_params are noise -> reject."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    assert dse_tr.is_dse_job is True  # it IS a DSE job...
+    assert dse_tr.test.agent == "grid_search"  # ...but grid_search ignores env_params
+    with pytest.raises(TestScenarioParsingError, match="will not sample them"):
+        validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_dse_env_params_allows_dse_run(dse_tr: TestRun, stub_agent_name: str) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # a learning agent (not grid_search) consumes env_params
+    assert dse_tr.is_dse_job is True  # precondition: DSE + learning agent + env_params is allowed
     validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
 
 
-def test_validate_dse_env_params_allows_num_nodes_sweep(base_tr: TestRun) -> None:
-    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+def test_validate_dse_env_params_allows_num_nodes_sweep(base_tr: TestRun, stub_agent_name: str) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    base_tr.test.agent = stub_agent_name
     base_tr.num_nodes = [1, 2]
     assert base_tr.is_dse_job is True  # a num_nodes list sweep makes it DSE, so env_params is allowed
     validate_dse_env_params(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
@@ -462,7 +473,7 @@ def test_validate_dse_env_params_allows_non_dse_without_env_params(base_tr: Test
 def test_verify_test_scenarios_rejects_env_params_without_dse(
     base_tr: TestRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    base_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     bad = TestScenario(name="s", test_runs=[base_tr])
     monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
     monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
@@ -470,8 +481,11 @@ def test_verify_test_scenarios_rejects_env_params_without_dse(
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
 
 
-def test_verify_test_scenarios_allows_env_params_with_dse(dse_tr: TestRun, monkeypatch: pytest.MonkeyPatch) -> None:
-    dse_tr.test.env_params = {"drop_rate": EnvParamSpec(values=[0.0, 0.1])}
+def test_verify_test_scenarios_allows_env_params_with_dse(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # learning agent (not grid_search)
     good = TestScenario(name="s", test_runs=[dse_tr])
     monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
     monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})

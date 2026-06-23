@@ -300,17 +300,24 @@ def _check_installation(
 
 def validate_dse_env_params(test_scenario: TestScenario) -> None:
     """
-    Reject prepped configs that declare env_params on a non-DSE test run.
+    Reject prepped configs that declare env_params but cannot sample them.
 
-    env_params are sampled only during DSE (by CloudAIGymEnv); on a non-DSE run they would be
-    silently ignored. is_dse_job is a property of the fully prepped config, so this is validated
-    here rather than at parse time.
+    env_params are sampled per-trial by CloudAIGymEnv, but only for a DSE run on a *learning*
+    agent. A non-DSE run has no per-trial loop at all, and grid_search exhaustively enumerates the
+    search space - sampling env_params there would just inject noise into a deterministic sweep with
+    no policy to gain robustness. is_dse_job is a property of the fully prepped config, so this is
+    validated here rather than at parse time.
     """
-    offenders = [tr.name for tr in test_scenario.test_runs if tr.test.env_params and not tr.is_dse_job]
+    offenders = [
+        tr.name
+        for tr in test_scenario.test_runs
+        if tr.test.env_params and (not tr.is_dse_job or tr.test.agent == "grid_search")
+    ]
     if offenders:
         raise TestScenarioParsingError(
-            f"Tests {offenders} declare env_params but are not DSE jobs. env_params are sampled only during "
-            "DSE (by CloudAIGymEnv); add a sweep (a list-valued cmd_args/extra_env_vars entry or num_nodes) "
+            f"Tests {offenders} declare env_params but will not sample them. env_params are sampled per-trial "
+            "only by a DSE run on a learning agent (grid_search searches the whole space and ignores them). "
+            "Use a learning agent and add a sweep (a list-valued cmd_args/extra_env_vars entry or num_nodes), "
             "or remove env_params."
         )
 

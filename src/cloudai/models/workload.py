@@ -115,7 +115,7 @@ class TestDefinition(BaseModel, ABC):
     env_params: dict[str, EnvParamSpec] = Field(
         default_factory=dict,
         description=(
-            "Domain-randomized parameters sampled by the env per trial. Sibling to "
+            "Environment parameters sampled by the env per trial. Sibling to "
             "cmd_args; not part of the agent's action space. CloudAIGymEnv samples, "
             "persists to env.csv, and includes them in the trajectory cache key."
         ),
@@ -146,17 +146,23 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict, parent_key: str = "") -> bool:
+        def check_dict(d: dict, parent_key: str = "", skip_env_params: bool = False) -> bool:
             if isinstance(d, dict):
                 for key, value in d.items():
                     path = f"{parent_key}.{key}" if parent_key else key
                     if self.is_dse_excluded_arg(path):
                         continue
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value, path)):
+                    # env_params lists are sampled by the env, not searched by the agent, so they
+                    # are not action-space dimensions and must not make a run count as DSE.
+                    if skip_env_params and path.split(".", 1)[0] in self.env_params:
+                        continue
+                    if isinstance(value, list) or (
+                        isinstance(value, dict) and check_dict(value, path, skip_env_params)
+                    ):
                         return True
             return False
 
-        return check_dict(self.cmd_args_dict) or check_dict(self.extra_env_vars)
+        return check_dict(self.cmd_args_dict, skip_env_params=True) or check_dict(self.extra_env_vars)
 
     @field_validator("dse_excluded_args", mode="before")
     @classmethod
@@ -200,4 +206,45 @@ class TestDefinition(BaseModel, ABC):
             agent_class = Registry().agents_map[self.agent]
             agent_config_class = agent_class.get_config_class()
             agent_config_class.model_validate(self.agent_config)
+        return self
+
+    @model_validator(mode="after")
+    def validate_env_params(self) -> Self:
+        """
+        Validate env_params annotations against cmd_args.
+
+        ``env_params`` is an annotation: each key names a ``cmd_args`` field whose value is
+        the candidate set (the single source of truth), and the entry carries only *how* to
+        sample. So each key must name a real ``cmd_args`` field; and when ``weights`` are
+        declared, that field must be a candidate list of >= 2 values and the weights must
+        align 1:1 with it. A scalar (fixed) ``cmd_args`` value is tolerated as a no-op
+        marker. Sampling, persistence, the per-trial cmd_args overlay, and the cache key all
+        live in ``CloudAIGymEnv``; keeping this shape check in core lets the overlay stay
+        agent- and workload-agnostic rather than re-implemented per workload.
+        """
+        if not self.env_params:
+            return self
+
+        cmd_args_fields = getattr(type(self.cmd_args), "model_fields", None)
+        if not cmd_args_fields:
+            return self
+
+        unknown = sorted(k for k in self.env_params if k not in cmd_args_fields)
+        if unknown:
+            raise ValueError(f"env_params keys {unknown} are not cmd_args fields on {type(self.cmd_args).__name__}")
+
+        for name, spec in self.env_params.items():
+            if spec.weights is None:
+                continue
+            value = getattr(self.cmd_args, name, None)
+            if not isinstance(value, list) or len(value) < 2:
+                raise ValueError(
+                    f"env_params['{name}'] declares weights but cmd_args.{name} is not a candidate list "
+                    "(need a list of >= 2 values)"
+                )
+            if len(spec.weights) != len(value):
+                raise ValueError(
+                    f"env_params['{name}'] weights length {len(spec.weights)} does not match "
+                    f"cmd_args.{name} candidate count {len(value)}"
+                )
         return self
