@@ -301,6 +301,9 @@ class CloudAIGymEnv(BaseGym):
             writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
         if self._env_sink is not None:
+            # current_iteration can advance while this env instance is reused, so rebind the sink to
+            # the current iteration's env.csv (alongside trajectory.csv) to keep the two 1:1 aligned.
+            self._env_sink = CsvSink(self._env_csv_path())
             self._env_sink.write(entry.step, entry.env_params)
 
     @property

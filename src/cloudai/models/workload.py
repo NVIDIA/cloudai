@@ -234,9 +234,15 @@ class TestDefinition(BaseModel, ABC):
             raise ValueError(f"env_params keys {unknown} are not cmd_args fields on {type(self.cmd_args).__name__}")
 
         for name, spec in self.env_params.items():
+            value = getattr(self.cmd_args, name, None)
+            if isinstance(value, (dict, BaseModel)):
+                raise ValueError(
+                    f"env_params['{name}'] must target a leaf cmd_args field (scalar or candidate list), "
+                    "not a structured object; param_space/is_dse_job exclude the whole key, which would "
+                    "silently drop nested action dimensions"
+                )
             if spec.weights is None:
                 continue
-            value = getattr(self.cmd_args, name, None)
             if not isinstance(value, list) or len(value) < 2:
                 raise ValueError(
                     f"env_params['{name}'] declares weights but cmd_args.{name} is not a candidate list "

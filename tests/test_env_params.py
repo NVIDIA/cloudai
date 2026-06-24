@@ -36,7 +36,7 @@ from types import SimpleNamespace
 from typing import List, Union
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cloudai.configurator.env_params import (
     CsvSink,
@@ -47,17 +47,24 @@ from cloudai.configurator.env_params import (
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
+class BrickGrid(BaseModel):
+    """A structured (non-leaf) cmd_args field, used to prove env_params rejects such targets."""
+
+    rows: int = 3
+
+
 class EnvVarCmdArgs(CmdArgs):
     """cmd_args with top-level, list-capable fields for env_params annotation tests.
 
     ``ball_speed`` is the env-randomized knob; ``paddle_width`` stands in for an
     ordinary action-space dimension. Both accept either a scalar or a candidate
     list, so a candidate list round-trips through model validation/serialization
-    cleanly.
+    cleanly. ``brick_grid`` is a structured field (not a leaf) for negative tests.
     """
 
     ball_speed: Union[int, List[int]] = 1
     paddle_width: Union[int, List[int]] = 8
+    brick_grid: BrickGrid = BrickGrid()
 
 
 class EnvVarTestDefinition(TestDefinition):
@@ -110,7 +117,7 @@ def test_env_param_spec_rejects_non_finite_weights(bad: float) -> None:
 def test_env_param_spec_rejects_unknown_fields() -> None:
     """Candidate values live in cmd_args, never in the annotation (no ``values`` key)."""
     with pytest.raises(ValidationError):
-        EnvParamSpec(values=[1, 2])
+        EnvParamSpec.model_validate({"values": [1, 2]})
 
 
 # --- Sampler: draws from candidate lists resolved out of cmd_args ---
@@ -232,6 +239,13 @@ def test_env_params_weights_length_mismatch_rejected() -> None:
     """Weights must align 1:1 with the cmd_args candidate list."""
     with pytest.raises(ValidationError, match="weights length"):
         _tdef({"ball_speed": EnvParamSpec(weights=[0.5, 0.3, 0.2])}, ball_speed=[1, 2])
+
+
+def test_env_params_structured_target_rejected() -> None:
+    """A structured (non-leaf) cmd_args target is rejected: the observer can't sample it, yet
+    param_space/is_dse_job exclude the whole key, silently dropping nested action dimensions."""
+    with pytest.raises(ValidationError, match="must target a leaf cmd_args field"):
+        _tdef({"brick_grid": EnvParamSpec()})
 
 
 # --- is_dse_job: env-sampled lists are not search dimensions ---
