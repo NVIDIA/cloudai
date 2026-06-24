@@ -219,9 +219,7 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
         try:
             return values.index(value)
         except ValueError:
-            raise ValueError(
-                f"Value {value!r} for '{name}' is not a candidate; expected one of {values}"
-            ) from None
+            raise ValueError(f"Value {value!r} for '{name}' is not a candidate; expected one of {values}") from None
 
     def _encode_continuous(self, name: str, value: Any) -> Any:
         space = self._continuous_params[name]
