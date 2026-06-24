@@ -19,14 +19,14 @@ import csv
 import dataclasses
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
-from .env_params import CsvSink, EnvParamsObserver, EnvParamsSink, StepObserver
+from .env_params import CsvSink, EnvParams, EnvParamsSink
 
 
 @dataclasses.dataclass(frozen=True)
@@ -63,23 +63,11 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
-        self._env_sink: EnvParamsSink | None = None
-        self.observers: List[StepObserver] = self._build_observers()
+        # Resolve env_params once, at formulation: None unless the workload declares something to
+        # sample, so a non-DR run carries no env-params state and pays zero per-step overhead.
+        self.params: EnvParams | None = EnvParams.from_test(test_run.test)
+        self._env_sink: EnvParamsSink | None = CsvSink(self._env_csv_path()) if self.params else None
         super().__init__()
-
-    def _build_observers(self) -> List[StepObserver]:
-        """
-        Construct the per-step observers implied by the TestDefinition.
-
-        Workloads opt in to env_params via a TOML ``[env_params.<name>]`` block;
-        an empty mapping yields no observers and zero overhead.
-        """
-        observers: List[StepObserver] = []
-        if self.test_run.test.env_params:
-            seed = int((self.test_run.test.agent_config or {}).get("random_seed", 0))
-            self._env_sink = CsvSink(self._env_csv_path())
-            observers.append(EnvParamsObserver(self.test_run.test.env_params, self.test_run.test.cmd_args, seed))
-        return observers
 
     def _env_csv_path(self) -> Path:
         """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
@@ -141,23 +129,11 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         self.test_run.increment_step()
-        self.test_run = self.test_run.apply_params_set(action)
-
-        for observer in self.observers:
-            observer.before_step(self.test_run)
-
-        # Overlay this trial's sampled env_params onto cmd_args so the workload actually
-        # runs with the sampled values - the env-side twin of apply_params_set(action).
-        # Sampling, persistence (env.csv), and the trajectory cache key are handled
-        # separately; this is the single, workload-agnostic injection point. Keys are
-        # validated to be cmd_args fields at TestDefinition build time; we re-filter to
-        # those fields here so a programmatically-built run can't inject unknown attrs.
-        if self.test_run.current_env_params:
-            cmd_args = self.test_run.test.cmd_args
-            fields = getattr(type(cmd_args), "model_fields", {})
-            overlay = {k: v for k, v in self.test_run.current_env_params.items() if k in fields}
-            if overlay:
-                self.test_run.test.cmd_args = cmd_args.model_copy(update=overlay)
+        # Sample this trial's env_params (the RNG lives here, in the env), then apply the agent's
+        # action and the sample together: apply_params_set overlays both onto cmd_args and records
+        # current_env_params, so the workload runs with the sampled values and the cache key sees them.
+        sampled_env_params = self.params.sample(self.test_run.step) if self.params else {}
+        self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
         cached_result = self.get_cached_trajectory_result(action)
         if cached_result is not None:
@@ -175,8 +151,6 @@ class CloudAIGymEnv(BaseGym):
                     env_params=dict(self.test_run.current_env_params),
                 )
             )
-            for observer in self.observers:
-                observer.after_step(self.test_run, cached_result.observation, cached_result.reward)
             return cached_result.observation, cached_result.reward, False, {}
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
@@ -220,9 +194,6 @@ class CloudAIGymEnv(BaseGym):
                 env_params=dict(self.test_run.current_env_params),
             )
         )
-
-        for observer in self.observers:
-            observer.after_step(self.test_run, observation, reward)
 
         return observation, reward, False, {}
 
@@ -324,12 +295,11 @@ class CloudAIGymEnv(BaseGym):
         env_params on both sides is the back-compat path for workloads that
         do not declare any ``[env_params.*]`` block.
         """
-        current_env_params = getattr(self.test_run, "current_env_params", {}) or {}
+        current_env_params = self.test_run.current_env_params
         for entry in self.current_trajectory:
             if not self._values_match_exact(entry.action, action):
                 continue
-            entry_env = getattr(entry, "env_params", {}) or {}
-            if self._values_match_exact(entry_env, current_env_params):
+            if self._values_match_exact(entry.env_params, current_env_params):
                 return entry
 
         return None

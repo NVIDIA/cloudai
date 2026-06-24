@@ -21,22 +21,14 @@ An env-randomized parameter is a workload knob whose candidate values live in
 ``cmd_args`` (a plain list - the single source of truth, exactly like an
 action-space dimension) but which the environment *samples* per trial rather
 than letting the agent search it. ``env_params`` is the annotation that marks
-such a field: ``env_params.<name>`` reclassifies ``cmd_args.<name>`` from
-action-space to env-sampled and carries only *how* to sample (optional
-``weights``), never the values. The policy learns a robust mapping under that
-variation; the knob never enters the agent's action space.
-
-This module owns the annotation schema (``EnvParamSpec``), the deterministic
-sampler (``EnvParamsSampler``), the persistence interface
-(``EnvParamsSink`` + ``CsvSink``) and the per-step observer
-(``EnvParamsObserver``). ``CloudAIGymEnv`` consumes these directly so the
-artifacts (``env.csv``) and the cache key align 1:1 with ``trajectory.csv``
-regardless of agent or workload.
+such a field; it carries only *how* to sample (optional ``weights``), never the
+values, and the knob never enters the agent's action space.
 """
 
 from __future__ import annotations
 
 import csv
+import dataclasses
 import math
 import random
 from pathlib import Path
@@ -78,41 +70,67 @@ class EnvParamSpec(BaseModel):
         return self
 
 
-class EnvParamsSampler:
+@dataclasses.dataclass(frozen=True)
+class EnvParam:
     """
-    Per-trial categorical sampler over candidate lists.
+    One env-sampled knob, resolved from cmd_args: its candidate values and optional weights.
 
-    Candidates are resolved from ``cmd_args`` by the caller and passed in as
-    ``{name: [v0, v1, ...]}``; optional ``weights`` mirror that mapping.
-
-    Determinism contract: ``sample(t)`` returns the same dict on every call
-    (across processes) for the same ``(seed, candidates, t)``.
-
-    Independence contract: each parameter uses an RNG seeded by
-    ``f"{seed}:{name}:{trial}"`` so adding or removing an unrelated
-    parameter does not perturb existing parameters' draw sequences.
+    Weights (when present) are positional, aligned 1:1 with ``candidates``; ``None`` means
+    uniform sampling. Keeping the two together makes each knob a self-contained draw.
     """
 
-    def __init__(
-        self,
-        candidates: Dict[str, List[Any]],
-        seed: int,
-        weights: Optional[Dict[str, List[float]]] = None,
-    ) -> None:
-        self._candidates = candidates
-        self._weights = weights or {}
-        self._seed = seed
+    candidates: List[Any]
+    weights: Optional[List[float]] = None
+
+    def draw(self, rng: random.Random) -> Any:
+        if self.weights is not None:
+            return rng.choices(self.candidates, weights=self.weights, k=1)[0]
+        return rng.choice(self.candidates)
+
+
+@dataclasses.dataclass(frozen=True)
+class EnvParams:
+    """
+    Resolved env-parameter sampling state for one run.
+
+    Built via ``from_test`` only when a workload actually declares list-valued env_params;
+    otherwise ``from_test`` returns ``None`` and the env carries no env-params state at all.
+    Owns the per-parameter :class:`EnvParam` draws (resolved from ``cmd_args``, the single source
+    of truth) and the seed, and draws one value per parameter per trial.
+    """
+
+    params: Dict[str, EnvParam]
+    seed: int
+
+    @classmethod
+    def from_test(cls, test: Any) -> Optional["EnvParams"]:
+        """
+        Resolve a TestDefinition's env_params annotations, or ``None`` if nothing is sampled.
+
+        A field whose ``cmd_args`` value is a scalar is fixed: the annotation is a no-op and
+        the field is skipped. With no list-valued field left, there is nothing to sample and
+        we return ``None`` so callers stay on the zero-overhead path.
+        """
+        params: Dict[str, EnvParam] = {}
+        for name, spec in test.env_params.items():
+            value = getattr(test.cmd_args, name, None)
+            if not isinstance(value, list):
+                continue
+            params[name] = EnvParam(candidates=value, weights=spec.weights)
+        if not params:
+            return None
+        seed = int((test.agent_config or {}).get("random_seed", 0))
+        return cls(params=params, seed=seed)
 
     def sample(self, trial: int) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
-        for name, choices in self._candidates.items():
-            rng = random.Random(f"{self._seed}:{name}:{trial}")
-            weights = self._weights.get(name)
-            if weights is not None:
-                out[name] = rng.choices(choices, weights=weights, k=1)[0]
-            else:
-                out[name] = rng.choice(choices)
-        return out
+        """
+        Draw this trial's value for each parameter.
+
+        Determinism: the same ``(seed, name, trial)`` yields the same draw across processes.
+        Independence: each parameter's RNG is seeded ``f"{seed}:{name}:{trial}"`` so adding or
+        removing one parameter never perturbs the others' draw sequences.
+        """
+        return {name: param.draw(random.Random(f"{self.seed}:{name}:{trial}")) for name, param in self.params.items()}
 
 
 @runtime_checkable
@@ -146,54 +164,3 @@ class CsvSink:
             if new_file:
                 writer.writerow(("step", "env"))
             writer.writerow([step, sample])
-
-
-@runtime_checkable
-class StepObserver(Protocol):
-    """
-    Hook fired by ``CloudAIGymEnv.step()`` around each trial.
-
-    ``before_step`` runs before the cache lookup and before any workload
-    execution. ``after_step`` runs after the trajectory row is written.
-    """
-
-    def before_step(self, test_run: Any) -> None: ...
-
-    def after_step(self, test_run: Any, observation: list, reward: float) -> None: ...
-
-
-class EnvParamsObserver:
-    """
-    Sample env_params per step and stash them for the cache and the workload.
-
-    Construction: resolves each annotated knob's candidate list from
-    ``cmd_args`` (the single source of truth) once, up front. A knob whose
-    ``cmd_args`` value is a scalar (not a list) is fixed - its annotation is a
-    no-op and it is skipped, so nothing is sampled or stashed for it.
-
-    Pre-step: samples the resolved candidates for ``test_run.step`` and stashes
-    the result on ``test_run.current_env_params`` so the cache key and the
-    cmd_args overlay both see it. Persistence is owned by
-    ``CloudAIGymEnv.write_trajectory``, which sinks ``trajectory.csv`` and the
-    ``env.csv`` projection from the single ``TrajectoryEntry`` - so a trial that
-    writes no trajectory row writes no env.csv row either, keeping the two files
-    1:1 step-aligned. Post-step: no-op.
-    """
-
-    def __init__(self, env_params: Dict[str, EnvParamSpec], cmd_args: Any, seed: int) -> None:
-        candidates: Dict[str, List[Any]] = {}
-        weights: Dict[str, List[float]] = {}
-        for name, spec in env_params.items():
-            value = getattr(cmd_args, name, None)
-            if not isinstance(value, list):
-                continue  # scalar cmd_args knob is fixed; the annotation is a no-op
-            candidates[name] = value
-            if spec.weights is not None:
-                weights[name] = spec.weights
-        self._sampler = EnvParamsSampler(candidates, seed=seed, weights=weights)
-
-    def before_step(self, test_run: Any) -> None:
-        test_run.current_env_params = self._sampler.sample(test_run.step)
-
-    def after_step(self, test_run: Any, observation: list, reward: float) -> None:
-        del test_run, observation, reward  # persistence handled by CloudAIGymEnv.write_trajectory

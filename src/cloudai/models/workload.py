@@ -144,6 +144,10 @@ class TestDefinition(BaseModel, ABC):
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         return True
 
+    def is_env_sampled(self, cmd_args_path: str) -> bool:
+        """Whether a cmd_args field is env-sampled (env draws it per trial, not the agent)."""
+        return cmd_args_path in self.env_params
+
     @property
     def is_dse_job(self) -> bool:
         def check_dict(d: dict, parent_key: str = "", skip_env_params: bool = False) -> bool:
@@ -152,9 +156,7 @@ class TestDefinition(BaseModel, ABC):
                     path = f"{parent_key}.{key}" if parent_key else key
                     if self.is_dse_excluded_arg(path):
                         continue
-                    # env_params lists are sampled by the env, not searched by the agent, so they
-                    # are not action-space dimensions and must not make a run count as DSE.
-                    if skip_env_params and path.split(".", 1)[0] in self.env_params:
+                    if skip_env_params and self.is_env_sampled(path):
                         continue
                     if isinstance(value, list) or (
                         isinstance(value, dict) and check_dict(value, path, skip_env_params)

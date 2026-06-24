@@ -31,8 +31,9 @@ dimension - the knob the agent actually tunes.
 
 from __future__ import annotations
 
+import dataclasses
+import random
 from pathlib import Path
-from types import SimpleNamespace
 from typing import List, Union
 
 import pytest
@@ -40,9 +41,9 @@ from pydantic import BaseModel, ValidationError
 
 from cloudai.configurator.env_params import (
     CsvSink,
-    EnvParamsObserver,
+    EnvParam,
+    EnvParams,
     EnvParamSpec,
-    EnvParamsSampler,
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 
@@ -120,31 +121,84 @@ def test_env_param_spec_rejects_unknown_fields() -> None:
         EnvParamSpec.model_validate({"values": [1, 2]})
 
 
-# --- Sampler: draws from candidate lists resolved out of cmd_args ---
+# --- EnvParam: one resolved knob - candidate values, optional weights, a single draw ---
+
+
+def test_env_param_defaults_to_unweighted() -> None:
+    """A knob built without weights samples uniformly (weights is None)."""
+    assert EnvParam(candidates=[1, 2, 3]).weights is None
+
+
+def test_env_param_draw_returns_a_candidate() -> None:
+    """draw() always yields one of the knob's own candidate values."""
+    knob = EnvParam(candidates=[1, 2, 3])
+    assert all(knob.draw(random.Random(s)) in {1, 2, 3} for s in range(50))
+
+
+def test_env_param_draw_is_reproducible_for_a_given_rng() -> None:
+    """draw() consumes the caller's RNG (no internal seeding), so equal RNG state yields equal draws."""
+    knob = EnvParam(candidates=[10, 20, 30, 40])
+    assert knob.draw(random.Random(123)) == knob.draw(random.Random(123))
+
+
+def test_env_param_draw_honors_degenerate_weights() -> None:
+    """A degenerate weight ([1, 0]) collapses the draw onto the first candidate, whatever the RNG."""
+    knob = EnvParam(candidates=[1, 2], weights=[1.0, 0.0])
+    assert all(knob.draw(random.Random(s)) == 1 for s in range(50))
+
+
+def test_env_param_is_immutable() -> None:
+    """Frozen value object: a resolved knob cannot be mutated after construction."""
+    knob = EnvParam(candidates=[1, 2, 3])
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        knob.candidates = [9]  # pyright: ignore[reportAttributeAccessIssue]
+
+
+# --- EnvParams.sample: draws from candidate lists resolved out of cmd_args ---
 
 
 def test_sampler_is_deterministic_across_calls() -> None:
-    candidates = {"ball_speed": [1, 2, 3]}
-    a = EnvParamsSampler(candidates, seed=42)
-    b = EnvParamsSampler(candidates, seed=42)
-    seq_a = [a.sample(t) for t in range(1, 6)]
-    seq_b = [b.sample(t) for t in range(1, 6)]
-    assert seq_a == seq_b, "same (seed, trial) must produce the same draw across instances"
+    env_params = EnvParams(params={"ball_speed": EnvParam(candidates=[1, 2, 3])}, seed=42)
+    seq_a = [env_params.sample(t) for t in range(1, 6)]
+    seq_b = [env_params.sample(t) for t in range(1, 6)]
+    assert seq_a == seq_b, "same (seed, trial) must produce the same draw across calls"
 
 
 def test_sampler_each_param_is_independent() -> None:
     """Adding an unrelated parameter must not perturb existing parameters' draws."""
-    base = {"ball_speed": [1, 2, 3]}
-    extended = {"ball_speed": [1, 2, 3], "brick_rows": [3, 4, 5]}
-    a = [EnvParamsSampler(base, seed=7).sample(t)["ball_speed"] for t in range(1, 11)]
-    b = [EnvParamsSampler(extended, seed=7).sample(t)["ball_speed"] for t in range(1, 11)]
+    base = EnvParams(params={"ball_speed": EnvParam(candidates=[1, 2, 3])}, seed=7)
+    extended = EnvParams(
+        params={"ball_speed": EnvParam(candidates=[1, 2, 3]), "brick_rows": EnvParam(candidates=[3, 4, 5])},
+        seed=7,
+    )
+    a = [base.sample(t)["ball_speed"] for t in range(1, 11)]
+    b = [extended.sample(t)["ball_speed"] for t in range(1, 11)]
     assert a == b, "per-parameter RNG seeding must isolate parameters from each other"
 
 
 def test_sampler_honors_weights() -> None:
     """A degenerate weight ([1, 0]) must always pick the first candidate."""
-    sampler = EnvParamsSampler({"ball_speed": [1, 2]}, seed=1, weights={"ball_speed": [1.0, 0.0]})
-    assert all(sampler.sample(t)["ball_speed"] == 1 for t in range(1, 20))
+    env_params = EnvParams(params={"ball_speed": EnvParam(candidates=[1, 2], weights=[1.0, 0.0])}, seed=1)
+    assert all(env_params.sample(t)["ball_speed"] == 1 for t in range(1, 20))
+
+
+def test_sample_covers_all_declared_params() -> None:
+    """sample() returns exactly one value per declared knob, each drawn from that knob's candidates."""
+    env_params = EnvParams(
+        params={"ball_speed": EnvParam(candidates=[1, 2]), "paddle_width": EnvParam(candidates=[4, 8])},
+        seed=3,
+    )
+    drawn = env_params.sample(5)
+    assert set(drawn) == {"ball_speed", "paddle_width"}
+    assert drawn["ball_speed"] in {1, 2}
+    assert drawn["paddle_width"] in {4, 8}
+
+
+def test_env_params_is_immutable() -> None:
+    """Frozen value object: resolved sampling state cannot be mutated after construction."""
+    env_params = EnvParams(params={"ball_speed": EnvParam(candidates=[1, 2])}, seed=0)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        env_params.seed = 1  # pyright: ignore[reportAttributeAccessIssue]
 
 
 # --- CsvSink: unchanged persistence contract ---
@@ -168,39 +222,91 @@ def test_csv_sink_writes_header_then_rows(tmp_path: Path) -> None:
     assert contents[2].startswith("2,")
 
 
-# --- Observer: resolves candidates from cmd_args, stashes the per-trial sample ---
+# --- EnvParams.from_test: resolves candidate lists from cmd_args, once at env formulation ---
 
 
-def test_observer_samples_from_cmd_args_and_stashes() -> None:
-    """before_step samples a candidate that lives in cmd_args; persistence is the env's job."""
-    cmd_args = EnvVarCmdArgs(ball_speed=[1, 2, 3])
-    observer = EnvParamsObserver({"ball_speed": EnvParamSpec()}, cmd_args, seed=42)
-    test_run = SimpleNamespace(step=3, current_env_params={})
+def test_env_params_from_test_resolves_list_candidate() -> None:
+    """A list-valued cmd_args field resolves to its candidate list; sampling then draws from it."""
+    env_params = EnvParams.from_test(_tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 2, 3]))
 
-    observer.before_step(test_run)
-
-    assert test_run.current_env_params["ball_speed"] in {1, 2, 3}
+    assert env_params is not None
+    assert env_params.params == {"ball_speed": EnvParam(candidates=[1, 2, 3], weights=None)}
+    assert env_params.sample(3)["ball_speed"] in {1, 2, 3}
 
 
-def test_observer_skips_scalar_annotation() -> None:
-    """A scalar cmd_args value is fixed; annotating it is a no-op (nothing to sample)."""
-    cmd_args = EnvVarCmdArgs(ball_speed=2)
-    observer = EnvParamsObserver({"ball_speed": EnvParamSpec()}, cmd_args, seed=42)
-    test_run = SimpleNamespace(step=1, current_env_params={})
+def test_env_params_from_test_carries_weights() -> None:
+    """Weighted annotations propagate their weights alongside the resolved candidates."""
+    env_params = EnvParams.from_test(_tdef({"ball_speed": EnvParamSpec(weights=[0.7, 0.3])}, ball_speed=[1, 2]))
 
-    observer.before_step(test_run)
-
-    assert test_run.current_env_params == {}, "a scalar (fixed) cmd_args knob must not be sampled"
+    assert env_params is not None
+    assert env_params.params["ball_speed"].weights == [0.7, 0.3]
 
 
-def test_observer_after_step_is_noop() -> None:
-    """after_step must not mutate test_run; CloudAIGymEnv.write_trajectory owns persistence."""
-    observer = EnvParamsObserver({}, EnvVarCmdArgs(), seed=0)
-    test_run = SimpleNamespace(step=1, current_env_params={"x": 1})
+def test_env_params_from_test_reads_seed_from_agent_config() -> None:
+    """The sampler seed comes from agent_config.random_seed so a run is reproducible end to end."""
+    tdef = _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 2, 3])
+    tdef.agent_config = {"random_seed": 42}
 
-    observer.after_step(test_run, observation=[0.0], reward=0.0)
+    env_params = EnvParams.from_test(tdef)
 
-    assert test_run.current_env_params == {"x": 1}
+    assert env_params is not None and env_params.seed == 42
+
+
+def test_env_params_from_test_defaults_seed_to_zero_without_agent_config() -> None:
+    """No agent_config (the default) -> seed 0, so a declared-but-unseeded run still samples."""
+    env_params = EnvParams.from_test(_tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 2, 3]))
+
+    assert env_params is not None and env_params.seed == 0
+
+
+def test_env_params_from_test_defaults_seed_to_zero_when_key_absent() -> None:
+    """agent_config present but without random_seed still falls back to seed 0."""
+    tdef = _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 2, 3])
+    tdef.agent_config = {"other": 1}
+
+    env_params = EnvParams.from_test(tdef)
+
+    assert env_params is not None and env_params.seed == 0
+
+
+def test_env_params_from_test_resolves_multiple_params() -> None:
+    """Every list-valued annotation becomes its own knob, candidates resolved from cmd_args."""
+    env_params = EnvParams.from_test(
+        _tdef(
+            {"ball_speed": EnvParamSpec(), "paddle_width": EnvParamSpec()},
+            ball_speed=[1, 2],
+            paddle_width=[4, 8],
+        )
+    )
+
+    assert env_params is not None
+    assert set(env_params.params) == {"ball_speed", "paddle_width"}
+    assert env_params.params["ball_speed"].candidates == [1, 2]
+    assert env_params.params["paddle_width"].candidates == [4, 8]
+
+
+def test_env_params_from_test_skips_scalar_keeps_list() -> None:
+    """A mix of scalar and list annotations yields only the list-valued field as a knob."""
+    env_params = EnvParams.from_test(
+        _tdef(
+            {"ball_speed": EnvParamSpec(), "paddle_width": EnvParamSpec()},
+            ball_speed=[1, 2, 3],
+            paddle_width=8,
+        )
+    )
+
+    assert env_params is not None
+    assert set(env_params.params) == {"ball_speed"}
+
+
+def test_env_params_from_test_none_when_only_scalar_annotation() -> None:
+    """A scalar cmd_args value is fixed; with nothing list-valued to sample, from_test is None."""
+    assert EnvParams.from_test(_tdef({"ball_speed": EnvParamSpec()}, ball_speed=2)) is None
+
+
+def test_env_params_from_test_none_when_no_env_params() -> None:
+    """No annotations declared -> no EnvParams object (the zero-overhead path)."""
+    assert EnvParams.from_test(_tdef({})) is None
 
 
 # --- TestDefinition.validate_env_params: annotation validity (cross-field with cmd_args) ---
