@@ -518,23 +518,30 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     assert result.step == 1
 
 
-def test_step_reruns_workload_when_env_params_change(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
-    """Integration: env.step() with same action but different env_params re-runs the workload.
+def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
+    """Integration: two env.step() calls with the same action but different sampled env_params re-run.
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
-    full step() flow: increment_step -> apply_params_set -> cache lookup ->
-    runner.run() -> write_trajectory.
+    full step() flow: increment_step -> sample env_params -> apply_params_set ->
+    cache lookup -> runner.run() -> write_trajectory. With seed 42 the sampler
+    draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
+    cache key differs and the workload must re-run both times.
     """
-    tdef = nemorun.model_copy(deep=True)
-    tdef.cmd_args.data.global_batch_size = 8
-    tdef.agent_metrics = ["default"]
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2, 3]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
     test_run = TestRun(
         name="dr_tr",
         test=tdef,
         num_nodes=1,
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
-        reports={NeMoRunReportGenerationStrategy},
     )
     test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
 
@@ -548,19 +555,16 @@ def test_step_reruns_workload_when_env_params_change(nemorun: NeMoRunTestDefinit
     runner.get_job_output_path.return_value = test_run.output_path
 
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
-    action = {"trainer.max_steps": 1000}
+    action = {"paddle_width": 4}
     fake_obs = iter([[100.0], [50.0]])
 
     with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
         env.test_run.step = 0
-        env.test_run.current_env_params = {"ball_speed": 1}
-        obs1, _r1, *_ = env.step(action)
-
-        env.test_run.current_env_params = {"ball_speed": 2}
-        obs2, _r2, *_ = env.step(action)
+        obs1, _r1, *_ = env.step(action)  # samples ball_speed=3
+        obs2, _r2, *_ = env.step(action)  # samples ball_speed=1
 
     assert runner.run.call_count == 2, (
-        "Different env_params between two env.step() calls with the same action "
+        "Different sampled env_params between two env.step() calls with the same action "
         "must trigger a workload re-run; the cache lookup must miss."
     )
     assert obs1 != obs2, "fresh workload run should produce a fresh observation"
@@ -722,7 +726,7 @@ def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: 
     runner.get_job_output_path.return_value = test_run.output_path
 
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
-    assert env.observers, "TestDefinition.env_params declared -> observer must be built"
+    assert env.params is not None, "TestDefinition.env_params declared -> EnvParams must be built"
 
     expected_sample = {"ball_speed": _random.Random("42:ball_speed:1").choice([1, 2, 3])}
     action = {"paddle_width": 4}
@@ -838,5 +842,5 @@ def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition,
 
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
 
-    assert env.observers == [], "no env_params declared -> no per-step observers"
+    assert env.params is None, "no env_params declared -> no EnvParams object"
     assert not env._env_csv_path().exists()

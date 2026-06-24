@@ -159,7 +159,7 @@ class TestRun:
                 for key, value in cmd_args_dict.items()
                 if isinstance(value, list)
                 and not self.test.is_dse_excluded_arg(key)
-                and key.split(".", 1)[0] not in self.test.env_params
+                and not self.test.is_env_sampled(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -187,20 +187,30 @@ class TestRun:
 
         return all_combinations
 
-    def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
+    def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
         tdef = self.test.model_copy(deep=True)
-        for key, value in action.items():
+
+        def _apply(key: str, value: Any) -> None:
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
+                return
+            attrs = key.split(".")
+            obj = tdef.cmd_args
+            for attr in attrs[:-1]:
+                obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+            if isinstance(obj, dict):
+                obj[attrs[-1]] = value
             else:
-                attrs = key.split(".")
-                obj = tdef.cmd_args
-                for attr in attrs[:-1]:
-                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
-                if isinstance(obj, dict):
-                    obj[attrs[-1]] = value
-                else:
-                    setattr(obj, attrs[-1], value)
+                setattr(obj, attrs[-1], value)
+
+        # The agent's chosen action and this trial's sampled env_params are both just concrete
+        # values written onto cmd_args, applied through the one path here. env_params keys name
+        # cmd_args fields; sampling (the RNG) happens in the env before this call, so this method
+        # stays deterministic.
+        for key, value in action.items():
+            _apply(key, value)
+        for key, value in (env_params or {}).items():
+            _apply(key, value)
 
         type(tdef)(**tdef.model_dump())  # trigger validation
 
@@ -208,6 +218,7 @@ class TestRun:
         new_tr.test = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
+        new_tr.current_env_params = dict(env_params or {})
         return new_tr
 
 
