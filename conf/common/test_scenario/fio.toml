@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "fio-scenario"
+
+[[Tests]]
+id = "Tests.fio"
+test_name = "fio"
+num_nodes = 1
+time_limit = "00:05:00"

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "fio"
+description = "fio random write smoke test"
+test_template_name = "Fio"
+
+[cmd_args]
+fio_binary = "fio"
+
+  [cmd_args.args]
+  name = "fio-smoke"
+  filename = "/tmp/cloudai-fio-test"
+  rw = "randwrite"
+  bs = "128k"
+  size = "80m"
+  iodepth = 1
+  numjobs = 1
+  group_reporting = true
+  thread = true

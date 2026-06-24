@@ -35,6 +35,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |DDLB|✅|❌|❌|❌|
 |DeepEP|✅|❌|❌|❌|
 |DynamoMocker|❌|❌|❌|✅|
+|Fio|✅|❌|❌|✅|
 |JaxToolbox workloads (DEPRECATED)|✅|❌|❌|❌|
 |MegatronRun|✅|❌|❌|❌|
 |NCCL|✅|✅|✅|❌|
