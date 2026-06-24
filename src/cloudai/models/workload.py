@@ -241,6 +241,11 @@ class TestDefinition(BaseModel, ABC):
                     "not a structured object; param_space/is_dse_job exclude the whole key, which would "
                     "silently drop nested action dimensions"
                 )
+            if isinstance(value, list) and not value:
+                raise ValueError(
+                    f"env_params['{name}'] references an empty candidate list in cmd_args.{name}; "
+                    "provide at least one candidate (the sampler would otherwise fail on an empty draw)"
+                )
             if spec.weights is None:
                 continue
             if not isinstance(value, list) or len(value) < 2:

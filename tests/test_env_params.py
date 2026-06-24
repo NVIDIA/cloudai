@@ -248,6 +248,13 @@ def test_env_params_structured_target_rejected() -> None:
         _tdef({"brick_grid": EnvParamSpec()})
 
 
+def test_env_params_empty_candidate_list_rejected() -> None:
+    """An empty candidate list is rejected at build time: an unweighted spec would otherwise skip
+    validation and let the sampler fail later on an empty draw (rng.choice([]))."""
+    with pytest.raises(ValidationError, match="empty candidate list"):
+        _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[])
+
+
 # --- is_dse_job: env-sampled lists are not search dimensions ---
 
 
