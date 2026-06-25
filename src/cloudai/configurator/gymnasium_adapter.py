@@ -35,7 +35,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from cloudai._core.action_space import ContinuousSpace
 from cloudai.configurator.base_gym import BaseGym
 from cloudai.configurator.env_params import StructuredObservation
 from cloudai.util.lazy_imports import lazy
@@ -79,17 +78,12 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
 
         raw_action_space = env.define_action_space()
 
-        # Three classes of params from cloudai's param_space:
+        # Two classes of params from cloudai's param_space:
         #   list with len > 1   -> discrete tunable, mapped to gym.Discrete.
         #   list with len == 1  -> fixed (collapsed); injected on every step so
         #                          agents never see them.
-        #   ContinuousSpace     -> continuous tunable, mapped to gym.Box(1,);
-        #                          ``dtype="int"`` quantizes at decode_action.
         self._discrete_params: dict[str, list] = {
             k: v for k, v in raw_action_space.items() if isinstance(v, list) and len(v) > 1
-        }
-        self._continuous_params: dict[str, ContinuousSpace] = {
-            k: v for k, v in raw_action_space.items() if isinstance(v, ContinuousSpace)
         }
         self._fixed_params: dict[str, Any] = {
             k: v[0] for k, v in raw_action_space.items() if isinstance(v, list) and len(v) == 1
@@ -98,13 +92,6 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
         action_space_components: dict[str, Any] = {
             name: spaces.Discrete(len(values)) for name, values in self._discrete_params.items()
         }
-        for name, space in self._continuous_params.items():
-            action_space_components[name] = spaces.Box(
-                low=np.array([space.low], dtype=np.float32),
-                high=np.array([space.high], dtype=np.float32),
-                shape=(1,),
-                dtype=np.float32,
-            )
         self.action_space = spaces.Dict(action_space_components)
 
         # Observation space: prefer the env's structured (per-leaf) spec so the
@@ -151,25 +138,14 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
         Map raw gym actions back to native parameter values.
 
         Discrete actions are list indices and resolve to the corresponding list
-        entry. Continuous actions arrive as a 1-D ``numpy`` array (the Box
-        shape) and are clamped to the declared range; for ``dtype="int"`` the
-        scalar is rounded — this is the **only** place quantization happens, so
-        the cache key collapses float jitter (47.34 vs 47.36) onto the same
-        emitted int and downstream code stays type-agnostic.
+        entry.
 
         Raises:
             ValueError: if ``action`` is missing tunable params, contains
                 unknown keys, or carries an out-of-range discrete index.
         """
-        expected = set(self._discrete_params) | set(self._continuous_params)
-        self._assert_keys(action.keys(), expected, "action")
-        decoded: dict[str, Any] = {}
-        for name, raw in action.items():
-            if name in self._discrete_params:
-                decoded[name] = self._decode_discrete(name, raw)
-            else:
-                decoded[name] = self._decode_continuous(name, raw)
-        return decoded
+        self._assert_keys(action.keys(), set(self._discrete_params), "action")
+        return {name: self._decode_discrete(name, raw) for name, raw in action.items()}
 
     def _decode_discrete(self, name: str, raw: Any) -> Any:
         values = self._discrete_params[name]
@@ -178,23 +154,14 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
             raise ValueError(f"Action index out of range for '{name}': {idx} (expected 0..{len(values) - 1})")
         return values[idx]
 
-    def _decode_continuous(self, name: str, raw: Any) -> Any:
-        space = self._continuous_params[name]
-        scalar = float(self._np.asarray(raw, dtype=self._np.float32).reshape(-1)[0])
-        clamped = min(max(scalar, space.low), space.high)
-        return round(clamped) if space.dtype == "int" else clamped
-
     def encode_action(self, values: dict[str, Any]) -> dict[str, Any]:
         """
         Map native parameter values back to raw gym actions; inverse of :meth:`decode_action`.
 
-        Discrete values resolve to their index in the candidate list; continuous
-        values are wrapped in the 1-D ``float32`` array the ``Box`` space expects
-        (clamped to the declared range). Together with :meth:`decode_action` this
-        is an invertible pair on native values:
+        Discrete values resolve to their index in the candidate list. Together
+        with :meth:`decode_action` this is an invertible pair on native values:
         ``decode_action(encode_action(v)) == v`` for any ``v`` drawn from the
-        tunable params (continuous ``dtype="int"`` round-trips through the same
-        rounding ``decode_action`` applies).
+        tunable params.
 
         Consumers that need to express known native configs in the policy's
         action space — e.g. warm-start / behavioral cloning from a recorded
@@ -204,15 +171,8 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
             ValueError: if ``values`` does not cover exactly the tunable params,
                 or carries a discrete value absent from its candidate list.
         """
-        expected = set(self._discrete_params) | set(self._continuous_params)
-        self._assert_keys(values.keys(), expected, "values")
-        encoded: dict[str, Any] = {}
-        for name, value in values.items():
-            if name in self._discrete_params:
-                encoded[name] = self._encode_discrete(name, value)
-            else:
-                encoded[name] = self._encode_continuous(name, value)
-        return encoded
+        self._assert_keys(values.keys(), set(self._discrete_params), "values")
+        return {name: self._encode_discrete(name, value) for name, value in values.items()}
 
     def _encode_discrete(self, name: str, value: Any) -> int:
         values = self._discrete_params[name]
@@ -220,11 +180,6 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
             return values.index(value)
         except ValueError:
             raise ValueError(f"Value {value!r} for '{name}' is not a candidate; expected one of {values}") from None
-
-    def _encode_continuous(self, name: str, value: Any) -> Any:
-        space = self._continuous_params[name]
-        clamped = min(max(float(value), space.low), space.high)
-        return self._np.asarray([clamped], dtype=self._np.float32)
 
     def reset(
         self,
@@ -247,7 +202,7 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
             ValueError: if ``params`` does not cover exactly the tunable +
                 fixed param keys.
         """
-        expected = set(self._discrete_params) | set(self._continuous_params) | set(self._fixed_params)
+        expected = set(self._discrete_params) | set(self._fixed_params)
         self._assert_keys(params.keys(), expected, "raw params")
         return self._step_with_params(params)
 
