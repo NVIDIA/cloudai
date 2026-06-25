@@ -43,7 +43,7 @@ class FioStandaloneCommandGenStrategy(CommandGenStrategy):
         full_cmd = self.gen_exec_command(store=False)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as f:
             trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
-            toml.dump(trd.model_dump(), f)
+            toml.dump(trd.model_dump(exclude_none=True), f)
 
     def gen_exec_command(self, store: bool = True) -> str:
         if store:

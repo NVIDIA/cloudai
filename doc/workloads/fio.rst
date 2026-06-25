@@ -65,7 +65,7 @@ Nested key names are only stable TOML item names; values become fio values:
       "0" = "=foo"  # --a==foo
       "1" = "bar"   # --a=bar
 
-      [cmd_args.args."--client"]
+      [cmd_args.args."client"]
       "0" = "host1" # --client=host1
       "1" = "host2" # --client=host2
 
