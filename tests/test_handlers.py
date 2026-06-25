@@ -56,6 +56,7 @@ class StubAgentConfig(BaseAgentConfig):
 
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
+    samples_env_params: bool = True  # stands in for an env-aware learning agent
 
     def __init__(self, env, config: StubAgentConfig):
         self.env = env
@@ -436,7 +437,7 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
 def test_validate_dse_env_params_rejects_non_dse(base_tr: TestRun) -> None:
     base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     scenario = TestScenario(name="s", test_runs=[base_tr])
-    with pytest.raises(TestScenarioParsingError, match="will not sample them"):
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
         validate_dse_env_params(scenario)
 
 
@@ -444,15 +445,36 @@ def test_validate_dse_env_params_rejects_grid_search(dse_tr: TestRun) -> None:
     """A DSE job on grid_search exhaustively searches the space, so env_params are noise -> reject."""
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     assert dse_tr.is_dse_job is True  # it IS a DSE job...
-    assert dse_tr.test.agent == "grid_search"  # ...but grid_search ignores env_params
-    with pytest.raises(TestScenarioParsingError, match="will not sample them"):
+    assert dse_tr.test.agent == "grid_search"  # ...but grid_search does not sample env_params
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
         validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_dse_env_params_rejects_non_sampling_agent(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check keys on the agent capability, not the name: a non-grid agent that opts out is rejected too."""
+    monkeypatch.setattr(StubAgent, "samples_env_params", False)
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name
+    assert dse_tr.is_dse_job is True and dse_tr.test.agent != "grid_search"
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_dse_env_params_defers_unknown_agent(dse_tr: TestRun) -> None:
+    """An unknown agent is not flagged here; it is deferred to the dedicated agent-resolution error."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = "does_not_exist_agent"
+    assert dse_tr.is_dse_job is True
+    assert dse_tr.test.agent not in Registry().agents_map  # precondition: agent is truly unknown
+    validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == deferred
 
 
 def test_validate_dse_env_params_allows_dse_run(dse_tr: TestRun, stub_agent_name: str) -> None:
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
-    dse_tr.test.agent = stub_agent_name  # a learning agent (not grid_search) consumes env_params
-    assert dse_tr.is_dse_job is True  # precondition: DSE + learning agent + env_params is allowed
+    dse_tr.test.agent = stub_agent_name  # an env-aware agent (samples_env_params=True) consumes env_params
+    assert dse_tr.is_dse_job is True  # precondition: DSE + env-aware agent + env_params is allowed
     validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
 
 
