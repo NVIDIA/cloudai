@@ -989,10 +989,15 @@ def test_live_rl_only_env_params_no_action_space_is_valid(tmp_path: Path) -> Non
 
     So a config with only env_params (and no list-valued cmd_args/extra_env_vars/num_nodes) is
     complete and valid. Proves: is_dse_job is False and param_space is empty (no action list), yet
-    the env sources its action space from the server and still honors env_params (observer built).
+    the env sources its action space from the server and still builds EnvParams from the declaration.
     """
     cmd_args = CmdArgs.model_validate(
-        {"live_rl_mode": True, "env_class": f"{FakeGymServer.__module__}.FakeGymServer", "n_actions": 2}
+        {
+            "live_rl_mode": True,
+            "env_class": f"{FakeGymServer.__module__}.FakeGymServer",
+            "n_actions": 2,
+            "ball_speed": [1, 2],  # env-sampled candidate list (excluded from the action space)
+        }
     )
     tdef = TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=cmd_args)
     tdef.env_params = {"ball_speed": EnvParamSpec()}
@@ -1005,4 +1010,4 @@ def test_live_rl_only_env_params_no_action_space_is_valid(tmp_path: Path) -> Non
 
     assert env._is_online is True
     assert env.define_action_space() == {"a": [0, 1], "b": [0, 1]}  # action space comes from the server
-    assert env.observers, "declared env_params must build an EnvParamsObserver even in live-RL mode"
+    assert env.params is not None, "declared env_params must build EnvParams even in live-RL mode"
