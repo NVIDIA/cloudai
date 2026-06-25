@@ -58,9 +58,8 @@ class BaseAgent(ABC):
     Provides a unified interface and parameter management for action spaces.
     """
 
-    # Opt-in capability: only agents whose search consumes per-trial env_params sampling set this
-    # to True. Defaults False so a config that declares env_params for an agent that would ignore
-    # them is rejected up front instead of silently having no effect.
+    # Opt-in: agents that consume per-trial env_params sampling set this True. Default False so
+    # env_params declared for a non-sampling agent are rejected rather than silently ignored.
     samples_env_params: bool = False
 
     def __init__(self, env: BaseGym, config: BaseAgentConfig):

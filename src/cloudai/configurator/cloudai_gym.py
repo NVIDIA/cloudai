@@ -63,8 +63,6 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
-        # Resolve env_params once, at formulation: None unless the workload declares something to
-        # sample, so a non-DR run carries no env-params state and pays zero per-step overhead.
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.env_params_sink = EnvParamsSink()
         super().__init__()
@@ -130,9 +128,7 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         self.test_run.increment_step()
-        # Sample this trial's env_params (the RNG lives here, in the env), then apply the agent's
-        # action and the sample together: apply_params_set overlays both onto cmd_args and records
-        # current_env_params, so the workload runs with the sampled values and the cache key sees them.
+        # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
         sampled_env_params = self.params.sample(self.test_run.step) if self.params else {}
         self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
@@ -178,9 +174,7 @@ class CloudAIGymEnv(BaseGym):
             self.test_run.step = new_tr.step
             self.test_run.output_path = new_tr.output_path
 
-        # Rebuilding/replacing test_run above can drop the per-trial env_params sample;
-        # restore it so the trajectory entry, the cache key, and env.csv all record the
-        # params the trial actually ran with.
+        # The test_run rebuild above drops the sample; restore it so the entry, cache key, and env.csv match.
         self.test_run.current_env_params = new_tr.current_env_params
 
         observation = self.get_observation(action)

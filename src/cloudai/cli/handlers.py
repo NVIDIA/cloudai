@@ -135,8 +135,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         return 1
 
     err = 0
-    # Recoverable failures return a non-zero rc and are accumulated here; an unexpected exception
-    # (a bug) is a hard-fail. We capture it so reports still generate, then re-raise below.
+    # Capture an unexpected error so reports still generate, then re-raise below.
     run_error: Exception | None = None
     try:
         for tr in runner.runner.test_scenario.test_runs:

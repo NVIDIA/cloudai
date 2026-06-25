@@ -203,10 +203,7 @@ class TestRun:
             else:
                 setattr(obj, attrs[-1], value)
 
-        # The agent's chosen action and this trial's sampled env_params are both just concrete
-        # values written onto cmd_args, applied through the one path here. env_params keys name
-        # cmd_args fields; sampling (the RNG) happens in the env before this call, so this method
-        # stays deterministic.
+        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
         for key, value in action.items():
             _apply(key, value)
         for key, value in (env_params or {}).items():
