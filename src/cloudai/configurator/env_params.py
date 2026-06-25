@@ -32,10 +32,16 @@ import dataclasses
 import math
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
+
+from cloudai._core.exceptions import TestScenarioParsingError
+from cloudai._core.registry import Registry
+
+if TYPE_CHECKING:
+    from cloudai._core.test_scenario import TestScenario
 
 
 class EnvParamSpec(BaseModel):
@@ -157,3 +163,35 @@ class EnvParamsSink:
             if new_file:
                 writer.writerow(("step", "env"))
             writer.writerow([step, sample])
+
+
+def validate_dse_env_params(test_scenario: "TestScenario") -> None:
+    """
+    Reject prepped configs that declare env_params no agent will sample.
+
+    env_params are sampled per-trial by CloudAIGymEnv, but the sampling only matters for an agent
+    that opts into it via ``BaseAgent.samples_env_params``. A non-DSE run has no per-trial loop, and
+    an agent that does not opt in ignores env_params, so declaring them there is a silent no-op.
+    is_dse_job and the agent both resolve only on the fully prepped config, so this is validated
+    here rather than at parse time.
+    """
+    agents = Registry().agents_map
+
+    offenders = []
+    for tr in test_scenario.test_runs:
+        if not tr.test.env_params:
+            continue
+
+        agent = agents.get(tr.test.agent)
+        # Unknown agent: defer to the dedicated agent-resolution error rather than masking it here.
+        sampled = tr.is_dse_job and (agent is None or agent.samples_env_params)
+        if not sampled:
+            offenders.append(tr.name)
+
+    if offenders:
+        raise TestScenarioParsingError(
+            f"Tests {offenders} declare env_params but no agent will sample them. env_params are sampled "
+            "per-trial only by a DSE run on an agent that opts into env_params sampling. Add a sweep "
+            "(a list-valued cmd_args/extra_env_vars entry or num_nodes) and use such an agent, or remove "
+            "env_params."
+        )

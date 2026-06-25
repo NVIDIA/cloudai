@@ -58,6 +58,11 @@ class BaseAgent(ABC):
     Provides a unified interface and parameter management for action spaces.
     """
 
+    # Opt-in capability: only agents whose search consumes per-trial env_params sampling set this
+    # to True. Defaults False so a config that declares env_params for an agent that would ignore
+    # them is rejected up front instead of silently having no effect.
+    samples_env_params: bool = False
+
     def __init__(self, env: BaseGym, config: BaseAgentConfig):
         """
         Initialize the agent with the environment.
@@ -94,9 +99,8 @@ class BaseAgent(ABC):
 
         Args:
             observation: Latest observation produced by the environment (``env.reset()`` on the
-                first call, then the result of the prior ``env.step()``). Stateless agents such
-                as grid search or Bayesian optimization may ignore this; observation-conditioned
-                agents (RL, contextual bandits) should use it.
+                first call, then the result of the prior ``env.step()``). Stateless agents may
+                ignore this; observation-conditioned agents should use it.
 
         Returns:
             Tuple[int, Dict[str, Any]] | None: The current step index and a dictionary mapping action keys
@@ -120,8 +124,7 @@ class BaseAgent(ABC):
 
         Default: a step loop driven by the dispatcher (``select_action`` →
         ``env.step`` → ``update_policy`` per trial). Agents that drive their
-        own training loop (e.g. RLlib-based agents calling ``algo.train()``)
-        override this method.
+        own training loop override this method.
 
         Failure contract (``handle_dse_job`` consumes the result via
         ``err |= agent.run()``):
@@ -131,7 +134,8 @@ class BaseAgent(ABC):
           accumulated and the next ``TestRun`` still executes. Workload-level
           failures are already surfaced this way: ``CloudAIGymEnv.step`` maps a
           failed metric to ``rewards.metric_failure`` rather than raising, and
-          ``rllib_run`` catches training errors and returns ``rc=1``.
+          agents with their own training loop should likewise catch training
+          errors and return a non-zero code.
         - Raise for *unexpected* failures (framework/agent bugs). Exceptions
           propagate out of ``handle_dse_job`` and hard-fail the job so the bug
           is surfaced instead of masked as a penalizing reward.
