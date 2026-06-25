@@ -209,7 +209,12 @@ class TestRun:
         for key, value in (env_params or {}).items():
             _apply(key, value)
 
-        type(tdef)(**tdef.model_dump())  # trigger validation
+        # env_params is validated at parse time; after the overlay its target cmd_args fields hold
+        # concrete scalar draws, so re-validating it here would reject weighted specs. Drop it for
+        # this validation-only pass, which exists to validate the applied action values.
+        validation_args = tdef.model_dump()
+        validation_args.pop("env_params", None)
+        type(tdef)(**validation_args)  # trigger validation
 
         new_tr = copy.deepcopy(self)
         new_tr.test = tdef

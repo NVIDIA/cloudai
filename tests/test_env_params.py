@@ -45,6 +45,7 @@ from cloudai.configurator.env_params import (
     EnvParamSpec,
     EnvParamsSink,
 )
+from cloudai.core import TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -376,3 +377,15 @@ def test_is_dse_job_true_when_a_real_action_dimension_exists() -> None:
     """An un-annotated cmd_args list is a real action dimension -> DSE, even alongside env_params."""
     tdef = _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 2, 3], paddle_width=[4, 8])
     assert tdef.is_dse_job is True
+
+
+def test_apply_params_set_accepts_weighted_env_param_draw() -> None:
+    """Regression: apply_params_set re-validates after the overlay; a weighted env_param's scalar
+    draw must not trip validate_env_params (which would reject 'weights but not a candidate list')."""
+    tdef = _tdef({"ball_speed": EnvParamSpec(weights=[0.7, 0.3])}, ball_speed=[1, 2])
+    tr = TestRun(name="tr", test=tdef, num_nodes=1, nodes=[])
+
+    new_tr = tr.apply_params_set({}, env_params={"ball_speed": 1})
+
+    assert new_tr.test.cmd_args.ball_speed == 1
+    assert new_tr.current_env_params == {"ball_speed": 1}
