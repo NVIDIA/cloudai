@@ -16,38 +16,26 @@
 
 from pathlib import Path
 
+import pytest
+
 from cloudai.core import METRIC_ERROR, TestRun
 from cloudai.systems.standalone import StandaloneSystem
 from cloudai.workloads.fio import FioCmdArgs, FioReportGenerationStrategy, FioTestDefinition
-from cloudai.workloads.fio.report_generation_strategy import extract_fio_data
 
 FIO_STDOUT = """
-job1: (groupid=0, jobs=1): err= 0: pid=15642: Thu Jun 11 21:06:45 2026
-  read: IOPS=315, BW=2524MiB/s (2647MB/s)(24.7GiB/10012msec)
-    clat (usec): min=6941, max=30695, avg=14504.83, stdev=2564.83
-     lat (usec): min=6963, max=30717, avg=14527.39, stdev=2564.96
-  write: IOPS=1.2k, BW=2633MiB/s (2761MB/s)(25.7GiB/10012msec)
-    clat (usec): min=1735, max=26776, avg=9949.52, stdev=2895.16
-     lat (usec): min=2190, max=27386, avg=10374.89, stdev=2885.57
+job1: (groupid=0, jobs=1): err= 0: pid=1
+  write: IOPS=100, BW=10MiB/s (10MB/s)(80.0MiB/14msec)
+     lat (usec): min=1, max=3, avg=2.00, stdev=0.1
+job2: (groupid=0, jobs=1): err= 0: pid=2
+  write: IOPS=200, BW=20MiB/s (20MB/s)(80.0MiB/14msec)
+     lat (usec): min=2, max=4, avg=3.00, stdev=0.1
+job3: (groupid=0, jobs=1): err= 0: pid=3
+  read: IOPS=300, BW=30MiB/s (30MB/s)(80.0MiB/14msec)
+     lat (usec): min=3, max=5, avg=4.00, stdev=0.1
 """
 
 
-def test_extract_fio_data_parses_iops_bw_and_latency(tmp_path: Path) -> None:
-    stdout = tmp_path / "stdout.txt"
-    stdout.write_text(FIO_STDOUT)
-
-    rows = extract_fio_data(stdout)
-
-    assert len(rows) == 2
-    assert rows[0].operation == "read"
-    assert rows[0].iops == 315
-    assert rows[0].bw == 2524
-    assert rows[0].latency_avg == 14527.39
-    assert rows[1].operation == "write"
-    assert rows[1].iops == 1200
-
-
-def test_fio_report_writes_summary_csv(standalone_system: StandaloneSystem, tmp_path: Path) -> None:
+def test_fio_report_happy_path(standalone_system: StandaloneSystem, tmp_path: Path) -> None:
     tdef = FioTestDefinition(
         name="fio",
         description="fio test",
@@ -59,12 +47,68 @@ def test_fio_report_writes_summary_csv(standalone_system: StandaloneSystem, tmp_
     strategy = FioReportGenerationStrategy(standalone_system, tr)
 
     assert strategy.can_handle_directory()
-    assert strategy.get_metric("read_bw") == 2524
-    assert strategy.get_metric("write_iops") == 1200
+    assert strategy.get_metric("default") == 60
+    assert strategy.get_metric("write_iops") == 200
+    assert strategy.get_metric("read_bw") == 30
     assert strategy.get_metric("unknown") is METRIC_ERROR
 
     strategy.generate_report()
 
     csv_path = tmp_path / "fio_summary.csv"
     assert csv_path.is_file()
-    assert "operation,iops,bw,bw_unit,latency_avg,latency_unit" in csv_path.read_text()
+    csv_text = csv_path.read_text()
+    assert "operation,iops,bw,bw_unit,latency_avg,latency_unit" in csv_text
+    assert "read,300.0,30.0,MiB/s,4.0,usec" in csv_text
+
+
+def _strategy_for_metric(
+    standalone_system: StandaloneSystem,
+    tmp_path: Path,
+    metric_operation: str = "all",
+    metric_name: str = "bw",
+    metric_aggregate: str = "sum",
+) -> FioReportGenerationStrategy:
+    tdef = FioTestDefinition(
+        name="fio",
+        description="fio test",
+        test_template_name="Fio",
+        cmd_args=FioCmdArgs(
+            args={"name": "smoke"},
+            metric_operation=metric_operation,
+            metric_name=metric_name,
+            metric_aggregate=metric_aggregate,
+        ),
+    )
+    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    (tmp_path / "stdout.txt").write_text(FIO_STDOUT)
+    return FioReportGenerationStrategy(standalone_system, tr)
+
+
+@pytest.mark.parametrize(
+    ("metric_operation", "metric_name", "metric_aggregate", "expected"),
+    [
+        ("write", "bw", "sum", 30),
+        ("write", "iops", "mean", 150),
+        ("all", "bw", "min", 10),
+        ("all", "bw", "max", 30),
+        ("all", "bw", "first", 10),
+        ("all", "latency", "mean", 3),
+    ],
+)
+def test_default_metric_configuration(
+    standalone_system: StandaloneSystem,
+    tmp_path: Path,
+    metric_operation: str,
+    metric_name: str,
+    metric_aggregate: str,
+    expected: float,
+) -> None:
+    strategy = _strategy_for_metric(
+        standalone_system,
+        tmp_path,
+        metric_operation=metric_operation,
+        metric_name=metric_name,
+        metric_aggregate=metric_aggregate,
+    )
+
+    assert strategy.get_metric("default") == expected

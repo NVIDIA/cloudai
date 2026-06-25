@@ -33,7 +33,7 @@ def test_gen_exec_command_redirects_output_and_writes_test_run(
         test_template_name="Fio",
         cmd_args=FioCmdArgs(
             fio_binary="fio",
-            args={"name": "smoke", "filename": "/tmp/file", "rw": "write", "bs": "128k"},
+            args={"name": "smoke", "filename": "/tmp/file", "rw": "write", "group_reporting": True},
         ),
         extra_env_vars={"FIO_VAR": "1"},
     )
@@ -43,10 +43,10 @@ def test_gen_exec_command_redirects_output_and_writes_test_run(
     command = strategy.gen_exec_command()
 
     assert command.endswith(f"> {tr.output_path / 'stdout.txt'} 2> {tr.output_path / 'stderr.txt'}")
-    assert 'export FIO_VAR="1"; fio --name=smoke --filename=/tmp/file --rw=write --bs=128k' in command
+    assert 'export FIO_VAR="1"; fio --name=smoke --filename=/tmp/file --rw=write --group_reporting' in command
 
     dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     assert dump_path.is_file()
     details = TestRunDetails.model_validate(toml.load(dump_path))
-    assert details.test_cmd == 'export FIO_VAR="1"; fio --name=smoke --filename=/tmp/file --rw=write --bs=128k'
+    assert details.test_cmd == 'export FIO_VAR="1"; fio --name=smoke --filename=/tmp/file --rw=write --group_reporting'
     assert details.full_cmd == command

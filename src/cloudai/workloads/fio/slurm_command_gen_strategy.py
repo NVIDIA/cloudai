@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import shlex
-from typing import List, cast
+from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -36,7 +36,7 @@ class FioSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         image = tdef.docker_image
         return str(image.installed_path) if image else None
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> list[str]:
         prefix = super().gen_srun_prefix(use_pretest_extras, with_num_nodes)
         return [part for part in prefix if not part.startswith("--mpi=")]
 
@@ -46,9 +46,6 @@ class FioSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes, _ = self.get_cached_nodes_spec()
         if args.num_tasks_per_node is not None:
             task_args.append(f"--ntasks-per-node={args.num_tasks_per_node}")
-        if args.num_tasks is not None:
-            task_args.append(f"--ntasks={args.num_tasks}")
-        elif args.num_tasks_per_node is not None:
             task_args.append(f"--ntasks={num_nodes * args.num_tasks_per_node}")
         return task_args
 

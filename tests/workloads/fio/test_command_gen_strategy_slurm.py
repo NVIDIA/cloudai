@@ -37,15 +37,19 @@ def fio_tr(slurm_system: SlurmSystem, tmp_path: Path) -> TestRun:
                 "rw": "randwrite",
                 "bs": "128k",
                 "iodepth": 8,
+                "max-jobs": 4,
+                "--warnings-fatal": True,
                 "group_reporting": True,
             },
+            docker_image_url="openeuler/fio:3.42-oe2403sp3",
             num_tasks_per_node=2,
         ),
     )
     return TestRun(name="fio", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path / "output")
 
 
-def test_generate_test_command_cli_args(slurm_system: SlurmSystem, fio_tr: TestRun) -> None:
+def test_slurm_typical_cluster_execution_command(slurm_system: SlurmSystem, fio_tr: TestRun) -> None:
+    fio_tr.output_path.mkdir(parents=True, exist_ok=True)
     strategy = FioSlurmCommandGenStrategy(slurm_system, fio_tr)
 
     assert strategy.generate_test_command() == [
@@ -55,11 +59,23 @@ def test_generate_test_command_cli_args(slurm_system: SlurmSystem, fio_tr: TestR
         "--rw=randwrite",
         "--bs=128k",
         "--iodepth=8",
-        "--group-reporting",
+        "--max-jobs=4",
+        "--warnings-fatal",
+        "--group_reporting",
     ]
+    assert not fio_tr.test.is_dse_job
+
+    command = strategy.gen_srun_command()
+    assert "--mpi=" not in command
+    assert "-N2" in command
+    assert "--ntasks-per-node=2" in command
+    assert "--ntasks=4" in command
+    assert "--container-image=openeuler/fio:3.42-oe2403sp3" in command
+    assert "/tmp/fio/fio --name=randwrite" in command
+    assert "IOPS=" in strategy.gen_srun_success_check()
 
 
-def test_generate_test_command_job_file(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+def test_job_file_is_appended_without_declaring_fio_options(slurm_system: SlurmSystem, tmp_path: Path) -> None:
     tdef = FioTestDefinition(
         name="fio",
         description="fio test",
@@ -72,36 +88,30 @@ def test_generate_test_command_job_file(slurm_system: SlurmSystem, tmp_path: Pat
     assert strategy.generate_test_command() == ["fio", "/tmp/kv_emulation.fio"]
 
 
-def test_gen_srun_prefix_omits_mpi(slurm_system: SlurmSystem, fio_tr: TestRun) -> None:
-    strategy = FioSlurmCommandGenStrategy(slurm_system, fio_tr)
+def test_nested_arg_table_repeats_same_fio_option(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+    tdef = FioTestDefinition(
+        name="fio",
+        description="fio test",
+        test_template_name="Fio",
+        cmd_args=FioCmdArgs(
+            args={
+                "name": "repeat",
+                "a": {"0": "=foo", "1": "bar"},
+                "--client": {"0": "host1", "1": "host2"},
+            },
+        ),
+    )
+    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    strategy = FioSlurmCommandGenStrategy(slurm_system, tr)
 
-    prefix = strategy.gen_srun_prefix()
-
-    assert "srun" in prefix
-    assert not any(part.startswith("--mpi=") for part in prefix)
-
-
-def test_gen_srun_command_adds_multinode_task_counts(slurm_system: SlurmSystem, fio_tr: TestRun) -> None:
-    fio_tr.output_path.mkdir(parents=True, exist_ok=True)
-    strategy = FioSlurmCommandGenStrategy(slurm_system, fio_tr)
-
-    command = strategy.gen_srun_command()
-
-    assert "--mpi=" not in command
-    assert "--ntasks-per-node=2" in command
-    assert "--ntasks=4" in command
-    assert "/tmp/fio/fio --name=randwrite" in command
-
-
-def test_gen_srun_success_check_uses_fio_summary_markers(slurm_system: SlurmSystem, fio_tr: TestRun) -> None:
-    strategy = FioSlurmCommandGenStrategy(slurm_system, fio_tr)
-
-    assert "IOPS=" in strategy.gen_srun_success_check()
-    assert "BW=" in strategy.gen_srun_success_check()
-
-
-def test_default_passthrough_args_do_not_create_dse_job(fio_tr: TestRun) -> None:
-    assert not fio_tr.test.is_dse_job
+    assert strategy.generate_test_command() == [
+        "fio",
+        "--name=repeat",
+        "--a==foo",
+        "--a=bar",
+        "--client=host1",
+        "--client=host2",
+    ]
 
 
 def test_list_valued_fio_args_create_dse_job(tmp_path: Path) -> None:
@@ -115,3 +125,15 @@ def test_list_valued_fio_args_create_dse_job(tmp_path: Path) -> None:
 
     assert tr.is_dse_job
     assert tr.param_space == {"args.iodepth": [1, 8]}
+
+
+def test_nested_repeated_arg_values_do_not_create_dse_job(tmp_path: Path) -> None:
+    tdef = FioTestDefinition(
+        name="fio",
+        description="fio test",
+        test_template_name="Fio",
+        cmd_args=FioCmdArgs(args={"a": {"0": "=foo", "1": "bar"}}),
+    )
+    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+
+    assert not tr.is_dse_job

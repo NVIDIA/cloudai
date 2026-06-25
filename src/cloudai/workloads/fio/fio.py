@@ -16,18 +16,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Optional
+import pathlib
+from typing import Any
 
-from pydantic import Field, model_validator
-from typing_extensions import Self
+import pydantic
 
 from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .report_generation_strategy import extract_fio_data
-
-FioArgValue = bool | int | float | str | list[bool | int | float | str]
 
 
 class FioCmdArgs(CmdArgs):
@@ -36,43 +33,37 @@ class FioCmdArgs(CmdArgs):
     fio_binary: str = "fio"
     """fio executable to run. Use an absolute path for patched/custom fio builds."""
 
-    job_file: Optional[str] = None
+    job_file: str | None = None
     """Optional fio job/config file. When set, it is appended after CLI options."""
 
-    args: dict[str, FioArgValue] = Field(default_factory=dict)
-    """fio CLI options, without leading ``--``. Underscores are converted to dashes."""
+    args: dict[str, Any] = pydantic.Field(default_factory=dict)
+    """fio CLI options, without leading ``--``. Keys are passed to fio verbatim."""
 
-    passthrough_args: list[str] = Field(default_factory=list)
-    """Additional raw fio CLI arguments appended after ``args``."""
-
-    docker_image_url: Optional[str] = None
+    docker_image_url: str | None = None
     """Optional Docker image to use for Slurm container execution."""
 
-    num_tasks: Optional[int] = None
-    """Optional total Slurm task count. Defaults to ``num_nodes * num_tasks_per_node``."""
-
-    num_tasks_per_node: Optional[int] = 1
+    num_tasks_per_node: int | None = 1
     """Optional Slurm task count per node for multi-node fio runs."""
 
-    @model_validator(mode="after")
-    def validate_launch_mode(self) -> Self:
-        if not self.job_file and not self.args and not self.passthrough_args:
-            raise ValueError("fio requires at least one of job_file, args, or passthrough_args.")
-        return self
+    metric_operation: str = "all"
+    """Operation used for the default metric: read, write, trim, all, or first."""
+
+    metric_name: str = "bw"
+    """Metric used for the default metric: bw, iops, or latency."""
+
+    metric_aggregate: str = "sum"
+    """Aggregation used for the default metric: sum, mean, min, max, or first."""
+
+    def fio_args(self) -> dict[str, Any]:
+        """Return only arguments intended for the fio CLI."""
+        return self.args
 
 
 class FioTestDefinition(TestDefinition):
     """Test definition for fio."""
 
     cmd_args: FioCmdArgs
-    dse_excluded_args: list[str] = Field(default_factory=lambda: ["cmd_args.passthrough_args"])
     _fio_image: DockerImage | None = None
-
-    @model_validator(mode="after")
-    def exclude_passthrough_args_from_dse(self) -> Self:
-        if "cmd_args.passthrough_args" not in self.dse_excluded_args:
-            self.dse_excluded_args.append("cmd_args.passthrough_args")
-        return self
 
     @property
     def docker_image(self) -> DockerImage | None:
@@ -86,20 +77,6 @@ class FioTestDefinition(TestDefinition):
     def installables(self) -> list[Installable]:
         image = self.docker_image
         return [*([image] if image else []), *self.git_repos]
-
-    @property
-    def cmd_args_dict(self) -> dict[str, Any]:
-        return self.cmd_args.model_dump(
-            exclude={
-                "fio_binary",
-                "job_file",
-                "docker_image_url",
-                "num_tasks",
-                "num_tasks_per_node",
-                "passthrough_args",
-            },
-            exclude_none=True,
-        )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         stdout_path = tr.output_path / "stdout.txt"
@@ -119,7 +96,7 @@ class FioTestDefinition(TestDefinition):
                 error_message=f"stdout.txt is empty in {tr.output_path}. Check {stderr_path} for fio errors.",
             )
 
-        if not extract_fio_data(Path(stdout_path)):
+        if not extract_fio_data(pathlib.Path(stdout_path)):
             return JobStatusResult(
                 is_successful=False,
                 error_message=(

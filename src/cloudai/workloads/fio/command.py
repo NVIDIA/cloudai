@@ -17,22 +17,29 @@
 from __future__ import annotations
 
 import shlex
-from typing import Iterable
+from collections.abc import Mapping
+from typing import Any, Iterable
 
-from .fio import FioArgValue, FioCmdArgs
+from .fio import FioCmdArgs
 
 
-def _format_scalar(value: bool | int | float | str) -> str:
+def _format_scalar(value: Any) -> str:
     if isinstance(value, bool):
         return str(value).lower()
     return str(value)
 
 
-def _format_option(name: str, value: FioArgValue) -> list[str]:
+def _format_option(name: str, value: Any) -> list[str]:
     if value is None or value is False:
         return []
 
-    normalized = name.strip().replace("_", "-")
+    if isinstance(value, Mapping):
+        parts: list[str] = []
+        for nested_value in value.values():
+            parts.extend(_format_option(name, nested_value))
+        return parts
+
+    normalized = name.strip()
     flag = normalized if normalized.startswith("-") else f"--{normalized}"
     if value is True:
         return [flag]
@@ -45,9 +52,8 @@ def _format_option(name: str, value: FioArgValue) -> list[str]:
 
 def build_fio_command_parts(cmd_args: FioCmdArgs) -> list[str]:
     parts = [shlex.quote(cmd_args.fio_binary)]
-    for name, value in cmd_args.args.items():
+    for name, value in cmd_args.fio_args().items():
         parts.extend(_format_option(name, value))
-    parts.extend(cmd_args.passthrough_args)
     if cmd_args.job_file:
         parts.append(shlex.quote(cmd_args.job_file))
     return parts

@@ -2,14 +2,10 @@
 # Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name = "fio-scenario"
+name = "fio-local-scenario"
 
 [[Tests]]
 id = "Tests.fio"
 test_name = "fio"
-num_nodes = 2
+num_nodes = 1
 time_limit = "00:05:00"
-
-  [Tests.cmd_args]
-  docker_image_url = "openeuler/fio:3.42-oe2403sp3"
-  num_tasks_per_node = 2

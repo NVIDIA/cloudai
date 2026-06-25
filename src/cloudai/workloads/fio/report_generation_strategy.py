@@ -19,6 +19,7 @@ from __future__ import annotations
 import csv
 import logging
 import re
+import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -103,6 +104,42 @@ def extract_fio_data(stdout_file: Path) -> list[FioSummary]:
     return summaries
 
 
+def _filter_rows(rows: list[FioSummary], operation: str) -> list[FioSummary]:
+    if operation == "first":
+        return rows[:1]
+    if operation == "all":
+        return rows
+    return [row for row in rows if row.operation == operation]
+
+
+def _metric_values(rows: list[FioSummary], metric_name: str) -> list[float]:
+    if metric_name == "bw":
+        return [row.bw for row in rows]
+    if metric_name == "iops":
+        return [row.iops for row in rows]
+    if metric_name == "latency":
+        return [row.latency_avg for row in rows if row.latency_avg is not None]
+    return []
+
+
+def _aggregate_values(values: list[float], aggregate: str) -> MetricValue:
+    if not values:
+        return METRIC_ERROR
+    if aggregate == "sum":
+        return sum(values)
+    if aggregate == "mean":
+        return statistics.fmean(values)
+    if aggregate == "min":
+        return min(values)
+    if aggregate == "max":
+        return max(values)
+    if aggregate == "first":
+        return values[0]
+
+    logging.warning(f"Unsupported fio metric aggregate {aggregate!r}.")
+    return METRIC_ERROR
+
+
 class FioReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for fio."""
 
@@ -115,6 +152,14 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
     def can_handle_directory(self) -> bool:
         return bool(extract_fio_data(self.results_file))
 
+    def _configured_default_metric(self, rows: list[FioSummary]) -> MetricValue:
+        cmd_args = self.test_run.test.cmd_args
+        operation = str(getattr(cmd_args, "metric_operation", "all")).lower()
+        metric_name = str(getattr(cmd_args, "metric_name", "bw")).lower()
+        aggregate = str(getattr(cmd_args, "metric_aggregate", "sum")).lower()
+
+        return _aggregate_values(_metric_values(_filter_rows(rows, operation), metric_name), aggregate)
+
     def get_metric(self, metric: str) -> MetricValue:
         rows = extract_fio_data(self.results_file)
         if not rows:
@@ -122,7 +167,7 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
 
         by_operation = {row.operation: row for row in rows}
         if metric == "default":
-            return next((row.bw for row in rows), METRIC_ERROR)
+            return self._configured_default_metric(rows)
         if metric == "read_bw" and "read" in by_operation:
             return by_operation["read"].bw
         if metric == "write_bw" and "write" in by_operation:
