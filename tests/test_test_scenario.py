@@ -41,6 +41,7 @@ from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDyna
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
+from cloudai.workloads.fio import FioReportGenerationStrategy, FioTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -704,7 +705,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 21
+        assert len(Registry().reports_map) == 22
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -730,6 +731,7 @@ class TestReporters:
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
             (DynamoMockerTestDefinition, {DynamoMockerReportGenerationStrategy}),
+            (FioTestDefinition, {FioReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
         ],

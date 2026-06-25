@@ -17,6 +17,7 @@ Available Workloads
    ":doc:`ddlb`", "✅", "❌", "❌", "❌"
    ":doc:`deepep`", "✅", "❌", "❌", "❌"
    ":doc:`dynamo_mocker`", "❌", "❌", "❌", "✅"
+   ":doc:`fio`", "✅", "❌", "❌", "✅"
    ":doc:`jax_toolbox`", "✅", "❌", "❌", "❌"
    "MegatronRun", "✅", "❌", "❌", "❌"
    ":doc:`megatron_bridge`", "✅", "❌", "❌", "❌"

@@ -46,6 +46,7 @@ from cloudai.workloads.dynamo_mocker import (
     DynamoMockerStandaloneCommandGenStrategy,
     DynamoMockerTestDefinition,
 )
+from cloudai.workloads.fio import FioSlurmCommandGenStrategy, FioStandaloneCommandGenStrategy, FioTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -154,6 +155,7 @@ CMD_GEN_STRATEGIES = {
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (StandaloneSystem, AiconfiguratorTestDefinition): AiconfiguratorStandaloneCommandGenStrategy,
     (StandaloneSystem, DynamoMockerTestDefinition): DynamoMockerStandaloneCommandGenStrategy,
+    (StandaloneSystem, FioTestDefinition): FioStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
     (SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
     (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
@@ -163,6 +165,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
     (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
+    (SlurmSystem, FioTestDefinition): FioSlurmCommandGenStrategy,
     (SlurmSystem, SglangTestDefinition): SglangSlurmCommandGenStrategy,
     (SlurmSystem, VllmTestDefinition): VllmSlurmCommandGenStrategy,
 }
@@ -238,7 +241,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 27
+    assert len(test_defs) == 28
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -264,6 +267,7 @@ def test_definitions():
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
         ("OSUBench", OSUBenchTestDefinition),
+        ("Fio", FioTestDefinition),
         ("sglang", SglangTestDefinition),
         ("vllm", VllmTestDefinition),
         ("DynamoMocker", DynamoMockerTestDefinition),

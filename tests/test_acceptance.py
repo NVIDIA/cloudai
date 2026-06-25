@@ -46,6 +46,7 @@ from cloudai.workloads.deepep import (
     DeepEPCmdArgs,
     DeepEPTestDefinition,
 )
+from cloudai.workloads.fio import FioCmdArgs, FioTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -277,6 +278,7 @@ def build_special_test_run(
         "moe-benchmark",
         "deepep-benchmark",
         "osu-bench",
+        "fio",
         "sglang",
         "sglang-multinode",
         "sglang-disagg",
@@ -349,6 +351,29 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             partial_tr,
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
+        ),
+        "fio": lambda: create_test_run(
+            partial_tr,
+            "fio",
+            FioTestDefinition(
+                name="fio",
+                description="fio",
+                test_template_name="Fio",
+                cmd_args=FioCmdArgs(
+                    args={
+                        "name": "fio-smoke",
+                        "filename": "/tmp/cloudai-fio-test",
+                        "rw": "randwrite",
+                        "bs": "128k",
+                        "iodepth": 1,
+                        "numjobs": 1,
+                        "group_reporting": True,
+                        "thread": True,
+                    },
+                    docker_image_url="openeuler/fio:3.42-oe2403sp3",
+                    num_tasks_per_node=2,
+                ),
+            ),
         ),
         "slurm_container": lambda: create_test_run(
             partial_tr,
@@ -755,7 +780,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
-        if request.param in {"moe-benchmark", "deepep-benchmark"}:
+        if request.param in {"moe-benchmark", "deepep-benchmark", "fio"}:
             tr.num_nodes = 2
         if request.param in {"sglang-multinode", "sglang-disagg-2nodes", "vllm-multinode", "vllm-disagg-2nodes"}:
             tr.num_nodes = 2
