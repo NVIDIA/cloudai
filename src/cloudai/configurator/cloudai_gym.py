@@ -147,8 +147,8 @@ class CloudAIGymEnv(BaseGym):
 
     @property
     def env_params_record_path(self) -> Path:
-        """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
-        return self.iteration_dir / "env.csv"
+        """``env.csv`` sits next to ``trajectory.csv`` (offline or online) so a plain ``merge`` joins them."""
+        return self.trajectory_file_path.parent / "env.csv"
 
     def define_action_space(self) -> Dict[str, Any]:
         server = self._gym_server
