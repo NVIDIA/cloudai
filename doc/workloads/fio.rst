@@ -101,6 +101,8 @@ Default Metric
 
 For ``agent_metrics = ["default"]``, CloudAI aggregates parsed fio summary rows.
 Defaults report total bandwidth across all operations and tasks.
+Bandwidth metrics are normalized to MiB/s before aggregation.
+Latency metrics are normalized to usec before aggregation.
 
 .. code-block:: toml
 
@@ -109,7 +111,7 @@ Defaults report total bandwidth across all operations and tasks.
     metric_name = "bw"          # bw, iops, latency
     metric_aggregate = "sum"    # sum, mean, min, max, first
 
-Raw parsed rows are written to ``fio_summary.csv``.
+Raw parsed rows and normalized metric values are written to ``fio_summary.csv``.
 
 API Documentation
 -----------------

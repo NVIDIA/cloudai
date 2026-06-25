@@ -29,6 +29,20 @@ from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 _OP_RE = re.compile(r"^\s*(read|write|trim):\s+IOPS=(?P<iops>[^,]+),\s+BW=(?P<bw>[\d.]+)(?P<bw_unit>[A-Za-z/]+)")
 _LAT_RE = re.compile(r"^\s+(?P<kind>clat|lat)\s+\((?P<unit>[^)]+)\):.*\bavg=(?P<avg>[\d.]+)")
 
+_BW_TO_MIB = {
+    "B/s": 1 / (1024**2),
+    "KiB/s": 1 / 1024,
+    "MiB/s": 1,
+    "GiB/s": 1024,
+    "TiB/s": 1024**2,
+    "kB/s": 1000 / (1024**2),
+    "KB/s": 1000 / (1024**2),
+    "MB/s": 1_000_000 / (1024**2),
+    "GB/s": 1_000_000_000 / (1024**2),
+    "TB/s": 1_000_000_000_000 / (1024**2),
+}
+_LATENCY_TO_USEC = {"nsec": 0.001, "usec": 1, "msec": 1000, "sec": 1_000_000}
+
 
 @dataclasses.dataclass(frozen=True)
 class FioSummary:
@@ -40,6 +54,16 @@ class FioSummary:
     bw_unit: str
     latency_avg: float | None = None
     latency_unit: str | None = None
+
+    @property
+    def bw_mib(self) -> float:
+        return self.bw * _BW_TO_MIB[self.bw_unit]
+
+    @property
+    def latency_usec(self) -> float | None:
+        if self.latency_avg is None or self.latency_unit is None:
+            return None
+        return self.latency_avg * _LATENCY_TO_USEC[self.latency_unit]
 
 
 def _parse_scaled_number(value: str) -> float:
@@ -114,11 +138,11 @@ def _filter_rows(rows: list[FioSummary], operation: str) -> list[FioSummary]:
 
 def _metric_values(rows: list[FioSummary], metric_name: str) -> list[float]:
     if metric_name == "bw":
-        return [row.bw for row in rows]
+        return [row.bw_mib for row in rows]
     if metric_name == "iops":
         return [row.iops for row in rows]
     if metric_name == "latency":
-        return [row.latency_avg for row in rows if row.latency_avg is not None]
+        return [latency for row in rows if (latency := row.latency_usec) is not None]
     return []
 
 
@@ -169,15 +193,17 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
         if metric == "default":
             return self._configured_default_metric(rows)
         if metric == "read_bw" and "read" in by_operation:
-            return by_operation["read"].bw
+            return by_operation["read"].bw_mib
         if metric == "write_bw" and "write" in by_operation:
-            return by_operation["write"].bw
+            return by_operation["write"].bw_mib
         if metric == "read_iops" and "read" in by_operation:
             return by_operation["read"].iops
         if metric == "write_iops" and "write" in by_operation:
             return by_operation["write"].iops
-        if metric == "read_latency" and "read" in by_operation and by_operation["read"].latency_avg is not None:
-            return by_operation["read"].latency_avg
+        if metric == "read_latency" and "read" in by_operation:
+            latency = by_operation["read"].latency_usec
+            if latency is not None:
+                return latency
         return METRIC_ERROR
 
     def generate_report(self) -> None:
@@ -188,8 +214,17 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
         with (self.test_run.output_path / "fio_summary.csv").open("w", newline="") as f:
             writer = csv.DictWriter(
                 f,
-                fieldnames=["operation", "iops", "bw", "bw_unit", "latency_avg", "latency_unit"],
+                fieldnames=[
+                    "operation",
+                    "iops",
+                    "bw",
+                    "bw_unit",
+                    "bw_mib",
+                    "latency_avg",
+                    "latency_unit",
+                    "latency_usec",
+                ],
             )
             writer.writeheader()
             for row in rows:
-                writer.writerow(row.__dict__)
+                writer.writerow({**row.__dict__, "bw_mib": row.bw_mib, "latency_usec": row.latency_usec})
