@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 import csv
+import dataclasses
 import logging
+import pathlib
 import re
 import statistics
-from dataclasses import dataclass
-from pathlib import Path
 from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
@@ -30,7 +30,7 @@ _OP_RE = re.compile(r"^\s*(read|write|trim):\s+IOPS=(?P<iops>[^,]+),\s+BW=(?P<bw
 _LAT_RE = re.compile(r"^\s+(?P<kind>clat|lat)\s+\((?P<unit>[^)]+)\):.*\bavg=(?P<avg>[\d.]+)")
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class FioSummary:
     """Summary metrics parsed from fio stdout."""
 
@@ -51,7 +51,7 @@ def _parse_scaled_number(value: str) -> float:
     return float(normalized) * multiplier
 
 
-def extract_fio_data(stdout_file: Path) -> list[FioSummary]:
+def extract_fio_data(stdout_file: pathlib.Path) -> list[FioSummary]:
     if not stdout_file.exists():
         logging.debug(f"{stdout_file} not found")
         return []
@@ -146,7 +146,7 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "read_bw", "write_bw", "read_iops", "write_iops", "read_latency"]
 
     @property
-    def results_file(self) -> Path:
+    def results_file(self) -> pathlib.Path:
         return self.test_run.output_path / "stdout.txt"
 
     def can_handle_directory(self) -> bool:

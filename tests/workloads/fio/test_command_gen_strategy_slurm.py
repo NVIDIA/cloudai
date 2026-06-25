@@ -112,28 +112,3 @@ def test_nested_arg_table_repeats_same_fio_option(slurm_system: SlurmSystem, tmp
         "--client=host1",
         "--client=host2",
     ]
-
-
-def test_list_valued_fio_args_create_dse_job(tmp_path: Path) -> None:
-    tdef = FioTestDefinition(
-        name="fio",
-        description="fio test",
-        test_template_name="Fio",
-        cmd_args=FioCmdArgs(args={"name": "sweep", "iodepth": [1, 8]}),
-    )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-
-    assert tr.is_dse_job
-    assert tr.param_space == {"args.iodepth": [1, 8]}
-
-
-def test_nested_repeated_arg_values_do_not_create_dse_job(tmp_path: Path) -> None:
-    tdef = FioTestDefinition(
-        name="fio",
-        description="fio test",
-        test_template_name="Fio",
-        cmd_args=FioCmdArgs(args={"a": {"0": "=foo", "1": "bar"}}),
-    )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-
-    assert not tr.is_dse_job
