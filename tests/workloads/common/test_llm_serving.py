@@ -260,6 +260,52 @@ class TestLLMServingTestDefinitionBehavior:
 
 
 class TestLLMServingSlurmHelpers:
+    def test_cleanup_prefers_slurm_steps_and_keeps_pid_fallback(
+        self, slurm_system: SlurmSystem, tmp_path: Path
+    ) -> None:
+        tdef = make_tdef()
+        tr = TestRun(name="llm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        cleanup = strategy.generate_cleanup_function(["SERVE_PID"])
+
+        assert "CLOUDAI_CLEANUP_DONE=1" in cleanup
+        assert "SERVE_STEP_IDS=$SERVE_STEP_IDS" in cleanup
+        assert 'scancel --signal=TERM "$step_id"' in cleanup
+        assert 'kill -TERM "${SERVE_PID}"' in cleanup
+        assert 'if [ "$i" -ge 60 ]; then' in cleanup
+        assert 'scancel --signal=KILL "$step_id"' in cleanup
+        assert 'kill -KILL "${SERVE_PID}"' in cleanup
+
+    def test_aggregated_serving_names_and_discovers_slurm_step(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
+        tdef = make_tdef()
+        tr = TestRun(name="llm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        script = LLMServingSlurmCommandGenStrategy._gen_aggregated_script(strategy, ["serve"], "bench")
+
+        assert "--job-name=cloudai-fake-llm-serve" in script
+        assert 'SERVE_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in script
+        assert "awk '$2 == \"cloudai-fake-llm-serve\" { print $1 }'" in script
+        assert 'echo "Slurm step IDs for serve: ${SERVE_STEP_IDS:-unknown}"' in script
+
+    def test_disaggregated_serving_names_and_discovers_slurm_steps(
+        self, slurm_system: SlurmSystem, tmp_path: Path
+    ) -> None:
+        tdef = make_tdef(create_prefill=True)
+        tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        tr = TestRun(name="llm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+        strategy = FakeLLMSlurmStrategy(slurm_system, tr)
+
+        script = strategy._gen_disaggregated_script([["prefill"], ["decode"]], "bench")
+
+        assert "--job-name=cloudai-fake-llm-prefill" in script
+        assert "--job-name=cloudai-fake-llm-decode" in script
+        assert "--job-name=cloudai-fake-llm-helper" in script
+        assert 'PREFILL_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in script
+        assert 'DECODE_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in script
+        assert 'HELPER_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in script
+
     def test_two_node_disagg_uses_shared_gpu_ids_and_role_hosts(self, slurm_system: SlurmSystem, tmp_path) -> None:
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}

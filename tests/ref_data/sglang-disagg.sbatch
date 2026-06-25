@@ -15,21 +15,94 @@ srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev
 srun --export=ALL --mpi=none -N1 --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
+    if [ "${CLOUDAI_CLEANUP_DONE:-0}" = "1" ]; then
+        return 0
+    fi
+    CLOUDAI_CLEANUP_DONE=1
+    cleanup_status=0
     echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID HELPER_PID=$HELPER_PID"
+    echo "Cleaning up Slurm step IDs: PREFILL_STEP_IDS=$PREFILL_STEP_IDS DECODE_STEP_IDS=$DECODE_STEP_IDS HELPER_STEP_IDS=$HELPER_STEP_IDS"
 
-    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
-    done
+    if [ -n "${PREFILL_STEP_IDS:-}" ]; then
+        for step_id in ${PREFILL_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${PREFILL_PID:-}" ]; then
+        kill -TERM "${PREFILL_PID}" 2>/dev/null || true
+    fi
+    if [ -n "${DECODE_STEP_IDS:-}" ]; then
+        for step_id in ${DECODE_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${DECODE_PID:-}" ]; then
+        kill -TERM "${DECODE_PID}" 2>/dev/null || true
+    fi
+    if [ -n "${HELPER_STEP_IDS:-}" ]; then
+        for step_id in ${HELPER_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${HELPER_PID:-}" ]; then
+        kill -TERM "${HELPER_PID}" 2>/dev/null || true
+    fi
 
-    for pid in "$PREFILL_PID" "$DECODE_PID" "$HELPER_PID"; do
-        [ -z "$pid" ] && continue
+    if [ -n "${PREFILL_PID:-}" ]; then
         i=0
-        while kill -0 "$pid" 2>/dev/null; do
-            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+        while kill -0 "${PREFILL_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${PREFILL_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${PREFILL_STEP_IDS:-}" ]; then
+                    for step_id in ${PREFILL_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${PREFILL_PID:-}" ]; then
+                    kill -KILL "${PREFILL_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
             sleep 1
             i=$((i+1))
         done
-    done
+    fi
+    if [ -n "${DECODE_PID:-}" ]; then
+        i=0
+        while kill -0 "${DECODE_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${DECODE_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${DECODE_STEP_IDS:-}" ]; then
+                    for step_id in ${DECODE_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${DECODE_PID:-}" ]; then
+                    kill -KILL "${DECODE_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
+    fi
+    if [ -n "${HELPER_PID:-}" ]; then
+        i=0
+        while kill -0 "${HELPER_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${HELPER_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${HELPER_STEP_IDS:-}" ]; then
+                    for step_id in ${HELPER_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${HELPER_PID:-}" ]; then
+                    kill -KILL "${HELPER_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
+    fi
+    return "$cleanup_status"
 }
 trap cleanup EXIT
 
@@ -69,25 +142,52 @@ fi
 echo "Node roles: prefill=${PREFILL_NODES[*]} decode=${DECODE_NODES[*]}"
 
 echo "Starting SGLang instances..."
-srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 --job-name=cloudai-sglang-prefill \
     --output=__OUTPUT_DIR__/output/sglang-prefill.log \
     env CUDA_VISIBLE_DEVICES="0,1" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8400 --disaggregation-mode prefill --disaggregation-transfer-backend nixl &
 PREFILL_PID=$!
+PREFILL_STEP_IDS=
+for _ in {1..10}; do
+    PREFILL_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-sglang-prefill" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${PREFILL_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for prefill: ${PREFILL_STEP_IDS:-unknown}"
 
-srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
+
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${DECODE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 --job-name=cloudai-sglang-decode \
     --output=__OUTPUT_DIR__/output/sglang-decode.log \
     env CUDA_VISIBLE_DEVICES="2,3" python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --host 0.0.0.0 --port 8500 --disaggregation-mode decode --disaggregation-transfer-backend nixl &
 DECODE_PID=$!
+DECODE_STEP_IDS=
+for _ in {1..10}; do
+    DECODE_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-sglang-decode" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${DECODE_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for decode: ${DECODE_STEP_IDS:-unknown}"
+
 
 echo "Waiting for SGLang on $PREFILL_NODE and $DECODE_NODE to be ready..."
 wait_for_health "http://${PREFILL_NODE}:8400/health" || exit 1
 wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1
 
 echo "Starting router..."
-srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
+srun --export=ALL --mpi=none --container-image=docker.io/lmsysorg/sglang:dev --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${PREFILL_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 --job-name=cloudai-sglang-helper \
     --output=__OUTPUT_DIR__/output/sglang-router.log \
     python3 -m sglang_router.launch_router --pd-disaggregation --prefill http://${PREFILL_NODE}:8400 --decode http://${DECODE_NODE}:8500 --host 0.0.0.0 --port 8300 &
 HELPER_PID=$!
+HELPER_STEP_IDS=
+for _ in {1..10}; do
+    HELPER_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-sglang-helper" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${HELPER_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for helper: ${HELPER_STEP_IDS:-unknown}"
+
 
 echo "Waiting for SGLang on $PREFILL_NODE server to be ready..."
 wait_for_health "http://${PREFILL_NODE}:8300/v1/models" || exit 1

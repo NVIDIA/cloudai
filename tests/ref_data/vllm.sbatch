@@ -15,14 +15,42 @@ srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
+    if [ "${CLOUDAI_CLEANUP_DONE:-0}" = "1" ]; then
+        return 0
+    fi
+    CLOUDAI_CLEANUP_DONE=1
+    cleanup_status=0
     echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
-    kill -TERM "$SERVE_PID" 2>/dev/null
-    i=0
-    while kill -0 "$SERVE_PID" 2>/dev/null; do
-        [ "$i" -ge 15 ] && echo "PID did not exit in time" && return 1
-        sleep 1
-        i=$((i+1))
-    done
+    echo "Cleaning up Slurm step IDs: SERVE_STEP_IDS=$SERVE_STEP_IDS"
+
+    if [ -n "${SERVE_STEP_IDS:-}" ]; then
+        for step_id in ${SERVE_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${SERVE_PID:-}" ]; then
+        kill -TERM "${SERVE_PID}" 2>/dev/null || true
+    fi
+
+    if [ -n "${SERVE_PID:-}" ]; then
+        i=0
+        while kill -0 "${SERVE_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${SERVE_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${SERVE_STEP_IDS:-}" ]; then
+                    for step_id in ${SERVE_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${SERVE_PID:-}" ]; then
+                    kill -KILL "${SERVE_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
+    fi
+    return "$cleanup_status"
 }
 trap cleanup EXIT
 
@@ -45,10 +73,19 @@ wait_for_health() {
 }
 
 echo "Starting vLLM instances..."
-srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 \
+srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --ntasks-per-node=1 --ntasks=1 --job-name=cloudai-vllm-serve \
     --output=__OUTPUT_DIR__/output/vllm-serve.log \
     vllm serve Qwen/Qwen3-0.6B --host 0.0.0.0 --port 8300 &
 SERVE_PID=$!
+SERVE_STEP_IDS=
+for _ in {1..10}; do
+    SERVE_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-vllm-serve" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${SERVE_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for serve: ${SERVE_STEP_IDS:-unknown}"
+
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."

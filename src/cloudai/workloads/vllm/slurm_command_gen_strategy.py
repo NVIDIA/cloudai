@@ -174,6 +174,22 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             pid_vars.insert(insert_at, "DECODE_RAY_PID")
         return pid_vars
 
+    def cleanup_step_id_vars(self, pid_vars: list[str]) -> list[str]:
+        step_id_vars: list[str] = []
+        for pid_var in pid_vars:
+            base = pid_var.removesuffix("_PID")
+            if base.endswith("_RAY"):
+                step_id_vars.append(f"{base}_WORKER_STEP_IDS")
+                continue
+
+            role = base.lower()
+            if role in {"serve", "prefill", "decode"} and self._needs_ray(role):
+                step_id_vars.append(f"{base}_RAY_HEAD_STEP_IDS")
+                continue
+
+            step_id_vars.append(f"{base}_STEP_IDS")
+        return step_id_vars
+
     @property
     def proxy_router_healthcheck(self) -> str:
         fields_set = self.tdef.cmd_args.model_fields_set
@@ -216,12 +232,8 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
             )
         return "\n".join(lines)
 
-    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 15) -> str:
-        cleanup = super().generate_cleanup_function(pid_vars, timeout)
-        ray_stop_block = self._ray_stop_cleanup_block()
-        if not ray_stop_block:
-            return cleanup
-        return cleanup.replace("cleanup() {\n", f"cleanup() {{\n{ray_stop_block}\n", 1)
+    def cleanup_prelude(self) -> str:
+        return self._ray_stop_cleanup_block()
 
     def render_serve_launch(
         self,
@@ -246,8 +258,12 @@ export DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + {len(self.gpu_ids)}))
         ray_worker_log = f"{self.workload_slug}-{role}-ray-worker-%N.log"
         serve_log = f"{self.test_run.output_path.absolute()}/{log_file}"
         head_node_expr = f"${{{head_node_var}}}"
-        worker_prefix = self._role_srun_prefix("$node")
-        head_prefix = self._single_role_srun_prefix(head_node_var)
+        worker_role = f"{role}-ray-worker"
+        head_role = f"{role}-ray-head"
+        worker_step_id_var = f"{role_prefix}_RAY_WORKER_STEP_IDS"
+        head_step_id_var = f"{role_prefix}_RAY_HEAD_STEP_IDS"
+        worker_prefix = self._with_slurm_step_name(self._role_srun_prefix("$node"), worker_role)
+        head_prefix = self._with_slurm_step_name(self._single_role_srun_prefix(head_node_var), head_role)
         serve_cmd = self._with_custom_bash(f'env RAY_ADDRESS="{head_node_expr}:${{{ray_port_var}}}" {command_tail}')
         ray_head_args = self._ray_start_args(role, "head", {"head": True, "port": f'"${{{ray_port_var}}}"'})
         ray_worker_args = self._ray_start_args(
@@ -301,11 +317,13 @@ exit 1"""
     wait
 ) &
 {ray_pid_var}=$!
+{self.render_step_discovery(worker_role, worker_step_id_var, node_count - 1)}
 {head_prefix} \\
     --output={serve_log} \\
     --error={self.test_run.output_path.absolute()}/{ray_head_log} \\
     bash -lc {ray_head_command} &
-{pid_var}=$!"""
+{pid_var}=$!
+{self.render_step_discovery(head_role, head_step_id_var)}"""
 
     def disaggregated_role_env(self, role: str, gpu_ids: list[int]) -> dict[str, str]:
         env = super().disaggregated_role_env(role, gpu_ids)

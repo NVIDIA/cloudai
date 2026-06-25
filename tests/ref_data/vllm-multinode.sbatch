@@ -15,6 +15,11 @@ srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=none -N2 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
+    if [ "${CLOUDAI_CLEANUP_DONE:-0}" = "1" ]; then
+        return 0
+    fi
+    CLOUDAI_CLEANUP_DONE=1
+    cleanup_status=0
     echo "Stopping Ray clusters..."
     if [ -n "${SERVE_NODELIST:-}" ]; then
         srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODELIST}" --nodes=2 --ntasks=2 --ntasks-per-node=1 bash -lc 'ray stop --force >/dev/null 2>&1 || true' >/dev/null 2>&1 || true
@@ -22,20 +27,62 @@ cleanup() {
         echo "Skipping Ray stop for serve: node list is not set"
     fi
     echo "Cleaning up PIDs: SERVE_RAY_PID=$SERVE_RAY_PID SERVE_PID=$SERVE_PID"
+    echo "Cleaning up Slurm step IDs: SERVE_RAY_WORKER_STEP_IDS=$SERVE_RAY_WORKER_STEP_IDS SERVE_RAY_HEAD_STEP_IDS=$SERVE_RAY_HEAD_STEP_IDS"
 
-    for pid in "$SERVE_RAY_PID" "$SERVE_PID"; do
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
-    done
+    if [ -n "${SERVE_RAY_WORKER_STEP_IDS:-}" ]; then
+        for step_id in ${SERVE_RAY_WORKER_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${SERVE_RAY_PID:-}" ]; then
+        kill -TERM "${SERVE_RAY_PID}" 2>/dev/null || true
+    fi
+    if [ -n "${SERVE_RAY_HEAD_STEP_IDS:-}" ]; then
+        for step_id in ${SERVE_RAY_HEAD_STEP_IDS}; do
+            scancel --signal=TERM "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${SERVE_PID:-}" ]; then
+        kill -TERM "${SERVE_PID}" 2>/dev/null || true
+    fi
 
-    for pid in "$SERVE_RAY_PID" "$SERVE_PID"; do
-        [ -z "$pid" ] && continue
+    if [ -n "${SERVE_RAY_PID:-}" ]; then
         i=0
-        while kill -0 "$pid" 2>/dev/null; do
-            [ "$i" -ge 15 ] && echo "PID $pid did not exit in time" && return 1
+        while kill -0 "${SERVE_RAY_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${SERVE_RAY_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${SERVE_RAY_WORKER_STEP_IDS:-}" ]; then
+                    for step_id in ${SERVE_RAY_WORKER_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${SERVE_RAY_PID:-}" ]; then
+                    kill -KILL "${SERVE_RAY_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
             sleep 1
             i=$((i+1))
         done
-    done
+    fi
+    if [ -n "${SERVE_PID:-}" ]; then
+        i=0
+        while kill -0 "${SERVE_PID}" 2>/dev/null; do
+            if [ "$i" -ge 60 ]; then
+                echo "PID ${SERVE_PID} did not exit in time"
+                cleanup_status=1
+                if [ -n "${SERVE_RAY_HEAD_STEP_IDS:-}" ]; then
+                    for step_id in ${SERVE_RAY_HEAD_STEP_IDS}; do
+                        scancel --signal=KILL "$step_id" 2>/dev/null || true
+                    done
+                elif [ -n "${SERVE_PID:-}" ]; then
+                    kill -KILL "${SERVE_PID}" 2>/dev/null || true
+                fi
+                break
+            fi
+            sleep 1
+            i=$((i+1))
+        done
+    fi
+    return "$cleanup_status"
 }
 trap cleanup EXIT
 
@@ -74,7 +121,7 @@ echo "Starting vLLM instances..."
 (
     trap 'kill -TERM $(jobs -pr) 2>/dev/null' TERM EXIT
     for node in "${SERVE_NODES[@]:1}"; do
-        srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="$node" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
+        srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="$node" --nodes=1 --ntasks=1 --ntasks-per-node=1 --job-name=cloudai-vllm-serve-ray-worker \
             --output=__OUTPUT_DIR__/output/vllm-serve-ray-worker-%N.log \
             bash -lc 'ray stop --force >/dev/null 2>&1 || true
 for (( i=0; i < 300; i+=5 )); do
@@ -91,7 +138,16 @@ exit 1' &
     wait
 ) &
 SERVE_RAY_PID=$!
-srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 \
+SERVE_RAY_WORKER_STEP_IDS=
+for _ in {1..10}; do
+    SERVE_RAY_WORKER_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-vllm-serve-ray-worker" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${SERVE_RAY_WORKER_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for serve-ray-worker: ${SERVE_RAY_WORKER_STEP_IDS:-unknown}"
+
+srun --export=ALL --mpi=none --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --overlap --nodelist="${SERVE_NODE}" --nodes=1 --ntasks=1 --ntasks-per-node=1 --job-name=cloudai-vllm-serve-ray-head \
     --output=__OUTPUT_DIR__/output/vllm-serve.log \
     --error=__OUTPUT_DIR__/output/vllm-serve-ray-head.log \
     bash -lc 'ray stop --force >/dev/null 2>&1 || true
@@ -112,6 +168,15 @@ done
 echo "Waiting for Ray workers timed out: $active_nodes/2 active"
 exit 1' &
 SERVE_PID=$!
+SERVE_RAY_HEAD_STEP_IDS=
+for _ in {1..10}; do
+    SERVE_RAY_HEAD_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null | awk '$2 == "cloudai-vllm-serve-ray-head" { print $1 }')
+    CLOUDAI_STEP_COUNT=$(printf '%s\n' "${SERVE_RAY_HEAD_STEP_IDS}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge 1 ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for serve-ray-head: ${SERVE_RAY_HEAD_STEP_IDS:-unknown}"
+
 
 echo "Waiting for vLLM on $NODE to be ready..."
 wait_for_health "http://${NODE}:8300/healthcheck" || exit 1
