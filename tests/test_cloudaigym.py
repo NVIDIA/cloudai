@@ -612,7 +612,7 @@ def test_env_csv_is_step_aligned_with_trajectory(tmp_path: Path) -> None:
         for action in (action_a, action_b, action_a):
             env.step(action)
 
-    env_csv = env._env_csv_path()
+    env_csv = env.env_params_record_path
     traj_csv = env.trajectory_file_path
     assert env_csv.exists(), "env.csv must be written when env_params is declared"
 
@@ -673,7 +673,7 @@ def test_env_csv_step_alignment_holds_on_constraint_failure(tmp_path: Path) -> N
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
 
-    env_csv = env._env_csv_path()
+    env_csv = env.env_params_record_path
     traj_csv = env.trajectory_file_path
 
     assert env_csv.exists(), "surviving steps declare env_params -> env.csv must exist"
@@ -742,7 +742,7 @@ def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: 
     runner.run.assert_not_called()
     assert reward == 0.42 and obs == [0.84]
 
-    env_csv = env._env_csv_path()
+    env_csv = env.env_params_record_path
     assert env_csv.exists(), "cache HIT must NOT skip the observer; env.csv must record the trial"
     env_rows = env_csv.read_text().strip().splitlines()
     assert env_rows[0] == "step,env"
@@ -843,4 +843,4 @@ def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition,
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
-    assert not env._env_csv_path().exists()
+    assert not env.env_params_record_path.exists()

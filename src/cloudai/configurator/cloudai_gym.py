@@ -26,7 +26,7 @@ from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
-from .env_params import CsvSink, EnvParams, EnvParamsSink
+from .env_params import EnvParams, EnvParamsSink
 
 
 @dataclasses.dataclass(frozen=True)
@@ -66,12 +66,13 @@ class CloudAIGymEnv(BaseGym):
         # Resolve env_params once, at formulation: None unless the workload declares something to
         # sample, so a non-DR run carries no env-params state and pays zero per-step overhead.
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
-        self._env_sink: EnvParamsSink | None = CsvSink(self._env_csv_path()) if self.params else None
+        self.env_params_sink = EnvParamsSink()
         super().__init__()
 
-    def _env_csv_path(self) -> Path:
+    @property
+    def env_params_record_path(self) -> Path:
         """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
-        return self.trajectory_file_path.parent / "env.csv"
+        return self.iteration_dir / "env.csv"
 
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
@@ -271,15 +272,16 @@ class CloudAIGymEnv(BaseGym):
                 writer.writerow(["step", "action", "reward", "observation"])
             writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
-        if self._env_sink is not None:
-            # current_iteration can advance while this env instance is reused, so rebind the sink to
-            # the current iteration's env.csv (alongside trajectory.csv) to keep the two 1:1 aligned.
-            self._env_sink = CsvSink(self._env_csv_path())
-            self._env_sink.write(entry.step, entry.env_params)
+        self.env_params_sink.write(self.env_params_record_path, entry.step, entry.env_params)
+
+    @property
+    def iteration_dir(self) -> Path:
+        """Per-iteration output dir; trajectory.csv and env.csv both live here, step-aligned."""
+        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}"
 
     @property
     def trajectory_file_path(self) -> Path:
-        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
+        return self.iteration_dir / "trajectory.csv"
 
     @property
     def current_trajectory(self) -> list[TrajectoryEntry]:
