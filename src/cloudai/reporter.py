@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import contextlib
+import json
 import logging
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import jinja2
 import toml
@@ -31,7 +32,7 @@ from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
 
-from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .core import METRIC_ERROR, CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
 
 
@@ -205,6 +206,135 @@ class DSEReporter(Reporter):
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
+
+
+class SummaryReporter(Reporter):
+    """Generate a machine-readable scenario summary for automation."""
+
+    SUMMARY_FILE_NAME = "cloudai-summary.json"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+        report_path = self.results_root / self.SUMMARY_FILE_NAME
+        with report_path.open("w") as f:
+            json.dump(self.build_summary(), f, indent=2)
+            f.write("\n")
+
+        logging.info("Generated scenario summary at %s", report_path)
+
+    def build_summary(self) -> dict[str, Any]:
+        test_runs = self._test_runs_summary()
+        return {
+            "scenario": self.test_scenario.name,
+            "status": self._scenario_status(test_runs),
+            "result_dir": self._relative_path(self.results_root),
+            "reports": self._scenario_artifacts(),
+            "test_runs": test_runs,
+        }
+
+    def _scenario_status(self, test_runs: list[dict[str, Any]]) -> str:
+        if not test_runs:
+            return "unknown"
+        if all(tr["status"] == "completed" for tr in test_runs):
+            return "completed"
+        return "failed"
+
+    def _test_runs_summary(self) -> list[dict[str, Any]]:
+        loaded_by_name: dict[str, list[TestRun]] = {}
+        for tr in self.trs:
+            loaded_by_name.setdefault(tr.name, []).append(tr)
+
+        summary: list[dict[str, Any]] = []
+        for test_run in self.test_scenario.test_runs:
+            loaded_runs = loaded_by_name.get(test_run.name, [])
+            if test_run.is_dse_job:
+                summary.append(self._sweep_test_run_summary(test_run, loaded_runs))
+            else:
+                summary.extend(self._test_run_summary(tr) for tr in loaded_runs)
+
+        return summary
+
+    def _sweep_test_run_summary(self, tr: TestRun, sweeps: list[TestRun]) -> dict[str, Any]:
+        sweep_summaries = [self._test_run_summary(sweep) for sweep in sweeps]
+        summary = {
+            "name": tr.name,
+            "status": self._scenario_status(sweep_summaries),
+            "output_path": self._relative_path(self.results_root / tr.name),
+            "artifacts": self._artifacts_excluding(
+                self.results_root / tr.name, [sweep.output_path for sweep in sweeps]
+            ),
+            "metrics": {},
+            "sweeps": sweep_summaries,
+        }
+        return summary
+
+    def _test_run_summary(self, tr: TestRun) -> dict[str, Any]:
+        status = tr.test.was_run_successful(tr)
+        summary = {
+            "name": case_name(tr),
+            "status": "completed" if status.is_successful else "failed",
+            "output_path": self._relative_path(tr.output_path),
+            "artifacts": self._artifacts(tr.output_path),
+            "metrics": self._metrics(tr),
+        }
+        if status.error_message:
+            summary["error_message"] = status.error_message
+        return summary
+
+    def _metrics(self, tr: TestRun) -> dict[str, float]:
+        metrics = {}
+        for metric in tr.test.agent_metrics:
+            value = tr.get_metric_value(self.system, metric)
+            if value is METRIC_ERROR:
+                continue
+            metrics[metric] = float(value)
+
+        return metrics
+
+    def _scenario_artifacts(self) -> list[dict[str, str]]:
+        if not self.results_root.is_dir():
+            return []
+
+        return [
+            self._artifact(path)
+            for path in sorted(self.results_root.iterdir())
+            if path.is_file() and path.name != self.SUMMARY_FILE_NAME
+        ]
+
+    def _artifacts(self, root: Path) -> list[dict[str, str]]:
+        if not root.is_dir():
+            return []
+
+        return [self._artifact(path) for path in sorted(root.rglob("*")) if path.is_file()]
+
+    def _artifacts_excluding(self, root: Path, excluded_roots: list[Path]) -> list[dict[str, str]]:
+        if not root.is_dir():
+            return []
+
+        return [
+            self._artifact(path)
+            for path in sorted(root.rglob("*"))
+            if path.is_file() and not any(self._is_relative_to(path, excluded_root) for excluded_root in excluded_roots)
+        ]
+
+    def _is_relative_to(self, path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return False
+        return True
+
+    def _artifact(self, path: Path) -> dict[str, str]:
+        return {
+            "path": self._relative_path(path),
+            "format": path.suffix.removeprefix(".") or "unknown",
+        }
+
+    def _relative_path(self, path: Path) -> str:
+        try:
+            return str(path.relative_to(self.results_root))
+        except ValueError:
+            return str(path)
 
 
 class TarballReporter(Reporter):

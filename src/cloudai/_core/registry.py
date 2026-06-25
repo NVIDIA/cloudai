@@ -229,7 +229,8 @@ class Registry(metaclass=Singleton):
                 "per_test": 0,  # first
                 "status": 2,
                 "dse": 3,
-                "tarball": 4,  # last
+                "summary": 4,
+                "tarball": 5,  # last
             }.get(k, 1)
 
         return sorted(self.scenario_reports.items(), key=lambda kv: report_order(kv[0]))

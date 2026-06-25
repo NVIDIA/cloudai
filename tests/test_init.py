@@ -16,7 +16,7 @@
 
 
 from cloudai.core import Registry
-from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, TarballReporter
+from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, SummaryReporter, TarballReporter
 from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
 from cloudai.systems.runai import RunAISystem
@@ -278,6 +278,7 @@ def test_scenario_reports():
         "moe_benchmark_throughput",
         "status",
         "dse",
+        "summary",
         "tarball",
         "nixl_bench_summary",
         "nixl_ep_comparison",
@@ -291,6 +292,7 @@ def test_scenario_reports():
         MoEBenchmarkThroughputReporter,
         StatusReporter,
         DSEReporter,
+        SummaryReporter,
         TarballReporter,
         NIXLBenchComparisonReport,
         NixlEPComparisonReport,
@@ -308,6 +310,7 @@ def test_report_configs():
         "moe_benchmark_throughput",
         "status",
         "dse",
+        "summary",
         "tarball",
         "nixl_bench_summary",
         "nixl_ep_comparison",

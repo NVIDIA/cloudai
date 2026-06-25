@@ -54,7 +54,7 @@ from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.grid_search import GridSearchAgent
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
-from .reporter import PerTestReporter, StatusReporter, TarballReporter
+from .reporter import PerTestReporter, StatusReporter, SummaryReporter, TarballReporter
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
 
@@ -96,6 +96,7 @@ __all__ = [
     "RewardOverrides",
     "Runner",
     "StatusReporter",
+    "SummaryReporter",
     "System",
     "SystemConfigParsingError",
     "TarballReporter",
