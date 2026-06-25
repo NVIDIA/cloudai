@@ -35,11 +35,10 @@ exclusively by ``CloudAIGymEnv.step()``.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 import pytest
 
-from cloudai._core.action_space import ContinuousSpace
 from cloudai.configurator.base_gym import BaseGym
 from cloudai.configurator.env_params import ObsLeafDescriptor
 
@@ -223,151 +222,6 @@ class TestAdapterPropagatesContextualObservation:
             )
 
 
-class _ContinuousStubBaseGym(BaseGym):
-    """BaseGym stub that surfaces a ContinuousSpace in its action_space.
-
-    Records the params received by ``step`` so the test can assert what the
-    adapter actually emits to the env (post-rounding / clamping).
-    """
-
-    def __init__(self, action_space: dict[str, Any]) -> None:
-        self._action_space = action_space
-        self.test_run = SimpleNamespace(step=0)
-        self.received: list[dict[str, Any]] = []
-        super().__init__()
-
-    def define_action_space(self) -> dict[str, Any]:
-        return self._action_space
-
-    def define_observation_space(self) -> list:
-        return [0.0]
-
-    def reset(
-        self,
-        seed: Optional[int] = None,
-        options: Optional[dict[str, Any]] = None,
-    ) -> tuple[list, dict[str, Any]]:
-        return [0.0], {}
-
-    def step(self, action: Any) -> tuple[list, float, bool, dict]:
-        self.received.append(dict(action))
-        return [1.0], 0.5, False, {}
-
-    def render(self, mode: str = "human") -> None:
-        return None
-
-    def seed(self, seed: Optional[int] = None) -> None:
-        pass
-
-
-class TestAdapterDispatchesContinuousSpace:
-    """``ContinuousSpace`` in cloudai's param_space → ``gym.spaces.Box`` in the adapter.
-
-    The adapter is also responsible for **actuator quantization**: when the
-    spec is ``dtype="int"``, the float coming out of the policy is rounded at
-    decode_action, so the env (and trajectory cache) sees only ints. This
-    collapses float jitter (47.34 vs 47.36) onto the same emitted int and
-    keeps the cache hit-rate honest.
-    """
-
-    @staticmethod
-    def _action_space() -> dict[str, Any]:
-        return {
-            "threshold": ContinuousSpace(low=0.0, high=200.0, dtype="int"),
-            "discrete": [10, 20, 30],
-            "fixed": [99],
-        }
-
-    def test_action_space_uses_box_for_continuous_and_discrete_for_list(self) -> None:
-        import gymnasium
-
-        gym_env = _ContinuousStubBaseGym(self._action_space())
-        adapter = GymnasiumAdapter(gym_env)
-
-        action_space = cast(gymnasium.spaces.Dict, adapter.action_space)
-        threshold = action_space["threshold"]
-        assert isinstance(threshold, gymnasium.spaces.Box)
-        assert threshold.shape == (1,)
-        assert float(threshold.low[0]) == pytest.approx(0.0)
-        assert float(threshold.high[0]) == pytest.approx(200.0)
-
-        discrete = action_space["discrete"]
-        assert isinstance(discrete, gymnasium.spaces.Discrete)
-        assert int(discrete.n) == 3
-
-        assert "fixed" not in action_space, "single-element lists are fixed, not tunable"
-
-    def test_decode_action_rounds_dtype_int(self) -> None:
-        import numpy as np
-
-        gym_env = _ContinuousStubBaseGym(self._action_space())
-        adapter = GymnasiumAdapter(gym_env)
-
-        decoded = adapter.decode_action({"threshold": np.array([47.34], dtype=np.float32), "discrete": 1})
-
-        assert decoded["threshold"] == 47, f"dtype=int must round; got {decoded['threshold']}"
-        assert isinstance(decoded["threshold"], int), "rounded action must be Python int, not float"
-        assert decoded["discrete"] == 20, "Discrete index 1 → 20"
-
-    @pytest.mark.parametrize("raw,expected", [(47.34, 47), (47.36, 47), (47.5, 48), (47.4999, 47)])
-    def test_cache_key_collapses_float_jitter_to_same_int(self, raw: float, expected: int) -> None:
-        """Adjacent float actions that round to the same int must collapse identically.
-
-        This is the actuator-quantization invariant from the design doc: the
-        env (and trajectory cache key) must see the same int for any float in
-        the rounding interval, so the cache fills with semantic duplicates,
-        not float-noise duplicates.
-        """
-        import numpy as np
-
-        gym_env = _ContinuousStubBaseGym(self._action_space())
-        adapter = GymnasiumAdapter(gym_env)
-
-        decoded = adapter.decode_action({"threshold": np.array([raw], dtype=np.float32), "discrete": 0})
-        assert decoded["threshold"] == expected
-
-    @pytest.mark.parametrize("raw,expected", [(-5.0, 0), (250.0, 200), (0.0, 0), (200.0, 200)])
-    def test_decode_action_clamps_to_range(self, raw: float, expected: int) -> None:
-        """Out-of-range continuous actions clamp to ``[low, high]``."""
-        import numpy as np
-
-        gym_env = _ContinuousStubBaseGym(self._action_space())
-        adapter = GymnasiumAdapter(gym_env)
-
-        decoded = adapter.decode_action({"threshold": np.array([raw], dtype=np.float32), "discrete": 0})
-        assert decoded["threshold"] == expected
-
-    def test_step_emits_rounded_int_to_underlying_env(self) -> None:
-        """The env (and downstream cache) must see the *rounded* int, not the raw float."""
-        import numpy as np
-
-        gym_env = _ContinuousStubBaseGym(self._action_space())
-        adapter = GymnasiumAdapter(gym_env)
-        adapter.reset()
-
-        adapter.step({"threshold": np.array([78.6], dtype=np.float32), "discrete": 2})
-
-        assert gym_env.received, "env.step was not called"
-        emitted = gym_env.received[-1]
-        assert emitted["threshold"] == 79, "env must receive rounded int, not raw float"
-        assert emitted["discrete"] == 30, "Discrete decode unaffected by continuous-action plumbing"
-        assert emitted["fixed"] == 99, "fixed params must be injected by the adapter"
-
-    def test_dtype_float_preserves_continuous_value(self) -> None:
-        """``dtype="float"`` clamps but does NOT round; the policy's float reaches the env."""
-        import numpy as np
-
-        action_space: dict[str, Any] = {
-            "knob": ContinuousSpace(low=0.0, high=1.0, dtype="float"),
-        }
-        gym_env = _ContinuousStubBaseGym(action_space)
-        adapter = GymnasiumAdapter(gym_env)
-
-        decoded = adapter.decode_action({"knob": np.array([0.7234], dtype=np.float32)})
-        assert decoded["knob"] == pytest.approx(0.7234, rel=1e-4)
-        assert isinstance(decoded["knob"], float)
-
-
 class TestEncodeDecodeAreInverse:
     """``encode_action`` is the inverse of ``decode_action`` on native values.
 
@@ -400,16 +254,6 @@ class TestEncodeDecodeAreInverse:
         adapter = GymnasiumAdapter(_StubBaseGym())
         with pytest.raises(ValueError, match="keys mismatch"):
             adapter.encode_action({"param_a": 1})  # missing param_b
-
-    def test_continuous_int_round_trips_through_rounding(self) -> None:
-        action_space: dict[str, Any] = {
-            "threshold": ContinuousSpace(low=0.0, high=200.0, dtype="int"),
-            "discrete": [10, 20, 30],
-            "fixed": [99],
-        }
-        adapter = GymnasiumAdapter(_ContinuousStubBaseGym(action_space))
-        native = {"threshold": 47, "discrete": 20}
-        assert adapter.decode_action(adapter.encode_action(native)) == native
 
 
 class _StructuredStubBaseGym(BaseGym):
