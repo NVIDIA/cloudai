@@ -49,11 +49,16 @@ CURRENT_YEAR = datetime.now().year
 _REC_SEP = "\x1e"
 
 
-def _format_years_to_ranges(years: list[int]) -> str:
-    """Turn sorted unique years into a string with ranges for consecutive years.
+def _format_years_to_range(years: list[int]) -> str:
+    """Collapse unique years into a single copyright range.
 
-    E.g. [2024, 2026] -> "2024, 2026"
-         [2024, 2025, 2027] -> "2024-2025, 2027"
+    The earliest and latest touch years bound the range; any gap years in
+    between are absorbed, so the result is always a single year or a
+    continuous ``YYYY-YYYY`` range.
+
+    E.g. [2024]             -> "2024"
+         [2024, 2026]       -> "2024-2026"
+         [2024, 2025, 2027] -> "2024-2027"
     """
     if not years:
         raise ValueError(
@@ -61,36 +66,26 @@ def _format_years_to_ranges(years: list[int]) -> str:
             "current year"
         )
 
-    parts: list[str] = []
-    range_start = years[0]
-    range_end = years[0]
-    for y in years[1:]:
-        if y == range_end + 1:
-            range_end = y
-        else:
-            parts.append(f"{range_start}-{range_end}" if range_start != range_end else str(range_start))
-            range_start = y
-            range_end = y
-    parts.append(f"{range_start}-{range_end}" if range_start != range_end else str(range_start))
-    return ", ".join(parts)
+    lo, hi = min(years), max(years)
+    return str(lo) if lo == hi else f"{lo}-{hi}"
 
 
 @pytest.mark.parametrize(
     ("years_list", "expected"),
     (
-        ([2024, 2026], "2024, 2026"),
-        ([2024, 2025, 2027], "2024-2025, 2027"),
+        ([2024, 2026], "2024-2026"),
+        ([2024, 2025, 2027], "2024-2027"),
         ([2024], "2024"),
         ([2024, 2025, 2026], "2024-2026"),
     ),
 )
-def test_format_years_to_ranges(years_list: list[int], expected: str):
-    assert _format_years_to_ranges(years_list) == expected
+def test_format_years_to_range(years_list: list[int], expected: str):
+    assert _format_years_to_range(years_list) == expected
 
 
-def test_empty_format_years_to_ranges():
+def test_empty_format_years_to_range():
     with pytest.raises(ValueError):
-        _format_years_to_ranges([])
+        _format_years_to_range([])
 
 
 def run_git(cmd: list[str]) -> str:
@@ -157,7 +152,7 @@ def collect_years_same_file(path: Path) -> list[int]:
 
 
 def prepare_copyright_with_year(years: list[int]) -> str:
-    years_str = _format_years_to_ranges(years)
+    years_str = _format_years_to_range(years)
     after_year_str = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
     return f"# Copyright (c) {years_str} {after_year_str}"
 
