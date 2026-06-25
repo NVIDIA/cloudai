@@ -40,10 +40,10 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from cloudai.configurator.env_params import (
-    CsvSink,
     EnvParam,
     EnvParams,
     EnvParamSpec,
+    EnvParamsSink,
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 
@@ -201,22 +201,24 @@ def test_env_params_is_immutable() -> None:
         env_params.seed = 1  # pyright: ignore[reportAttributeAccessIssue]
 
 
-# --- CsvSink: unchanged persistence contract ---
+# --- EnvParamsSink: unchanged persistence contract ---
 
 
 def test_csv_sink_skips_empty_samples_and_rejects_zero_step(tmp_path: Path) -> None:
-    sink = CsvSink(tmp_path / "env.csv")
-    sink.write(1, {})  # empty -> no-op, no file
-    assert not (tmp_path / "env.csv").exists()
+    sink = EnvParamsSink()
+    path = tmp_path / "env.csv"
+    sink.write(path, 1, {})  # empty -> no-op, no file
+    assert not path.exists()
     with pytest.raises(ValueError, match="must be a positive trial index"):
-        sink.write(0, {"ball_speed": 1})
+        sink.write(path, 0, {"ball_speed": 1})
 
 
 def test_csv_sink_writes_header_then_rows(tmp_path: Path) -> None:
-    sink = CsvSink(tmp_path / "env.csv")
-    sink.write(1, {"ball_speed": 2})
-    sink.write(2, {"ball_speed": 3})
-    contents = (tmp_path / "env.csv").read_text().strip().splitlines()
+    sink = EnvParamsSink()
+    path = tmp_path / "env.csv"
+    sink.write(path, 1, {"ball_speed": 2})
+    sink.write(path, 2, {"ball_speed": 3})
+    contents = path.read_text().strip().splitlines()
     assert contents[0] == "step,env"
     assert contents[1].startswith("1,")
     assert contents[2].startswith("2,")

@@ -32,7 +32,7 @@ import dataclasses
 import math
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
@@ -133,33 +133,26 @@ class EnvParams:
         return {name: param.draw(random.Random(f"{self.seed}:{name}:{trial}")) for name, param in self.params.items()}
 
 
-@runtime_checkable
-class EnvParamsSink(Protocol):
-    """Persist one trial's env_params sample; empty samples must be no-ops."""
-
-    def write(self, step: int, sample: Dict[str, Any]) -> None: ...
-
-
-class CsvSink:
+class EnvParamsSink:
     """
     Append per-trial env_params samples to a step-aligned CSV.
 
     The CSV mirrors how ``trajectory.csv`` serialises its ``action`` column
     (one row per env.step(), sample dict stringified in a single cell) so the
     two files align 1:1 on ``step`` and a plain ``merge`` joins them.
+
+    Empty samples are skipped, so a run without env_params writes nothing and
+    callers can sink every trial unconditionally.
     """
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-
-    def write(self, step: int, sample: Dict[str, Any]) -> None:
+    def write(self, path: Path, step: int, sample: Dict[str, Any]) -> None:
         if step < 1:
             raise ValueError(f"step must be a positive trial index (cloudai DSE is 1-based); got {step}")
         if not sample:
             return
-        new_file = not self._path.exists()
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._path.open("a", newline="") as f:
+        new_file = not path.exists()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", newline="") as f:
             writer = csv.writer(f)
             if new_file:
                 writer.writerow(("step", "env"))
