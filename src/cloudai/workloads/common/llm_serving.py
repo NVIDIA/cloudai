@@ -578,6 +578,10 @@ wait_for_health() {{
     def cleanup_prelude(self) -> str:
         return ""
 
+    def cleanup_guard_var(self) -> str:
+        run_id = re.sub(r"\W+", "_", f"{self.test_run.name}_{self.test_run.current_iteration}").strip("_")
+        return f"CLOUDAI_{run_id.upper()}_CLEANUP_DONE"
+
     def _with_slurm_step_name(self, srun_prefix: str, role: str) -> str:
         return f"{srun_prefix} --job-name={self.slurm_step_name(role)}"
 
@@ -630,6 +634,7 @@ echo "Slurm step IDs for {role}: ${{{step_id_var}:-unknown}}"
 
     def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 60) -> str:
         step_id_vars = self.cleanup_step_id_vars(pid_vars)
+        guard_var = self.cleanup_guard_var()
         pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
         step_values = " ".join(f"{step_id_var}=${step_id_var}" for step_id_var in step_id_vars)
         prelude = self.cleanup_prelude()
@@ -645,10 +650,10 @@ echo "Slurm step IDs for {role}: ${{{step_id_var}:-unknown}}"
         )
         return f"""\
 cleanup() {{
-    if [ "${{CLOUDAI_CLEANUP_DONE:-0}}" = "1" ]; then
+    if [ "${{{guard_var}:-0}}" = "1" ]; then
         return 0
     fi
-    CLOUDAI_CLEANUP_DONE=1
+    {guard_var}=1
     cleanup_status=0
 {prelude}    echo "Cleaning up PIDs: {pid_values}"
     echo "Cleaning up Slurm step IDs: {step_values}"

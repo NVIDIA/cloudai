@@ -269,13 +269,24 @@ class TestLLMServingSlurmHelpers:
 
         cleanup = strategy.generate_cleanup_function(["SERVE_PID"])
 
-        assert "CLOUDAI_CLEANUP_DONE=1" in cleanup
+        assert "CLOUDAI_LLM_0_CLEANUP_DONE=1" in cleanup
         assert "SERVE_STEP_IDS=$SERVE_STEP_IDS" in cleanup
         assert 'scancel --signal=TERM "$step_id"' in cleanup
         assert 'kill -TERM "${SERVE_PID}"' in cleanup
         assert 'if [ "$i" -ge 60 ]; then' in cleanup
         assert 'scancel --signal=KILL "$step_id"' in cleanup
         assert 'kill -KILL "${SERVE_PID}"' in cleanup
+
+    def test_cleanup_guard_is_unique_per_test_run(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
+        first = TestRun(name="llm.first", test=make_tdef(), num_nodes=1, nodes=[], output_path=tmp_path / "first")
+        second = TestRun(name="llm.second", test=make_tdef(), num_nodes=1, nodes=[], output_path=tmp_path / "second")
+
+        first_cleanup = FakeLLMSlurmStrategy(slurm_system, first).generate_cleanup_function(["SERVE_PID"])
+        second_cleanup = FakeLLMSlurmStrategy(slurm_system, second).generate_cleanup_function(["SERVE_PID"])
+
+        assert "CLOUDAI_LLM_FIRST_0_CLEANUP_DONE=1" in first_cleanup
+        assert "CLOUDAI_LLM_SECOND_0_CLEANUP_DONE=1" in second_cleanup
+        assert "CLOUDAI_LLM_FIRST_0_CLEANUP_DONE" not in second_cleanup
 
     def test_aggregated_serving_names_and_discovers_slurm_step(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         tdef = make_tdef()

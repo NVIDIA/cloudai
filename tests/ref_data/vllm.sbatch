@@ -15,10 +15,10 @@ srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=none -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    if [ "${CLOUDAI_CLEANUP_DONE:-0}" = "1" ]; then
+    if [ "${CLOUDAI_VLLM_0_CLEANUP_DONE:-0}" = "1" ]; then
         return 0
     fi
-    CLOUDAI_CLEANUP_DONE=1
+    CLOUDAI_VLLM_0_CLEANUP_DONE=1
     cleanup_status=0
     echo "Cleaning up PIDs: SERVE_PID=$SERVE_PID"
     echo "Cleaning up Slurm step IDs: SERVE_STEP_IDS=$SERVE_STEP_IDS"
