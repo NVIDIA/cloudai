@@ -97,6 +97,7 @@ class TestRun:
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
     extra_srun_args: str | None = None
     num_nodes_explicit: bool = False
+    current_env_params: dict[str, Any] = field(default_factory=dict)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -141,6 +142,22 @@ class TestRun:
         return self.test.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
+    def is_live_rl(self) -> bool:
+        """True for online live-RL runs, which opt in via ``cmd_args.live_rl_mode``."""
+        return bool(getattr(self.test.cmd_args, "live_rl_mode", False))
+
+    @property
+    def is_agent_driven(self) -> bool:
+        """
+        True for runs orchestrated by ``agent.run()`` rather than the grid-unrolled path.
+
+        A DSE sweep declares a search space (``is_dse_job``). An online live-RL run carries no sweep
+        (so ``is_dse_job`` is False) but still drives the agent's own ``run()`` loop; it opts in via
+        ``cmd_args.live_rl_mode``.
+        """
+        return self.is_dse_job or self.is_live_rl
+
+    @property
     def nnodes(self) -> int:
         """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
         if isinstance(self.num_nodes, list):
@@ -156,7 +173,9 @@ class TestRun:
             **{
                 key: value
                 for key, value in cmd_args_dict.items()
-                if isinstance(value, list) and not self.test.is_dse_excluded_arg(key)
+                if isinstance(value, list)
+                and not self.test.is_dse_excluded_arg(key)
+                and not self.test.is_env_sampled(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -184,27 +203,40 @@ class TestRun:
 
         return all_combinations
 
-    def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
+    def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
         tdef = self.test.model_copy(deep=True)
-        for key, value in action.items():
+
+        def _apply(key: str, value: Any) -> None:
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
+                return
+            attrs = key.split(".")
+            obj = tdef.cmd_args
+            for attr in attrs[:-1]:
+                obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+            if isinstance(obj, dict):
+                obj[attrs[-1]] = value
             else:
-                attrs = key.split(".")
-                obj = tdef.cmd_args
-                for attr in attrs[:-1]:
-                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
-                if isinstance(obj, dict):
-                    obj[attrs[-1]] = value
-                else:
-                    setattr(obj, attrs[-1], value)
+                setattr(obj, attrs[-1], value)
 
-        type(tdef)(**tdef.model_dump())  # trigger validation
+        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
+        for key, value in action.items():
+            _apply(key, value)
+        for key, value in (env_params or {}).items():
+            _apply(key, value)
+
+        # env_params is validated at parse time; after the overlay its target cmd_args fields hold
+        # concrete scalar draws, so re-validating it here would reject weighted specs. Drop it for
+        # this validation-only pass, which exists to validate the applied action values.
+        validation_args = tdef.model_dump()
+        validation_args.pop("env_params", None)
+        type(tdef)(**validation_args)  # trigger validation
 
         new_tr = copy.deepcopy(self)
         new_tr.test = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
+        new_tr.current_env_params = dict(env_params or {})
         return new_tr
 
 

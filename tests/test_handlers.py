@@ -18,27 +18,34 @@ import argparse
 import copy
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
 from cloudai.cli.handlers import (
+    _dispatch_agent_driven_run,
     handle_dse_job,
+    validate_dse_env_params,
     verify_system_configs,
     verify_test_configs,
     verify_test_scenarios,
 )
+from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
+    CmdArgs,
+    Parser,
     Registry,
     RewardOverrides,
     Runner,
+    TestDefinition,
     TestDependency,
     TestRun,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import StatusReporter
@@ -52,6 +59,7 @@ class StubAgentConfig(BaseAgentConfig):
 
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
+    samples_env_params: bool = True  # stands in for an env-aware learning agent
 
     def __init__(self, env, config: StubAgentConfig):
         self.env = env
@@ -427,3 +435,162 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+
+
+def test_validate_dse_env_params_rejects_non_dse(base_tr: TestRun) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    scenario = TestScenario(name="s", test_runs=[base_tr])
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_dse_env_params(scenario)
+
+
+def test_validate_dse_env_params_rejects_grid_search(dse_tr: TestRun) -> None:
+    """A DSE job on grid_search exhaustively searches the space, so env_params are noise -> reject."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    assert dse_tr.is_dse_job is True  # it IS a DSE job...
+    assert dse_tr.test.agent == "grid_search"  # ...but grid_search does not sample env_params
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_dse_env_params_rejects_non_sampling_agent(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check keys on the agent capability, not the name: a non-grid agent that opts out is rejected too."""
+    monkeypatch.setattr(StubAgent, "samples_env_params", False)
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name
+    assert dse_tr.is_dse_job is True and dse_tr.test.agent != "grid_search"
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_dse_env_params_defers_unknown_agent(dse_tr: TestRun) -> None:
+    """An unknown agent is not flagged here; it is deferred to the dedicated agent-resolution error."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = "does_not_exist_agent"
+    assert dse_tr.is_dse_job is True
+    assert dse_tr.test.agent not in Registry().agents_map  # precondition: agent is truly unknown
+    validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == deferred
+
+
+def test_validate_dse_env_params_allows_dse_run(dse_tr: TestRun, stub_agent_name: str) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # an env-aware agent (samples_env_params=True) consumes env_params
+    assert dse_tr.is_dse_job is True  # precondition: DSE + env-aware agent + env_params is allowed
+    validate_dse_env_params(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
+
+
+def test_validate_dse_env_params_allows_num_nodes_sweep(base_tr: TestRun, stub_agent_name: str) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    base_tr.test.agent = stub_agent_name
+    base_tr.num_nodes = [1, 2]
+    assert base_tr.is_dse_job is True  # a num_nodes list sweep makes it DSE, so env_params is allowed
+    validate_dse_env_params(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_validate_dse_env_params_allows_non_dse_without_env_params(base_tr: TestRun) -> None:
+    assert base_tr.is_dse_job is False  # precondition: not DSE, but also no env_params declared
+    assert not base_tr.test.env_params
+    validate_dse_env_params(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_verify_test_scenarios_rejects_env_params_without_dse(
+    base_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    bad = TestScenario(name="s", test_runs=[base_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: bad)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
+
+
+def test_verify_test_scenarios_allows_env_params_with_dse(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # learning agent (not grid_search)
+    good = TestScenario(name="s", test_runs=[dse_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0
+
+
+def test_validate_dse_env_params_allows_live_rl_run() -> None:
+    cmd_args = CmdArgs.model_validate({"live_rl_mode": True})
+    tdef = TestDefinition(name="lr", description="d", test_template_name="tt", cmd_args=cmd_args)
+    tdef.env_params = {"ball_speed": EnvParamSpec()}
+    tr = TestRun(name="lr", test=tdef, num_nodes=1, nodes=[])
+    assert tr.is_dse_job is False  # precondition: live-RL is not a DSE sweep, but is agent-driven
+    validate_dse_env_params(TestScenario(name="s", test_runs=[tr]))  # no exception == pass
+
+
+def _routing_tr(name: str, *, live_rl: bool = False, num_nodes: Any = 1) -> TestRun:
+    cmd_args = CmdArgs.model_validate({"live_rl_mode": True}) if live_rl else CmdArgs()
+    tdef = TestDefinition(name=name, description="d", test_template_name="tt", cmd_args=cmd_args)
+    return TestRun(name=name, test=tdef, num_nodes=num_nodes, nodes=[])
+
+
+@pytest.mark.parametrize(
+    "live_rl, num_nodes, expected",
+    [
+        pytest.param(False, 1, False, id="plain-job"),
+        pytest.param(True, 1, True, id="live-rl-job"),
+        pytest.param(False, [1, 2], True, id="dse-via-num-nodes"),
+    ],
+)
+def test_is_agent_driven(live_rl: bool, num_nodes: Any, expected: bool) -> None:
+    assert _routing_tr("tr", live_rl=live_rl, num_nodes=num_nodes).is_agent_driven is expected
+
+
+def _run_routing(test_runs: list[TestRun], *, single_sbatch: bool = False) -> tuple[int, MagicMock, MagicMock]:
+    scenario = TestScenario(name="s", test_runs=test_runs)
+    runner = MagicMock()
+    with (
+        patch("cloudai.cli.handlers.handle_dse_job", return_value=0) as dse,
+        patch("cloudai.cli.handlers.handle_non_dse_job") as non_dse,
+    ):
+        rc = _dispatch_agent_driven_run(argparse.Namespace(single_sbatch=single_sbatch), runner, scenario)
+    return rc, dse, non_dse
+
+
+def test_handle_dry_run_routes_live_rl_to_dse_handler() -> None:
+    """A live_rl_mode run (no TOML sweep, so not is_dse_job) must reach handle_dse_job (agent.run())."""
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True)])
+    dse.assert_called_once()
+    non_dse.assert_not_called()
+    assert rc == 0
+
+
+def test_handle_dry_run_routes_plain_job_to_non_dse_handler() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("plain")])
+    non_dse.assert_called_once()
+    dse.assert_not_called()
+    assert rc == 0
+
+
+def test_handle_dry_run_mixed_live_rl_and_plain_errors() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True), _routing_tr("plain")])
+    assert rc == 1
+    dse.assert_not_called()
+    non_dse.assert_not_called()
+
+
+def test_handle_dry_run_single_sbatch_with_live_rl_errors() -> None:
+    """single_sbatch has no live-RL path; the combination must hard-error, not silently run static.
+
+    Tracked for a proper routing rework: https://github.com/NVIDIA/cloudai/issues/937.
+    """
+    rc, dse, non_dse = _run_routing([_routing_tr("live", live_rl=True)], single_sbatch=True)
+    assert rc == 1
+    dse.assert_not_called()
+    non_dse.assert_not_called()
+
+
+def test_handle_dry_run_single_sbatch_with_plain_job_grid_unrolls() -> None:
+    rc, dse, non_dse = _run_routing([_routing_tr("plain")], single_sbatch=True)
+    assert rc == 0
+    non_dse.assert_called_once()
+    dse.assert_not_called()

@@ -21,7 +21,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.configurator.cloudai_gym import _create_gym_server
+from cloudai.configurator.env_params import EnvParamSpec
+from cloudai.core import BaseRunner, CmdArgs, RewardOverrides, Runner, TestDefinition, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -33,6 +35,7 @@ from cloudai.workloads.nemo_run import (
 )
 from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from tests.test_env_params import EnvVarCmdArgs, EnvVarTestDefinition
 
 
 @pytest.fixture
@@ -441,3 +444,570 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     contents = csv_path.read_text().strip().splitlines()
     assert contents[0] == "step,action,reward,observation"
     assert contents[-1].startswith("5,")
+
+
+def _seed_cached_entry_with_env_params(
+    env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
+) -> None:
+    """Seed env.trajectory with one entry carrying the given env_params."""
+    entry = TrajectoryEntry(step=1, action=action, reward=0.5, observation=[100.0], env_params=env_params)
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [entry]}
+
+
+def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> None:
+    """Cache MUST miss when env_params differ, even if action is identical.
+
+    Without this property the agent receives stale rewards on every cache hit
+    when the env varies per trial: any agent silently trains on labels that
+    do not correspond to the env they were nominally generated under.
+    """
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 1})
+
+    env.test_run.current_env_params = {"ball_speed": 2}
+
+    assert env.get_cached_trajectory_result({"x": 10}) is None, (
+        "Cache must include env_params in its key. Keying on action alone means "
+        "trials repeating the same action under a different env_params sample "
+        "receive a stale cached reward."
+    )
+
+
+def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: Path) -> None:
+    """Same action AND same env_params must still HIT the cache."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 2})
+
+    env.test_run.current_env_params = {"ball_speed": 2}
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None
+    assert result.step == 1
+
+
+def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path) -> None:
+    """Workloads without env_params behave exactly as today (back-compat)."""
+    runner = MagicMock()
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = MagicMock(test_runs=[])
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env.test_run.current_iteration = 0
+    env.trajectory = {0: [TrajectoryEntry(step=1, action={"x": 10}, reward=0.5, observation=[100.0])]}
+    # Note: neither the cached entry nor test_run carries env_params -> existing behavior.
+
+    result = env.get_cached_trajectory_result({"x": 10})
+    assert result is not None
+    assert result.step == 1
+
+
+def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
+    """Integration: two env.step() calls with the same action but different sampled env_params re-run.
+
+    Counterpart to test_cache_miss_when_env_params_differ but exercising the
+    full step() flow: increment_step -> sample env_params -> apply_params_set ->
+    cache lookup -> runner.run() -> write_trajectory. With seed 42 the sampler
+    draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
+    cache key differs and the workload must re-run both times.
+    """
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2, 3]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs = {}
+    runner.testrun_to_job_map = {}
+    runner.shutting_down = False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    action = {"paddle_width": 4}
+    fake_obs = iter([[100.0], [50.0]])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
+        env.test_run.step = 0
+        obs1, _r1, *_ = env.step(action)  # samples ball_speed=3
+        obs2, _r2, *_ = env.step(action)  # samples ball_speed=1
+
+    assert runner.run.call_count == 2, (
+        "Different sampled env_params between two env.step() calls with the same action "
+        "must trigger a workload re-run; the cache lookup must miss."
+    )
+    assert obs1 != obs2, "fresh workload run should produce a fresh observation"
+
+
+def test_env_csv_is_step_aligned_with_trajectory(tmp_path: Path) -> None:
+    """env.csv must have exactly one row per env.step() call, with steps aligned 1:1 to trajectory.csv.
+
+    This pins the corpus-friendly contract: a downstream consumer can
+    ``pd.merge(traj, env, on="step")`` without losing rows on either side,
+    independent of whether the trial hit the trajectory cache.
+    """
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2, 3]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    action_a, action_b = {"paddle_width": 4}, {"paddle_width": 8}
+    fake_obs = iter([[100.0], [50.0], [25.0]])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
+        env.test_run.step = 0
+        for action in (action_a, action_b, action_a):
+            env.step(action)
+
+    env_csv = env.env_params_record_path
+    traj_csv = env.trajectory_file_path
+    assert env_csv.exists(), "env.csv must be written when env_params is declared"
+
+    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
+    traj_steps = [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
+    assert env_steps == traj_steps == [1, 2, 3], (
+        f"step columns must align 1:1 across env.csv ({env_steps}) and trajectory.csv ({traj_steps})"
+    )
+
+
+def test_env_csv_step_alignment_holds_on_constraint_failure(tmp_path: Path) -> None:
+    """A constraint failure must not desync env.csv from trajectory.csv.
+
+    Runs three steps where the middle one fails ``constraint_check`` and the
+    other two succeed. ``env.csv`` is sunk inside ``write_trajectory`` from the
+    same ``TrajectoryEntry``, which is never reached on the early-return
+    constraint-failure path - so the failed step lands in neither file. The
+    corpus-friendly contract (``pd.merge(traj, env, on="step")`` loses no rows)
+    therefore holds via shared absence: both files record exactly the surviving
+    steps, aligned 1:1.
+    """
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2, 3]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+    )
+    test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = test_scenario
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+    # Step 2 fails the constraint; steps 1 and 3 survive. get_observation is only
+    # reached on the surviving steps, so it yields exactly two values.
+    fake_obs = iter([[100.0], [25.0]])
+    with (
+        patch.object(EnvVarTestDefinition, "constraint_check", side_effect=[True, False, True]),
+        patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)),
+    ):
+        env.test_run.step = 0
+        for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
+            env.step(action)
+
+    env_csv = env.env_params_record_path
+    traj_csv = env.trajectory_file_path
+
+    assert env_csv.exists(), "surviving steps declare env_params -> env.csv must exist"
+    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
+    traj_steps = (
+        [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
+        if traj_csv.exists()
+        else []
+    )
+    assert env_steps == traj_steps == [1, 3], (
+        f"the constraint-failed step (2) must appear in neither file; env.csv ({env_steps}) "
+        f"and trajectory.csv ({traj_steps}) must stay 1:1 aligned on the surviving steps"
+    )
+
+
+def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: Path) -> None:
+    """End-to-end: cache HIT under observer-driven env_params still records env.csv.
+
+    A cache hit still calls ``write_trajectory``, which sinks the trajectory row
+    and the matching env.csv row from the same entry - keeping the two files
+    step-aligned even when the workload itself is short-circuited.
+    Asserts: (a) the workload is NOT re-run (cache short-circuit), (b)
+    env.csv gains a row, (c) trajectory.csv gains a row carrying the
+    sampled env_params.
+    """
+    import random as _random
+
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2, 3]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
+
+    test_run = TestRun(
+        name="dr_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    assert env.params is not None, "TestDefinition.env_params declared -> EnvParams must be built"
+
+    expected_sample = {"ball_speed": _random.Random("42:ball_speed:1").choice([1, 2, 3])}
+    action = {"paddle_width": 4}
+    env.test_run.current_iteration = 0
+    env.trajectory = {
+        0: [TrajectoryEntry(step=0, action=action, reward=0.42, observation=[0.84], env_params=expected_sample)]
+    }
+    env.test_run.step = 0
+
+    with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
+        obs, reward, _done, _info = env.step(action)
+
+    runner.run.assert_not_called()
+    assert reward == 0.42 and obs == [0.84]
+
+    env_csv = env.env_params_record_path
+    assert env_csv.exists(), "cache HIT must NOT skip the observer; env.csv must record the trial"
+    env_rows = env_csv.read_text().strip().splitlines()
+    assert env_rows[0] == "step,env"
+    assert env_rows[1].startswith("1,"), f"expected step 1 row in env.csv, got {env_rows[1]!r}"
+
+    traj_rows = env.trajectory[0]
+    assert len(traj_rows) == 2 and traj_rows[-1].env_params == expected_sample, (
+        "cache-hit trajectory entry must record the per-trial env_params sample"
+    )
+
+
+def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
+    """The per-trial env_params sample must be overlaid onto cmd_args before the workload runs.
+
+    env_params are the env-side twin of the action: core overlays the sampled values onto
+    cmd_args inside step() so the workload actually runs with them, workload-agnostically
+    (no per-workload injection code). Here ``ball_speed`` is env-randomized (its candidate
+    list lives in cmd_args), so the value the workload runs with must equal the observer's
+    sample, not the whole candidate list.
+    """
+    import random as _random
+
+    tdef = EnvVarTestDefinition(
+        name="overlay",
+        description="overlay",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1, 2]),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": 42},
+    )
+
+    test_run = TestRun(
+        name="overlay_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "overlay_tr" / "0",
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    runner.test_scenario = TestScenario(name="overlay_scenario", test_runs=[test_run])
+    runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
+    runner.get_job_output_path.return_value = test_run.output_path
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    expected = _random.Random("42:ball_speed:1").choice([1, 2])
+
+    with patch.object(env, "get_observation", side_effect=lambda _action: [1.0]):
+        env.test_run.step = 0
+        env.step({"paddle_width": 4})
+
+    ran_cmd_args = runner.test_scenario.test_runs[0].test.cmd_args
+    assert ran_cmd_args.ball_speed == expected, (
+        "step() must overlay the sampled env_params onto cmd_args before runner.run(), so the "
+        f"workload runs with ball_speed={expected} (the observer's draw), not the candidate list."
+    )
+
+
+def test_param_space_excludes_env_params_keys(setup_env: tuple[TestRun, BaseRunner]):
+    """env_params keys must never surface in the grid/action space (sampled, not searched)."""
+    tr, _ = setup_env
+    tr.test = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        # paddle_width is an ordinary action-space list; ball_speed is an env-sampled list.
+        cmd_args=EnvVarCmdArgs(paddle_width=[4, 8], ball_speed=[1, 2]),
+        env_params={"ball_speed": EnvParamSpec()},
+    )
+
+    action_space = tr.param_space
+
+    assert "paddle_width" in action_space, "an un-annotated cmd_args list must remain an action-space dimension"
+    assert "ball_speed" not in action_space, (
+        "a knob declared in env_params is sampled by the env, not explored by the agent, so it "
+        "must be excluded from param_space even though its cmd_args value is a list."
+    )
+
+
+def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """Workloads without [env_params.*] pay zero overhead: no observer, no env.csv."""
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    test_run = TestRun(
+        name="plain_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        output_path=tmp_path / "out" / "plain_tr" / "0",
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+    assert env.params is None, "no env_params declared -> no EnvParams object"
+    assert not env.env_params_record_path.exists()
+
+
+class FakeGymServer:
+    """In-process GymServer stub for online (live-RL) mode tests."""
+
+    def __init__(self, n_actions: int = 2):
+        self.n_actions = n_actions
+        self.reset_calls = 0
+        self.step_calls = 0
+        self.last_action: object = None
+
+    def reset(self) -> tuple[list[float], dict[str, object]]:
+        self.reset_calls += 1
+        return [0.0] * self.n_actions, {"reset": True}
+
+    def step(self, action: dict[str, object]) -> tuple[list[float], float, bool, dict[str, object]]:
+        self.step_calls += 1
+        self.last_action = action
+        return [1.0, 2.0], 3.5, False, {"served": True}
+
+    def get_action_space(self) -> dict[str, object]:
+        return {"a": [0, 1], "b": [0, 1]}
+
+    def get_observation_space(self) -> list[float]:
+        return [0.0, 0.0]
+
+
+def test_default_mode_is_offline(base_tr: TestRun) -> None:
+    """Workloads without live_rl_mode keep the runner-backed (offline) behavior."""
+    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides())
+    assert env._is_online is False
+    assert env._gym_server is None
+
+
+def test_online_mode_delegates_to_gym_server(base_tr: TestRun, tmp_path: Path) -> None:
+    """An injected GymServer drives action/observation spaces, reset, and step without the runner."""
+    base_tr.output_path = tmp_path / "out"
+    server = FakeGymServer(n_actions=2)
+    runner = MagicMock(spec=BaseRunner)
+
+    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides(), gym_server=server)
+
+    assert env._is_online is True
+    assert env.define_action_space() == {"a": [0, 1], "b": [0, 1]}
+    assert env.define_observation_space() == [0.0, 0.0]
+
+    obs, info = env.reset()
+    assert obs == [0.0, 0.0]
+    assert info == {"reset": True}
+
+    obs, reward, done, info = env.step({"a": 1})
+    assert obs == [1.0, 2.0]
+    assert reward == 3.5
+    assert done is False
+    assert info == {"served": True}
+
+    runner.run.assert_not_called()
+    assert server.step_calls == 1
+    assert server.last_action == {"a": 1}
+
+
+def test_online_step_writes_trajectory_to_output_path(base_tr: TestRun, tmp_path: Path) -> None:
+    """Online steps still produce trajectory.csv (under output_path), counted via test_run.step."""
+    base_tr.output_path = tmp_path / "out"
+    env = CloudAIGymEnv(
+        test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides(), gym_server=FakeGymServer()
+    )
+
+    env.reset()
+    env.step({"a": 1})
+    env.step({"a": 0})
+
+    traj = env.trajectory_file_path
+    assert traj == base_tr.output_path / "trajectory.csv"
+    lines = traj.read_text().strip().splitlines()
+    assert lines[0] == "step,action,reward,observation"
+    assert lines[1].startswith("1,")
+    assert lines[2].startswith("2,")
+
+
+def test_online_step_numbering_is_monotonic_across_resets(base_tr: TestRun, tmp_path: Path) -> None:
+    """reset() must not rewind online step numbering: under reset-per-episode rollouts the
+    trajectory rows keep increasing (via monotonic test_run.step) instead of collapsing to 1.
+    """
+    base_tr.output_path = tmp_path / "out"
+    env = CloudAIGymEnv(
+        test_run=base_tr, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides(), gym_server=FakeGymServer()
+    )
+
+    env.reset()
+    env.step({"a": 1})
+    env.step({"a": 0})
+    env.reset()
+    env.step({"a": 1})
+
+    lines = env.trajectory_file_path.read_text().strip().splitlines()
+    assert [line.split(",", 1)[0] for line in lines[1:]] == ["1", "2", "3"]
+
+
+def test_create_gym_server_imports_and_filters_kwargs() -> None:
+    """env_class is imported and cmd_args are forwarded, filtered to the server's __init__ signature."""
+    tr = MagicMock()
+    tr.test.cmd_args.model_dump.return_value = {
+        "env_class": f"{FakeGymServer.__module__}.FakeGymServer",
+        "live_rl_mode": True,
+        "docker_image_url": "https://docker/url",
+        "n_actions": 3,
+        "unknown_param": 99,
+    }
+
+    server = _create_gym_server(tr)
+
+    assert isinstance(server, FakeGymServer)
+    assert server.n_actions == 3
+
+
+def test_create_gym_server_requires_env_class() -> None:
+    tr = MagicMock()
+    tr.test.cmd_args.model_dump.return_value = {"live_rl_mode": True}
+
+    with pytest.raises(ValueError, match="env_class"):
+        _create_gym_server(tr)
+
+
+def test_live_rl_mode_auto_detected(tmp_path: Path) -> None:
+    """live_rl_mode=true in cmd_args builds the GymServer from env_class during __init__."""
+    cmd_args = CmdArgs.model_validate(
+        {"live_rl_mode": True, "env_class": f"{FakeGymServer.__module__}.FakeGymServer", "n_actions": 4}
+    )
+    tdef = TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=cmd_args)
+    test_run = TestRun(name="online_tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out")
+
+    env = CloudAIGymEnv(test_run=test_run, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides())
+
+    assert env._is_online is True
+    assert isinstance(env._gym_server, FakeGymServer)
+    assert env._gym_server.n_actions == 4
+
+
+def test_live_rl_only_env_params_no_action_space_is_valid(tmp_path: Path) -> None:
+    """Live-RL needs no TOML action-space list: the GymServer owns the action space.
+
+    So a config with only env_params (and no list-valued cmd_args/extra_env_vars/num_nodes) is
+    complete and valid. Proves: is_dse_job is False and param_space is empty (no action list), yet
+    the env sources its action space from the server and still builds EnvParams from the declaration.
+    """
+    cmd_args = CmdArgs.model_validate(
+        {
+            "live_rl_mode": True,
+            "env_class": f"{FakeGymServer.__module__}.FakeGymServer",
+            "n_actions": 2,
+            "ball_speed": [1, 2],  # env-sampled candidate list (excluded from the action space)
+        }
+    )
+    tdef = TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=cmd_args)
+    tdef.env_params = {"ball_speed": EnvParamSpec()}
+    test_run = TestRun(name="lr_tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out")
+
+    assert test_run.is_dse_job is False  # no sweep declared...
+    assert test_run.param_space == {}  # ...so there is no action-space list at all
+
+    env = CloudAIGymEnv(test_run=test_run, runner=MagicMock(spec=BaseRunner), rewards=RewardOverrides())
+
+    assert env._is_online is True
+    assert env.define_action_space() == {"a": [0, 1], "b": [0, 1]}  # action space comes from the server
+    assert env.params is not None, "declared env_params must build EnvParams even in live-RL mode"

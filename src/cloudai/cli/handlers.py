@@ -27,6 +27,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
+from cloudai.configurator.env_params import validate_dse_env_params
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
@@ -39,6 +40,7 @@ from cloudai.core import (
     System,
     TestParser,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
@@ -133,8 +135,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         return 1
 
     err = 0
-    # Recoverable failures return a non-zero rc and are accumulated here; an unexpected exception
-    # (a bug) is a hard-fail. We capture it so reports still generate, then re-raise below.
+    # Capture an unexpected error so reports still generate, then re-raise below.
     run_error: Exception | None = None
     try:
         for tr in runner.runner.test_scenario.test_runs:
@@ -177,7 +178,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         )
 
     if run_error is not None:
-        raise run_error
+        raise run_error.with_traceback(run_error.__traceback__)
 
     logging.info("All jobs are complete.")
     return err
@@ -303,6 +304,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         return 1
     system, test_scenario, tests = setup_result
 
+    try:
+        validate_dse_env_params(test_scenario)
+    except TestScenarioParsingError as e:
+        logging.error(str(e))
+        return 1
+
     if not _handle_single_sbatch(args, system):
         return 1
 
@@ -335,15 +342,30 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     register_signal_handlers(runner.cancel_on_signal)
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
-    has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
+    return _dispatch_agent_driven_run(args, runner, test_scenario)
+
+
+def _dispatch_agent_driven_run(args: argparse.Namespace, runner: Runner, test_scenario: TestScenario) -> int:
+    """Route a parsed scenario to the DSE, grid-unroll, or error path based on its test runs."""
+    agent_driven = [tr.is_agent_driven for tr in test_scenario.test_runs]
+
+    # Stopgap guard: single_sbatch grid-unrolls DSE param spaces inside one allocation, but
+    # SingleSbatchRunner has no live-RL path, so a live_rl_mode job would silently run once as a
+    # static job instead of driving the in-process GymServer loop. Reject the combination here.
+    # TODO(https://github.com/NVIDIA/cloudai/issues/937): replace with a proper single_sbatch vs
+    # agent-driven routing rework (mixed-job guard ordering + per-agent-type semantics).
+    if args.single_sbatch and any(tr.is_live_rl for tr in test_scenario.test_runs):
+        logging.error("Single sbatch is not supported for live-RL (live_rl_mode) jobs.")
+        return 1
+
+    if args.single_sbatch or not any(agent_driven):  # in this mode cases are unrolled using grid search
         handle_non_dse_job(runner, args)
         return 0
 
-    if all(tr.is_dse_job for tr in test_scenario.test_runs):
+    if all(agent_driven):
         return handle_dse_job(runner, args)
 
-    logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+    logging.error("Mixing agent-driven (DSE / live-RL) and plain jobs is not allowed.")
     return 1
 
 
@@ -491,7 +513,8 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            validate_dse_env_params(scenario)
         except Exception:
             nfailed += 1
 
