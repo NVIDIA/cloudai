@@ -217,10 +217,11 @@ class TestDefinition(BaseModel, ABC):
 
         ``env_params`` is an annotation: each key names a ``cmd_args`` field whose value is
         the candidate set (the single source of truth), and the entry carries only *how* to
-        sample. So each key must name a real ``cmd_args`` field; and when ``weights`` are
-        declared, that field must be a candidate list of >= 2 values and the weights must
-        align 1:1 with it. A scalar (fixed) ``cmd_args`` value is tolerated as a no-op
-        marker. Sampling, persistence, the per-trial cmd_args overlay, and the cache key all
+        sample. So each key must name a real ``cmd_args`` field whose value is a candidate
+        list; a scalar is already fixed, so annotating it is a meaningless label and is
+        rejected here. When ``weights`` are declared, the list needs >= 2 values and the
+        weights must align 1:1 with it. Sampling, persistence, the per-trial cmd_args overlay,
+        and the cache key all
         live in ``CloudAIGymEnv``; keeping this shape check in core lets the overlay stay
         agent- and workload-agnostic rather than re-implemented per workload.
         """
@@ -236,28 +237,36 @@ class TestDefinition(BaseModel, ABC):
             raise ValueError(f"env_params keys {unknown} are not cmd_args fields on {type(self.cmd_args).__name__}")
 
         for name, spec in self.env_params.items():
-            value = getattr(self.cmd_args, name, None)
-            if isinstance(value, (dict, BaseModel)):
-                raise ValueError(
-                    f"env_params['{name}'] must target a leaf cmd_args field (scalar or candidate list), "
-                    "not a structured object; param_space/is_dse_job exclude the whole key, which would "
-                    "silently drop nested action dimensions"
-                )
-            if isinstance(value, list) and not value:
-                raise ValueError(
-                    f"env_params['{name}'] references an empty candidate list in cmd_args.{name}; "
-                    "provide at least one candidate (the sampler would otherwise fail on an empty draw)"
-                )
-            if spec.weights is None:
-                continue
-            if not isinstance(value, list) or len(value) < 2:
-                raise ValueError(
-                    f"env_params['{name}'] declares weights but cmd_args.{name} is not a candidate list "
-                    "(need a list of >= 2 values)"
-                )
-            if len(spec.weights) != len(value):
-                raise ValueError(
-                    f"env_params['{name}'] weights length {len(spec.weights)} does not match "
-                    f"cmd_args.{name} candidate count {len(value)}"
-                )
+            self._validate_env_param_field(name, spec, getattr(self.cmd_args, name, None))
         return self
+
+    @staticmethod
+    def _validate_env_param_field(name: str, spec: Any, value: Any) -> None:
+        """Reject one env_params entry whose target cmd_args field is not a valid candidate list."""
+        if isinstance(value, (dict, BaseModel)):
+            raise ValueError(
+                f"env_params['{name}'] must target a leaf cmd_args field (a candidate list), "
+                "not a structured object; param_space/is_dse_job exclude the whole key, which would "
+                "silently drop nested action dimensions"
+            )
+        if not isinstance(value, list):
+            raise ValueError(
+                f"env_params['{name}'] annotates cmd_args.{name}, which is not a candidate list "
+                f"(got {type(value).__name__}); the annotation only reclassifies a list-valued sweep as "
+                f"env-sampled, while a scalar is already fixed. Make cmd_args.{name} a list or remove "
+                "the annotation"
+            )
+        if not value:
+            raise ValueError(
+                f"env_params['{name}'] references an empty candidate list in cmd_args.{name}; "
+                "provide at least one candidate (the sampler would otherwise fail on an empty draw)"
+            )
+        if spec.weights is None:
+            return
+        if len(value) < 2:
+            raise ValueError(f"env_params['{name}'] declares weights but cmd_args.{name} needs >= 2 candidate values")
+        if len(spec.weights) != len(value):
+            raise ValueError(
+                f"env_params['{name}'] weights length {len(spec.weights)} does not match "
+                f"cmd_args.{name} candidate count {len(value)}"
+            )

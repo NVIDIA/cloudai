@@ -113,9 +113,10 @@ class EnvParams:
         """
         Resolve a TestDefinition's env_params annotations, or ``None`` if nothing is sampled.
 
-        A field whose ``cmd_args`` value is a scalar is fixed: the annotation is a no-op and
-        the field is skipped. With no list-valued field left, there is nothing to sample and
-        we return ``None`` so callers stay on the zero-overhead path.
+        Annotated fields are guaranteed list-valued by ``TestDefinition`` parse-time validation
+        (a scalar annotation is rejected there), so the non-list guard below is defensive. With
+        no annotations declared there is nothing to sample and we return ``None`` so callers
+        stay on the zero-overhead path.
         """
         params: Dict[str, EnvParam] = {}
         for name, spec in test.env_params.items():
