@@ -23,6 +23,8 @@ from typing_extensions import Self
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
 
+from ..configurator.env_params import EnvParamSpec
+
 
 class CmdArgs(BaseModel):
     """Test command arguments."""
@@ -110,6 +112,14 @@ class TestDefinition(BaseModel, ABC):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
+    env_params: dict[str, EnvParamSpec] = Field(
+        default_factory=dict,
+        description=(
+            "Environment parameters sampled by the env per trial. Sibling to "
+            "cmd_args; not part of the agent's action space. CloudAIGymEnv samples, "
+            "persists to env.csv, and includes them in the trajectory cache key."
+        ),
+    )
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
@@ -134,19 +144,27 @@ class TestDefinition(BaseModel, ABC):
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         return True
 
+    def is_env_sampled(self, cmd_args_path: str) -> bool:
+        """Whether a cmd_args field is env-sampled (env draws it per trial, not the agent)."""
+        return cmd_args_path in self.env_params
+
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict, parent_key: str = "") -> bool:
+        def check_dict(d: dict, parent_key: str = "", skip_env_params: bool = False) -> bool:
             if isinstance(d, dict):
                 for key, value in d.items():
                     path = f"{parent_key}.{key}" if parent_key else key
                     if self.is_dse_excluded_arg(path):
                         continue
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value, path)):
+                    if skip_env_params and self.is_env_sampled(path):
+                        continue
+                    if isinstance(value, list) or (
+                        isinstance(value, dict) and check_dict(value, path, skip_env_params)
+                    ):
                         return True
             return False
 
-        return check_dict(self.cmd_args_dict) or check_dict(self.extra_env_vars)
+        return check_dict(self.cmd_args_dict, skip_env_params=True) or check_dict(self.extra_env_vars)
 
     @field_validator("dse_excluded_args", mode="before")
     @classmethod
@@ -191,3 +209,64 @@ class TestDefinition(BaseModel, ABC):
             agent_config_class = agent_class.get_config_class()
             agent_config_class.model_validate(self.agent_config)
         return self
+
+    @model_validator(mode="after")
+    def validate_env_params(self) -> Self:
+        """
+        Validate env_params annotations against cmd_args.
+
+        ``env_params`` is an annotation: each key names a ``cmd_args`` field whose value is
+        the candidate set (the single source of truth), and the entry carries only *how* to
+        sample. So each key must name a real ``cmd_args`` field whose value is a candidate
+        list; a scalar is already fixed, so annotating it is a meaningless label and is
+        rejected here. When ``weights`` are declared, the list needs >= 2 values and the
+        weights must align 1:1 with it. Sampling, persistence, the per-trial cmd_args overlay,
+        and the cache key all
+        live in ``CloudAIGymEnv``; keeping this shape check in core lets the overlay stay
+        agent- and workload-agnostic rather than re-implemented per workload.
+        """
+        if not self.env_params:
+            return self
+
+        cmd_args_fields = getattr(type(self.cmd_args), "model_fields", None)
+        if not cmd_args_fields:
+            return self
+
+        unknown = sorted(k for k in self.env_params if k not in cmd_args_fields)
+        if unknown:
+            raise ValueError(f"env_params keys {unknown} are not cmd_args fields on {type(self.cmd_args).__name__}")
+
+        for name, spec in self.env_params.items():
+            self._validate_env_param_field(name, spec, getattr(self.cmd_args, name, None))
+        return self
+
+    @staticmethod
+    def _validate_env_param_field(name: str, spec: Any, value: Any) -> None:
+        """Reject one env_params entry whose target cmd_args field is not a valid candidate list."""
+        if isinstance(value, (dict, BaseModel)):
+            raise ValueError(
+                f"env_params['{name}'] must target a leaf cmd_args field (a candidate list), "
+                "not a structured object; param_space/is_dse_job exclude the whole key, which would "
+                "silently drop nested action dimensions"
+            )
+        if not isinstance(value, list):
+            raise ValueError(
+                f"env_params['{name}'] annotates cmd_args.{name}, which is not a candidate list "
+                f"(got {type(value).__name__}); the annotation only reclassifies a list-valued sweep as "
+                f"env-sampled, while a scalar is already fixed. Make cmd_args.{name} a list or remove "
+                "the annotation"
+            )
+        if not value:
+            raise ValueError(
+                f"env_params['{name}'] references an empty candidate list in cmd_args.{name}; "
+                "provide at least one candidate (the sampler would otherwise fail on an empty draw)"
+            )
+        if spec.weights is None:
+            return
+        if len(value) < 2:
+            raise ValueError(f"env_params['{name}'] declares weights but cmd_args.{name} needs >= 2 candidate values")
+        if len(spec.weights) != len(value):
+            raise ValueError(
+                f"env_params['{name}'] weights length {len(spec.weights)} does not match "
+                f"cmd_args.{name} candidate count {len(value)}"
+            )
