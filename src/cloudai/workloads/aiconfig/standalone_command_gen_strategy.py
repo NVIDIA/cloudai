@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import shlex
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import toml
 
@@ -31,6 +31,27 @@ from .aiconfigurator import Agg, AiconfiguratorCmdArgs, AiconfiguratorTestDefini
 
 class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
     """Generate a standalone command that invokes the Aiconfigurator predictor and writes JSON output."""
+
+    @staticmethod
+    def _scalar(value: Any) -> Any:
+        """
+        Render a parallelism/batch dim as the single scalar the predictor CLI expects.
+
+        These dims are typed ``Union[int, List[int]]`` so a TOML may express a
+        sweep. By command-generation time every dim must collapse to one concrete
+        value: DSE resolves tunable dims to scalars, while non-tunable single-value
+        dims arrive as one-element lists (e.g. ``p_pp = [1]``). ``simple_predictor.py``
+        parses these as ``int``, so a raw ``"[1]"`` is rejected. A multi-element list
+        here means an unresolved sweep leaked into command-gen, which is a bug.
+        """
+        if isinstance(value, list):
+            if len(value) != 1:
+                raise ValueError(
+                    f"Aiconfigurator command-gen expected a single resolved value, got {value!r}; "
+                    "multi-element sweeps must be resolved by the DSE agent before command generation."
+                )
+            return value[0]
+        return value
 
     def store_test_run(self) -> None:
         test_cmd, full_cmd = ("", "n/a")
@@ -65,9 +86,9 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
             "--version",
             args.version,
             "--isl",
-            str(args.isl),
+            str(self._scalar(args.isl)),
             "--osl",
-            str(args.osl),
+            str(self._scalar(args.osl)),
         ]
 
         if args.agg is not None:
@@ -77,19 +98,19 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
                 "--mode",
                 "agg",
                 "--batch-size",
-                str(a.batch_size),
+                str(self._scalar(a.batch_size)),
                 "--ctx-tokens",
-                str(a.ctx_tokens),
+                str(self._scalar(a.ctx_tokens)),
                 "--tp",
-                str(a.tp),
+                str(self._scalar(a.tp)),
                 "--pp",
-                str(a.pp),
+                str(self._scalar(a.pp)),
                 "--dp",
-                str(a.dp),
+                str(self._scalar(a.dp)),
                 "--moe-tp",
-                str(a.moe_tp),
+                str(self._scalar(a.moe_tp)),
                 "--moe-ep",
-                str(a.moe_ep),
+                str(self._scalar(a.moe_ep)),
             ]
         elif args.disagg is not None:
             d = cast(Disagg, args.disagg)
@@ -98,25 +119,25 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
                 "--mode",
                 "disagg",
                 "--p-tp",
-                str(d.p_tp),
+                str(self._scalar(d.p_tp)),
                 "--p-pp",
-                str(d.p_pp),
+                str(self._scalar(d.p_pp)),
                 "--p-dp",
-                str(d.p_dp),
+                str(self._scalar(d.p_dp)),
                 "--p-bs",
-                str(d.p_bs),
+                str(self._scalar(d.p_bs)),
                 "--p-workers",
-                str(d.p_workers),
+                str(self._scalar(d.p_workers)),
                 "--d-tp",
-                str(d.d_tp),
+                str(self._scalar(d.d_tp)),
                 "--d-pp",
-                str(d.d_pp),
+                str(self._scalar(d.d_pp)),
                 "--d-dp",
-                str(d.d_dp),
+                str(self._scalar(d.d_dp)),
                 "--d-bs",
-                str(d.d_bs),
+                str(self._scalar(d.d_bs)),
                 "--d-workers",
-                str(d.d_workers),
+                str(self._scalar(d.d_workers)),
                 "--prefill-correction-scale",
                 str(d.prefill_correction_scale),
                 "--decode-correction-scale",

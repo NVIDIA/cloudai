@@ -86,6 +86,81 @@ def test_gen_exec_command_writes_repro_script_and_returns_bash(tmp_path: Path, s
     assert str((out_dir.resolve() / "stderr.txt")) in content
 
 
+def test_gen_exec_command_unwraps_single_value_list_dims(tmp_path: Path, standalone_system: StandaloneSystem):
+    """Single-value dims declared as one-element lists must render as scalars.
+
+    A disagg search space declares sweepable dims as lists; dims that are not
+    tuned arrive at command-gen as one-element lists (e.g. ``p_pp = [1]``).
+    ``simple_predictor.py`` parses ``--p-pp`` as an ``int`` and rejects ``"[1]"``,
+    so command-gen must emit the unwrapped scalar.
+    """
+    tdef = AiconfiguratorTestDefinition(
+        name="aiconfig",
+        description="desc",
+        test_template_name="Aiconfigurator",
+        cmd_args=AiconfiguratorCmdArgs(
+            model_name="LLAMA3.1_70B",
+            system="h200_sxm",
+            backend="trtllm",
+            version="0.20.0",
+            isl=4000,
+            osl=500,
+            disagg=Disagg(
+                p_tp=1,
+                p_pp=[1],
+                p_dp=[1],
+                p_bs=1,
+                p_workers=1,
+                d_tp=1,
+                d_pp=[1],
+                d_dp=[1],
+                d_bs=8,
+                d_workers=2,
+            ),
+        ),
+    )
+    out_dir = tmp_path / "out-list"
+    tr = TestRun(name="tr", test=tdef, num_nodes=1, nodes=[], output_path=out_dir)
+
+    AiconfiguratorStandaloneCommandGenStrategy(standalone_system, tr).gen_exec_command()
+    content = (out_dir.resolve() / "run_simple_predictor.sh").read_text(encoding="utf-8")
+
+    assert "[1]" not in content, "single-value list dims must be unwrapped, not passed as '[1]'"
+    for flag in ("--p-pp", "--p-dp", "--d-pp", "--d-dp"):
+        assert f"{flag} 1" in content, f"{flag} must render as the scalar 1"
+
+
+def test_gen_exec_command_rejects_unresolved_sweep(tmp_path: Path, standalone_system: StandaloneSystem):
+    """A multi-element list at command-gen time means an unresolved sweep leaked through."""
+    tdef = AiconfiguratorTestDefinition(
+        name="aiconfig",
+        description="desc",
+        test_template_name="Aiconfigurator",
+        cmd_args=AiconfiguratorCmdArgs(
+            model_name="LLAMA3.1_70B",
+            system="h200_sxm",
+            isl=4000,
+            osl=500,
+            disagg=Disagg(
+                p_tp=[1, 2, 4],
+                p_pp=1,
+                p_dp=1,
+                p_bs=1,
+                p_workers=1,
+                d_tp=1,
+                d_pp=1,
+                d_dp=1,
+                d_bs=8,
+                d_workers=2,
+            ),
+        ),
+    )
+    tr = TestRun(name="tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out-sweep")
+
+    with pytest.raises(ValueError, match="single resolved value"):
+        AiconfiguratorStandaloneCommandGenStrategy(standalone_system, tr).gen_exec_command()
+
+
 def test_gen_exec_command_agg_branch(tmp_path: Path, standalone_system: StandaloneSystem):
     tdef = AiconfiguratorTestDefinition(
         name="aiconfig",

@@ -27,6 +27,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
+from cloudai.configurator.env_params import validate_dse_env_params
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
@@ -39,6 +40,7 @@ from cloudai.core import (
     System,
     TestParser,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
@@ -133,8 +135,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         return 1
 
     err = 0
-    # Recoverable failures return a non-zero rc and are accumulated here; an unexpected exception
-    # (a bug) is a hard-fail. We capture it so reports still generate, then re-raise below.
+    # Capture an unexpected error so reports still generate, then re-raise below.
     run_error: Exception | None = None
     try:
         for tr in runner.runner.test_scenario.test_runs:
@@ -177,7 +178,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         )
 
     if run_error is not None:
-        raise run_error
+        raise run_error.with_traceback(run_error.__traceback__)
 
     logging.info("All jobs are complete.")
     return err
@@ -302,6 +303,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if setup_result is None:
         return 1
     system, test_scenario, tests = setup_result
+
+    try:
+        validate_dse_env_params(test_scenario)
+    except TestScenarioParsingError as e:
+        logging.error(str(e))
+        return 1
 
     if not _handle_single_sbatch(args, system):
         return 1
@@ -491,7 +498,8 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            validate_dse_env_params(scenario)
         except Exception:
             nfailed += 1
 
