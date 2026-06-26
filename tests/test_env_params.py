@@ -288,25 +288,6 @@ def test_env_params_from_test_resolves_multiple_params() -> None:
     assert env_params.params["paddle_width"].candidates == [4, 8]
 
 
-def test_env_params_from_test_skips_scalar_keeps_list() -> None:
-    """A mix of scalar and list annotations yields only the list-valued field as a knob."""
-    env_params = EnvParams.from_test(
-        _tdef(
-            {"ball_speed": EnvParamSpec(), "paddle_width": EnvParamSpec()},
-            ball_speed=[1, 2, 3],
-            paddle_width=8,
-        )
-    )
-
-    assert env_params is not None
-    assert set(env_params.params) == {"ball_speed"}
-
-
-def test_env_params_from_test_none_when_only_scalar_annotation() -> None:
-    """A scalar cmd_args value is fixed; with nothing list-valued to sample, from_test is None."""
-    assert EnvParams.from_test(_tdef({"ball_speed": EnvParamSpec()}, ball_speed=2)) is None
-
-
 def test_env_params_from_test_none_when_no_env_params() -> None:
     """No annotations declared -> no EnvParams object (the zero-overhead path)."""
     assert EnvParams.from_test(_tdef({})) is None
@@ -326,10 +307,11 @@ def test_env_params_weighted_list_is_accepted() -> None:
     assert tdef.env_params["ball_speed"].weights == [0.7, 0.3]
 
 
-def test_env_params_scalar_no_op_is_accepted() -> None:
-    """Annotating a scalar (fixed) knob is tolerated as a no-op marker."""
-    tdef = _tdef({"ball_speed": EnvParamSpec()}, ball_speed=2)
-    assert tdef.cmd_args.ball_speed == 2
+def test_env_params_scalar_annotation_rejected() -> None:
+    """A scalar (fixed) knob carries nothing to sample; the annotation is a meaningless label and is
+    rejected at parse time (it only reclassifies a list-valued sweep as env-sampled)."""
+    with pytest.raises(ValidationError, match="not a candidate list"):
+        _tdef({"ball_speed": EnvParamSpec()}, ball_speed=2)
 
 
 def test_env_params_unknown_key_rejected() -> None:
