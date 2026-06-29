@@ -266,10 +266,13 @@ class TestDefinition(BaseModel, ABC):
                 f"env_params['{name}'] references an empty candidate list in cmd_args.{name}; "
                 "provide at least one candidate (the sampler would otherwise fail on an empty draw)"
             )
+        if len(value) < 2:
+            raise ValueError(
+                f"env_params['{name}'] needs >= 2 candidate values in cmd_args.{name}; "
+                "a single-element list is a fixed value, not domain randomization"
+            )
         if spec.weights is None:
             return
-        if len(value) < 2:
-            raise ValueError(f"env_params['{name}'] declares weights but cmd_args.{name} needs >= 2 candidate values")
         if len(spec.weights) != len(value):
             raise ValueError(
                 f"env_params['{name}'] weights length {len(spec.weights)} does not match "

@@ -344,6 +344,13 @@ def test_env_params_empty_candidate_list_rejected() -> None:
         _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[])
 
 
+def test_env_params_singleton_candidate_list_rejected() -> None:
+    """A single-element candidate list is a fixed value, not domain randomization: sample() can only
+    ever return that one value, so it is rejected at build time like a scalar annotation."""
+    with pytest.raises(ValidationError, match="single-element list is a fixed value"):
+        _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1])
+
+
 # --- is_dse_job: env-sampled lists are not search dimensions ---
 
 
