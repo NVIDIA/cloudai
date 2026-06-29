@@ -47,6 +47,7 @@ def register_all():
     from cloudai.core import Registry
     from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, TarballReporter
+    from cloudai.reports.training import TrainingReportGenerationStrategy
 
     # Import systems
     from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesRunner, KubernetesSystem
@@ -311,11 +312,14 @@ def register_all():
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, MegatronRunReportGenerationStrategy)
+    Registry().add_report(MegatronRunTestDefinition, TrainingReportGenerationStrategy)
     Registry().add_report(MegatronBridgeTestDefinition, MegatronBridgeReportGenerationStrategy)
+    Registry().add_report(MegatronBridgeTestDefinition, TrainingReportGenerationStrategy)
     Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
     Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
+    Registry().add_report(NeMoRunTestDefinition, TrainingReportGenerationStrategy)
     Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
