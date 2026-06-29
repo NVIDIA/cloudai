@@ -149,6 +149,11 @@ class TestDefinition(BaseModel, ABC):
         return cmd_args_path in self.env_params
 
     @property
+    def is_domain_randomization_enabled(self) -> bool:
+        """Whether the config declares domain randomization: at least one ``env_params`` annotation."""
+        return bool(self.env_params)
+
+    @property
     def is_dse_job(self) -> bool:
         def check_dict(d: dict, parent_key: str = "", skip_env_params: bool = False) -> bool:
             if isinstance(d, dict):

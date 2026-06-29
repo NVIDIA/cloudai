@@ -26,7 +26,7 @@ from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
-from .env_params import EnvParams, EnvParamsSink
+from .env_params import EnvParams, write_env_params
 
 
 @dataclasses.dataclass(frozen=True)
@@ -64,7 +64,6 @@ class CloudAIGymEnv(BaseGym):
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
-        self.env_params_sink = EnvParamsSink()
         super().__init__()
 
     @property
@@ -132,7 +131,7 @@ class CloudAIGymEnv(BaseGym):
         sampled_env_params = self.params.sample(self.test_run.step) if self.params else {}
         self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
-        cached_result = self.get_cached_trajectory_result(action)
+        cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
         if cached_result is not None:
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
@@ -145,7 +144,7 @@ class CloudAIGymEnv(BaseGym):
                     action=action,
                     reward=cached_result.reward,
                     observation=cached_result.observation,
-                    env_params=dict(self.test_run.current_env_params),
+                    env_params=sampled_env_params,
                 )
             )
             return cached_result.observation, cached_result.reward, False, {}
@@ -174,9 +173,6 @@ class CloudAIGymEnv(BaseGym):
             self.test_run.step = new_tr.step
             self.test_run.output_path = new_tr.output_path
 
-        # The test_run rebuild above drops the sample; restore it so the entry, cache key, and env.csv match.
-        self.test_run.current_env_params = new_tr.current_env_params
-
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)
 
@@ -186,7 +182,7 @@ class CloudAIGymEnv(BaseGym):
                 action=action,
                 reward=reward,
                 observation=observation,
-                env_params=dict(self.test_run.current_env_params),
+                env_params=sampled_env_params,
             )
         )
 
@@ -266,7 +262,7 @@ class CloudAIGymEnv(BaseGym):
                 writer.writerow(["step", "action", "reward", "observation"])
             writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
-        self.env_params_sink.write(self.env_params_record_path, entry.step, entry.env_params)
+        write_env_params(self.env_params_record_path, entry.step, entry.env_params)
 
     @property
     def iteration_dir(self) -> Path:
@@ -281,7 +277,7 @@ class CloudAIGymEnv(BaseGym):
     def current_trajectory(self) -> list[TrajectoryEntry]:
         return self.trajectory.setdefault(self.test_run.current_iteration, [])
 
-    def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
+    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> TrajectoryEntry | None:
         """
         Return a cached entry only when the full trial identity matches.
 
@@ -289,13 +285,13 @@ class CloudAIGymEnv(BaseGym):
         change the workload's behaviour, so a trial repeating the same action
         under a different ``env_params`` sample must miss and re-run. Empty
         env_params on both sides is the back-compat path for workloads that
-        do not declare any ``[env_params.*]`` block.
+        do not declare any ``[env_params.*]`` block. The sample is passed in (a
+        per-trial local owned by ``step``), exactly like ``action``.
         """
-        current_env_params = self.test_run.current_env_params
         for entry in self.current_trajectory:
-            if not self._values_match_exact(entry.action, action):
-                continue
-            if self._values_match_exact(entry.env_params, current_env_params):
+            action_match = self._values_match_exact(entry.action, action)
+            env_params_match = self._values_match_exact(entry.env_params, env_params)
+            if action_match and env_params_match:
                 return entry
 
         return None

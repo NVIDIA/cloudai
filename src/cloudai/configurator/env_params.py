@@ -38,10 +38,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
 from cloudai._core.exceptions import TestScenarioParsingError
-from cloudai._core.registry import Registry
 
 if TYPE_CHECKING:
     from cloudai._core.test_scenario import TestScenario
+    from cloudai.models.workload import TestDefinition
 
 
 class EnvParamSpec(BaseModel):
@@ -109,7 +109,7 @@ class EnvParams:
     seed: int
 
     @classmethod
-    def from_test(cls, test: Any) -> Optional["EnvParams"]:
+    def from_test(cls, test: "TestDefinition") -> Optional["EnvParams"]:
         """
         Resolve a TestDefinition's env_params annotations, or ``None`` if nothing is sampled.
 
@@ -140,9 +140,9 @@ class EnvParams:
         return {name: param.draw(random.Random(f"{self.seed}:{name}:{trial}")) for name, param in self.params.items()}
 
 
-class EnvParamsSink:
+def write_env_params(path: Path, step: int, sample: Dict[str, Any]) -> None:
     """
-    Append per-trial env_params samples to a step-aligned CSV.
+    Append one trial's env_params sample to a step-aligned CSV.
 
     The CSV mirrors how ``trajectory.csv`` serialises its ``action`` column
     (one row per env.step(), sample dict stringified in a single cell) so the
@@ -151,43 +151,34 @@ class EnvParamsSink:
     Empty samples are skipped, so a run without env_params writes nothing and
     callers can sink every trial unconditionally.
     """
-
-    def write(self, path: Path, step: int, sample: Dict[str, Any]) -> None:
-        if step < 1:
-            raise ValueError(f"step must be a positive trial index (cloudai DSE is 1-based); got {step}")
-        if not sample:
-            return
-        new_file = not path.exists()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", newline="") as f:
-            writer = csv.writer(f)
-            if new_file:
-                writer.writerow(("step", "env"))
-            writer.writerow([step, sample])
+    if step < 1:
+        raise ValueError(f"step must be a positive trial index (cloudai DSE is 1-based); got {step}")
+    if not sample:
+        return
+    new_file = not path.exists()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(("step", "env"))
+        writer.writerow([step, sample])
 
 
-def validate_dse_env_params(test_scenario: "TestScenario") -> None:
+def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:
     """
-    Reject prepped configs that declare env_params no agent will sample.
+    Reject prepped configs that declare domain randomization no agent will run.
 
-    env_params are sampled per-trial by CloudAIGymEnv, but the sampling only matters for an agent
-    that opts into it via ``BaseAgent.samples_env_params``. A non-DSE run has no per-trial loop, and
-    an agent that does not opt in ignores env_params, so declaring them there is a silent no-op.
-    is_dse_job and the agent both resolve only on the fully prepped config, so this is validated
+    env_params drive per-trial domain randomization, which only happens on a DSE run whose agent
+    opts into sampling (``TestRun.is_domain_randomization_active``). Declaring env_params anywhere
+    else is a silent no-op: domain randomization is enabled but never active. DSE-ness
+    (``num_nodes``) and the agent both resolve only on the fully prepped config, so this is checked
     here rather than at parse time.
     """
-    agents = Registry().agents_map
-
-    offenders = []
-    for tr in test_scenario.test_runs:
-        if not tr.test.env_params:
-            continue
-
-        agent = agents.get(tr.test.agent)
-        # Unknown agent: defer to the dedicated agent-resolution error rather than masking it here.
-        sampled = tr.is_dse_job and (agent is None or agent.samples_env_params)
-        if not sampled:
-            offenders.append(tr.name)
+    offenders = [
+        tr.name
+        for tr in test_scenario.test_runs
+        if tr.test.is_domain_randomization_enabled and not tr.is_domain_randomization_active
+    ]
 
     if offenders:
         raise TestScenarioParsingError(

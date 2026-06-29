@@ -27,7 +27,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
-from cloudai.configurator.env_params import validate_dse_env_params
+from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
@@ -305,7 +305,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     system, test_scenario, tests = setup_result
 
     try:
-        validate_dse_env_params(test_scenario)
+        validate_domain_randomization_active(test_scenario)
     except TestScenarioParsingError as e:
         logging.error(str(e))
         return 1
@@ -499,7 +499,7 @@ def verify_test_scenarios(
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
             scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
-            validate_dse_env_params(scenario)
+            validate_domain_randomization_active(scenario)
         except Exception:
             nfailed += 1
 

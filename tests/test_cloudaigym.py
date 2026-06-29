@@ -393,7 +393,7 @@ def test_get_cached_trajectory_result(
     env.test_run.current_iteration = current_iteration
     env.trajectory = trajectory
 
-    actual = env.get_cached_trajectory_result(action)
+    actual = env.get_cached_trajectory_result(action, {})
     if actual is None:
         assert expected_step is None
     else:
@@ -471,9 +471,7 @@ def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 1})
 
-    env.test_run.current_env_params = {"ball_speed": 2}
-
-    assert env.get_cached_trajectory_result({"x": 10}) is None, (
+    assert env.get_cached_trajectory_result({"x": 10}, {"ball_speed": 2}) is None, (
         "Cache must include env_params in its key. Keying on action alone means "
         "trials repeating the same action under a different env_params sample "
         "receive a stale cached reward."
@@ -492,9 +490,7 @@ def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 2})
 
-    env.test_run.current_env_params = {"ball_speed": 2}
-
-    result = env.get_cached_trajectory_result({"x": 10})
+    result = env.get_cached_trajectory_result({"x": 10}, {"ball_speed": 2})
     assert result is not None
     assert result.step == 1
 
@@ -511,9 +507,9 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     env.test_run.current_iteration = 0
     env.trajectory = {0: [TrajectoryEntry(step=1, action={"x": 10}, reward=0.5, observation=[100.0])]}
-    # Note: neither the cached entry nor test_run carries env_params -> existing behavior.
+    # Note: neither the cached entry nor the trial carries env_params -> existing behavior.
 
-    result = env.get_cached_trajectory_result({"x": 10})
+    result = env.get_cached_trajectory_result({"x": 10}, {})
     assert result is not None
     assert result.step == 1
 

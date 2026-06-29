@@ -97,7 +97,6 @@ class TestRun:
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
     extra_srun_args: str | None = None
     num_nodes_explicit: bool = False
-    current_env_params: dict[str, Any] = field(default_factory=dict)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -140,6 +139,24 @@ class TestRun:
     @property
     def is_dse_job(self) -> bool:
         return self.test.is_dse_job or isinstance(self.num_nodes, list)
+
+    @property
+    def is_domain_randomization_active(self) -> bool:
+        """
+        Whether this run will actually env-sample (domain-randomize) per trial.
+
+        True only when domain randomization is declared (``env_params`` present), the run is a DSE
+        job (so a per-trial loop exists - including a ``num_nodes`` sweep), and the agent opts into
+        sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
+        surfaces instead of this one.
+        """
+        if not self.test.is_domain_randomization_enabled:
+            return False
+
+        from .registry import Registry
+
+        agent = Registry().agents_map.get(self.test.agent)
+        return self.is_dse_job and (agent is None or agent.samples_env_params)
 
     @property
     def nnodes(self) -> int:
@@ -190,24 +207,21 @@ class TestRun:
     def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
         tdef = self.test.model_copy(deep=True)
 
-        def _apply(key: str, value: Any) -> None:
+        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
+        # action and env_params target disjoint keys, so a plain merge applies both in one pass.
+        full_action = action | (env_params or {})
+        for key, value in full_action.items():
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
-                return
-            attrs = key.split(".")
-            obj = tdef.cmd_args
-            for attr in attrs[:-1]:
-                obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
-            if isinstance(obj, dict):
-                obj[attrs[-1]] = value
             else:
-                setattr(obj, attrs[-1], value)
-
-        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
-        for key, value in action.items():
-            _apply(key, value)
-        for key, value in (env_params or {}).items():
-            _apply(key, value)
+                attrs = key.split(".")
+                obj = tdef.cmd_args
+                for attr in attrs[:-1]:
+                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+                if isinstance(obj, dict):
+                    obj[attrs[-1]] = value
+                else:
+                    setattr(obj, attrs[-1], value)
 
         # env_params is validated at parse time; after the overlay its target cmd_args fields hold
         # concrete scalar draws, so re-validating it here would reject weighted specs. Drop it for
@@ -220,7 +234,6 @@ class TestRun:
         new_tr.test = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
-        new_tr.current_env_params = dict(env_params or {})
         return new_tr
 
 

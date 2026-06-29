@@ -43,7 +43,7 @@ from cloudai.configurator.env_params import (
     EnvParam,
     EnvParams,
     EnvParamSpec,
-    EnvParamsSink,
+    write_env_params,
 )
 from cloudai.core import TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -202,23 +202,21 @@ def test_env_params_is_immutable() -> None:
         env_params.seed = 1  # pyright: ignore[reportAttributeAccessIssue]
 
 
-# --- EnvParamsSink: unchanged persistence contract ---
+# --- write_env_params: unchanged persistence contract ---
 
 
 def test_csv_sink_skips_empty_samples_and_rejects_zero_step(tmp_path: Path) -> None:
-    sink = EnvParamsSink()
     path = tmp_path / "env.csv"
-    sink.write(path, 1, {})  # empty -> no-op, no file
+    write_env_params(path, 1, {})  # empty -> no-op, no file
     assert not path.exists()
     with pytest.raises(ValueError, match="must be a positive trial index"):
-        sink.write(path, 0, {"ball_speed": 1})
+        write_env_params(path, 0, {"ball_speed": 1})
 
 
 def test_csv_sink_writes_header_then_rows(tmp_path: Path) -> None:
-    sink = EnvParamsSink()
     path = tmp_path / "env.csv"
-    sink.write(path, 1, {"ball_speed": 2})
-    sink.write(path, 2, {"ball_speed": 3})
+    write_env_params(path, 1, {"ball_speed": 2})
+    write_env_params(path, 2, {"ball_speed": 3})
     contents = path.read_text().strip().splitlines()
     assert contents[0] == "step,env"
     assert contents[1].startswith("1,")
@@ -370,4 +368,3 @@ def test_apply_params_set_accepts_weighted_env_param_draw() -> None:
     new_tr = tr.apply_params_set({}, env_params={"ball_speed": 1})
 
     assert new_tr.test.cmd_args.ball_speed == 1
-    assert new_tr.current_env_params == {"ball_speed": 1}
