@@ -26,6 +26,7 @@ e = "8M"
 use_deepep_matrix = true
 
 [extra_env_vars]
+UCX_LOG_LEVEL = "error"
 UCX_IB_GID_INDEX = "auto"
 UCX_TLS = "cuda_copy,rc"
 UCX_RNDV_THRESH = "0"

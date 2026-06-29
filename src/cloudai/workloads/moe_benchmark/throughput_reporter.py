@@ -28,6 +28,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 from cloudai.core import Reporter
 from cloudai.workloads.common.moe_benchmark_report import moe_benchmark_results_json_files
@@ -341,7 +342,9 @@ def _write_dashboard_svg(
     sub_bus = "all backends · UCC/NCCL = baselines (gray)"
     sub_split = "EP backends only"
     # Rows present: bus always (if any bus data); nvl/rdma only if the split exists.
-    rows = [("Bus BW", _panel_single, {"dispatch": bus_dispatch, "combine": bus_combine}, sub_bus)]
+    rows: list[tuple[str, Any, dict[str, Any], str]] = [
+        ("Bus BW", _panel_single, {"dispatch": bus_dispatch, "combine": bus_combine}, sub_bus)
+    ]
     if nvl_dispatch or nvl_combine:
         rows.append(("NVLink vs RDMA", _panel_grouped, {"dispatch": nvl_dispatch, "combine": nvl_combine}, sub_split))
     # Columns present: dispatch always; combine only if measured.

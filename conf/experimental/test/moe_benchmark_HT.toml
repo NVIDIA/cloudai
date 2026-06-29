@@ -21,8 +21,15 @@ test_template_name = "MoEBenchmark"
 [cmd_args]
 docker_image_url = "/your/path/to/the/container"
 benchmark_root = "/workspace/DeepEP/benchmark"
-mode = "standard"  # benchmark CLI value for high-throughput; LL lives in moe_benchmark_low_latency.toml
-deepep_versions = ["legacy", "elastic", "nixl_ep", "uccl_ep", "nccl_ep", "deepep_hybrid"]
+mode = "standard" # benchmark CLI value for high-throughput; LL lives in moe_benchmark_low_latency.toml
+deepep_versions = [
+  "legacy",
+  "elastic",
+  "nixl_ep",
+  "uccl_ep",
+  "nccl_ep",
+  "deepep_hybrid",
+]
 tokens = 4096
 num_experts = 256
 num_topk = 8
