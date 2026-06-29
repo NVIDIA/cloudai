@@ -103,7 +103,13 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     'bash -c "etcd --log-level error --listen-client-urls http://0.0.0.0:2379 '
                     '--advertise-client-urls http://$head_node_ip:2379 --data-dir /tmp/etcd-cloudai-$$" &',
                     "export NIXL_ETCD_ENDPOINTS=http://$head_node_ip:2379",
-                    "sleep 8",
+                    "# Poll etcd's client endpoint until it accepts connections (replaces a",
+                    "# fixed sleep that could race a not-yet-ready endpoint); fail fast otherwise.",
+                    "for _i in $(seq 1 60); do",
+                    "  (exec 3<>/dev/tcp/$head_node_ip/2379) 2>/dev/null && break",
+                    '  [ "$_i" -eq 60 ] && { echo "ERROR: etcd $head_node_ip:2379 not ready after 60s" >&2; exit 1; }',
+                    "  sleep 1",
+                    "done",
                     "",
                 ]
             )
@@ -146,8 +152,8 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for version in versions:
             if parts:
                 parts.append("&&")
-            # Inline per-backend env (applies to this backend's process only).
-            parts.extend(self._BACKEND_ENV.get(version, []))
+            env_key = "deepep_hybrid" if version in ("hybrid", "hybrid_ep") else version
+            parts.extend(self._BACKEND_ENV.get(env_key, []))
             parts.extend(["python", benchmark_script, cmd_args.config_file_path, version])
         return parts
 

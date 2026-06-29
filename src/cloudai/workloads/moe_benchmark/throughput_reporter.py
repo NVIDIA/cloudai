@@ -26,6 +26,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -94,9 +95,12 @@ def _extract_moe_bus_bw(row: object) -> tuple[str, str, float] | None:
     backend = row.get("backend")
     backend_l = backend if isinstance(backend, str) else ""
     try:
-        return backend_l, op_l, float(row["bus_bw_avg"])
+        val = float(row["bus_bw_avg"])
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(val):  # skip NaN/Inf so gmax stays finite for the int() in the SVG path
+        return None
+    return backend_l, op_l, val
 
 
 def _extract_moe_separate_bw(row: object) -> tuple[str, str, float, float] | None:
@@ -119,9 +123,13 @@ def _extract_moe_separate_bw(row: object) -> tuple[str, str, float, float] | Non
     backend = row.get("backend")
     backend_l = backend if isinstance(backend, str) else ""
     try:
-        return backend_l, op_l, float(row["separate_nvl_bw"]), float(row["separate_rdma_bw"])
+        nvl = float(row["separate_nvl_bw"])
+        rdma = float(row["separate_rdma_bw"])
     except (TypeError, ValueError):
         return None
+    if not (math.isfinite(nvl) and math.isfinite(rdma)):  # skip NaN/Inf (keeps gmax finite)
+        return None
+    return backend_l, op_l, nvl, rdma
 
 
 def _moe_bus_bars(rows: list[object], op_filter: str) -> list[tuple[str, float, str]]:
@@ -191,7 +199,7 @@ def _parse_ucc_perftest_mean_bus_avg(path: Path) -> float | None:
             bavg = float(parts[5])
         except ValueError:
             continue
-        if sz < 1048576:
+        if sz < 1048576 or not math.isfinite(bavg):
             continue
         avgs.append(bavg)
     if not avgs:
@@ -206,9 +214,12 @@ def _mean_nccl_oop_busbw_gb_s(test_output: Path) -> float | None:
     vals: list[float] = []
     for parts in rows:
         try:
-            vals.append(float(parts[7]))
+            v = float(parts[7])
         except (IndexError, ValueError):
             continue
+        if not math.isfinite(v):
+            continue
+        vals.append(v)
     if not vals:
         return None
     return float(sum(vals) / len(vals))
