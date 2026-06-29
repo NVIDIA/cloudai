@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
 
 from ..util import flatten_dict
+from .registry import Registry
 from .system import System
 
 if TYPE_CHECKING:
@@ -152,8 +153,6 @@ class TestRun:
         """
         if not self.test.is_domain_randomization_enabled:
             return False
-
-        from .registry import Registry
 
         agent = Registry().agents_map.get(self.test.agent)
         return self.is_dse_job and (agent is None or agent.samples_env_params)
