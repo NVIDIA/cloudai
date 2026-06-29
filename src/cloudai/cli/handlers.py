@@ -62,7 +62,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config)
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
     system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
     system.update()
@@ -249,7 +249,7 @@ def register_signal_handlers(signal_handler: Callable) -> None:
 def _setup_system_and_scenario(
     args: argparse.Namespace,
 ) -> tuple[System, TestScenario, list[TestDefinition]] | None:
-    parser = Parser(args.system_config)
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
     try:
         system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     except MissingTestError as e:
@@ -354,7 +354,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config)
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
     system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 

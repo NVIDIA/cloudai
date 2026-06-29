@@ -39,6 +39,13 @@ class Test_Parser:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
 
+    def test_custom_hook_root_is_used(self, parser: Parser, tmp_path: Path):
+        hook_root = tmp_path / "hooks"
+        parser = Parser(parser.system_config_path, hook_root)
+
+        assert parser.hook_root == hook_root
+        assert parser.hook_test_root == hook_root / "test"
+
     @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
