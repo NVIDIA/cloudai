@@ -192,13 +192,39 @@ class ConfigDumpCallback(pl.Callback):
             print(f"ConfigDumpCallback: skipped config dump: {e}")
 
 
-def attach_config_dump_to_all_trainers() -> None:
+class FlopsAttachCallback(pl.Callback):
+    """
+    Attach FLOPsMeasurementCallback so TFLOPS_per_GPU joins the TB stream for any --factory.
+
+    The callback maps the recipe name to a FLOPs formula itself; we pass CLOUDAI_NEMO_RECIPE and
+    validate via eval_model_flops() so an unsupported model is skipped instead of crashing mid-run.
+    Skipped when one is already attached (cloudai_* recipes wire their own).
+    """
+
+    def setup(self, trainer, pl_module, stage):
+        if any(isinstance(cb, FLOPsMeasurementCallback) for cb in trainer.callbacks):
+            return
+        try:
+            flops_cb = FLOPsMeasurementCallback(
+                model_config=pl_module.config,
+                data_config=trainer.datamodule,
+                model_name=os.getenv("CLOUDAI_NEMO_RECIPE", ""),
+            )
+            flops_cb.eval_model_flops()  # raises if the recipe maps to no FLOPs formula
+            trainer.callbacks.append(flops_cb)
+        except Exception as e:  # unsupported model or any error: no TFLOPS, never break training
+            print(f"FlopsAttachCallback: skipped TFLOPS_per_GPU: {e}")
+
+
+def attach_report_callbacks_to_all_trainers() -> None:
     original_init = nl.Trainer.__init__
 
     def init_and_attach(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         if not any(isinstance(cb, ConfigDumpCallback) for cb in self.callbacks):
             self.callbacks.append(ConfigDumpCallback())
+        if not any(isinstance(cb, FlopsAttachCallback) for cb in self.callbacks):
+            self.callbacks.append(FlopsAttachCallback())
 
     nl.Trainer.__init__ = init_and_attach
 
@@ -1362,7 +1388,7 @@ if __name__ == "__main__":
             )
         )
 
-    attach_config_dump_to_all_trainers()
+    attach_report_callbacks_to_all_trainers()
 
     if mode == "pretrain":
         run.cli.main(fn=llm.pretrain)
