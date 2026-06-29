@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -104,6 +104,13 @@ def common_options(f):
         type=click.Path(exists=True, resolve_path=True, path_type=Path),
         help="Scenario config path.",
     )(f)
+    f = click.option(
+        "--hook-dir",
+        required=False,
+        default=None,
+        type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
+        help="Directory with hook scenario and test configs.",
+    )(f)
     return f
 
 
@@ -136,18 +143,28 @@ def main(log_file, log_level):
 
 @main.command()
 @common_options
-def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
+def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_dir: Path | None):
     """Install the necessary components for workloads."""
-    args = argparse.Namespace(system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="install")
+    args = argparse.Namespace(
+        system_config=system_cfg,
+        tests_dir=tests_dir,
+        test_scenario=scenario_cfg,
+        hook_dir=hook_dir,
+        mode="install",
+    )
     exit(handle_install_and_uninstall(args))
 
 
 @main.command()
 @common_options
-def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
+def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_dir: Path | None):
     """Uninstall the components used by workloads."""
     args = argparse.Namespace(
-        system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="uninstall"
+        system_config=system_cfg,
+        tests_dir=tests_dir,
+        test_scenario=scenario_cfg,
+        hook_dir=hook_dir,
+        mode="uninstall",
     )
     exit(handle_install_and_uninstall(args))
 
@@ -161,6 +178,7 @@ def dry_run(
     system_cfg: Path,
     tests_dir: Path,
     scenario_cfg: Path,
+    hook_dir: Path | None,
     output_dir: Path,
     enable_cache_without_check: bool,
     single_sbatch: bool,
@@ -170,6 +188,7 @@ def dry_run(
         system_config=system_cfg,
         tests_dir=tests_dir,
         test_scenario=scenario_cfg,
+        hook_dir=hook_dir,
         output_dir=output_dir,
         mode="dry-run",
         enable_cache_without_check=enable_cache_without_check,
@@ -187,6 +206,7 @@ def run(
     system_cfg: Path,
     tests_dir: Path,
     scenario_cfg: Path,
+    hook_dir: Path | None,
     output_dir: Path,
     enable_cache_without_check: bool,
     single_sbatch: bool,
@@ -200,6 +220,7 @@ def run(
         system_config=system_cfg,
         tests_dir=tests_dir,
         test_scenario=scenario_cfg,
+        hook_dir=hook_dir,
         output_dir=output_dir,
         mode="run",
         enable_cache_without_check=enable_cache_without_check,
@@ -216,7 +237,7 @@ def run(
     type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False),
     help="Path to a scenario results directory.",
 )
-def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, result_dir: Path):
+def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_dir: Path | None, result_dir: Path):
     """
     Generate a report from the results of a scenario.
 
@@ -224,7 +245,11 @@ def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, resul
     command.
     """
     args = argparse.Namespace(
-        system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, result_dir=result_dir
+        system_config=system_cfg,
+        tests_dir=tests_dir,
+        test_scenario=scenario_cfg,
+        hook_dir=hook_dir,
+        result_dir=result_dir,
     )
     exit(handle_generate_report(args))
 

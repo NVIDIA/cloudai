@@ -43,15 +43,18 @@ HOOK_TEST_ROOT = HOOK_ROOT / "test"
 class Parser:
     """Main parser for parsing all types of configurations."""
 
-    def __init__(self, system_config_path: Path) -> None:
+    def __init__(self, system_config_path: Path, hook_root: Path = HOOK_ROOT) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
+            hook_root (Path): Directory containing hook scenarios and tests.
         """
         logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
+        self.hook_root = hook_root
+        self.hook_test_root = hook_root / "test"
         self._system: Optional[System] = None
 
     @property
@@ -90,12 +93,14 @@ class Parser:
             except TestConfigParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
-        if not HOOK_ROOT.exists():
-            logging.debug(f"HOOK_ROOT path '{HOOK_ROOT}' does not exist.")
+        if not self.hook_root.exists():
+            logging.debug(f"Hook root path '{self.hook_root}' does not exist.")
 
         try:
             hook_tests = (
-                self.parse_tests(list(HOOK_TEST_ROOT.glob("*.toml")), self.system) if HOOK_TEST_ROOT.exists() else []
+                self.parse_tests(list(self.hook_test_root.glob("*.toml")), self.system)
+                if self.hook_test_root.exists()
+                else []
             )
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
@@ -106,10 +111,10 @@ class Parser:
 
         test_mapping = {t.name: t for t in tests}
         hook_test_scenario_mapping = {}
-        if HOOK_ROOT.exists() and list(HOOK_ROOT.glob("*.toml")):
+        if self.hook_root.exists() and list(self.hook_root.glob("*.toml")):
             try:
                 hook_test_scenario_mapping = self.parse_hooks(
-                    list(HOOK_ROOT.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
+                    list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
                 )
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
