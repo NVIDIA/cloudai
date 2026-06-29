@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+import json
 import os
+from pathlib import Path
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -168,6 +171,36 @@ def null_tokenizer(vocab_size: int = 256000) -> run.Config[TokenizerSpec]:
 @run.autoconvert
 def timing_callback() -> run.Config[TimingCallback]:
     return run.Config(TimingCallback)
+
+
+class ConfigDumpCallback(pl.Callback):
+    """Save the resolved training config to JSON at trainer setup, rank 0."""
+
+    def setup(self, trainer, pl_module, stage):
+        if trainer.global_rank != 0:
+            return
+        try:
+            # Single failure domain: if any of the three roots raises (module without
+            # .config, non-Megatron strategy, datamodule None), the whole file is skipped.
+            cfg = {
+                "model": dataclasses.asdict(pl_module.config),
+                "parallelism": dataclasses.asdict(trainer.strategy.parallelism),
+                "data": vars(trainer.datamodule),
+            }
+            Path("/cloudai_run_results/nemo_config.json").write_text(json.dumps(cfg, indent=2, default=str))
+        except Exception as e:  # reporting must never break training
+            print(f"ConfigDumpCallback: skipped config dump: {e}")
+
+
+def attach_config_dump_to_all_trainers() -> None:
+    original_init = nl.Trainer.__init__
+
+    def init_and_attach(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        if not any(isinstance(cb, ConfigDumpCallback) for cb in self.callbacks):
+            self.callbacks.append(ConfigDumpCallback())
+
+    nl.Trainer.__init__ = init_and_attach
 
 
 @run.cli.factory
@@ -1328,6 +1361,9 @@ if __name__ == "__main__":
                 "Advanced CLI features that use ForwardRefs are not supported using in Nemo-Run CLI yet."
             )
         )
+
+    attach_config_dump_to_all_trainers()
+
     if mode == "pretrain":
         run.cli.main(fn=llm.pretrain)
     elif mode == "finetune":
