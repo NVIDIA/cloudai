@@ -565,41 +565,103 @@ wait_for_health() {{
     return 1
 }}"""
 
-    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 15) -> str:
-        if len(pid_vars) == 1:
-            pid_var = pid_vars[0]
-            return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: {pid_var}=${pid_var}"
-    kill -TERM "${pid_var}" 2>/dev/null
-    i=0
-    while kill -0 "${pid_var}" 2>/dev/null; do
-        [ "$i" -ge {timeout} ] && echo "PID did not exit in time" && return 1
-        sleep 1
-        i=$((i+1))
-    done
-}}
-trap cleanup EXIT"""
+    def slurm_step_name(self, role: str) -> str:
+        return f"cloudai-{self.workload_slug}-{role.replace('_', '-')}"
 
-        pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
-        pid_array = " ".join(f'"${p}"' for p in pid_vars)
+    @staticmethod
+    def slurm_step_id_var(role: str) -> str:
+        return f"{role.replace('-', '_').upper()}_STEP_IDS"
+
+    def cleanup_step_id_vars(self, pid_vars: list[str]) -> list[str]:
+        return [f"{pid_var.removesuffix('_PID')}_STEP_IDS" for pid_var in pid_vars]
+
+    def cleanup_prelude(self) -> str:
+        return ""
+
+    def cleanup_guard_var(self) -> str:
+        run_id = re.sub(r"\W+", "_", f"{self.test_run.name}_{self.test_run.current_iteration}").strip("_")
+        return f"CLOUDAI_{run_id.upper()}_CLEANUP_DONE"
+
+    def _with_slurm_step_name(self, srun_prefix: str, role: str) -> str:
+        return f"{srun_prefix} --job-name={self.slurm_step_name(role)}"
+
+    def render_step_discovery(self, role: str, step_id_var: str | None = None, expected_count: int = 1) -> str:
+        step_id_var = step_id_var or self.slurm_step_id_var(role)
+        step_name = self.slurm_step_name(role)
+        squeue_cmd = (
+            'squeue --noheader --steps --job "$SLURM_JOB_ID" --format="%i %j" 2>/dev/null '
+            f"| awk '$2 == \"{step_name}\" {{ print $1 }}'"
+        )
         return f"""\
-cleanup() {{
-    echo "Cleaning up PIDs: {pid_values}"
+{step_id_var}=
+for _ in {{1..10}}; do
+    {step_id_var}=$({squeue_cmd})
+    CLOUDAI_STEP_COUNT=$(printf '%s\\n' "${{{step_id_var}}}" | wc -w | tr -d ' ')
+    if [ "$CLOUDAI_STEP_COUNT" -ge {expected_count} ]; then break; fi
+    sleep 1
+done
+echo "Slurm step IDs for {role}: ${{{step_id_var}:-unknown}}"
+"""
 
-    for pid in {pid_array}; do
-        [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null
-    done
+    def _render_cleanup_signal_block(self, pid_var: str, step_id_var: str, signal_name: str) -> str:
+        pid_signal = "KILL" if signal_name == "KILL" else "TERM"
+        return f"""\
+    if [ -n "${{{step_id_var}:-}}" ]; then
+        for step_id in ${{{step_id_var}}}; do
+            scancel --signal={signal_name} "$step_id" 2>/dev/null || true
+        done
+    elif [ -n "${{{pid_var}:-}}" ]; then
+        kill -{pid_signal} "${{{pid_var}}}" 2>/dev/null || true
+    fi"""
 
-    for pid in {pid_array}; do
-        [ -z "$pid" ] && continue
+    def _render_cleanup_wait_block(self, pid_var: str, step_id_var: str, timeout: int) -> str:
+        force_block = self._render_cleanup_signal_block(pid_var, step_id_var, "KILL")
+        force_block = "\n".join(f"            {line}" for line in force_block.splitlines())
+        return f"""\
+    if [ -n "${{{pid_var}:-}}" ]; then
         i=0
-        while kill -0 "$pid" 2>/dev/null; do
-            [ "$i" -ge {timeout} ] && echo "PID $pid did not exit in time" && return 1
+        while kill -0 "${{{pid_var}}}" 2>/dev/null; do
+            if [ "$i" -ge {timeout} ]; then
+                echo "PID ${{{pid_var}}} did not exit in time"
+                cleanup_status=1
+{force_block}
+                break
+            fi
             sleep 1
             i=$((i+1))
         done
-    done
+    fi"""
+
+    def generate_cleanup_function(self, pid_vars: list[str], timeout: int = 60) -> str:
+        step_id_vars = self.cleanup_step_id_vars(pid_vars)
+        guard_var = self.cleanup_guard_var()
+        pid_values = " ".join(f"{pid_var}=${pid_var}" for pid_var in pid_vars)
+        step_values = " ".join(f"{step_id_var}=${step_id_var}" for step_id_var in step_id_vars)
+        prelude = self.cleanup_prelude()
+        if prelude:
+            prelude = f"{prelude}\n"
+        term_blocks = "\n".join(
+            self._render_cleanup_signal_block(pid_var, step_id_var, "TERM")
+            for pid_var, step_id_var in zip(pid_vars, step_id_vars, strict=True)
+        )
+        wait_blocks = "\n".join(
+            self._render_cleanup_wait_block(pid_var, step_id_var, timeout)
+            for pid_var, step_id_var in zip(pid_vars, step_id_vars, strict=True)
+        )
+        return f"""\
+cleanup() {{
+    if [ "${{{guard_var}:-0}}" = "1" ]; then
+        return 0
+    fi
+    {guard_var}=1
+    cleanup_status=0
+{prelude}    echo "Cleaning up PIDs: {pid_values}"
+    echo "Cleaning up Slurm step IDs: {step_values}"
+
+{term_blocks}
+
+{wait_blocks}
+    return "$cleanup_status"
 }}
 trap cleanup EXIT"""
 
@@ -728,12 +790,15 @@ trap cleanup EXIT"""
         head_node_var: str,
         nodelist_var: str,
     ) -> str:
-        del role, node_count, nodelist_var
+        del node_count, nodelist_var
+        srun_prefix = self._with_slurm_step_name(self._single_role_srun_prefix(head_node_var), role)
+        step_id_var = self.slurm_step_id_var(role)
         return f"""\
-{self._single_role_srun_prefix(head_node_var)} \\
+{srun_prefix} \\
     --output={self.test_run.output_path.absolute()}/{log_file} \\
     {self._with_custom_bash(command_tail)} &
-{pid_var}=$!"""
+{pid_var}=$!
+{self.render_step_discovery(role, step_id_var)}"""
 
     def _expand_semantic_eval_args(self, args: str, *, host: str) -> str:
         replacements = {
@@ -792,11 +857,15 @@ echo "Running semantic validation..."
         node_setup = self.generate_aggregated_node_setup(serve_node_count)
         preamble = self.aggregated_script_preamble()
         if legacy_single_node:
+            serve_srun_prefix = self._with_slurm_step_name(
+                f"{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1", "serve"
+            )
             serve_launch = f"""\
-{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+{serve_srun_prefix} \\
     --output={(self.test_run.output_path / self.serve_log_file).absolute()} \\
     {self._with_custom_bash(serve_cmd_with_env)} &
-{self.serve_pid_var}=$!"""
+{self.serve_pid_var}=$!
+{self.render_step_discovery("serve", self.slurm_step_id_var("serve"))}"""
         else:
             serve_launch = self.render_serve_launch(
                 "serve",
@@ -889,10 +958,11 @@ echo "Starting {self.workload_name} instances..."
 {wait_block}
 
 echo "Starting {self.proxy_router_name}..."
-{prefill_srun_prefix} \\
+{self._with_slurm_step_name(prefill_srun_prefix, "helper")} \\
     --output={self.test_run.output_path.absolute()}/{self.proxy_router_log_file} \\
     {self._with_custom_bash(" ".join(helper_cmd))} &
 {self.proxy_router_pid_var}=$!
+{self.render_step_discovery("helper", self.slurm_step_id_var("helper"))}
 
 {wait_block_helper}
 

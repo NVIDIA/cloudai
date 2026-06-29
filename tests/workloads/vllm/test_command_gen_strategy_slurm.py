@@ -391,6 +391,18 @@ class TestVllmDisaggregatedMode:
         assert 'DECODE_NODES=( "${NODES[@]:2:2}" )' in srun_command
         assert "PREFILL_RAY_PID=$!" in srun_command
         assert "DECODE_RAY_PID=$!" in srun_command
+        assert "--job-name=cloudai-vllm-prefill-ray-worker" in srun_command
+        assert "--job-name=cloudai-vllm-prefill-ray-head" in srun_command
+        assert "--job-name=cloudai-vllm-decode-ray-worker" in srun_command
+        assert "--job-name=cloudai-vllm-decode-ray-head" in srun_command
+        assert 'PREFILL_RAY_WORKER_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in srun_command
+        assert 'PREFILL_RAY_HEAD_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in srun_command
+        assert 'DECODE_RAY_WORKER_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in srun_command
+        assert 'DECODE_RAY_HEAD_STEP_IDS=$(squeue --noheader --steps --job "$SLURM_JOB_ID"' in srun_command
+        assert "Stopping Ray clusters..." in srun_command
+        assert "Cleaning up Slurm step IDs: PREFILL_RAY_WORKER_STEP_IDS=$PREFILL_RAY_WORKER_STEP_IDS" in srun_command
+        assert "PREFILL_RAY_HEAD_STEP_IDS=$PREFILL_RAY_HEAD_STEP_IDS" in srun_command
+        assert 'scancel --signal=TERM "$step_id"' in srun_command
         assert srun_command.count('sum(node["Alive"] for node in ray.nodes())') == 2
         assert "ray.init(address=" not in srun_command
         assert 'env RAY_ADDRESS="${PREFILL_NODE}:${PREFILL_RAY_PORT}"' in srun_command

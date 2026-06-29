@@ -41,6 +41,7 @@ from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDyna
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.dynamo_mocker import DynamoMockerReportGenerationStrategy, DynamoMockerTestDefinition
+from cloudai.workloads.fio import FioReportGenerationStrategy, FioTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -279,6 +280,32 @@ def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: 
 def test_total_time_limit_with_empty_hooks():
     result = calculate_total_time_limit([], "01:00:00")
     assert result == "01:00:00"
+
+
+class TestIncrementStep:
+    """``TestRun.increment_step`` is the single mutator for the trial counter."""
+
+    def _make_tr(self, tdef: TestDefinition) -> TestRun:
+        return TestRun(name="incr_tr", test=tdef, num_nodes=1, nodes=[])
+
+    def test_starts_at_zero_and_advances_to_one(self, tdef: TestDefinition) -> None:
+        tr = self._make_tr(tdef)
+        assert tr.step == 0
+        assert tr.increment_step() == 1
+        assert tr.step == 1
+
+    def test_is_monotonic_across_repeated_calls(self, tdef: TestDefinition) -> None:
+        tr = self._make_tr(tdef)
+        seen = [tr.increment_step() for _ in range(5)]
+        assert seen == [1, 2, 3, 4, 5]
+        assert tr.step == 5
+
+    def test_resumes_from_pre_existing_value(self, tdef: TestDefinition) -> None:
+        """Recovery / batch-unroll callers may seed ``step`` to a historical value."""
+        tr = self._make_tr(tdef)
+        tr.step = 42
+        assert tr.increment_step() == 43
+        assert tr.step == 43
 
 
 class TestInScenario:
@@ -678,7 +705,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 21
+        assert len(Registry().reports_map) == 22
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -704,6 +731,7 @@ class TestReporters:
             (SglangTestDefinition, {SGLangBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
             (DynamoMockerTestDefinition, {DynamoMockerReportGenerationStrategy}),
+            (FioTestDefinition, {FioReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
         ],
