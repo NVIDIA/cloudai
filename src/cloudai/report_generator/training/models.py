@@ -72,7 +72,7 @@ class TrainingConfig:
     virtual_pipeline_parallel_size: Optional[int]
     sequence_parallel: bool
     expert_parallel_size: int
-    data_parallel_size: int = 0  # CloudAI-computed
+    data_parallel_size: Optional[int] = None  # CloudAI-computed (None when gpus_per_node is unavailable)
 
     # Model architecture
     num_layers: int
@@ -92,7 +92,7 @@ class TrainingConfig:
     moe_grouped_gemm: Optional[bool]
 
     # Hardware
-    world_size: int = 0  # CloudAI-computed
+    world_size: Optional[int] = None  # CloudAI-computed (None when gpus_per_node is unavailable)
     num_nodes: int = 0  # CloudAI-computed
 
     # Identity

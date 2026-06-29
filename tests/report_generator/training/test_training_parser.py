@@ -20,18 +20,18 @@ from typing import Any
 
 import pytest
 
-from cloudai.reports.training import parser as parser_mod
-from cloudai.reports.training import tb_reader
-from cloudai.reports.training.models import Scalar
-from cloudai.reports.training.parser import MegatronBridgeParser, MegatronParser, NeMoRunParser
-from cloudai.reports.training.report_generation_strategy import TrainingReportGenerationStrategy
+from cloudai.report_generator.training import parser as parser_mod
+from cloudai.report_generator.training import tb_reader
+from cloudai.report_generator.training.models import Scalar
+from cloudai.report_generator.training.parser import MegatronBridgeParser, MegatronParser, NeMoRunParser
+from cloudai.report_generator.training.report_generation_strategy import TrainingReportGenerationStrategy
 
 
 def _scalars(rows: list[tuple]) -> list[Scalar]:
     return [Scalar(tag=tag, step=step, value=value, wall_time=wall_time) for tag, step, value, wall_time in rows]
 
 
-def _system(gpus_per_node: int = 4, ntasks_per_node: int | None = None) -> Any:
+def _system(gpus_per_node: int | None = 4, ntasks_per_node: int | None = None) -> Any:
     return types.SimpleNamespace(gpus_per_node=gpus_per_node, ntasks_per_node=ntasks_per_node)
 
 
@@ -218,6 +218,17 @@ def test_build_config_resolves_paths_and_computes_fields():
     assert config.model_name == "gpt3"  # CloudAI-computed
     assert (config.num_nodes, config.world_size) == (8, 32)  # 8 nodes x 4 gpus
     assert config.data_parallel_size == 8  # 32 / (tp4 * pp1 * cp1)
+
+
+def test_build_config_leaves_world_size_none_without_gpus_per_node():
+    # No gpus_per_node/ntasks_per_node on the system: world_size/data_parallel_size stay None, rest still resolves.
+    raw = {"parallelism": {"tensor_model_parallel_size": 4, "pipeline_model_parallel_size": 1}}
+    config = NeMoRunParser()._build_config(raw, _tr(nnodes=8, recipe_name="gpt3"), _system(gpus_per_node=None))
+
+    assert config.world_size is None
+    assert config.data_parallel_size is None
+    assert config.num_nodes == 8  # still set
+    assert config.tensor_parallel_size == 4
 
 
 def test_megatron_config_parses_string_literals(monkeypatch):

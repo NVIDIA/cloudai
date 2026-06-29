@@ -14,4 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CloudAI report-generation strategies shared across workloads."""
+"""Tests for the training-report parsers under cloudai.report_generator.training.
+
+Covers TrainingParser step and config building plus the per-workload parsers.
+"""

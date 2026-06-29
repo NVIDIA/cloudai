@@ -17,11 +17,10 @@
 """
 Per-workload field mappings for the training report parsers.
 
-Source of truth: doc/unified-training-output-design.md sections 5.2 (TrainingStep ->
-TensorBoard tags) and 6.1.1 (TrainingConfig -> framework artifact field names).
+TrainingStep fields map to TensorBoard scalar tags; TrainingConfig fields map to framework artifact field names.
 """
 
-# TrainingStep field -> TB scalar tag, read from the value column (doc 5.2). iteration is the step
+# TrainingStep field -> TB scalar tag, read from the value column. iteration is the step
 # axis (the row key); per-field unit scale lives in *_SCALE below.
 NEMO_STEPS: dict[str, str] = {
     "step_time_sec": "train_step_timing in s",

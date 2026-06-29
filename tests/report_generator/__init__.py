@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the training-report parsers under cloudai.reports.training.
+"""Test package for CloudAI report-generator strategies.
 
-Covers TrainingParser step and config building plus the per-workload parsers.
+This package groups tests for shared report-generation utilities and
+workload-specific report parsers.
 """

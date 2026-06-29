@@ -46,8 +46,8 @@ def register_all():
     )
     from cloudai.core import Registry
     from cloudai.models.scenario import ReportConfig
+    from cloudai.report_generator.training import TrainingReportGenerationStrategy
     from cloudai.reporter import DSEReporter, PerTestReporter, StatusReporter, TarballReporter
-    from cloudai.reports.training import TrainingReportGenerationStrategy
 
     # Import systems
     from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesRunner, KubernetesSystem

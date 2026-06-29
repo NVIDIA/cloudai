@@ -51,7 +51,6 @@ class TrainingParser(ABC):
     STEP_MAPPING: ClassVar[dict[str, str]]  # TrainingStep field -> TB scalar tag (read from the value column)
     CONFIG_MAPPING: ClassVar[dict[str, str]]
     SCALE: ClassVar[dict[str, float]] = {}  # TrainingStep field -> unit factor (e.g. m-bridge gigabytes -> bytes)
-    DEFAULT_GPUS_PER_NODE: ClassVar[int] = 8
 
     @abstractmethod
     def get_tb_dir(self, tr: TestRun) -> Path:
@@ -112,16 +111,19 @@ class TrainingParser(ABC):
             field: self._get_from_dict(raw, path) for field, path in self.CONFIG_MAPPING.items()
         }
         config = TrainingConfig(**field_values)
-        gpus_per_node = (
-            getattr(system, "gpus_per_node", None)
-            or getattr(system, "ntasks_per_node", None)
-            or self.DEFAULT_GPUS_PER_NODE
-        )
         config.test_template_name = tr.test.test_template_name
         config.num_nodes = tr.nnodes
-        config.world_size = config.num_nodes * gpus_per_node
         config.model_name = self.get_model_name(tr)
-        config.data_parallel_size = self._compute_data_parallel_size(config)
+        gpus_per_node = getattr(system, "gpus_per_node", None) or getattr(system, "ntasks_per_node", None)
+        if gpus_per_node:
+            world_size = config.num_nodes * gpus_per_node
+            config.world_size = world_size
+            config.data_parallel_size = self._compute_data_parallel_size(config, world_size)
+        else:
+            logging.warning(
+                f"{type(self).__name__}: system has no gpus_per_node/ntasks_per_node; "
+                "world_size and data_parallel_size left unset"
+            )
         return config
 
     def _read_scalars(self, tr: TestRun) -> list[Scalar]:
@@ -143,7 +145,7 @@ class TrainingParser(ABC):
         """Read a dotted path (e.g. 'model.num_layers') from a nested dict; None if any key is missing."""
         return reduce(lambda value, key: value.get(key) if isinstance(value, dict) else None, path.split("."), raw)
 
-    def _compute_data_parallel_size(self, config: TrainingConfig) -> int:
+    def _compute_data_parallel_size(self, config: TrainingConfig, world_size: int) -> int:
         """world_size / (tensor*pipeline*context parallel). EP is carved out of DP, not world_size."""
         cls = type(self).__name__
         tp = config.tensor_parallel_size
@@ -152,11 +154,9 @@ class TrainingParser(ABC):
         if not tp:
             raise ValueError(f"{cls}: tensor_parallel_size missing/invalid in parsed config (got {tp!r})")
         parallel = tp * pp * cp
-        if config.world_size % parallel != 0:
-            raise ValueError(
-                f"{cls}: world_size {config.world_size} not a multiple of tp*pp*cp={parallel}; check topology"
-            )
-        return config.world_size // parallel
+        if world_size % parallel != 0:
+            raise ValueError(f"{cls}: world_size {world_size} not a multiple of tp*pp*cp={parallel}; check topology")
+        return world_size // parallel
 
 
 class NeMoRunParser(TrainingParser):

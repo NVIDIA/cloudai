@@ -47,7 +47,7 @@ def read_text(tb_dir: Path) -> dict[str, str]:
 
 
 if __name__ == "__main__":
-    # Debug: python -m cloudai.reports.training.tb_reader /path/to/tensorboard/logs
+    # Debug: python -m cloudai.report_generator.training.tb_reader /path/to/tensorboard/logs
     import dataclasses
     import json
     import sys
