@@ -14,19 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "moe_benchmark_standard"
-description = "MoE Benchmark - DeepEP standard mode plus matrix export"
+name = "moe_benchmark_HT"
+description = "MoE Benchmark - high-throughput (HT) mode plus matrix export"
 test_template_name = "MoEBenchmark"
 
 [cmd_args]
 docker_image_url = "/your/path/to/the/container"
-benchmark_root = "/workspace/dp-benchmark/benchmark"
-mode = "standard"
+benchmark_root = "/workspace/DeepEP/benchmark"
+mode = "standard"  # benchmark CLI value for high-throughput; LL lives in moe_benchmark_low_latency.toml
+deepep_versions = ["legacy", "elastic", "nixl_ep", "uccl_ep", "nccl_ep", "deepep_hybrid"]
 tokens = 4096
 num_experts = 256
 num_topk = 8
 hidden_size = 7168
 data_type = "bfloat16"
+benchmark_combine = true
 allow_nvlink_for_low_latency = false
 allow_mnnvl = false
 round_scale = false
@@ -37,8 +39,19 @@ shuffle_columns = false
 use_kineto_profiler = false
 enable_tuning = false
 config_file_path = "/tmp/config.yaml"
-results_dir = "/workspace/dp-benchmark/results"
+results_dir = "/workspace/DeepEP/results"
 
 [extra_env_vars]
+UCX_LOG_LEVEL = "error"
 NUM_QPS_PER_RANK = "12"
 NUM_SMS = "24"
+# nixl_ep imports the CUDA-versioned package from the meson build dir. Set it
+# explicitly (no trailing colon) so it's present regardless of --export behavior;
+# harmless for v1/v2 (deep_ep is in site-packages).
+PYTHONPATH = "/workspace/nixl/build/examples/device/ep"
+# uccl_ep: UCCL RDMA env (mirror NCCL's GID/iface) + intranode hint. UCCL's
+# Buffer falls back to torch.cuda.current_device() when LOCAL_RANK is unset, so
+# init_dist_slurm's per-rank device is used; LOCAL_WORLD_SIZE aids its topo detect.
+UCCL_SOCKET_IFNAME = "eno3"
+UCCL_IB_GID_INDEX = "3"
+LOCAL_WORLD_SIZE = "8"

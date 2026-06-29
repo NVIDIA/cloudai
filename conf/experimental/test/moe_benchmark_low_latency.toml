@@ -15,18 +15,20 @@
 # limitations under the License.
 
 name = "moe_benchmark_low_latency"
-description = "MoE Benchmark - DeepEP low-latency mode plus matrix export"
+description = "MoE Benchmark - low-latency (LL) decode mode plus matrix export"
 test_template_name = "MoEBenchmark"
 
 [cmd_args]
 docker_image_url = "/your/path/to/the/container"
-benchmark_root = "/path/in/the/container/to/the/tests/folder"
+benchmark_root = "/workspace/DeepEP/benchmark"
 mode = "low_latency"
+deepep_versions = ["legacy", "nixl_ep", "uccl_ep", "nccl_ep"]
 tokens = 128
-num_experts = 288
+num_experts = 256
 num_topk = 8
 hidden_size = 7168
 data_type = "bfloat16"
+benchmark_combine = true
 allow_nvlink_for_low_latency = false
 allow_mnnvl = false
 round_scale = false
@@ -37,8 +39,18 @@ shuffle_columns = false
 use_kineto_profiler = false
 enable_tuning = false
 config_file_path = "/tmp/config.yaml"
-results_dir = "/workspace/dp-benchmark/results"
+results_dir = "/workspace/DeepEP/results"
 
 [extra_env_vars]
+UCX_LOG_LEVEL = "error"
 NUM_QPS_PER_RANK = "12"
 NUM_SMS = "24"
+NCCL_P2P_DISABLE = "1"
+NCCL_NVLS_DISABLE = "1"
+NVSHMEM_DISABLE_P2P = "1"
+# nixl_ep imports the CUDA-versioned package from the meson build dir.
+PYTHONPATH = "/workspace/nixl/build/examples/device/ep"
+# uccl_ep: UCCL RDMA env (mirror NCCL's GID/iface) + intranode hint.
+UCCL_SOCKET_IFNAME = "eno3"
+UCCL_IB_GID_INDEX = "3"
+LOCAL_WORLD_SIZE = "8"

@@ -82,7 +82,7 @@ class MoEBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                 "num_ranks",
                 "num_tokens",
                 "hidden",
-                "deepep_time",
+                "time_s",
                 "bus_bw_avg",
                 "bus_bw_min",
                 "bus_bw_max",

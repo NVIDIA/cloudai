@@ -18,7 +18,7 @@ name = "moe-benchmark"
 
 [[Tests]]
 id = "Tests.moe_benchmark"
-test_name = "moe_benchmark_standard"
+test_name = "moe_benchmark_HT"
 num_nodes = 2
 time_limit = "00:30:00"
 
