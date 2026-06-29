@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,6 +39,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """Set environment variables based on NeMoRunTestDefinition."""
         self.final_env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
         self.final_env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
+        self.final_env_vars.setdefault("NEMO_LOG_MEMORY_USAGE", "1")
 
         pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
         if isinstance(pipeline_model_parallel_size, list):

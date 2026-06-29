@@ -92,7 +92,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     load_dir: Optional[str] = Field(default=None)
     save_interval: Optional[int] = Field(default=None)
     most_recent_k: Optional[int] = Field(default=None)
-    save_config_filepath: Optional[str] = Field(default=None)
+    save_config_filepath: Optional[str] = Field(default="/nemo_run/configs/ConfigContainer.yaml")
 
     # Data / Tokenizer
     data: Optional[str] = Field(default=None)

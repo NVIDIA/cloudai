@@ -54,6 +54,12 @@ class MegatronRunCmdArgs(CmdArgs):
     load: Optional[Path] = None
     tokenizer_model: Optional[Path] = None
 
+    tensorboard_dir: Optional[str] = "/cloudai_run_results/tensorboard"
+    log_timers_to_tensorboard: Optional[str] = ""
+    log_throughput: Optional[str] = ""
+    log_memory_to_tensorboard: Optional[str] = ""
+    log_interval: Optional[int] = 1
+
     @field_validator("save", "load", mode="before")
     @classmethod
     def expand_paths(cls, v: Optional[str]) -> Optional[Path]:
