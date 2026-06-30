@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     import bokeh.palettes as bokeh_pallettes
     import bokeh.plotting as bokeh_plotting
     import bokeh.transform as bokeh_transform
+    import gymnasium
     import kubernetes as k8s
     import numpy as np
     import pandas as pd
@@ -39,6 +40,7 @@ class LazyImports:
         self._np: ModuleType | None = None
         self._pd: ModuleType | None = None
         self._k8s: ModuleType | None = None
+        self._gymnasium: ModuleType | None = None
         self._bokeh: ModuleType | None = None
         self._bokeh_plotting: ModuleType | None = None
         self._bokeh_models: ModuleType | None = None
@@ -74,6 +76,19 @@ class LazyImports:
             self._k8s = k8s
 
         return cast("k8s", self._k8s)
+
+    @property
+    def gymnasium(self) -> gymnasium:  # type: ignore[no-any-return]
+        """Lazy import of gymnasium (optional ``cloudai[rl]`` extra)."""
+        if self._gymnasium is None:
+            try:
+                import gymnasium
+            except ImportError as exc:
+                raise ImportError(
+                    "gymnasium is required for GymnasiumAdapter. Install it with: pip install 'cloudai[rl]'"
+                ) from exc
+            self._gymnasium = gymnasium
+        return cast("gymnasium", self._gymnasium)
 
     @property
     def bokeh(self) -> bokeh:  # type: ignore[no-any-return]
