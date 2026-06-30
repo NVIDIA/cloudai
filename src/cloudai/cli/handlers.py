@@ -162,6 +162,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
             agent = agent_class(env, agent_config)
+            logging.debug(f"Created agent {agent.__class__.__name__}.")
 
             err |= agent.run()
     except Exception as exc:
