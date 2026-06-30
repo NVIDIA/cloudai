@@ -24,7 +24,7 @@ from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.nccl_test import NcclTestPerformanceReportGenerationStrategy
-from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
+from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info, extract_nccl_data
 
 
 @pytest.fixture
@@ -111,3 +111,20 @@ def test_get_metric(
     res = report_strategy.get_metric(metric)
     assert res is not None and res != METRIC_ERROR
     assert res == lazy.np.mean(ref_values)
+
+
+def test_get_metric_returns_metric_error_for_malformed_numeric_row(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
+) -> None:
+    (nccl_tr.output_path / "stdout.txt").write_text(
+        """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+         8             2       float     sum      -1    NaNbad  2.0     3.0       0    1.0     2.0     3.0       0
+# Avg bus bandwidth    : 111.111
+"""
+    )
+    extract_nccl_data.cache_clear()
+
+    assert report_strategy.get_metric("default") is METRIC_ERROR
