@@ -155,7 +155,7 @@ class TestRun:
             return False
 
         agent = Registry().agents_map.get(self.test.agent)
-        return self.is_dse_job and (agent is None or agent.samples_env_params)
+        return self.is_dse_job and (agent is None or agent.supports_variable_environment)
 
     @property
     def nnodes(self) -> int:

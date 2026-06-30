@@ -56,7 +56,7 @@ class StubAgentConfig(BaseAgentConfig):
 
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
-    samples_env_params: bool = True  # stands in for an env-aware learning agent
+    supports_variable_environment: bool = True  # stands in for an env-aware learning agent
 
     def __init__(self, env, config: StubAgentConfig):
         self.env = env
@@ -454,7 +454,7 @@ def test_validate_domain_randomization_active_rejects_non_sampling_agent(
     dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The check keys on the agent capability, not the name: a non-grid agent that opts out is rejected too."""
-    monkeypatch.setattr(StubAgent, "samples_env_params", False)
+    monkeypatch.setattr(StubAgent, "supports_variable_environment", False)
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     dse_tr.test.agent = stub_agent_name
     assert dse_tr.is_dse_job is True and dse_tr.test.agent != "grid_search"
@@ -473,7 +473,7 @@ def test_validate_domain_randomization_active_defers_unknown_agent(dse_tr: TestR
 
 def test_validate_domain_randomization_active_allows_dse_run(dse_tr: TestRun, stub_agent_name: str) -> None:
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
-    dse_tr.test.agent = stub_agent_name  # an env-aware agent (samples_env_params=True) consumes env_params
+    dse_tr.test.agent = stub_agent_name  # an env-aware agent (supports_variable_environment=True) consumes env_params
     assert dse_tr.is_dse_job is True  # precondition: DSE + env-aware agent + env_params is allowed
     validate_domain_randomization_active(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
 
