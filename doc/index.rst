@@ -30,6 +30,8 @@ This document contains the following chapters:
 Getting Started
 ---------------
 
+CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
+
 .. code-block:: bash
 
    git clone git@github.com:NVIDIA/cloudai.git
@@ -43,7 +45,9 @@ Getting Started
 pip-based Installation
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-See the required Python version in the ``.python-version`` file and make sure you have it installed (For installation, see :ref:`install-custom-python-version`). Follow these steps:
+See the preferred Python version in the ``.python-version`` file and make sure you have it installed
+(For installation, see :ref:`install-custom-python-version`). Python 3.10 and newer remain supported.
+Follow these steps:
 
 .. code-block:: bash
 
