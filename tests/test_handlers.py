@@ -26,19 +26,23 @@ from pydantic import Field
 
 from cloudai.cli.handlers import (
     handle_dse_job,
+    validate_domain_randomization_active,
     verify_system_configs,
     verify_test_configs,
     verify_test_scenarios,
 )
+from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
+    Parser,
     Registry,
     RewardOverrides,
     Runner,
     TestDependency,
     TestRun,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import StatusReporter
@@ -52,6 +56,7 @@ class StubAgentConfig(BaseAgentConfig):
 
 class StubAgent(BaseAgent):
     received_configs: ClassVar[list[StubAgentConfig]] = []
+    supports_variable_environment: bool = True  # stands in for an env-aware learning agent
 
     def __init__(self, env, config: StubAgentConfig):
         self.env = env
@@ -427,3 +432,84 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+
+
+def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    scenario = TestScenario(name="s", test_runs=[base_tr])
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_domain_randomization_active(scenario)
+
+
+def test_validate_domain_randomization_active_rejects_grid_search(dse_tr: TestRun) -> None:
+    """A DSE job on grid_search exhaustively searches the space, so env_params are noise -> reject."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    assert dse_tr.is_dse_job is True  # it IS a DSE job...
+    assert dse_tr.test.agent == "grid_search"  # ...but grid_search does not sample env_params
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_domain_randomization_active(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_domain_randomization_active_rejects_non_sampling_agent(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check keys on the agent capability, not the name: a non-grid agent that opts out is rejected too."""
+    monkeypatch.setattr(StubAgent, "supports_variable_environment", False)
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name
+    assert dse_tr.is_dse_job is True and dse_tr.test.agent != "grid_search"
+    with pytest.raises(TestScenarioParsingError, match="no agent will sample them"):
+        validate_domain_randomization_active(TestScenario(name="s", test_runs=[dse_tr]))
+
+
+def test_validate_domain_randomization_active_defers_unknown_agent(dse_tr: TestRun) -> None:
+    """An unknown agent is not flagged here; it is deferred to the dedicated agent-resolution error."""
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = "does_not_exist_agent"
+    assert dse_tr.is_dse_job is True
+    assert dse_tr.test.agent not in Registry().agents_map  # precondition: agent is truly unknown
+    validate_domain_randomization_active(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == deferred
+
+
+def test_validate_domain_randomization_active_allows_dse_run(dse_tr: TestRun, stub_agent_name: str) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # an env-aware agent (supports_variable_environment=True) consumes env_params
+    assert dse_tr.is_dse_job is True  # precondition: DSE + env-aware agent + env_params is allowed
+    validate_domain_randomization_active(TestScenario(name="s", test_runs=[dse_tr]))  # no exception == pass
+
+
+def test_validate_domain_randomization_active_allows_num_nodes_sweep(base_tr: TestRun, stub_agent_name: str) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    base_tr.test.agent = stub_agent_name
+    base_tr.num_nodes = [1, 2]
+    assert base_tr.is_dse_job is True  # a num_nodes list sweep makes it DSE, so env_params is allowed
+    validate_domain_randomization_active(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_validate_domain_randomization_active_allows_non_dse_without_env_params(base_tr: TestRun) -> None:
+    assert base_tr.is_dse_job is False  # precondition: not DSE, but also no env_params declared
+    assert not base_tr.test.env_params
+    validate_domain_randomization_active(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def test_verify_test_scenarios_rejects_env_params_without_dse(
+    base_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    bad = TestScenario(name="s", test_runs=[base_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: bad)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
+
+
+def test_verify_test_scenarios_allows_env_params_with_dse(
+    dse_tr: TestRun, stub_agent_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
+    dse_tr.test.agent = stub_agent_name  # learning agent (not grid_search)
+    good = TestScenario(name="s", test_runs=[dse_tr])
+    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
+    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
+    monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
+    assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0

@@ -16,13 +16,16 @@
 
 from .base_agent import BaseAgent
 from .base_gym import BaseGym
-from .cloudai_gym import CloudAIGymEnv, TrajectoryEntry
+from .cloudai_gym import CloudAIGymEnv, GymServer, TrajectoryEntry
 from .grid_search import GridSearchAgent
+from .gymnasium_adapter import GymnasiumAdapter
 
 __all__ = [
     "BaseAgent",
     "BaseGym",
     "CloudAIGymEnv",
     "GridSearchAgent",
+    "GymServer",
+    "GymnasiumAdapter",
     "TrajectoryEntry",
 ]

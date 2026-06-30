@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
 
 from ..util import flatten_dict
+from .registry import Registry
 from .system import System
 
 if TYPE_CHECKING:
@@ -141,6 +142,22 @@ class TestRun:
         return self.test.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
+    def is_domain_randomization_active(self) -> bool:
+        """
+        Whether this run will actually env-sample (domain-randomize) per trial.
+
+        True only when domain randomization is declared (``env_params`` present), the run is a DSE
+        job (so a per-trial loop exists - including a ``num_nodes`` sweep), and the agent opts into
+        sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
+        surfaces instead of this one.
+        """
+        if not self.test.is_domain_randomization_enabled:
+            return False
+
+        agent = Registry().agents_map.get(self.test.agent)
+        return self.is_dse_job and (agent is None or agent.supports_variable_environment)
+
+    @property
     def nnodes(self) -> int:
         """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
         if isinstance(self.num_nodes, list):
@@ -156,7 +173,9 @@ class TestRun:
             **{
                 key: value
                 for key, value in cmd_args_dict.items()
-                if isinstance(value, list) and not self.test.is_dse_excluded_arg(key)
+                if isinstance(value, list)
+                and not self.test.is_dse_excluded_arg(key)
+                and not self.test.is_env_sampled(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -184,9 +203,13 @@ class TestRun:
 
         return all_combinations
 
-    def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
+    def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
         tdef = self.test.model_copy(deep=True)
-        for key, value in action.items():
+
+        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
+        # action and env_params target disjoint keys, so a plain merge applies both in one pass.
+        full_action = action | (env_params or {})
+        for key, value in full_action.items():
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
             else:
@@ -199,7 +222,12 @@ class TestRun:
                 else:
                     setattr(obj, attrs[-1], value)
 
-        type(tdef)(**tdef.model_dump())  # trigger validation
+        # env_params is validated at parse time; after the overlay its target cmd_args fields hold
+        # concrete scalar draws, so re-validating it here would reject weighted specs. Drop it for
+        # this validation-only pass, which exists to validate the applied action values.
+        validation_args = tdef.model_dump()
+        validation_args.pop("env_params", None)
+        type(tdef)(**validation_args)  # trigger validation
 
         new_tr = copy.deepcopy(self)
         new_tr.test = tdef
