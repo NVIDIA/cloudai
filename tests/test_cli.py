@@ -46,6 +46,15 @@ def test_tests_dir_is_optional(tmp_path: Path):
     assert "Missing option '--tests-dir'" not in result.output
 
 
+def test_hook_dir_is_available_on_run_commands():
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["dry-run", "--help"])
+
+    assert result.exit_code == 0
+    assert "--hook-dir DIRECTORY" in result.output
+
+
 @pytest.mark.parametrize(
     "subcommand", ["dry-run", "generate-report", "install", "list", "run", "uninstall", "verify-configs"]
 )
