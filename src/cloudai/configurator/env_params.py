@@ -213,7 +213,7 @@ def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:
     Reject prepped configs that declare domain randomization nothing will run.
 
     env_params drive per-trial domain randomization, sampled by CloudAIGymEnv on an agent-driven run:
-    a DSE sweep on an agent that opts in via ``BaseAgent.samples_env_params``, or an online live-RL run
+    a DSE sweep on an agent that opts in via ``BaseAgent.supports_variable_environment``, or an online live-RL run
     (``cmd_args.live_rl_mode``), which drives the agent's own loop and samples regardless of agent kind.
     A plain run has no per-trial loop, and a non-opting agent ignores env_params, so declaring them there
     is a silent no-op: domain randomization is enabled but never active. is_dse_job, the agent, and
