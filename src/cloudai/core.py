@@ -16,6 +16,7 @@
 
 """Core CloudAI base classes and interfaces."""
 
+from ._core.action_space import ContinuousSpace
 from ._core.base_installer import BaseInstaller
 from ._core.base_job import BaseJob
 from ._core.base_reporter import Reporter, case_name
@@ -70,6 +71,7 @@ __all__ = [
     "CloudAIGymEnv",
     "CmdArgs",
     "CommandGenStrategy",
+    "ContinuousSpace",
     "DockerImage",
     "File",
     "GitRepo",
