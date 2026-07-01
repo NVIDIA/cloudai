@@ -53,7 +53,7 @@ Follow these steps:
 
    git clone git@github.com:NVIDIA/cloudai.git
    cd cloudai
-   python -m venv venv
+   python3.14 -m venv venv
    source venv/bin/activate
    pip install -e .
 
