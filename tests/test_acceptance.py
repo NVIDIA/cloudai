@@ -588,6 +588,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="MoEBenchmark",
                 cmd_args=MoEBenchmarkCmdArgs(
                     docker_image_url="docker/image:url",
+                    deepep_versions=["legacy", "elastic", "nixl_ep", "uccl_ep", "nccl_ep", "deepep_hybrid"],
                 ),
             ),
         ),

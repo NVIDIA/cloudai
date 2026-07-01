@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Low-latency (decode) counterpart of moe_benchmark.toml: runs the LL MoE test
+# (legacy/nixl_ep/uccl_ep/nccl_ep) then the UCC/NCCL all-to-all-v baselines. Uses the
+# dedicated no-NVLink baseline variants (ucc_alltoallv_deepep_nonvlink /
+# nccl_test_alltoallv_nonvlink) so the baselines match the RDMA-only LL EP backends —
+# no need to toggle the NVLink-ON HT baselines.
+name = "moe-benchmark-ll"
+
+[[Tests]]
+id = "Tests.moe_benchmark"
+test_name = "moe_benchmark_low_latency"
+num_nodes = 2
+time_limit = "00:30:00"
+
+[[Tests]]
+id = "Tests.ucc_alltoallv"
+test_name = "ucc_alltoallv_deepep_nonvlink"
+num_nodes = 2
+time_limit = "00:30:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.moe_benchmark"
+
+[[Tests]]
+id = "Tests.nccl_alltoallv"
+test_name = "nccl_test_alltoallv_nonvlink"
+num_nodes = 2
+time_limit = "00:30:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.ucc_alltoallv"

@@ -16,6 +16,8 @@
 
 from typing import Literal, Optional
 
+from pydantic import Field
+
 from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
@@ -24,8 +26,9 @@ class MoEBenchmarkCmdArgs(CmdArgs):
     """Command arguments for the custom MoE benchmark that compares EP/alltoallv backends."""
 
     docker_image_url: str
-    benchmark_root: str = "/workspace/dp-benchmark/benchmark"
+    benchmark_root: str = "/workspace/DeepEP/benchmark"
     mode: Literal["standard", "low_latency"] = "standard"
+    deepep_versions: list[str] = Field(default_factory=lambda: ["legacy", "elastic"])
     tokens: int = 1024
     num_experts: int = 256
     num_topk: int = 8
@@ -35,6 +38,7 @@ class MoEBenchmarkCmdArgs(CmdArgs):
     allow_mnnvl: bool = False
     round_scale: bool = False
     use_ue8m0: bool = False
+    benchmark_combine: bool = True
     num_warmups: int = 20
     num_iterations: int = 50
     shuffle_columns: bool = False
@@ -42,8 +46,12 @@ class MoEBenchmarkCmdArgs(CmdArgs):
     enable_tuning: bool = False
     num_sms: int = 24
     num_qps_per_rank: int = 12
+
+    v2_num_sms: int = 12
+    v2_num_qps: int = 0
+    v2_prefer_overlap_with_compute: bool = False
     config_file_path: str = "/tmp/config.yaml"
-    results_dir: str = "/workspace/dp-benchmark/results"
+    results_dir: str = "/workspace/DeepEP/results"
 
 
 class MoEBenchmarkTestDefinition(TestDefinition):
@@ -72,6 +80,7 @@ class MoEBenchmarkTestDefinition(TestDefinition):
                 "docker_image_url",
                 "benchmark_root",
                 "mode",
+                "deepep_versions",
                 "num_sms",
                 "num_qps_per_rank",
                 "config_file_path",
