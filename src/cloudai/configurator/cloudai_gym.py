@@ -71,6 +71,17 @@ class CloudAIGymEnv(BaseGym):
         """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
         return self.iteration_dir / "env.csv"
 
+    @property
+    def upcoming_trial(self) -> int:
+        """
+        Index of the next trial ``step`` will run.
+
+        ``step`` increments ``test_run.step`` before it samples/runs, so at rest the counter
+        holds the last-run trial and the next one is ``+ 1``. ``step`` advances into it. The
+        ``+ 1`` offset is defined only here so callers cannot re-encode it inconsistently.
+        """
+        return self.test_run.step + 1
+
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
 
@@ -126,9 +137,10 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        trial = self.upcoming_trial
         self.test_run.increment_step()
         # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
-        sampled_env_params = self.params.sample(self.test_run.step) if self.params else {}
+        sampled_env_params = self.params.sample(trial) if self.params else {}
         self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
