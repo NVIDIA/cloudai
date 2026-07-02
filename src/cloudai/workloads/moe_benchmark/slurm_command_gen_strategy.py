@@ -70,38 +70,45 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ],
     }
 
-    def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
-        batch_script_content.extend(
-            [
-                "",
-                "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
-                "nodes_array=($nodes)",
-                "head_node=${nodes_array[0]}",
-                'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
-                "",
-                "echo Nodes: $SLURM_JOB_NODELIST",
-                "echo Num Nodes: ${#nodes[@]}",
-                "echo Head Node IP: $head_node_ip",
-                "",
-                "export MASTER_ADDR=$head_node_ip",
-                "export MASTER_PORT=29500",
-                "",
-            ]
-        )
-        # Hybrid-EP's NIXL path needs an etcd server reachable by all ranks. If a
-        # hybrid backend is in the run, start etcd on the head node (background, in
-        # the unified container) and export NIXL_ETCD_ENDPOINTS for every step
-        # (only hybrid reads it). Slurm tears down this step when the job ends.
+    def gen_job_prologue(self) -> List[str]:
+        """
+        Head-node detection + MASTER_ADDR/PORT (+ etcd rendezvous for Hybrid-EP).
+
+        Emitted once per job in BOTH paths: the per-test (multi-sbatch) header via
+        _append_sbatch_directives, and the single-sbatch script via SingleSbatchRunner.
+        """
+        lines: List[str] = [
+            "",
+            "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
+            "nodes_array=($nodes)",
+            "head_node=${nodes_array[0]}",
+            'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
+            "",
+            "echo Nodes: $SLURM_JOB_NODELIST",
+            "echo Num Nodes: ${#nodes[@]}",
+            "echo Head Node IP: $head_node_ip",
+            "",
+            "export MASTER_ADDR=$head_node_ip",
+            "export MASTER_PORT=29500",
+            "",
+        ]
+        # Hybrid-EP's NIXL path needs an etcd server reachable by all ranks. If a hybrid
+        # backend is in the run, start etcd on the head node (background, in the unified
+        # container) and export NIXL_ETCD_ENDPOINTS for every step (only hybrid reads it).
+        # The trap kills it when the script exits (single- AND multi-sbatch); Slurm also
+        # reclaims the step at job end.
         tdef: MoEBenchmarkTestDefinition = cast(MoEBenchmarkTestDefinition, self.test_run.test)
         versions = tdef.cmd_args.deepep_versions or []
         if any(v in ("deepep_hybrid", "hybrid", "hybrid_ep") for v in versions):
             image = self.image_path()
-            batch_script_content.extend(
+            lines.extend(
                 [
                     "# Hybrid-EP NIXL rendezvous: etcd on the head node (background).",
                     f'srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --container-image={image} '
                     'bash -c "etcd --log-level error --listen-client-urls http://0.0.0.0:2379 '
                     '--advertise-client-urls http://$head_node_ip:2379 --data-dir /tmp/etcd-cloudai-$$" &',
+                    "_MOE_ETCD_PID=$!",
+                    "trap 'kill ${_MOE_ETCD_PID} 2>/dev/null || true' EXIT",
                     "export NIXL_ETCD_ENDPOINTS=http://$head_node_ip:2379",
                     "# Poll etcd's client endpoint until it accepts connections (replaces a",
                     "# fixed sleep that could race a not-yet-ready endpoint); fail fast otherwise.",
@@ -113,10 +120,11 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "",
                 ]
             )
+        return lines
 
     def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
         super()._append_sbatch_directives(batch_script_content)
-        self._append_head_node_detection(batch_script_content)
+        batch_script_content.extend(self.gen_job_prologue())
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to the MoE benchmark."""

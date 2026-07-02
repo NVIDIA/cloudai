@@ -24,6 +24,14 @@ from cloudai.core import TestRun
 
 MOE_BENCHMARK_PREV_MOUNT = "/cloudai_moe_benchmark_prev"
 
+# Why a use_deepep_matrix=True baseline cannot run in single-sbatch mode. Shared by the UCC and
+# NCCL command-gen strategies, surfaced to the runner via single_sbatch_unsupported_reason().
+DEEPEP_MATRIX_SINGLE_SBATCH_REASON = (
+    "use_deepep_matrix=True replays the MoE benchmark's runtime traffic matrix, which is produced only after "
+    "the MoE test runs. Single-sbatch builds the whole script before anything runs, so the matrix is "
+    "unavailable. Run this scenario in multi-sbatch mode (drop --single-sbatch), or set use_deepep_matrix=false."
+)
+
 
 def start_post_comp_chain(test_run: TestRun) -> list[TestRun]:
     """Follow ``start_post_comp`` (e.g. UCC -> NCCL -> MoE benchmark)."""

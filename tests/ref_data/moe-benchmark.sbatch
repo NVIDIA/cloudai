@@ -24,6 +24,8 @@ export MASTER_PORT=29500
 
 # Hybrid-EP NIXL rendezvous: etcd on the head node (background).
 srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --container-image=docker/image:url bash -c "etcd --log-level error --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://$head_node_ip:2379 --data-dir /tmp/etcd-cloudai-$$" &
+_MOE_ETCD_PID=$!
+trap 'kill ${_MOE_ETCD_PID} 2>/dev/null || true' EXIT
 export NIXL_ETCD_ENDPOINTS=http://$head_node_ip:2379
 # Poll etcd's client endpoint until it accepts connections (replaces a
 # fixed sleep that could race a not-yet-ready endpoint); fail fast otherwise.

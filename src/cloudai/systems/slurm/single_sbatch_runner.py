@@ -141,13 +141,47 @@ class SingleSbatchRunner(SlurmRunner):
             vars.append(f"export {key}={value}")
         return "\n".join(vars)
 
+    def _reject_single_sbatch_incompatible(self) -> None:
+        """
+        Fail fast on tests that cannot run in single-sbatch mode, with an actionable message.
+
+        Single-sbatch builds the whole script up front, before anything runs, so a test that needs an
+        artifact produced by an earlier test at runtime cannot work here. Each command-gen strategy decides
+        whether it is compatible via single_sbatch_unsupported_reason() (workloads that don't define it are
+        always allowed); this runner only aggregates the reasons and raises, staying workload-agnostic.
+        """
+        problems: list[str] = []
+        for tr in self.all_trs:
+            cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+            reason_fn = getattr(cmd_gen, "single_sbatch_unsupported_reason", None)
+            reason = reason_fn() if callable(reason_fn) else None
+            if reason:
+                problems.append(f"  - {tr.name}: {reason}")
+        if problems:
+            raise ValueError("These tests cannot run in single-sbatch mode:\n" + "\n".join(problems))
+
     def gen_sbatch_content(self) -> str:
+        self._reject_single_sbatch_incompatible()
         content: list[str] = ["#!/bin/bash", *self.get_sbatch_directives(), ""]
         content.extend(self.aux_commands())
         content.append("")
 
         content.append(self.get_global_env_vars())
         content.append("")
+
+        # Job-scoped prologue (head-node detection / etcd rendezvous). Only workloads that
+        # define gen_job_prologue() emit anything (e.g. MoE); others contribute nothing.
+        # Emit once, deduped.
+        seen_prologues: set[str] = set()
+        for tr in self.all_trs:
+            cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+            prologue_fn = getattr(cmd_gen, "gen_job_prologue", None)
+            prologue: list[str] = cast("list[str]", prologue_fn()) if callable(prologue_fn) else []
+            key = "\n".join(prologue)
+            if prologue and key not in seen_prologues:
+                seen_prologues.add(key)
+                content.extend(prologue)
+                content.append("")
 
         tr = self.test_scenario.test_runs[0]
         if tr.pre_test:
