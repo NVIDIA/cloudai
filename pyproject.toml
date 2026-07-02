@@ -30,6 +30,7 @@ dependencies = [
   "rich~=14.3",
   "click~=8.3",
   "huggingface-hub~=1.4",
+  "numpy>=2.4.6; python_version >= '3.14'",
 ]
 requires-python = ">=3.10"
 classifiers = [
