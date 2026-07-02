@@ -95,6 +95,11 @@ class TrainingConfig:
     world_size: Optional[int] = None  # CloudAI-computed (None when gpus_per_node is unavailable)
     num_nodes: int = 0  # CloudAI-computed
 
+    # Profiling (CloudAI-computed from the run's nsys/profiler settings)
+    profiling_enabled: bool = False
+    profiling_start_step: Optional[int] = None
+    profiling_stop_step: Optional[int] = None
+
     # Identity
     test_template_name: str = ""  # CloudAI-computed
 

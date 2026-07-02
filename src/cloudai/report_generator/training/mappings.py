@@ -52,8 +52,9 @@ MEGATRON_BRIDGE_SCALE: dict[str, float] = {
 }
 
 
-# (world_size, num_nodes, model_name) and the computed data_parallel_size are not mapped here.
-NEMO_CONFIG: dict[str, str] = {
+# Framework's resolved config artifact. (world_size, num_nodes, model_name) and computed data_parallel_size are not
+# mapped here.
+NEMO_MODEL_CONFIG: dict[str, str] = {
     "micro_batch_size": "data.micro_batch_size",
     "global_batch_size": "data.global_batch_size",
     "seq_length": "data.seq_length",
@@ -77,7 +78,7 @@ NEMO_CONFIG: dict[str, str] = {
     "moe_grouped_gemm": "model.moe_grouped_gemm",
 }
 
-MEGATRON_CONFIG: dict[str, str] = {
+MEGATRON_MODEL_CONFIG: dict[str, str] = {
     "micro_batch_size": "micro_batch_size",
     "global_batch_size": "global_batch_size",
     "seq_length": "seq_length",
@@ -101,7 +102,7 @@ MEGATRON_CONFIG: dict[str, str] = {
     "moe_grouped_gemm": "moe_grouped_gemm",
 }
 
-MEGATRON_BRIDGE_CONFIG: dict[str, str] = {
+MEGATRON_BRIDGE_MODEL_CONFIG: dict[str, str] = {
     "micro_batch_size": "train.micro_batch_size",
     "global_batch_size": "train.global_batch_size",
     "seq_length": "model.seq_length",
@@ -123,4 +124,24 @@ MEGATRON_BRIDGE_CONFIG: dict[str, str] = {
     "moe_router_topk": "model.moe_router_topk",
     "moe_ffn_hidden_size": "model.moe_ffn_hidden_size",
     "moe_grouped_gemm": "model.moe_grouped_gemm",
+}
+
+
+# CloudAI TestDefinition (user TOML + defaults). TrainingConfig field -> dotted path in TestDefinition.model_dump().
+NEMO_TEST_CONFIG: dict[str, str] = {
+    "profiling_enabled": "nsys.enable",
+    "profiling_start_step": "extra_cmd_args.*start_step",
+    "profiling_stop_step": "extra_cmd_args.*end_step",
+}
+
+MEGATRON_TEST_CONFIG: dict[str, str] = {
+    "profiling_enabled": "nsys.enable",
+    "profiling_start_step": "cmd_args.profile_step_start",
+    "profiling_stop_step": "cmd_args.profile_step_end",
+}
+
+MEGATRON_BRIDGE_TEST_CONFIG: dict[str, str] = {
+    "profiling_enabled": "cmd_args.enable_nsys",
+    "profiling_start_step": "cmd_args.profiling_start_step",
+    "profiling_stop_step": "cmd_args.profiling_stop_step",
 }
