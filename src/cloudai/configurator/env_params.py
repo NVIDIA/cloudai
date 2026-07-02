@@ -44,47 +44,13 @@ if TYPE_CHECKING:
     from cloudai.models.workload import TestDefinition
 
 
-class EnvParamSpec(BaseModel):
-    """
-    Annotation marking one cmd_args field as env-sampled.
-
-    Carries only *how* to sample - the candidate values themselves live in
-    ``cmd_args.<name>`` as a plain list. ``weights`` (optional) are positional,
-    aligned 1:1 with that candidate list; omit for uniform sampling. The
-    length match against the candidate list is a cross-field check enforced by
-    ``TestDefinition`` (which can see ``cmd_args``); here we validate only the
-    weights' intrinsic shape.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    weights: Optional[List[float]] = Field(
-        default=None,
-        description="Optional probability weights aligned with the cmd_args candidate list; uniform if omitted.",
-    )
-
-    @model_validator(mode="after")
-    def _validate_weights(self) -> Self:
-        if self.weights is None:
-            return self
-        for w in self.weights:
-            if not math.isfinite(w) or w < 0:
-                raise ValueError(f"env_params weights must be finite and non-negative; got {w}")
-        total = sum(self.weights)
-        if abs(total - 1.0) > 1e-6:
-            raise ValueError(f"env_params weights must sum to 1.0; got {total}")
-        return self
-
-
 class ObsLeafDescriptor(BaseModel):
     """
-    Description of one leaf of a structured (named) observation.
+    Shape of one leaf of a structured (named) observation.
 
-    A structured observation maps each observed name to a self-describing leaf
-    so adapters can build the matching subspace without guessing: a ``"box"``
-    leaf becomes a continuous vector of width ``dim`` (e.g. a log-encoded
-    env_param as ``dim=2``); a ``"discrete"`` leaf becomes a categorical of
-    size ``n``. Stateless agents that consume the flat observation ignore this.
+    Adapters use it to build the matching subspace without guessing: a ``"box"`` leaf is a
+    continuous vector of width ``dim``; a ``"discrete"`` leaf is a categorical of size ``n``.
+    Agents that consume the flat observation ignore it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -102,40 +68,121 @@ class ObsLeafDescriptor(BaseModel):
         return self
 
 
+class Encoding(Protocol):
+    """
+    Strategy mapping an env_param's drawn value to an observation leaf.
+
+    An encoding declares its own :class:`ObsLeafDescriptor` and encodes a drawn value
+    into a leaf of that shape. A new strategy implements this pair without touching
+    :class:`EnvParam` or the adapter.
+    """
+
+    def observation_descriptor(self, candidates: List[Any]) -> ObsLeafDescriptor: ...
+
+    def encode(self, value: Any, candidates: List[Any]) -> Any: ...
+
+
+class CategoricalEncoding(BaseModel):
+    """
+    Default encoding: observe the drawn value as its categorical index into ``candidates``.
+
+    Candidates are a discrete set (a ``cmd_args`` list), so the policy sees the per-trial
+    regime as a ``Discrete(len(candidates))`` index rather than a raw magnitude: an
+    arbitrary candidate list carries no ordinal meaning to encode continuously.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["categorical"] = "categorical"
+
+    def observation_descriptor(self, candidates: List[Any]) -> ObsLeafDescriptor:
+        return ObsLeafDescriptor(kind="discrete", n=len(candidates))
+
+    def encode(self, value: Any, candidates: List[Any]) -> int:
+        return candidates.index(value)
+
+
+class EnvParamSpec(BaseModel):
+    """
+    Annotation marking one cmd_args field as env-sampled.
+
+    Carries only *how* to sample - the candidate values themselves live in
+    ``cmd_args.<name>`` as a plain list. ``weights`` (optional) are positional,
+    aligned 1:1 with that candidate list; omit for uniform sampling. ``encoding``
+    (optional) selects how the drawn value is exposed to the policy as an
+    observation leaf, defaulting to a categorical index. The length match against
+    the candidate list is a cross-field check enforced by ``TestDefinition`` (which
+    can see ``cmd_args``); here we validate only the weights' intrinsic shape.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    weights: Optional[List[float]] = Field(
+        default=None,
+        description="Optional probability weights aligned with the cmd_args candidate list; uniform if omitted.",
+    )
+    encoding: CategoricalEncoding = Field(
+        default_factory=CategoricalEncoding,
+        description="How the drawn value is encoded as an observation leaf (categorical index into the candidates).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_weights(self) -> Self:
+        if self.weights is None:
+            return self
+        for w in self.weights:
+            if not math.isfinite(w) or w < 0:
+                raise ValueError(f"env_params weights must be finite and non-negative; got {w}")
+        total = sum(self.weights)
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"env_params weights must sum to 1.0; got {total}")
+        return self
+
+
 @runtime_checkable
 class StructuredObservation(Protocol):
     """
-    Optional env hooks that expose a structured (per-leaf) observation.
+    Optional env hooks exposing the env_params behind the (unchanged, flat) observation.
 
-    An env opts in by returning per-leaf :class:`ObsLeafDescriptor` from
-    ``structured_observation_descriptors`` (``None`` keeps the flat-vector
-    path) and encoding a raw observation into the matching named leaves via
-    ``encode_observation``. ``GymnasiumAdapter`` consumes these to expose a
-    ``gymnasium.spaces.Dict`` observation; the hooks are duck-typed, so envs
-    need not subclass this Protocol.
+    The env keeps returning its flat observation (the metrics) and, when a regime was applied,
+    delivers it on the Gym ``info`` dict under ``info["env_params"]`` (the key is absent otherwise,
+    so its presence alone signals a non-empty regime). An env opts in by
+    declaring per-leaf :class:`ObsLeafDescriptor` for its env_params via
+    ``structured_observation_descriptors`` (``None`` when none are declared) and encoding a regime
+    into the matching named leaves via ``encode_env_params``. ``GymnasiumAdapter`` merges the flat
+    metrics with these env leaves into a ``gymnasium.spaces.Dict``. The hooks are duck-typed, so
+    envs need not subclass this Protocol.
     """
 
     def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]: ...
 
-    def encode_observation(self, observation: list) -> Dict[str, Any]: ...
+    def encode_env_params(self, env_params: dict[str, Any]) -> Dict[str, Any]: ...
 
 
 @dataclasses.dataclass(frozen=True)
 class EnvParam:
     """
-    One env-sampled knob, resolved from cmd_args: its candidate values and optional weights.
+    One env-sampled knob, resolved from cmd_args: candidates, optional weights, and encoding.
 
     Weights (when present) are positional, aligned 1:1 with ``candidates``; ``None`` means
-    uniform sampling. Keeping the two together makes each knob a self-contained draw.
+    uniform sampling. ``encoding`` owns how a drawn value is exposed to the policy as an
+    observation leaf. Bundling the three makes each knob a self-contained draw-and-encode.
     """
 
     candidates: List[Any]
     weights: Optional[List[float]] = None
+    encoding: Encoding = dataclasses.field(default_factory=CategoricalEncoding)
 
     def draw(self, rng: random.Random) -> Any:
         if self.weights is not None:
             return rng.choices(self.candidates, weights=self.weights, k=1)[0]
         return rng.choice(self.candidates)
+
+    def observation_descriptor(self) -> ObsLeafDescriptor:
+        return self.encoding.observation_descriptor(self.candidates)
+
+    def encode(self, value: Any) -> Any:
+        return self.encoding.encode(value, self.candidates)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -167,7 +214,7 @@ class EnvParams:
             value = getattr(test.cmd_args, name, None)
             if not isinstance(value, list):
                 continue
-            params[name] = EnvParam(candidates=value, weights=spec.weights)
+            params[name] = EnvParam(candidates=value, weights=spec.weights, encoding=spec.encoding)
         if not params:
             return None
         seed = int((test.agent_config or {}).get("random_seed", 0))
@@ -182,6 +229,14 @@ class EnvParams:
         removing one parameter never perturbs the others' draw sequences.
         """
         return {name: param.draw(random.Random(f"{self.seed}:{name}:{trial}")) for name, param in self.params.items()}
+
+    def encode(self, regime: Dict[str, Any]) -> Dict[str, Any]:
+        """Encode a drawn regime (``{name: value}``) into one named observation leaf per parameter."""
+        return {name: param.encode(regime[name]) for name, param in self.params.items()}
+
+    def observation_descriptors(self) -> Dict[str, ObsLeafDescriptor]:
+        """Per-parameter observation-leaf descriptors, keyed by parameter name."""
+        return {name: param.observation_descriptor() for name, param in self.params.items()}
 
 
 def write_env_params(path: Path, step: int, sample: Dict[str, Any]) -> None:

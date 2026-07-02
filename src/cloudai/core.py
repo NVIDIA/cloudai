@@ -51,7 +51,12 @@ from ._core.system import System
 from ._core.test_scenario import METRIC_ERROR, MetricErrorSentinel, MetricValue, TestDependency, TestRun, TestScenario
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
-from .configurator.env_params import ObsLeafDescriptor, StructuredObservation
+from .configurator.env_params import (
+    CategoricalEncoding,
+    Encoding,
+    ObsLeafDescriptor,
+    StructuredObservation,
+)
 from .configurator.grid_search import GridSearchAgent
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
@@ -67,10 +72,12 @@ __all__ = [
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CategoricalEncoding",
     "CloudAIGymEnv",
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",
+    "Encoding",
     "File",
     "GitRepo",
     "Grader",

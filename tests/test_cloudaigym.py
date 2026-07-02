@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
-from cloudai.configurator.env_params import EnvParamSpec
+from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
 from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import flatten_dict
@@ -191,7 +191,7 @@ def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverr
     assert obs == [-1.0]
     assert reward == expected_reward
     assert done is True
-    assert info == {}
+    assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
 
 
 def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
@@ -556,14 +556,16 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
 
     with patch.object(env, "get_observation", side_effect=lambda _action: next(fake_obs)):
         env.test_run.step = 0
-        obs1, _r1, *_ = env.step(action)  # samples ball_speed=3
-        obs2, _r2, *_ = env.step(action)  # samples ball_speed=1
+        *_, info1 = env.step(action)  # samples ball_speed=3
+        *_, info2 = env.step(action)  # samples ball_speed=1
 
     assert runner.run.call_count == 2, (
         "Different sampled env_params between two env.step() calls with the same action "
         "must trigger a workload re-run; the cache lookup must miss."
     )
-    assert obs1 != obs2, "fresh workload run should produce a fresh observation"
+    assert info1["env_params"] != info2["env_params"], (
+        "different env_param draws must be reported as different regimes on info"
+    )
 
 
 def test_env_csv_is_step_aligned_with_trajectory(tmp_path: Path) -> None:
@@ -733,10 +735,14 @@ def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: 
     env.test_run.step = 0
 
     with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
-        obs, reward, _done, _info = env.step(action)
+        obs, reward, _done, info = env.step(action)
 
     runner.run.assert_not_called()
-    assert reward == 0.42 and obs == [0.84]
+    assert reward == 0.42
+    assert obs == [0.84], "flat obs stays the cached metrics; the regime is not mixed into it"
+    assert info["env_params"] == expected_sample, (
+        "the per-trial regime behind this observation is reported on info['env_params']"
+    )
 
     env_csv = env.env_params_record_path
     assert env_csv.exists(), "cache HIT must NOT skip the observer; env.csv must record the trial"
@@ -840,3 +846,67 @@ def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition,
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
     assert not env.env_params_record_path.exists()
+
+
+def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEnv:
+    """A CloudAIGymEnv whose ``ball_speed`` is env-randomised over ``candidates``."""
+    tdef = EnvVarTestDefinition(
+        name="dr",
+        description="dr",
+        test_template_name="dr_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=candidates),
+        env_params={"ball_speed": EnvParamSpec()},
+        agent_metrics=["default"],
+        agent_config={"random_seed": seed},
+    )
+    test_run = TestRun(name="dr_tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out" / "dr_tr" / "0")
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    return CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+
+class TestStructuredObservationProducer:
+    """CloudAIGymEnv produces the StructuredObservation the adapter consumes for DR runs."""
+
+    def test_descriptor_is_one_discrete_leaf_per_env_param(self, tmp_path: Path) -> None:
+        """Each env_param becomes a categorical leaf sized to its candidate list."""
+        env = _dr_env(tmp_path, [1, 2, 3])
+
+        descriptors = env.structured_observation_descriptors()
+
+        assert descriptors == {"ball_speed": ObsLeafDescriptor(kind="discrete", n=3)}
+
+    def test_metrics_only_env_opts_out(self, nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+        """A workload with no env_params returns ``None`` (adapter keeps the flat Box path)."""
+        tdef = nemorun.model_copy(deep=True)
+        tdef.cmd_args.data.global_batch_size = 8
+        test_run = TestRun(name="plain_tr", test=tdef, num_nodes=1, nodes=[])
+        runner = MagicMock(spec=BaseRunner)
+        runner.system = MagicMock()
+        env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+
+        assert env.structured_observation_descriptors() is None
+        assert env.encode_env_params({}) == {}
+
+    def test_encode_env_params_maps_native_value_to_candidate_index(self, tmp_path: Path) -> None:
+        """encode_env_params turns a drawn native value into its categorical index."""
+        env = _dr_env(tmp_path, [1, 2, 3])
+
+        assert env.encode_env_params({"ball_speed": 3}) == {"ball_speed": 2}
+        assert env.encode_env_params({"ball_speed": 1}) == {"ball_speed": 0}
+
+    def test_reset_reports_the_regime_step_will_apply_on_info(self, tmp_path: Path) -> None:
+        """reset()'s flat obs stays the metrics placeholder; the upcoming trial's regime is
+        reported on info["env_params"] and matches the value step() draws for that same index."""
+        import random as _random
+
+        env = _dr_env(tmp_path, [1, 2, 3])
+        env.test_run.step = 0
+
+        obs, info = env.reset()
+        upcoming = _random.Random("42:ball_speed:1").choice([1, 2, 3])
+
+        assert obs == env.define_observation_space(), "reset's flat obs stays the metrics placeholder"
+        assert info["env_params"] == {"ball_speed": upcoming}, "reset peeks step+1 and reports the regime"
+        assert env.encode_env_params(info["env_params"]) == {"ball_speed": [1, 2, 3].index(upcoming)}

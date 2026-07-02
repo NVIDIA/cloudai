@@ -40,6 +40,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from cloudai.configurator.env_params import (
+    CategoricalEncoding,
     EnvParam,
     EnvParams,
     EnvParamSpec,
@@ -404,3 +405,52 @@ def test_obs_leaf_descriptor_rejects_bad_dim_and_extra_fields() -> None:
         ObsLeafDescriptor(kind="box", dim=1, unexpected=1)  # type: ignore
     with pytest.raises(ValidationError):
         ObsLeafDescriptor(kind="categorical", dim=1)  # type: ignore
+
+
+# --- Encoding: pluggable strategy mapping a drawn value to an observation leaf ---
+
+
+def test_env_param_spec_defaults_to_categorical_encoding() -> None:
+    """An unspecified encoding defaults to categorical (back-compat with bare ``EnvParamSpec()``)."""
+    assert EnvParamSpec().encoding == CategoricalEncoding()
+
+
+def test_env_param_spec_parses_encoding_from_config() -> None:
+    """The encoding is config-selectable (TOML-style dict) via its ``type`` field."""
+    spec = EnvParamSpec.model_validate({"encoding": {"type": "categorical"}})
+    assert isinstance(spec.encoding, CategoricalEncoding)
+
+
+def test_categorical_encoding_descriptor_and_encode() -> None:
+    """Categorical maps a candidate list to a Discrete leaf and a value to its index."""
+    enc = CategoricalEncoding()
+    assert enc.observation_descriptor([10, 20, 30]) == ObsLeafDescriptor(kind="discrete", n=3)
+    assert enc.encode(30, [10, 20, 30]) == 2
+
+
+def test_env_param_delegates_observation_to_its_encoding() -> None:
+    """EnvParam owns no encoding logic itself; it delegates to the configured strategy."""
+    knob = EnvParam(candidates=[10, 20, 30])
+
+    assert knob.observation_descriptor() == ObsLeafDescriptor(kind="discrete", n=3)
+    assert knob.encode(20) == 1
+
+
+def test_custom_encoding_plugs_into_env_param() -> None:
+    """A new encoding (e.g. a future log encoding) only needs the two-method interface.
+
+    This proves the seam: EnvParam delegates to ``encoding`` without knowing its kind, so
+    adding strategies never touches EnvParam or the adapter.
+    """
+
+    class _BoxEncoding:
+        def observation_descriptor(self, candidates: list) -> ObsLeafDescriptor:
+            return ObsLeafDescriptor(kind="box", dim=1)
+
+        def encode(self, value: object, candidates: list) -> list:
+            return [float(value)]
+
+    knob = EnvParam(candidates=[10, 20, 30], encoding=_BoxEncoding())
+
+    assert knob.observation_descriptor() == ObsLeafDescriptor(kind="box", dim=1)
+    assert knob.encode(20) == [20.0]
