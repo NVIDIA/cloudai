@@ -115,7 +115,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         pre_hook_output.mkdir(parents=True, exist_ok=True)
 
         for tr in self.test_run.pre_test.test_runs:
-            tr.nnodes = self.test_run.nnodes
+            tr.num_nodes = self.test_run.nnodes
 
         pre_hook_cmds = self.gen_pre_test(self.test_run.pre_test, self.test_run.output_path)
 
