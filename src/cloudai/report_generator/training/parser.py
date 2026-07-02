@@ -44,7 +44,7 @@ from .mappings import (
     NEMO_STEPS,
     NEMO_TEST_CONFIG,
 )
-from .models import OPTIONAL_STEP_FIELDS, Scalar, TrainingConfig, TrainingResults, TrainingStep
+from .models import OPTIONAL_STEP_FIELDS, Scalar, StepAggregation, TrainingConfig, TrainingResults, TrainingStep
 from .tb_reader import read_scalars, read_text
 
 
@@ -84,7 +84,26 @@ class TrainingParser(ABC):
         """Read TB scalars + the config artifact and assemble TrainingResults."""
         steps: list[TrainingStep] = self._build_steps(self._read_scalars(tr))
         config: TrainingConfig = self._build_config(tr, system)
-        return TrainingResults(config=config, steps=steps)
+        aggregation = self._aggregate(steps, config)
+        return TrainingResults(config=config, steps=steps, aggregation=aggregation)
+
+    def _aggregate(self, steps: list[TrainingStep], config: TrainingConfig) -> Optional[StepAggregation]:
+        """Per-metric stats over the filtered steps (first N + profiling window dropped); None if none remain."""
+        filtered = self._filter_steps(steps, config)
+        return StepAggregation.from_steps(filtered) if filtered else None
+
+    @staticmethod
+    def _filter_steps(steps: list[TrainingStep], config: TrainingConfig) -> list[TrainingStep]:
+        """Drop the first exclude_start_steps, then the profiling window + exclude_post_profiling_steps after it."""
+        steps = steps[config.exclude_start_steps :]
+        if (
+            config.profiling_enabled
+            and config.profiling_start_step is not None
+            and config.profiling_stop_step is not None
+        ):
+            lo, hi = config.profiling_start_step, config.profiling_stop_step + config.exclude_post_profiling_steps
+            steps = [s for s in steps if not (lo <= s.iteration <= hi)]
+        return steps
 
     def _build_steps(self, scalars: list[Scalar]) -> list[TrainingStep]:
         """list[Scalar] -> list[TrainingStep] via STEP_MAPPING; drop a step only if a required tag is missing."""

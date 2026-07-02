@@ -32,6 +32,7 @@ from cloudai.core import (
     TestRun,
 )
 from cloudai.models.scenario import TestRunDetails
+from cloudai.models.workload import TrainingReportConfig
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
@@ -236,6 +237,17 @@ class TestNsysConfiguration:
     def test_extra_args(self):
         nsys = NsysConfiguration(extra_args=["--extra", "args"])
         assert nsys.cmd_args == ["nsys", "profile", "--extra", "args"]
+
+
+class TestTrainingReportConfig:
+    def test_defaults(self):
+        cfg = TrainingReportConfig()
+        assert (cfg.exclude_start_steps, cfg.exclude_post_profiling_steps) == (5, 2)
+
+    @pytest.mark.parametrize("field", ["exclude_start_steps", "exclude_post_profiling_steps"])
+    def test_rejects_negative(self, field: str):
+        with pytest.raises(ValidationError):
+            TrainingReportConfig(**{field: -1})
 
 
 class TestLoadTestDefinition:

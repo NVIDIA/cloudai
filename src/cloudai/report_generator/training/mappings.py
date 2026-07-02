@@ -132,16 +132,22 @@ NEMO_TEST_CONFIG: dict[str, str] = {
     "profiling_enabled": "nsys.enable",
     "profiling_start_step": "extra_cmd_args.*start_step",
     "profiling_stop_step": "extra_cmd_args.*end_step",
+    "exclude_start_steps": "training_report.exclude_start_steps",
+    "exclude_post_profiling_steps": "training_report.exclude_post_profiling_steps",
 }
 
 MEGATRON_TEST_CONFIG: dict[str, str] = {
     "profiling_enabled": "nsys.enable",
     "profiling_start_step": "cmd_args.profile_step_start",
     "profiling_stop_step": "cmd_args.profile_step_end",
+    "exclude_start_steps": "training_report.exclude_start_steps",
+    "exclude_post_profiling_steps": "training_report.exclude_post_profiling_steps",
 }
 
 MEGATRON_BRIDGE_TEST_CONFIG: dict[str, str] = {
     "profiling_enabled": "cmd_args.enable_nsys",
     "profiling_start_step": "cmd_args.profiling_start_step",
     "profiling_stop_step": "cmd_args.profiling_stop_step",
+    "exclude_start_steps": "training_report.exclude_start_steps",
+    "exclude_post_profiling_steps": "training_report.exclude_post_profiling_steps",
 }
