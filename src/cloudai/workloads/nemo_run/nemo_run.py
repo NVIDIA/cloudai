@@ -85,6 +85,7 @@ class Trainer(BaseModel):
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
     callbacks: Optional[Union[str, list[str]]] = None
+    log_every_n_steps: int = 1
 
 
 class LogCkpt(BaseModel):

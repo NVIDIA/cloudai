@@ -246,6 +246,16 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             raise RuntimeError("Unexpected sweeps list. At this point code expects scalars only")
 
+    def _add_extra_cmd_args(self, extra_cmd_args: dict[str, str]) -> list[str]:
+        """Hydra overrides: defaults merged with the user's extra_cmd_args, which take precedence."""
+        overrides = {
+            "logger.log_timers_to_tensorboard": "true",
+            "logger.log_throughput_to_tensorboard": "true",
+            "logger.log_memory_to_tensorboard": "true",
+        }
+        overrides.update(extra_cmd_args)
+        return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
+
     def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
     ) -> list[str]:
@@ -256,6 +266,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "num_gpus",
             "gpus_per_node",
             "hf_token",
+            "save_config_filepath",
         }
 
         container_path = ""
@@ -476,8 +487,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.list_config_variants and "list_config_variants" in fields_set:
             parts.append("--list_config_variants")
 
-        # Extra user args (dict -> string)
-        if tdef.extra_cmd_args:
-            parts.append(tdef.extra_args_str)
+        # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
+        parts.extend(self._add_extra_cmd_args(tdef.extra_cmd_args))
 
         return parts

@@ -21,6 +21,7 @@ dependencies = [
   "bokeh~=3.8",
   "pandas~=2.3",
   "tbparse~=0.0.9",
+  "pyyaml~=6.0",
   "toml~=0.10.2",
   "kubernetes~=35.0",
   "pydantic~=2.12",
@@ -29,8 +30,16 @@ dependencies = [
   "rich~=14.3",
   "click~=8.3",
   "huggingface-hub~=1.4",
+  "numpy>=2.4.6; python_version >= '3.14'",
 ]
 requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
 
   [project.scripts]
   cloudai = "cloudai.cli:main"
@@ -48,7 +57,9 @@ requires-python = ">=3.10"
     "import-linter~=2.10",
     "pytest-deadfixtures~=3.1",
     "taplo~=0.9.3",
+    "gymnasium~=1.2",
   ]
+  rl = ["gymnasium~=1.2"]
   docs = [
     "sphinx~=8.1",
     "nvidia-sphinx-theme~=0.0.8",

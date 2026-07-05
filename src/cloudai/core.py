@@ -51,7 +51,14 @@ from ._core.system import System
 from ._core.test_scenario import METRIC_ERROR, MetricErrorSentinel, MetricValue, TestDependency, TestRun, TestScenario
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
+from .configurator.env_params import (
+    CategoricalEncoding,
+    Encoding,
+    ObsLeafDescriptor,
+    StructuredObservationProducer,
+)
 from .configurator.grid_search import GridSearchAgent
+from .configurator.gymnasium_adapter import GymnasiumAdapter
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import PerTestReporter, StatusReporter, TarballReporter
@@ -66,15 +73,18 @@ __all__ = [
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CategoricalEncoding",
     "CloudAIGymEnv",
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",
+    "Encoding",
     "File",
     "GitRepo",
     "Grader",
     "GradingStrategy",
     "GridSearchAgent",
+    "GymnasiumAdapter",
     "HFModel",
     "InstallStatusResult",
     "Installable",
@@ -85,6 +95,7 @@ __all__ = [
     "MetricValue",
     "MissingTestError",
     "NsysConfiguration",
+    "ObsLeafDescriptor",
     "Parser",
     "PerTestReporter",
     "PredictorConfig",
@@ -96,6 +107,7 @@ __all__ = [
     "RewardOverrides",
     "Runner",
     "StatusReporter",
+    "StructuredObservationProducer",
     "System",
     "SystemConfigParsingError",
     "TarballReporter",

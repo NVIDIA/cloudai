@@ -16,6 +16,8 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -23,18 +25,18 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --extra dev --extra docs
+        run: uv sync --locked --extra dev --extra docs
 
       - name: Run linting via pre-commit
-        run: uv run pre-commit run --all-files --show-diff-on-failure
+        run: uv run --locked pre-commit run --all-files --show-diff-on-failure
 
       - name: Build documentation
         run: |
           set -eE
           set -o pipefail
 
-          cd doc
-          make html
+          uv run --locked --extra docs sphinx-build -M html "doc" "doc/_build"
+          touch doc/_build/html/.nojekyll
 
   test:
     name: Run pytest
@@ -43,7 +45,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.12", "3.14"]
       fail-fast: false
 
     steps:
@@ -63,49 +65,71 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --python ${{ matrix.python-version }} --extra dev
+        run: uv sync --locked --python ${{ matrix.python-version }} --extra dev
 
       - name: Run pytest
         run: |
           set -eEx
           set -o pipefail
 
-          uv run --python ${{ matrix.python-version }} --extra dev python -m pytest -vv --cov
+          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest -vv --cov
           # <100% coverage might indicate that some tests are not doing what they should,
           # but realistically, it might too hard to reach, so lower it a bit
           # (at the moment of writing, it is 99.95%)
-          uv run --python ${{ matrix.python-version }} --extra dev coverage report --include='tests/*' --precision=2 --fail-under=97.00
+          uv run --locked --python ${{ matrix.python-version }} --extra dev coverage report --include='tests/*' --precision=2 --fail-under=97.00
 
-          uv run --python ${{ matrix.python-version }} --extra dev python -m pytest --dead-fixtures
+          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest --dead-fixtures
 
-          uv run --python ${{ matrix.python-version }} --extra dev python -m pytest -vv -m ci_only
+          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest -vv -m ci_only
+
+  smoke:
+    name: Smoke test
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.14"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Test local installation
         run: |
           set -eE
           set -o pipefail
 
-          uv pip install --system .
-          uv pip uninstall --system cloudai
-          uv pip install --system -e .
+          python -m venv .smoke-venv
+          .smoke-venv/bin/python -m pip install .
+          .smoke-venv/bin/python -m pip uninstall --yes cloudai
+          .smoke-venv/bin/python -m pip install --editable .
 
       - name: Test commands
         run: |
           set -eEx
           set -o pipefail
 
-          cloudai --help
+          .smoke-venv/bin/cloudai --help
 
           # this checks that all TOMLs are valid, Test Scenarios are checked for _all_ tests
-          cloudai verify-configs conf/
+          .smoke-venv/bin/cloudai verify-configs conf/
 
           # this checks that all TOMLs are valid, Test Scenarios are checked _only_ the tests in the specified directory
-          cloudai verify-configs --tests-dir conf/common/test conf/common
-          cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
+          .smoke-venv/bin/cloudai verify-configs --tests-dir conf/common/test conf/common
+          .smoke-venv/bin/cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
 
           # set monitor_interval to 1 to speed up the test
           sed -i '/scheduler =/a monitor_interval = 1' conf/common/system/example_slurm_cluster.toml
-          cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
+          .smoke-venv/bin/cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
             --tests-dir conf/common/test/ \
             --test-scenario conf/common/test_scenario/sleep.toml \
             --output-dir ./results

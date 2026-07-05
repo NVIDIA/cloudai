@@ -11,7 +11,7 @@ Prepare Cluster
 ~~~~~~~~~~~~~~~
 Before running the AI Dynamo workload on a Kubernetes cluster, ensure that the cluster is set up according to the instructions in the `official documentation`_. Below is a short summary of the required steps:
 
-.. _official documentation: https://docs.nvidia.com/dynamo/kubernetes-deployment/deployment-guide
+.. _official documentation: https://docs.nvidia.com/dynamo/dev/getting-started/kubernetes-deployment
 
 .. code-block:: bash
 

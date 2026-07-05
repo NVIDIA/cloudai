@@ -28,10 +28,25 @@ from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 from cloudai.util.lazy_imports import lazy
 
+from .report_generation_strategy import NcclTestReportGenerationStrategy
+
 if TYPE_CHECKING:
     import pandas as pd
 
-from .report_generation_strategy import NcclTestReportGenerationStrategy
+
+NUMERIC_DATA_COLUMNS = [
+    "Size (B)",
+    "Time (us) Out-of-place",
+    "Algbw (GB/s) Out-of-place",
+    "Busbw (GB/s) Out-of-place",
+    "Time (us) In-place",
+    "Algbw (GB/s) In-place",
+    "Busbw (GB/s) In-place",
+]
+TIME_DATA_COLUMNS = [
+    "Time (us) Out-of-place",
+    "Time (us) In-place",
+]
 
 
 def _parse_data_rows(file: TextIOWrapper) -> List[List[str]]:
@@ -130,13 +145,15 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         df["Devices per Node"] = num_devices_per_node
         df["Ranks"] = num_ranks
 
+        for col in NUMERIC_DATA_COLUMNS:
+            df[col] = lazy.pd.to_numeric(df[col], errors="coerce")
+        df = df.dropna(subset=NUMERIC_DATA_COLUMNS).copy()
+        if df.empty:
+            return df
+
         df["Size (B)"] = df["Size (B)"].astype(int)
-        df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(2)
-        df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(2)
-        df["Algbw (GB/s) Out-of-place"] = df["Algbw (GB/s) Out-of-place"].astype(float)
-        df["Busbw (GB/s) Out-of-place"] = df["Busbw (GB/s) Out-of-place"].astype(float)
-        df["Algbw (GB/s) In-place"] = df["Algbw (GB/s) In-place"].astype(float)
-        df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
+        for col in TIME_DATA_COLUMNS:
+            df[col] = df[col].round(2)
 
         df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
 

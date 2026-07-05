@@ -26,6 +26,7 @@ from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
+from .env_params import EnvParams, ObsLeafDescriptor, write_env_params
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,6 +37,7 @@ class TrajectoryEntry:
     action: dict[str, Any]
     reward: float
     observation: list
+    env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class CloudAIGymEnv(BaseGym):
@@ -61,7 +63,25 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.trajectory: dict[int, list[TrajectoryEntry]] = {}
+        self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         super().__init__()
+
+    @property
+    def env_params_record_path(self) -> Path:
+        """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
+        return self.iteration_dir / "env.csv"
+
+    @property
+    def upcoming_trial(self) -> int:
+        """
+        Index of the next trial ``step`` will run.
+
+        ``step`` increments ``test_run.step`` before it samples/runs, so at rest the counter
+        holds the last-run trial and the next one is ``+ 1``. ``reset`` peeks this to report the
+        regime the first ``step`` will apply; ``step`` advances into it. The ``+ 1`` offset is
+        defined only here so the two paths cannot disagree.
+        """
+        return self.test_run.step + 1
 
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
@@ -76,9 +96,10 @@ class CloudAIGymEnv(BaseGym):
         Define the observation space for the environment.
 
         Returns:
-            list: The observation space.
+            list: One float slot per agent metric (at least one), giving the correct shape
+            for adapters that derive ``gymnasium.spaces.Box`` from this output.
         """
-        return [0.0]
+        return [0.0] * max(len(self.test_run.test.agent_metrics), 1)
 
     def reset(
         self,
@@ -100,9 +121,10 @@ class CloudAIGymEnv(BaseGym):
         if seed is not None:
             lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
-        observation = [0.0]
-        info = {}
-        return observation, info
+        info: dict[str, Any] = {}
+        if self.params is not None:
+            info["env_params"] = self.params.sample(self.upcoming_trial)
+        return self.define_observation_space(), info
 
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
@@ -118,10 +140,15 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        trial = self.upcoming_trial
         self.test_run.increment_step()
-        self.test_run = self.test_run.apply_params_set(action)
+        # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
+        sampled_env_params = self.params.sample(trial) if self.params else {}
+        info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
+        self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
-        cached_result = self.get_cached_trajectory_result(action)
+        cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
+
         if cached_result is not None:
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
@@ -134,13 +161,15 @@ class CloudAIGymEnv(BaseGym):
                     action=action,
                     reward=cached_result.reward,
                     observation=cached_result.observation,
+                    env_params=sampled_env_params,
                 )
             )
-            return cached_result.observation, cached_result.reward, False, {}
+
+            return cached_result.observation, cached_result.reward, False, info
 
         if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
             logging.info("Constraint check failed. Skipping step.")
-            return [-1.0], self.rewards.constraint_failure, True, {}
+            return [-1.0], self.rewards.constraint_failure, True, info
 
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.get_job_output_path(new_tr)
@@ -162,19 +191,20 @@ class CloudAIGymEnv(BaseGym):
             self.test_run.step = new_tr.step
             self.test_run.output_path = new_tr.output_path
 
-        observation = self.get_observation(action)
-        reward = self.compute_reward(observation)
+        metrics = self.get_observation(action)
+        reward = self.compute_reward(metrics)
 
         self.write_trajectory(
             TrajectoryEntry(
                 step=self.test_run.step,
                 action=action,
                 reward=reward,
-                observation=observation,
+                observation=metrics,
+                env_params=sampled_env_params,
             )
         )
 
-        return observation, reward, False, {}
+        return metrics, reward, False, info
 
     def render(self, mode: str = "human"):
         """
@@ -229,8 +259,33 @@ class CloudAIGymEnv(BaseGym):
             observation.append(v)
         return observation
 
+    def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]:
+        """
+        Per-leaf descriptors for the env_param regime, or ``None`` when none are declared.
+
+        The flat observation (metrics) is unchanged; these describe the env_param leaves the
+        ``GymnasiumAdapter`` merges with it into its structured observation ``spaces.Dict``.
+        """
+        return self.params.observation_descriptors() if self.params is not None else None
+
+    def encode_env_params(self, env_params: dict[str, Any]) -> Dict[str, Any]:
+        """
+        Encode a queried regime (the env_params behind an observation) into named leaves.
+
+        ``env_params`` is a ``{name: drawn value}`` regime (the ``info["env_params"]`` that
+        ``reset``/``step`` report). The adapter pairs the result with the flat metrics observation.
+        """
+        return self.params.encode(env_params) if self.params is not None else {}
+
     def write_trajectory(self, entry: TrajectoryEntry):
-        """Append the trajectory to the CSV file and to the local attribute."""
+        """
+        Append the entry to the in-memory cache and trajectory.csv (plus env.csv when declared).
+
+        ``trajectory.csv`` and the ``env.csv`` projection are sunk from the same
+        ``TrajectoryEntry`` here, so a trial that never produces an entry (e.g. a
+        constraint failure returns before this call) lands in neither file and the
+        two stay 1:1 step-aligned.
+        """
         self.current_trajectory.append(entry)
 
         file_exists = self.trajectory_file_path.exists()
@@ -243,17 +298,36 @@ class CloudAIGymEnv(BaseGym):
                 writer.writerow(["step", "action", "reward", "observation"])
             writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
 
+        write_env_params(self.env_params_record_path, entry.step, entry.env_params)
+
+    @property
+    def iteration_dir(self) -> Path:
+        """Per-iteration output dir; trajectory.csv and env.csv both live here, step-aligned."""
+        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}"
+
     @property
     def trajectory_file_path(self) -> Path:
-        return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
+        return self.iteration_dir / "trajectory.csv"
 
     @property
     def current_trajectory(self) -> list[TrajectoryEntry]:
         return self.trajectory.setdefault(self.test_run.current_iteration, [])
 
-    def get_cached_trajectory_result(self, action: Any) -> TrajectoryEntry | None:
+    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> TrajectoryEntry | None:
+        """
+        Return a cached entry only when the full trial identity matches.
+
+        Trial identity is ``(action, env_params)``: env-randomized parameters
+        change the workload's behaviour, so a trial repeating the same action
+        under a different ``env_params`` sample must miss and re-run. Empty
+        env_params on both sides is the back-compat path for workloads that
+        do not declare any ``[env_params.*]`` block. The sample is passed in (a
+        per-trial local owned by ``step``), exactly like ``action``.
+        """
         for entry in self.current_trajectory:
-            if self._values_match_exact(entry.action, action):
+            action_match = self._values_match_exact(entry.action, action)
+            env_params_match = self._values_match_exact(entry.env_params, env_params)
+            if action_match and env_params_match:
                 return entry
 
         return None
