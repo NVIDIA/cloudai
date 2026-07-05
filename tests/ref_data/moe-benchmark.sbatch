@@ -9,35 +9,22 @@
 #SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-
-nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
-nodes_array=($nodes)
-head_node=${nodes_array[0]}
-head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)
-
-echo Nodes: $SLURM_JOB_NODELIST
-echo Num Nodes: ${#nodes[@]}
-echo Head Node IP: $head_node_ip
-
-export MASTER_ADDR=$head_node_ip
+export MASTER_ADDR=$SLURM_JOB_MASTER_NODE
 export MASTER_PORT=29500
+export NIXL_ETCD_ENDPOINTS="$SLURM_JOB_MASTER_NODE:2379"
+srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-# Hybrid-EP NIXL rendezvous: etcd on the head node (background).
-srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --container-image=docker/image:url bash -c "etcd --log-level error --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://$head_node_ip:2379 --data-dir /tmp/etcd-cloudai-$$" &
-_MOE_ETCD_PID=$!
-trap 'kill ${_MOE_ETCD_PID} 2>/dev/null || true' EXIT
-export NIXL_ETCD_ENDPOINTS=http://$head_node_ip:2379
-# Poll etcd's client endpoint until it accepts connections (replaces a
-# fixed sleep that could race a not-yet-ready endpoint); fail fast otherwise.
-for _i in $(seq 1 60); do
-  (exec 3<>/dev/tcp/$head_node_ip/2379) 2>/dev/null && break
-  [ "$_i" -eq 60 ] && { echo "ERROR: etcd $head_node_ip:2379 not ready after 60s" >&2; exit 1; }
-  sleep 1
-done
+srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
-
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
-
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
-
-srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml legacy && python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml elastic && NCCL_IB_GID_INDEX=auto NCCL_NET_PLUGIN=none NCCL_IB_QPS_PER_CONNECTION=4 NCCL_IB_SPLIT_DATA_ON_QPS=0 NCCL_IBEXT_DISABLE=0 OMPI_MCA_btl=tcp,self EP_SUPPRESS_NCCL_CHECK=1 NCCL_GIN_TYPE=3 python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml nixl_ep && python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml uccl_ep && NCCL_IB_GID_INDEX=auto NCCL_NET_PLUGIN=none NCCL_IB_QPS_PER_CONNECTION=4 NCCL_IB_SPLIT_DATA_ON_QPS=0 NCCL_IBEXT_DISABLE=0 OMPI_MCA_btl=tcp,self NCCL_GIN_TYPE=3 EP_SKIP_DEEPEP_PREIMPORT=1 LD_LIBRARY_PATH=/opt/nccl-ep-build/lib:$LD_LIBRARY_PATH python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml nccl_ep && NCCL_IB_GID_INDEX=auto NUM_OF_TOKENS_PER_CHUNK_DISPATCH_API=64 NUM_OF_TOKENS_PER_CHUNK_COMBINE_API=64 NUM_OF_TOKENS_PER_CHUNK_PREPROCESSING_API=64 CPATH=/usr/local/ucx-nixl/include:/usr/local/nixl/include:/usr/local/nixl/include/gpu/ucx:$CPATH CPLUS_INCLUDE_PATH=/usr/local/ucx-nixl/include:/usr/local/nixl/include:/usr/local/nixl/include/gpu/ucx:$CPATH python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml deepep_hybrid"
+srun --export=ALL --mpi=pmix --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results --output=__OUTPUT_DIR__/output/etcd.log --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379 --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380 --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380" --initial-cluster-state=new  &
+etcd_pid=$!
+timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {
+   echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";
+   exit 1
+ }
+srun --export=ALL --mpi=pmix -N2 --container-image=docker/image:url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output/config.yaml:/tmp/config.yaml,__OUTPUT_DIR__/output:/workspace/DeepEP/results bash -c "source __OUTPUT_DIR__/output/env_vars.sh; python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml legacy && python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml elastic && NCCL_IB_GID_INDEX=auto NCCL_NET_PLUGIN=none NCCL_IB_QPS_PER_CONNECTION=4 NCCL_IB_SPLIT_DATA_ON_QPS=0 NCCL_IBEXT_DISABLE=0 OMPI_MCA_btl=tcp,self EP_SUPPRESS_NCCL_CHECK=1 NCCL_GIN_TYPE=3 python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml nixl_ep && python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml uccl_ep && NCCL_IB_GID_INDEX=auto NCCL_NET_PLUGIN=none NCCL_IB_QPS_PER_CONNECTION=4 NCCL_IB_SPLIT_DATA_ON_QPS=0 NCCL_IBEXT_DISABLE=0 OMPI_MCA_btl=tcp,self NCCL_GIN_TYPE=3 EP_SKIP_DEEPEP_PREIMPORT=1 LD_LIBRARY_PATH=/opt/nccl-ep-build/lib:$LD_LIBRARY_PATH python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml nccl_ep && NCCL_IB_GID_INDEX=auto NUM_OF_TOKENS_PER_CHUNK_DISPATCH_API=64 NUM_OF_TOKENS_PER_CHUNK_COMBINE_API=64 NUM_OF_TOKENS_PER_CHUNK_PREPROCESSING_API=64 CPATH=/usr/local/ucx-nixl/include:/usr/local/nixl/include:/usr/local/nixl/include/gpu/ucx:$CPATH CPLUS_INCLUDE_PATH=/usr/local/ucx-nixl/include:/usr/local/nixl/include:/usr/local/nixl/include/gpu/ucx:$CPATH python /workspace/DeepEP/benchmark/benchmark.py /tmp/config.yaml deepep_hybrid"
+kill -TERM $etcd_pid
+ timeout 60 bash -c "while kill -0 $etcd_pid 2>/dev/null; do sleep 1; done" || {
+   echo "Failed to kill ETCD (pid=$etcd_pid) within 60 seconds";
+   exit 1
+ }

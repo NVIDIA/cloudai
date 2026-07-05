@@ -17,12 +17,14 @@
 from pathlib import Path, PurePosixPath
 from typing import ClassVar, List, cast
 
-from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.workloads.common.etcd import EtcdCmdGenMixin
 
 from .moe_benchmark import MoEBenchmarkCmdArgs, MoEBenchmarkTestDefinition
 
+_HYBRID_VERSIONS = ("deepep_hybrid", "hybrid", "hybrid_ep")
 
-class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+
+class MoEBenchmarkSlurmCommandGenStrategy(EtcdCmdGenMixin):
     """Command generation strategy for the custom MoE benchmark on Slurm systems."""
 
     # Per-backend env overrides. The backends are chained in ONE srun and share its
@@ -57,9 +59,9 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "EP_SKIP_DEEPEP_PREIMPORT=1",
             "LD_LIBRARY_PATH=/opt/nccl-ep-build/lib:$LD_LIBRARY_PATH",
         ],
-        # Hybrid-EP: NIXL transport (etcd rendezvous started in the sbatch script,
-        # NIXL_ETCD_ENDPOINTS exported globally there). Its kernels are JIT-compiled
-        # at runtime, so nvcc needs the UCX(device API)+NIXL includes on CPATH.
+        # Hybrid-EP: NIXL transport (etcd rendezvous wrapped around this test via
+        # EtcdCmdGenMixin, NIXL_ETCD_ENDPOINTS exported from final_env_vars). Its kernels
+        # are JIT-compiled at runtime, so nvcc needs the UCX(device API)+NIXL includes on CPATH.
         "deepep_hybrid": [
             "NCCL_IB_GID_INDEX=auto",
             "NUM_OF_TOKENS_PER_CHUNK_DISPATCH_API=64",
@@ -70,61 +72,43 @@ class MoEBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ],
     }
 
-    def gen_job_prologue(self) -> List[str]:
-        """
-        Head-node detection + MASTER_ADDR/PORT (+ etcd rendezvous for Hybrid-EP).
-
-        Emitted once per job in BOTH paths: the per-test (multi-sbatch) header via
-        _append_sbatch_directives, and the single-sbatch script via SingleSbatchRunner.
-        """
-        lines: List[str] = [
-            "",
-            "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
-            "nodes_array=($nodes)",
-            "head_node=${nodes_array[0]}",
-            'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
-            "",
-            "echo Nodes: $SLURM_JOB_NODELIST",
-            "echo Num Nodes: ${#nodes[@]}",
-            "echo Head Node IP: $head_node_ip",
-            "",
-            "export MASTER_ADDR=$head_node_ip",
-            "export MASTER_PORT=29500",
-            "",
-        ]
-        # Hybrid-EP's NIXL path needs an etcd server reachable by all ranks. If a hybrid
-        # backend is in the run, start etcd on the head node (background, in the unified
-        # container) and export NIXL_ETCD_ENDPOINTS for every step (only hybrid reads it).
-        # The trap kills it when the script exits (single- AND multi-sbatch); Slurm also
-        # reclaims the step at job end.
+    def _uses_hybrid(self) -> bool:
         tdef: MoEBenchmarkTestDefinition = cast(MoEBenchmarkTestDefinition, self.test_run.test)
-        versions = tdef.cmd_args.deepep_versions or []
-        if any(v in ("deepep_hybrid", "hybrid", "hybrid_ep") for v in versions):
-            image = self.image_path()
-            lines.extend(
-                [
-                    "# Hybrid-EP NIXL rendezvous: etcd on the head node (background).",
-                    f'srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --container-image={image} '
-                    'bash -c "etcd --log-level error --listen-client-urls http://0.0.0.0:2379 '
-                    '--advertise-client-urls http://$head_node_ip:2379 --data-dir /tmp/etcd-cloudai-$$" &',
-                    "_MOE_ETCD_PID=$!",
-                    "trap 'kill ${_MOE_ETCD_PID} 2>/dev/null || true' EXIT",
-                    "export NIXL_ETCD_ENDPOINTS=http://$head_node_ip:2379",
-                    "# Poll etcd's client endpoint until it accepts connections (replaces a",
-                    "# fixed sleep that could race a not-yet-ready endpoint); fail fast otherwise.",
-                    "for _i in $(seq 1 60); do",
-                    "  (exec 3<>/dev/tcp/$head_node_ip/2379) 2>/dev/null && break",
-                    '  [ "$_i" -eq 60 ] && { echo "ERROR: etcd $head_node_ip:2379 not ready after 60s" >&2; exit 1; }',
-                    "  sleep 1",
-                    "done",
-                    "",
-                ]
-            )
-        return lines
+        return any(v in _HYBRID_VERSIONS for v in (tdef.cmd_args.deepep_versions or []))
 
-    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
-        super()._append_sbatch_directives(batch_script_content)
-        batch_script_content.extend(self.gen_job_prologue())
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        # torch.distributed rendezvous for every backend; SLURM_JOB_MASTER_NODE is exported by the
+        # runner (both multi- and single-sbatch) and is a resolvable hostname, which MASTER_ADDR accepts.
+        env_vars = dict(super().final_env_vars)
+        env_vars["MASTER_ADDR"] = "$SLURM_JOB_MASTER_NODE"
+        env_vars["MASTER_PORT"] = "29500"
+        # Hybrid-EP's NIXL path reads NIXL_ETCD_ENDPOINTS; the etcd server itself is wrapped around
+        # the test by _gen_srun_command via EtcdCmdGenMixin. Only hybrid reads it, so set it only then.
+        if self._uses_hybrid():
+            env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value
+
+    def _gen_srun_command(self) -> str:
+        # Non-hybrid backends run as a single srun. Hybrid needs an etcd rendezvous, so wrap the test
+        # in a per-test etcd lifecycle (start -> wait-healthy -> test -> kill+wait). Keeping it in the
+        # test block (not a job prologue) means it works the same in multi- and single-sbatch.
+        test_cmd = super()._gen_srun_command()
+        if not self._uses_hybrid():
+            return test_cmd
+        return "\n".join(
+            [
+                " ".join(self.gen_etcd_srun_command()),
+                "etcd_pid=$!",
+                " ".join(self.gen_wait_for_etcd_command()),
+                test_cmd,
+                " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
+            ]
+        )
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to the MoE benchmark."""

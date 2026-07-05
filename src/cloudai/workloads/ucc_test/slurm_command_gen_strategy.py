@@ -18,11 +18,7 @@ from pathlib import Path
 from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.workloads.common.moe_benchmark_report import (
-    DEEPEP_MATRIX_SINGLE_SBATCH_REASON,
-    MOE_BENCHMARK_PREV_MOUNT,
-    moe_benchmark_root,
-)
+from cloudai.workloads.common.moe_benchmark_report import MOE_BENCHMARK_PREV_MOUNT, moe_benchmark_root
 
 from .ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -44,10 +40,6 @@ def _ucc_matrix_path_under_deepep_output(dep_out: Path) -> Path | None:
 
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
-
-    def single_sbatch_unsupported_reason(self) -> str | None:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
-        return DEEPEP_MATRIX_SINGLE_SBATCH_REASON if tdef.cmd_args.use_deepep_matrix else None
 
     def _deepep_ucc_matrix_host_path(self) -> Path | None:
         tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)

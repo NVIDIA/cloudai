@@ -487,20 +487,6 @@ class TestSbatch:
         assert runner.on_job_submit.call_count == 3  # 2 dse runs + 1 non-dse run
 
 
-def test_rejects_single_sbatch_incompatible(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    cast(NCCLTestDefinition, nccl_tr.test).cmd_args.use_deepep_matrix = True
-    tc = TestScenario(name="tc", test_runs=[nccl_tr])
-    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
-
-    with pytest.raises(ValueError) as exc_info:
-        runner.gen_sbatch_content()
-
-    msg = str(exc_info.value)
-    assert "single-sbatch mode" in msg
-    assert nccl_tr.name in msg
-    assert "use_deepep_matrix" in msg
-
-
 def test_store_job_metadata(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
