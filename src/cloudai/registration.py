@@ -14,23 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
 from importlib.metadata import entry_points
 
 
 def register_entrypoint_agents():
-    from cloudai.configurator.base_agent import BaseAgent
     from cloudai.core import Registry
 
     eps = entry_points(group="cloudai.agents")
     for ep in eps:
-        cls = ep.load()
-        if issubclass(cls, BaseAgent):
-            Registry().add_agent(ep.name, cls)
-        else:
-            warnings.warn(
-                f"Skipping entrypoint: {ep.name} -> {ep.value} class={cls} (not a subclass of BaseAgent)", stacklevel=2
-            )
+        Registry().add_entrypoint_agent(ep.name, ep)
 
 
 def register_all():

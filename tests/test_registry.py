@@ -15,6 +15,10 @@
 # limitations under the License.
 
 import copy
+import os
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -48,6 +52,7 @@ def registry():
     strategies_map = copy.copy(registry.grading_strategies_map)
     scenario_reports = copy.copy(registry.scenario_reports)
     report_configs = copy.copy(registry.report_configs)
+    agent_entrypoints_map = copy.copy(registry.agent_entrypoints_map)
 
     registry.scenario_reports.clear()
 
@@ -61,6 +66,8 @@ def registry():
 
     registry.grading_strategies_map.clear()
     registry.grading_strategies_map.update(strategies_map)
+    registry.agent_entrypoints_map.clear()
+    registry.agent_entrypoints_map.update(agent_entrypoints_map)
 
 
 class MyRunner(BaseRunner):
@@ -364,8 +371,108 @@ def test_entrypoint_agent_type_verified():
         def load(self):
             return self._load_value
 
-    with (
-        patch("cloudai.registration.entry_points", return_value=[MockEP(str)]),
-        pytest.warns(UserWarning, match="(not a subclass of BaseAgent)"),
-    ):
-        register_entrypoint_agents()
+    registry = Registry()
+    old_agent = registry.agents_map.pop("name", None)
+    old_ep = registry.agent_entrypoints_map.pop("name", None)
+    try:
+        with patch("cloudai.registration.entry_points", return_value=[MockEP(str)]):
+            register_entrypoint_agents()
+
+        with (
+            pytest.warns(UserWarning, match="(not a subclass of BaseAgent)"),
+            pytest.raises(TypeError, match="not a subclass of BaseAgent"),
+        ):
+            registry.get_agent("name")
+    finally:
+        registry.agent_entrypoints_map.pop("name", None)
+        if old_agent is not None:
+            registry.update_agent("name", old_agent)
+        if old_ep is not None:
+            registry.add_entrypoint_agent("name", old_ep)
+
+
+def test_entrypoint_agent_registration_is_lazy():
+    class MockEP:
+        name = "lazy_agent"
+        value = "lazy_agent.module:LazyAgent"
+
+        def __init__(self):
+            self.load_count = 0
+
+        def load(self):
+            self.load_count += 1
+            return MyAgent
+
+    registry = Registry()
+    old_agent = registry.agents_map.pop("lazy_agent", None)
+    old_ep = registry.agent_entrypoints_map.pop("lazy_agent", None)
+    ep = MockEP()
+
+    try:
+        with patch("cloudai.registration.entry_points", return_value=[ep]):
+            register_entrypoint_agents()
+
+        assert ep.load_count == 0
+        assert registry.has_agent("lazy_agent")
+        assert registry.get_agent("lazy_agent") is MyAgent
+        assert ep.load_count == 1
+        assert registry.agents_map["lazy_agent"] is MyAgent
+        assert "lazy_agent" not in registry.agent_entrypoints_map
+    finally:
+        registry.agents_map.pop("lazy_agent", None)
+        registry.agent_entrypoints_map.pop("lazy_agent", None)
+        if old_agent is not None:
+            registry.update_agent("lazy_agent", old_agent)
+        if old_ep is not None:
+            registry.add_entrypoint_agent("lazy_agent", old_ep)
+
+
+def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
+    package_dir = tmp_path / "external_pkg"
+    package_dir.mkdir()
+    (package_dir / "__init__.py").write_text(
+        'from .random_walker import RandomWalkerAgent\n\n__all__ = ["RandomWalkerAgent"]\n'
+    )
+    (package_dir / "random_walker.py").write_text(
+        "from cloudai.core import BaseAgent, BaseAgentConfig\n"
+        "\n"
+        "class RandomWalkerAgent(BaseAgent):\n"
+        "    @staticmethod\n"
+        "    def get_config_class():\n"
+        "        return BaseAgentConfig\n"
+        "\n"
+        "    def configure(self, config):\n"
+        "        pass\n"
+        "\n"
+        "    def select_action(self, observation=None):\n"
+        "        return None\n"
+        "\n"
+        "    def update_policy(self, _feedback):\n"
+        "        pass\n"
+    )
+    dist_info_dir = tmp_path / "external_pkg-1.0.dist-info"
+    dist_info_dir.mkdir()
+    (dist_info_dir / "METADATA").write_text("Name: external-pkg\nVersion: 1.0\n")
+    (dist_info_dir / "entry_points.txt").write_text(
+        "[cloudai.agents]\nrandom_walker = external_pkg.random_walker:RandomWalkerAgent\n"
+    )
+
+    env = os.environ.copy()
+    src_path = str((Path(__file__).resolve().parents[1] / "src").resolve())
+    pythonpath = os.pathsep.join([str(tmp_path), src_path, env.get("PYTHONPATH", "")])
+    env["PYTHONPATH"] = pythonpath
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from external_pkg import random_walker; print(random_walker.RandomWalkerAgent.__name__)",
+        ],
+        check=False,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "RandomWalkerAgent"

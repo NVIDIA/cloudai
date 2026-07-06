@@ -211,7 +211,7 @@ class SingleSbatchRunner(SlurmRunner):
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
                 rewards = None
-                agent_class = registry.agents_map[next_tr.test.agent]
+                agent_class = registry.get_agent(next_tr.test.agent)
                 agent_config_data = next_tr.test.agent_config or {}
                 agent_config = agent_class.get_config_class()(**agent_config_data)
                 rewards = agent_config.rewards

@@ -16,7 +16,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type
+import warnings
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, List, Set, Tuple, Type
 
 if TYPE_CHECKING:
     from ..configurator.base_agent import BaseAgent
@@ -53,6 +54,7 @@ class Registry(metaclass=Singleton):
     systems_map: ClassVar[dict[str, Type[System]]] = {}
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
+    agent_entrypoints_map: ClassVar[dict[str, Any]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
     scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
     report_configs: ClassVar[dict[str, ReportConfig]] = {}
@@ -190,7 +192,7 @@ class Registry(metaclass=Singleton):
         Raises:
             ValueError: If the agent implementation already exists.
         """
-        if name in self.agents_map:
+        if name in self.agents_map or name in self.agent_entrypoints_map:
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.update_agent(name, value)
 
@@ -203,6 +205,52 @@ class Registry(metaclass=Singleton):
             value (Type[BaseAgent]): The agent implementation.
         """
         self.agents_map[name] = value
+        self.agent_entrypoints_map.pop(name, None)
+
+    def add_entrypoint_agent(self, name: str, value: Any) -> None:
+        """
+        Add a lazily loaded entry point agent mapping.
+
+        Args:
+            name (str): The name of the agent.
+            value (Any): The importlib.metadata entry point for the agent.
+
+        Raises:
+            ValueError: If the agent implementation already exists.
+        """
+        if name in self.agents_map or name in self.agent_entrypoints_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.agent_entrypoints_map[name] = value
+
+    def has_agent(self, name: str) -> bool:
+        """Return whether an agent is registered or available as a lazy entry point."""
+        return name in self.agents_map or name in self.agent_entrypoints_map
+
+    def agent_names(self) -> list[str]:
+        """Return all registered agent names, including unresolved entry point agents."""
+        return sorted(set(self.agents_map) | set(self.agent_entrypoints_map))
+
+    def get_agent(self, name: str) -> Type[BaseAgent]:
+        """Resolve an agent class by name, loading entry point agents on first use."""
+        if name in self.agents_map:
+            return self.agents_map[name]
+
+        if name not in self.agent_entrypoints_map:
+            raise KeyError(f"Agent '{name}' not found. Available agents: {self.agent_names()}")
+
+        ep = self.agent_entrypoints_map[name]
+        cls = ep.load()
+
+        from cloudai.configurator.base_agent import BaseAgent
+
+        if not issubclass(cls, BaseAgent):
+            warnings.warn(
+                f"Skipping entrypoint: {name} -> {ep.value} class={cls} (not a subclass of BaseAgent)", stacklevel=2
+            )
+            raise TypeError(f"Entry point agent '{name}' resolved to {cls}, which is not a subclass of BaseAgent.")
+
+        self.update_agent(name, cls)
+        return cls
 
     def add_report(self, tdef_type: Type[TestDefinition], value: Type[ReportGenerationStrategy]) -> None:
         existing_reports = self.reports_map.get(tdef_type, set())
