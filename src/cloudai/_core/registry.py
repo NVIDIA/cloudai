@@ -192,7 +192,7 @@ class Registry(metaclass=Singleton):
         Raises:
             ValueError: If the agent implementation already exists.
         """
-        if name in self.agents_map or name in self.agent_entrypoints_map:
+        if self.has_agent(name):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.update_agent(name, value)
 
@@ -218,7 +218,7 @@ class Registry(metaclass=Singleton):
         Raises:
             ValueError: If the agent implementation already exists.
         """
-        if name in self.agents_map or name in self.agent_entrypoints_map:
+        if self.has_agent(name):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.agent_entrypoints_map[name] = value
 
