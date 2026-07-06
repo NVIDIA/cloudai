@@ -65,11 +65,9 @@ Test-in-Scenario example
    docker_image_url = "lmsysorg/sglang:dev-cu13"
    model = "Qwen/Qwen3-8B"
 
-   [Tests.bench_cmd_args]
-   random_input = 16
-   random_output = 128
-   max_concurrency = 16
-   num_prompts = 30
+Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, cannot be
+defined under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
+``test_name`` when custom benchmark or semantic-evaluation arguments are needed.
 
 
 Semantic Validation
@@ -94,6 +92,16 @@ For images that still use the legacy SGLang GSM8K runner, override the entrypoin
 
 The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{output_path}``, and ``{result_dir}``
 placeholders.
+
+
+Reporting
+---------
+After a run completes, CloudAI parses ``sglang-bench.jsonl`` and reports serving latency, successful prompt count,
+completion rate, throughput, TPS per user, and TPS per GPU. If ``semantic_eval_cmd_args`` is configured, CloudAI also
+reports the semantic validation ``accuracy`` metric.
+
+CloudAI also provides the scenario-level ``sglang_comparison`` report. It compares SGLang test runs in the scenario and
+uses ``bench_cmd_args`` values as comparison labels.
 
 
 Readiness health checks
