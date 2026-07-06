@@ -431,12 +431,12 @@ def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
     package_dir = tmp_path / "external_pkg"
     package_dir.mkdir()
     (package_dir / "__init__.py").write_text(
-        'from .random_walker import RandomWalkerAgent\n\n__all__ = ["RandomWalkerAgent"]\n'
+        'from .agent_module import CircularImportAgent\n\n__all__ = ["CircularImportAgent"]\n'
     )
-    (package_dir / "random_walker.py").write_text(
+    (package_dir / "agent_module.py").write_text(
         "from cloudai.core import BaseAgent, BaseAgentConfig\n"
         "\n"
-        "class RandomWalkerAgent(BaseAgent):\n"
+        "class CircularImportAgent(BaseAgent):\n"
         "    @staticmethod\n"
         "    def get_config_class():\n"
         "        return BaseAgentConfig\n"
@@ -454,7 +454,7 @@ def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
     dist_info_dir.mkdir()
     (dist_info_dir / "METADATA").write_text("Name: external-pkg\nVersion: 1.0\n")
     (dist_info_dir / "entry_points.txt").write_text(
-        "[cloudai.agents]\nrandom_walker = external_pkg.random_walker:RandomWalkerAgent\n"
+        "[cloudai.agents]\ncircular_import_test_agent = external_pkg.agent_module:CircularImportAgent\n"
     )
 
     env = os.environ.copy()
@@ -466,7 +466,7 @@ def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
         [
             sys.executable,
             "-c",
-            "from external_pkg import random_walker; print(random_walker.RandomWalkerAgent.__name__)",
+            "from external_pkg import agent_module; print(agent_module.CircularImportAgent.__name__)",
         ],
         check=False,
         env=env,
@@ -475,4 +475,4 @@ def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "RandomWalkerAgent"
+    assert result.stdout.strip() == "CircularImportAgent"
