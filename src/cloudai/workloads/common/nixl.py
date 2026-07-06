@@ -26,9 +26,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.common.etcd import EtcdCmdGenMixin
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -153,7 +153,7 @@ class NIXLBaseTestDefinition(TestDefinition, Generic[NIXLCmdArgsT]):
         return installables
 
 
-class NIXLCmdGenBase(SlurmCommandGenStrategy):
+class NIXLCmdGenBase(EtcdCmdGenMixin):
     """Base command generation strategy for NIXL-based workloads."""
 
     def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
@@ -263,60 +263,17 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
     def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
         super().final_env_vars = value
 
-    def gen_etcd_srun_command(self, etcd_path: str) -> list[str]:
-        etcd_cmd = [
-            etcd_path,
-            "--listen-client-urls=http://0.0.0.0:2379",
-            "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
-            "--listen-peer-urls=http://0.0.0.0:2380",
-            "--initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380",
-            '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
-            "--initial-cluster-state=new",
-        ]
+    def gen_etcd_srun_command(self, etcd_path: str = "etcd") -> list[str]:
+        # NIXL may run etcd from a dedicated image; the shared lifecycle builds the command from
+        # gen_srun_prefix()/image_path(), so temporarily point image_path() at the etcd image.
         tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test)
         curr_image = self._current_image_url
         if tdef.etcd_image:
             self._current_image_url = str(tdef.etcd_image.installed_path)
-        cmd = [
-            *self.gen_srun_prefix(with_num_nodes=False),
-            f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
-            "--overlap",
-            "--ntasks-per-node=1",
-            "--ntasks=1",
-            "--nodelist=$SLURM_JOB_MASTER_NODE",
-            "-N1",
-            *etcd_cmd,
-            " &",
-        ]
-        self._current_image_url = curr_image
-        return cmd
-
-    def gen_wait_for_etcd_command(self, timeout: int = 60) -> list[str]:
-        cmd = [
-            "timeout",
-            str(timeout),
-            "bash",
-            "-c",
-            '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
-            f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {timeout} seconds";\n',
-            "  exit 1\n",
-            "}",
-        ]
-        return cmd
-
-    def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
-        cmd = [
-            f"kill -TERM ${pid_var}\n",
-            "timeout",
-            str(timeout),
-            "bash",
-            "-c",
-            f'"while kill -0 ${pid_var} 2>/dev/null; do sleep 1; done" || {{\n',
-            f'  echo "Failed to kill ETCD (pid=${pid_var}) within {timeout} seconds";\n',
-            "  exit 1\n",
-            "}",
-        ]
-        return cmd
+        try:
+            return super().gen_etcd_srun_command(etcd_path)
+        finally:
+            self._current_image_url = curr_image
 
     def gen_nixlbench_srun_commands(self, test_cmd: list[str], backend: str) -> list[list[str]]:
         prefix_part = self.gen_srun_prefix(with_num_nodes=False)
