@@ -130,6 +130,19 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert mounts == expected
 
 
+def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
+    repo = GitRepo(url="https://github.com/example/custom-tools.git", commit="main")
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+        git_repos=[repo],
+    )
+
+    assert repo in tdef.installables
+
+
 @pytest.mark.parametrize(
     "module, config, expected",
     [
