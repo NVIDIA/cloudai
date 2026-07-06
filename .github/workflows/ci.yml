@@ -39,7 +39,7 @@ jobs:
           touch doc/_build/html/.nojekyll
 
   test:
-    name: Run pytest
+    name: Run pytest (3.14)
 
     runs-on: ubuntu-latest
 
