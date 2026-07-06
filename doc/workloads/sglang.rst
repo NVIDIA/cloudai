@@ -8,8 +8,8 @@ SGLang is a high-throughput and memory-efficient inference engine for LLMs. This
 Usage Examples
 --------------
 
-Test + Scenario example
-~~~~~~~~~~~~~~~~~~~~~~~
+Test and Scenario Examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
    :caption: test.toml (test definition)
@@ -65,8 +65,8 @@ Test-in-Scenario example
    docker_image_url = "lmsysorg/sglang:dev-cu13"
    model = "Qwen/Qwen3-8B"
 
-Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, cannot be
-defined under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
+Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, are not
+supported under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
 ``test_name`` when custom benchmark or semantic-evaluation arguments are needed.
 
 
@@ -96,9 +96,12 @@ placeholders.
 
 Reporting
 ---------
-After a run completes, CloudAI parses ``sglang-bench.jsonl`` and reports serving latency, successful prompt count,
+After a run completes, CloudAI parses ``sglang-bench.jsonl`` and prints serving latency, successful prompt count,
 completion rate, throughput, TPS per user, and TPS per GPU. If ``semantic_eval_cmd_args`` is configured, CloudAI also
-reports the semantic validation ``accuracy`` metric.
+reports semantic validation accuracy.
+
+The reported metric (``default``) is throughput. Additional supported metrics are ``throughput``, ``tps-per-user``,
+``tps-per-gpu``, and ``accuracy``.
 
 CloudAI also provides the scenario-level ``sglang_comparison`` report. It compares SGLang test runs in the scenario and
 uses ``bench_cmd_args`` values as comparison labels.
