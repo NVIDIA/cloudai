@@ -16,9 +16,41 @@
 
 """Data models for training parsers."""
 
+import statistics
 from collections.abc import Hashable
 from dataclasses import MISSING, dataclass, fields
 from typing import Any, List, Optional
+
+
+@dataclass
+class MetricStats:
+    """Aggregated statistics for one metric over the filtered steps."""
+
+    mean: float
+    min: float
+    max: float
+    std: float
+    t99: float
+    t95: float
+
+    @classmethod
+    def from_values(cls, values: list[float]) -> "MetricStats":
+        """Build stats from a non-empty list of values (population std; inclusive percentiles)."""
+        return cls(
+            mean=statistics.mean(values),
+            min=min(values),
+            max=max(values),
+            std=statistics.pstdev(values),
+            t99=cls._percentile(values, 99),
+            t95=cls._percentile(values, 95),
+        )
+
+    @staticmethod
+    def _percentile(values: list[float], p: int) -> float:
+        """Inclusive, linearly-interpolated p-th percentile; returns the sole value for a single sample."""
+        if len(values) == 1:
+            return float(values[0])
+        return statistics.quantiles(values, n=100, method="inclusive")[p - 1]
 
 
 @dataclass(frozen=True)
@@ -49,6 +81,29 @@ class TrainingStep:
 
 
 OPTIONAL_STEP_FIELDS = {f.name for f in fields(TrainingStep) if f.default is not MISSING}
+
+
+@dataclass(kw_only=True)
+class StepAggregation:
+    """Per-metric aggregated statistics over the filtered steps."""
+
+    step_time_sec: MetricStats
+    loss: MetricStats
+    memory_reserved_bytes: MetricStats
+    memory_allocated_bytes: MetricStats
+    tflops_per_gpu: Optional[MetricStats] = None
+
+    @classmethod
+    def from_steps(cls, steps: list["TrainingStep"]) -> "StepAggregation":
+        """Build per-metric stats from a non-empty list of already-filtered steps."""
+        tflops = [s.tflops_per_gpu for s in steps if s.tflops_per_gpu is not None]
+        return cls(
+            step_time_sec=MetricStats.from_values([s.step_time_sec for s in steps]),
+            loss=MetricStats.from_values([s.loss for s in steps]),
+            memory_reserved_bytes=MetricStats.from_values([s.memory_reserved_bytes for s in steps]),
+            memory_allocated_bytes=MetricStats.from_values([s.memory_allocated_bytes for s in steps]),
+            tflops_per_gpu=MetricStats.from_values(tflops) if tflops else None,
+        )
 
 
 @dataclass(kw_only=True)
@@ -95,6 +150,15 @@ class TrainingConfig:
     world_size: Optional[int] = None  # CloudAI-computed (None when gpus_per_node is unavailable)
     num_nodes: int = 0  # CloudAI-computed
 
+    # Profiling (CloudAI-computed from the run's nsys/profiler settings)
+    profiling_enabled: bool = False
+    profiling_start_step: Optional[int] = None
+    profiling_stop_step: Optional[int] = None
+
+    # Aggregation window (steps dropped before computing the top-level aggregation)
+    exclude_start_steps: int = 5
+    exclude_post_profiling_steps: int = 2
+
     # Identity
     test_template_name: str = ""  # CloudAI-computed
 
@@ -105,3 +169,4 @@ class TrainingResults:
 
     config: TrainingConfig
     steps: List[TrainingStep]
+    aggregation: Optional[StepAggregation] = None  # None when no steps remain after exclusions

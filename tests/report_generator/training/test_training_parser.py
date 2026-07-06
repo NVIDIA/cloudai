@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import types
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ import pytest
 
 from cloudai.report_generator.training import parser as parser_mod
 from cloudai.report_generator.training import tb_reader
-from cloudai.report_generator.training.models import Scalar
+from cloudai.report_generator.training.models import Scalar, TrainingStep
 from cloudai.report_generator.training.parser import MegatronBridgeParser, MegatronParser, NeMoRunParser
 from cloudai.report_generator.training.report_generation_strategy import TrainingReportGenerationStrategy
 
@@ -35,11 +36,39 @@ def _system(gpus_per_node: int | None = 4, ntasks_per_node: int | None = None) -
     return types.SimpleNamespace(gpus_per_node=gpus_per_node, ntasks_per_node=ntasks_per_node)
 
 
+class _Test(types.SimpleNamespace):
+    """Stand-in for the pydantic TestDefinition: model_dump() returns nested cmd_args/nsys dicts."""
+
+    def model_dump(self) -> dict[str, Any]:
+        dumped = dict(vars(self))
+        dumped["cmd_args"] = dict(vars(self.cmd_args))
+        dumped["nsys"] = dict(vars(self.nsys)) if self.nsys is not None else None
+        return dumped
+
+
 def _tr(
-    output_path: str | Path = "run", nnodes: int = 8, name: str = "t", template: str = "NeMoRun", **cmd_args: Any
+    output_path: str | Path = "run",
+    nnodes: int = 8,
+    name: str = "t",
+    template: str = "NeMoRun",
+    nsys: Any = None,
+    extra_cmd_args: dict[str, Any] | None = None,
+    training_report: dict[str, Any] | None = None,
+    **cmd_args: Any,
 ) -> Any:
-    test = types.SimpleNamespace(name=name, test_template_name=template, cmd_args=types.SimpleNamespace(**cmd_args))
+    test = _Test(
+        name=name,
+        test_template_name=template,
+        cmd_args=types.SimpleNamespace(**cmd_args),
+        nsys=nsys,
+        extra_cmd_args=extra_cmd_args or {},
+        training_report=training_report,
+    )
     return types.SimpleNamespace(output_path=Path(output_path), nnodes=nnodes, test=test)
+
+
+def _nsys(enable: bool) -> Any:
+    return types.SimpleNamespace(enable=enable)
 
 
 # --- steps ---------------------------------------------------------------------------------------
@@ -207,9 +236,9 @@ def test_build_config_resolves_paths_and_computes_fields():
         "parallelism": {"tensor_model_parallel_size": 4, "pipeline_model_parallel_size": 1, "context_parallel_size": 1},
         "model": {"num_layers": 30},
     }
-    config = NeMoRunParser()._build_config(
-        raw, _tr(nnodes=8, template="NeMoRun", recipe_name="gpt3"), _system(gpus_per_node=4)
-    )
+    parser = NeMoRunParser()
+    parser.get_model_config = lambda tr: raw
+    config = parser._build_config(_tr(nnodes=8, template="NeMoRun", recipe_name="gpt3"), _system(gpus_per_node=4))
 
     assert config.test_template_name == "NeMoRun"  # CloudAI-computed
     assert config.micro_batch_size == 1  # nested dotted-path resolve
@@ -223,7 +252,9 @@ def test_build_config_resolves_paths_and_computes_fields():
 def test_build_config_leaves_world_size_none_without_gpus_per_node():
     # No gpus_per_node/ntasks_per_node on the system: world_size/data_parallel_size stay None, rest still resolves.
     raw = {"parallelism": {"tensor_model_parallel_size": 4, "pipeline_model_parallel_size": 1}}
-    config = NeMoRunParser()._build_config(raw, _tr(nnodes=8, recipe_name="gpt3"), _system(gpus_per_node=None))
+    parser = NeMoRunParser()
+    parser.get_model_config = lambda tr: raw
+    config = parser._build_config(_tr(nnodes=8, recipe_name="gpt3"), _system(gpus_per_node=None))
 
     assert config.world_size is None
     assert config.data_parallel_size is None
@@ -243,7 +274,7 @@ def test_megatron_config_parses_string_literals(monkeypatch):
     monkeypatch.setattr(parser_mod, "read_text", lambda _tb_dir: text)
 
     parser = MegatronParser()
-    config = parser._build_config(parser.get_config(_tr()), _tr(nnodes=16, name="dsv3"), _system(gpus_per_node=4))
+    config = parser._build_config(_tr(nnodes=16, name="dsv3"), _system(gpus_per_node=4))
 
     assert config.micro_batch_size == 1  # "1" -> int
     assert config.sequence_parallel is True  # "True" -> bool
@@ -254,10 +285,182 @@ def test_megatron_config_parses_string_literals(monkeypatch):
 def test_compute_data_parallel_size_rejects_invalid_topology():
     parser = NeMoRunParser()
     parallel = {"tensor_model_parallel_size": 4, "pipeline_model_parallel_size": 1, "context_parallel_size": 1}
+    parser.get_model_config = lambda tr: {"parallelism": parallel}
     with pytest.raises(ValueError, match="world_size"):  # world_size 34 is not a multiple of tp*pp*cp=4
-        parser._build_config({"parallelism": parallel}, _tr(nnodes=17, recipe_name="x"), _system(gpus_per_node=2))
+        parser._build_config(_tr(nnodes=17, recipe_name="x"), _system(gpus_per_node=2))
+    parser.get_model_config = lambda tr: {"parallelism": {}}
     with pytest.raises(ValueError, match="tensor_parallel_size"):  # tp missing from the parsed config
-        parser._build_config({"parallelism": {}}, _tr(recipe_name="x"), _system())
+        parser._build_config(_tr(recipe_name="x"), _system())
+
+
+# --- profiling -----------------------------------------------------------------------------------
+
+
+def test_nemo_profiling_reads_nsys_and_callback_steps():
+    # enable maps from [nsys]; the step bounds are extracted from extra_cmd_args by suffix (index-agnostic).
+    tr = _tr(
+        nsys=_nsys(True),
+        extra_cmd_args={"trainer.callbacks[2].start_step": "20", "trainer.callbacks[2].end_step": "25"},
+    )
+    assert NeMoRunParser()._resolve_test_config(tr) == {
+        "profiling_enabled": True,
+        "profiling_start_step": 20,
+        "profiling_stop_step": 25,
+    }
+
+
+def test_nemo_profiling_disabled_and_no_steps():
+    tr = _tr(nsys=_nsys(False))
+    assert NeMoRunParser()._resolve_test_config(tr) == {"profiling_enabled": False}
+
+
+def test_nemo_profiling_step_extraction_is_index_agnostic():
+    # a different user-chosen callback index still resolves via the suffix match
+    tr = _tr(nsys=_nsys(True), extra_cmd_args={"trainer.callbacks[0].start_step": "7"})
+    resolved = NeMoRunParser()._resolve_test_config(tr)
+    assert resolved["profiling_start_step"] == 7
+    assert "profiling_stop_step" not in resolved
+
+
+def test_megatron_profiling_reads_profile_steps():
+    tr = _tr(nsys=_nsys(True), profile_step_start=50, profile_step_end=55)
+    assert MegatronParser()._resolve_test_config(tr) == {
+        "profiling_enabled": True,
+        "profiling_start_step": 50,
+        "profiling_stop_step": 55,
+    }
+
+
+def test_megatron_profiling_absent_is_dropped():
+    # no [nsys] section and no profile_step_* args: everything is dropped, so config keeps model defaults.
+    tr = _tr(nsys=None)
+    assert MegatronParser()._resolve_test_config(tr) == {}
+
+
+def test_megatron_bridge_profiling_reads_typed_fields():
+    tr = _tr(enable_nsys=True, profiling_start_step=10, profiling_stop_step=12)
+    assert MegatronBridgeParser()._resolve_test_config(tr) == {
+        "profiling_enabled": True,
+        "profiling_start_step": 10,
+        "profiling_stop_step": 12,
+    }
+
+
+def test_build_config_sets_profiling_fields():
+    # M-Bridge exposes enable + step bounds as typed cmd_args, so _build_config folds all three into the config.
+    raw = {"model": {"tensor_model_parallel_size": 4, "pipeline_model_parallel_size": 1}}
+    parser = MegatronBridgeParser()
+    parser.get_model_config = lambda tr: raw
+    tr = _tr(model_recipe_name="gpt3", enable_nsys=True, profiling_start_step=3, profiling_stop_step=7)
+    config = parser._build_config(tr, _system(gpus_per_node=4))
+
+    assert config.profiling_enabled is True
+    assert (config.profiling_start_step, config.profiling_stop_step) == (3, 7)
+
+
+def test_build_config_reads_aggregation_flags_from_toml():
+    parser = NeMoRunParser()
+    parser.get_model_config = lambda tr: {}
+    tr = _tr(recipe_name="gpt3", training_report={"exclude_start_steps": 10, "exclude_post_profiling_steps": 3})
+    config = parser._build_config(tr, _system(gpus_per_node=None))
+    assert (config.exclude_start_steps, config.exclude_post_profiling_steps) == (10, 3)
+
+
+def test_build_config_aggregation_flags_default_when_absent():
+    parser = NeMoRunParser()
+    parser.get_model_config = lambda tr: {}
+    config = parser._build_config(_tr(recipe_name="gpt3"), _system(gpus_per_node=None))
+    assert (config.exclude_start_steps, config.exclude_post_profiling_steps) == (5, 2)
+
+
+# --- aggregation ---------------------------------------------------------------------------------
+
+
+def _agg_config(**overrides: Any) -> Any:
+    base = {
+        "profiling_enabled": False,
+        "profiling_start_step": None,
+        "profiling_stop_step": None,
+        "exclude_start_steps": 0,
+        "exclude_post_profiling_steps": 0,
+    }
+    base.update(overrides)
+    return types.SimpleNamespace(**base)
+
+
+def _agg_steps(step_times: list[float]) -> list[TrainingStep]:
+    return [
+        TrainingStep(
+            iteration=i,
+            step_time_sec=t,
+            loss=1.0,
+            memory_reserved_bytes=1.0,
+            memory_allocated_bytes=1.0,
+            tflops_per_gpu=None,
+        )
+        for i, t in enumerate(step_times)
+    ]
+
+
+def test_filter_steps_drops_start_then_profiling_window():
+    steps = _agg_steps([1.0] * 10)  # iterations 0..9
+    config = _agg_config(
+        exclude_start_steps=2,
+        profiling_enabled=True,
+        profiling_start_step=4,
+        profiling_stop_step=5,
+        exclude_post_profiling_steps=1,
+    )
+    # drop first 2 (0,1) then the profiling window [4, 5+1] -> 4,5,6
+    assert [s.iteration for s in NeMoRunParser._filter_steps(steps, config)] == [2, 3, 7, 8, 9]
+
+
+def test_filter_steps_ignores_profiling_window_when_disabled():
+    steps = _agg_steps([1.0] * 6)
+    config = _agg_config(exclude_start_steps=2, profiling_enabled=False, profiling_start_step=3, profiling_stop_step=4)
+    assert [s.iteration for s in NeMoRunParser._filter_steps(steps, config)] == [2, 3, 4, 5]
+
+
+def test_aggregate_computes_per_metric_stats():
+    agg = NeMoRunParser()._aggregate(_agg_steps([10.0, 20.0, 30.0]), _agg_config())
+    assert agg is not None
+    st = agg.step_time_sec
+    assert st is not None
+    assert st.mean == 20.0
+    assert (st.min, st.max) == (10.0, 30.0)
+    assert st.std == pytest.approx(8.16496, rel=1e-4)  # population stdev
+    assert st.mean <= st.t95 <= st.max
+
+
+def test_aggregate_tflops_is_none_when_absent():
+    agg = NeMoRunParser()._aggregate(_agg_steps([1.0, 2.0]), _agg_config())
+    assert agg is not None
+    assert agg.tflops_per_gpu is None  # tflops is None on every step
+    assert agg.step_time_sec is not None
+
+
+def test_aggregate_returns_none_when_all_filtered_out():
+    # only 2 steps but exclude_start_steps=5 -> nothing remains -> aggregation is None
+    assert NeMoRunParser()._aggregate(_agg_steps([1.0, 2.0]), _agg_config(exclude_start_steps=5)) is None
+
+
+# --- glob lookup ---------------------------------------------------------------------------------
+
+
+def test_get_from_dict_warns_on_multiple_glob_matches(caplog):
+    source = {"extra_cmd_args": {"a.start_step": "1", "b.start_step": "2"}}
+    with caplog.at_level(logging.WARNING):
+        result = NeMoRunParser._get_from_dict(source, "extra_cmd_args.*start_step")
+    assert result == "1"  # first match kept
+    assert "Multiple config values match" in caplog.text
+
+
+def test_get_from_dict_single_glob_match_does_not_warn(caplog):
+    source = {"extra_cmd_args": {"trainer.callbacks[2].start_step": "20"}}
+    with caplog.at_level(logging.WARNING):
+        result = NeMoRunParser._get_from_dict(source, "extra_cmd_args.*start_step")
+    assert result == "20"
+    assert "Multiple config values match" not in caplog.text
 
 
 # --- can_parse -----------------------------------------------------------------------------------

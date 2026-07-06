@@ -89,6 +89,15 @@ class PredictorConfig(PythonExecutable):
         return self.git_repo.__hash__()
 
 
+class TrainingReportConfig(BaseModel):
+    """Training-report aggregation window: steps excluded before computing per-metric stats."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exclude_start_steps: int = Field(default=5, ge=0)
+    exclude_post_profiling_steps: int = Field(default=2, ge=0)
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
@@ -106,6 +115,7 @@ class TestDefinition(BaseModel, ABC):
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
     predictor: Optional[PredictorConfig] = None
+    training_report: Optional[TrainingReportConfig] = None
 
     agent: str = "grid_search"
     agent_steps: int = 1
