@@ -65,11 +65,9 @@ Test-in-Scenario example
    docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:0.7.0"
    model = "Qwen/Qwen3-0.6B"
 
-   [Tests.bench_cmd_args]
-   random_input_len = 16
-   random_output_len = 128
-   max_concurrency = 16
-   num_prompts = 30
+Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, are not
+supported under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
+``test_name`` when custom benchmark or semantic-evaluation arguments are needed.
 
 
 Semantic Validation
@@ -89,6 +87,19 @@ point ``entrypoint`` at the mounted path.
 
 The ``cli`` string supports ``{model}``, ``{host}``, ``{port}``, ``{url}``, ``{output_path}``, and ``{result_dir}``
 placeholders.
+
+
+Reporting
+---------
+After a run completes, CloudAI parses ``vllm-bench.json`` and prints serving latency, successful prompt count,
+completion rate, throughput, TPS per user, and TPS per GPU. If ``semantic_eval_cmd_args`` is configured, CloudAI also
+reports semantic validation accuracy.
+
+The reported metric (``default``) is throughput. Additional supported metrics are ``throughput``, ``tps-per-user``,
+``tps-per-gpu``, and ``accuracy``.
+
+CloudAI also provides the scenario-level ``vllm_comparison`` report. It compares vLLM test runs in the scenario and
+uses ``bench_cmd_args`` values as comparison labels.
 
 
 Controlling the Number of GPUs
