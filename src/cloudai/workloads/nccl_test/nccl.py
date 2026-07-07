@@ -103,6 +103,7 @@ class NCCLCmdArgs(CmdArgs):
     stepfactor: Optional[Union[int, list[int]]] = None
     use_deepep_matrix: bool = False
     alltoallv_matrix_container_path: str = "/tmp/traffic_matrix.txt"
+    min_busbw: Optional[float] = None
 
 
 class NCCLTestDefinition(TestDefinition):

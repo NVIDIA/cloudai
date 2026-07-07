@@ -31,6 +31,7 @@ _ALLTOALLV_SKIP_CLI = {
     "subtest_name",
     "use_deepep_matrix",
     "alltoallv_matrix_container_path",
+    "min_busbw",
 }
 
 
