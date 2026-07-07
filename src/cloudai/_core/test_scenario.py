@@ -154,7 +154,8 @@ class TestRun:
         if not self.test.is_domain_randomization_enabled:
             return False
 
-        agent = Registry().agents_map.get(self.test.agent)
+        registry = Registry()
+        agent = registry.get_agent(self.test.agent) if registry.has_agent(self.test.agent) else None
         return self.is_dse_job and (agent is None or agent.supports_variable_environment)
 
     @property

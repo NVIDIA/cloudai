@@ -142,14 +142,14 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             test_run = copy.deepcopy(tr)
 
             agent_type = test_run.test.agent
-            agent_class = registry.agents_map.get(agent_type)
-            if agent_class is None:
+            if not registry.has_agent(agent_type):
                 logging.error(
                     f"No agent available for type: {agent_type}. Please make sure {agent_type} "
-                    f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+                    f"is a valid agent type. Available agents: {registry.agent_names()}"
                 )
                 err = 1
                 continue
+            agent_class = registry.get_agent(agent_type)
 
             agent_config_data = test_run.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
@@ -619,7 +619,8 @@ def handle_list_registered_items(item_type: str, verbose: bool) -> int:
             print(string)
     elif item_type.lower() == "agents":
         print("Available agents:")
-        for idx, (name, agent) in enumerate(sorted(registry.agents_map.items()), start=1):
+        for idx, name in enumerate(registry.agent_names(), start=1):
+            agent = registry.get_agent(name)
             string = f'{idx}. "{name}" class={agent.__name__}'
             if verbose:
                 string += f"{agent.__doc__}"
