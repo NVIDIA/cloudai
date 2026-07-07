@@ -39,14 +39,9 @@ jobs:
           touch doc/_build/html/.nojekyll
 
   test:
-    name: Run pytest
+    name: Run pytest (3.14)
 
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.12", "3.14"]
-      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -54,10 +49,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.14
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -65,22 +60,22 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --locked --python ${{ matrix.python-version }} --extra dev
+        run: uv sync --locked --python 3.14 --extra dev
 
       - name: Run pytest
         run: |
           set -eEx
           set -o pipefail
 
-          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest -vv --cov
+          uv run --locked --python 3.14 --extra dev python -m pytest -vv --cov
           # <100% coverage might indicate that some tests are not doing what they should,
           # but realistically, it might too hard to reach, so lower it a bit
           # (at the moment of writing, it is 99.95%)
-          uv run --locked --python ${{ matrix.python-version }} --extra dev coverage report --include='tests/*' --precision=2 --fail-under=97.00
+          uv run --locked --python 3.14 --extra dev coverage report --include='tests/*' --precision=2 --fail-under=97.00
 
-          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest --dead-fixtures
+          uv run --locked --python 3.14 --extra dev python -m pytest --dead-fixtures
 
-          uv run --locked --python ${{ matrix.python-version }} --extra dev python -m pytest -vv -m ci_only
+          uv run --locked --python 3.14 --extra dev python -m pytest -vv -m ci_only
 
   smoke:
     name: Smoke test
