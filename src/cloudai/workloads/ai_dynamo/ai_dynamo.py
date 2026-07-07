@@ -510,6 +510,7 @@ class AIDynamoTestDefinition(TestDefinition):
             self.script,
             self.hf_model,
             *self.cmd_args.installables,
+            *super().installables,
         ]
         if self.dcgm_exporter_image:
             installables.append(self.dcgm_exporter_image)
