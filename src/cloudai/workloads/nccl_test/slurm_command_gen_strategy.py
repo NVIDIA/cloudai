@@ -149,11 +149,19 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append(self.test_run.test.extra_args_str)
         return parts
 
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
+        parts = super().gen_srun_prefix(use_pretest_extras=use_pretest_extras, with_num_nodes=with_num_nodes)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        if not tdef.cmd_args.subtest_name.endswith("_mpi"):
+            parts = ["--ntasks=1" if p == f"--mpi={self.mpi}" else p for p in parts]
+        return parts
+
     def generate_test_command(self) -> List[str]:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         if tdef.cmd_args.subtest_name == "alltoallv_perf_mpi":
             return self._alltoallv_test_command(tdef)
 
+        single_process = not tdef.cmd_args.subtest_name.endswith("_mpi")
         srun_command_parts = [f"{tdef.cmd_args.subtest_name}"]
         nccl_test_args = tdef.cmd_args.model_dump().keys()
         for arg in nccl_test_args:
@@ -164,7 +172,9 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if value is None:
                 continue
 
-            if len(arg) > 1:
+            if arg == "ngpus" and single_process:
+                srun_command_parts.append(f"-g {value}")
+            elif len(arg) > 1:
                 srun_command_parts.append(f"--{arg} {value}")
             else:
                 srun_command_parts.append(f"-{arg} {value}")
