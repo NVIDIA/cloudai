@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,10 @@ from typing import Optional
 
 from pydantic import Field
 
-from cloudai.core import DockerImage, File, Installable
+from cloudai.core import DockerImage, File, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+EXIT_CODE_FILE_NAME = "exit_code.txt"
 
 
 class SlurmContainerCmdArgs(CmdArgs):
@@ -53,3 +55,36 @@ class SlurmContainerTestDefinition(TestDefinition):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k} {v}" if v else k)
         return " ".join(parts)
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        """Grade the run from the container command exit code."""
+        exit_code_path = tr.output_path / EXIT_CODE_FILE_NAME
+        if not exit_code_path.is_file():
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Exit code file {exit_code_path} not found.",
+            )
+
+        try:
+            exit_code_text = exit_code_path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError) as err:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Could not read exit code file {exit_code_path}: {err}.",
+            )
+
+        try:
+            exit_code = int(exit_code_text)
+        except ValueError:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Could not parse exit code from {exit_code_path}: {exit_code_text!r}.",
+            )
+
+        if exit_code != 0:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Container command exited with code {exit_code}.",
+            )
+
+        return JobStatusResult(is_successful=True)

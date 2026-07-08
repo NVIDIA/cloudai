@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@ from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .slurm_container import SlurmContainerTestDefinition
+from .slurm_container import EXIT_CODE_FILE_NAME, SlurmContainerTestDefinition
 
 
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
@@ -46,4 +46,12 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         if self.test_run.test.extra_cmd_args:
             command_parts.append(self.test_run.test.extra_args_str)
 
-        return command_parts
+        command = " ".join(command_parts)
+        wrapped_command = (
+            f"( {command} ); "
+            r"rc=\$?; "
+            rf"printf '%s\n' \"\$rc\" > /cloudai_run_results/{EXIT_CODE_FILE_NAME}; "
+            r"exit \"\$rc\""
+        )
+
+        return [wrapped_command]

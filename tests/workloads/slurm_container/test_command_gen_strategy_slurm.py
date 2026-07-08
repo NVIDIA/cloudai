@@ -18,14 +18,24 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import TestRun
+from cloudai.core import TestRun, TestScenario
 from cloudai.models.workload import NsysConfiguration
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
     SlurmContainerCommandGenStrategy,
     SlurmContainerTestDefinition,
 )
+from cloudai.workloads.slurm_container.slurm_container import EXIT_CODE_FILE_NAME
+
+
+def _wrapped_command(command: str) -> str:
+    return (
+        f"( {command} ); "
+        r"rc=\$?; "
+        rf"printf '%s\n' \"\$rc\" > /cloudai_run_results/{EXIT_CODE_FILE_NAME}; "
+        r"exit \"\$rc\""
+    )
 
 
 @pytest.fixture
@@ -52,7 +62,9 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
         f"--no-container-mount-home"
     )
 
-    assert cmd == f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; cmd"'
+    assert cmd == (
+        f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; {_wrapped_command("cmd")}"'
+    )
 
 
 def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
@@ -70,7 +82,10 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
         f"--no-container-mount-home"
     )
 
-    assert cmd == f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; nsys profile cmd"'
+    assert cmd == (
+        f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; '
+        f'{_wrapped_command("nsys profile cmd")}"'
+    )
 
 
 def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> None:
@@ -91,4 +106,23 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
         f"{' '.join(extra_args)}"
     )
 
-    assert cmd == f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; cmd"'
+    assert cmd == (
+        f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; {_wrapped_command("cmd")}"'
+    )
+
+
+def test_single_sbatch_writes_exit_code_to_per_test_output(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    test_run.output_path = slurm_system.output_path / "single-batch"
+    test_run.output_path.mkdir(parents=True)
+    scenario = TestScenario(name="tc", test_runs=[test_run])
+    runner = SingleSbatchRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=scenario,
+        output_path=slurm_system.output_path,
+    )
+
+    block = runner.get_single_tr_block(test_run)
+
+    assert f"{test_run.output_path.absolute()}:/cloudai_run_results" in block
+    assert f"/cloudai_run_results/{EXIT_CODE_FILE_NAME}" in block
