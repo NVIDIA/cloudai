@@ -372,6 +372,40 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
+    def _append_resource_directives(self, content: List[str], time_limit: Optional[str] = None) -> Optional[Path]:
+        """Append resource-related SBATCH directives shared between main and pre-hook scripts.
+
+        Covers: reservation, distribution, nodelist/exclude, gpus-per-node/gres,
+        ntasks-per-node, time limit, and extra_sbatch_args.  Does NOT write
+        job-name, output/error paths, partition, or account — those differ
+        between the main job and the pre-hook and are the caller's responsibility.
+
+        Args:
+            content: The list of script lines to append to.
+            time_limit: SBATCH time limit string; uses self.test_run.time_limit if None.
+
+        Returns:
+            Path to the generated hostfile, or None if node-list mode was not used.
+        """
+        content = self._add_reservation(content)
+        hostfile = self._append_nodes_related_directives(content)
+
+        if self.system.gpus_per_node and self.system.supports_gpu_directives:
+            content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
+            content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
+
+        if self.system.ntasks_per_node:
+            content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
+
+        limit = time_limit if time_limit is not None else self.test_run.time_limit
+        if limit:
+            content.append(f"#SBATCH --time={limit}")
+
+        for arg in self.system.extra_sbatch_args:
+            content.append(f"#SBATCH {arg}")
+
+        return hostfile
+
     def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
         """
         Append SBATCH directives to the batch script content.
@@ -379,27 +413,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
         """
-        batch_script_content = self._add_reservation(batch_script_content)
-
         batch_script_content.append(f"#SBATCH --output={self.test_run.output_path.absolute() / 'stdout.txt'}")
         batch_script_content.append(f"#SBATCH --error={self.test_run.output_path.absolute() / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
 
-        hostfile = self._append_nodes_related_directives(batch_script_content)
-
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
-            batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
-
-        if self.system.ntasks_per_node:
-            batch_script_content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
-        if self.test_run.time_limit:
-            batch_script_content.append(f"#SBATCH --time={self.test_run.time_limit}")
-
-        for arg in self.system.extra_sbatch_args:
-            batch_script_content.append(f"#SBATCH {arg}")
+        hostfile = self._append_resource_directives(batch_script_content)
 
         if hostfile is not None:
             batch_script_content.append(f"export SLURM_HOSTFILE={hostfile}")

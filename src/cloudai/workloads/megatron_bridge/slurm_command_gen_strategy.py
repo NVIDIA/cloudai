@@ -122,7 +122,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         pre_hook_output = self.test_run.output_path / "pre_hook"
         pre_hook_output.mkdir(parents=True, exist_ok=True)
 
-        num_nodes, node_list = self.get_cached_nodes_spec()
         sbatch_lines = [
             "#!/bin/bash",
             f"#SBATCH --job-name=pre_hook_{self.job_name()}",
@@ -132,16 +131,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         if self.system.account:
             sbatch_lines.append(f"#SBATCH --account={self.system.account}")
-        if node_list:
-            sbatch_lines.append(f"#SBATCH --nodelist={','.join(node_list)}")
-        elif num_nodes:
-            sbatch_lines.append(f"#SBATCH --nodes={num_nodes}")
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            sbatch_lines.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
-        if self.test_run.time_limit:
-            sbatch_lines.append(f"#SBATCH --time={self.test_run.time_limit}")
-        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
-            for param in self._parse_srun_args_as_slurm_params(source or ""):
+        self._append_resource_directives(sbatch_lines, self.test_run.time_limit)
+        if self.test_run.extra_srun_args:
+            for param in self._parse_srun_args_as_slurm_params(self.test_run.extra_srun_args):
                 key, _, val = param.partition("=")
                 sbatch_lines.append(f"#SBATCH --{key}={val}" if val else f"#SBATCH --{key}")
         sbatch_lines.append("")
