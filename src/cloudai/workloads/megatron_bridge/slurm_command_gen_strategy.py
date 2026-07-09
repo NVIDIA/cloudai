@@ -114,7 +114,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return params
 
     def _gen_pre_hook_sbatch(self) -> Path:
-        """Generate a standalone sbatch script running per-node independent pre-hook tests.
+        """
+        Generate a standalone sbatch script running per-node independent pre-hook tests.
 
         Each node runs its own alltoall among its local GPUs (1 srun per node in parallel),
         so the tests are truly independent — no cross-node NCCL communicator is formed.
@@ -150,9 +151,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Inject per-node output paths and --nodelist so each node runs independently
             node_srun = srun_cmd.replace(
                 "srun ",
-                f"srun --nodelist=$_node "
-                f"--output={node_out}/stdout_$_node.txt "
-                f"--error={node_out}/stderr_$_node.txt ",
+                f"srun --nodelist=$_node --output={node_out}/stdout_$_node.txt --error={node_out}/stderr_$_node.txt ",
                 1,
             )
 
@@ -168,30 +167,34 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 check_cmd = f'grep -q "Avg bus bandwidth" {node_out}/stdout_$_node.txt 2>/dev/null'
 
-            sbatch_lines.extend([
-                f"# {tr.test.name}",
-                f"mkdir -p {node_out}",
-                "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
-                f"    {node_srun} &",
-                "done",
-                "wait",
-                f"{success_var}=1",
-                "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
-                f"    if ! {check_cmd}; then",
-                f"        {success_var}=0",
-                "    fi",
-                "done",
-                "",
-            ])
+            sbatch_lines.extend(
+                [
+                    f"# {tr.test.name}",
+                    f"mkdir -p {node_out}",
+                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
+                    f"    {node_srun} &",
+                    "done",
+                    "wait",
+                    f"{success_var}=1",
+                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
+                    f"    if ! {check_cmd}; then",
+                    f"        {success_var}=0",
+                    "    fi",
+                    "done",
+                    "",
+                ]
+            )
 
         combined = " && ".join([f"[ ${v} -eq 1 ]" for v in success_vars])
-        sbatch_lines.extend([
-            f"PRE_TEST_SUCCESS=$( {combined} && echo 1 || echo 0 )",
-            'if [ "$PRE_TEST_SUCCESS" -ne 1 ]; then',
-            '  echo "Pre-hook tests failed. Blocking training job." >&2',
-            "  exit 1",
-            "fi",
-        ])
+        sbatch_lines.extend(
+            [
+                f"PRE_TEST_SUCCESS=$( {combined} && echo 1 || echo 0 )",
+                'if [ "$PRE_TEST_SUCCESS" -ne 1 ]; then',
+                '  echo "Pre-hook tests failed. Blocking training job." >&2',
+                "  exit 1",
+                "fi",
+            ]
+        )
 
         sbatch_path = self.test_run.output_path / "pre_hook_sbatch_script.sh"
         sbatch_path.write_text("\n".join(sbatch_lines))
@@ -315,13 +318,16 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             nodelist_lines: list[str] = []
             if capture_nodelist:
                 nodelist_lines = [
-                    "# Wait indefinitely for pre-hook to start, then capture its nodelist",
+                    "# Wait for pre-hook to reach RUNNING; capture its nodelist or exit on terminal state",
                     "PRE_HOOK_NODES=''",
                     "while true; do",
                     '    _state=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%T" 2>/dev/null || true)',
                     '    if [ "$_state" = "RUNNING" ]; then',
                     '        PRE_HOOK_NODES=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%N" 2>/dev/null | head -1 || true)',
                     "        break",
+                    '    elif [ -z "$_state" ] || [ "$_state" = "FAILED" ] || [ "$_state" = "CANCELLED" ] || [ "$_state" = "COMPLETED" ] || [ "$_state" = "TIMEOUT" ]; then',  # noqa: E501
+                    "        echo \"Pre-hook job $PRE_HOOK_JOB_ID ended in state '${_state:-gone}' before reaching RUNNING.\" >&2",  # noqa: E501
+                    "        exit 1",
                     "    fi",
                     "    sleep 10",
                     "done",
@@ -342,7 +348,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "",
                 *nodelist_lines,
             ]
-            launch_line = f'{launcher_cmd} --additional_slurm_params "$ADDITIONAL_SLURM_PARAMS" >>"$LOG" 2>&1 || LAUNCH_RC=$?'  # noqa: E501
+            launch_line = (
+                f'{launcher_cmd} --additional_slurm_params "$ADDITIONAL_SLURM_PARAMS" >>"$LOG" 2>&1 || LAUNCH_RC=$?'
+            )
         else:
             launch_line = f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?'
 

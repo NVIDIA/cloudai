@@ -373,7 +373,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return f"sbatch {batch_script_path}"
 
     def _append_resource_directives(self, content: List[str], time_limit: Optional[str] = None) -> Optional[Path]:
-        """Append resource-related SBATCH directives shared between main and pre-hook scripts.
+        """
+        Append resource-related SBATCH directives shared between main and pre-hook scripts.
 
         Covers: reservation, distribution, nodelist/exclude, gpus-per-node/gres,
         ntasks-per-node, time limit, and extra_sbatch_args.  Does NOT write
@@ -387,7 +388,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             Path to the generated hostfile, or None if node-list mode was not used.
         """
-        content = self._add_reservation(content)
+        self._add_reservation(content)
         hostfile = self._append_nodes_related_directives(content)
 
         if self.system.gpus_per_node and self.system.supports_gpu_directives:
