@@ -139,6 +139,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 sbatch_lines.append(f"#SBATCH --{key}={val}" if val else f"#SBATCH --{key}")
         sbatch_lines.append("")
 
+        assert self.test_run.pre_test is not None
         success_vars = []
         for idx, tr in enumerate(self.test_run.pre_test.test_runs):
             tr.num_nodes = 1

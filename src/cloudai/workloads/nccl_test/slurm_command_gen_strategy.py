@@ -152,7 +152,10 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def _is_single_process(self) -> bool:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
-        return not tdef.cmd_args.subtest_name.endswith("_mpi")
+        name = tdef.cmd_args.subtest_name
+        if isinstance(name, list):
+            name = name[0]
+        return not name.endswith("_mpi")
 
     def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
         parts = super().gen_srun_prefix(use_pretest_extras=use_pretest_extras, with_num_nodes=with_num_nodes)
