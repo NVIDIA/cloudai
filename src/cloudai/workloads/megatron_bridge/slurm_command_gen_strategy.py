@@ -319,8 +319,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             nodelist_lines: list[str] = []
             if capture_nodelist:
                 nodelist_lines = [
-                    "# Wait for pre-hook to reach RUNNING; capture its nodelist or exit on terminal state",
+                    "# Wait for pre-hook to reach RUNNING; exit on terminal state or timeout (1 h)",
                     "PRE_HOOK_NODES=''",
+                    "_NODELIST_WAIT=0",
+                    "_NODELIST_TIMEOUT=3600",
                     "while true; do",
                     '    _state=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%T" 2>/dev/null || true)',
                     '    if [ "$_state" = "RUNNING" ]; then',
@@ -329,8 +331,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     '    elif [ -z "$_state" ] || [ "$_state" = "FAILED" ] || [ "$_state" = "CANCELLED" ] || [ "$_state" = "COMPLETED" ] || [ "$_state" = "TIMEOUT" ]; then',  # noqa: E501
                     "        echo \"Pre-hook job $PRE_HOOK_JOB_ID ended in state '${_state:-gone}' before reaching RUNNING.\" >&2",  # noqa: E501
                     "        exit 1",
+                    '    elif [ "$_NODELIST_WAIT" -ge "$_NODELIST_TIMEOUT" ]; then',
+                    '        echo "Timed out after ${_NODELIST_TIMEOUT}s waiting for pre-hook job $PRE_HOOK_JOB_ID to reach RUNNING (last state: ${_state})." >&2',  # noqa: E501
+                    "        exit 1",
                     "    fi",
                     "    sleep 10",
+                    "    _NODELIST_WAIT=$((_NODELIST_WAIT + 10))",
                     "done",
                     'ADDITIONAL_SLURM_PARAMS="${ADDITIONAL_SLURM_PARAMS};nodelist=${PRE_HOOK_NODES}"',
                     "",
