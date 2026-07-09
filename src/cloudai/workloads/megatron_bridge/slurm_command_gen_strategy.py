@@ -73,12 +73,134 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
-        parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
+        pre_hook_sbatch_path: Optional[Path] = None
+        base_slurm_params: str = ""
+        capture_nodelist: bool = False
+        if self.test_run.pre_test:
+            pre_hook_sbatch_path = self._gen_pre_hook_sbatch()
+            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py, include_slurm_params=False)
+            base_slurm_params = ";".join(self._collect_additional_slurm_params())
+            _, node_list = self.get_cached_nodes_spec()
+            capture_nodelist = not node_list
+        else:
+            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
+
         launcher_python = str((venv_path / "bin" / "python").absolute())
-        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(" ".join(parts), launcher_python)
+        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
+            " ".join(parts),
+            launcher_python,
+            pre_hook_sbatch_path=pre_hook_sbatch_path,
+            base_slurm_params=base_slurm_params,
+            capture_nodelist=capture_nodelist,
+        )
 
         self._write_command_to_file(full_cmd, self.test_run.output_path)
         return full_cmd
+
+    def _collect_additional_slurm_params(self) -> list[str]:
+        """Return the additional_slurm_params list (without dependency)."""
+        params: list[str] = []
+        if self.system.gpus_per_node and self.system.supports_gpu_directives:
+            params.append(f"gpus-per-node={self.system.gpus_per_node}")
+            params.append(f"gres=gpu:{self.system.gpus_per_node}")
+        _, node_list = self.get_cached_nodes_spec()
+        if node_list:
+            params.append(f"nodelist={','.join(node_list)}")
+        elif self.test_run.exclude_nodes:
+            params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
+        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
+            if source:
+                params.extend(self._parse_srun_args_as_slurm_params(source))
+        return params
+
+    def _gen_pre_hook_sbatch(self) -> Path:
+        """
+        Generate a standalone sbatch script running per-node independent pre-hook tests.
+
+        Each node runs its own alltoall among its local GPUs (1 srun per node in parallel),
+        so the tests are truly independent — no cross-node NCCL communicator is formed.
+        """
+        pre_hook_output = self.test_run.output_path / "pre_hook"
+        pre_hook_output.mkdir(parents=True, exist_ok=True)
+
+        sbatch_lines = [
+            "#!/bin/bash",
+            f"#SBATCH --job-name=pre_hook_{self.job_name()}",
+            f"#SBATCH --output={pre_hook_output.absolute() / 'stdout.txt'}",
+            f"#SBATCH --error={pre_hook_output.absolute() / 'stderr.txt'}",
+            f"#SBATCH --partition={self.system.default_partition}",
+        ]
+        if self.system.account:
+            sbatch_lines.append(f"#SBATCH --account={self.system.account}")
+        self._append_resource_directives(sbatch_lines, self.test_run.time_limit)
+        if self.test_run.extra_srun_args:
+            for param in self._parse_srun_args_as_slurm_params(self.test_run.extra_srun_args):
+                key, _, val = param.partition("=")
+                sbatch_lines.append(f"#SBATCH --{key}={val}" if val else f"#SBATCH --{key}")
+        sbatch_lines.append("")
+
+        assert self.test_run.pre_test is not None
+        success_vars = []
+        for idx, tr in enumerate(self.test_run.pre_test.test_runs):
+            tr.num_nodes = 1
+            strategy = self._get_cmd_gen_strategy(tr)
+            self._set_hook_output_path(tr, self.test_run.output_path / "pre_test")
+            tr.output_path.mkdir(parents=True, exist_ok=True)
+
+            node_out = tr.output_path.absolute()
+            srun_cmd = strategy.gen_srun_command()
+            # Inject per-node output paths and --nodelist so each node runs independently
+            node_srun = srun_cmd.replace(
+                "srun ",
+                f"srun --nodelist=$_node --output={node_out}/stdout_$_node.txt --error={node_out}/stderr_$_node.txt ",
+                1,
+            )
+
+            success_var = f"SUCCESS_{idx}"
+            success_vars.append(success_var)
+
+            min_busbw = getattr(tr.test.cmd_args, "min_busbw", None)
+            if min_busbw is not None:
+                check_cmd = (
+                    f"awk '/Avg bus bandwidth/ {{ if ($NF+0 >= {min_busbw}) found=1 }}"
+                    f" END {{ exit !found }}' {node_out}/stdout_$_node.txt 2>/dev/null"
+                )
+            else:
+                check_cmd = f'grep -q "Avg bus bandwidth" {node_out}/stdout_$_node.txt 2>/dev/null'
+
+            sbatch_lines.extend(
+                [
+                    f"# {tr.test.name}",
+                    f"mkdir -p {node_out}",
+                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
+                    f"    {node_srun} &",
+                    "done",
+                    "wait",
+                    f"{success_var}=1",
+                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
+                    f"    if ! {check_cmd}; then",
+                    f"        {success_var}=0",
+                    "    fi",
+                    "done",
+                    "",
+                ]
+            )
+
+        combined = " && ".join([f"[ ${v} -eq 1 ]" for v in success_vars])
+        sbatch_lines.extend(
+            [
+                f"PRE_TEST_SUCCESS=$( {combined} && echo 1 || echo 0 )",
+                'if [ "$PRE_TEST_SUCCESS" -ne 1 ]; then',
+                '  echo "Pre-hook tests failed. Blocking training job." >&2',
+                "  exit 1",
+                "fi",
+            ]
+        )
+
+        sbatch_path = self.test_run.output_path / "pre_hook_sbatch_script.sh"
+        sbatch_path.write_text("\n".join(sbatch_lines))
+        sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
+        return sbatch_path
 
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
@@ -166,12 +288,22 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
         return ",".join(parts)
 
-    def _wrap_launcher_for_job_id_and_quiet_output(self, launcher_cmd: str, launcher_python: str) -> str:
+    def _wrap_launcher_for_job_id_and_quiet_output(
+        self,
+        launcher_cmd: str,
+        launcher_python: str,
+        pre_hook_sbatch_path: Optional[Path] = None,
+        base_slurm_params: str = "",
+        capture_nodelist: bool = False,
+    ) -> str:
         """
         Run the Megatron-Bridge launcher quietly and ensure CloudAI can parse a job ID.
 
         CloudAI's SlurmRunner expects stdout to include "Submitted batch job <id>".
         This writes a readable wrapper script (with section breaks) into the test output directory, then runs it.
+
+        If pre_hook_sbatch_path is provided, the pre-hook sbatch is submitted first and its job ID is used as
+        a Slurm dependency (afterok) for the main training job, so training only starts if the pre-hook passed.
         """
         output_dir = self.test_run.output_path.absolute()
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -180,6 +312,54 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         log_path = output_dir / "cloudai_megatron_bridge_launcher.log"
 
         container_runtime_exports = self._container_runtime_env_exports()
+
+        pre_hook_lines: list[str] = []
+        launch_line: str
+        if pre_hook_sbatch_path is not None:
+            nodelist_lines: list[str] = []
+            if capture_nodelist:
+                nodelist_lines = [
+                    "# Wait for pre-hook to reach RUNNING; exit on terminal state or timeout (1 h)",
+                    "PRE_HOOK_NODES=''",
+                    "_NODELIST_WAIT=0",
+                    "_NODELIST_TIMEOUT=3600",
+                    "while true; do",
+                    '    _state=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%T" 2>/dev/null || true)',
+                    '    if [ "$_state" = "RUNNING" ]; then',
+                    '        PRE_HOOK_NODES=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%N" 2>/dev/null | head -1 || true)',
+                    "        break",
+                    '    elif [ -z "$_state" ] || [ "$_state" = "FAILED" ] || [ "$_state" = "CANCELLED" ] || [ "$_state" = "COMPLETED" ] || [ "$_state" = "TIMEOUT" ]; then',  # noqa: E501
+                    "        echo \"Pre-hook job $PRE_HOOK_JOB_ID ended in state '${_state:-gone}' before reaching RUNNING.\" >&2",  # noqa: E501
+                    "        exit 1",
+                    '    elif [ "$_NODELIST_WAIT" -ge "$_NODELIST_TIMEOUT" ]; then',
+                    '        echo "Timed out after ${_NODELIST_TIMEOUT}s waiting for pre-hook job $PRE_HOOK_JOB_ID to reach RUNNING (last state: ${_state})." >&2',  # noqa: E501
+                    "        exit 1",
+                    "    fi",
+                    "    sleep 10",
+                    "    _NODELIST_WAIT=$((_NODELIST_WAIT + 10))",
+                    "done",
+                    'ADDITIONAL_SLURM_PARAMS="${ADDITIONAL_SLURM_PARAMS};nodelist=${PRE_HOOK_NODES}"',
+                    "",
+                ]
+            pre_hook_lines = [
+                f'PRE_HOOK_SBATCH="{pre_hook_sbatch_path.absolute()}"',
+                'PRE_HOOK_OUTPUT=$(sbatch "$PRE_HOOK_SBATCH" 2>&1)',
+                'PRE_HOOK_JOB_ID=$(echo "$PRE_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
+                'if [ -z "$PRE_HOOK_JOB_ID" ]; then',
+                '  echo "Failed to submit pre-hook job: $PRE_HOOK_OUTPUT" >&2',
+                "  exit 1",
+                "fi",
+                'echo "Submitted pre-hook batch job $PRE_HOOK_JOB_ID"',
+                f'ADDITIONAL_SLURM_PARAMS="{base_slurm_params}"',
+                'ADDITIONAL_SLURM_PARAMS="${ADDITIONAL_SLURM_PARAMS};dependency=afterok:${PRE_HOOK_JOB_ID}"',
+                "",
+                *nodelist_lines,
+            ]
+            launch_line = (
+                f'{launcher_cmd} --additional_slurm_params "$ADDITIONAL_SLURM_PARAMS" >>"$LOG" 2>&1 || LAUNCH_RC=$?'
+            )
+        else:
+            launch_line = f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?'
 
         script_lines = [
             "#!/usr/bin/env bash",
@@ -195,6 +375,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             *container_runtime_exports,
             "",
+            *pre_hook_lines,
             ': >"$LOG"',
             "WANDB_INSTALL_RC=0",
             f'{shlex.quote(launcher_python)} -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
@@ -205,7 +386,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "fi",
             "",
             "LAUNCH_RC=0",
-            f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
+            launch_line,
             "",
             # Parse job id from Megatron-Bridge output (multiple possible formats)
             # Patterns: "Submitted batch job 694112", "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
@@ -257,7 +438,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
 
     def _build_launcher_parts(  # noqa: C901
-        self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
+        self,
+        args: MegatronBridgeCmdArgs,
+        tdef: MegatronBridgeTestDefinition,
+        repo_path: Path,
+        launcher_py: Path,
+        include_slurm_params: bool = True,
     ) -> list[str]:
         fields_set = args.model_fields_set
         force_fields = {
@@ -462,25 +648,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("nsys_trace", "--nsys_trace", self._list_or_comma_str(args.nsys_trace))
         add_field("nsys_extra_args", "--nsys_extra_args", self._list_or_comma_str(args.nsys_extra_args))
 
-        additional_slurm_params: list[str] = []
-
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            additional_slurm_params.append(f"gpus-per-node={self.system.gpus_per_node}")
-            additional_slurm_params.append(f"gres=gpu:{self.system.gpus_per_node}")
-
-        _, node_list = self.get_cached_nodes_spec()
-        if node_list:
-            nodelist_str = ",".join(node_list)
-            additional_slurm_params.append(f"nodelist={nodelist_str}")
-        elif self.test_run.exclude_nodes:
-            additional_slurm_params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
-
-        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
-            if source:
-                additional_slurm_params.extend(self._parse_srun_args_as_slurm_params(source))
-
-        if additional_slurm_params:
-            parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])
+        if include_slurm_params:
+            additional_slurm_params = self._collect_additional_slurm_params()
+            if additional_slurm_params:
+                parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])
 
         # Config variant
         add_field("config_variant", "-cv", args.config_variant)
