@@ -62,6 +62,42 @@ class TestRunDependencyModel(BaseModel):
     id: str
 
 
+_START_BLOCKING_DEPENDENCY_TYPES = {"start_post_comp", "start_post_init"}
+
+
+def _find_dependency_cycle(graph: dict[str, list[str]]) -> list[str]:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    path: list[str] = []
+
+    def visit(test_id: str) -> list[str]:
+        if test_id in visiting:
+            cycle_start = path.index(test_id)
+            return [*path[cycle_start:], test_id]
+        if test_id in visited:
+            return []
+
+        visiting.add(test_id)
+        path.append(test_id)
+
+        for dep_id in graph[test_id]:
+            cycle = visit(dep_id)
+            if cycle:
+                return cycle
+
+        path.pop()
+        visiting.remove(test_id)
+        visited.add(test_id)
+        return []
+
+    for test_id in graph:
+        cycle = visit(test_id)
+        if cycle:
+            return cycle
+
+    return []
+
+
 class TestRunModel(BaseModel):
     """Model for test run in test scenario."""
 
@@ -192,10 +228,10 @@ class TestScenarioModel(BaseModel):
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
-        """Check for circular dependencies in the test scenario."""
+        """Check for direct non-start-blocking self dependencies in the test scenario."""
         for test_run in self.tests:
             for dep in test_run.dependencies:
-                if dep.id == test_run.id:
+                if dep.id == test_run.id and dep.type not in _START_BLOCKING_DEPENDENCY_TYPES:
                     raise ValueError(f"Test '{test_run.id}' must not depend on itself.")
 
         return self
@@ -219,6 +255,33 @@ class TestScenarioModel(BaseModel):
             for dep in tr.dependencies:
                 if dep.id not in test_ids:
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
+
+        return self
+
+    @model_validator(mode="after")
+    def check_start_blocking_dependencies_are_schedulable(self):
+        """Check that start-blocking dependencies can be scheduled."""
+        graph = {
+            tr.id: [dep.id for dep in tr.dependencies if dep.type in _START_BLOCKING_DEPENDENCY_TYPES]
+            for tr in self.tests
+        }
+        runnable_roots = [test_id for test_id, dep_ids in graph.items() if not dep_ids]
+        cycle = _find_dependency_cycle(graph)
+
+        if cycle:
+            msg = f"Start-blocking dependency cycle detected: {' -> '.join(cycle)}."
+            if not runnable_roots:
+                msg += (
+                    " No runnable root tests found; at least one test must have no "
+                    "'start_post_init' or 'start_post_comp' dependencies."
+                )
+            raise ValueError(msg)
+
+        if not runnable_roots:
+            raise ValueError(
+                "No runnable root tests found; at least one test must have no "
+                "'start_post_init' or 'start_post_comp' dependencies."
+            )
 
         return self
 

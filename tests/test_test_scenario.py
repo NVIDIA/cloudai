@@ -225,6 +225,55 @@ def test_raises_on_unknown_dependency() -> None:
     assert exc_info.match("Dependency section 'dep-id' not found for test 'test-id'.")
 
 
+def test_raises_on_start_blocking_dependency_cycle() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        TestScenarioModel.model_validate(
+            {
+                "name": "test",
+                "Tests": [
+                    {"id": "root", "test_name": "nccl"},
+                    {
+                        "id": "A",
+                        "test_name": "nccl",
+                        "dependencies": [{"type": "start_post_comp", "id": "B"}],
+                    },
+                    {
+                        "id": "B",
+                        "test_name": "nccl",
+                        "dependencies": [{"type": "start_post_init", "id": "A"}],
+                    },
+                ],
+            }
+        )
+
+    assert "Start-blocking dependency cycle detected: A -> B -> A." in str(exc_info.value)
+
+
+def test_raises_if_start_blocking_cycle_has_no_runnable_roots() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        TestScenarioModel.model_validate(
+            {
+                "name": "test",
+                "Tests": [
+                    {
+                        "id": "A",
+                        "test_name": "nccl",
+                        "dependencies": [{"type": "start_post_comp", "id": "B"}],
+                    },
+                    {
+                        "id": "B",
+                        "test_name": "nccl",
+                        "dependencies": [{"type": "start_post_comp", "id": "A"}],
+                    },
+                ],
+            }
+        )
+
+    error = str(exc_info.value)
+    assert "Start-blocking dependency cycle detected: A -> B -> A." in error
+    assert "No runnable root tests found" in error
+
+
 def test_list_of_tests_must_not_be_empty() -> None:
     with pytest.raises(ValueError) as exc_info:
         TestScenarioModel.model_validate({"name": "name"})
