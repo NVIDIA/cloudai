@@ -81,8 +81,16 @@ class MegatronRunCmdArgs(CmdArgs):
     @property
     def cmd_args(self) -> dict[str, Union[str, list[str]]]:
         args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
-        args = {f"--{k.replace('_', '-')}": v for k, v in args.items()}
-        return args
+        result: dict[str, Union[str, list[str]]] = {}
+        for k, v in args.items():
+            flag = f"--{k.replace('_', '-')}"
+            if v == "false":
+                continue
+            elif v in ("true", ""):
+                result[flag] = ""
+            else:
+                result[flag] = v
+        return result
 
 
 class MegatronRunTestDefinition(TestDefinition):
