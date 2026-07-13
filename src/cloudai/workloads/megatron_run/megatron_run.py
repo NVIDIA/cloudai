@@ -80,14 +80,20 @@ class MegatronRunCmdArgs(CmdArgs):
 
     @property
     def cmd_args(self) -> dict[str, Union[str, list[str]]]:
+        # Fields with default="" are boolean flags; extra fields (model_extra) are also boolean by convention.
+        bool_flags = {k for k, f in MegatronRunCmdArgs.model_fields.items() if f.default == ""}
+        extra_keys = set(self.model_extra or {})
         args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
         result: dict[str, Union[str, list[str]]] = {}
         for k, v in args.items():
             flag = f"--{k.replace('_', '-')}"
-            if v == "false":
-                continue
-            elif v in ("true", ""):
-                result[flag] = ""
+            if k in bool_flags or k in extra_keys:
+                if v == "false":
+                    continue
+                elif v in ("true", ""):
+                    result[flag] = ""
+                else:
+                    result[flag] = v
             else:
                 result[flag] = v
         return result
