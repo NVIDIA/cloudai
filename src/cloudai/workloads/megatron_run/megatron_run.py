@@ -81,7 +81,10 @@ class MegatronRunCmdArgs(CmdArgs):
     @property
     def cmd_args(self) -> dict[str, Any]:
         # Fields with default="" are boolean flags; extra fields (model_extra) are also boolean by convention.
-        bool_flags = {k for k, f in MegatronRunCmdArgs.model_fields.items() if f.default == ""}
+        # recompute_activations is also a bare flag (default=None so it can be omitted entirely).
+        bool_flags = {k for k, f in MegatronRunCmdArgs.model_fields.items() if f.default == ""} | {
+            "recompute_activations"
+        }
         extra_keys = set(self.model_extra or {})
         args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
         result: dict[str, Any] = {}
