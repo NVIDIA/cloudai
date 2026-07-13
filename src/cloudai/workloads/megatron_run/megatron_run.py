@@ -93,9 +93,9 @@ class MegatronRunCmdArgs(CmdArgs):
                 elif v in ("true", ""):
                     result[flag] = ""
                 else:
-                    result[flag] = v
+                    result[flag] = str(v)
             else:
-                result[flag] = v
+                result[flag] = str(v)
         return result
 
 
