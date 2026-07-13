@@ -135,6 +135,9 @@ def _infer_encoding(candidates: List[Any]) -> AnyEncoding:
     if len(candidates) < 3:
         return CategoricalEncoding()
 
+    if any(isinstance(c, bool) for c in candidates):
+        return CategoricalEncoding()
+
     if not all(isinstance(c, (int, float)) and c > 0 for c in candidates):
         return CategoricalEncoding()
 
@@ -146,13 +149,13 @@ def _infer_encoding(candidates: List[Any]) -> AnyEncoding:
     # Check perfectly uniform diffs (arithmetic) -> not log
     diffs = [sorted_c[i] - sorted_c[i-1] for i in range(1, len(sorted_c))]
     avg_diff = sum(diffs) / len(diffs)
-    if avg_diff > 1e-9 and all(abs(d - avg_diff) < 1e-5 for d in diffs):
+    if avg_diff > 0 and all(math.isclose(d, avg_diff, rel_tol=1e-5) for d in diffs):
         return CategoricalEncoding()
 
     # Check constant ratio within tolerance (geometric series)
     ratios = [sorted_c[i] / sorted_c[i-1] for i in range(1, len(sorted_c))]
     avg_ratio = sum(ratios) / len(ratios)
-    if avg_ratio > 1.0 + 1e-9 and all(abs(r - avg_ratio) < 1e-5 for r in ratios):
+    if avg_ratio > 1.0 + 1e-9 and all(math.isclose(r, avg_ratio, rel_tol=1e-5) for r in ratios):
         return LogEncoding()
 
     return CategoricalEncoding()
@@ -166,7 +169,7 @@ class EnvParamSpec(BaseModel):
     ``cmd_args.<name>`` as a plain list. ``weights`` (optional) are positional,
     aligned 1:1 with that candidate list; omit for uniform sampling. ``encoding``
     (optional) selects how the drawn value is exposed to the policy as an
-    observation leaf, defaulting to a categorical index. The length match against
+    observation leaf, defaulting to None and is inferred from candidates. The length match against
     the candidate list is a cross-field check enforced by ``TestDefinition`` (which
     can see ``cmd_args``); here we validate only the weights' intrinsic shape.
     """
@@ -273,6 +276,12 @@ class EnvParams:
             encoding = spec.encoding
             if encoding is None:
                 encoding = _infer_encoding(value)
+            elif isinstance(encoding, LogEncoding):
+                for c in value:
+                    if not isinstance(c, (int, float)) or isinstance(c, bool):
+                        raise TypeError(f"LogEncoding for '{name}' requires numeric candidates, got {type(c).__name__}")
+                    if not math.isfinite(c) or c <= 0:
+                        raise ValueError(f"LogEncoding for '{name}' requires strictly positive, finite candidates, got {c}")
             params[name] = EnvParam(candidates=value, weights=spec.weights, encoding=encoding)
         if not params:
             return None

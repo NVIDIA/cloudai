@@ -412,9 +412,9 @@ def test_obs_leaf_descriptor_rejects_bad_dim_and_extra_fields() -> None:
 # --- Encoding: pluggable strategy mapping a drawn value to an observation leaf ---
 
 
-def test_env_param_spec_defaults_to_categorical_encoding() -> None:
-    """An unspecified encoding defaults to categorical (back-compat with bare ``EnvParamSpec()``)."""
-    assert EnvParamSpec().encoding == CategoricalEncoding()
+def test_env_param_spec_defaults_to_none_encoding() -> None:
+    """An unspecified encoding defaults to None so that it can be inferred later."""
+    assert EnvParamSpec().encoding is None
 
 
 def test_env_param_spec_parses_encoding_from_config() -> None:
@@ -488,6 +488,11 @@ def test_infer_encoding_zero_or_negative_categorical() -> None:
     assert isinstance(_infer_encoding([-1, 1, 10]), CategoricalEncoding)
 
 
+def test_infer_encoding_boolean_containing_list_categorical() -> None:
+    """A candidate list containing booleans should fallback to categorical encoding."""
+    assert isinstance(_infer_encoding([True, 2, 4]), CategoricalEncoding)
+
+
 def test_infer_encoding_unordered_candidates() -> None:
     """The heuristic should work even if the candidates are not pre-sorted."""
     assert isinstance(_infer_encoding([100, 1, 10]), LogEncoding)
@@ -508,4 +513,24 @@ def test_env_params_from_test_explicit_override_wins() -> None:
     env_params = EnvParams.from_test(tdef)
     assert env_params is not None
     assert isinstance(env_params.params["ball_speed"].encoding, LogEncoding)
+
+
+def test_env_params_from_test_explicit_log_override_validation() -> None:
+    """An explicit log encoding rejects zero, negative, non-numeric, or non-finite candidates."""
+    spec = EnvParamSpec.model_validate({"encoding": {"type": "log"}})
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        EnvParams.from_test(_tdef({"ball_speed": spec}, ball_speed=[0, 1]))
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        EnvParams.from_test(_tdef({"ball_speed": spec}, ball_speed=[-1, 1]))
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        EnvParams.from_test(_tdef({"ball_speed": spec}, ball_speed=[1.0, float("inf")]))
+
+    with pytest.raises(TypeError, match="numeric"):
+        EnvParams.from_test(_tdef({"ball_speed": spec}, ball_speed=["a", "b"]))
+
+    with pytest.raises(TypeError, match="numeric"):
+        EnvParams.from_test(_tdef({"ball_speed": spec}, ball_speed=[True, False]))
 
