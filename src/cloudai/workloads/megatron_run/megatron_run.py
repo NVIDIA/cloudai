@@ -17,7 +17,7 @@
 import re
 from os.path import expandvars
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import toml
 from pydantic import Field, field_validator, model_validator
