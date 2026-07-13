@@ -44,7 +44,9 @@ from cloudai.configurator.env_params import (
     EnvParam,
     EnvParams,
     EnvParamSpec,
+    LogEncoding,
     ObsLeafDescriptor,
+    _infer_encoding,
     write_env_params,
 )
 from cloudai.core import TestRun
@@ -454,3 +456,56 @@ def test_custom_encoding_plugs_into_env_param() -> None:
 
     assert knob.observation_descriptor() == ObsLeafDescriptor(kind="box", dim=1)
     assert knob.encode(20) == [20.0]
+
+
+# --- Encoding Inference: _infer_encoding ---
+
+
+def test_infer_encoding_strings_categorical() -> None:
+    assert isinstance(_infer_encoding(["a", "b", "c"]), CategoricalEncoding)
+
+
+def test_infer_encoding_geometric_series_log() -> None:
+    assert isinstance(_infer_encoding([1, 10, 100]), LogEncoding)
+    assert isinstance(_infer_encoding([0.01, 0.1, 1.0]), LogEncoding)
+    assert isinstance(_infer_encoding([2, 4, 8, 16]), LogEncoding)
+
+
+def test_infer_encoding_arithmetic_series_categorical() -> None:
+    assert isinstance(_infer_encoding([1, 2, 3]), CategoricalEncoding)
+    assert isinstance(_infer_encoding([10, 20, 30, 40]), CategoricalEncoding)
+
+
+def test_infer_encoding_ambiguous_two_point_categorical() -> None:
+    """Length < 3 cannot confidently be inferred as log."""
+    assert isinstance(_infer_encoding([0.0, 0.001]), CategoricalEncoding)
+    assert isinstance(_infer_encoding([1, 10]), CategoricalEncoding)
+
+
+def test_infer_encoding_zero_or_negative_categorical() -> None:
+    """Log scale requires strictly positive candidate values."""
+    assert isinstance(_infer_encoding([0, 1, 10]), CategoricalEncoding)
+    assert isinstance(_infer_encoding([-1, 1, 10]), CategoricalEncoding)
+
+
+def test_infer_encoding_unordered_candidates() -> None:
+    """The heuristic should work even if the candidates are not pre-sorted."""
+    assert isinstance(_infer_encoding([100, 1, 10]), LogEncoding)
+
+
+def test_env_params_from_test_uses_inferred_encoding() -> None:
+    """If encoding is not explicitly provided, it infers from candidates."""
+    tdef = _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1, 10, 100])
+    env_params = EnvParams.from_test(tdef)
+    assert env_params is not None
+    assert isinstance(env_params.params["ball_speed"].encoding, LogEncoding)
+
+
+def test_env_params_from_test_explicit_override_wins() -> None:
+    """An explicit encoding in TOML overrides inference (even for 2-point lists or strings)."""
+    spec = EnvParamSpec.model_validate({"encoding": {"type": "log"}})
+    tdef = _tdef({"ball_speed": spec}, ball_speed=[0.1, 0.5])
+    env_params = EnvParams.from_test(tdef)
+    assert env_params is not None
+    assert isinstance(env_params.params["ball_speed"].encoding, LogEncoding)
+

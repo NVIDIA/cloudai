@@ -32,7 +32,7 @@ import dataclasses
 import math
 import random
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Annotated, Any, Dict, List, Literal, Optional, Protocol, Union, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
@@ -102,6 +102,62 @@ class CategoricalEncoding(BaseModel):
         return candidates.index(value)
 
 
+class LogEncoding(BaseModel):
+    """
+    Log-scale encoding: observe the drawn value as its log-scaled float.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["log"] = "log"
+
+    def observation_descriptor(self, candidates: List[Any]) -> ObsLeafDescriptor:
+        return ObsLeafDescriptor(kind="box", dim=1)
+
+    def encode(self, value: Any, candidates: List[Any]) -> float:
+        return float(math.log(float(value)))
+
+
+AnyEncoding = Annotated[
+    Union[CategoricalEncoding, LogEncoding],
+    Field(discriminator="type")
+]
+
+
+def _infer_encoding(candidates: List[Any]) -> AnyEncoding:
+    """Infer the appropriate encoding strategy for a list of candidate values."""
+    if not candidates:
+        return CategoricalEncoding()
+
+    if all(isinstance(c, str) for c in candidates):
+        return CategoricalEncoding()
+
+    if len(candidates) < 3:
+        return CategoricalEncoding()
+
+    if not all(isinstance(c, (int, float)) and c > 0 for c in candidates):
+        return CategoricalEncoding()
+
+    try:
+        sorted_c = sorted(float(c) for c in candidates)
+    except (ValueError, TypeError):
+        return CategoricalEncoding()
+
+    # Check perfectly uniform diffs (arithmetic) -> not log
+    diffs = [sorted_c[i] - sorted_c[i-1] for i in range(1, len(sorted_c))]
+    avg_diff = sum(diffs) / len(diffs)
+    if avg_diff > 1e-9 and all(abs(d - avg_diff) < 1e-5 for d in diffs):
+        return CategoricalEncoding()
+
+    # Check constant ratio within tolerance (geometric series)
+    ratios = [sorted_c[i] / sorted_c[i-1] for i in range(1, len(sorted_c))]
+    avg_ratio = sum(ratios) / len(ratios)
+    if avg_ratio > 1.0 + 1e-9 and all(abs(r - avg_ratio) < 1e-5 for r in ratios):
+        return LogEncoding()
+
+    return CategoricalEncoding()
+
+
 class EnvParamSpec(BaseModel):
     """
     Annotation marking one cmd_args field as env-sampled.
@@ -121,9 +177,9 @@ class EnvParamSpec(BaseModel):
         default=None,
         description="Optional probability weights aligned with the cmd_args candidate list; uniform if omitted.",
     )
-    encoding: CategoricalEncoding = Field(
-        default_factory=CategoricalEncoding,
-        description="How the drawn value is encoded as an observation leaf (categorical index into the candidates).",
+    encoding: Optional[AnyEncoding] = Field(
+        default=None,
+        description="How the drawn value is encoded as an observation leaf. If omitted, inferred from candidates.",
     )
 
     @model_validator(mode="after")
@@ -214,7 +270,10 @@ class EnvParams:
             value = getattr(test.cmd_args, name, None)
             if not isinstance(value, list):
                 continue
-            params[name] = EnvParam(candidates=value, weights=spec.weights, encoding=spec.encoding)
+            encoding = spec.encoding
+            if encoding is None:
+                encoding = _infer_encoding(value)
+            params[name] = EnvParam(candidates=value, weights=spec.weights, encoding=encoding)
         if not params:
             return None
         seed = int((test.agent_config or {}).get("random_seed", 0))
