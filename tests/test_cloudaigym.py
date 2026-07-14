@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -456,10 +455,10 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
 
     trajectory_path = env.trajectory_file_path
     assert trajectory_path.exists()
-    assert trajectory_path.name == "trajectory.jsonl"
-    records = [json.loads(line) for line in trajectory_path.read_text().splitlines()]
-    assert records[-1]["step"] == 5
-    assert records[-1]["action"] == cached_action
+    assert trajectory_path.name == "trajectory.csv"
+    contents = trajectory_path.read_text().strip().splitlines()
+    assert contents[0] == "step,action,reward,observation"
+    assert contents[-1].startswith("5,")
 
 
 def _seed_cached_entry_with_env_params(
@@ -624,9 +623,10 @@ def test_env_params_are_recorded_in_trajectory_output(tmp_path: Path) -> None:
         for action in (action_a, action_b, action_a):
             env.step(action)
 
-    records = [json.loads(line) for line in env.trajectory_file_path.read_text().splitlines()]
-    assert [record["step"] for record in records] == [1, 2, 3]
-    assert all("ball_speed" in record["env_params"] for record in records)
+    rows = env.trajectory_file_path.read_text().strip().splitlines()
+    assert rows[0] == "step,action,reward,observation,env_params"
+    assert [int(row.split(",", 1)[0]) for row in rows[1:]] == [1, 2, 3]
+    assert all("ball_speed" in row for row in rows[1:])
 
 
 def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) -> None:
@@ -672,7 +672,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
 
     trajectory_path = env.trajectory_file_path
     traj_steps = (
-        [json.loads(line)["step"] for line in trajectory_path.read_text().splitlines()]
+        [int(line.split(",", 1)[0]) for line in trajectory_path.read_text().strip().splitlines()[1:]]
         if trajectory_path.exists()
         else []
     )
@@ -736,9 +736,10 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         "the per-trial regime behind this observation is reported on info['env_params']"
     )
 
-    trajectory_records = [json.loads(line) for line in env.trajectory_file_path.read_text().splitlines()]
-    assert trajectory_records[-1]["step"] == 2
-    assert "ball_speed" in trajectory_records[-1]["env_params"]
+    trajectory_rows = env.trajectory_file_path.read_text().strip().splitlines()
+    assert trajectory_rows[0] == "step,action,reward,observation,env_params"
+    assert trajectory_rows[-1].startswith("2,")
+    assert "ball_speed" in trajectory_rows[-1]
 
     traj_rows = env.trajectory
     recorded_sample = traj_rows[-1].get(EnvParamsSample)

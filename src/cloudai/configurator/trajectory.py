@@ -151,7 +151,7 @@ class Trajectory(Sequence[TrajectoryEntry]):
         entries: Sequence[TrajectoryEntry] = (),
         *,
         iteration_dir: Path | Callable[[], Path] | None = None,
-        file_type: Literal["csv", "jsonl"] = "jsonl",
+        file_type: Literal["csv", "jsonl"] = "csv",
         components: Sequence[type[object]] = (),
     ) -> None:
         self._component_types = (TrialResult, *components)

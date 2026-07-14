@@ -561,11 +561,11 @@ def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     dse_tr.output_path = slurm_system.output_path / dse_tr.name
     dse_tr.output_path.mkdir(parents=True, exist_ok=True)
 
-    trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.jsonl"
+    trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
     trajectory_path.unlink(missing_ok=True)
     runner.handle_dse()
 
     assert trajectory_path.exists()
-    df = pd.read_json(trajectory_path, lines=True)
+    df = pd.read_csv(trajectory_path)
     assert df.shape[0] == len(dse_tr.all_combinations)
     assert df["step"].tolist() == list(range(1, len(dse_tr.all_combinations) + 1))

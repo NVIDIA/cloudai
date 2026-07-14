@@ -209,16 +209,16 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     assert (trajectory_dir / "3").exists()
     assert caplog.text.count("Retrieved cached result from") == 1
 
-    actual_trajectory = pd.read_json(trajectory_dir / "trajectory.jsonl", lines=True)
+    actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
     expected_trajectory = pd.DataFrame(
         data=[
-            [1, {"candidate": 1}, -1.0, [-1.0]],
-            [2, {"candidate": 1}, -1.0, [-1.0]],
-            [3, {"candidate": 2}, -1.0, [-1.0]],
+            [1, "{'candidate': 1}", -1.0, "[-1.0]"],
+            [2, "{'candidate': 1}", -1.0, "[-1.0]"],
+            [3, "{'candidate': 2}", -1.0, "[-1.0]"],
         ],
         columns=["step", "action", "reward", "observation"],
     )
-    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory, check_dtype=False)
+    pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
 
     assert [tr.step for tr in reporter.trs] == [1, 3]
 

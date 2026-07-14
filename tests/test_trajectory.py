@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 
 from cloudai.configurator.trajectory import (
+    CsvTrajectoryWriter,
     EnvParamsSample,
-    JsonLinesTrajectoryWriter,
     Trajectory,
     TrajectoryEntry,
     TrialResult,
@@ -59,10 +59,10 @@ def test_trajectory_rejects_non_increasing_steps() -> None:
 
 
 def test_writer_failure_does_not_append_entry_to_memory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fail_write(_writer: JsonLinesTrajectoryWriter, _record: Mapping[str, object]) -> None:
+    def fail_write(_writer: CsvTrajectoryWriter, _record: Mapping[str, object]) -> None:
         raise OSError("write failed")
 
-    monkeypatch.setattr(JsonLinesTrajectoryWriter, "append", fail_write)
+    monkeypatch.setattr(CsvTrajectoryWriter, "append", fail_write)
     trajectory = Trajectory(iteration_dir=tmp_path)
 
     with pytest.raises(OSError, match="write failed"):
@@ -75,7 +75,7 @@ def test_initial_entries_are_not_replayed_to_writer(tmp_path: Path) -> None:
     trajectory = Trajectory([_entry(1)], iteration_dir=tmp_path)
 
     assert len(trajectory) == 1
-    assert not (tmp_path / "trajectory.jsonl").exists()
+    assert not (tmp_path / "trajectory.csv").exists()
 
 
 def test_append_writes_component_values_to_csv(tmp_path: Path) -> None:
