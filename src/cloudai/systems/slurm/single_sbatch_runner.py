@@ -21,7 +21,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
 
-from cloudai.configurator import CloudAIGymEnv, TrajectoryEntry
+from cloudai.configurator import CloudAIGymEnv
 from cloudai.core import BaseJob, JobIdRetrievalError, Registry, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
@@ -205,27 +205,24 @@ class SingleSbatchRunner(SlurmRunner):
             if not tr.is_dse_job:
                 continue
 
+            agent_class = registry.get_agent(tr.test.agent)
+            agent_config_data = tr.test.agent_config or {}
+            agent_config = agent_class.get_config_class()(**agent_config_data)
+            gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
+
             for idx, combination in enumerate(tr.all_combinations, start=1):
                 next_tr = tr.apply_params_set(combination)
                 next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
-                rewards = None
-                agent_class = registry.get_agent(next_tr.test.agent)
-                agent_config_data = next_tr.test.agent_config or {}
-                agent_config = agent_class.get_config_class()(**agent_config_data)
-                rewards = agent_config.rewards
-
-                gym = CloudAIGymEnv(next_tr, self, rewards=rewards)
+                gym.test_run = next_tr
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)
-                gym.write_trajectory(
-                    TrajectoryEntry(
-                        step=idx,
-                        action=combination,
-                        reward=reward,
-                        observation=observation,
-                    )
+                gym.trajectory.append(
+                    step=idx,
+                    action=combination,
+                    reward=reward,
+                    observation=observation,
                 )
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:

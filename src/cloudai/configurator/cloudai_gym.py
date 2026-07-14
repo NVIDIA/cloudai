@@ -15,29 +15,25 @@
 # limitations under the License.
 
 import copy
-import csv
-import dataclasses
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
-from .env_params import EnvParams, ObsLeafDescriptor, write_env_params
-
-
-@dataclasses.dataclass(frozen=True)
-class TrajectoryEntry:
-    """Represents a trajectory entry."""
-
-    step: int
-    action: dict[str, Any]
-    reward: float
-    observation: list
-    env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
+from .env_params import EnvParams, ObsLeafDescriptor
+from .trajectory import (
+    CsvTrajectoryWriter,
+    EnvParamsSample,
+    JsonLinesTrajectoryWriter,
+    Trajectory,
+    TrajectoryEntry,
+    TrajectoryWriter,
+    TrialResult,
+)
 
 
 class CloudAIGymEnv(BaseGym):
@@ -47,7 +43,14 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: BaseRunner, rewards: RewardOverrides):
+    def __init__(
+        self,
+        test_run: TestRun,
+        runner: BaseRunner,
+        rewards: RewardOverrides,
+        *,
+        trajectory_file_type: Literal["csv", "jsonl"] = "jsonl",
+    ):
         """
         Initialize the Gym environment using the TestRun object.
 
@@ -55,6 +58,7 @@ class CloudAIGymEnv(BaseGym):
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
+            trajectory_file_type: Format used to persist trajectory records.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -62,14 +66,9 @@ class CloudAIGymEnv(BaseGym):
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
-        self.trajectory: dict[int, list[TrajectoryEntry]] = {}
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
+        self.trajectory = self._new_trajectory(trajectory_file_type)
         super().__init__()
-
-    @property
-    def env_params_record_path(self) -> Path:
-        """``env.csv`` lives alongside ``trajectory.csv`` so a plain ``merge`` joins them."""
-        return self.iteration_dir / "env.csv"
 
     @property
     def upcoming_trial(self) -> int:
@@ -104,7 +103,7 @@ class CloudAIGymEnv(BaseGym):
     def reset(
         self,
         seed: Optional[int] = None,
-        options: Optional[dict[str, Any]] = None,  # noqa: Vulture
+        options: Optional[dict[str, Any]] = None,
     ) -> Tuple[list, dict[str, Any]]:
         """
         Reset the environment and reinitialize the TestRun.
@@ -118,6 +117,7 @@ class CloudAIGymEnv(BaseGym):
                 - observation (list): Initial observation.
                 - info (dict): Additional info for debugging.
         """
+        del options
         if seed is not None:
             lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
@@ -150,61 +150,56 @@ class CloudAIGymEnv(BaseGym):
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
 
         if cached_result is not None:
+            cached_trial_result = cached_result.get(TrialResult)
+            if cached_trial_result is None:
+                raise ValueError(f"cached trajectory entry at step {cached_result.step} is missing TrialResult")
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
-                cached_result.reward,
+                cached_trial_result.reward,
                 cached_result.step,
             )
-            self.write_trajectory(
-                TrajectoryEntry(
-                    step=self.test_run.step,
-                    action=action,
-                    reward=cached_result.reward,
-                    observation=cached_result.observation,
-                    env_params=sampled_env_params,
-                )
-            )
-
-            return cached_result.observation, cached_result.reward, False, info
-
-        if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
-            logging.info("Constraint check failed. Skipping step.")
-            return [-1.0], self.rewards.constraint_failure, True, info
-
-        new_tr = copy.deepcopy(self.test_run)
-        new_tr.output_path = self.runner.get_job_output_path(new_tr)
-        self.runner.test_scenario.test_runs = [new_tr]
-
-        self.runner.shutting_down = False
-        self.runner.jobs.clear()
-        self.runner.testrun_to_job_map.clear()
-
-        try:
-            self.runner.run()
-        except Exception as e:
-            logging.error(f"Error running step {self.test_run.step}: {e}")
-
-        if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
-            self.test_run = self.runner.test_scenario.test_runs[0]
+            observation = list(cached_trial_result.observation)
+            reward = cached_trial_result.reward
         else:
-            self.test_run = copy.deepcopy(self.original_test_run)
-            self.test_run.step = new_tr.step
-            self.test_run.output_path = new_tr.output_path
+            if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
+                logging.info("Constraint check failed. Skipping step.")
+                return [-1.0], self.rewards.constraint_failure, True, info
 
-        metrics = self.get_observation(action)
-        reward = self.compute_reward(metrics)
+            new_tr = copy.deepcopy(self.test_run)
+            new_tr.output_path = self.runner.get_job_output_path(new_tr)
+            self.runner.test_scenario.test_runs = [new_tr]
 
-        self.write_trajectory(
-            TrajectoryEntry(
-                step=self.test_run.step,
-                action=action,
-                reward=reward,
-                observation=metrics,
-                env_params=sampled_env_params,
-            )
+            self.runner.shutting_down = False
+            self.runner.jobs.clear()
+            self.runner.testrun_to_job_map.clear()
+
+            try:
+                self.runner.run()
+            except Exception as e:
+                logging.error(f"Error running step {self.test_run.step}: {e}")
+
+            if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
+                self.test_run = self.runner.test_scenario.test_runs[0]
+            else:
+                self.test_run = copy.deepcopy(self.original_test_run)
+                self.test_run.step = new_tr.step
+                self.test_run.output_path = new_tr.output_path
+
+            observation = self.get_observation(action)
+            reward = self.compute_reward(observation)
+
+        optional_values: dict[str, object] = {}
+        if self.params is not None:
+            optional_values["env_params"] = dict(sampled_env_params)
+        self.trajectory.append(
+            step=self.test_run.step,
+            action=dict(action),
+            reward=reward,
+            observation=observation,
+            **optional_values,
         )
 
-        return metrics, reward, False, info
+        return observation, reward, False, info
 
     def render(self, mode: str = "human"):
         """
@@ -277,41 +272,35 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.params.encode(env_params) if self.params is not None else {}
 
-    def write_trajectory(self, entry: TrajectoryEntry):
-        """
-        Append the entry to the in-memory cache and trajectory.csv (plus env.csv when declared).
+    def _new_trajectory(self, file_type: Literal["csv", "jsonl"]) -> Trajectory:
+        writer: TrajectoryWriter
+        if file_type == "csv":
+            writer = CsvTrajectoryWriter(lambda: self.iteration_dir)
+        elif file_type == "jsonl":
+            writer = JsonLinesTrajectoryWriter(lambda: self.iteration_dir)
+        else:
+            raise ValueError(f"Invalid file type: {file_type}")
 
-        ``trajectory.csv`` and the ``env.csv`` projection are sunk from the same
-        ``TrajectoryEntry`` here, so a trial that never produces an entry (e.g. a
-        constraint failure returns before this call) lands in neither file and the
-        two stay 1:1 step-aligned.
-        """
-        self.current_trajectory.append(entry)
+        if self.params is None:
+            return Trajectory(writer=writer)
 
-        file_exists = self.trajectory_file_path.exists()
-        logging.debug(f"Writing trajectory into {self.trajectory_file_path} (exists: {file_exists})")
-        self.trajectory_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(self.trajectory_file_path, mode="a", newline="") as file:
-            writer = csv.writer(file)
-            if not file_exists:
-                writer.writerow(["step", "action", "reward", "observation"])
-            writer.writerow([entry.step, entry.action, entry.reward, entry.observation])
-
-        write_env_params(self.env_params_record_path, entry.step, entry.env_params)
+        return Trajectory(
+            writer=writer,
+            components=(EnvParamsSample,),
+            identity=(EnvParamsSample,),
+        )
 
     @property
     def iteration_dir(self) -> Path:
-        """Per-iteration output dir; trajectory.csv and env.csv both live here, step-aligned."""
+        """Per-iteration output directory containing the trajectory output."""
         return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}"
 
     @property
     def trajectory_file_path(self) -> Path:
-        return self.iteration_dir / "trajectory.csv"
-
-    @property
-    def current_trajectory(self) -> list[TrajectoryEntry]:
-        return self.trajectory.setdefault(self.test_run.current_iteration, [])
+        path = self.trajectory.output_path
+        if path is None:
+            raise RuntimeError("trajectory persistence is not configured")
+        return path
 
     def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> TrajectoryEntry | None:
         """
@@ -324,36 +313,6 @@ class CloudAIGymEnv(BaseGym):
         do not declare any ``[env_params.*]`` block. The sample is passed in (a
         per-trial local owned by ``step``), exactly like ``action``.
         """
-        for entry in self.current_trajectory:
-            action_match = self._values_match_exact(entry.action, action)
-            env_params_match = self._values_match_exact(entry.env_params, env_params)
-            if action_match and env_params_match:
-                return entry
-
-        return None
-
-    @classmethod
-    def _values_match_exact(cls, left: Any, right: Any) -> bool:
-        if type(left) is not type(right):
-            return False
-
-        elif isinstance(left, dict):
-            left_keys = set(left.keys())
-            right_keys = set(right.keys())
-            if left_keys != right_keys:
-                return False
-
-            return all(cls._values_match_exact(left[key], right[key]) for key in left_keys)
-
-        elif isinstance(left, (list, tuple)):
-            if len(left) != len(right):
-                return False
-
-            for left_item, right_item in zip(left, right, strict=True):
-                if not cls._values_match_exact(left_item, right_item):
-                    return False
-
-            return True
-
-        else:
-            return left == right
+        if not env_params:
+            return self.trajectory.find(action)
+        return self.trajectory.find(action, env_params=dict(env_params))

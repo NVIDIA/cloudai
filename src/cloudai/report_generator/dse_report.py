@@ -122,10 +122,25 @@ def format_money(value: float | None) -> str:
 
 
 def _safe_literal_eval(raw: Any, default: Any) -> Any:
+    if isinstance(raw, type(default)):
+        return raw
     if isinstance(raw, str):
         with contextlib.suppress(SyntaxError, ValueError):
             return ast.literal_eval(raw)
     return default
+
+
+def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
+    """Load trajectory output."""
+    jsonl_path = iteration_dir / "trajectory.jsonl"
+    if jsonl_path.is_file():
+        return jsonl_path, lazy.pd.read_json(jsonl_path, lines=True)
+
+    csv_path = iteration_dir / "trajectory.csv"
+    if csv_path.is_file():
+        return csv_path, lazy.pd.read_csv(csv_path)
+
+    return None
 
 
 def _format_scalar(value: Any) -> str:
@@ -239,12 +254,12 @@ def _build_trajectory_steps(
     test_case: TestRun,
     test_runs: list[TestRun],
 ) -> list[TrajectoryStep] | None:
-    trajectory_file = iteration_dir / "trajectory.csv"
-    if not trajectory_file.is_file():
-        logging.warning(f"No trajectory file found for {test_case.name} at {trajectory_file}")
+    loaded_trajectory = load_trajectory_dataframe(iteration_dir)
+    if loaded_trajectory is None:
+        logging.warning(f"No trajectory file found for {test_case.name} in {iteration_dir}")
         return None
 
-    df = lazy.pd.read_csv(trajectory_file)
+    trajectory_file, df = loaded_trajectory
     if df.empty:
         logging.warning(f"No trajectory data found for {test_case.name} at {trajectory_file}")
         return None
