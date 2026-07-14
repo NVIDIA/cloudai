@@ -26,12 +26,9 @@ from .base_agent import RewardOverrides
 from .base_gym import BaseGym
 from .env_params import EnvParams, ObsLeafDescriptor
 from .trajectory import (
-    CsvTrajectoryWriter,
     EnvParamsSample,
-    JsonLinesTrajectoryWriter,
     Trajectory,
     TrajectoryEntry,
-    TrajectoryWriter,
     TrialResult,
 )
 
@@ -273,21 +270,10 @@ class CloudAIGymEnv(BaseGym):
         return self.params.encode(env_params) if self.params is not None else {}
 
     def _new_trajectory(self, file_type: Literal["csv", "jsonl"]) -> Trajectory:
-        writer: TrajectoryWriter
-        if file_type == "csv":
-            writer = CsvTrajectoryWriter(lambda: self.iteration_dir)
-        elif file_type == "jsonl":
-            writer = JsonLinesTrajectoryWriter(lambda: self.iteration_dir)
-        else:
-            raise ValueError(f"Invalid file type: {file_type}")
-
-        if self.params is None:
-            return Trajectory(writer=writer)
-
         return Trajectory(
-            writer=writer,
-            components=(EnvParamsSample,),
-            identity=(EnvParamsSample,),
+            iteration_dir=lambda: self.iteration_dir,
+            file_type=file_type,
+            components=(EnvParamsSample,) if self.params is not None else (),
         )
 
     @property

@@ -24,7 +24,7 @@ import json
 import logging
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Protocol, TypeVar, cast, overload
+from typing import Any, ClassVar, Literal, Protocol, TypeVar, cast, overload
 
 ComponentT = TypeVar("ComponentT")
 
@@ -32,6 +32,8 @@ ComponentT = TypeVar("ComponentT")
 @dataclasses.dataclass(frozen=True)
 class EnvParamsSample:
     """Environment-parameter values sampled for one trial."""
+
+    contributes_to_identity: ClassVar[bool] = True
 
     env_params: dict[str, Any]
 
@@ -137,8 +139,8 @@ class Trajectory(Sequence[TrajectoryEntry]):
 
     ``components`` declares optional data types every entry must contain;
     :class:`TrialResult` is always included.
-    ``identity`` is the subset that affects trial equivalence;
-    informational components such as logs and metrics can be excluded.
+    Components whose ``contributes_to_identity`` class property is true affect
+    trial equivalence; other components are stored as informational data.
 
     Steps must be appended in increasing order, but gaps are permitted because
     CloudAI does not record constraint-failed trials.
@@ -148,24 +150,21 @@ class Trajectory(Sequence[TrajectoryEntry]):
         self,
         entries: Sequence[TrajectoryEntry] = (),
         *,
-        writer: TrajectoryWriter | None = None,
+        iteration_dir: Path | Callable[[], Path] | None = None,
+        file_type: Literal["csv", "jsonl"] = "jsonl",
         components: Sequence[type[object]] = (),
-        identity: Sequence[type[object]] = (),
     ) -> None:
         self._component_types = (TrialResult, *components)
         self._components = frozenset(self._component_types)
-        self._identity = frozenset(identity)
+        self._identity = frozenset(
+            component_type
+            for component_type in self._component_types
+            if getattr(component_type, "contributes_to_identity", False)
+        )
         if len(self._components) != len(self._component_types):
             raise ValueError("components cannot contain duplicate types")
-        if len(self._identity) != len(identity):
-            raise ValueError("identity cannot contain duplicate types")
 
-        undeclared_identity_types = self._identity - self._components
-        if undeclared_identity_types:
-            names = ", ".join(sorted(component_type.__name__ for component_type in undeclared_identity_types))
-            raise ValueError(f"identity types must be declared in components: {names}")
-
-        self._writer = writer
+        self._writer = self._create_writer(iteration_dir, file_type)
         self._fields_by_type = self._build_fields_by_type()
 
         self._entries: list[TrajectoryEntry] = []
@@ -178,6 +177,19 @@ class Trajectory(Sequence[TrajectoryEntry]):
             component_names,
             len(self),
         )
+
+    @staticmethod
+    def _create_writer(
+        iteration_dir: Path | Callable[[], Path] | None,
+        file_type: Literal["csv", "jsonl"],
+    ) -> TrajectoryWriter | None:
+        if file_type == "csv":
+            writer_type = CsvTrajectoryWriter
+        elif file_type == "jsonl":
+            writer_type = JsonLinesTrajectoryWriter
+        else:
+            raise ValueError(f"Invalid trajectory file type: {file_type}")
+        return writer_type(iteration_dir) if iteration_dir is not None else None
 
     @overload
     def __getitem__(self, index: int) -> TrajectoryEntry: ...

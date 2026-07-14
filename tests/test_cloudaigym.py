@@ -468,7 +468,6 @@ def _seed_cached_entry_with_env_params(
     """Seed an environment-parameter-aware trajectory with one entry."""
     trajectory = Trajectory(
         components=(EnvParamsSample,),
-        identity=(EnvParamsSample,),
     )
     trajectory.append(step=1, action=action, reward=0.5, observation=[100.0], env_params=dict(env_params))
     env.trajectory = trajectory

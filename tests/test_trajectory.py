@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from cloudai.configurator.trajectory import (
-    CsvTrajectoryWriter,
     EnvParamsSample,
     JsonLinesTrajectoryWriter,
     Trajectory,
@@ -23,18 +22,6 @@ from cloudai.configurator.trajectory import (
 @dataclasses.dataclass(frozen=True)
 class LoggingMetrics:
     logging_metrics: Mapping[str, float]
-
-
-class RecordingWriter:
-    def __init__(self, output_path: Path, *, fail: bool = False) -> None:
-        self.output_path = output_path
-        self.fail = fail
-        self.records: list[Mapping[str, object]] = []
-
-    def append(self, record: Mapping[str, object]) -> None:
-        if self.fail:
-            raise OSError("write failed")
-        self.records.append(record)
 
 
 def _entry(step: int, action: Mapping[str, Any] | None = None) -> TrajectoryEntry:
@@ -71,8 +58,12 @@ def test_trajectory_rejects_non_increasing_steps() -> None:
         trajectory.append(step=2, action={"x": 2}, reward=2.0, observation=[2])
 
 
-def test_writer_failure_does_not_append_entry_to_memory(tmp_path: Path) -> None:
-    trajectory = Trajectory(writer=RecordingWriter(tmp_path / "trajectory", fail=True))
+def test_writer_failure_does_not_append_entry_to_memory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_write(_writer: JsonLinesTrajectoryWriter, _record: Mapping[str, object]) -> None:
+        raise OSError("write failed")
+
+    monkeypatch.setattr(JsonLinesTrajectoryWriter, "append", fail_write)
+    trajectory = Trajectory(iteration_dir=tmp_path)
 
     with pytest.raises(OSError, match="write failed"):
         trajectory.append(step=1, action={"x": 1}, reward=1.0, observation=[1])
@@ -81,18 +72,17 @@ def test_writer_failure_does_not_append_entry_to_memory(tmp_path: Path) -> None:
 
 
 def test_initial_entries_are_not_replayed_to_writer(tmp_path: Path) -> None:
-    writer = RecordingWriter(tmp_path / "trajectory")
-
-    trajectory = Trajectory([_entry(1)], writer=writer)
+    trajectory = Trajectory([_entry(1)], iteration_dir=tmp_path)
 
     assert len(trajectory) == 1
-    assert writer.records == []
+    assert not (tmp_path / "trajectory.jsonl").exists()
 
 
 def test_append_writes_component_values_to_csv(tmp_path: Path) -> None:
     path = tmp_path / "trajectory.csv"
     trajectory = Trajectory(
-        writer=CsvTrajectoryWriter(tmp_path),
+        iteration_dir=tmp_path,
+        file_type="csv",
         components=(LoggingMetrics,),
     )
 
@@ -109,7 +99,8 @@ def test_append_writes_component_values_to_csv(tmp_path: Path) -> None:
 def test_append_writes_generic_records_as_json_lines(tmp_path: Path) -> None:
     path = tmp_path / "trajectory.jsonl"
     trajectory = Trajectory(
-        writer=JsonLinesTrajectoryWriter(tmp_path),
+        iteration_dir=tmp_path,
+        file_type="jsonl",
         components=(EnvParamsSample, LoggingMetrics),
     )
 
@@ -168,15 +159,9 @@ def test_trajectory_validates_its_fixed_component_schema() -> None:
         )
 
 
-def test_identity_component_types_must_be_declared() -> None:
-    with pytest.raises(ValueError, match=r"must be declared.*EnvParamsSample"):
-        Trajectory(identity=(EnvParamsSample,))
-
-
-def test_find_uses_only_configured_identity_components() -> None:
+def test_find_uses_only_components_that_contribute_to_identity() -> None:
     trajectory = Trajectory(
         components=(EnvParamsSample, LoggingMetrics),
-        identity=(EnvParamsSample,),
     )
     first = trajectory.append(
         step=1,
@@ -207,7 +192,6 @@ def test_find_ignores_informational_component_values() -> None:
 def test_find_requires_the_configured_identity_component_types() -> None:
     trajectory = Trajectory(
         components=(EnvParamsSample,),
-        identity=(EnvParamsSample,),
     )
 
     with pytest.raises(TypeError, match="missing: env_params"):
@@ -220,7 +204,6 @@ def test_find_requires_the_configured_identity_component_types() -> None:
 def test_find_preserves_exact_value_types_inside_components() -> None:
     trajectory = Trajectory(
         components=(EnvParamsSample,),
-        identity=(EnvParamsSample,),
     )
     trajectory.append(step=1, action={"x": 1}, reward=1.0, observation=[1], env_params={"speed": 1.0})
 
