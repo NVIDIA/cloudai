@@ -1393,12 +1393,14 @@ function main()
     launch_etcd &
     launch_nats &
     wait_for_etcd
-    launch_ingress
-    if _is_sglang_dsr1; then
-      launch_sgl_http_server
-    fi
   fi
 
+  # Workers launch BEFORE the ingress: launch_ingress blocks in
+  # wait_for_router, and the router only becomes ready once a worker
+  # registers — on a combined frontend+worker node the old order serialized
+  # the whole ROUTER_START_TIMEOUT (120 s of failing readiness curls) in
+  # front of every worker start. Workers only need etcd/nats (waited above)
+  # and the lmcache config from setup_lmcache; they never talk to the router.
   if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
     log_node_role "$(_current_node_name)" "decode"
@@ -1412,6 +1414,10 @@ function main()
   fi
 
   if _is_frontend_node; then
+    launch_ingress
+    if _is_sglang_dsr1; then
+      launch_sgl_http_server
+    fi
     sleep 10
 
     launch_workloads &
