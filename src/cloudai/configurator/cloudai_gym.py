@@ -46,7 +46,7 @@ class CloudAIGymEnv(BaseGym):
         runner: BaseRunner,
         rewards: RewardOverrides,
         *,
-        trajectory_file_type: Literal["csv", "jsonl"] = "jsonl",
+        trajectory_file_type: Literal["csv", "jsonl"] = "csv",
     ):
         """
         Initialize the Gym environment using the TestRun object.
