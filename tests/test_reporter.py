@@ -16,6 +16,7 @@
 
 import copy
 import csv
+import json
 import tarfile
 from dataclasses import asdict
 from pathlib import Path
@@ -28,7 +29,7 @@ from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
-from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -44,6 +45,18 @@ from cloudai.systems.slurm.slurm_metadata import (
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+
+
+def test_load_trajectory_dataframe_prefers_json_lines(tmp_path: Path) -> None:
+    jsonl_path = tmp_path / "trajectory.jsonl"
+    jsonl_path.write_text(json.dumps({"step": 1, "action": {"x": 2}, "reward": 3.0, "observation": [4.0]}) + "\n")
+
+    loaded = load_trajectory_dataframe(tmp_path)
+
+    assert loaded is not None
+    path, dataframe = loaded
+    assert path == jsonl_path
+    assert dataframe.to_dict(orient="records") == [{"step": 1, "action": {"x": 2}, "reward": 3, "observation": [4.0]}]
 
 
 class TestLoadTestTuns:

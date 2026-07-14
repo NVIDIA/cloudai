@@ -14,13 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from cloudai.configurator import CloudAIGymEnv, GridSearchAgent, TrajectoryEntry
+from cloudai.configurator import (
+    CloudAIGymEnv,
+    EnvParamsSample,
+    GridSearchAgent,
+    Trajectory,
+    TrajectoryEntry,
+    TrialResult,
+)
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
 from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
@@ -35,6 +43,19 @@ from cloudai.workloads.nemo_run import (
 from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from tests.test_env_params import EnvVarCmdArgs, EnvVarTestDefinition
+
+
+def _trajectory_entry(
+    step: int,
+    action: dict[str, object],
+    reward: float,
+    observation: list[float] | list[int],
+    *components: object,
+) -> TrajectoryEntry:
+    return TrajectoryEntry(
+        step=step,
+        components=(TrialResult(action=action, reward=reward, observation=observation), *components),
+    )
 
 
 @pytest.fixture
@@ -353,31 +374,25 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
 
 
 @pytest.mark.parametrize(
-    ("trajectory", "current_iteration", "action", "expected_step"),
+    ("entries", "action", "expected_step"),
     [
-        ({}, 0, {"x": 1}, None),
-        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 0, {"x": 1}, 1),
-        ({0: [TrajectoryEntry(1, {"x": 1.0}, 1, [1])]}, 0, {"x": 1}, None),
+        ([], {"x": 1}, None),
+        ([_trajectory_entry(1, {"x": 1}, 1, [1])], {"x": 1}, 1),
+        ([_trajectory_entry(1, {"x": 1.0}, 1, [1])], {"x": 1}, None),
         (
-            {
-                0: [
-                    TrajectoryEntry(1, {"x": 1.0}, 1, [1]),
-                    TrajectoryEntry(2, {"x": 1}, 1, [1]),
-                ]
-            },
-            0,
+            [
+                _trajectory_entry(1, {"x": 1.0}, 1, [1]),
+                _trajectory_entry(2, {"x": 1}, 1, [1]),
+            ],
             {"x": 1},
             2,
         ),
-        ({0: [TrajectoryEntry(1, {"x": 1}, 1, [1])]}, 1, {"x": 1}, None),
-        ({1: [TrajectoryEntry(3, {"x": 1}, 1, [1])]}, 1, {"x": 1}, 3),
     ],
 )
 def test_get_cached_trajectory_result(
     base_tr: TestRun,
     tmp_path: Path,
-    trajectory: dict[int, list[TrajectoryEntry]],
-    current_iteration: int,
+    entries: list[TrajectoryEntry],
     action: dict[str, object],
     expected_step: int | None,
 ) -> None:
@@ -390,8 +405,7 @@ def test_get_cached_trajectory_result(
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
-    env.test_run.current_iteration = current_iteration
-    env.trajectory = trajectory
+    env.trajectory = Trajectory(entries)
 
     actual = env.get_cached_trajectory_result(action, {})
     if actual is None:
@@ -400,8 +414,8 @@ def test_get_cached_trajectory_result(
         assert actual.step == expected_step
 
 
-def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
-    """Cache hits must still append a row to trajectory.csv so the visible step list matches agent_steps."""
+def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """Cache hits must still append a record so the visible step list matches agent_steps."""
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
@@ -420,7 +434,7 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     cached_action = {"trainer.max_steps": 1000}
     env.test_run.current_iteration = 0
-    env.trajectory = {0: [TrajectoryEntry(step=1, action=cached_action, reward=0.42, observation=[0.84])]}
+    env.trajectory.append(step=1, action=cached_action, reward=0.42, observation=[0.84])
 
     env.test_run.step = 4
     obs, reward, done, _info = env.step(cached_action)
@@ -429,29 +443,35 @@ def test_cached_step_appends_trajectory_row(nemorun: NeMoRunTestDefinition, tmp_
     assert reward == 0.42
     assert obs == [0.84]
     assert done is False
-    rows = env.trajectory[0]
+    rows = env.trajectory
     assert len(rows) == 2
     assert rows[-1].step == 5, (
         "CloudAIGymEnv.step() advances test_run.step before recording the trajectory row; "
         "the cached row must be tagged with the advanced trial index, not the pre-step value."
     )
-    assert rows[-1].reward == 0.42
-    assert rows[-1].action == cached_action
+    result = rows[-1].get(TrialResult)
+    assert result is not None
+    assert result.reward == 0.42
+    assert result.action == cached_action
 
-    csv_path = env.trajectory_file_path
-    assert csv_path.exists()
-    contents = csv_path.read_text().strip().splitlines()
-    assert contents[0] == "step,action,reward,observation"
-    assert contents[-1].startswith("5,")
+    trajectory_path = env.trajectory_file_path
+    assert trajectory_path.exists()
+    assert trajectory_path.name == "trajectory.jsonl"
+    records = [json.loads(line) for line in trajectory_path.read_text().splitlines()]
+    assert records[-1]["step"] == 5
+    assert records[-1]["action"] == cached_action
 
 
 def _seed_cached_entry_with_env_params(
     env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
 ) -> None:
-    """Seed env.trajectory with one entry carrying the given env_params."""
-    entry = TrajectoryEntry(step=1, action=action, reward=0.5, observation=[100.0], env_params=env_params)
-    env.test_run.current_iteration = 0
-    env.trajectory = {0: [entry]}
+    """Seed an environment-parameter-aware trajectory with one entry."""
+    trajectory = Trajectory(
+        components=(EnvParamsSample,),
+        identity=(EnvParamsSample,),
+    )
+    trajectory.append(step=1, action=action, reward=0.5, observation=[100.0], env_params=dict(env_params))
+    env.trajectory = trajectory
 
 
 def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> None:
@@ -506,7 +526,7 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     env.test_run.current_iteration = 0
-    env.trajectory = {0: [TrajectoryEntry(step=1, action={"x": 10}, reward=0.5, observation=[100.0])]}
+    env.trajectory = Trajectory([_trajectory_entry(1, {"x": 10}, 0.5, [100.0])])
     # Note: neither the cached entry nor the trial carries env_params -> existing behavior.
 
     result = env.get_cached_trajectory_result({"x": 10}, {})
@@ -519,7 +539,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
     full step() flow: increment_step -> sample env_params -> apply_params_set ->
-    cache lookup -> runner.run() -> write_trajectory. With seed 42 the sampler
+    cache lookup -> runner.run() -> trajectory append. With seed 42 the sampler
     draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
     cache key differs and the workload must re-run both times.
     """
@@ -568,13 +588,8 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     )
 
 
-def test_env_csv_is_step_aligned_with_trajectory(tmp_path: Path) -> None:
-    """env.csv must have exactly one row per env.step() call, with steps aligned 1:1 to trajectory.csv.
-
-    This pins the corpus-friendly contract: a downstream consumer can
-    ``pd.merge(traj, env, on="step")`` without losing rows on either side,
-    independent of whether the trial hit the trajectory cache.
-    """
+def test_env_params_are_recorded_in_trajectory_output(tmp_path: Path) -> None:
+    """Every recorded trial includes its sampled environment in the trajectory output."""
     tdef = EnvVarTestDefinition(
         name="dr",
         description="dr",
@@ -610,28 +625,13 @@ def test_env_csv_is_step_aligned_with_trajectory(tmp_path: Path) -> None:
         for action in (action_a, action_b, action_a):
             env.step(action)
 
-    env_csv = env.env_params_record_path
-    traj_csv = env.trajectory_file_path
-    assert env_csv.exists(), "env.csv must be written when env_params is declared"
-
-    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
-    traj_steps = [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
-    assert env_steps == traj_steps == [1, 2, 3], (
-        f"step columns must align 1:1 across env.csv ({env_steps}) and trajectory.csv ({traj_steps})"
-    )
+    records = [json.loads(line) for line in env.trajectory_file_path.read_text().splitlines()]
+    assert [record["step"] for record in records] == [1, 2, 3]
+    assert all("ball_speed" in record["env_params"] for record in records)
 
 
-def test_env_csv_step_alignment_holds_on_constraint_failure(tmp_path: Path) -> None:
-    """A constraint failure must not desync env.csv from trajectory.csv.
-
-    Runs three steps where the middle one fails ``constraint_check`` and the
-    other two succeed. ``env.csv`` is sunk inside ``write_trajectory`` from the
-    same ``TrajectoryEntry``, which is never reached on the early-return
-    constraint-failure path - so the failed step lands in neither file. The
-    corpus-friendly contract (``pd.merge(traj, env, on="step")`` loses no rows)
-    therefore holds via shared absence: both files record exactly the surviving
-    steps, aligned 1:1.
-    """
+def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) -> None:
+    """A constraint failure records no trajectory components."""
     tdef = EnvVarTestDefinition(
         name="dr",
         description="dr",
@@ -671,31 +671,20 @@ def test_env_csv_step_alignment_holds_on_constraint_failure(tmp_path: Path) -> N
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
 
-    env_csv = env.env_params_record_path
-    traj_csv = env.trajectory_file_path
-
-    assert env_csv.exists(), "surviving steps declare env_params -> env.csv must exist"
-    env_steps = [int(line.split(",", 1)[0]) for line in env_csv.read_text().strip().splitlines()[1:]]
+    trajectory_path = env.trajectory_file_path
     traj_steps = (
-        [int(line.split(",", 1)[0]) for line in traj_csv.read_text().strip().splitlines()[1:]]
-        if traj_csv.exists()
+        [json.loads(line)["step"] for line in trajectory_path.read_text().splitlines()]
+        if trajectory_path.exists()
         else []
     )
-    assert env_steps == traj_steps == [1, 3], (
-        f"the constraint-failed step (2) must appear in neither file; env.csv ({env_steps}) "
-        f"and trajectory.csv ({traj_steps}) must stay 1:1 aligned on the surviving steps"
-    )
+    assert traj_steps == [1, 3]
 
 
-def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: Path) -> None:
-    """End-to-end: cache HIT under observer-driven env_params still records env.csv.
+def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(tmp_path: Path) -> None:
+    """End-to-end: a cache hit records its environment in the trajectory output.
 
-    A cache hit still calls ``write_trajectory``, which sinks the trajectory row
-    and the matching env.csv row from the same entry - keeping the two files
-    step-aligned even when the workload itself is short-circuited.
-    Asserts: (a) the workload is NOT re-run (cache short-circuit), (b)
-    env.csv gains a row, (c) trajectory.csv gains a row carrying the
-    sampled env_params.
+    A cache hit still appends a complete row even though workload execution is
+    short-circuited.
     """
     import random as _random
 
@@ -726,13 +715,17 @@ def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: 
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     assert env.params is not None, "TestDefinition.env_params declared -> EnvParams must be built"
 
-    expected_sample = {"ball_speed": _random.Random("42:ball_speed:1").choice([1, 2, 3])}
+    expected_sample = {"ball_speed": _random.Random("42:ball_speed:2").choice([1, 2, 3])}
     action = {"paddle_width": 4}
     env.test_run.current_iteration = 0
-    env.trajectory = {
-        0: [TrajectoryEntry(step=0, action=action, reward=0.42, observation=[0.84], env_params=expected_sample)]
-    }
-    env.test_run.step = 0
+    env.trajectory.append(
+        step=1,
+        action=action,
+        reward=0.42,
+        observation=[0.84],
+        env_params=expected_sample,
+    )
+    env.test_run.step = 1
 
     with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
         obs, reward, _done, info = env.step(action)
@@ -744,14 +737,13 @@ def test_step_cache_hit_with_declared_env_params_still_writes_env_csv(tmp_path: 
         "the per-trial regime behind this observation is reported on info['env_params']"
     )
 
-    env_csv = env.env_params_record_path
-    assert env_csv.exists(), "cache HIT must NOT skip the observer; env.csv must record the trial"
-    env_rows = env_csv.read_text().strip().splitlines()
-    assert env_rows[0] == "step,env"
-    assert env_rows[1].startswith("1,"), f"expected step 1 row in env.csv, got {env_rows[1]!r}"
+    trajectory_records = [json.loads(line) for line in env.trajectory_file_path.read_text().splitlines()]
+    assert trajectory_records[-1]["step"] == 2
+    assert "ball_speed" in trajectory_records[-1]["env_params"]
 
-    traj_rows = env.trajectory[0]
-    assert len(traj_rows) == 2 and traj_rows[-1].env_params == expected_sample, (
+    traj_rows = env.trajectory
+    recorded_sample = traj_rows[-1].get(EnvParamsSample)
+    assert len(traj_rows) == 2 and recorded_sample is not None and recorded_sample.env_params == expected_sample, (
         "cache-hit trajectory entry must record the per-trial env_params sample"
     )
 
@@ -826,8 +818,10 @@ def test_param_space_excludes_env_params_keys(setup_env: tuple[TestRun, BaseRunn
     )
 
 
-def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
-    """Workloads without [env_params.*] pay zero overhead: no observer, no env.csv."""
+def test_csv_trajectory_has_no_env_params_column_when_not_declared(
+    nemorun: NeMoRunTestDefinition, tmp_path: Path
+) -> None:
+    """Workloads without env_params retain the base trajectory schema."""
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     test_run = TestRun(
@@ -842,10 +836,16 @@ def test_no_env_csv_when_env_params_not_declared(nemorun: NeMoRunTestDefinition,
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        trajectory_file_type="csv",
+    )
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
-    assert not env.env_params_record_path.exists()
+    env.trajectory.append(step=1, action={}, reward=1.0, observation=[1.0])
+    assert env.trajectory_file_path.read_text().splitlines()[0] == "step,action,reward,observation"
 
 
 def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEnv:

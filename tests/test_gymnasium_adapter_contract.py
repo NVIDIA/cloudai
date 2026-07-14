@@ -25,7 +25,7 @@ Gym's ``reset()`` is an *episode boundary*, not a trial boundary. For the
 contextual-bandit configs (``agent_steps=1``), RLlib calls ``reset()`` before
 *every* trial. An earlier adapter rewound ``test_run.step`` on reset and
 collapsed every trial onto step 1 — silently overwriting output dirs and
-producing duplicate-step rows in trajectory.csv / env.csv.
+producing duplicate-step trajectory records.
 
 These tests pin the negative invariant: the adapter must not mutate
 ``test_run.step``. That counter is owned by ``TestRun`` and advanced
