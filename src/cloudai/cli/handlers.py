@@ -157,6 +157,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
                 test_run=test_run,
                 runner=runner.runner,
                 rewards=agent_config.rewards,
+                trajectory_file_type=agent_config.trajectory_file_type,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")

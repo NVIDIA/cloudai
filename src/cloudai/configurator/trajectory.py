@@ -198,9 +198,10 @@ class Trajectory(Sequence[TrajectoryEntry]):
 
         component_names = ", ".join(component_type.__name__ for component_type in self._component_types)
         logging.debug(
-            "Initialized Trajectory with component types %s and %s entries.",
-            component_names,
+            "Initialized Trajectory with %s warm-start entries and persistence to local trajectory.%s. Entries contain component types: [%s].",
             len(self),
+            str(file_type),
+            component_names,
         )
 
     @staticmethod

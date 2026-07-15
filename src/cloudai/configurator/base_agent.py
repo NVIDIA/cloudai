@@ -49,6 +49,7 @@ class BaseAgentConfig(BaseModel):
         default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
     )
+    trajectory_file_type: Literal["csv", "jsonl"] = "csv"
 
 
 class BaseAgent(ABC):
