@@ -345,7 +345,10 @@ def test_trajectory_logs_lifecycle_and_lookup(caplog: pytest.LogCaptureFixture) 
         assert trajectory.find({"x": 1}) is entry
         assert trajectory.find({"x": 2}) is None
 
-    assert "Initialized Trajectory with component types TrialResult and 0 entries." in caplog.messages
+    assert (
+        "Initialized Trajectory with 0 warm-start entries and persistence to local trajectory.csv. "
+        "Entries contain component types: [TrialResult]."
+    ) in caplog.messages
     assert "Appended trajectory entry for step 1 (total entries: 1)." in caplog.messages
     assert "Found matching trajectory entry at step 1 for action {'x': 1}." in caplog.messages
     assert "No matching trajectory entry found for action {'x': 2}." in caplog.messages
