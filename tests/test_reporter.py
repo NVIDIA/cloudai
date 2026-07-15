@@ -50,6 +50,10 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 def test_load_trajectory_dataframe_prefers_json_lines(tmp_path: Path) -> None:
     jsonl_path = tmp_path / "trajectory.jsonl"
     jsonl_path.write_text(json.dumps({"step": 1, "action": {"x": 2}, "reward": 3.0, "observation": [4.0]}) + "\n")
+    with (tmp_path / "trajectory.csv").open("w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=("step", "action", "reward", "observation"))
+        writer.writeheader()
+        writer.writerow({"step": 99, "action": {"x": 99}, "reward": 99.0, "observation": [99.0]})
 
     loaded = load_trajectory_dataframe(tmp_path)
 

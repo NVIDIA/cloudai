@@ -24,6 +24,7 @@ import json
 import logging
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, ClassVar, Literal, Protocol, TypeVar, cast, overload
 
 ComponentT = TypeVar("ComponentT")
@@ -35,7 +36,11 @@ class EnvParamsSample:
 
     contributes_to_identity: ClassVar[bool] = True
 
-    env_params: dict[str, Any]
+    env_params: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        """Own an immutable snapshot of the sampled values."""
+        object.__setattr__(self, "env_params", _freeze(self.env_params))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -45,6 +50,10 @@ class TrialResult:
     action: Mapping[str, Any]
     reward: float
     observation: Sequence[Any]
+
+    def __post_init__(self) -> None:
+        """Own an immutable snapshot of the action."""
+        object.__setattr__(self, "action", _freeze(self.action))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -103,17 +112,26 @@ class CsvTrajectoryWriter(_FileTrajectoryWriter):
 
     def append(self, record: Mapping[str, object]) -> None:
         fields = tuple(record)
+        path = self.output_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not path.exists() or path.stat().st_size == 0
+        existing_fields: tuple[str, ...] = ()
+        if not write_header:
+            with path.open(newline="") as file:
+                existing_fields = tuple(next(csv.reader(file), ()))
+
         if self._fields is None:
+            if existing_fields and existing_fields != fields:
+                raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
             self._fields = fields
         elif fields != self._fields:
             raise ValueError(f"trajectory record fields changed: expected {self._fields}, got {fields}")
+        elif existing_fields and existing_fields != self._fields:
+            raise ValueError(f"trajectory file fields do not match: expected {self._fields}, got {existing_fields}")
 
-        path = self.output_path
-        new_file = not path.exists()
-        path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=self._fields)
-            if new_file:
+            if write_header:
                 writer.writeheader()
             writer.writerow(record)
         logging.debug("Wrote trajectory record to %s.", path)
@@ -237,11 +255,12 @@ class Trajectory(Sequence[TrajectoryEntry]):
             "trajectory identity values",
         )
         identity = self._identity_for(identity_components)
+        frozen_action = _freeze(action)
         for entry in self._entries:
             result = entry.get(TrialResult)
             if result is None:
                 raise ValueError(f"trajectory entry at step {entry.step} is missing TrialResult")
-            if _values_match_exact(result.action, action) and _values_match_exact(
+            if _values_match_exact(result.action, frozen_action) and _values_match_exact(
                 self._identity_for(entry.components), identity
             ):
                 logging.debug("Found matching trajectory entry at step %s for action %s.", entry.step, action)
@@ -312,7 +331,7 @@ class Trajectory(Sequence[TrajectoryEntry]):
         for component_type in self._component_types:
             component = components_by_type[component_type]
             record.update(
-                {field.name: getattr(component, field.name) for field in self._fields_by_type[component_type]}
+                {_field.name: _thaw(getattr(component, _field.name)) for _field in self._fields_by_type[component_type]}
             )
         return record
 
@@ -343,6 +362,28 @@ def _validate_schema(
     if unexpected:
         details.append(f"unexpected: {', '.join(sorted(component_type.__name__ for component_type in unexpected))}")
     raise TypeError(f"{context} do not match configured schema ({'; '.join(details)})")
+
+
+def _freeze(value: Any) -> Any:
+    """Recursively copy mutable containers into read-only equivalents."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze(item) for item in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    """Convert frozen containers to values supported by trajectory writers."""
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(item) for item in value]
+    if isinstance(value, frozenset):
+        return [_thaw(item) for item in value]
+    return value
 
 
 def _values_match_exact(left: Any, right: Any) -> bool:

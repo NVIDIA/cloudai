@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import copy
 import re
 from pathlib import Path
@@ -24,6 +25,7 @@ import pandas as pd
 import pytest
 import toml
 
+from cloudai.configurator.env_params import EnvParams, EnvParamSpec
 from cloudai.core import Registry, System, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -569,3 +571,25 @@ def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     df = pd.read_csv(trajectory_path)
     assert df.shape[0] == len(dse_tr.all_combinations)
     assert df["step"].tolist() == list(range(1, len(dse_tr.all_combinations) + 1))
+
+
+def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    dse_tr.test.cmd_args.nthreads = [1, 2]
+    dse_tr.test.env_params = {"nthreads": EnvParamSpec()}
+    dse_tr.test.agent_config = {"random_seed": 42}
+    tc = TestScenario(name="tc", test_runs=[dse_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
+    trajectory_path.unlink(missing_ok=True)
+
+    params = EnvParams.from_test(dse_tr.test)
+    assert params is not None
+    expected_samples = [params.sample(step) for step in range(1, len(dse_tr.all_combinations) + 1)]
+
+    unrolled = list(runner.unroll_dse(dse_tr))
+    assert [tr.test.cmd_args.nthreads for tr in unrolled] == [sample["nthreads"] for sample in expected_samples]
+
+    runner.handle_dse()
+
+    dataframe = pd.read_csv(trajectory_path)
+    assert dataframe["env_params"].map(ast.literal_eval).tolist() == expected_samples

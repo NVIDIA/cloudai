@@ -108,6 +108,40 @@ def test_append_writes_component_values_to_csv(tmp_path: Path) -> None:
     ]
 
 
+def test_csv_writer_initializes_a_precreated_empty_file(tmp_path: Path) -> None:
+    path = tmp_path / "trajectory.csv"
+    path.touch()
+
+    Trajectory(iteration_dir=tmp_path).append(step=1, action={"x": 1}, reward=1.0, observation=[1])
+
+    assert path.read_text().splitlines() == [
+        "step,action,reward,observation",
+        "1,{'x': 1},1.0,[1]",
+    ]
+
+
+def test_csv_writer_reuses_a_matching_header_without_duplication(tmp_path: Path) -> None:
+    path = tmp_path / "trajectory.csv"
+    path.write_text("step,action,reward,observation\n")
+
+    Trajectory(iteration_dir=tmp_path).append(step=1, action={"x": 1}, reward=1.0, observation=[1])
+
+    assert path.read_text().splitlines() == [
+        "step,action,reward,observation",
+        "1,{'x': 1},1.0,[1]",
+    ]
+
+
+def test_csv_writer_rejects_an_existing_mismatched_header(tmp_path: Path) -> None:
+    path = tmp_path / "trajectory.csv"
+    path.write_text("step,reward,action,observation\n")
+
+    with pytest.raises(ValueError, match="trajectory file fields do not match"):
+        Trajectory(iteration_dir=tmp_path).append(step=1, action={"x": 1}, reward=1.0, observation=[1])
+
+    assert path.read_text() == "step,reward,action,observation\n"
+
+
 def test_append_writes_generic_records_as_json_lines(tmp_path: Path) -> None:
     path = tmp_path / "trajectory.jsonl"
     trajectory = Trajectory(
@@ -226,6 +260,38 @@ def test_find_preserves_exact_action_value_types() -> None:
     trajectory = Trajectory([_entry(1, {"x": 1.0})])
 
     assert trajectory.find({"x": 1}) is None
+
+
+def test_identity_values_are_deeply_immutable_and_owned_by_the_entry(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path, components=(EnvParamsSample,))
+    action = {"shape": {"layers": [1, 2]}}
+    sampled_env_params = {"regime": {"speeds": [3, 4]}}
+    entry = trajectory.append(
+        step=1,
+        action=action,
+        reward=1.0,
+        observation=[1],
+        env_params=sampled_env_params,
+    )
+    result = entry.get(TrialResult)
+    env_params = entry.get(EnvParamsSample)
+    assert result is not None and env_params is not None
+
+    action["shape"]["layers"].append(99)
+    sampled_env_params["regime"]["speeds"].append(99)
+    with pytest.raises(TypeError):
+        result.action["shape"] = {}  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        result.action["shape"]["layers"].append(99)
+    with pytest.raises(TypeError):
+        env_params.env_params["regime"] = {}  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        env_params.env_params["regime"]["speeds"].append(99)
+
+    original_action = {"shape": {"layers": [1, 2]}}
+    original_env_params = {"regime": {"speeds": [3, 4]}}
+    assert trajectory.find(original_action, env_params=original_env_params) is entry
+    assert "99" not in (tmp_path / "trajectory.csv").read_text()
 
 
 def test_trajectory_logs_lifecycle_and_lookup(caplog: pytest.LogCaptureFixture) -> None:

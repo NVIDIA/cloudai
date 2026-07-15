@@ -714,7 +714,7 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     assert env.params is not None, "TestDefinition.env_params declared -> EnvParams must be built"
 
-    expected_sample = {"ball_speed": _random.Random("42:ball_speed:2").choice([1, 2, 3])}
+    expected_sample = {"ball_speed": _random.Random("42:ball_speed:2").choice([1, 2, 3])}  # noqa: S311, RUF100
     action = {"paddle_width": 4}
     env.test_run.current_iteration = 0
     env.trajectory.append(

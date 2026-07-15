@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Generator, Optional, cast
 
 from cloudai.configurator import CloudAIGymEnv
+from cloudai.configurator.env_params import EnvParams
 from cloudai.core import BaseJob, JobIdRetrievalError, Registry, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
@@ -125,9 +126,11 @@ class SingleSbatchRunner(SlurmRunner):
         return srun_cmd
 
     def unroll_dse(self, tr: TestRun) -> Generator[TestRun, None, None]:
-        for idx, combination in enumerate(tr.all_combinations):
-            next_tr = tr.apply_params_set(combination)
-            next_tr.step = idx + 1
+        params = EnvParams.from_test(tr.test)
+        for idx, combination in enumerate(tr.all_combinations, start=1):
+            sampled_env_params = params.sample(idx) if params is not None else {}
+            next_tr = tr.apply_params_set(combination, env_params=sampled_env_params)
+            next_tr.step = idx
             next_tr.output_path = self.get_job_output_path(next_tr)
 
             if next_tr.test.constraint_check(next_tr, self.system):
@@ -211,18 +214,23 @@ class SingleSbatchRunner(SlurmRunner):
             gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
 
             for idx, combination in enumerate(tr.all_combinations, start=1):
-                next_tr = tr.apply_params_set(combination)
+                sampled_env_params = gym.params.sample(idx) if gym.params is not None else {}
+                next_tr = tr.apply_params_set(combination, env_params=sampled_env_params)
                 next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
                 gym.test_run = next_tr
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)
+                trajectory_values: dict[str, object] = {}
+                if gym.params is not None:
+                    trajectory_values["env_params"] = sampled_env_params
                 gym.trajectory.append(
                     step=idx,
                     action=combination,
                     reward=reward,
                     observation=observation,
+                    **trajectory_values,
                 )
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
