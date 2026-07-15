@@ -219,6 +219,9 @@ class SingleSbatchRunner(SlurmRunner):
                 next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
+                if not next_tr.test.constraint_check(next_tr, self.system):
+                    continue
+
                 gym.test_run = next_tr
                 observation = gym.get_observation({})
                 reward = gym.compute_reward(observation)

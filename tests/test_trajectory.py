@@ -183,7 +183,7 @@ def test_entry_contains_and_retrieves_typed_components() -> None:
 
     assert entry.components == (result, env_params, metrics)
     assert entry.get(TrialResult) is result
-    assert entry.get(EnvParamsSample) is env_params
+    assert entry.get(EnvParamsSample) is not env_params
     assert entry.get(LoggingMetrics) is metrics
 
 

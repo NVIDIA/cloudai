@@ -39,10 +39,6 @@ class EnvParamsSample:
 
     env_params: Mapping[str, Any]
 
-    def __post_init__(self) -> None:
-        """Own an immutable snapshot of the sampled values."""
-        object.__setattr__(self, "env_params", _freeze(self.env_params))
-
 
 @dataclasses.dataclass(frozen=True)
 class TrialResult:
@@ -65,10 +61,20 @@ class TrajectoryEntry:
     components: tuple[object, ...]
 
     def __post_init__(self) -> None:
-        """Validate the trial index and component uniqueness."""
+        """Validate the entry and snapshot its identity components."""
         if self.step < 1:
             raise ValueError(f"trajectory step must be positive; got {self.step}")
-        _components_by_type(self.components)
+        _validate_components(self.components)
+        object.__setattr__(
+            self,
+            "components",
+            tuple(
+                _freeze_component(component)
+                if getattr(type(component), "contributes_to_identity", False)
+                else component
+                for component in self.components
+            ),
+        )
 
     def get(self, component_type: type[ComponentT]) -> ComponentT | None:
         """Return the component with exactly the requested type, if present."""
@@ -237,19 +243,17 @@ class Trajectory(Sequence[TrajectoryEntry]):
         """Build configured components from values, then store and persist one entry."""
         components = self._construct_components(self._component_types, values, "trajectory values")
         entry = TrajectoryEntry(step=step, components=components)
-        return self._store_entry(entry, persist=True)
+        self._store_entry(entry, persist=True)
+        return entry
 
-    def _store_entry(self, entry: TrajectoryEntry, *, persist: bool) -> TrajectoryEntry:
+    def _store_entry(self, entry: TrajectoryEntry, *, persist: bool) -> None:
         self._validate_entry_components(entry)
         if self._entries and entry.step <= self._entries[-1].step:
             raise ValueError(f"trajectory steps must increase: last step is {self._entries[-1].step}, got {entry.step}")
-        if self._identity:
-            entry = TrajectoryEntry(step=entry.step, components=self._freeze_identity_components(entry.components))
         if persist and self._writer is not None:
             self._writer.append(self._to_record(entry))
         self._entries.append(entry)
         logging.debug("Appended trajectory entry for step %s (total entries: %s).", entry.step, len(self))
-        return entry
 
     def find(self, action: Mapping[str, Any], **identity_values: object) -> TrajectoryEntry | None:
         identity_components = self._construct_components(
@@ -345,14 +349,12 @@ class Trajectory(Sequence[TrajectoryEntry]):
         return record
 
 
-def _components_by_type(components: Sequence[object]) -> dict[type[object], object]:
+def _validate_components(components: Sequence[object]) -> None:
     non_dataclasses = [type(component).__name__ for component in components if not dataclasses.is_dataclass(component)]
     if non_dataclasses:
         raise TypeError(f"trajectory components must be dataclass instances: {', '.join(non_dataclasses)}")
-    by_type = {type(component): component for component in components}
-    if len(by_type) != len(components):
+    if len({type(component) for component in components}) != len(components):
         raise ValueError("components cannot contain duplicate component types")
-    return by_type
 
 
 def _validate_schema(
