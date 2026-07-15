@@ -18,7 +18,7 @@ import dataclasses
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -34,6 +34,12 @@ from cloudai.configurator.trajectory import (
 @dataclasses.dataclass(frozen=True)
 class LoggingMetrics:
     logging_metrics: Mapping[str, float]
+
+
+@dataclasses.dataclass(frozen=True)
+class CacheContext:
+    contributes_to_identity: ClassVar[bool] = True
+    cache_context: Mapping[str, Any]
 
 
 def _entry(step: int, action: Mapping[str, Any] | None = None) -> TrajectoryEntry:
@@ -220,6 +226,44 @@ def test_find_uses_only_components_that_contribute_to_identity() -> None:
 
     assert trajectory.find({"x": 1}, env_params={"speed": 1}) is first
     assert trajectory.find({"x": 1}, env_params={"speed": 2}) is None
+
+
+def test_future_identity_components_are_frozen_by_trajectory(tmp_path: Path) -> None:
+    context = {"hardware": {"gpus": [8]}}
+    trajectory = Trajectory(iteration_dir=tmp_path, components=(CacheContext,))
+
+    entry = trajectory.append(
+        step=1,
+        action={"x": 1},
+        reward=1.0,
+        observation=[1],
+        cache_context=context,
+    )
+    context["hardware"]["gpus"].append(16)
+    stored_context = entry.get(CacheContext)
+    assert stored_context is not None
+
+    with pytest.raises(TypeError):
+        stored_context.cache_context["hardware"] = {}  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        stored_context.cache_context["hardware"]["gpus"].append(16)
+
+    assert trajectory.find({"x": 1}, cache_context={"hardware": {"gpus": [8]}}) is entry
+    assert trajectory.find({"x": 1}, cache_context=context) is None
+    assert "16" not in (tmp_path / "trajectory.csv").read_text()
+
+
+def test_initial_entries_snapshot_future_identity_components() -> None:
+    context = CacheContext({"hardware": {"gpus": [8]}})
+    entry = TrajectoryEntry(
+        step=1,
+        components=(TrialResult(action={"x": 1}, reward=1.0, observation=[1]), context),
+    )
+    trajectory = Trajectory([entry], components=(CacheContext,))
+
+    context.cache_context["hardware"]["gpus"].append(16)
+
+    assert trajectory.find({"x": 1}, cache_context={"hardware": {"gpus": [8]}}) is trajectory[0]
 
 
 def test_find_ignores_informational_component_values() -> None:

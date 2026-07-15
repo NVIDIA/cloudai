@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import copy
 import csv
 import dataclasses
 import json
@@ -236,17 +237,19 @@ class Trajectory(Sequence[TrajectoryEntry]):
         """Build configured components from values, then store and persist one entry."""
         components = self._construct_components(self._component_types, values, "trajectory values")
         entry = TrajectoryEntry(step=step, components=components)
-        self._store_entry(entry, persist=True)
-        return entry
+        return self._store_entry(entry, persist=True)
 
-    def _store_entry(self, entry: TrajectoryEntry, *, persist: bool) -> None:
+    def _store_entry(self, entry: TrajectoryEntry, *, persist: bool) -> TrajectoryEntry:
         self._validate_entry_components(entry)
         if self._entries and entry.step <= self._entries[-1].step:
             raise ValueError(f"trajectory steps must increase: last step is {self._entries[-1].step}, got {entry.step}")
+        if self._identity:
+            entry = TrajectoryEntry(step=entry.step, components=self._freeze_identity_components(entry.components))
         if persist and self._writer is not None:
             self._writer.append(self._to_record(entry))
         self._entries.append(entry)
         logging.debug("Appended trajectory entry for step %s (total entries: %s).", entry.step, len(self))
+        return entry
 
     def find(self, action: Mapping[str, Any], **identity_values: object) -> TrajectoryEntry | None:
         identity_components = self._construct_components(
@@ -254,7 +257,7 @@ class Trajectory(Sequence[TrajectoryEntry]):
             identity_values,
             "trajectory identity values",
         )
-        identity = self._identity_for(identity_components)
+        identity = self._identity_for(self._freeze_identity_components(identity_components))
         frozen_action = _freeze(action)
         for entry in self._entries:
             result = entry.get(TrialResult)
@@ -277,6 +280,12 @@ class Trajectory(Sequence[TrajectoryEntry]):
 
     def _identity_for(self, components: Sequence[object]) -> dict[type[object], object]:
         return {type(component): component for component in components if type(component) in self._identity}
+
+    def _freeze_identity_components(self, components: Sequence[object]) -> tuple[object, ...]:
+        return tuple(
+            _freeze_component(component) if type(component) in self._identity else component
+            for component in components
+        )
 
     def _construct_components(
         self,
@@ -373,6 +382,14 @@ def _freeze(value: Any) -> Any:
     if isinstance(value, (set, frozenset)):
         return frozenset(_freeze(item) for item in value)
     return value
+
+
+def _freeze_component(component: object) -> object:
+    """Copy a dataclass component and freeze all of its stored fields."""
+    snapshot = copy.copy(component)
+    for field in dataclasses.fields(cast(Any, component)):
+        object.__setattr__(snapshot, field.name, _freeze(getattr(component, field.name)))
+    return snapshot
 
 
 def _thaw(value: Any) -> Any:
