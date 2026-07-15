@@ -198,7 +198,7 @@ class Trajectory(Sequence[TrajectoryEntry]):
 
         component_names = ", ".join(component_type.__name__ for component_type in self._component_types)
         logging.debug(
-            "Initializing Trajectory: entries=%s, file_type=%s, components=[%s]. ",
+            "Initializing Trajectory: entries=%s, file_type=%s, components=[%s].",
             len(self),
             str(file_type),
             component_names,
@@ -353,6 +353,17 @@ def _validate_components(components: Sequence[object]) -> None:
     non_dataclasses = [type(component).__name__ for component in components if not dataclasses.is_dataclass(component)]
     if non_dataclasses:
         raise TypeError(f"trajectory components must be dataclass instances: {', '.join(non_dataclasses)}")
+    mutable_identity_components = [
+        type(component).__name__
+        for component in components
+        if getattr(type(component), "contributes_to_identity", False)
+        and not cast(Any, type(component)).__dataclass_params__.frozen
+    ]
+    if mutable_identity_components:
+        raise TypeError(
+            "identity-contributing trajectory components must be frozen dataclasses: "
+            f"{', '.join(mutable_identity_components)}"
+        )
     if len({type(component) for component in components}) != len(components):
         raise ValueError("components cannot contain duplicate component types")
 

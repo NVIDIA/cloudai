@@ -211,7 +211,9 @@ class SingleSbatchRunner(SlurmRunner):
             agent_class = registry.get_agent(tr.test.agent)
             agent_config_data = tr.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
-            gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
+            gym = CloudAIGymEnv(
+                tr, self, rewards=agent_config.rewards, trajectory_file_type=agent_config.trajectory_file_type
+            )
 
             for idx, combination in enumerate(tr.all_combinations, start=1):
                 sampled_env_params = gym.params.sample(idx) if gym.params is not None else {}
