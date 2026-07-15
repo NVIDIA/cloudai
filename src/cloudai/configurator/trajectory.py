@@ -287,8 +287,7 @@ class Trajectory(Sequence[TrajectoryEntry]):
 
     def _freeze_identity_components(self, components: Sequence[object]) -> tuple[object, ...]:
         return tuple(
-            _freeze_component(component) if type(component) in self._identity else component
-            for component in components
+            _freeze_component(component) if type(component) in self._identity else component for component in components
         )
 
     def _construct_components(
