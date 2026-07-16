@@ -19,7 +19,7 @@ if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
 fi
 
 LAUNCH_RC=0
-NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --save_config_filepath /nemo_run/configs/ConfigContainer.yaml --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' logger.log_timers_to_tensorboard=true logger.log_throughput_to_tensorboard=true logger.log_memory_to_tensorboard=true >>"$LOG" 2>&1 || LAUNCH_RC=$?
+NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --save_config_filepath /nemo_run/configs/ConfigContainer.yaml --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' logger.tensorboard_dir=/nemo_run/tb_logs logger.log_timers_to_tensorboard=true logger.log_throughput_to_tensorboard=true logger.log_memory_to_tensorboard=true >>"$LOG" 2>&1 || LAUNCH_RC=$?
 
 
 JOB_ID=""

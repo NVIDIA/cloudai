@@ -430,6 +430,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _add_extra_cmd_args(self, extra_cmd_args: dict[str, str]) -> list[str]:
         """Hydra overrides: defaults merged with the user's extra_cmd_args, which take precedence."""
         overrides = {
+            "logger.tensorboard_dir": "/nemo_run/tb_logs",
             "logger.log_timers_to_tensorboard": "true",
             "logger.log_throughput_to_tensorboard": "true",
             "logger.log_memory_to_tensorboard": "true",

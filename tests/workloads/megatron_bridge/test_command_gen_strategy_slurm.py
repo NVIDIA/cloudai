@@ -185,6 +185,29 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "--cuda_graph_impl" not in cmd
         assert " -ms " not in cmd
 
+    def test_tensorboard_dir_defaults_to_persisted_run_path(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(output_subdir="out_default_tensorboard")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        assert "logger.tensorboard_dir=/nemo_run/tb_logs" in wrapper_content
+
+    def test_tensorboard_dir_can_be_overridden(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        tr = make_test_run(output_subdir="out_custom_tensorboard")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef.extra_cmd_args["logger.tensorboard_dir"] = "/nemo_run/custom_tb"
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        assert "logger.tensorboard_dir=/nemo_run/custom_tb" in wrapper_content
+        assert "logger.tensorboard_dir=/nemo_run/tb_logs" not in wrapper_content
+
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:

@@ -72,13 +72,34 @@ class TrainingParser(ABC):
     def get_model_name(self, tr: TestRun) -> str:
         """CloudAI-sourced model identity for the run."""
 
+    @staticmethod
+    def _has_tb_event_files(tb_dir: Path) -> bool:
+        # TensorBoard documents event files as having "tfevents" in the filename.
+        return any(path.is_file() for path in tb_dir.rglob("*tfevents*"))
+
     def can_parse(self, tr: TestRun) -> bool:
         """Return True when the run produced the TB events and config artifact this parser needs."""
+        name = type(self).__name__
         tb_dir = self.get_tb_dir(tr)
-        if not (tb_dir.is_dir() and any(tb_dir.iterdir())):
+        if not (tb_dir.is_dir() and self._has_tb_event_files(tb_dir)):
+            logging.warning(f"{name}: no TensorBoard events at '{tb_dir}'; skipping training report")
             return False
         config_path = self.get_config_path(tr)
-        return config_path is not None and config_path.is_file()
+        if config_path is None or not config_path.is_file():
+            logging.warning(f"{name}: config artifact not found under '{tr.output_path}'; skipping training report")
+            return False
+        if config_path.suffix.lower() in {".json", ".yaml", ".yml"}:
+            try:
+                config = self.get_model_config(tr)
+            except (json.JSONDecodeError, yaml.YAMLError) as exc:
+                logging.warning(f"{name}: invalid config artifact at '{config_path}' ({exc}); skipping training report")
+                return False
+            if not isinstance(config, dict) or not config:
+                logging.warning(
+                    f"{name}: empty or invalid config artifact at '{config_path}'; skipping training report"
+                )
+                return False
+        return True
 
     def parse(self, tr: TestRun, system: System) -> TrainingResults:
         """Read TB scalars + the config artifact and assemble TrainingResults."""
