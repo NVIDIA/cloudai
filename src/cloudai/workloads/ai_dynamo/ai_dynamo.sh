@@ -362,11 +362,11 @@ _compute_worker_allocation_vllm() {
     prefill_config["workers-per-node"]=1
     prefill_config["gpu-offset"]=${decode_config["gpus-per-worker"]}
   else
-    if [[ "${prefill_config["multiple-workers-per-node"]}" != "true" ]]; then
+    if [[ "${prefill_config["multiple-workers-per-node"],,}" != "true" ]]; then
       prefill_config["gpus-per-worker"]=$num_gpus
     fi
 
-    if [[ "${decode_config["multiple-workers-per-node"]}" != "true" ]]; then
+    if [[ "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
       decode_config["gpus-per-worker"]=$num_gpus
     fi
 
@@ -1124,7 +1124,7 @@ _resolve_aiperf_server_metrics_urls() {
     done
   done
 
-  if [[ "${dynamo_args["dcgm-exporter-enabled"]}" == "True" || "${dynamo_args["dcgm-exporter-enabled"]}" == "true" ]]; then
+  if [[ "${dynamo_args["dcgm-exporter-enabled"],,}" == "true" ]]; then
     local dcgm_nodes="${decode_config["node-list"]:-},${prefill_config["node-list"]:-}"
     for node in $dcgm_nodes; do
       [[ -z "$node" ]] && continue
