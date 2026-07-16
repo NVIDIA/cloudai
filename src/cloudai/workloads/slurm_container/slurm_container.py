@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +16,12 @@
 
 from typing import Optional
 
-from pydantic import Field
+import toml
+from pydantic import Field, ValidationError
 
-from cloudai.core import DockerImage, File, Installable
+from cloudai.core import DockerImage, File, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.systems.slurm import SlurmJobMetadata
 
 
 class SlurmContainerCmdArgs(CmdArgs):
@@ -53,3 +55,38 @@ class SlurmContainerTestDefinition(TestDefinition):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k} {v}" if v else k)
         return " ".join(parts)
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        """Grade the run from the real container exit code recorded by Slurm."""
+        slurm_job_path = tr.output_path / "slurm-job.toml"
+        if not slurm_job_path.is_file():
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    f"slurm-job.toml file not found in the specified output directory {tr.output_path}. "
+                    "This file is required to determine the container exit status."
+                ),
+            )
+
+        try:
+            with slurm_job_path.open("r", encoding="utf-8") as file:
+                metadata = SlurmJobMetadata.model_validate(toml.load(file))
+        except (OSError, toml.TomlDecodeError, ValidationError) as err:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    f"Failed to read Slurm job metadata from {slurm_job_path} "
+                    f"(malformed or partially written slurm-job.toml?): {err}"
+                ),
+            )
+
+        if metadata.exit_code == "0" or metadata.exit_code.startswith("0:"):
+            return JobStatusResult(is_successful=True)
+
+        return JobStatusResult(
+            is_successful=False,
+            error_message=(
+                f"Container command exited with a non-zero exit code for {tr.output_path}: "
+                f"state={metadata.state}, exit_code={metadata.exit_code}."
+            ),
+        )
