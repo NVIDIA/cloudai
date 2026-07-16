@@ -472,11 +472,54 @@ def test_can_parse_requires_nonempty_tb_dir(tmp_path):
 
     tb_dir = tmp_path / "tb_logs" / "default"
     tb_dir.mkdir(parents=True)
-    (tb_dir / "events.out.tfevents").write_text("x")
+    (tb_dir / "placeholder.txt").write_text("x")
+    assert parser.can_parse(_tr(output_path=tmp_path)) is False  # non-empty dir without event files
+
+    (tb_dir / "custom.tfevents.log").write_text("x")
     assert parser.can_parse(_tr(output_path=tmp_path)) is False  # file-backed parsers also need config
 
-    (tmp_path / "nemo_config.json").write_text("{}")
+    (tmp_path / "nemo_config.json").write_text('{"model": {}}')
     assert parser.can_parse(_tr(output_path=tmp_path)) is True
+
+
+@pytest.mark.parametrize(
+    ("parser", "tb_path", "config_path", "config_contents"),
+    (
+        pytest.param(NeMoRunParser(), "tb_logs/default", "nemo_config.json", "", id="nemo-empty-file"),
+        pytest.param(NeMoRunParser(), "tb_logs/default", "nemo_config.json", "{}", id="nemo-empty-object"),
+        pytest.param(NeMoRunParser(), "tb_logs/default", "nemo_config.json", "{", id="nemo-malformed"),
+        pytest.param(
+            MegatronBridgeParser(),
+            "experiment/tb_logs",
+            "experiment/configs/ConfigContainer.yaml",
+            "",
+            id="bridge-empty-file",
+        ),
+        pytest.param(
+            MegatronBridgeParser(),
+            "experiment/tb_logs",
+            "experiment/configs/ConfigContainer.yaml",
+            "{}",
+            id="bridge-empty-object",
+        ),
+        pytest.param(
+            MegatronBridgeParser(),
+            "experiment/tb_logs",
+            "experiment/configs/ConfigContainer.yaml",
+            "key: [",
+            id="bridge-malformed",
+        ),
+    ),
+)
+def test_can_parse_rejects_invalid_file_config(tmp_path, parser, tb_path, config_path, config_contents):
+    tb_dir = tmp_path / tb_path
+    tb_dir.mkdir(parents=True)
+    (tb_dir / "events.out.tfevents.1").write_text("x")
+    artifact = tmp_path / config_path
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text(config_contents)
+
+    assert parser.can_parse(_tr(output_path=tmp_path)) is False
 
 
 def test_megatron_config_path_points_to_tb_event_file(tmp_path):
