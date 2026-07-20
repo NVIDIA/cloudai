@@ -231,6 +231,11 @@ class SlurmSystem(System):
                 if not found and insert_new:
                     part.slurm_nodes.append(node)
 
+    def _is_transient_status_error(self, stderr: str) -> bool:
+        """Return True if a job-status query failed with a retryable, transient error."""
+        patterns = ["Socket timed out", "slurm_load_jobs error"]
+        return any(p in stderr for p in patterns)
+
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
         Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
@@ -256,7 +261,7 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job running: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(
                     f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold})."
@@ -304,7 +309,7 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job completed: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
                 continue
@@ -341,7 +346,7 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job status: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
                 continue
