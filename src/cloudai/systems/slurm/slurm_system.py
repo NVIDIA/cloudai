@@ -111,7 +111,7 @@ class SlurmSystem(System):
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
     extra_transient_status_errors: list[str] = Field(default_factory=list)
-    status_retry_pause_seconds: int = 10
+    status_retry_pause_seconds: int = Field(default=10, ge=0)
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
 
@@ -124,6 +124,13 @@ class SlurmSystem(System):
     @classmethod
     def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
         return parse_reports_spec(value)
+
+    @field_validator("extra_transient_status_errors")
+    @classmethod
+    def _reject_blank_transient_patterns(cls, value: list[str]) -> list[str]:
+        if any(not pattern.strip() for pattern in value):
+            raise ValueError("extra_transient_status_errors entries must be non-blank")
+        return value
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
@@ -242,7 +249,11 @@ class SlurmSystem(System):
         configured via ``extra_transient_status_errors`` (e.g. errors emitted
         by a proxy or shim wrapping the slurm CLIs).
         """
-        patterns = ["Socket timed out", "slurm_load_jobs error", *self.extra_transient_status_errors]
+        patterns = [
+            "Socket timed out",
+            "slurm_load_jobs error",
+            *(pattern for pattern in self.extra_transient_status_errors if pattern.strip()),
+        ]
         return any(p in stderr for p in patterns)
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:

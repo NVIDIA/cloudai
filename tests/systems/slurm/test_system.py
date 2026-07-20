@@ -20,6 +20,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import toml
+from pydantic import ValidationError
 
 from cloudai.core import BaseJob, TestRun
 from cloudai.models.scenario import ReportConfig
@@ -288,6 +289,30 @@ def test_is_job_running_with_retries(slurm_system: SlurmSystem):
     assert slurm_system.is_job_running(job, retry_threshold=3) is True
     assert slurm_system.cmd_shell.execute.call_count == 3
     slurm_system.cmd_shell.execute.assert_called_with(command)
+
+
+def test_no_pause_after_final_retry(slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+
+    pp = Mock()
+    pp.communicate = Mock(return_value=("", "Socket timed out"))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    with patch("cloudai.systems.slurm.slurm_system.time.sleep") as sleep_mock, pytest.raises(RuntimeError):
+        slurm_system.is_job_running(job, retry_threshold=3)
+    assert sleep_mock.call_count == 2  # after attempts 1 and 2, not after the final one
+
+
+def test_blank_extra_transient_pattern_never_matches(slurm_system: SlurmSystem):
+    slurm_system.extra_transient_status_errors = ["", "   "]
+    assert slurm_system._is_transient_status_error("COMPLETED") is False
+
+
+def test_blank_extra_transient_pattern_rejected_at_boundary(slurm_system: SlurmSystem):
+    data = slurm_system.model_dump()
+    data["extra_transient_status_errors"] = ["  "]
+    with pytest.raises(ValidationError):
+        SlurmSystem.model_validate(data)
 
 
 def test_is_job_running_retries_extra_transient_patterns(slurm_system: SlurmSystem):
