@@ -275,7 +275,8 @@ class SlurmSystem(System):
                 logging.warning(
                     f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold})."
                 )
-                time.sleep(self.status_retry_pause_seconds)
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -322,7 +323,8 @@ class SlurmSystem(System):
             if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
-                time.sleep(self.status_retry_pause_seconds)
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -360,7 +362,8 @@ class SlurmSystem(System):
             if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
-                time.sleep(self.status_retry_pause_seconds)
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
