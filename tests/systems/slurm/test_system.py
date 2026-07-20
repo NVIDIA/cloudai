@@ -290,6 +290,18 @@ def test_is_job_running_with_retries(slurm_system: SlurmSystem):
     slurm_system.cmd_shell.execute.assert_called_with(command)
 
 
+def test_is_job_running_retries_extra_transient_patterns(slurm_system: SlurmSystem):
+    slurm_system.extra_transient_status_errors = ["slurm-proxy:"]
+    job = BaseJob(test_run=Mock(), id=1)
+
+    pp = Mock()
+    pp.communicate = Mock(side_effect=[("", "slurm-proxy: transport hiccup"), ("RUNNING", "")])
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    assert slurm_system.is_job_running(job, retry_threshold=3) is True
+    assert slurm_system.cmd_shell.execute.call_count == 2
+
+
 def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
     job = BaseJob(test_run=Mock(), id=1)
     command = f"sacct -j {job.id} --format=State --noheader"

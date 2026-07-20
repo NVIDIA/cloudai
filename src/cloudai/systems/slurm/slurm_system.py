@@ -110,6 +110,7 @@ class SlurmSystem(System):
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
+    extra_transient_status_errors: list[str] = Field(default_factory=list)
     status_retry_pause_seconds: int = 10
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
@@ -234,8 +235,14 @@ class SlurmSystem(System):
                     part.slurm_nodes.append(node)
 
     def _is_transient_status_error(self, stderr: str) -> bool:
-        """Return True if a job-status query failed with a retryable, transient error."""
-        patterns = ["Socket timed out", "slurm_load_jobs error"]
+        """
+        Return True if a job-status query failed with a retryable, transient error.
+
+        Covers slurm's own transient failures plus any site-specific patterns
+        configured via ``extra_transient_status_errors`` (e.g. errors emitted
+        by a proxy or shim wrapping the slurm CLIs).
+        """
+        patterns = ["Socket timed out", "slurm_load_jobs error", *self.extra_transient_status_errors]
         return any(p in stderr for p in patterns)
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
