@@ -47,7 +47,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     RingExchangeOverlapCfg,
     TransformerLayerTPOverlapCfg,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
@@ -56,6 +55,12 @@ from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCal
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
+
+try:
+    from nemo.collections.common.tokenizers.tokenizer_utils import get_nmt_tokenizer
+except ImportError:
+    # NeMo releases before the tokenizer package was moved under collections.common.
+    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 
 def set_enable_cuda_graphs_params(recipe):
