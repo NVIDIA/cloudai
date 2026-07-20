@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -109,6 +110,7 @@ class SlurmSystem(System):
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
+    status_retry_pause_seconds: int = 10
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
 
@@ -266,6 +268,7 @@ class SlurmSystem(System):
                 logging.warning(
                     f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold})."
                 )
+                time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -312,6 +315,7 @@ class SlurmSystem(System):
             if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
+                time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -349,6 +353,7 @@ class SlurmSystem(System):
             if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
+                time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:

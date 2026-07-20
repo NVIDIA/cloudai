@@ -48,6 +48,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         cache_docker_images_locally=True,
         default_partition="main",
         gpus_per_node=8,
+        status_retry_pause_seconds=0,
         partitions=[
             SlurmPartition(
                 name="main",
