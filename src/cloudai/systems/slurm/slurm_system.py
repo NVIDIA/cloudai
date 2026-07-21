@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -109,6 +110,8 @@ class SlurmSystem(System):
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
+    extra_transient_status_errors: list[str] = Field(default_factory=list)
+    status_retry_pause_seconds: int = Field(default=10, ge=0)
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
 
@@ -121,6 +124,13 @@ class SlurmSystem(System):
     @classmethod
     def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
         return parse_reports_spec(value)
+
+    @field_validator("extra_transient_status_errors")
+    @classmethod
+    def _reject_blank_transient_patterns(cls, value: list[str]) -> list[str]:
+        if any(not pattern.strip() for pattern in value):
+            raise ValueError("extra_transient_status_errors entries must be non-blank")
+        return value
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
@@ -231,6 +241,21 @@ class SlurmSystem(System):
                 if not found and insert_new:
                     part.slurm_nodes.append(node)
 
+    def _is_transient_status_error(self, stderr: str) -> bool:
+        """
+        Return True if a job-status query failed with a retryable, transient error.
+
+        Covers slurm's own transient failures plus any site-specific patterns
+        configured via ``extra_transient_status_errors`` (e.g. errors emitted
+        by a proxy or shim wrapping the slurm CLIs).
+        """
+        patterns = [
+            "Socket timed out",
+            "slurm_load_jobs error",
+            *(pattern for pattern in self.extra_transient_status_errors if pattern.strip()),
+        ]
+        return any(p in stderr for p in patterns)
+
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
         Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
@@ -256,11 +281,13 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job running: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(
                     f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold})."
                 )
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -304,9 +331,11 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job completed: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
@@ -341,9 +370,11 @@ class SlurmSystem(System):
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             logging.debug(f"Job status: {command=} {stdout=} {stderr=}")
 
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+            if self._is_transient_status_error(stderr):
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
+                if retry_count < retry_threshold:
+                    time.sleep(self.status_retry_pause_seconds)
                 continue
 
             if stderr:
