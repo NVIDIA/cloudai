@@ -132,15 +132,20 @@ def _safe_literal_eval(raw: Any, default: Any) -> Any:
 
 def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
     """Load trajectory output."""
-    jsonl_path = iteration_dir / "trajectory.jsonl"
-    if jsonl_path.is_file():
-        return jsonl_path, lazy.pd.read_json(jsonl_path, lines=True)
-
     csv_path = iteration_dir / "trajectory.csv"
     if csv_path.is_file():
         return csv_path, lazy.pd.read_csv(csv_path)
 
     return None
+
+
+def _prefixed_values(row: dict[str, Any], prefix: str) -> dict[str, Any]:
+    """Return non-missing values from flat namespaced columns."""
+    return {
+        key.removeprefix(prefix): value
+        for key, value in row.items()
+        if key.startswith(prefix) and not lazy.pd.isna(value)
+    }
 
 
 def _format_scalar(value: Any) -> str:
@@ -268,12 +273,20 @@ def _build_trajectory_steps(
     steps: list[TrajectoryStep] = []
     for row in df.to_dict(orient="records"):
         step_no = int(row["step"])
-        action = _safe_literal_eval(row.get("action"), {})
-        if not isinstance(action, dict):
-            action = {}
-        observation = _safe_literal_eval(row.get("observation"), [])
-        if not isinstance(observation, list):
-            observation = [observation]
+        action = _prefixed_values(row, "action.")
+        if not action:
+            action = _safe_literal_eval(row.get("action"), {})
+            if not isinstance(action, dict):
+                action = {}
+
+        flat_observation = _prefixed_values(row, "observation.")
+        if flat_observation:
+            metric_names = test_case.test.agent_metrics or list(flat_observation)
+            observation = [flat_observation[metric] for metric in metric_names if metric in flat_observation]
+        else:
+            observation = _safe_literal_eval(row.get("observation"), [])
+            if not isinstance(observation, list):
+                observation = [observation]
         step_run = runs_by_step.get(step_no)
         steps.append(
             TrajectoryStep(

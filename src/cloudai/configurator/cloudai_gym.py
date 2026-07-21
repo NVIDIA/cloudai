@@ -17,7 +17,7 @@
 import copy
 import logging
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
@@ -25,12 +25,10 @@ from cloudai.util.lazy_imports import lazy
 from .base_agent import RewardOverrides
 from .base_gym import BaseGym
 from .env_params import EnvParams, ObsLeafDescriptor
-from .trajectory import (
-    EnvParamsSample,
-    Trajectory,
-    TrajectoryEntry,
-    TrialResult,
-)
+from .trajectory import Trajectory
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class CloudAIGymEnv(BaseGym):
@@ -45,8 +43,6 @@ class CloudAIGymEnv(BaseGym):
         test_run: TestRun,
         runner: BaseRunner,
         rewards: RewardOverrides,
-        *,
-        trajectory_file_type: Literal["csv", "jsonl"] = "csv",
     ):
         """
         Initialize the Gym environment using the TestRun object.
@@ -55,7 +51,6 @@ class CloudAIGymEnv(BaseGym):
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
-            trajectory_file_type: Format used to persist trajectory records.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -64,7 +59,7 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
-        self.trajectory = self._new_trajectory(trajectory_file_type)
+        self.trajectory = self._new_trajectory()
         super().__init__()
 
     @property
@@ -147,16 +142,15 @@ class CloudAIGymEnv(BaseGym):
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
 
         if cached_result is not None:
-            cached_trial_result = cached_result.get(TrialResult)
-            if cached_trial_result is None:
-                raise ValueError(f"cached trajectory entry at step {cached_result.step} is missing TrialResult")
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
-                cached_trial_result.reward,
-                cached_result.step,
+                cached_result["reward"],
+                cached_result["step"],
             )
-            observation = list(cached_trial_result.observation)
-            reward = cached_trial_result.reward
+            observation = {
+                metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
+            }
+            reward = cast(float, cached_result["reward"])
         else:
             if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
                 logging.info("Constraint check failed. Skipping step.")
@@ -182,21 +176,18 @@ class CloudAIGymEnv(BaseGym):
                 self.test_run.step = new_tr.step
                 self.test_run.output_path = new_tr.output_path
 
-            observation = self.get_observation(action)
+            observation = self.get_observation()
             reward = self.compute_reward(observation)
 
-        optional_values: dict[str, object] = {}
-        if self.params is not None:
-            optional_values["env_params"] = dict(sampled_env_params)
         self.trajectory.append(
             step=self.test_run.step,
-            action=dict(action),
+            action=action,
             reward=reward,
             observation=observation,
-            **optional_values,
+            env_params=sampled_env_params,
         )
 
-        return observation, reward, False, info
+        return list(observation.values()), reward, False, info
 
     def render(self, mode: str = "human"):
         """
@@ -217,38 +208,35 @@ class CloudAIGymEnv(BaseGym):
         if seed is not None:
             lazy.np.random.seed(seed)
 
-    def compute_reward(self, observation: list) -> float:
+    def compute_reward(self, observation: dict[str, Any]) -> float:
         """
         Compute a reward based on the TestRun result.
 
         Args:
-            observation (list): The observation list containing the average value.
+            observation: Metric values keyed by configured metric name.
 
         Returns:
             float: Reward value.
         """
-        return self.reward_function(observation)
+        return self.reward_function(list(observation.values()))
 
-    def get_observation(self, action: Any) -> list:
+    def get_observation(self) -> dict[str, Any]:
         """
         Get the observation from the TestRun object.
 
-        Args:
-            action (Any): Action taken by the agent.
-
         Returns:
-            list: The observation.
+            Metric values keyed by configured metric name.
         """
         all_metrics = self.test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
 
-        observation = []
+        observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
             if v is METRIC_ERROR:
                 v = self.rewards.metric_failure
-            observation.append(v)
+            observation[metric] = v
         return observation
 
     def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]:
@@ -269,12 +257,8 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.params.encode(env_params) if self.params is not None else {}
 
-    def _new_trajectory(self, file_type: Literal["csv", "jsonl"]) -> Trajectory:
-        return Trajectory(
-            iteration_dir=lambda: self.iteration_dir,
-            file_type=file_type,
-            components=(EnvParamsSample,) if self.params is not None else (),
-        )
+    def _new_trajectory(self) -> Trajectory:
+        return Trajectory(iteration_dir=lambda: self.iteration_dir)
 
     @property
     def iteration_dir(self) -> Path:
@@ -288,17 +272,6 @@ class CloudAIGymEnv(BaseGym):
             raise RuntimeError("trajectory persistence is not configured")
         return path
 
-    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> TrajectoryEntry | None:
-        """
-        Return a cached entry only when the full trial identity matches.
-
-        Trial identity is ``(action, env_params)``: env-randomized parameters
-        change the workload's behaviour, so a trial repeating the same action
-        under a different ``env_params`` sample must miss and re-run. Empty
-        env_params on both sides is the back-compat path for workloads that
-        do not declare any ``[env_params.*]`` block. The sample is passed in (a
-        per-trial local owned by ``step``), exactly like ``action``.
-        """
-        if not env_params:
-            return self.trajectory.find(action)
-        return self.trajectory.find(action, env_params=dict(env_params))
+    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> pd.Series | None:
+        """Return the first trajectory row matching the action and environment parameters."""
+        return self.trajectory.find(action=action, env_params=env_params)

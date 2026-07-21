@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ast
 import copy
 import re
 from pathlib import Path
@@ -592,4 +591,4 @@ def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slur
     runner.handle_dse()
 
     dataframe = pd.read_csv(trajectory_path)
-    assert dataframe["env_params"].map(ast.literal_eval).tolist() == expected_samples
+    assert dataframe["env_params.nthreads"].tolist() == [sample["nthreads"] for sample in expected_samples]

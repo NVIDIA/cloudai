@@ -14,422 +14,167 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ordered trajectory steps composed from typed dataclass components."""
+"""Pandas-native trajectory storage with flat, namespaced columns."""
 
 from __future__ import annotations
 
-import copy
 import csv
-import dataclasses
-import json
 import logging
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from numbers import Integral
 from pathlib import Path
-from types import MappingProxyType
-from typing import Any, ClassVar, Literal, Protocol, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any
 
-ComponentT = TypeVar("ComponentT")
+from cloudai.util.lazy_imports import lazy
 
-
-@dataclasses.dataclass(frozen=True)
-class EnvParamsSample:
-    """Environment-parameter values sampled for one trial."""
-
-    contributes_to_identity: ClassVar[bool] = True
-
-    env_params: Mapping[str, Any]
+if TYPE_CHECKING:
+    import pandas as pd
 
 
-@dataclasses.dataclass(frozen=True)
-class TrialResult:
-    """The action and resulting values required for every trajectory step."""
-
-    action: Mapping[str, Any]
-    reward: float
-    observation: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        """Own an immutable snapshot of the action."""
-        object.__setattr__(self, "action", _freeze(self.action))
-
-
-@dataclasses.dataclass(frozen=True)
-class TrajectoryEntry:
-    """One immutable step containing a fixed set of typed data components."""
-
-    step: int
-    components: tuple[object, ...]
-
-    def __post_init__(self) -> None:
-        """Validate the entry and snapshot its identity components."""
-        if self.step < 1:
-            raise ValueError(f"trajectory step must be positive; got {self.step}")
-        _validate_components(self.components)
-        object.__setattr__(
-            self,
-            "components",
-            tuple(
-                _freeze_component(component)
-                if getattr(type(component), "contributes_to_identity", False)
-                else component
-                for component in self.components
-            ),
-        )
-
-    def get(self, component_type: type[ComponentT]) -> ComponentT | None:
-        """Return the component with exactly the requested type, if present."""
-        for component in self.components:
-            if type(component) is component_type:
-                return cast(ComponentT, component)
-        return None
-
-
-class TrajectoryWriter(Protocol):
-    """Persistence boundary for one flattened trajectory record."""
-
-    @property
-    def output_path(self) -> Path: ...
-
-    def append(self, record: Mapping[str, object]) -> None:
-        """Persist one record."""
-
-
-class _FileTrajectoryWriter:
-    """Resolve a writer-specific filename beneath an iteration directory."""
-
-    file_name = ""
-
-    def __init__(self, iteration_dir: Path | Callable[[], Path]) -> None:
-        self._iteration_dir = iteration_dir
-
-    @property
-    def output_path(self) -> Path:
-        iteration_dir = self._iteration_dir() if callable(self._iteration_dir) else self._iteration_dir
-        return iteration_dir / self.file_name
-
-
-class CsvTrajectoryWriter(_FileTrajectoryWriter):
-    """Append trajectory records to trajectory.csv."""
+class Trajectory:
+    """An ordered DataFrame of DSE steps persisted to ``trajectory.csv``."""
 
     file_name = "trajectory.csv"
 
-    def __init__(self, iteration_dir: Path | Callable[[], Path]) -> None:
-        super().__init__(iteration_dir)
-        self._fields: tuple[str, ...] | None = None
-
-    def append(self, record: Mapping[str, object]) -> None:
-        fields = tuple(record)
-        path = self.output_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_header = not path.exists() or path.stat().st_size == 0
-        existing_fields: tuple[str, ...] = ()
-        if not write_header:
-            with path.open(newline="") as file:
-                existing_fields = tuple(next(csv.reader(file), ()))
-
-        if self._fields is None:
-            if existing_fields and existing_fields != fields:
-                raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
-            self._fields = fields
-        elif fields != self._fields:
-            raise ValueError(f"trajectory record fields changed: expected {self._fields}, got {fields}")
-        elif existing_fields and existing_fields != self._fields:
-            raise ValueError(f"trajectory file fields do not match: expected {self._fields}, got {existing_fields}")
-
-        with path.open("a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=self._fields)
-            if write_header:
-                writer.writeheader()
-            writer.writerow(record)
-        logging.debug("Wrote trajectory record to %s.", path)
-
-
-class JsonLinesTrajectoryWriter(_FileTrajectoryWriter):
-    """Append trajectory records to trajectory.jsonl as newline-delimited JSON objects."""
-
-    file_name = "trajectory.jsonl"
-
-    def append(self, record: Mapping[str, object]) -> None:
-        path = self.output_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a") as file:
-            file.write(json.dumps(record))
-            file.write("\n")
-        logging.debug("Wrote trajectory record to %s.", path)
-
-
-class Trajectory(Sequence[TrajectoryEntry]):
-    """
-    Ordered entries for one DSE iteration with one fixed component schema.
-
-    ``components`` declares optional data types every entry must contain;
-    :class:`TrialResult` is always included.
-    Components whose ``contributes_to_identity`` class property is true affect
-    trial equivalence; other components are stored as informational data.
-
-    Steps must be appended in increasing order, but gaps are permitted because
-    CloudAI does not record constraint-failed trials.
-    """
-
     def __init__(
         self,
-        entries: Sequence[TrajectoryEntry] = (),
+        dataframe: pd.DataFrame | None = None,
         *,
         iteration_dir: Path | Callable[[], Path] | None = None,
-        file_type: Literal["csv", "jsonl"] = "csv",
-        components: Sequence[type[object]] = (),
     ) -> None:
-        self._component_types = (TrialResult, *components)
-        self._components = frozenset(self._component_types)
-        self._identity = frozenset(
-            component_type
-            for component_type in self._component_types
-            if getattr(component_type, "contributes_to_identity", False)
+        self._iteration_dir = iteration_dir
+        self._dataframe = lazy.pd.DataFrame() if dataframe is None else dataframe.copy(deep=True)
+        self._validate_dataframe()
+        self._dataframe = self._dataframe.astype(object)
+        self._fields: tuple[str, ...] | None = (
+            tuple(self._dataframe.columns) if len(self._dataframe.columns) > 0 else None
         )
-        if len(self._components) != len(self._component_types):
-            raise ValueError("components cannot contain duplicate types")
-
-        self._writer = self._create_writer(iteration_dir, file_type)
-        self._fields_by_type = self._build_fields_by_type()
-
-        self._entries: list[TrajectoryEntry] = []
-        for entry in entries:
-            self._store_entry(entry, persist=False)
-
-        component_names = ", ".join(component_type.__name__ for component_type in self._component_types)
         logging.debug(
-            "Initializing Trajectory: entries=%s, file_type=%s, components=[%s].",
+            "Initializing Trajectory: entries=%s, columns=%s.",
             len(self),
-            str(file_type),
-            component_names,
+            list(self._dataframe.columns),
         )
-
-    @staticmethod
-    def _create_writer(
-        iteration_dir: Path | Callable[[], Path] | None,
-        file_type: Literal["csv", "jsonl"],
-    ) -> TrajectoryWriter | None:
-        if file_type == "csv":
-            writer_type = CsvTrajectoryWriter
-        elif file_type == "jsonl":
-            writer_type = JsonLinesTrajectoryWriter
-        else:
-            raise ValueError(f"Invalid trajectory file type: {file_type}")
-        return writer_type(iteration_dir) if iteration_dir is not None else None
-
-    @overload
-    def __getitem__(self, index: int) -> TrajectoryEntry: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> list[TrajectoryEntry]: ...
-
-    def __getitem__(self, index: int | slice) -> TrajectoryEntry | list[TrajectoryEntry]:
-        """Return one entry or a list containing an entry slice."""
-        return self._entries[index]
 
     def __len__(self) -> int:
-        """Return the number of recorded entries."""
-        return len(self._entries)
+        """Return the number of trajectory rows."""
+        return len(self._dataframe)
 
-    def __iter__(self) -> Iterator[TrajectoryEntry]:
-        """Iterate over entries in step order."""
-        return iter(self._entries)
+    @property
+    def dataframe(self) -> pd.DataFrame:
+        """Return a copy of the trajectory DataFrame for analysis."""
+        return self._dataframe.copy(deep=True)
 
     @property
     def output_path(self) -> Path | None:
-        """Return the writer's current output path, if persistence is configured."""
-        return self._writer.output_path if self._writer is not None else None
+        """Return the current trajectory CSV path when persistence is configured."""
+        if self._iteration_dir is None:
+            return None
+        iteration_dir = self._iteration_dir() if callable(self._iteration_dir) else self._iteration_dir
+        return iteration_dir / self.file_name
 
-    def append(self, *, step: int, **values: object) -> TrajectoryEntry:
-        """Build configured components from values, then store and persist one entry."""
-        components = self._construct_components(self._component_types, values, "trajectory values")
-        entry = TrajectoryEntry(step=step, components=components)
-        self._store_entry(entry, persist=True)
-        return entry
+    def append(self, *, step: int, **values: object) -> pd.Series:
+        """Flatten, persist, and store one trajectory row."""
+        self._validate_step(step)
+        if len(self) and step <= self._dataframe.iloc[-1]["step"]:
+            raise ValueError(
+                f"trajectory steps must increase: last step is {self._dataframe.iloc[-1]['step']}, got {step}"
+            )
 
-    def _store_entry(self, entry: TrajectoryEntry, *, persist: bool) -> None:
-        self._validate_entry_components(entry)
-        if self._entries and entry.step <= self._entries[-1].step:
-            raise ValueError(f"trajectory steps must increase: last step is {self._entries[-1].step}, got {entry.step}")
-        if persist and self._writer is not None:
-            self._writer.append(self._to_record(entry))
-        self._entries.append(entry)
-        logging.debug("Appended trajectory entry for step %s (total entries: %s).", entry.step, len(self))
+        record: dict[str, object] = {"step": step}
+        for domain, value in values.items():
+            _flatten_value(record, domain, value)
 
-    def find(self, action: Mapping[str, Any], **identity_values: object) -> TrajectoryEntry | None:
-        identity_components = self._construct_components(
-            tuple(component_type for component_type in self._component_types if component_type in self._identity),
-            identity_values,
-            "trajectory identity values",
-        )
-        identity = self._identity_for(self._freeze_identity_components(identity_components))
-        frozen_action = _freeze(action)
-        for entry in self._entries:
-            result = entry.get(TrialResult)
-            if result is None:
-                raise ValueError(f"trajectory entry at step {entry.step} is missing TrialResult")
-            if _values_match_exact(result.action, frozen_action) and _values_match_exact(
-                self._identity_for(entry.components), identity
-            ):
-                logging.debug("Found matching trajectory entry at step %s for action %s.", entry.step, action)
-                return entry
-        logging.debug("No matching trajectory entry found for action %s.", action)
+        fields = tuple(record)
+        if self._fields is not None and fields != self._fields:
+            raise ValueError(f"trajectory record fields changed: expected {self._fields}, got {fields}")
+
+        row = lazy.pd.Series(record, dtype=object)
+        self._persist(row, fields)
+
+        row_frame = row.to_frame().T.astype(object)
+        self._dataframe = lazy.pd.concat([self._dataframe, row_frame], ignore_index=True).astype(object)
+        self._fields = fields
+        logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
+        return row.copy(deep=True)
+
+    def find(self, **values: object) -> pd.Series | None:
+        """Return a copy of the first row matching all supplied domain values."""
+        criteria: dict[str, object] = {}
+        for domain, value in values.items():
+            _flatten_value(criteria, domain, value)
+
+        if any(field not in self._dataframe.columns for field in criteria):
+            return None
+
+        for _, row in self._dataframe.iterrows():
+            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
+                logging.debug("Found matching trajectory row at step %s for %s.", row["step"], values)
+                return row.copy(deep=True)
+        logging.debug("No matching trajectory row found for %s.", values)
         return None
 
-    def _validate_entry_components(self, entry: TrajectoryEntry) -> None:
-        _validate_schema(
-            frozenset(type(component) for component in entry.components),
-            self._components,
-            "trajectory entry components",
-        )
+    def _validate_dataframe(self) -> None:
+        if not self._dataframe.columns.is_unique:
+            raise ValueError("trajectory dataframe columns must be unique")
+        non_string_columns = [column for column in self._dataframe.columns if not isinstance(column, str)]
+        if non_string_columns:
+            raise TypeError(f"trajectory dataframe columns must be strings: {non_string_columns}")
+        if self._dataframe.empty and len(self._dataframe.columns) == 0:
+            return
+        if "step" not in self._dataframe.columns:
+            raise ValueError("trajectory dataframe must contain a step column")
 
-    def _identity_for(self, components: Sequence[object]) -> dict[type[object], object]:
-        return {type(component): component for component in components if type(component) in self._identity}
+        previous_step: int | None = None
+        for step in self._dataframe["step"]:
+            self._validate_step(step)
+            if previous_step is not None and step <= previous_step:
+                raise ValueError(f"trajectory steps must increase: last step is {previous_step}, got {step}")
+            previous_step = int(step)
 
-    def _freeze_identity_components(self, components: Sequence[object]) -> tuple[object, ...]:
-        return tuple(
-            _freeze_component(component) if type(component) in self._identity else component for component in components
-        )
+    @staticmethod
+    def _validate_step(step: object) -> None:
+        if isinstance(step, bool) or not isinstance(step, Integral) or step < 1:
+            raise ValueError(f"trajectory step must be a positive integer; got {step}")
 
-    def _construct_components(
-        self,
-        component_types: Sequence[type[object]],
-        values: Mapping[str, object],
-        context: str,
-    ) -> tuple[object, ...]:
-        fields_by_type = {
-            component_type: tuple(field for field in self._fields_by_type[component_type] if field.init)
-            for component_type in component_types
-        }
-        expected = {field.name for fields in fields_by_type.values() for field in fields}
-        required = {
-            field.name
-            for fields in fields_by_type.values()
-            for field in fields
-            if field.default is dataclasses.MISSING and field.default_factory is dataclasses.MISSING
-        }
-        actual = set(values)
-        missing = required - actual
-        unexpected = actual - expected
-        if missing or unexpected:
-            details = []
-            if missing:
-                details.append(f"missing: {', '.join(sorted(missing))}")
-            if unexpected:
-                details.append(f"unexpected: {', '.join(sorted(unexpected))}")
-            raise TypeError(f"{context} do not match configured schema ({'; '.join(details)})")
+    def _persist(self, row: pd.Series, fields: tuple[str, ...]) -> None:
+        path = self.output_path
+        if path is None:
+            return
 
-        components = []
-        for component_type, fields in fields_by_type.items():
-            kwargs = {field.name: values[field.name] for field in fields if field.name in values}
-            constructor = cast(Any, component_type)
-            components.append(constructor(**kwargs))
-        return tuple(components)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not path.exists() or path.stat().st_size == 0
+        if not write_header:
+            with path.open(newline="") as file:
+                existing_fields = tuple(next(csv.reader(file), ()))
+            if existing_fields != fields:
+                raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
 
-    def _build_fields_by_type(self) -> dict[type[object], tuple[dataclasses.Field[Any], ...]]:
-        fields_by_type: dict[type[object], tuple[dataclasses.Field[Any], ...]] = {}
-        for component_type in self._component_types:
-            if not dataclasses.is_dataclass(component_type):
-                raise TypeError(f"trajectory component type {component_type.__name__} must be a dataclass")
-            fields_by_type[component_type] = dataclasses.fields(component_type)
-
-        fields = ("step", *(field.name for component_fields in fields_by_type.values() for field in component_fields))
-        if len(fields) != len(set(fields)):
-            raise ValueError("trajectory record fields must be unique")
-        return fields_by_type
-
-    def _to_record(self, entry: TrajectoryEntry) -> dict[str, object]:
-        record: dict[str, object] = {"step": entry.step}
-        components_by_type = {type(component): component for component in entry.components}
-        for component_type in self._component_types:
-            component = components_by_type[component_type]
-            record.update(
-                {_field.name: _thaw(getattr(component, _field.name)) for _field in self._fields_by_type[component_type]}
-            )
-        return record
+        row.to_frame().T.to_csv(path, mode="a", header=write_header, index=False)
+        logging.debug("Wrote trajectory row to %s.", path)
 
 
-def _validate_components(components: Sequence[object]) -> None:
-    non_dataclasses = [type(component).__name__ for component in components if not dataclasses.is_dataclass(component)]
-    if non_dataclasses:
-        raise TypeError(f"trajectory components must be dataclass instances: {', '.join(non_dataclasses)}")
-    mutable_identity_components = [
-        type(component).__name__
-        for component in components
-        if getattr(type(component), "contributes_to_identity", False)
-        and not cast(Any, type(component)).__dataclass_params__.frozen
-    ]
-    if mutable_identity_components:
-        raise TypeError(
-            "identity-contributing trajectory components must be frozen dataclasses: "
-            f"{', '.join(mutable_identity_components)}"
-        )
-    if len({type(component) for component in components}) != len(components):
-        raise ValueError("components cannot contain duplicate component types")
-
-
-def _validate_schema(
-    actual: frozenset[type[object]],
-    expected: frozenset[type[object]],
-    context: str,
-) -> None:
-    if actual == expected:
+def _flatten_value(record: dict[str, object], key: str, value: object) -> None:
+    """Flatten mappings into dot-separated columns while preserving leaf values."""
+    if isinstance(value, Mapping):
+        for child_key, child_value in value.items():
+            if not isinstance(child_key, str):
+                raise TypeError(f"trajectory mapping keys must be strings: {child_key}")
+            _flatten_value(record, f"{key}.{child_key}", child_value)
         return
-
-    details = []
-    missing = expected - actual
-    unexpected = actual - expected
-    if missing:
-        details.append(f"missing: {', '.join(sorted(component_type.__name__ for component_type in missing))}")
-    if unexpected:
-        details.append(f"unexpected: {', '.join(sorted(component_type.__name__ for component_type in unexpected))}")
-    raise TypeError(f"{context} do not match configured schema ({'; '.join(details)})")
-
-
-def _freeze(value: Any) -> Any:
-    """Recursively copy mutable containers into read-only equivalents."""
-    if isinstance(value, Mapping):
-        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze(item) for item in value)
-    if isinstance(value, (set, frozenset)):
-        return frozenset(_freeze(item) for item in value)
-    return value
-
-
-def _freeze_component(component: object) -> object:
-    """Copy a dataclass component and freeze all of its stored fields."""
-    snapshot = copy.copy(component)
-    for field in dataclasses.fields(cast(Any, component)):
-        object.__setattr__(snapshot, field.name, _freeze(getattr(component, field.name)))
-    return snapshot
-
-
-def _thaw(value: Any) -> Any:
-    """Convert frozen containers to values supported by trajectory writers."""
-    if isinstance(value, Mapping):
-        return {key: _thaw(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw(item) for item in value]
-    if isinstance(value, frozenset):
-        return [_thaw(item) for item in value]
-    return value
+    if key in record:
+        raise ValueError(f"trajectory values produce duplicate column: {key}")
+    record[key] = value
 
 
 def _values_match_exact(left: Any, right: Any) -> bool:
     if type(left) is not type(right):
         return False
-    if dataclasses.is_dataclass(left) and not isinstance(left, type):
-        return all(
-            _values_match_exact(getattr(left, field.name), getattr(right, field.name))
-            for field in dataclasses.fields(left)
-        )
     if isinstance(left, Mapping):
         if set(left) != set(right):
             return False
         return all(_values_match_exact(left[key], right[key]) for key in left)
-    if isinstance(left, (list, tuple)):
+    if isinstance(left, Sequence) and not isinstance(left, (str, bytes)):
         return len(left) == len(right) and all(
             _values_match_exact(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
         )
-    return left == right
+    return bool(left == right)

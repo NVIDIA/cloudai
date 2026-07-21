@@ -212,11 +212,11 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
     expected_trajectory = pd.DataFrame(
         data=[
-            [1, "{'candidate': 1}", -1.0, "[-1.0]"],
-            [2, "{'candidate': 1}", -1.0, "[-1.0]"],
-            [3, "{'candidate': 2}", -1.0, "[-1.0]"],
+            [1, 1, -1.0, -1.0],
+            [2, 1, -1.0, -1.0],
+            [3, 2, -1.0, -1.0],
         ],
-        columns=["step", "action", "reward", "observation"],
+        columns=["step", "action.candidate", "reward", "observation.default"],
     )
     pd.testing.assert_frame_equal(actual_trajectory, expected_trajectory)
 
