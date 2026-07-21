@@ -17,7 +17,7 @@
 import re
 from os.path import expandvars
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import toml
 from pydantic import Field, field_validator, model_validator
@@ -79,10 +79,27 @@ class MegatronRunCmdArgs(CmdArgs):
         return self
 
     @property
-    def cmd_args(self) -> dict[str, Union[str, list[str]]]:
+    def cmd_args(self) -> dict[str, Any]:
+        # Fields with default="" are boolean flags; extra fields (model_extra) are also boolean by convention.
+        # recompute_activations is also a bare flag (default=None so it can be omitted entirely).
+        bool_flags = {k for k, f in MegatronRunCmdArgs.model_fields.items() if f.default == ""} | {
+            "recompute_activations"
+        }
+        extra_keys = set(self.model_extra or {})
         args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
-        args = {f"--{k.replace('_', '-')}": v for k, v in args.items()}
-        return args
+        result: dict[str, Any] = {}
+        for k, v in args.items():
+            flag = f"--{k.replace('_', '-')}"
+            if k in bool_flags or k in extra_keys:
+                if v == "false":
+                    continue
+                elif v in ("true", ""):
+                    result[flag] = ""
+                else:
+                    result[flag] = v
+            else:
+                result[flag] = v
+        return result
 
 
 class MegatronRunTestDefinition(TestDefinition):
@@ -92,7 +109,7 @@ class MegatronRunTestDefinition(TestDefinition):
     _docker_image: Optional[DockerImage] = None
 
     @property
-    def cmd_args_dict(self) -> dict[str, Union[str, list[str]]]:
+    def cmd_args_dict(self) -> dict[str, Any]:
         return self.cmd_args.cmd_args
 
     @property
