@@ -59,7 +59,7 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
-        self.trajectory = self._new_trajectory()
+        self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
 
     @property
@@ -257,9 +257,6 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.params.encode(env_params) if self.params is not None else {}
 
-    def _new_trajectory(self) -> Trajectory:
-        return Trajectory(iteration_dir=lambda: self.iteration_dir)
-
     @property
     def iteration_dir(self) -> Path:
         """Per-iteration output directory containing the trajectory output."""
@@ -267,10 +264,7 @@ class CloudAIGymEnv(BaseGym):
 
     @property
     def trajectory_file_path(self) -> Path:
-        path = self.trajectory.output_path
-        if path is None:
-            raise RuntimeError("trajectory persistence is not configured")
-        return path
+        return self.trajectory.output_path
 
     def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> "pd.Series | None":
         """Return the first trajectory row matching the action and environment parameters."""

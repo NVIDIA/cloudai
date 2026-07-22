@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import csv
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from numbers import Integral
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,23 +33,23 @@ if TYPE_CHECKING:
 
 
 class Trajectory:
-    """An ordered DataFrame of DSE steps persisted to ``trajectory.csv``."""
+    """An ordered DataFrame of DSE steps persisted as core and metadata CSVs."""
 
     file_name = "trajectory.csv"
+    metadata_file_name = "metadata.csv"
+    _core_fields = ("step", "action", "reward", "observation")
+    _core_domains = frozenset(_core_fields)
 
     def __init__(
         self,
-        dataframe: pd.DataFrame | None = None,
         *,
-        iteration_dir: Path | Callable[[], Path] | None = None,
+        iteration_dir: Path,
+        dataframe: pd.DataFrame | None = None,
     ) -> None:
         self._iteration_dir = iteration_dir
-        self._dataframe = lazy.pd.DataFrame() if dataframe is None else dataframe.copy(deep=True)
+        self._dataframe = lazy.pd.DataFrame() if dataframe is None else _copy_dataframe(dataframe)
         self._validate_dataframe()
         self._dataframe = self._dataframe.astype(object)
-        self._fields: tuple[str, ...] | None = (
-            tuple(self._dataframe.columns) if len(self._dataframe.columns) > 0 else None
-        )
         logging.debug(
             "Initializing Trajectory: entries=%s, columns=%s.",
             len(self),
@@ -62,17 +63,27 @@ class Trajectory:
     @property
     def dataframe(self) -> pd.DataFrame:
         """Return a copy of the trajectory DataFrame for analysis."""
-        return self._dataframe.copy(deep=True)
+        return _copy_dataframe(self._dataframe)
 
     @property
-    def output_path(self) -> Path | None:
-        """Return the current trajectory CSV path when persistence is configured."""
-        if self._iteration_dir is None:
-            return None
-        iteration_dir = self._iteration_dir() if callable(self._iteration_dir) else self._iteration_dir
-        return iteration_dir / self.file_name
+    def output_path(self) -> Path:
+        """Return the trajectory CSV path."""
+        return self._iteration_dir / self.file_name
 
-    def append(self, *, step: int, **values: object) -> pd.Series:
+    @property
+    def metadata_path(self) -> Path:
+        """Return the trajectory metadata CSV path."""
+        return self._iteration_dir / self.metadata_file_name
+
+    def append(
+        self,
+        *,
+        step: int,
+        action: object,
+        reward: object,
+        observation: object,
+        **values: object,
+    ) -> pd.Series:
         """Flatten, persist, and store one trajectory row."""
         self._validate_step(step)
         if len(self) and step <= self._dataframe.iloc[-1]["step"]:
@@ -81,21 +92,22 @@ class Trajectory:
             )
 
         record: dict[str, object] = {"step": step}
-        for domain, value in values.items():
+        domains = {"action": action, "reward": reward, "observation": observation, **values}
+        for domain, value in domains.items():
             _flatten_value(record, domain, value)
 
         fields = tuple(record)
-        if self._fields is not None and fields != self._fields:
-            raise ValueError(f"trajectory record fields changed: expected {self._fields}, got {fields}")
+        expected_fields = tuple(self._dataframe.columns)
+        if expected_fields and fields != expected_fields:
+            raise ValueError(f"trajectory record fields changed: expected {expected_fields}, got {fields}")
 
         row = lazy.pd.Series(record, dtype=object)
-        self._persist(row, fields)
+        self._persist(row, action=action, reward=reward, observation=observation)
 
         row_frame = row.to_frame().T.astype(object)
         self._dataframe = lazy.pd.concat([self._dataframe, row_frame], ignore_index=True).astype(object)
-        self._fields = fields
         logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
-        return row.copy(deep=True)
+        return _copy_series(row)
 
     def find(self, **values: object) -> pd.Series | None:
         """Return a copy of the first row matching all supplied domain values."""
@@ -109,7 +121,7 @@ class Trajectory:
         for _, row in self._dataframe.iterrows():
             if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
                 logging.debug("Found matching trajectory row at step %s for %s.", row["step"], values)
-                return row.copy(deep=True)
+                return _copy_series(row)
         logging.debug("No matching trajectory row found for %s.", values)
         return None
 
@@ -136,21 +148,49 @@ class Trajectory:
         if isinstance(step, bool) or not isinstance(step, Integral) or step < 1:
             raise ValueError(f"trajectory step must be a positive integer; got {step}")
 
-    def _persist(self, row: pd.Series, fields: tuple[str, ...]) -> None:
-        path = self.output_path
-        if path is None:
-            return
+    def _persist(self, row: pd.Series, *, action: object, reward: object, observation: object) -> None:
+        core_row = lazy.pd.Series(
+            {
+                "step": row["step"],
+                "action": action,
+                "reward": reward,
+                "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
+            },
+            dtype=object,
+        )
+        metadata_fields = tuple(
+            field for field in row.index if field == "step" or field.split(".", maxsplit=1)[0] not in self._core_domains
+        )
+        metadata_row = row[list(metadata_fields)] if len(metadata_fields) > 1 else None
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_header = not path.exists() or path.stat().st_size == 0
-        if not write_header:
-            with path.open(newline="") as file:
-                existing_fields = tuple(next(csv.reader(file), ()))
-            if existing_fields != fields:
-                raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        core_header = _validate_csv_header(self.output_path, self._core_fields)
+        metadata_header = (
+            _validate_csv_header(self.metadata_path, metadata_fields) if metadata_row is not None else False
+        )
 
-        row.to_frame().T.to_csv(path, mode="a", header=write_header, index=False)
-        logging.debug("Wrote trajectory row to %s.", path)
+        core_row.to_frame().T.to_csv(self.output_path, mode="a", header=core_header, index=False)
+        logging.debug("Wrote trajectory row to %s.", self.output_path)
+        if metadata_row is not None:
+            metadata_row.to_frame().T.to_csv(
+                self.metadata_path,
+                mode="a",
+                header=metadata_header,
+                index=False,
+            )
+            logging.debug("Wrote trajectory metadata row to %s.", self.metadata_path)
+
+
+def _validate_csv_header(path: Path, fields: tuple[str, ...]) -> bool:
+    """Validate an existing CSV header and return whether a header must be written."""
+    write_header = not path.exists() or path.stat().st_size == 0
+    if write_header:
+        return True
+    with path.open(newline="") as file:
+        existing_fields = tuple(next(csv.reader(file), ()))
+    if existing_fields != fields:
+        raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
+    return False
 
 
 def _flatten_value(record: dict[str, object], key: str, value: object) -> None:
@@ -163,7 +203,24 @@ def _flatten_value(record: dict[str, object], key: str, value: object) -> None:
         return
     if key in record:
         raise ValueError(f"trajectory values produce duplicate column: {key}")
-    record[key] = value
+    record[key] = deepcopy(value)
+
+
+def _copy_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Copy a DataFrame and recursively snapshot object cells."""
+    copied = dataframe.copy(deep=True).astype(object)
+    for row_index in range(dataframe.shape[0]):
+        for column_index in range(dataframe.shape[1]):
+            copied.iat[row_index, column_index] = deepcopy(dataframe.iat[row_index, column_index])
+    return copied
+
+
+def _copy_series(series: pd.Series) -> pd.Series:
+    """Copy a Series and recursively snapshot object cells."""
+    copied = series.copy(deep=True).astype(object)
+    for index in range(len(series)):
+        copied.iat[index] = deepcopy(series.iat[index])
+    return copied
 
 
 def _values_match_exact(left: Any, right: Any) -> bool:

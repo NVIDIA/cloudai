@@ -579,7 +579,9 @@ def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slur
     tc = TestScenario(name="tc", test_runs=[dse_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
     trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
+    metadata_path = trajectory_path.with_name("metadata.csv")
     trajectory_path.unlink(missing_ok=True)
+    metadata_path.unlink(missing_ok=True)
 
     params = EnvParams.from_test(dse_tr.test)
     assert params is not None
@@ -590,5 +592,7 @@ def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slur
 
     runner.handle_dse()
 
-    dataframe = pd.read_csv(trajectory_path)
-    assert dataframe["env_params.nthreads"].tolist() == [sample["nthreads"] for sample in expected_samples]
+    trajectory = pd.read_csv(trajectory_path)
+    metadata = pd.read_csv(metadata_path)
+    assert trajectory["step"].tolist() == metadata["step"].tolist()
+    assert metadata["env_params.nthreads"].tolist() == [sample["nthreads"] for sample in expected_samples]

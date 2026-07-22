@@ -28,7 +28,7 @@ from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
-from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
+from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -44,23 +44,6 @@ from cloudai.systems.slurm.slurm_metadata import (
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
-
-
-def test_load_trajectory_dataframe_reads_flat_csv(tmp_path: Path) -> None:
-    csv_path = tmp_path / "trajectory.csv"
-    with csv_path.open("w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=("step", "action.x", "reward", "observation.default"))
-        writer.writeheader()
-        writer.writerow({"step": 1, "action.x": 2, "reward": 3.0, "observation.default": 4.0})
-
-    loaded = load_trajectory_dataframe(tmp_path)
-
-    assert loaded is not None
-    path, dataframe = loaded
-    assert path == csv_path
-    assert dataframe.to_dict(orient="records") == [
-        {"step": 1, "action.x": 2, "reward": 3.0, "observation.default": 4.0}
-    ]
 
 
 class TestLoadTestTuns:
@@ -405,33 +388,16 @@ def _create_dse_iteration(
     results_root: Path,
     slurm_metadata: SlurmSystemMetadata,
     steps: list[dict[str, Any]],
-    *,
-    flat_trajectory: bool = False,
 ) -> None:
     iteration_dir = results_root / case.name / str(iteration)
     iteration_dir.mkdir(parents=True, exist_ok=True)
 
     with (iteration_dir / "trajectory.csv").open("w", newline="") as f:
         writer = csv.writer(f)
-        action_columns = [f"action.{key}" for key in steps[0]["action"]]
-        writer.writerow(
-            ["step", *action_columns, "reward", "observation.default"]
-            if flat_trajectory
-            else ["step", "action", "reward", "observation"]
-        )
+        writer.writerow(["step", "action", "reward", "observation"])
         for step in steps:
             step_no = step["step"]
-            row = (
-                [
-                    step_no,
-                    *(step["action"][column.removeprefix("action.")] for column in action_columns),
-                    step["reward"],
-                    step["observation"][0],
-                ]
-                if flat_trajectory
-                else [step_no, step["action"], step["reward"], step["observation"]]
-            )
-            writer.writerow(row)
+            writer.writerow([step_no, step["action"], step["reward"], step["observation"]])
 
             step_dir = iteration_dir / str(step_no)
             step_dir.mkdir(parents=True, exist_ok=True)
@@ -449,11 +415,9 @@ def _create_dse_iteration(
                 toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
 
 
-@pytest.mark.parametrize("flat_trajectory", [False, True])
 def test_dse_reporter(
     slurm_system: SlurmSystem,
     slurm_metadata: SlurmSystemMetadata,
-    flat_trajectory: bool,
 ) -> None:
     slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
 
@@ -501,7 +465,6 @@ def test_dse_reporter(
         results_root=slurm_system.output_path,
         slurm_metadata=slurm_metadata,
         steps=steps,
-        flat_trajectory=flat_trajectory,
     )
 
     scenario = TestScenario(

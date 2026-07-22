@@ -190,7 +190,9 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
         pytest.param(RewardOverrides(constraint_failure=-2.5), -2.5, id="custom_penalty"),
     ],
 )
-def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverrides, expected_reward: float):
+def test_constraint_failure(
+    nemorun: NeMoRunTestDefinition, tmp_path: Path, rewards: RewardOverrides, expected_reward: float
+):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
@@ -202,6 +204,7 @@ def test_constraint_failure(nemorun: NeMoRunTestDefinition, rewards: RewardOverr
         reports={NeMoRunReportGenerationStrategy},
     )
     runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=rewards)
 
@@ -404,7 +407,7 @@ def test_get_cached_trajectory_result(
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
-    env.trajectory = Trajectory(dataframe=pd.DataFrame(entries, dtype=object))
+    env.trajectory = Trajectory(iteration_dir=env.iteration_dir, dataframe=pd.DataFrame(entries, dtype=object))
 
     actual = env.get_cached_trajectory_result(action, {})
     if actual is None:
@@ -455,7 +458,7 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     assert trajectory_path.exists()
     assert trajectory_path.name == "trajectory.csv"
     contents = trajectory_path.read_text().strip().splitlines()
-    assert contents[0] == "step,action.trainer.max_steps,reward,observation.default"
+    assert contents[0] == "step,action,reward,observation"
     assert contents[-1].startswith("5,")
 
 
@@ -463,7 +466,7 @@ def _seed_cached_entry_with_env_params(
     env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
 ) -> None:
     """Seed an environment-parameter-aware trajectory with one entry."""
-    trajectory = Trajectory()
+    trajectory = Trajectory(iteration_dir=env.iteration_dir)
     trajectory.append(
         step=1,
         action=action,
@@ -526,7 +529,10 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
 
     env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
     env.test_run.current_iteration = 0
-    env.trajectory = Trajectory(dataframe=pd.DataFrame([_trajectory_row(1, {"x": 10}, 0.5, [100.0])], dtype=object))
+    env.trajectory = Trajectory(
+        iteration_dir=env.iteration_dir,
+        dataframe=pd.DataFrame([_trajectory_row(1, {"x": 10}, 0.5, [100.0])], dtype=object),
+    )
     # Note: neither the cached entry nor the trial carries env_params -> existing behavior.
 
     result = env.get_cached_trajectory_result({"x": 10}, {})
@@ -588,8 +594,8 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     )
 
 
-def test_env_params_are_recorded_in_trajectory_output(tmp_path: Path) -> None:
-    """Every recorded trial includes its sampled environment in the trajectory output."""
+def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
+    """Every recorded trial includes its sampled environment in trajectory metadata."""
     tdef = EnvVarTestDefinition(
         name="dr",
         description="dr",
@@ -625,10 +631,12 @@ def test_env_params_are_recorded_in_trajectory_output(tmp_path: Path) -> None:
         for action in (action_a, action_b, action_a):
             env.step(action)
 
-    rows = env.trajectory_file_path.read_text().strip().splitlines()
-    assert rows[0] == "step,action.paddle_width,reward,observation.default,env_params.ball_speed"
-    assert [int(row.split(",", 1)[0]) for row in rows[1:]] == [1, 2, 3]
-    assert pd.read_csv(env.trajectory_file_path)["env_params.ball_speed"].notna().all()
+    trajectory = pd.read_csv(env.trajectory_file_path)
+    metadata = pd.read_csv(env.trajectory.metadata_path)
+    assert list(trajectory.columns) == ["step", "action", "reward", "observation"]
+    assert list(metadata.columns) == ["step", "env_params.ball_speed"]
+    assert trajectory["step"].tolist() == metadata["step"].tolist() == [1, 2, 3]
+    assert metadata["env_params.ball_speed"].notna().all()
 
 
 def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) -> None:
@@ -673,12 +681,18 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
             env.step(action)
 
     trajectory_path = env.trajectory_file_path
+    metadata_path = env.trajectory.metadata_path
     traj_steps = (
         [int(line.split(",", 1)[0]) for line in trajectory_path.read_text().strip().splitlines()[1:]]
         if trajectory_path.exists()
         else []
     )
-    assert traj_steps == [1, 3]
+    metadata_steps = (
+        [int(line.split(",", 1)[0]) for line in metadata_path.read_text().strip().splitlines()[1:]]
+        if metadata_path.exists()
+        else []
+    )
+    assert traj_steps == metadata_steps == [1, 3]
 
 
 def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(tmp_path: Path) -> None:
@@ -738,10 +752,11 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         "the per-trial regime behind this observation is reported on info['env_params']"
     )
 
-    trajectory_rows = env.trajectory_file_path.read_text().strip().splitlines()
-    assert trajectory_rows[0] == "step,action.paddle_width,reward,observation.default,env_params.ball_speed"
-    assert trajectory_rows[-1].startswith("2,")
-    assert pd.read_csv(env.trajectory_file_path).iloc[-1]["env_params.ball_speed"] == expected_sample["ball_speed"]
+    trajectory = pd.read_csv(env.trajectory_file_path)
+    metadata = pd.read_csv(env.trajectory.metadata_path)
+    assert list(trajectory.columns) == ["step", "action", "reward", "observation"]
+    assert trajectory.iloc[-1]["step"] == 2
+    assert metadata.iloc[-1]["env_params.ball_speed"] == expected_sample["ball_speed"]
 
     traj_rows = env.trajectory.dataframe
     assert len(traj_rows) == 2 and traj_rows.iloc[-1]["env_params.ball_speed"] == expected_sample["ball_speed"], (
@@ -845,7 +860,8 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
     env.trajectory.append(step=1, action={}, reward=1.0, observation={"default": 1.0})
-    assert env.trajectory_file_path.read_text().splitlines()[0] == "step,reward,observation.default"
+    assert env.trajectory_file_path.read_text().splitlines()[0] == "step,action,reward,observation"
+    assert not env.trajectory.metadata_path.exists()
 
 
 def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEnv:
@@ -883,6 +899,7 @@ class TestStructuredObservationProducer:
         tdef.cmd_args.data.global_batch_size = 8
         test_run = TestRun(name="plain_tr", test=tdef, num_nodes=1, nodes=[])
         runner = MagicMock(spec=BaseRunner)
+        runner.scenario_root = tmp_path / "scenario"
         runner.system = MagicMock()
         env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
 
