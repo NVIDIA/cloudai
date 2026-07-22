@@ -27,9 +27,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.report_generator.dse_report import build_dse_summaries
+from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.report_generator.util import load_system_metadata
-from cloudai.util.lazy_imports import lazy
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
@@ -182,12 +181,12 @@ class DSEReporter(Reporter):
                 continue
 
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
-            trajectory_file = tr_root / "trajectory.csv"
-            if not trajectory_file.is_file():
-                logging.warning("No trajectory file found for %s at %s", tr.name, trajectory_file)
+            loaded_trajectory = load_trajectory_dataframe(tr_root)
+            if loaded_trajectory is None:
+                logging.warning("No trajectory file found for %s in %s", tr.name, tr_root)
                 continue
 
-            df = lazy.pd.read_csv(trajectory_file)
+            _, df = loaded_trajectory
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():
