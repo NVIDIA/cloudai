@@ -272,6 +272,6 @@ class CloudAIGymEnv(BaseGym):
             raise RuntimeError("trajectory persistence is not configured")
         return path
 
-    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> pd.Series | None:
+    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> "pd.Series" | None:
         """Return the first trajectory row matching the action and environment parameters."""
         return self.trajectory.find(action=action, env_params=env_params)

@@ -122,16 +122,16 @@ def test_warm_start_dataframe_is_copied_and_not_replayed(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize(
-    ("dataframe", "message"),
+    ("records", "message"),
     [
-        (pd.DataFrame([{"action.x": 1}]), "must contain a step column"),
-        (pd.DataFrame([{"step": 0}]), "positive integer"),
-        (pd.DataFrame([{"step": 2}, {"step": 1}]), "steps must increase"),
+        ([{"action.x": 1}], "must contain a step column"),
+        ([{"step": 0}], "positive integer"),
+        ([{"step": 2}, {"step": 1}], "steps must increase"),
     ],
 )
-def test_warm_start_dataframe_validation(dataframe: pd.DataFrame, message: str) -> None:
+def test_warm_start_dataframe_validation(records: list[dict[str, object]], message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        Trajectory(dataframe=dataframe)
+        Trajectory(dataframe=pd.DataFrame(records))
 
 
 def test_warm_start_dataframe_rejects_duplicate_columns() -> None:
