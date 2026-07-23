@@ -148,6 +148,14 @@ existing report generation.
 backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart`` if a test needs to restart the
 Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
 
+Comparison Reports
+------------------
+
+CloudAI provides the scenario-level ``ai_dynamo_comparison`` report. It compares AI Dynamo runs using the standard
+LLM serving tables and charts for TTFT, TPOT, successful prompts, output-token throughput, TPS per user, and TPS per
+GPU. When ``aiperf_accuracy`` is configured and its result is available, the report also compares model accuracy.
+Both AIPerf and GenAI-Perf CSV output are supported.
+
 AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
 as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =
 "auto"`` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM
