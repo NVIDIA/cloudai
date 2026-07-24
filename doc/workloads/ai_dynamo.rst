@@ -212,6 +212,41 @@ LMCache YAML values can use runtime placeholders. CloudAI renders them inside th
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
 
+Per-node Startup Commands and Runtime Replacements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On Slurm, AIDynamo can run a startup command once on every allocated node before launching the main workload. The
+startup step uses one task per node and receives the same output, installation, and configured extra mounts as the
+main step. It uses the main workload image unless ``startup_cmd_docker_image`` is set. Files referenced by the command
+must be provided through ``extra_container_mounts``:
+
+.. code-block:: toml
+
+   [cmd_args]
+   startup_cmd = "/mnt/discovery/discover-device.sh"
+   startup_cmd_docker_image = "nvcr.io/example/discovery-tools:latest"
+
+CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the startup command. The value is
+``/cloudai_run_results/runtime/<node>.json``. The command can perform node setup and write a replacement manifest to
+that path:
+
+.. code-block:: json
+
+   {
+     "/cloudai_run_results/lmcache-config.yaml": {
+       "${device}": "/dev/ng4n1",
+       "${namespace_id}": "1"
+     }
+   }
+
+Before worker launch, AIDynamo reads the current node's manifest and applies each replacement using literal string
+replacement. Before modifying a target, CloudAI preserves its original contents by inserting ``.original`` before the
+extension, for example ``config.yaml`` becomes ``config.original.yaml``. An existing backup is reused, making repeated
+application restore from the original contents.
+
+The startup step is part of each test block. It therefore runs once per test case in both normal and
+``--single-sbatch`` modes.
+
 If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
 
 .. code-block:: toml

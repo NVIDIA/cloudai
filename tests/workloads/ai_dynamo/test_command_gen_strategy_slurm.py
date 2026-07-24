@@ -14,16 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import shlex
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
 import pytest
 import yaml
 
-from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.core import GitRepo
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
@@ -141,6 +144,80 @@ def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> 
     )
 
     assert repo in tdef.installables
+
+
+def test_startup_cmd_image_is_installable(cmd_args: AIDynamoCmdArgs) -> None:
+    cmd_args.startup_cmd = "/mnt/discover.sh"
+    cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+    )
+
+    assert tdef.startup_cmd_docker_image in tdef.installables
+
+
+def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    td.cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=nvcr.io/test/discovery:latest" in command
+    assert "--nodes=2" in command
+    assert "--nodelist=n0,n1" in command
+    assert "--ntasks=2" in command
+    assert "--ntasks-per-node=1" in command
+    assert "startup-node-%n-stdout.txt" in command
+    assert "CLOUDAI_RUNTIME_FILE=" in command
+    assert "${SLURMD_NODENAME:-$(hostname)}.json" in command
+    assert "/mnt/discover.sh" in command
+    assert command.endswith("|| exit 1")
+
+
+def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    scenario = TestScenario(name="scenario", test_runs=[test_run])
+    runner = SingleSbatchRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=scenario,
+        output_path=slurm_system.output_path,
+    )
+
+    test_block = runner.get_single_tr_block(test_run)
+
+    assert "/mnt/discover.sh" in test_block
+    assert test_block.count("srun ") == 2
+    assert test_block.count(f"--output={test_run.output_path.absolute()}/stdout.txt") == 2
+
+
+def test_inline_runtime_replacements_create_and_reuse_backup(tmp_path: Path) -> None:
+    shell_script = Path("src/cloudai/workloads/ai_dynamo/ai_dynamo.sh").read_text()
+    marker = "python3 - \"$manifest\" <<'PY'\n"
+    replacement_script = shell_script.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+    target = tmp_path / "config.yaml"
+    target.write_text("device: ${device}\n")
+    manifest = tmp_path / "runtime.json"
+    manifest.write_text(json.dumps({str(target): {"${device}": "/dev/first"}}))
+
+    subprocess.run([sys.executable, "-c", replacement_script, str(manifest)], check=True)
+
+    backup = tmp_path / "config.original.yaml"
+    assert backup.read_text() == "device: ${device}\n"
+    assert target.read_text() == "device: /dev/first\n"
+
+    target.write_text("modified")
+    manifest.write_text(json.dumps({str(target): {"${device}": "/dev/second"}}))
+    subprocess.run([sys.executable, "-c", replacement_script, str(manifest)], check=True)
+
+    assert backup.read_text() == "device: ${device}\n"
+    assert target.read_text() == "device: /dev/second\n"
 
 
 @pytest.mark.parametrize(

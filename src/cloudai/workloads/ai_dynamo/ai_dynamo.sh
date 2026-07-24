@@ -622,6 +622,39 @@ function launch_node_setup_cmd()
   log "Node environment:\n$(env)" >> "$logfile" 2>&1
 }
 
+function apply_runtime_replacements()
+{
+  local node_name="${SLURMD_NODENAME:-$(hostname)}"
+  local manifest="${RESULTS_DIR}/runtime/${node_name}.json"
+  if [[ ! -f "$manifest" ]]; then
+    return
+  fi
+
+  log "Applying runtime replacements from: $manifest"
+  python3 - "$manifest" <<'PY'
+import json
+import shutil
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text())
+for filename, replacements in manifest.items():
+    target = Path(filename)
+    if target.suffix:
+        backup = target.with_name(f"{target.stem}.original{target.suffix}")
+    else:
+        backup = target.with_name(f"{target.name}.original")
+
+    if not backup.exists():
+        shutil.copyfile(target, backup)
+
+    content = backup.read_text()
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    target.write_text(content)
+PY
+}
+
 _require_cmd() {
   local cmd="$1"
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -1373,6 +1406,7 @@ function main()
   launch_node_setup_cmd
 
   validate_environment
+  apply_runtime_replacements || { log "ERROR: Failed to apply runtime replacements"; exit 1; }
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }
