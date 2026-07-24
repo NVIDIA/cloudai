@@ -47,8 +47,8 @@ def test_ai_dynamo_comparison_report_generates_html(slurm_system: SlurmSystem) -
     run_dir.mkdir(parents=True)
     (run_dir / "aiperf_report.csv").write_text(
         "Metric,avg,min,max,p99,p50\n"
-        "Inter Token Latency (ms),2.83,2.78,2.91,3.20,2.82\n"
-        "Time to First Token (ms),49.87,17.15,99.91,95.00,45.00\n"
+        "Inter Token Latency (ms),2.83,0.00,2.91,0.00,0.00\n"
+        "Time to First Token (ms),49.87,0.00,99.91,0.00,0.00\n"
         "\n"
         "Metric,Value\n"
         "Output Token Throughput (tokens/sec),595.68\n"
@@ -72,7 +72,10 @@ def test_ai_dynamo_comparison_report_generates_html(slurm_system: SlurmSystem) -
     result_df = report.extract_data_as_df(report.trs[0])
     values = dict(zip(result_df["metric"], result_df["value"], strict=True))
     assert values["Mean TTFT (ms)"] == 49.87
-    assert values["Median TPOT (ms)"] == 2.82
+    assert values["Median TTFT (ms)"] == 0.0
+    assert values["P99 TTFT (ms)"] == 0.0
+    assert values["Median TPOT (ms)"] == 0.0
+    assert values["P99 TPOT (ms)"] == 0.0
     assert values["Successful Prompts"] == 50.0
     assert values["Throughput"] == 595.68
     assert values["TPS/User"] == 148.92

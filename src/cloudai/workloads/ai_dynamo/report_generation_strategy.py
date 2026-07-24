@@ -138,16 +138,19 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             return None
 
         request_count = self._find_value(metrics, self._REQUEST_COUNT_NAMES, ("avg", "Value"))
-        unavailable = math.nan
+        median_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p50", "median"))
+        p99_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p99",))
+        median_tpot = self._find_value(metrics, self._TPOT_NAMES, ("p50", "median"))
+        p99_tpot = self._find_value(metrics, self._TPOT_NAMES, ("p99",))
         return AIDynamoBenchReport(
             num_prompts=int(request_count or 0),
             completed=int(request_count or 0),
             mean_ttft_ms=ttft_mean,
-            median_ttft_ms=self._find_value(metrics, self._TTFT_NAMES, ("p50", "median")) or unavailable,
-            p99_ttft_ms=self._find_value(metrics, self._TTFT_NAMES, ("p99",)) or unavailable,
+            median_ttft_ms=median_ttft if median_ttft is not None else math.nan,
+            p99_ttft_ms=p99_ttft if p99_ttft is not None else math.nan,
             mean_tpot_ms=tpot_mean,
-            median_tpot_ms=self._find_value(metrics, self._TPOT_NAMES, ("p50", "median")) or unavailable,
-            p99_tpot_ms=self._find_value(metrics, self._TPOT_NAMES, ("p99",)) or unavailable,
+            median_tpot_ms=median_tpot if median_tpot is not None else math.nan,
+            p99_tpot_ms=p99_tpot if p99_tpot is not None else math.nan,
             output_throughput=throughput,
             max_concurrency=self._max_concurrency(),
         )
