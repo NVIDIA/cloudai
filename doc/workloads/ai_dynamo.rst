@@ -234,16 +234,22 @@ manifest to that path:
 .. code-block:: json
 
    {
-     "/cloudai_run_results/lmcache-config.yaml": {
+     "LMCACHE_CONFIG_FILE": {
        "${device}": "/dev/ng4n1",
        "${namespace_id}": "1"
      }
    }
 
-Before worker launch, AIDynamo reads the current node's manifest and applies each replacement using literal string
-replacement. Before modifying a target, CloudAI preserves its original contents by inserting ``.original`` before the
-extension, for example ``config.yaml`` becomes ``config.original.yaml``. An existing backup is reused, making repeated
-application restore from the original contents.
+Manifest keys name environment variables containing runtime-localizable config paths. AIDynamo currently declares
+``LMCACHE_CONFIG_FILE`` and can extend the same mechanism to ``HICACHE_CONFIG_FILE`` when that config is wired into the
+workload.
+
+Before worker launch, AIDynamo copies each declared config into a node-specific directory such as
+``/cloudai_run_results/runtime/<node>/LMCACHE_CONFIG_FILE/`` and redirects its environment variable to the copy. The
+shared source is never modified. The current node's replacements are applied using literal string replacement. The
+node-specific directory also contains a backup with ``.original`` inserted before the extension, for example
+``config.yaml`` and ``config.original.yaml``. Configs are localized even when the node has no manifest, because later
+rendering may modify them.
 
 The startup step is part of each test block. It therefore runs once per test case in both normal and
 ``--single-sbatch`` modes.

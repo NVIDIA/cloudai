@@ -622,37 +622,53 @@ function launch_node_setup_cmd()
   log "Node environment:\n$(env)" >> "$logfile" 2>&1
 }
 
-function apply_runtime_replacements()
+function localize_runtime_config_files()
 {
   local node_name="${SLURMD_NODENAME:-$(hostname)}"
   local manifest="${RESULTS_DIR}/runtime/${node_name}.json"
-  if [[ ! -f "$manifest" ]]; then
+  if [[ -z "${CLOUDAI_RUNTIME_CONFIG_VARS:-}" ]]; then
     return
   fi
 
-  log "Applying runtime replacements from: $manifest"
-  python3 - "$manifest" <<'PY'
+  local config_var source_path filename localized_dir localized_path
+  local -a config_vars
+  IFS=',' read -ra config_vars <<< "$CLOUDAI_RUNTIME_CONFIG_VARS"
+
+  for config_var in "${config_vars[@]}"; do
+    source_path="${!config_var}"
+    filename="${source_path##*/}"
+    localized_dir="${RESULTS_DIR}/runtime/${node_name}/${config_var}"
+    localized_path="${localized_dir}/${filename}"
+
+    log "Localizing ${config_var}: ${source_path} -> ${localized_path}"
+    python3 - "$source_path" "$localized_path" "$manifest" "$config_var" <<'PY' || return $?
 import json
 import shutil
 import sys
 from pathlib import Path
 
-manifest = json.loads(Path(sys.argv[1]).read_text())
-for filename, replacements in manifest.items():
-    target = Path(filename)
-    if target.suffix:
-        backup = target.with_name(f"{target.stem}.original{target.suffix}")
-    else:
-        backup = target.with_name(f"{target.name}.original")
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+manifest_path = Path(sys.argv[3])
+config_var = sys.argv[4]
+target.parent.mkdir(parents=True, exist_ok=True)
+if target.suffix:
+    backup = target.with_name(f"{target.stem}.original{target.suffix}")
+else:
+    backup = target.with_name(f"{target.name}.original")
 
-    if not backup.exists():
-        shutil.copyfile(target, backup)
+if not backup.exists():
+    shutil.copyfile(source, backup)
 
-    content = backup.read_text()
-    for old, new in replacements.items():
-        content = content.replace(old, new)
-    target.write_text(content)
+manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+content = backup.read_text()
+for old, new in manifest.get(config_var, {}).items():
+    content = content.replace(old, new)
+target.write_text(content)
 PY
+    printf -v "$config_var" '%s' "$localized_path"
+    export "$config_var"
+  done
 }
 
 _require_cmd() {
@@ -1406,7 +1422,7 @@ function main()
   launch_node_setup_cmd
 
   validate_environment
-  apply_runtime_replacements || { log "ERROR: Failed to apply runtime replacements"; exit 1; }
+  localize_runtime_config_files || { log "ERROR: Failed to localize runtime config files"; exit 1; }
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }
