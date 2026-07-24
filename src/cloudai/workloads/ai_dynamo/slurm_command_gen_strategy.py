@@ -36,8 +36,6 @@ from .ai_dynamo import (
 )
 
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
-RUNTIME_CONFIG_FILE_VARS = ("LMCACHE_CONFIG_FILE", "HICACHE_CONFIG_FILE")
-RUNTIME_CONFIG_VARS_ENV = "CLOUDAI_RUNTIME_CONFIG_VARS"
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -61,9 +59,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars = super().final_env_vars
         if self.td.cmd_args.lmcache is not None:
             env_vars["LMCACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
-        runtime_config_vars = [name for name in RUNTIME_CONFIG_FILE_VARS if name in env_vars]
-        if runtime_config_vars:
-            env_vars[RUNTIME_CONFIG_VARS_ENV] = ",".join(runtime_config_vars)
         return env_vars
 
     @final_env_vars.setter
@@ -89,16 +84,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.test_run.extra_srun_args:
             srun_parts.append(self.test_run.extra_srun_args)
         return srun_parts
-
-    def _add_runtime_config_exports(self, srun_parts: list[str]) -> None:
-        runtime_config_vars = self.final_env_vars.get(RUNTIME_CONFIG_VARS_ENV)
-        if not isinstance(runtime_config_vars, str):
-            return
-
-        exports = [f"{name}={self.final_env_vars[name]}" for name in runtime_config_vars.split(",")]
-        exports.append(f"{RUNTIME_CONFIG_VARS_ENV}={runtime_config_vars}")
-        export_index = srun_parts.index("--export=ALL")
-        srun_parts[export_index] = shlex.quote(f"--export=ALL,{','.join(exports)}")
 
     def _gen_startup_srun_command(self) -> str | None:
         configured_cmd = self.td.cmd_args.startup_cmd
@@ -471,7 +456,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         out_dir = str(self.test_run.output_path.absolute())
 
         srun_cmd = self.gen_srun_prefix()
-        self._add_runtime_config_exports(srun_cmd)
         srun_cmd.extend(
             [
                 f"--nodes={num_nodes}",

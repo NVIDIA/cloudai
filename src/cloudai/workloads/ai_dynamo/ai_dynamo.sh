@@ -626,49 +626,52 @@ function localize_runtime_config_files()
 {
   local node_name="${SLURMD_NODENAME:-$(hostname)}"
   local manifest="${RESULTS_DIR}/runtime/${node_name}.json"
-  if [[ -z "${CLOUDAI_RUNTIME_CONFIG_VARS:-}" ]]; then
+  if [[ ! -f "$manifest" ]]; then
     return
   fi
 
-  local config_var source_path filename localized_dir localized_path
-  local -a config_vars
-  IFS=',' read -ra config_vars <<< "$CLOUDAI_RUNTIME_CONFIG_VARS"
-
-  for config_var in "${config_vars[@]}"; do
-    source_path="${!config_var}"
-    filename="${source_path##*/}"
-    localized_dir="${RESULTS_DIR}/runtime/${node_name}/${config_var}"
-    localized_path="${localized_dir}/${filename}"
-
-    log "Localizing ${config_var}: ${source_path} -> ${localized_path}"
-    python3 - "$source_path" "$localized_path" "$manifest" "$config_var" <<'PY' || return $?
+  local assignments config_var localized_path
+  assignments=$(
+    python3 - "$manifest" "${RESULTS_DIR}/runtime" "$node_name" <<'PY'
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
-source = Path(sys.argv[1])
-target = Path(sys.argv[2])
-manifest_path = Path(sys.argv[3])
-config_var = sys.argv[4]
-target.parent.mkdir(parents=True, exist_ok=True)
-if target.suffix:
-    backup = target.with_name(f"{target.stem}.original{target.suffix}")
-else:
-    backup = target.with_name(f"{target.name}.original")
+manifest = json.loads(Path(sys.argv[1]).read_text())
+runtime_dir = Path(sys.argv[2])
+node_name = sys.argv[3]
 
-if not backup.exists():
-    shutil.copyfile(source, backup)
+for config_var, replacements in manifest.items():
+    source = Path(os.environ[config_var])
+    if source.suffix:
+        target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
+    else:
+        target = runtime_dir / f"{source.name}.{node_name}"
 
-manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
-content = backup.read_text()
-for old, new in manifest.get(config_var, {}).items():
-    content = content.replace(old, new)
-target.write_text(content)
+    if target.suffix:
+        backup = target.with_name(f"{target.stem}.original{target.suffix}")
+    else:
+        backup = target.with_name(f"{target.name}.original")
+
+    if not backup.exists():
+        shutil.copyfile(source, backup)
+
+    content = backup.read_text()
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    target.write_text(content)
+    print(f"{config_var}\t{target}")
 PY
+  ) || return $?
+
+  while IFS=$'\t' read -r config_var localized_path; do
+    [[ -z "$config_var" ]] && continue
+    log "Using localized ${config_var}: ${localized_path}"
     printf -v "$config_var" '%s' "$localized_path"
     export "$config_var"
-  done
+  done <<< "$assignments"
 }
 
 _require_cmd() {

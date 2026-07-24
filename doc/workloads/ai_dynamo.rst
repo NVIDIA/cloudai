@@ -240,16 +240,14 @@ manifest to that path:
      }
    }
 
-Manifest keys name environment variables containing runtime-localizable config paths. AIDynamo currently declares
-``LMCACHE_CONFIG_FILE`` and can extend the same mechanism to ``HICACHE_CONFIG_FILE`` when that config is wired into the
-workload.
+Manifest keys name environment variables containing config paths. No fixed list of variable names is maintained;
+every key in the node's manifest is localized.
 
-Before worker launch, AIDynamo copies each declared config into a node-specific directory such as
-``/cloudai_run_results/runtime/<node>/LMCACHE_CONFIG_FILE/`` and redirects its environment variable to the copy. The
-shared source is never modified. The current node's replacements are applied using literal string replacement. The
-node-specific directory also contains a backup with ``.original`` inserted before the extension, for example
-``config.yaml`` and ``config.original.yaml``. Configs are localized even when the node has no manifest, because later
-rendering may modify them.
+Before worker launch, AIDynamo copies each referenced config into ``/cloudai_run_results/runtime`` and redirects its
+environment variable to the copy. The shared source is never modified. The current node's replacements are applied
+using literal string replacement. For example, ``lmcache-config.yaml`` on node ``node-01`` produces
+``lmcache-config.node-01.yaml`` and ``lmcache-config.node-01.original.yaml``. A missing manifest means no files are
+localized on that node.
 
 The startup step is part of each test block. It therefore runs once per test case in both normal and
 ``--single-sbatch`` modes.

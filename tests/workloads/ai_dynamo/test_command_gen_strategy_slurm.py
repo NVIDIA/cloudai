@@ -17,7 +17,6 @@
 import json
 import shlex
 import subprocess
-import sys
 from pathlib import Path
 from typing import cast
 
@@ -212,78 +211,7 @@ def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSy
     assert test_block.count(f"--output={test_run.output_path.absolute()}/stdout.txt") == 2
 
 
-def test_inline_runtime_config_localization_is_per_node(tmp_path: Path) -> None:
-    shell_script = Path("src/cloudai/workloads/ai_dynamo/ai_dynamo.sh").read_text()
-    marker = 'python3 - "$source_path" "$localized_path" "$manifest" "$config_var" <<\'PY\' || return $?\n'
-    replacement_script = shell_script.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
-    source = tmp_path / "config.yaml"
-    source.write_text("device: ${device}\n")
-    manifest_0 = tmp_path / "n0.json"
-    manifest_0.write_text(json.dumps({"LMCACHE_CONFIG_FILE": {"${device}": "/dev/first"}}))
-    target_0 = tmp_path / "runtime" / "n0" / "LMCACHE_CONFIG_FILE" / "config.yaml"
-
-    subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            replacement_script,
-            str(source),
-            str(target_0),
-            str(manifest_0),
-            "LMCACHE_CONFIG_FILE",
-        ],
-        check=True,
-    )
-
-    manifest_1 = tmp_path / "n1.json"
-    manifest_1.write_text(json.dumps({"LMCACHE_CONFIG_FILE": {"${device}": "/dev/second"}}))
-    target_1 = tmp_path / "runtime" / "n1" / "LMCACHE_CONFIG_FILE" / "config.yaml"
-    subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            replacement_script,
-            str(source),
-            str(target_1),
-            str(manifest_1),
-            "LMCACHE_CONFIG_FILE",
-        ],
-        check=True,
-    )
-
-    assert source.read_text() == "device: ${device}\n"
-    assert target_0.with_name("config.original.yaml").read_text() == source.read_text()
-    assert target_1.with_name("config.original.yaml").read_text() == source.read_text()
-    assert target_0.read_text() == "device: /dev/first\n"
-    assert target_1.read_text() == "device: /dev/second\n"
-
-
-def test_inline_runtime_config_localization_without_manifest(tmp_path: Path) -> None:
-    shell_script = Path("src/cloudai/workloads/ai_dynamo/ai_dynamo.sh").read_text()
-    marker = 'python3 - "$source_path" "$localized_path" "$manifest" "$config_var" <<\'PY\' || return $?\n'
-    replacement_script = shell_script.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
-    source = tmp_path / "config.yaml"
-    source.write_text("unchanged\n")
-    target = tmp_path / "runtime" / "n0" / "LMCACHE_CONFIG_FILE" / "config.yaml"
-
-    subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            replacement_script,
-            str(source),
-            str(target),
-            str(tmp_path / "missing.json"),
-            "LMCACHE_CONFIG_FILE",
-        ],
-        check=True,
-    )
-
-    assert target.read_text() == source.read_text()
-    assert target.with_name("config.original.yaml").read_text() == source.read_text()
-
-
-def test_runtime_config_localization_redirects_environment_variable(tmp_path: Path) -> None:
+def test_runtime_config_localization_is_manifest_driven_and_per_node(tmp_path: Path) -> None:
     shell_script = Path("src/cloudai/workloads/ai_dynamo/ai_dynamo.sh").read_text()
     function_start = shell_script.index("function localize_runtime_config_files()")
     function_end = shell_script.index("\n_require_cmd()", function_start)
@@ -292,16 +220,56 @@ def test_runtime_config_localization_redirects_environment_variable(tmp_path: Pa
     source.write_text("device: ${device}\n")
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
-    (runtime_dir / "n0.json").write_text(json.dumps({"LMCACHE_CONFIG_FILE": {"${device}": "/dev/test"}}))
+    (runtime_dir / "n0.json").write_text(json.dumps({"CUSTOM_CONFIG_FILE": {"${device}": "/dev/first"}}))
+    (runtime_dir / "n1.json").write_text(json.dumps({"CUSTOM_CONFIG_FILE": {"${device}": "/dev/second"}}))
+    command = f"""
+log() {{ :; }}
+{function_script}
+RESULTS_DIR="$1"
+SLURMD_NODENAME="$2"
+CUSTOM_CONFIG_FILE="$3"
+export CUSTOM_CONFIG_FILE
+localize_runtime_config_files
+printf '%s' "$CUSTOM_CONFIG_FILE"
+"""
+
+    results = [
+        subprocess.run(
+            ["bash", "-c", command, "bash", str(tmp_path), node, str(source)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for node in ("n0", "n1")
+    ]
+
+    target_0 = runtime_dir / "config.n0.yaml"
+    target_1 = runtime_dir / "config.n1.yaml"
+    assert results[0].stdout == str(target_0)
+    assert results[1].stdout == str(target_1)
+    assert source.read_text() == "device: ${device}\n"
+    assert (runtime_dir / "config.n0.original.yaml").read_text() == source.read_text()
+    assert (runtime_dir / "config.n1.original.yaml").read_text() == source.read_text()
+    assert target_0.read_text() == "device: /dev/first\n"
+    assert target_1.read_text() == "device: /dev/second\n"
+
+
+def test_runtime_config_localization_skips_missing_manifest(tmp_path: Path) -> None:
+    shell_script = Path("src/cloudai/workloads/ai_dynamo/ai_dynamo.sh").read_text()
+    function_start = shell_script.index("function localize_runtime_config_files()")
+    function_end = shell_script.index("\n_require_cmd()", function_start)
+    function_script = shell_script[function_start:function_end]
+    source = tmp_path / "config.yaml"
+    source.write_text("unchanged\n")
     command = f"""
 log() {{ :; }}
 {function_script}
 RESULTS_DIR="$1"
 SLURMD_NODENAME=n0
-CLOUDAI_RUNTIME_CONFIG_VARS=LMCACHE_CONFIG_FILE
-LMCACHE_CONFIG_FILE="$2"
+CUSTOM_CONFIG_FILE="$2"
+export CUSTOM_CONFIG_FILE
 localize_runtime_config_files
-printf '%s' "$LMCACHE_CONFIG_FILE"
+printf '%s' "$CUSTOM_CONFIG_FILE"
 """
 
     result = subprocess.run(
@@ -311,15 +279,8 @@ printf '%s' "$LMCACHE_CONFIG_FILE"
         text=True,
     )
 
-    localized = runtime_dir / "n0" / "LMCACHE_CONFIG_FILE" / "config.yaml"
-    assert result.stdout == str(localized)
-    assert localized.read_text() == "device: /dev/test\n"
-
-
-def test_runtime_config_vars_include_hicache_from_environment(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    strategy.td.extra_env_vars["HICACHE_CONFIG_FILE"] = "/cloudai_run_results/hicache.yaml"
-
-    assert strategy.final_env_vars["CLOUDAI_RUNTIME_CONFIG_VARS"] == "HICACHE_CONFIG_FILE"
+    assert result.stdout == str(source)
+    assert not (tmp_path / "runtime").exists()
 
 
 @pytest.mark.parametrize(
@@ -750,13 +711,7 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
         strategy.final_env_vars["LMCACHE_CONFIG_FILE"]
         == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
     )
-    assert strategy.final_env_vars["CLOUDAI_RUNTIME_CONFIG_VARS"] == "LMCACHE_CONFIG_FILE"
-    command = strategy._gen_srun_command()
-    assert (
-        "--export=ALL,"
-        f"LMCACHE_CONFIG_FILE={strategy.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME},"
-        "CLOUDAI_RUNTIME_CONFIG_VARS=LMCACHE_CONFIG_FILE"
-    ) in command
+    assert "CLOUDAI_RUNTIME_CONFIG_VARS" not in strategy.final_env_vars
     assert config["chunk_size"] == 512
     assert config["local_cpu"] is True
     assert config["controller_pull_url"] == "{frontend_node}:8300"
