@@ -179,6 +179,21 @@ def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmComm
     assert command.endswith("|| exit 1")
 
 
+def test_gen_startup_srun_command_runs_on_bare_metal_by_default(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/host/discover.sh"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=" not in command
+    assert "--container-mounts=" not in command
+    assert f"{strategy.test_run.output_path.absolute()}/runtime/" in command
+    assert "/cloudai_run_results/runtime/" not in command
+
+
 def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.startup_cmd = "/mnt/discover.sh"

@@ -216,9 +216,9 @@ Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 On Slurm, AIDynamo can run a startup command once on every allocated node before launching the main workload. The
-startup step uses one task per node and receives the same output, installation, and configured extra mounts as the
-main step. It uses the main workload image unless ``startup_cmd_docker_image`` is set. Files referenced by the command
-must be provided through ``extra_container_mounts``:
+startup step uses one task per node and runs directly on the host by default. Set ``startup_cmd_docker_image`` to run
+it in a container with the same output, installation, and configured extra mounts as the main step. Containerized
+commands must receive referenced files through ``extra_container_mounts``:
 
 .. code-block:: toml
 
@@ -226,9 +226,10 @@ must be provided through ``extra_container_mounts``:
    startup_cmd = "/mnt/discovery/discover-device.sh"
    startup_cmd_docker_image = "nvcr.io/example/discovery-tools:latest"
 
-CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the startup command. The value is
-``/cloudai_run_results/runtime/<node>.json``. The command can perform node setup and write a replacement manifest to
-that path:
+CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the startup command. For a host command, the value points into the test
+run's host output directory. For a containerized command, it is ``/cloudai_run_results/runtime/<node>.json``. Both
+locations refer to the same mounted test-run directory. The command can perform node setup and write a replacement
+manifest to that path:
 
 .. code-block:: json
 

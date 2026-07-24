@@ -70,13 +70,15 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return str(self.td.docker_image.installed_path)
         return None
 
-    def _gen_aux_srun_prefix(self, image_path: str) -> list[str]:
-        srun_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}", f"--container-image={image_path}"]
-        mounts = self.container_mounts()
-        if mounts:
-            srun_parts.append(f"--container-mounts={','.join(mounts)}")
-        if not self.system.container_mount_home:
-            srun_parts.append("--no-container-mount-home")
+    def _gen_aux_srun_prefix(self, image_path: str | None = None) -> list[str]:
+        srun_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}"]
+        if image_path:
+            srun_parts.append(f"--container-image={image_path}")
+            mounts = self.container_mounts()
+            if mounts:
+                srun_parts.append(f"--container-mounts={','.join(mounts)}")
+            if not self.system.container_mount_home:
+                srun_parts.append("--no-container-mount-home")
         if self.system.extra_srun_args:
             srun_parts.append(self.system.extra_srun_args)
         if self.test_run.extra_srun_args:
@@ -89,15 +91,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return None
 
         num_nodes, node_list = self.get_cached_nodes_spec()
-        image = self.td.startup_cmd_docker_image or self.td.docker_image
+        image = self.td.startup_cmd_docker_image
         out_dir = self.test_run.output_path.absolute()
-        runtime_dir = f"{self.CONTAINER_MOUNT_OUTPUT}/runtime"
+        runtime_dir = (
+            f"{self.CONTAINER_MOUNT_OUTPUT}/runtime" if image else str(self.test_run.output_path.absolute() / "runtime")
+        )
         runtime_file = f"{runtime_dir}/${{SLURMD_NODENAME:-$(hostname)}}.json"
         startup_cmd = (
             f'mkdir -p {shlex.quote(runtime_dir)}; export CLOUDAI_RUNTIME_FILE="{runtime_file}"; {configured_cmd}'
         )
         parts = [
-            *self._gen_aux_srun_prefix(str(image.installed_path)),
+            *self._gen_aux_srun_prefix(str(image.installed_path) if image else None),
             f"--nodes={num_nodes}",
             *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
             f"--ntasks={num_nodes}",
