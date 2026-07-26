@@ -46,6 +46,26 @@ class Test_Parser:
         assert parser.hook_root == hook_root
         assert parser.hook_test_root == hook_root / "test"
 
+    def test_custom_hook_root_is_used_by_parse(self, parser: Parser, tmp_path: Path):
+        hook_root = tmp_path / "hooks"
+        hook_test_root = hook_root / "test"
+        hook_test_root.mkdir(parents=True)
+
+        (hook_test_root / "custom_hook_test.toml").write_text(
+            'name = "custom_hook_test"\n'
+            'description = "custom hook test"\n'
+            'test_template_name = "Sleep"\n'
+            "\n"
+            "[cmd_args]\n"
+            "seconds = 1\n"
+        )
+
+        parser = Parser(parser.system_config_path, hook_root)
+
+        _, tests, _ = parser.parse(None, None)
+
+        assert "custom_hook_test" in {test.name for test in tests}
+
     @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
