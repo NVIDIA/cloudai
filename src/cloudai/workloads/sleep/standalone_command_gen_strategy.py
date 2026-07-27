@@ -40,7 +40,7 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
             trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
             toml.dump(trd.model_dump(), f)
 
-    def gen_exec_command(self, store: bool = True) -> str:
+    def gen_exec_command(self, *, store: bool = True) -> str:
         if store:
             self.store_test_run()
         stdout_path = self.test_run.output_path / "stdout.txt"

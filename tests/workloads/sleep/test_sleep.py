@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import patch
 
 from cloudai.core import TestRun
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
@@ -70,3 +71,26 @@ def test_was_run_successful_with_unparseable_exit_code(tmp_path: Path) -> None:
 
     assert result.is_successful is False
     assert "Could not parse exit code" in result.error_message
+
+
+def test_was_run_successful_with_unreadable_exit_code_file(tmp_path: Path) -> None:
+    tr = _sleep_test_run(tmp_path)
+    tr.output_path.mkdir(parents=True)
+    (tr.output_path / EXIT_CODE_FILE_NAME).write_text("0\n")
+
+    with patch("pathlib.Path.read_text", side_effect=PermissionError("permission denied")):
+        result = tr.test.was_run_successful(tr)
+
+    assert result.is_successful is False
+    assert "Could not read exit code file" in result.error_message
+
+
+def test_was_run_successful_with_undecodable_exit_code_file(tmp_path: Path) -> None:
+    tr = _sleep_test_run(tmp_path)
+    tr.output_path.mkdir(parents=True)
+    (tr.output_path / EXIT_CODE_FILE_NAME).write_bytes(b"\xff\xfe\x00")
+
+    result = tr.test.was_run_successful(tr)
+
+    assert result.is_successful is False
+    assert "Could not read exit code file" in result.error_message

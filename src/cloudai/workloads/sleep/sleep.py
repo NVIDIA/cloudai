@@ -46,7 +46,14 @@ class SleepTestDefinition(TestDefinition):
             # this file.
             return JobStatusResult(is_successful=True)
 
-        exit_code_text = exit_code_path.read_text().strip()
+        try:
+            exit_code_text = exit_code_path.read_text().strip()
+        except (OSError, UnicodeDecodeError) as e:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=f"Could not read exit code file {exit_code_path}: {e}.",
+            )
+
         try:
             exit_code = int(exit_code_text)
         except ValueError:
