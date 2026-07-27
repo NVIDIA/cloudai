@@ -46,6 +46,7 @@ AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
+HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
 
 
 class Args(BaseModel):
@@ -398,6 +399,7 @@ class AIDynamoCmdArgs(CmdArgs):
     startup_cmd_docker_image: str | None = None
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
+    hicache: dict | None = None
     lmcache: dict | None = None
     lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
@@ -435,6 +437,13 @@ class AIDynamoCmdArgs(CmdArgs):
         if duplicates:
             raise ValueError(f"AIPerf phase names must be unique. Duplicates: {sorted(duplicates)}")
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_hicache_backend(self) -> "AIDynamoCmdArgs":
+        """Restrict HiCache configuration to SGLang backends."""
+        if self.hicache is not None and self.dynamo.backend not in {"sglang", "sglang_dsr1"}:
+            raise ValueError("cmd_args.hicache is only supported with an SGLang backend")
         return self
 
     @property

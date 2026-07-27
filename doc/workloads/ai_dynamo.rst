@@ -220,6 +220,56 @@ LMCache YAML values can use runtime placeholders. CloudAI renders them inside th
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
 
+Propagating SGLang HiCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For SGLang's NIXL-backed HiCache, define the NIXL plugin configuration under ``[cmd_args.hicache]``. CloudAI
+serializes the object as ``hicache-config.toml`` in the run output directory, exposes its container path through
+``HICACHE_CONFIG_FILE``, and passes ``@${HICACHE_CONFIG_FILE}`` to both SGLang workers as
+``--hicache-storage-backend-extra-config``:
+
+.. code-block:: toml
+
+   [cmd_args]
+     [cmd_args.hicache.plugin.doca_memos]
+     active = true
+     device_name = "${device}"
+     nguid = "00000000000000000000000000000000"
+     ns_id = "1"
+     max_value_len = 16777216
+     subnqn = "nqn.2025-10.nvda.doca"
+
+     [cmd_args.hicache.plugin.posix]
+     active = false
+
+     [cmd_args.hicache.plugin.obj]
+     active = false
+
+     [cmd_args.dynamo.prefill_worker.args]
+     enable-hierarchical-cache = true
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+     [cmd_args.dynamo.decode_worker.args]
+     enable-hierarchical-cache = true
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+``cmd_args.hicache`` is valid only for SGLang backends. The remaining HiCache engine options stay in the worker
+``args`` sections so they can be configured or swept through DSE normally.
+
+The runtime replacement mechanism below supports per-node HiCache values. A startup manifest can target
+``HICACHE_CONFIG_FILE`` and replace placeholders such as ``${device}``; the worker receives the resulting per-node
+TOML path automatically.
+
 Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -241,6 +291,9 @@ directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup cont
      "LMCACHE_CONFIG_FILE": {
        "${device}": "/dev/ng4n1",
        "${namespace_id}": "1"
+     },
+     "HICACHE_CONFIG_FILE": {
+       "${device}": "/dev/ng4n1"
      }
    }
 

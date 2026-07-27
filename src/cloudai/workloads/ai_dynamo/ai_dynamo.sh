@@ -656,6 +656,23 @@ PY
   source "$environment_file"
 }
 
+function setup_hicache()
+{
+  if [[ -z "${HICACHE_CONFIG_FILE:-}" ]]; then
+    return
+  fi
+
+  if [[ ! -f "${HICACHE_CONFIG_FILE}" ]]; then
+    log "ERROR: HICACHE_CONFIG_FILE does not exist: ${HICACHE_CONFIG_FILE}"
+    exit 1
+  fi
+
+  local config_arg="@${HICACHE_CONFIG_FILE}"
+  prefill_args["--hicache-storage-backend-extra-config"]="${config_arg}"
+  decode_args["--hicache-storage-backend-extra-config"]="${config_arg}"
+  log "Using HiCache config file: ${HICACHE_CONFIG_FILE}"
+}
+
 _require_cmd() {
   local cmd="$1"
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -1408,6 +1425,7 @@ function main()
 
   validate_environment
   localize_runtime_config_files || { log "ERROR: Failed to localize runtime config files"; exit 1; }
+  setup_hicache
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }

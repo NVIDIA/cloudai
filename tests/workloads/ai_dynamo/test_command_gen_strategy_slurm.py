@@ -19,12 +19,14 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import toml
 import yaml
 
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.core import GitRepo
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    HICACHE_CONFIG_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
@@ -647,6 +649,63 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
     assert backup_config == config
     assert "--lmcache" not in result
+
+
+def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    td.cmd_args.hicache = {
+        "plugin": {
+            "doca_memos": {
+                "active": True,
+                "device_name": "${device}",
+                "nguid": "00000000000000000000000000000000",
+                "ns_id": "1",
+                "max_value_len": 16777216,
+                "subnqn": "nqn.2025-10.nvda.doca",
+            },
+            "posix": {"active": False},
+            "obj": {"active": False},
+        }
+    }
+
+    result = strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / HICACHE_CONFIG_FILE_NAME
+    config = toml.loads(config_path.read_text())
+    assert (
+        strategy.final_env_vars["HICACHE_CONFIG_FILE"]
+        == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
+    )
+    assert config["plugin"]["doca_memos"]["active"] is True
+    assert config["plugin"]["doca_memos"]["device_name"] == "${device}"
+    assert config["plugin"]["doca_memos"]["max_value_len"] == 16777216
+    assert config["plugin"]["posix"]["active"] is False
+    assert config["plugin"]["obj"]["active"] is False
+    assert "--hicache" not in result
+
+
+def test_hicache_config_rejects_non_sglang_backend(cmd_args: AIDynamoCmdArgs) -> None:
+    data = cmd_args.model_dump()
+    data["hicache"] = {"plugin": {"doca_memos": {"active": True}}}
+
+    with pytest.raises(ValueError, match="only supported with an SGLang backend"):
+        AIDynamoCmdArgs.model_validate(data)
+
+
+def test_hicache_config_supports_dse(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    td.cmd_args.hicache = {"plugin": {"doca_memos": {"max_value_len": [8388608, 16777216]}}}
+
+    assert test_run.is_dse_job is True
+    assert test_run.param_space["hicache.plugin.doca_memos.max_value_len"] == [8388608, 16777216]
+
+    new_test_run = test_run.apply_params_set({"hicache.plugin.doca_memos.max_value_len": 16777216})
+
+    new_hicache = cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.hicache
+    assert new_hicache is not None
+    assert new_hicache["plugin"]["doca_memos"]["max_value_len"] == 16777216
 
 
 def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
