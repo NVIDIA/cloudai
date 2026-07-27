@@ -45,7 +45,7 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
       [Tests.cmd_args.dynamo.prefill_worker]
       num-nodes = 1
       cmd = "python3 -m dynamo.sglang"
-      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics"
+      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics --enable-hierarchical-cache"
       worker-initialized-regex = 'register._register_model_with_runtime_config:.Successfully.registered.LLM.with.runtime.config'
 
         [Tests.cmd_args.dynamo.prefill_worker.args]
@@ -57,7 +57,6 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
         disaggregation-transfer-backend = "nixl"
         host = "0.0.0.0"
         port = 40000
-        enable-hierarchical-cache = true
         hicache-size = 1
         hicache-ratio = 0
         hicache-write-policy = "write_through"
@@ -68,7 +67,7 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 1
       cmd = "python3 -m dynamo.sglang"
-      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics"
+      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics --enable-hierarchical-cache"
       worker-initialized-regex = 'register._register_model_with_runtime_config:.Successfully.registered.LLM.with.runtime.config'
 
         [Tests.cmd_args.dynamo.decode_worker.args]
@@ -79,7 +78,6 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
         disaggregation-bootstrap-port = 12345
         disaggregation-transfer-backend = "nixl"
         host = "0.0.0.0"
-        enable-hierarchical-cache = true
         hicache-size = 1
         hicache-ratio = 0
         hicache-write-policy = "write_through"
