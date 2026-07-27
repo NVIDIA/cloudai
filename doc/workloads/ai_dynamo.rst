@@ -225,8 +225,7 @@ Propagating HiCache Configuration
 
 Define a HiCache storage-backend configuration under ``[cmd_args.hicache]``. CloudAI serializes the object as
 ``hicache-config.toml`` in the run output directory, exposes its container path through ``HICACHE_CONFIG_FILE``, and
-passes ``@${HICACHE_CONFIG_FILE}`` to both workers as
-``--hicache-storage-backend-extra-config``:
+passes the resolved path to both workers as ``--hicache-storage-backend-extra-config``:
 
 .. code-block:: toml
 
@@ -235,8 +234,10 @@ passes ``@${HICACHE_CONFIG_FILE}`` to both workers as
      active = true
      use_uring = "false"
 
+     [cmd_args.dynamo.prefill_worker]
+     extra-args = "--enable-hierarchical-cache"
+
      [cmd_args.dynamo.prefill_worker.args]
-     enable-hierarchical-cache = true
      hicache-size = 8
      hicache-ratio = 0
      hicache-write-policy = "write_through"
@@ -244,8 +245,10 @@ passes ``@${HICACHE_CONFIG_FILE}`` to both workers as
      hicache-storage-prefetch-policy = "wait_complete"
      hicache-storage-backend = "nixl"
 
+     [cmd_args.dynamo.decode_worker]
+     extra-args = "--enable-hierarchical-cache"
+
      [cmd_args.dynamo.decode_worker.args]
-     enable-hierarchical-cache = true
      hicache-size = 8
      hicache-ratio = 0
      hicache-write-policy = "write_through"

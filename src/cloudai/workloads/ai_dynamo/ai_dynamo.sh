@@ -656,7 +656,7 @@ PY
   source "$environment_file"
 }
 
-function resolve_hicache_config_reference()
+function setup_hicache()
 {
   if [[ -z "${HICACHE_CONFIG_FILE:-}" ]]; then
     return
@@ -667,14 +667,8 @@ function resolve_hicache_config_reference()
     exit 1
   fi
 
-  local unresolved_config_arg='@${HICACHE_CONFIG_FILE}'
-  local resolved_config_arg="@${HICACHE_CONFIG_FILE}"
-  if [[ "${prefill_args["--hicache-storage-backend-extra-config"]:-}" == "${unresolved_config_arg}" ]]; then
-    prefill_args["--hicache-storage-backend-extra-config"]="${resolved_config_arg}"
-  fi
-  if [[ "${decode_args["--hicache-storage-backend-extra-config"]:-}" == "${unresolved_config_arg}" ]]; then
-    decode_args["--hicache-storage-backend-extra-config"]="${resolved_config_arg}"
-  fi
+  prefill_args["--hicache-storage-backend-extra-config"]="@${HICACHE_CONFIG_FILE}"
+  decode_args["--hicache-storage-backend-extra-config"]="@${HICACHE_CONFIG_FILE}"
   log "Using HiCache config file: ${HICACHE_CONFIG_FILE}"
 }
 
@@ -1430,7 +1424,7 @@ function main()
 
   validate_environment
   localize_runtime_config_files || { log "ERROR: Failed to localize runtime config files"; exit 1; }
-  resolve_hicache_config_reference
+  setup_hicache
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }

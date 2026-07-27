@@ -673,9 +673,8 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
     )
     assert config["plugin"]["posix"]["active"] is True
     assert config["plugin"]["posix"]["use_uring"] == "false"
-    config_reference = shlex.quote("@${HICACHE_CONFIG_FILE}")
-    assert f"--prefill-args-hicache-storage-backend-extra-config {config_reference}" in result
-    assert f"--decode-args-hicache-storage-backend-extra-config {config_reference}" in result
+    assert not any("--prefill-args-hicache-storage-backend-extra-config" in arg for arg in result)
+    assert not any("--decode-args-hicache-storage-backend-extra-config" in arg for arg in result)
 
 
 def test_hicache_config_supports_dse(test_run: TestRun) -> None:
