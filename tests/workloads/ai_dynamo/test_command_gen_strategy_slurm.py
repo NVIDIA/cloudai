@@ -656,16 +656,10 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
     td.cmd_args.dynamo.backend = "sglang"
     td.cmd_args.hicache = {
         "plugin": {
-            "doca_memos": {
+            "posix": {
                 "active": True,
-                "device_name": "${device}",
-                "nguid": "00000000000000000000000000000000",
-                "ns_id": "1",
-                "max_value_len": 16777216,
-                "subnqn": "nqn.2025-10.nvda.doca",
+                "use_uring": "false",
             },
-            "posix": {"active": False},
-            "obj": {"active": False},
         }
     }
 
@@ -677,35 +671,35 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
         strategy.final_env_vars["HICACHE_CONFIG_FILE"]
         == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
     )
-    assert config["plugin"]["doca_memos"]["active"] is True
-    assert config["plugin"]["doca_memos"]["device_name"] == "${device}"
-    assert config["plugin"]["doca_memos"]["max_value_len"] == 16777216
-    assert config["plugin"]["posix"]["active"] is False
-    assert config["plugin"]["obj"]["active"] is False
-    assert "--hicache" not in result
-
-
-def test_hicache_config_rejects_non_sglang_backend(cmd_args: AIDynamoCmdArgs) -> None:
-    data = cmd_args.model_dump()
-    data["hicache"] = {"plugin": {"doca_memos": {"active": True}}}
-
-    with pytest.raises(ValueError, match="only supported with an SGLang backend"):
-        AIDynamoCmdArgs.model_validate(data)
+    assert config["plugin"]["posix"]["active"] is True
+    assert config["plugin"]["posix"]["use_uring"] == "false"
+    config_reference = shlex.quote("@${HICACHE_CONFIG_FILE}")
+    assert f"--prefill-args-hicache-storage-backend-extra-config {config_reference}" in result
+    assert f"--decode-args-hicache-storage-backend-extra-config {config_reference}" in result
 
 
 def test_hicache_config_supports_dse(test_run: TestRun) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test)
-    td.cmd_args.dynamo.backend = "sglang"
-    td.cmd_args.hicache = {"plugin": {"doca_memos": {"max_value_len": [8388608, 16777216]}}}
+    td.cmd_args.hicache = {"plugin": {"posix": {"use_uring": ["false", "true"]}}}
 
     assert test_run.is_dse_job is True
-    assert test_run.param_space["hicache.plugin.doca_memos.max_value_len"] == [8388608, 16777216]
+    assert test_run.param_space["hicache.plugin.posix.use_uring"] == ["false", "true"]
 
-    new_test_run = test_run.apply_params_set({"hicache.plugin.doca_memos.max_value_len": 16777216})
+    new_test_run = test_run.apply_params_set({"hicache.plugin.posix.use_uring": "true"})
 
     new_hicache = cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.hicache
     assert new_hicache is not None
-    assert new_hicache["plugin"]["doca_memos"]["max_value_len"] == 16777216
+    assert new_hicache["plugin"]["posix"]["use_uring"] == "true"
+
+
+def test_hicache_config_is_backend_agnostic(cmd_args: AIDynamoCmdArgs) -> None:
+    data = cmd_args.model_dump()
+    data["hicache"] = {"plugin": {"posix": {"active": True}}}
+
+    parsed = AIDynamoCmdArgs.model_validate(data)
+
+    assert parsed.dynamo.backend == "vllm"
+    assert parsed.hicache == data["hicache"]
 
 
 def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:

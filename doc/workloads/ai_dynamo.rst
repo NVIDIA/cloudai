@@ -220,30 +220,20 @@ LMCache YAML values can use runtime placeholders. CloudAI renders them inside th
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
 
-Propagating SGLang HiCache Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Propagating HiCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For SGLang's NIXL-backed HiCache, define the NIXL plugin configuration under ``[cmd_args.hicache]``. CloudAI
-serializes the object as ``hicache-config.toml`` in the run output directory, exposes its container path through
-``HICACHE_CONFIG_FILE``, and passes ``@${HICACHE_CONFIG_FILE}`` to both SGLang workers as
+Define a HiCache storage-backend configuration under ``[cmd_args.hicache]``. CloudAI serializes the object as
+``hicache-config.toml`` in the run output directory, exposes its container path through ``HICACHE_CONFIG_FILE``, and
+passes ``@${HICACHE_CONFIG_FILE}`` to both workers as
 ``--hicache-storage-backend-extra-config``:
 
 .. code-block:: toml
 
    [cmd_args]
-     [cmd_args.hicache.plugin.doca_memos]
-     active = true
-     device_name = "${device}"
-     nguid = "00000000000000000000000000000000"
-     ns_id = "1"
-     max_value_len = 16777216
-     subnqn = "nqn.2025-10.nvda.doca"
-
      [cmd_args.hicache.plugin.posix]
-     active = false
-
-     [cmd_args.hicache.plugin.obj]
-     active = false
+     active = true
+     use_uring = "false"
 
      [cmd_args.dynamo.prefill_worker.args]
      enable-hierarchical-cache = true
@@ -263,12 +253,20 @@ serializes the object as ``hicache-config.toml`` in the run output directory, ex
      hicache-storage-prefetch-policy = "wait_complete"
      hicache-storage-backend = "nixl"
 
-``cmd_args.hicache`` is valid only for SGLang backends. The remaining HiCache engine options stay in the worker
-``args`` sections so they can be configured or swept through DSE normally.
+The remaining HiCache engine options stay in the worker ``args`` sections so they can be configured or swept through
+DSE normally.
 
 The runtime replacement mechanism below supports per-node HiCache values. A startup manifest can target
-``HICACHE_CONFIG_FILE`` and replace placeholders such as ``${device}``; the worker receives the resulting per-node
-TOML path automatically.
+``HICACHE_CONFIG_FILE`` and replace placeholders such as ``${storage_path}``; the worker receives the resulting
+per-node TOML path automatically.
+
+For a self-contained single-node smoke test using NIXL's POSIX plugin, run the following on a node with at least two
+GPUs (one each for the prefill and decode workers):
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/sglang_hicache.toml
 
 Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -293,7 +291,7 @@ directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup cont
        "${namespace_id}": "1"
      },
      "HICACHE_CONFIG_FILE": {
-       "${device}": "/dev/ng4n1"
+       "${storage_path}": "/mnt/node-local-cache"
      }
    }
 

@@ -439,13 +439,6 @@ class AIDynamoCmdArgs(CmdArgs):
 
         return self
 
-    @model_validator(mode="after")
-    def validate_hicache_backend(self) -> "AIDynamoCmdArgs":
-        """Restrict HiCache configuration to SGLang backends."""
-        if self.hicache is not None and self.dynamo.backend not in {"sglang", "sglang_dsr1"}:
-            raise ValueError("cmd_args.hicache is only supported with an SGLang backend")
-        return self
-
     @property
     def installables(self) -> list[Installable]:
         return [

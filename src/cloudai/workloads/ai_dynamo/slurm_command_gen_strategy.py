@@ -38,6 +38,7 @@ from .ai_dynamo import (
 )
 
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
+HICACHE_CONFIG_ENV_REFERENCE = "@${HICACHE_CONFIG_FILE}"
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -174,6 +175,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         config = toml.dumps(self.td.cmd_args.hicache)
         (self.test_run.output_path / HICACHE_CONFIG_FILE_NAME).write_text(config)
+
+    def _gen_hicache_worker_args(self) -> list[str]:
+        if self.td.cmd_args.hicache is None:
+            return []
+
+        config_reference = shlex.quote(HICACHE_CONFIG_ENV_REFERENCE)
+        option = "args-hicache-storage-backend-extra-config"
+        return [
+            f"--prefill-{option} {config_reference}",
+            f"--decode-{option} {config_reference}",
+        ]
 
     def _render_aiperf_args(self, args: dict[str, Any]) -> str:
         parts: list[str] = []
@@ -451,6 +463,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
         if td.cmd_args.dynamo.decode_worker.nodes:
             args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
+        args.extend(self._gen_hicache_worker_args())
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
