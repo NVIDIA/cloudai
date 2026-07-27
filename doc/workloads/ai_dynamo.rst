@@ -220,6 +220,38 @@ LMCache YAML values can use runtime placeholders. CloudAI renders them inside th
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
 
+Per-node Startup Commands and Runtime Replacements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On Slurm, ``startup_cmd`` runs once per allocated node before the workload. It runs on the host by default. Set
+``startup_cmd_docker_image`` to run it in a container using the workload's mounts:
+
+.. code-block:: toml
+
+   [cmd_args]
+   startup_cmd = "/mnt/discovery/discover-device.sh"
+   startup_cmd_docker_image = "nvcr.io/example/discovery-tools:latest"
+
+CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the command. It points to ``runtime/<node>.json`` in the test output
+directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup container. Write replacements there:
+
+.. code-block:: json
+
+   {
+     "LMCACHE_CONFIG_FILE": {
+       "${device}": "/dev/ng4n1",
+       "${namespace_id}": "1"
+     }
+   }
+
+Each top-level key names an environment variable containing a config path. AIDynamo creates a per-node copy, applies
+literal replacements, then updates the variable to point to that copy.
+
+For ``lmcache-config.yaml`` on ``node-01``, the result is ``lmcache-config.node-01.yaml``. The shared source remains
+unchanged. LMCache placeholders are rendered afterward in the per-node copy. Missing manifest means no replacements.
+
+Startup runs once per test case in normal and ``--single-sbatch`` modes.
+
 If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
 
 .. code-block:: toml

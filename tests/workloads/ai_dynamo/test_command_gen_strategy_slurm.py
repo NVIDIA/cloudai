@@ -21,9 +21,9 @@ from typing import cast
 import pytest
 import yaml
 
-from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.core import GitRepo
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
@@ -141,6 +141,72 @@ def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> 
     )
 
     assert repo in tdef.installables
+
+
+def test_startup_cmd_image_is_installable(cmd_args: AIDynamoCmdArgs) -> None:
+    cmd_args.startup_cmd = "/mnt/discover.sh"
+    cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+    )
+
+    assert tdef.startup_cmd_docker_image in tdef.installables
+
+
+def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    td.cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=nvcr.io/test/discovery:latest" in command
+    assert "--nodes=2" in command
+    assert "--nodelist=n0,n1" in command
+    assert "--ntasks=2" in command
+    assert "--ntasks-per-node=1" in command
+    assert "startup-node-%n-stdout.txt" in command
+    assert "CLOUDAI_RUNTIME_FILE=" in command
+    assert "${SLURMD_NODENAME:-$(hostname)}.json" in command
+    assert "/mnt/discover.sh" in command
+    assert command.endswith("|| exit 1")
+
+
+def test_gen_startup_srun_command_runs_on_bare_metal_by_default(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/host/discover.sh"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=" not in command
+    assert "--container-mounts=" not in command
+    assert f"{strategy.test_run.output_path.absolute()}/runtime/" in command
+    assert "/cloudai_run_results/runtime/" not in command
+
+
+def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    scenario = TestScenario(name="scenario", test_runs=[test_run])
+    runner = SingleSbatchRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=scenario,
+        output_path=slurm_system.output_path,
+    )
+
+    test_block = runner.get_single_tr_block(test_run)
+
+    assert "/mnt/discover.sh" in test_block
+    assert test_block.count("srun ") == 2
+    assert test_block.count(f"--output={test_run.output_path.absolute()}/stdout.txt") == 2
 
 
 @pytest.mark.parametrize(

@@ -622,6 +622,40 @@ function launch_node_setup_cmd()
   log "Node environment:\n$(env)" >> "$logfile" 2>&1
 }
 
+function localize_runtime_config_files()
+{
+  local node_name="${SLURMD_NODENAME:-$(hostname)}"
+  local runtime_dir="${RESULTS_DIR}/runtime"
+  local manifest="${runtime_dir}/${node_name}.json"
+  local environment_file="${runtime_dir}/${node_name}.env.sh"
+  if [[ ! -f "$manifest" ]]; then
+    return
+  fi
+
+  python3 - "$manifest" "$runtime_dir" "$node_name" > "$environment_file" <<'PY' || return $?
+import json
+import os
+import shlex
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text())
+runtime_dir = Path(sys.argv[2])
+node_name = sys.argv[3]
+
+for config_var, replacements in manifest.items():
+    source = Path(os.environ[config_var])
+    target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
+
+    content = source.read_text()
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    target.write_text(content)
+    print(f"export {config_var}={shlex.quote(str(target))}")
+PY
+  source "$environment_file"
+}
+
 _require_cmd() {
   local cmd="$1"
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -1373,6 +1407,7 @@ function main()
   launch_node_setup_cmd
 
   validate_environment
+  localize_runtime_config_files || { log "ERROR: Failed to localize runtime config files"; exit 1; }
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }
