@@ -625,16 +625,17 @@ function launch_node_setup_cmd()
 function localize_runtime_config_files()
 {
   local node_name="${SLURMD_NODENAME:-$(hostname)}"
-  local manifest="${RESULTS_DIR}/runtime/${node_name}.json"
+  local runtime_dir="${RESULTS_DIR}/runtime"
+  local manifest="${runtime_dir}/${node_name}.json"
+  local environment_file="${runtime_dir}/${node_name}.env.sh"
   if [[ ! -f "$manifest" ]]; then
     return
   fi
 
-  local assignments config_var localized_path
-  assignments=$(
-    python3 - "$manifest" "${RESULTS_DIR}/runtime" "$node_name" <<'PY'
+  python3 - "$manifest" "$runtime_dir" "$node_name" > "$environment_file" <<'PY'
 import json
 import os
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -645,15 +646,8 @@ node_name = sys.argv[3]
 
 for config_var, replacements in manifest.items():
     source = Path(os.environ[config_var])
-    if source.suffix:
-        target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
-    else:
-        target = runtime_dir / f"{source.name}.{node_name}"
-
-    if target.suffix:
-        backup = target.with_name(f"{target.stem}.original{target.suffix}")
-    else:
-        backup = target.with_name(f"{target.name}.original")
+    target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
+    backup = target.with_name(f"{target.stem}.original{target.suffix}")
 
     if not backup.exists():
         shutil.copyfile(source, backup)
@@ -662,16 +656,9 @@ for config_var, replacements in manifest.items():
     for old, new in replacements.items():
         content = content.replace(old, new)
     target.write_text(content)
-    print(f"{config_var}\t{target}")
+    print(f"export {config_var}={shlex.quote(str(target))}")
 PY
-  ) || return $?
-
-  while IFS=$'\t' read -r config_var localized_path; do
-    [[ -z "$config_var" ]] && continue
-    log "Using localized ${config_var}: ${localized_path}"
-    printf -v "$config_var" '%s' "$localized_path"
-    export "$config_var"
-  done <<< "$assignments"
+  source "$environment_file"
 }
 
 _require_cmd() {

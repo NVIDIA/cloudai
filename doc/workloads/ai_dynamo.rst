@@ -216,9 +216,11 @@ Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 On Slurm, AIDynamo can run a startup command once on every allocated node before launching the main workload. The
-startup step uses one task per node and runs directly on the host by default. Set ``startup_cmd_docker_image`` to run
-it in a container with the same output, installation, and configured extra mounts as the main step. Containerized
-commands must receive referenced files through ``extra_container_mounts``:
+``startup_cmd`` value is shell command text; it is not a CloudAI ``File`` or a path that CloudAI stages. To execute a
+script, mount or otherwise provide it and invoke it from the command. The startup step uses one task per node and runs
+directly on the host by default. Set ``startup_cmd_docker_image`` to run it in a container with the same output,
+installation, and configured extra mounts as the main step. Containerized commands must receive referenced files
+through ``extra_container_mounts``:
 
 .. code-block:: toml
 
@@ -243,11 +245,15 @@ manifest to that path:
 Manifest keys name environment variables containing config paths. No fixed list of variable names is maintained;
 every key in the node's manifest is localized.
 
-Before worker launch, AIDynamo copies each referenced config into ``/cloudai_run_results/runtime`` and redirects its
-environment variable to the copy. The shared source is never modified. The current node's replacements are applied
-using literal string replacement. For example, ``lmcache-config.yaml`` on node ``node-01`` produces
-``lmcache-config.node-01.yaml`` and ``lmcache-config.node-01.original.yaml``. A missing manifest means no files are
-localized on that node.
+Before worker launch, AIDynamo localizes each referenced config into ``/cloudai_run_results/runtime`` and redirects its
+environment variable to the per-node copy. The shared source is never modified. On the first invocation, AIDynamo
+copies the source to the node's ``.original`` file. Later invocations reuse that backup as the replacement input, so
+replacements are always applied to the original content instead of an already-modified copy. The current node's
+replacements use literal string replacement.
+
+For example, ``lmcache-config.yaml`` on node ``node-01`` produces ``lmcache-config.node-01.yaml`` and
+``lmcache-config.node-01.original.yaml``. LMCache runtime placeholders are rendered afterward against the localized
+copy. A missing manifest means no files are localized on that node.
 
 The startup step is part of each test block. It therefore runs once per test case in both normal and
 ``--single-sbatch`` modes.
