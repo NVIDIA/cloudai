@@ -215,12 +215,8 @@ run before worker processes start.
 Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-On Slurm, AIDynamo can run a startup command once on every allocated node before launching the main workload. The
-``startup_cmd`` value is shell command text; it is not a CloudAI ``File`` or a path that CloudAI stages. To execute a
-script, mount or otherwise provide it and invoke it from the command. The startup step uses one task per node and runs
-directly on the host by default. Set ``startup_cmd_docker_image`` to run it in a container with the same output,
-installation, and configured extra mounts as the main step. Containerized commands must receive referenced files
-through ``extra_container_mounts``:
+On Slurm, ``startup_cmd`` runs once per allocated node before the workload. It runs on the host by default. Set
+``startup_cmd_docker_image`` to run it in a container using the workload's mounts:
 
 .. code-block:: toml
 
@@ -228,10 +224,8 @@ through ``extra_container_mounts``:
    startup_cmd = "/mnt/discovery/discover-device.sh"
    startup_cmd_docker_image = "nvcr.io/example/discovery-tools:latest"
 
-CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the startup command. For a host command, the value points into the test
-run's host output directory. For a containerized command, it is ``/cloudai_run_results/runtime/<node>.json``. Both
-locations refer to the same mounted test-run directory. The command can perform node setup and write a replacement
-manifest to that path:
+CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the command. It points to ``runtime/<node>.json`` in the test output
+directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup container. Write replacements there:
 
 .. code-block:: json
 
@@ -242,21 +236,18 @@ manifest to that path:
      }
    }
 
-Manifest keys name environment variables containing config paths. No fixed list of variable names is maintained;
-every key in the node's manifest is localized.
+Each top-level key names an environment variable containing a config path. AIDynamo creates a per-node copy, applies
+literal replacements, then updates the variable to point to that copy. No variable allowlist exists.
 
-Before worker launch, AIDynamo localizes each referenced config into ``/cloudai_run_results/runtime`` and redirects its
-environment variable to the per-node copy. The shared source is never modified. On the first invocation, AIDynamo
-copies the source to the node's ``.original`` file. Later invocations reuse that backup as the replacement input, so
-replacements are always applied to the original content instead of an already-modified copy. The current node's
-replacements use literal string replacement.
+For ``lmcache-config.yaml`` on ``node-01``, files are:
 
-For example, ``lmcache-config.yaml`` on node ``node-01`` produces ``lmcache-config.node-01.yaml`` and
-``lmcache-config.node-01.original.yaml``. LMCache runtime placeholders are rendered afterward against the localized
-copy. A missing manifest means no files are localized on that node.
+* ``lmcache-config.node-01.yaml``
+* ``lmcache-config.node-01.original.yaml``
 
-The startup step is part of each test block. It therefore runs once per test case in both normal and
-``--single-sbatch`` modes.
+The original file is copied once and reused as replacement input. The shared source remains unchanged. LMCache
+placeholders are rendered afterward in the per-node copy. Missing manifest means no replacements.
+
+Startup runs once per test case in normal and ``--single-sbatch`` modes.
 
 If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
 
