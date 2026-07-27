@@ -187,13 +187,20 @@ class SingleSbatchRunner(SlurmRunner):
         self.scenario_root.mkdir(parents=True, exist_ok=True)
         tr = self.test_scenario.test_runs[0]
         job = self._submit_test(tr)
+        self.jobs.append(job)
+
+        if self.shutting_down:
+            self.system.kill(job)
 
         is_completed = False
-        while not is_completed:
-            if self.shutting_down:
-                break
-            is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
-            time.sleep(self.system.monitor_interval)
+        try:
+            while not is_completed:
+                if self.shutting_down:
+                    break
+                is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
+                time.sleep(self.system.monitor_interval)
+        finally:
+            self.jobs.remove(job)
 
         self.handle_dse()
 

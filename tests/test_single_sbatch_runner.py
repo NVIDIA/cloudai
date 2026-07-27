@@ -531,6 +531,68 @@ def test_on_job_completion_cleans_all_effective_test_runs(
     assert cleanup_calls == expected_paths
 
 
+def test_run_tracks_and_cancels_job_on_shutdown(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    tc = TestScenario(name="tc", test_runs=[sleep_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    job = SlurmJob(sleep_tr, id=123)
+    runner._submit_test = Mock(return_value=job)
+    runner.handle_dse = Mock()
+    runner.on_job_completion = Mock()
+
+    def shutdown_during_monitoring(monitored_job: SlurmJob) -> bool:
+        assert monitored_job is job
+        assert runner.jobs == [job]
+        runner.shutdown()
+        return False
+
+    with (
+        patch.object(SlurmSystem, "is_job_completed", side_effect=shutdown_during_monitoring),
+        patch.object(SlurmSystem, "kill") as kill,
+    ):
+        runner.run()
+
+    kill.assert_called_once_with(job)
+    assert runner.jobs == []
+
+
+def test_run_cancels_job_when_shutdown_occurs_during_submission(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    tc = TestScenario(name="tc", test_runs=[sleep_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    job = SlurmJob(sleep_tr, id=123)
+    runner.handle_dse = Mock()
+    runner.on_job_completion = Mock()
+
+    def submit_after_shutdown(_: TestRun) -> SlurmJob:
+        runner.shutdown()
+        return job
+
+    runner._submit_test = Mock(side_effect=submit_after_shutdown)
+
+    with patch.object(SlurmSystem, "kill") as kill:
+        runner.run()
+
+    kill.assert_called_once_with(job)
+    assert runner.jobs == []
+
+
+def test_run_removes_completed_job_from_tracking(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    tc = TestScenario(name="tc", test_runs=[sleep_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    job = SlurmJob(sleep_tr, id=123)
+    runner._submit_test = Mock(return_value=job)
+    runner.handle_dse = Mock()
+    runner.on_job_completion = Mock()
+
+    with (
+        patch.object(SlurmSystem, "is_job_completed", return_value=True),
+        patch.object(SlurmSystem, "kill") as kill,
+    ):
+        runner.run()
+
+    kill.assert_not_called()
+    assert runner.jobs == []
+
+
 def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nccl_tr.pre_test = TestScenario(name="pre_test", test_runs=[sleep_tr])
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
