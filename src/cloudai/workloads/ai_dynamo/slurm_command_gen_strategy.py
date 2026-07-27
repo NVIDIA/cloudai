@@ -451,6 +451,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
         if td.cmd_args.dynamo.decode_worker.nodes:
             args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
+
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
             args.append(f'--aiperf-name "{td.cmd_args.aiperf.name}"')
