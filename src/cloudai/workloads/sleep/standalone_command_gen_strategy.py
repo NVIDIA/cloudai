@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 import toml
@@ -21,7 +22,7 @@ import toml
 from cloudai.core import CommandGenStrategy
 from cloudai.models.scenario import TestRunDetails
 
-from .sleep import SleepTestDefinition
+from .sleep import EXIT_CODE_FILE_NAME, SleepTestDefinition
 
 
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
@@ -31,13 +32,22 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
         tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
         return f"sleep {tdef.cmd_args.seconds}"
 
-    def store_test_run(self) -> None:
+    def store_test_run(self, full_cmd: str) -> None:
         test_cmd = self._generate_sleep_command()
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as f:
-            trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
+            trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
             toml.dump(trd.model_dump(), f)
 
     def gen_exec_command(self) -> str:
-        self.store_test_run()
-        return self._generate_sleep_command()
+        stdout_path = self.test_run.output_path / "stdout.txt"
+        stderr_path = self.test_run.output_path / "stderr.txt"
+        exit_code_path = self.test_run.output_path / EXIT_CODE_FILE_NAME
+
+        full_cmd = (
+            f"{self._generate_sleep_command()} "
+            f"> {shlex.quote(str(stdout_path))} 2> {shlex.quote(str(stderr_path))}; "
+            f"echo $? > {shlex.quote(str(exit_code_path))}"
+        )
+        self.store_test_run(full_cmd)
+        return full_cmd
