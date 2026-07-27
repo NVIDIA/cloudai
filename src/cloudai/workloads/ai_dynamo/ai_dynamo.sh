@@ -636,7 +636,6 @@ function localize_runtime_config_files()
 import json
 import os
 import shlex
-import shutil
 import sys
 from pathlib import Path
 
@@ -647,12 +646,8 @@ node_name = sys.argv[3]
 for config_var, replacements in manifest.items():
     source = Path(os.environ[config_var])
     target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
-    backup = target.with_name(f"{target.stem}.original{target.suffix}")
 
-    if not backup.exists():
-        shutil.copyfile(source, backup)
-
-    content = backup.read_text()
+    content = source.read_text()
     for old, new in replacements.items():
         content = content.replace(old, new)
     target.write_text(content)

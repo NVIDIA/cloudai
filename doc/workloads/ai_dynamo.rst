@@ -237,15 +237,10 @@ directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup cont
    }
 
 Each top-level key names an environment variable containing a config path. AIDynamo creates a per-node copy, applies
-literal replacements, then updates the variable to point to that copy. No variable allowlist exists.
+literal replacements, then updates the variable to point to that copy.
 
-For ``lmcache-config.yaml`` on ``node-01``, files are:
-
-* ``lmcache-config.node-01.yaml``
-* ``lmcache-config.node-01.original.yaml``
-
-The original file is copied once and reused as replacement input. The shared source remains unchanged. LMCache
-placeholders are rendered afterward in the per-node copy. Missing manifest means no replacements.
+For ``lmcache-config.yaml`` on ``node-01``, the result is ``lmcache-config.node-01.yaml``. The shared source remains
+unchanged. LMCache placeholders are rendered afterward in the per-node copy. Missing manifest means no replacements.
 
 Startup runs once per test case in normal and ``--single-sbatch`` modes.
 
