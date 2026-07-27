@@ -632,7 +632,7 @@ function localize_runtime_config_files()
     return
   fi
 
-  python3 - "$manifest" "$runtime_dir" "$node_name" > "$environment_file" <<'PY'
+  python3 - "$manifest" "$runtime_dir" "$node_name" > "$environment_file" <<'PY' || return $?
 import json
 import os
 import shlex
