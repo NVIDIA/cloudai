@@ -577,7 +577,10 @@ class MegatronBridgeTestDefinition(TestDefinition):
         if not step_times_s:
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
-        self._copy_profiler_traces(tr)
+        try:
+            self._copy_profiler_traces(tr)
+        except (OSError, shutil.Error) as e:
+            logging.warning(f"Failed to copy profiler traces: {e}")
 
         return JobStatusResult(is_successful=True)
 
