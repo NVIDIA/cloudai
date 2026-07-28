@@ -583,29 +583,36 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     def _copy_profiler_traces(self, tr: TestRun) -> None:
         """
-        Copy pytorch kineto traces from NemoRun's nested experiment directory to the CloudAI output root.
+        Copy pytorch kineto and Chakra traces from NemoRun's nested experiment directory to the CloudAI output root.
 
-        MegatronBridge runs via NemoRun which creates experiments/<name>/<run_id>/<task>/torch_profile/ internally.
-        This copies the traces to <output_path>/torch_profile/ so both MegatronRun and MegatronBridge produce
-        traces at a consistent location.
+        MegatronBridge runs via NemoRun which places profiler output at
+        experiments/<name>/<run_id>/<task>/{torch_profile,chakra}/ internally.
+        This copies them to <output_path>/{torch_profile,chakra}/ so both MegatronRun and MegatronBridge
+        produce traces at a consistent location.
+
+        torch_profile/ is always present when use_pytorch_profiler=true.
+        chakra/ is only present when pytorch_profiler_collect_chakra=true.
         """
         experiment_name = tr.test.cmd_args.wandb_experiment_name
         if not experiment_name:
             return
 
-        pattern = os.path.join(
-            str(tr.output_path), "experiments", experiment_name, "*", experiment_name, "torch_profile"
-        )
-        matches = [p for p in glob.glob(pattern) if os.path.isdir(p)]
-        if not matches:
+        base_pattern = os.path.join(str(tr.output_path), "experiments", experiment_name, "*", experiment_name)
+        task_dirs = [p for p in glob.glob(base_pattern) if os.path.isdir(p)]
+        if not task_dirs:
             return
 
-        # Take the most recently modified in case of retries
-        src = max(matches, key=os.path.getmtime)
-        dst = tr.output_path / "torch_profile"
-        if not dst.exists():
-            shutil.copytree(src, dst)
-            logging.info(f"Copied pytorch profiler traces from {src} to {dst}")
+        # Take the most recently modified task dir in case of retries
+        task_dir = max(task_dirs, key=os.path.getmtime)
+
+        for trace_dir in ("torch_profile", "chakra"):
+            src = os.path.join(task_dir, trace_dir)
+            if not os.path.isdir(src):
+                continue
+            dst = tr.output_path / trace_dir
+            if not dst.exists():
+                shutil.copytree(src, dst)
+                logging.info(f"Copied {trace_dir} traces from {src} to {dst}")
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
