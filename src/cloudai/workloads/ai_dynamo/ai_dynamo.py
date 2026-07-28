@@ -161,6 +161,7 @@ class AIDynamoArgs(BaseModel):
 
     model: str = "Qwen/Qwen3-0.6B"
     backend: Literal["vllm", "sglang", "sglang_dsr1"] = "vllm"
+    mode: Literal["aggregate", "disaggregate"] = "disaggregate"
     endpoint: str = Field(default="v1/chat/completions")
     connector: Optional[str | list[str]] = None
 
@@ -235,12 +236,14 @@ class AIDynamoArgs(BaseModel):
         """Populate prefill/decode args."""
         if self.backend.lower() == "vllm":
             self.prefill_worker.args.model = self.model
-            self.decode_worker.args.model = self.model
+            if self.mode == "disaggregate":
+                self.decode_worker.args.model = self.model
         elif self.backend.lower() in ["sglang", "sglang_dsr1"]:
             self.prefill_worker.args.model_path = self.model
-            self.decode_worker.args.model_path = self.model
             self.prefill_worker.args.served_model_name = self.model
-            self.decode_worker.args.served_model_name = self.model
+            if self.mode == "disaggregate":
+                self.decode_worker.args.model_path = self.model
+                self.decode_worker.args.served_model_name = self.model
         else:
             raise ValueError(f"Invalid backend: {self.backend}")
 
@@ -577,6 +580,10 @@ class AIDynamoTestDefinition(TestDefinition):
         return JobStatusResult(workloads_successful and accuracy_successful)
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
+        if tr.test.cmd_args.dynamo.mode == "aggregate":
+            logging.info("constraint_check skipped: aggregate mode has no prefill/decode split")
+            return True
+
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
         decode_worker = tr.test.cmd_args.dynamo.decode_worker
 

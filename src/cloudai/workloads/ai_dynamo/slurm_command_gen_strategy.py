@@ -400,13 +400,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.append('--dynamo-dcgm-exporter-enabled "True"')
             args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')
 
+        is_aggregate = td.cmd_args.dynamo.mode == "aggregate"
+
         if td.cmd_args.dynamo.prefill_worker:
             args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-", exclude=["nodes"]))
             if td.cmd_args.dynamo.prefill_worker.nodes:
                 args.append(f"--prefill-node-list {shlex.quote(td.cmd_args.dynamo.prefill_worker.nodes)}")
-        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
-        if td.cmd_args.dynamo.decode_worker.nodes:
-            args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
+
+        if not is_aggregate:
+            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
+            if td.cmd_args.dynamo.decode_worker.nodes:
+                args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
@@ -608,12 +612,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]
 
+        is_aggregate = self.td.cmd_args.dynamo.mode == "aggregate"
+
         prefill_n, prefill_nodes = 0, ""
         if self.td.cmd_args.dynamo.prefill_worker:
             prefill_n = cast(int, self.td.cmd_args.dynamo.prefill_worker.num_nodes)
             prefill_nodes = self.td.cmd_args.dynamo.prefill_worker.nodes
-        decode_n = self.td.cmd_args.dynamo.decode_worker.num_nodes
-        decode_nodes = self.td.cmd_args.dynamo.decode_worker.nodes
+
+        # In aggregate mode there is no separate decode worker; all nodes run the prefill worker.
+        decode_n = 0 if is_aggregate else cast(int, self.td.cmd_args.dynamo.decode_worker.num_nodes)
+        decode_nodes = None if is_aggregate else self.td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
@@ -649,7 +657,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if prefill_nodes or decode_nodes:
             self._validate_worker_nodes(node_list, prefill_nodes, prefill_n, "prefill")
-            self._validate_worker_nodes(node_list, decode_nodes, decode_n, "decode")
+            if not is_aggregate:
+                self._validate_worker_nodes(node_list, decode_nodes, decode_n, "decode")
             if self._worker_nodes_overlap(prefill_nodes, decode_nodes):
                 unique_worker_nodes = self._unique_nodes(
                     self._split_node_list(prefill_nodes) + self._split_node_list(decode_nodes)

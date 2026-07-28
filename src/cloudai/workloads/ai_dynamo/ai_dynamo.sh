@@ -307,7 +307,11 @@ _apply_connector_settings() {
 
 _patch_dynamo_args() {
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
-    dynamo_args["frontend-node"]=$(echo "${decode_config["node-list"]}" | cut -d',' -f1)
+    if [[ -n "${decode_config["node-list"]:-}" ]]; then
+      dynamo_args["frontend-node"]=$(echo "${decode_config["node-list"]}" | cut -d',' -f1)
+    else
+      dynamo_args["frontend-node"]=$(echo "${prefill_config["node-list"]}" | cut -d',' -f1)
+    fi
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
@@ -342,11 +346,18 @@ _compute_worker_allocation_vllm() {
   fi
 
   prefill_config["gpus-per-worker"]=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
-  decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
 
-  if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
+  if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
     exit 1
+  fi
+
+  if [[ "${decode_config["num-nodes"]:-0}" -gt 0 ]]; then
+    decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
+    if [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
+      log "ERROR: Invalid decode TP/PP configuration"
+      exit 1
+    fi
   fi
 
   decode_config["gpu-offset"]=0
@@ -362,16 +373,21 @@ _compute_worker_allocation_vllm() {
     prefill_config["workers-per-node"]=1
     prefill_config["gpu-offset"]=${decode_config["gpus-per-worker"]}
   else
-    if [[ "${prefill_config["multiple-workers-per-node"]}" != "true" ]]; then
+    if [[ "${prefill_config["multiple-workers-per-node"],,}" != "true" ]]; then
       prefill_config["gpus-per-worker"]=$num_gpus
     fi
 
-    if [[ "${decode_config["multiple-workers-per-node"]}" != "true" ]]; then
-      decode_config["gpus-per-worker"]=$num_gpus
-    fi
-
     prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
-    decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+
+    if [[ "${decode_config["num-nodes"]:-0}" -gt 0 ]]; then
+      if [[ "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
+        decode_config["gpus-per-worker"]=$num_gpus
+      fi
+      decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+    else
+      decode_config["gpus-per-worker"]=0
+      decode_config["workers-per-node"]=0
+    fi
   fi
 
   log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${decode_config["gpus-per-worker"]}"
@@ -1124,7 +1140,7 @@ _resolve_aiperf_server_metrics_urls() {
     done
   done
 
-  if [[ "${dynamo_args["dcgm-exporter-enabled"]}" == "True" || "${dynamo_args["dcgm-exporter-enabled"]}" == "true" ]]; then
+  if [[ "${dynamo_args["dcgm-exporter-enabled"],,}" == "true" ]]; then
     local dcgm_nodes="${decode_config["node-list"]:-},${prefill_config["node-list"]:-}"
     for node in $dcgm_nodes; do
       [[ -z "$node" ]] && continue
@@ -1393,12 +1409,14 @@ function main()
     launch_etcd &
     launch_nats &
     wait_for_etcd
-    launch_ingress
-    if _is_sglang_dsr1; then
-      launch_sgl_http_server
-    fi
   fi
 
+  # Workers launch BEFORE the ingress: launch_ingress blocks in
+  # wait_for_router, and the router only becomes ready once a worker
+  # registers — on a combined frontend+worker node the old order serialized
+  # the whole ROUTER_START_TIMEOUT (120 s of failing readiness curls) in
+  # front of every worker start. Workers only need etcd/nats (waited above)
+  # and the lmcache config from setup_lmcache; they never talk to the router.
   if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
     log_node_role "$(_current_node_name)" "decode"
@@ -1412,6 +1430,10 @@ function main()
   fi
 
   if _is_frontend_node; then
+    launch_ingress
+    if _is_sglang_dsr1; then
+      launch_sgl_http_server
+    fi
     sleep 10
 
     launch_workloads &
