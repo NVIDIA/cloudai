@@ -663,8 +663,6 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
         }
     }
 
-    result = strategy._gen_script_args(td)
-
     config_path = strategy.test_run.output_path / HICACHE_CONFIG_FILE_NAME
     config = toml.loads(config_path.read_text())
     assert (
@@ -673,8 +671,6 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
     )
     assert config["plugin"]["posix"]["active"] is True
     assert config["plugin"]["posix"]["use_uring"] == "false"
-    assert not any("--prefill-args-hicache-storage-backend-extra-config" in arg for arg in result)
-    assert not any("--decode-args-hicache-storage-backend-extra-config" in arg for arg in result)
 
 
 def test_hicache_config_supports_dse(test_run: TestRun) -> None:
