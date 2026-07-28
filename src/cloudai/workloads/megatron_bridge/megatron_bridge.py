@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import logging
 import os
 import re
+import shutil
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
@@ -575,7 +577,35 @@ class MegatronBridgeTestDefinition(TestDefinition):
         if not step_times_s:
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
+        self._copy_profiler_traces(tr)
+
         return JobStatusResult(is_successful=True)
+
+    def _copy_profiler_traces(self, tr: TestRun) -> None:
+        """
+        Copy pytorch kineto traces from NemoRun's nested experiment directory to the CloudAI output root.
+
+        MegatronBridge runs via NemoRun which creates experiments/<name>/<run_id>/<task>/torch_profile/ internally.
+        This copies the traces to <output_path>/torch_profile/ so both MegatronRun and MegatronBridge produce
+        traces at a consistent location.
+        """
+        experiment_name = tr.test.cmd_args.wandb_experiment_name
+        if not experiment_name:
+            return
+
+        pattern = os.path.join(
+            str(tr.output_path), "experiments", experiment_name, "*", experiment_name, "torch_profile"
+        )
+        matches = [p for p in glob.glob(pattern) if os.path.isdir(p)]
+        if not matches:
+            return
+
+        # Take the most recently modified in case of retries
+        src = max(matches, key=os.path.getmtime)
+        dst = tr.output_path / "torch_profile"
+        if not dst.exists():
+            shutil.copytree(src, dst)
+            logging.info(f"Copied pytorch profiler traces from {src} to {dst}")
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
