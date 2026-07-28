@@ -663,6 +663,8 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
         }
     }
 
+    strategy._gen_script_args(td)
+
     config_path = strategy.test_run.output_path / HICACHE_CONFIG_FILE_NAME
     config = toml.loads(config_path.read_text())
     assert (
