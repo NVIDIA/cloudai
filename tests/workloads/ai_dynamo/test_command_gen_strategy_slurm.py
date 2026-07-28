@@ -432,6 +432,38 @@ def test_dcgm_exporter_adds_configured_docker_image_installable(cmd_args: AIDyna
     assert tdef.dcgm_exporter_image in tdef.installables
 
 
+def test_disaggregate_mode_alias_normalizes() -> None:
+    args = AIDynamoArgs.model_validate({"mode": "disaggregate"})
+
+    assert args.mode == "disaggregated"
+
+
+def test_aggregate_mode_omits_decode_script_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.mode = "aggregate"
+
+    args = strategy._gen_script_args(td)
+
+    assert '--dynamo-mode "aggregate"' in args
+    assert "--prefill-num-nodes" in args
+    assert "--prefill-args-model" in args
+    assert "--decode-num-nodes" not in args
+    assert "--decode-node-list" not in args
+    assert "--decode-args-" not in args
+
+
+def test_aggregate_mode_uses_prefill_nodes_only(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.mode = "aggregate"
+    strategy.test_run.nodes = []
+    strategy.test_run.num_nodes = 1
+    strategy.test_run.num_nodes_explicit = False
+
+    assert strategy.get_cached_nodes_spec()[0] == 1
+
+
 def test_shared_node_disagg_preserves_explicit_smaller_node_count(
     slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
 ) -> None:
@@ -526,6 +558,17 @@ def test_constraint_allows_shared_node_split_that_fits(slurm_system: SlurmSystem
     test_run.num_nodes_explicit = True
 
     assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_aggregate_prefill_that_exceeds_node_gpus(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 4
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.mode = "aggregate"
+    td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 8
+
+    assert not td.constraint_check(test_run, slurm_system)
 
 
 def test_constraint_rejects_shared_node_split_that_exceeds_node_gpus(

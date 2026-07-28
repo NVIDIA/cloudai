@@ -162,8 +162,16 @@ class AIDynamoArgs(BaseModel):
 
     model: str = "Qwen/Qwen3-0.6B"
     backend: Literal["vllm", "sglang", "sglang_dsr1"] = "vllm"
+    mode: Literal["aggregate", "disaggregated"] = "disaggregated"
     endpoint: str = Field(default="v1/chat/completions")
     connector: Optional[str | list[str]] = None
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def normalize_mode(cls, v: str) -> str:
+        if v == "disaggregate":
+            return "disaggregated"
+        return v
 
     @field_validator("connector", mode="before")
     @classmethod
@@ -234,14 +242,19 @@ class AIDynamoArgs(BaseModel):
     @model_validator(mode="after")
     def populate_prefill_decode_args(self) -> "AIDynamoArgs":
         """Populate prefill/decode args."""
+        if self.mode == "aggregate" and self.backend.lower() != "vllm":
+            raise ValueError("AI Dynamo aggregate mode is currently supported only for the vLLM backend")
+
         if self.backend.lower() == "vllm":
             self.prefill_worker.args.model = self.model
-            self.decode_worker.args.model = self.model
+            if self.mode == "disaggregated":
+                self.decode_worker.args.model = self.model
         elif self.backend.lower() in ["sglang", "sglang_dsr1"]:
             self.prefill_worker.args.model_path = self.model
-            self.decode_worker.args.model_path = self.model
             self.prefill_worker.args.served_model_name = self.model
-            self.decode_worker.args.served_model_name = self.model
+            if self.mode == "disaggregated":
+                self.decode_worker.args.model_path = self.model
+                self.decode_worker.args.served_model_name = self.model
         else:
             raise ValueError(f"Invalid backend: {self.backend}")
 
@@ -593,19 +606,21 @@ class AIDynamoTestDefinition(TestDefinition):
         return JobStatusResult(workloads_successful and accuracy_successful)
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
+        is_aggregate = tr.test.cmd_args.dynamo.mode == "aggregate"
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
         decode_worker = tr.test.cmd_args.dynamo.decode_worker
 
         prefill_tp = prefill_worker.args.tensor_parallel_size
         prefill_pp = prefill_worker.args.pipeline_parallel_size
 
-        decode_tp = decode_worker.args.tensor_parallel_size
-        decode_pp = decode_worker.args.pipeline_parallel_size
+        if not is_aggregate:
+            decode_tp = decode_worker.args.tensor_parallel_size
+            decode_pp = decode_worker.args.pipeline_parallel_size
 
-        if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
-            logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
-            return False
-        logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
+            if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
+                logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
+                return False
+            logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
 
         gpus_per_node = 0
         slurm_system = cast(SlurmSystem, system)
@@ -615,11 +630,23 @@ class AIDynamoTestDefinition(TestDefinition):
         if (
             gpus_per_node > 0
             and self.constraints.tp_times_pp_le_gpus_per_node
-            and (prefill_tp * prefill_pp > gpus_per_node or decode_tp * decode_pp > gpus_per_node)
+            and prefill_tp * prefill_pp > gpus_per_node
+        ):
+            logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
+            return False
+        if (
+            not is_aggregate
+            and gpus_per_node > 0
+            and self.constraints.tp_times_pp_le_gpus_per_node
+            and decode_tp * decode_pp > gpus_per_node
         ):
             logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
             return False
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
+
+        if is_aggregate:
+            logging.info("constraint_check skipped split-worker checks: aggregate mode has no decode worker")
+            return True
 
         role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
         prefill_nodes = set(prefill_worker.nodes.split(",")) if prefill_worker.nodes else set()

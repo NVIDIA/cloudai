@@ -43,6 +43,7 @@ SHARED_NODE_DISAGG="false"
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
+dynamo_args["mode"]="disaggregated"
 dynamo_args["node-setup-cmd"]=""
 dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
 dynamo_args["port"]=$((8080 + SLURM_JOBID % 100))
@@ -72,6 +73,7 @@ function log()
 _is_vllm() { [[ "${dynamo_args["backend"]}" == "vllm" ]]; }
 _is_sglang() { [[ "${dynamo_args["backend"]}" == "sglang" ]]; }
 _is_sglang_dsr1() { [[ "${dynamo_args["backend"]}" == "sglang_dsr1" ]]; }
+_is_aggregate() { [[ "${dynamo_args["mode"]}" == "aggregate" ]]; }
 
 _csv_len() { grep -oE '[^,]+' <<< "$1" | wc -l; }
 
@@ -211,6 +213,45 @@ _parse_cli_pairs() {
   done
 }
 
+_normalize_runtime_mode() {
+  if [[ "${dynamo_args["mode"]}" == "disaggregate" ]]; then
+    dynamo_args["mode"]="disaggregated"
+  fi
+
+  if [[ "${dynamo_args["mode"]}" != "aggregate" && "${dynamo_args["mode"]}" != "disaggregated" ]]; then
+    log "ERROR: unsupported dynamo mode '${dynamo_args["mode"]}'"
+    exit 1
+  fi
+
+  if _is_aggregate && ! _is_vllm; then
+    log "ERROR: aggregate mode is currently supported only for the vLLM backend"
+    exit 1
+  fi
+}
+
+_init_role_defaults() {
+  prefill_config["num-nodes"]="${prefill_config["num-nodes"]:-1}"
+  prefill_config["node-list"]="${prefill_config["node-list"]:-}"
+  prefill_config["multiple-workers-per-node"]="${prefill_config["multiple-workers-per-node"]:-false}"
+  prefill_config["extra-args"]="${prefill_config["extra-args"]:-}"
+  prefill_args["--tensor-parallel-size"]="${prefill_args["--tensor-parallel-size"]:-1}"
+  prefill_args["--pipeline-parallel-size"]="${prefill_args["--pipeline-parallel-size"]:-1}"
+
+  if _is_aggregate; then
+    decode_config["num-nodes"]=0
+    decode_config["node-list"]=""
+    decode_config["multiple-workers-per-node"]="false"
+    decode_config["extra-args"]=""
+  else
+    decode_config["num-nodes"]="${decode_config["num-nodes"]:-1}"
+    decode_config["node-list"]="${decode_config["node-list"]:-}"
+    decode_config["multiple-workers-per-node"]="${decode_config["multiple-workers-per-node"]:-false}"
+    decode_config["extra-args"]="${decode_config["extra-args"]:-}"
+    decode_args["--tensor-parallel-size"]="${decode_args["--tensor-parallel-size"]:-1}"
+    decode_args["--pipeline-parallel-size"]="${decode_args["--pipeline-parallel-size"]:-1}"
+  fi
+}
+
 _populate_nodelist() {
   local num_nodes="$1"
   local exclude_nodelist="$2"
@@ -307,7 +348,11 @@ _apply_connector_settings() {
 
 _patch_dynamo_args() {
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
-    dynamo_args["frontend-node"]=$(echo "${decode_config["node-list"]}" | cut -d',' -f1)
+    if [[ -n "${decode_config["node-list"]:-}" ]]; then
+      dynamo_args["frontend-node"]=$(echo "${decode_config["node-list"]}" | cut -d',' -f1)
+    else
+      dynamo_args["frontend-node"]=$(echo "${prefill_config["node-list"]}" | cut -d',' -f1)
+    fi
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
@@ -342,11 +387,18 @@ _compute_worker_allocation_vllm() {
   fi
 
   prefill_config["gpus-per-worker"]=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
-  decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
 
-  if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
+  if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
     exit 1
+  fi
+
+  if [[ "${decode_config["num-nodes"]:-0}" -gt 0 ]]; then
+    decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
+    if [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
+      log "ERROR: Invalid decode TP/PP configuration"
+      exit 1
+    fi
   fi
 
   decode_config["gpu-offset"]=0
@@ -366,12 +418,17 @@ _compute_worker_allocation_vllm() {
       prefill_config["gpus-per-worker"]=$num_gpus
     fi
 
-    if [[ "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
-      decode_config["gpus-per-worker"]=$num_gpus
-    fi
-
     prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
-    decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+
+    if [[ "${decode_config["num-nodes"]:-0}" -gt 0 ]]; then
+      if [[ "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
+        decode_config["gpus-per-worker"]=$num_gpus
+      fi
+      decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+    else
+      decode_config["gpus-per-worker"]=0
+      decode_config["workers-per-node"]=0
+    fi
   fi
 
   log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${decode_config["gpus-per-worker"]}"
@@ -421,6 +478,8 @@ _dump_args() {
 function parse_args()
 {
   _parse_cli_pairs "$@"
+  _normalize_runtime_mode
+  _init_role_defaults
   _set_nodelists
   _patch_dynamo_args
 
@@ -503,7 +562,7 @@ _total_workers_prefill() {
 }
 
 _total_workers_decode() {
-  echo $(( decode_config["num-nodes"] * decode_config["workers-per-node"] ))
+  echo $(( ${decode_config["num-nodes"]:-0} * ${decode_config["workers-per-node"]:-0} ))
 }
 
 _count_initialized_prefill() {
@@ -511,6 +570,10 @@ _count_initialized_prefill() {
 }
 
 _count_initialized_decode() {
+  if [[ "${decode_config["num-nodes"]:-0}" -le 0 ]]; then
+    echo 0
+    return
+  fi
   grep -i -l -E "${decode_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
 }
 
@@ -571,7 +634,7 @@ _is_frontend_node() {
 
 _is_decode_node() {
   local name="$(_current_node_name)"
-  [[ ",${decode_config["node-list"]}," == *",$name,"* ]]
+  [[ ",${decode_config["node-list"]:-}," == *",$name,"* ]]
 }
 
 _is_prefill_node() {
@@ -1380,10 +1443,10 @@ function launch_workload()
     --port "${dynamo_args["port"]}" \
     --endpoint "${dynamo_args["endpoint"]}" \
     --gpus-per-node "$(_gpus_per_node)" \
-    --decode-connector "${decode_args["--connector"]}" \
-    --prefill-connector "${prefill_args["--connector"]}" \
+    --decode-connector "${decode_args["--connector"]:-}" \
+    --prefill-connector "${prefill_args["--connector"]:-}" \
     --kvbm-metrics-port "${DYN_KVBM_METRICS_PORT:-6880}" \
-    --decode-nodes "${decode_config["node-list"]}" \
+    --decode-nodes "${decode_config["node-list"]:-}" \
     "${config_arr[@]}" \
     -- "${args_arr[@]}" > "${RESULTS_DIR}/$workload_name.log" 2>&1
   local workload_status=$?
