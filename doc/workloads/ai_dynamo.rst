@@ -220,6 +220,57 @@ LMCache YAML values can use runtime placeholders. CloudAI renders them inside th
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
 
+Propagating HiCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Define a HiCache storage-backend configuration under ``[cmd_args.hicache]``. CloudAI serializes the object as
+``hicache-config.toml`` in the run output directory, exposes its container path through ``HICACHE_CONFIG_FILE``, and
+passes the resolved path to both workers as ``--hicache-storage-backend-extra-config``:
+
+.. code-block:: toml
+
+   [cmd_args]
+     [cmd_args.hicache.plugin.posix]
+     active = true
+     use_uring = "false"
+
+     [cmd_args.dynamo.prefill_worker]
+     extra-args = "--enable-hierarchical-cache"
+
+     [cmd_args.dynamo.prefill_worker.args]
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+     [cmd_args.dynamo.decode_worker]
+     extra-args = "--enable-hierarchical-cache"
+
+     [cmd_args.dynamo.decode_worker.args]
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+The remaining HiCache engine options stay in the worker ``args`` sections so they can be configured or swept through
+DSE normally.
+
+The runtime replacement mechanism below supports per-node HiCache values. For example, change the POSIX setting above
+to ``use_uring = "${use_uring}"`` and have the startup manifest replace ``${use_uring}`` with ``false`` or ``true``.
+The worker receives the resulting per-node TOML path automatically.
+
+For a self-contained single-node smoke test using NIXL's POSIX plugin, run the following on a node with at least two
+GPUs (one each for the prefill and decode workers):
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/sglang_hicache.toml
+
 Per-node Startup Commands and Runtime Replacements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -241,6 +292,9 @@ directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup cont
      "LMCACHE_CONFIG_FILE": {
        "${device}": "/dev/ng4n1",
        "${namespace_id}": "1"
+     },
+     "HICACHE_CONFIG_FILE": {
+       "${use_uring}": "false"
      }
    }
 

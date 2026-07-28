@@ -20,6 +20,7 @@ import textwrap
 from pathlib import Path
 from typing import Any, List, cast
 
+import toml
 import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -28,6 +29,7 @@ from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import (
+    HICACHE_CONFIG_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoTestDefinition,
@@ -57,6 +59,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
+        if self.td.cmd_args.hicache is not None:
+            env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
             env_vars["LMCACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
         return env_vars
@@ -162,6 +166,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         config = yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False)
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
+
+    def _prepare_hicache_config(self) -> None:
+        if self.td.cmd_args.hicache is None:
+            return
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        config = toml.dumps(self.td.cmd_args.hicache)
+        (self.test_run.output_path / HICACHE_CONFIG_FILE_NAME).write_text(config)
 
     def _render_aiperf_args(self, args: dict[str, Any]) -> str:
         parts: list[str] = []
@@ -395,6 +407,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f"{self.CONTAINER_MOUNT_OUTPUT}/{AIPERF_SCRIPT_FILE_NAME}"
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
+        self._prepare_hicache_config()
         self._prepare_lmcache_config()
         aiperf_script = self._prepare_aiperf_script()
         if not td.repo.installed_path:
