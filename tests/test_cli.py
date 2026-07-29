@@ -46,6 +46,47 @@ def test_tests_dir_is_optional(tmp_path: Path):
     assert "Missing option '--tests-dir'" not in result.output
 
 
+def test_system_config_can_be_set_via_env_var(tmp_path: Path):
+    system_cfg, scenario_cfg = tmp_path / "system.toml", tmp_path / "scenario.toml"
+    system_cfg.touch()
+    scenario_cfg.touch()
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["run", "--test-scenario", str(scenario_cfg)],
+        env={"CLOUDAI_SYSTEM_CONFIG": str(system_cfg)},
+    )
+    assert "Missing option '--system-config'" not in result.output
+
+
+def test_system_config_flag_takes_precedence_over_env_var(tmp_path: Path):
+    system_cfg, other_cfg, scenario_cfg = (
+        tmp_path / "system.toml",
+        tmp_path / "other.toml",
+        tmp_path / "scenario.toml",
+    )
+    system_cfg.touch()
+    other_cfg.touch()
+    scenario_cfg.touch()
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["run", "--system-config", str(system_cfg), "--test-scenario", str(scenario_cfg)],
+        env={"CLOUDAI_SYSTEM_CONFIG": str(other_cfg)},
+    )
+    assert "Missing 'scheduler' key" in result.output
+    assert str(system_cfg) in result.output
+    assert str(other_cfg) not in result.output
+
+
+@pytest.mark.parametrize("subcommand", ["install", "uninstall", "dry-run", "run", "generate-report"])
+def test_system_config_env_var_documented_in_help(subcommand: str):
+    runner = CliRunner()
+    result = runner.invoke(main, [subcommand, "--help"])
+    assert result.exit_code == 0
+    assert "CLOUDAI_SYSTEM_CONFIG" in result.output
+
+
 @pytest.mark.parametrize("subcommand", ["install", "uninstall", "dry-run", "run", "generate-report"])
 def test_hook_dir_is_available_on_run_commands(subcommand: str):
     runner = CliRunner()
