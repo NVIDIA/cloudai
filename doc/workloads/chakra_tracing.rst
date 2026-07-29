@@ -31,9 +31,10 @@ overrides passed directly to the Megatron-Bridge training script:
    "profiling.record_memory_history" = "true"
    "profiling.memory_snapshot_path" = "memory_profile.pickle"
 
-This produces the following under ``<cloudai_output>/``:
+This produces the following under the NemoRun experiment directory (``<cloudai_output>/experiments/<experiment_name>/<run_id>/<experiment_name>/``):
 
 - ``torch_profile/rank-0.json.gz`` — Chrome-format kineto trace (always produced)
+- ``tensorboard/`` — TensorBoard events (renamed from whatever directory NeMo writes them to)
 - ``memory_profile.pickle`` — memory allocation snapshot
 
 Enabling Chakra Trace
@@ -54,7 +55,7 @@ from the kineto trace. Add ``pytorch_profiler_collect_chakra = true``:
    "profiling.memory_snapshot_path" = "memory_profile.pickle"
    "profiling.pytorch_profiler_collect_chakra" = "true"
 
-This produces an additional ``chakra/rank-0.json.gz`` under ``<cloudai_output>/``.
+This produces an additional ``chakra/rank-0.json.gz`` in the same experiment directory.
 The kineto trace (``torch_profile/rank-0.json.gz``) is always produced regardless of
 this flag.
 
@@ -68,7 +69,7 @@ A ready-to-use TOML is provided at:
 
    conf/experimental/megatron_bridge/test/gb200/megatron_bridge_nemotron_nano_pytorch_profiler.toml
 
-This runs Nemotron 3 Nano 3B (2 nodes, 8 GPUs, 60 steps) with Kineto profiling at
+This runs Nemotron 3 Nano 3B (8 GPUs, 60 steps) with Kineto and Chakra profiling at
 steps 45–50 and is suitable for quickly validating the profiling setup.
 
 
