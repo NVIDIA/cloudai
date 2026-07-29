@@ -578,13 +578,14 @@ class MegatronBridgeTestDefinition(TestDefinition):
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         try:
-            self._rename_tb_logs(tr)
+            self._rename_tensorboard_dir(tr)
         except (OSError, shutil.Error) as e:
-            logging.warning(f"Failed to rename tb_logs directory: {e}")
+            logging.warning(f"Failed to rename tensorboard directory: {e}")
 
         return JobStatusResult(is_successful=True)
 
-    def _rename_tb_logs(self, tr: TestRun) -> None:
+    def _rename_tensorboard_dir(self, tr: TestRun) -> None:
+        """Rename whichever directory contains TensorBoard events to tensorboard/."""
         experiment_name = tr.test.cmd_args.wandb_experiment_name
         if not experiment_name:
             return
@@ -592,11 +593,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
         base_pattern = os.path.join(str(tr.output_path), "experiments", experiment_name, "*", experiment_name)
         task_dirs = [p for p in glob.glob(base_pattern) if os.path.isdir(p)]
         for task_dir in task_dirs:
-            src = os.path.join(task_dir, "tb_logs")
             dst = os.path.join(task_dir, "tensorboard")
-            if os.path.isdir(src) and not os.path.exists(dst):
-                os.rename(src, dst)
-                logging.info(f"Renamed {src} to {dst}")
+            if os.path.exists(dst):
+                continue
+            for entry in os.scandir(task_dir):
+                if not entry.is_dir() or entry.name == "tensorboard":
+                    continue
+                if glob.glob(os.path.join(entry.path, "events.out.tfevents.*")):
+                    os.rename(entry.path, dst)
+                    logging.info(f"Renamed {entry.path} to {dst}")
+                    break
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
