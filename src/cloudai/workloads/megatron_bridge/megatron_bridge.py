@@ -578,23 +578,19 @@ class MegatronBridgeTestDefinition(TestDefinition):
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         try:
-            self._copy_profiler_traces(tr)
+            self._rename_pytorch_profile(tr)
         except (OSError, shutil.Error) as e:
-            logging.warning(f"Failed to copy profiler traces: {e}")
+            logging.warning(f"Failed to rename pytorch_profile directory: {e}")
 
         return JobStatusResult(is_successful=True)
 
-    def _copy_profiler_traces(self, tr: TestRun) -> None:
+    def _rename_pytorch_profile(self, tr: TestRun) -> None:
         """
-        Copy pytorch kineto and Chakra traces from NemoRun's nested experiment directory to the CloudAI output root.
+        Rename pytorch_profile/ to tensorboard/ inside the NemoRun experiment directory.
 
-        MegatronBridge runs via NemoRun which places profiler output at
-        experiments/<name>/<run_id>/<task>/{torch_profile,chakra}/ internally.
-        This copies them to <output_path>/{torch_profile,chakra}/ so both MegatronRun and MegatronBridge
-        produce traces at a consistent location.
-
-        torch_profile/ is always present when use_pytorch_profiler=true.
-        chakra/ is only present when pytorch_profiler_collect_chakra=true.
+        PyTorchProfilerPlugin writes TensorBoard events to pytorch_profile/, which is a
+        misleading name — the data is tensorboard events, not profiling traces. This renames
+        it to tensorboard/ to match the MegatronRun output convention.
         """
         experiment_name = tr.test.cmd_args.wandb_experiment_name
         if not experiment_name:
@@ -605,17 +601,12 @@ class MegatronBridgeTestDefinition(TestDefinition):
         if not task_dirs:
             return
 
-        # Take the most recently modified task dir in case of retries
-        task_dir = max(task_dirs, key=os.path.getmtime)
-
-        for trace_dir in ("torch_profile", "chakra"):
-            src = os.path.join(task_dir, trace_dir)
-            if not os.path.isdir(src):
-                continue
-            dst = tr.output_path / trace_dir
-            if not dst.exists():
-                shutil.copytree(src, dst)
-                logging.info(f"Copied {trace_dir} traces from {src} to {dst}")
+        for task_dir in task_dirs:
+            src = os.path.join(task_dir, "pytorch_profile")
+            dst = os.path.join(task_dir, "tensorboard")
+            if os.path.isdir(src) and not os.path.exists(dst):
+                os.rename(src, dst)
+                logging.info(f"Renamed {src} to {dst}")
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
