@@ -36,13 +36,6 @@ This produces the following under ``<cloudai_output>/``:
 - ``torch_profile/rank-0.json.gz`` — Chrome-format kineto trace (always produced)
 - ``memory_profile.pickle`` — memory allocation snapshot
 
-.. note::
-
-   When using the ``-pyp`` flag (``pytorch_profiler = true``), MegatronBridge also creates
-   a ``pytorch_profile/`` directory with TensorBoard events. CloudAI renames this to
-   ``tensorboard/`` after job completion to match MegatronRun's naming convention.
-
-
 Enabling Chakra Trace
 ---------------------
 
