@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import jinja2
 from pydantic import Field
@@ -70,34 +70,6 @@ class ComparisonReportConfig(ReportConfig):
 
 class ComparisonReport(Reporter, ABC):
     """Base class for comparison reports that generate both charts and tables."""
-
-    CHART_COLORS: ClassVar[tuple[str, ...]] = (
-        "#5e9c00",
-        "#39424e",
-        "#2563eb",
-        "#b45309",
-        "#7c3aed",
-        "#0891b2",
-        "#be123c",
-    )
-    CHART_POINT_STYLES: ClassVar[tuple[str, ...]] = (
-        "circle",
-        "rectRot",
-        "triangle",
-        "rect",
-        "star",
-        "crossRot",
-        "dash",
-    )
-    CHART_DASH_STYLES: ClassVar[tuple[tuple[int, ...], ...]] = (
-        (),
-        (8, 4),
-        (2, 3),
-        (10, 3, 2, 3),
-        (5, 5),
-        (12, 4),
-        (3, 2),
-    )
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -156,14 +128,12 @@ class ComparisonReport(Reporter, ABC):
                 duplicate_indexes[compact_name] += 1
                 compact_name = f"{compact_name} · run={duplicate_indexes[compact_name]}"
 
-            diff_label = self._format_diff_label(diff, idx)
-            full_name = f"{compact_name} — {diff_label}" if diff_label else compact_name
             items.append(
                 TRGroupItem(
                     name=name,
                     tr=tr,
                     compact_name=compact_name,
-                    full_name=full_name,
+                    differences=self._structured_diff(diff, idx),
                 )
             )
         return GroupedTestRuns(name=self.group_name(trs), items=items)
@@ -178,23 +148,85 @@ class ComparisonReport(Reporter, ABC):
         return " · ".join(parts)
 
     @classmethod
-    def _flatten_diff_value(cls, field: str, value: object) -> list[str]:
-        if isinstance(value, Mapping):
-            flattened: list[str] = []
-            for key, nested_value in value.items():
-                nested_field = f"{field}.{key}" if field else str(key)
-                flattened.extend(cls._flatten_diff_value(nested_field, nested_value))
-            return flattened
+    def _structured_diff(cls, diff: dict[str, list[object]], item_idx: int) -> dict[str, Any]:
+        """Return one run's differing parameters as a nested mapping."""
+        result: dict[str, Any] = {}
+        for field, values in diff.items():
+            path = field.split(".")
+            target = result
+            for key in path[:-1]:
+                nested = target.get(key)
+                if not isinstance(nested, dict):
+                    nested = {}
+                    target[key] = nested
+                target = nested
+            target[path[-1]] = values[item_idx]
+        return result
 
-        value_text = ",".join(str(item) for item in value) if isinstance(value, (list, tuple)) else str(value)
-        return [f"{field.replace('extra_env_vars.', '')}={value_text}"]
+    @staticmethod
+    def _yaml_scalar(value: object) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return str(value).lower()
+        if isinstance(value, str):
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"'
+        return str(value)
 
     @classmethod
-    def _format_diff_label(cls, diff: dict[str, list[object]], item_idx: int) -> str:
-        parts: list[str] = []
-        for field, values in diff.items():
-            parts.extend(cls._flatten_diff_value(field, values[item_idx]))
-        return " · ".join(parts)
+    def _diff_yaml_lines(cls, value: object, indent: int = 0) -> list[str]:
+        prefix = "  " * indent
+        if isinstance(value, Mapping):
+            lines: list[str] = []
+            for key, nested_value in value.items():
+                is_nested_sequence = isinstance(nested_value, (list, tuple)) and any(
+                    isinstance(item, (Mapping, list, tuple)) for item in nested_value
+                )
+                if isinstance(nested_value, Mapping) or is_nested_sequence:
+                    lines.append(f"{prefix}{key}:")
+                    lines.extend(cls._diff_yaml_lines(nested_value, indent + 1))
+                elif isinstance(nested_value, (list, tuple)):
+                    rendered = ", ".join(cls._yaml_scalar(item) for item in nested_value)
+                    lines.append(f"{prefix}{key}: [{rendered}]")
+                else:
+                    lines.append(f"{prefix}{key}: {cls._yaml_scalar(nested_value)}")
+            return lines
+        if isinstance(value, (list, tuple)):
+            lines = []
+            for item in value:
+                if isinstance(item, (Mapping, list, tuple)):
+                    lines.append(f"{prefix}-")
+                    lines.extend(cls._diff_yaml_lines(item, indent + 1))
+                else:
+                    lines.append(f"{prefix}- {cls._yaml_scalar(item)}")
+            return lines
+        return [f"{prefix}{cls._yaml_scalar(value)}"]
+
+    @classmethod
+    def _format_diff_yaml(cls, differences: Mapping[str, object] | None) -> str:
+        return "\n".join(cls._diff_yaml_lines(differences or {}))
+
+    @classmethod
+    def _diff_entries(cls, differences: Mapping[str, object] | None) -> list[dict[str, str]]:
+        entries: list[dict[str, str]] = []
+
+        def visit(value: object, path: str) -> None:
+            if isinstance(value, Mapping):
+                for key, nested_value in value.items():
+                    visit(nested_value, f"{path}.{key}" if path else str(key))
+                return
+            if isinstance(value, (list, tuple)):
+                if any(isinstance(item, (Mapping, list, tuple)) for item in value):
+                    for idx, nested_value in enumerate(value):
+                        visit(nested_value, f"{path}[{idx}]")
+                    return
+                entries.append({"name": path, "value": ", ".join(cls._yaml_scalar(item) for item in value)})
+                return
+            entries.append({"name": path, "value": cls._yaml_scalar(value)})
+
+        visit(differences or {}, "")
+        return entries
 
     def group_test_runs(self) -> list[GroupedTestRuns]:
         """Group loaded TestRuns for this comparison report."""
@@ -376,9 +408,8 @@ class ComparisonReport(Reporter, ABC):
         return numeric
 
     @staticmethod
-    def _chart_label(item: TRGroupItem, data_column: str, include_metric: bool, *, full: bool) -> str:
-        item_label = item.v2_full_name if full else item.v2_compact_name
-        return f"{item_label} · {data_column}" if include_metric else item_label
+    def _chart_label(item: TRGroupItem, data_column: str, include_metric: bool) -> str:
+        return f"{item.v2_compact_name} · {data_column}" if include_metric else item.v2_compact_name
 
     def _build_v2_bar_datasets(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
         widest_df = max(section.dfs, key=len)
@@ -386,21 +417,13 @@ class ComparisonReport(Reporter, ABC):
         datasets: list[dict[str, Any]] = []
         include_metric = len(section.data_columns) > 1
         for data_column in section.data_columns:
-            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
-                color = self.CHART_COLORS[len(datasets) % len(self.CHART_COLORS)]
+            for item, df in zip(section.group.items, section.dfs, strict=True):
                 datasets.append(
                     {
-                        "label": self._chart_label(item, data_column, include_metric, full=False),
-                        "compactLabel": self._chart_label(item, data_column, include_metric, full=False),
-                        "fullLabel": self._chart_label(item, data_column, include_metric, full=True),
-                        "comparisonMetric": data_column,
+                        "label": self._chart_label(item, data_column, include_metric),
                         "data": [
                             self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
                         ],
-                        "backgroundColor": f"{color}cc",
-                        "borderColor": color,
-                        "borderWidth": 1,
-                        "pointStyle": self.CHART_POINT_STYLES[item_idx % len(self.CHART_POINT_STYLES)],
                     }
                 )
         return labels, datasets
@@ -409,7 +432,7 @@ class ComparisonReport(Reporter, ABC):
         datasets: list[dict[str, Any]] = []
         include_metric = len(section.data_columns) > 1
         for data_column in section.data_columns:
-            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
+            for item, df in zip(section.group.items, section.dfs, strict=True):
                 points: list[dict[str, float]] = []
                 if not df.empty and data_column in df:
                     pairs = zip(
@@ -422,38 +445,13 @@ class ComparisonReport(Reporter, ABC):
                         y = self._numeric_value(y_value)
                         if x is not None and y is not None:
                             points.append({"x": x, "y": y})
-                color = self.CHART_COLORS[len(datasets) % len(self.CHART_COLORS)]
                 datasets.append(
                     {
-                        "label": self._chart_label(item, data_column, include_metric, full=False),
-                        "compactLabel": self._chart_label(item, data_column, include_metric, full=False),
-                        "fullLabel": self._chart_label(item, data_column, include_metric, full=True),
-                        "comparisonMetric": data_column,
+                        "label": self._chart_label(item, data_column, include_metric),
                         "data": points,
-                        "borderColor": color,
-                        "backgroundColor": color,
-                        "borderDash": self.CHART_DASH_STYLES[item_idx % len(self.CHART_DASH_STYLES)],
-                        "pointStyle": self.CHART_POINT_STYLES[item_idx % len(self.CHART_POINT_STYLES)],
-                        "pointRadius": 4,
-                        "pointHoverRadius": 6,
-                        "borderWidth": 2,
-                        "tension": 0.12,
                     }
                 )
         return datasets
-
-    @staticmethod
-    def _find_v2_overlaps(datasets: list[dict[str, Any]]) -> list[str]:
-        overlaps: list[str] = []
-        for left_idx, left in enumerate(datasets):
-            if not left["data"]:
-                continue
-            for right in datasets[left_idx + 1 :]:
-                if left["comparisonMetric"] != right["comparisonMetric"]:
-                    continue
-                if left["data"] == right["data"]:
-                    overlaps.append(f"{left['compactLabel']} and {right['compactLabel']} overlap exactly.")
-        return overlaps
 
     def _build_v2_chart(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
         if section.chart_type == "bar":
@@ -469,7 +467,6 @@ class ComparisonReport(Reporter, ABC):
             "datasets": datasets,
             "x_axis_label": section.info_columns[0],
             "y_axis_label": section.y_axis_label,
-            "overlaps": self._find_v2_overlaps(datasets),
         }
 
     def _build_v2_table(self, section: ComparisonSection) -> dict[str, Any]:
@@ -480,16 +477,16 @@ class ComparisonReport(Reporter, ABC):
             for item in section.group.items:
                 data_headers.append(
                     {
-                        "compact_name": item.v2_compact_name,
-                        "full_name": item.v2_full_name,
+                        "name": item.v2_compact_name,
+                        "differences_yaml": self._format_diff_yaml(item.differences),
                         "metric": data_column,
                     }
                 )
             if show_diff:
                 data_headers.append(
                     {
-                        "compact_name": "Difference",
-                        "full_name": "Difference",
+                        "name": "Difference",
+                        "differences_yaml": "",
                         "metric": data_column,
                     }
                 )
@@ -519,6 +516,13 @@ class ComparisonReport(Reporter, ABC):
                 "group_name": "All cases" if section.group.name == "all-in-one" else section.group.name,
                 "chart": self._build_v2_chart(section, idx),
                 "table": self._build_v2_table(section),
+                "case_details": [
+                    {
+                        "name": item.v2_compact_name,
+                        "differences": self._diff_entries(item.differences),
+                    }
+                    for item in section.group.items
+                ],
             }
             for idx, section in enumerate(sections)
         ]

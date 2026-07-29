@@ -100,19 +100,31 @@ def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_t
     assert v2_path.exists()
 
     v2_content = v2_path.read_text()
-    assert "Show full labels" in v2_content
+    assert "Show full labels" not in v2_content
+    assert "js-label-toggle" not in v2_content
     assert "chart.js@4.4.3" in v2_content
-    assert "overlap exactly" in v2_content
+    assert "chartjs-plugin-zoom@2.2.0" in v2_content
+    assert "overlap exactly" not in v2_content
+    assert "Reset view" in v2_content
+    assert "fallback.hidden = true" in v2_content
+    assert ".chart-shell.is-enhanced ~ .chart-fallback" in v2_content
+    assert "dataset.borderDash = []" in v2_content
+    assert "overflow-x: auto" in v2_content
     assert nccl_tr.name in v2_content
 
 
-def test_v2_payload_defaults_to_compact_labels(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+def test_v2_payload_uses_compact_labels_and_structured_differences(
+    cmp_report: MyComparisonReport, nccl_tr: TestRun
+) -> None:
     long_image = "nvcr.io/example/" + ("very-long-image-name-" * 10) + ":latest"
     item = TRGroupItem(
         name=f"docker_image_url={long_image}",
         tr=nccl_tr,
         compact_name="case-a",
-        full_name=f"case-a — docker_image_url={long_image}",
+        differences={
+            "docker_image_url": long_image,
+            "prefill": {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
+        },
     )
     section = ComparisonSection(
         group=GroupedTestRuns(name="all-in-one", items=[item]),
@@ -127,9 +139,12 @@ def test_v2_payload_defaults_to_compact_labels(cmp_report: MyComparisonReport, n
     table = cmp_report._build_v2_table(section)
 
     assert chart["datasets"][0]["label"] == "case-a"
-    assert chart["datasets"][0]["fullLabel"] == f"case-a — docker_image_url={long_image}"
-    assert table["data_headers"][0]["compact_name"] == "case-a"
-    assert table["data_headers"][0]["full_name"] == f"case-a — docker_image_url={long_image}"
+    assert "fullLabel" not in chart["datasets"][0]
+    assert "borderColor" not in chart["datasets"][0]
+    assert table["data_headers"][0]["name"] == "case-a"
+    assert table["data_headers"][0]["differences_yaml"] == (
+        f'docker_image_url: "{long_image}"\nprefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
+    )
 
 
 @pytest.mark.parametrize(

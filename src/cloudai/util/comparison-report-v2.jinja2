@@ -3,42 +3,25 @@
 {% block extra_head %}
 <meta charset="UTF-8">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
-    .comparison-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1.4rem;
-        padding: 1rem 1.1rem;
-        border: 1px solid var(--nv-border);
-        border-radius: var(--radius-md);
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: 0 8px 24px rgba(17, 17, 17, 0.05);
+    * {
+        box-sizing: border-box;
     }
-    .comparison-toolbar p {
-        margin: 0;
-    }
-    .label-toggle {
-        flex: 0 0 auto;
-        padding: 0.55rem 0.9rem;
-        border: 1px solid rgba(118, 185, 0, 0.32);
-        border-radius: 999px;
-        color: var(--nv-green-strong);
-        background: var(--nv-surface);
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .label-toggle:hover {
-        background: var(--nv-green-soft);
+    body {
+        max-width: none;
+        overflow-x: hidden;
     }
     .comparison-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: flex;
+        flex-direction: column;
         gap: 1.25rem;
     }
     .comparison-card {
+        width: 100%;
         min-width: 0;
+        max-width: 100%;
         padding: 1.25rem;
         border: 1px solid var(--nv-border);
         border-radius: var(--radius-lg);
@@ -63,43 +46,141 @@
         width: 100% !important;
         height: 100% !important;
     }
+    .chart-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        margin-top: 0.55rem;
+    }
+    .chart-controls p {
+        margin: 0;
+        font-size: 0.8rem;
+    }
+    .reset-zoom {
+        padding: 0.35rem 0.7rem;
+        border: 1px solid rgba(118, 185, 0, 0.42);
+        border-radius: 999px;
+        background: var(--nv-surface);
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .reset-zoom:hover {
+        background: var(--nv-green-soft);
+    }
+    .case-context {
+        margin-top: 0.85rem;
+        padding: 0.75rem 0.85rem;
+        border: 1px solid rgba(17, 17, 17, 0.07);
+        border-radius: var(--radius-md);
+        background: var(--nv-surface-alt);
+    }
+    .case-context summary {
+        color: var(--nv-ink);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .case-context-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+    .case-context-card {
+        min-width: 0;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        border-radius: var(--radius-sm);
+        background: var(--nv-surface);
+    }
+    .case-context-card h3 {
+        margin: 0 0 0.45rem;
+        font-size: 0.92rem;
+    }
+    .case-diff-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        margin: 0;
+        font-family: "SFMono-Regular", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.76rem;
+    }
+    .case-diff-list dt {
+        min-width: 0;
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid rgba(17, 17, 17, 0.06);
+        overflow-wrap: anywhere;
+        color: var(--nv-muted);
+        font-weight: 650;
+    }
+    .case-diff-list dt:first-of-type {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+    }
+    .case-diff-list dd {
+        min-width: 0;
+        margin: 0.15rem 0 0;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        color: var(--nv-ink);
+    }
+    .no-differences {
+        margin: 0;
+        font-size: 0.8rem;
+    }
     .chart-fallback {
         margin: 0.7rem 0 0;
         font-size: 0.88rem;
     }
-    .chart-shell.is-enhanced + .chart-fallback {
+    .chart-shell.is-enhanced ~ .chart-fallback {
         display: none;
     }
-    .overlap-note {
-        margin: 0.65rem 0 0;
-        padding: 0.65rem 0.8rem;
-        border-radius: var(--radius-sm);
-        color: var(--nv-slate);
-        background: var(--nv-green-soft);
-        font-size: 0.88rem;
-        font-weight: 600;
-    }
     .comparison-table-shell {
+        width: 100%;
+        max-width: 100%;
         overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-gutter: stable;
         margin-top: 1.1rem;
         border: 1px solid rgba(17, 17, 17, 0.07);
         border-radius: var(--radius-md);
     }
     .comparison-table {
         margin: 0;
-        min-width: 680px;
+        width: max-content;
+        max-width: none;
+        min-width: 100%;
+        table-layout: auto;
         border-radius: 0;
         box-shadow: none;
         font-size: 0.9rem;
     }
+    .comparison-table th,
+    .comparison-table td {
+        white-space: nowrap;
+    }
     .comparison-table th {
+        min-width: 8rem;
         vertical-align: bottom;
     }
     .run-label {
         display: block;
-        max-width: 28rem;
-        overflow-wrap: anywhere;
         color: var(--nv-ink);
+    }
+    .run-differences {
+        margin: 0.45rem 0 0;
+        width: clamp(16rem, 24vw, 32rem);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        color: var(--nv-muted);
+        font-size: 0.68rem;
+        font-weight: 500;
+        line-height: 1.35;
     }
     .metric-label {
         display: block;
@@ -114,27 +195,39 @@
         border-radius: var(--radius-md);
         background: var(--nv-surface);
     }
-    @media (max-width: 1000px) {
-        .comparison-grid {
-            grid-template-columns: 1fr;
-        }
-    }
     @media (max-width: 640px) {
-        .comparison-toolbar {
-            align-items: flex-start;
-            flex-direction: column;
-        }
         .comparison-card {
             padding: 1rem;
         }
         .chart-shell {
             height: 300px;
         }
+        .comparison-table th,
+        .comparison-table td {
+            padding: 10px 12px;
+        }
+        .run-differences {
+            width: 15rem;
+        }
     }
 </style>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const charts = [];
+        const rootStyles = getComputedStyle(document.documentElement);
+        const nvidiaGreen = rootStyles.getPropertyValue("--nv-green").trim() || "#76b900";
+        const nvidiaDarkGray = rootStyles.getPropertyValue("--nv-dark-gray").trim() || "#1e1e1e";
+        const pointStyles = ["circle", "rectRot", "triangle", "rect", "star", "crossRot", "dash"];
+
+        function seriesColor(index) {
+            if (index === 0) {
+                return nvidiaGreen;
+            }
+            if (index === 1) {
+                return nvidiaDarkGray;
+            }
+            const hue = Math.round((96 + (index - 2) * 137.508) % 360);
+            return `hsl(${hue} 68% 40%)`;
+        }
 
         document.querySelectorAll(".js-comparison-chart").forEach((canvas) => {
             const dataNode = document.getElementById(canvas.dataset.chartDataId);
@@ -144,6 +237,22 @@
 
             const payload = JSON.parse(dataNode.textContent);
             const isLine = payload.type === "line";
+            payload.datasets.forEach((dataset, index) => {
+                const color = seriesColor(index);
+                dataset.borderColor = color;
+                dataset.backgroundColor = color;
+                dataset.borderWidth = isLine ? Math.max(2, 5 - index * 0.75) : 1;
+                dataset.borderDash = [];
+                dataset.borderCapStyle = "round";
+                dataset.borderJoinStyle = "round";
+                dataset.pointStyle = pointStyles[index % pointStyles.length];
+                dataset.pointRadius = isLine ? Math.max(3, 6 - index * 0.5) : 0;
+                dataset.pointHoverRadius = isLine ? Math.max(5, 8 - index * 0.5) : 0;
+                dataset.pointBorderColor = "#ffffff";
+                dataset.pointBorderWidth = isLine ? 1.5 : 0;
+                dataset.tension = isLine ? 0.12 : 0;
+            });
+
             const chart = new Chart(canvas, {
                 type: payload.type,
                 data: {
@@ -153,6 +262,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
                     interaction: {
                         mode: "index",
                         intersect: false
@@ -180,6 +290,22 @@
                                     return context.dataset.label + " — " + payload.y_axis_label + ": " + value;
                                 }
                             }
+                        },
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: "xy",
+                                modifierKey: "shift"
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: "xy"
+                            }
                         }
                     },
                     scales: {
@@ -206,31 +332,24 @@
                     }
                 }
             });
-            charts.push(chart);
             canvas.parentElement.classList.add("is-enhanced");
-        });
 
-        const toggle = document.querySelector(".js-label-toggle");
-        if (!toggle) {
-            return;
-        }
-
-        let showFullLabels = false;
-        toggle.addEventListener("click", function () {
-            showFullLabels = !showFullLabels;
-            toggle.setAttribute("aria-pressed", showFullLabels ? "true" : "false");
-            toggle.textContent = showFullLabels ? "Show compact labels" : "Show full labels";
-
-            document.querySelectorAll(".js-switchable-label").forEach((label) => {
-                label.textContent = showFullLabels ? label.dataset.full : label.dataset.compact;
-            });
-
-            charts.forEach((chart) => {
-                chart.data.datasets.forEach((dataset) => {
-                    dataset.label = showFullLabels ? dataset.fullLabel : dataset.compactLabel;
+            const card = canvas.closest(".comparison-card");
+            const fallback = card ? card.querySelector(".chart-fallback") : null;
+            if (fallback) {
+                fallback.hidden = true;
+            }
+            const resetButton = card ? card.querySelector(".js-reset-zoom") : null;
+            if (resetButton && typeof chart.resetZoom === "function") {
+                resetButton.addEventListener("click", function () {
+                    chart.resetZoom();
                 });
-                chart.update();
-            });
+                canvas.addEventListener("dblclick", function () {
+                    chart.resetZoom();
+                });
+            } else if (resetButton) {
+                resetButton.hidden = true;
+            }
         });
     });
 </script>
@@ -238,11 +357,6 @@
 
 {% block content %}
 {% if sections %}
-<div class="comparison-toolbar">
-    <p>Compact case labels are shown by default. Full labels expose only parameters that differ.</p>
-    <button type="button" class="label-toggle js-label-toggle" aria-pressed="false">Show full labels</button>
-</div>
-
 <div class="comparison-grid">
     {% for section in sections %}
     <section class="comparison-card">
@@ -256,13 +370,34 @@
                 aria-label="{{ section.title }} comparison chart"
             ></canvas>
         </div>
+        <div class="chart-controls">
+            <p>Wheel or pinch to zoom · Shift + drag to pan · double-click to reset</p>
+            <button type="button" class="reset-zoom js-reset-zoom">Reset view</button>
+        </div>
         <p class="chart-fallback">Interactive chart unavailable. The complete numeric data remains available below.</p>
         <noscript><p class="chart-fallback">JavaScript is disabled. The complete numeric data remains available below.</p></noscript>
         <script type="application/json" id="{{ section.chart.id }}-data">{{ section.chart | tojson }}</script>
 
-        {% for overlap in section.chart.overlaps %}
-        <p class="overlap-note">{{ overlap }}</p>
-        {% endfor %}
+        <details class="case-context">
+            <summary>Compared case parameters</summary>
+            <div class="case-context-grid">
+                {% for case in section.case_details %}
+                <article class="case-context-card">
+                    <h3>{{ case.name }}</h3>
+                    {% if case.differences %}
+                    <dl class="case-diff-list">
+                        {% for difference in case.differences %}
+                        <dt>{{ difference.name }}</dt>
+                        <dd>{{ difference.value }}</dd>
+                        {% endfor %}
+                    </dl>
+                    {% else %}
+                    <p class="no-differences">No differing parameters.</p>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        </details>
 
         <div class="comparison-table-shell">
             <table class="comparison-table">
@@ -273,12 +408,11 @@
                         {% endfor %}
                         {% for header in section.table.data_headers %}
                         <th>
-                            <span
-                                class="run-label js-switchable-label"
-                                data-compact="{{ header.compact_name }}"
-                                data-full="{{ header.full_name }}"
-                            >{{ header.compact_name }}</span>
+                            <span class="run-label">{{ header.name }}</span>
                             <span class="metric-label">{{ header.metric }}</span>
+                            {% if header.differences_yaml %}
+                            <pre class="run-differences">{{ header.differences_yaml }}</pre>
+                            {% endif %}
                         </th>
                         {% endfor %}
                     </tr>

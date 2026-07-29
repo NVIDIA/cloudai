@@ -143,7 +143,7 @@ class TestGrouping:
             f"{nccl_tr.name} · run=2",
         ]
 
-    def test_v2_full_label_flattens_nested_differences(self) -> None:
+    def test_v2_differences_are_structured_and_rendered_as_yaml(self) -> None:
         diff: dict[str, list[object]] = {
             "prefill": [
                 {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
@@ -151,8 +151,32 @@ class TestGrouping:
             ]
         }
 
-        assert ComparisonReport._format_diff_label(diff, 0) == ("prefill.gpu_ids=0,1 · prefill.tensor_parallel_size=2")
-        assert ComparisonReport._format_diff_label(diff, 1) == ("prefill.gpu_ids=2,3 · prefill.tensor_parallel_size=4")
+        first = ComparisonReport._structured_diff(diff, 0)
+        second = ComparisonReport._structured_diff(diff, 1)
+
+        assert first == {"prefill": {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2}}
+        assert second == {"prefill": {"gpu_ids": ["2", "3"], "tensor_parallel_size": 4}}
+        assert ComparisonReport._format_diff_yaml(first) == (
+            'prefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
+        )
+
+    def test_v2_yaml_keeps_lists_of_mappings_structured(self) -> None:
+        differences = {
+            "phases": [
+                {"name": "prefill", "workers": [0, 1]},
+                {"name": "decode", "workers": [2, 3]},
+            ]
+        }
+
+        assert ComparisonReport._format_diff_yaml(differences) == (
+            'phases:\n  -\n    name: "prefill"\n    workers: [0, 1]\n  -\n    name: "decode"\n    workers: [2, 3]'
+        )
+        assert ComparisonReport._diff_entries(differences) == [
+            {"name": "phases[0].name", "value": '"prefill"'},
+            {"name": "phases[0].workers", "value": "0, 1"},
+            {"name": "phases[1].name", "value": '"decode"'},
+            {"name": "phases[1].workers", "value": "2, 3"},
+        ]
 
 
 class TestComparisonValues:
