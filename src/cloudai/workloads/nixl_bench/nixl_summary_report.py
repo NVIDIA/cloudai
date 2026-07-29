@@ -19,17 +19,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from rich.table import Table
-
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
 from .nixl_bench import NIXLBenchTestDefinition
 
 if TYPE_CHECKING:
-    import bokeh.plotting as bk
     import pandas as pd
 
 
@@ -48,41 +45,31 @@ class NIXLBenchComparisonReport(ComparisonReport):
         super().load_test_runs()
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        tables: list[Table] = []
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            tables.extend(
+            sections.extend(
                 [
-                    self.create_table(
-                        group,
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Latency",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["avg_lat"],
+                        y_axis_label="Time (us)",
                     ),
-                    self.create_table(
-                        group,
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Bandwidth",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["bw_gb_sec"],
+                        y_axis_label="Busbw (GB/s)",
                     ),
                 ]
             )
-        return tables
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
-        charts: list[bk.figure] = []
-        for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            charts.extend(
-                [
-                    self.create_chart(group, dfs, "Latency", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"),
-                    self.create_chart(group, dfs, "Bandwidth", list(self.INFO_COLUMNS), ["bw_gb_sec"], "Busbw (GB/s)"),
-                ]
-            )
-        return charts
+        return sections
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         if (tr.output_path / "nixlbench.csv").exists():

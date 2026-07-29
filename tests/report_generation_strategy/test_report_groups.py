@@ -16,13 +16,11 @@
 
 import copy
 
-import bokeh.plotting as bk
 import pandas as pd
-from rich.table import Table
 
 from cloudai import TestRun
 from cloudai.core import TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import diff_comparison_values
 from cloudai.systems.slurm import SlurmSystem
@@ -32,10 +30,7 @@ class GroupingComparisonReport(ComparisonReport):
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         return pd.DataFrame()
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        return []
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         return []
 
 
@@ -125,6 +120,39 @@ class TestGrouping:
         assert len(groups[1].items) == 2
         assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
         assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
+
+    def test_v2_compact_name_includes_step_and_multi_iteration(
+        self, slurm_system: SlurmSystem, nccl_tr: TestRun
+    ) -> None:
+        nccl_tr.name = "case-a"
+        nccl_tr.step = 3
+        nccl_tr.iterations = 2
+        nccl_tr.current_iteration = 0
+
+        item = _comparison_report(slurm_system, [nccl_tr], group_by=[]).group_test_runs()[0].items[0]
+
+        assert item.v2_compact_name == "case-a · step=3 · iter=0"
+
+    def test_v2_duplicate_compact_names_are_disambiguated(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
+        items = (
+            _comparison_report(slurm_system, [nccl_tr, copy.deepcopy(nccl_tr)], group_by=[]).group_test_runs()[0].items
+        )
+
+        assert [item.v2_compact_name for item in items] == [
+            f"{nccl_tr.name} · run=1",
+            f"{nccl_tr.name} · run=2",
+        ]
+
+    def test_v2_full_label_flattens_nested_differences(self) -> None:
+        diff: dict[str, list[object]] = {
+            "prefill": [
+                {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
+                {"gpu_ids": ["2", "3"], "tensor_parallel_size": 4},
+            ]
+        }
+
+        assert ComparisonReport._format_diff_label(diff, 0) == ("prefill.gpu_ids=0,1 · prefill.tensor_parallel_size=2")
+        assert ComparisonReport._format_diff_label(diff, 1) == ("prefill.gpu_ids=2,3 · prefill.tensor_parallel_size=4")
 
 
 class TestComparisonValues:

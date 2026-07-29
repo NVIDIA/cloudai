@@ -14,31 +14,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from pathlib import Path
 
-import bokeh.plotting as bk
 import pandas as pd
 import pytest
 import toml
 from packaging.requirements import Requirement
 from packaging.version import Version
-from rich.table import Table
 
 from cloudai.core import TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.ai_dynamo import AIDynamoComparisonReport
+from cloudai.workloads.nccl_test import NcclComparisonReport
+from cloudai.workloads.nixl_bench.nixl_summary_report import NIXLBenchComparisonReport
+from cloudai.workloads.nixl_ep import NixlEPComparisonReport
+from cloudai.workloads.osu_bench import OSUBenchComparisonReport
+from cloudai.workloads.sglang import SGLangComparisonReport
+from cloudai.workloads.vllm import VLLMComparisonReport
 
 
 class MyComparisonReport(ComparisonReport):
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         return pd.DataFrame()
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         return []
 
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
-        return []
+
+class RenderableComparisonReport(MyComparisonReport):
+    def load_test_runs(self) -> None:
+        """Keep test-provided runs instead of loading result directories."""
+
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        return [
+            ComparisonSection(
+                group=group,
+                dfs=[pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}) for _ in group.items],
+                title="Throughput",
+                info_columns=["size"],
+                data_columns=["value"],
+                y_axis_label="Requests/s",
+            )
+            for group in cmp_groups
+        ]
 
 
 @pytest.fixture
@@ -53,6 +74,91 @@ def test_jinja_template_path(cmp_report: MyComparisonReport) -> None:
     full_path = cmp_report.template_path / cmp_report.template_name
     assert full_path.exists()
     assert full_path.is_file()
+
+
+def test_v2_jinja_template_path(cmp_report: MyComparisonReport) -> None:
+    full_path = cmp_report.template_path / cmp_report.v2_template_name
+    assert full_path.exists()
+    assert full_path.is_file()
+
+
+def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
+    slurm_system.output_path.mkdir(parents=True)
+    report = RenderableComparisonReport(
+        slurm_system,
+        TestScenario(name="comparison", test_runs=[]),
+        slurm_system.output_path,
+        ComparisonReportConfig(enable=True),
+    )
+    report.trs = [nccl_tr, copy.deepcopy(nccl_tr)]
+
+    report.generate()
+
+    legacy_path = slurm_system.output_path / "comparison_report.html"
+    v2_path = slurm_system.output_path / "comparison_report_v2.html"
+    assert legacy_path.exists()
+    assert v2_path.exists()
+
+    v2_content = v2_path.read_text()
+    assert "Show full labels" in v2_content
+    assert "chart.js@4.4.3" in v2_content
+    assert "overlap exactly" in v2_content
+    assert nccl_tr.name in v2_content
+
+
+def test_v2_payload_defaults_to_compact_labels(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+    long_image = "nvcr.io/example/" + ("very-long-image-name-" * 10) + ":latest"
+    item = TRGroupItem(
+        name=f"docker_image_url={long_image}",
+        tr=nccl_tr,
+        compact_name="case-a",
+        full_name=f"case-a — docker_image_url={long_image}",
+    )
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[item]),
+        dfs=[pd.DataFrame({"size": [1], "value": [10]})],
+        title="Throughput",
+        info_columns=["size"],
+        data_columns=["value"],
+        y_axis_label="Requests/s",
+    )
+
+    chart = cmp_report._build_v2_chart(section, 0)
+    table = cmp_report._build_v2_table(section)
+
+    assert chart["datasets"][0]["label"] == "case-a"
+    assert chart["datasets"][0]["fullLabel"] == f"case-a — docker_image_url={long_image}"
+    assert table["data_headers"][0]["compact_name"] == "case-a"
+    assert table["data_headers"][0]["full_name"] == f"case-a — docker_image_url={long_image}"
+
+
+@pytest.mark.parametrize(
+    ("report_cls", "legacy_name", "v2_name"),
+    [
+        (NIXLBenchComparisonReport, "nixl_comparison.html", "nixl_comparison_v2.html"),
+        (NixlEPComparisonReport, "nixl_ep_comparison.html", "nixl_ep_comparison_v2.html"),
+        (NcclComparisonReport, "nccl_comparison.html", "nccl_comparison_v2.html"),
+        (OSUBenchComparisonReport, "osu_bench_comparison.html", "osu_bench_comparison_v2.html"),
+        (VLLMComparisonReport, "vllm_comparison.html", "vllm_comparison_v2.html"),
+        (SGLangComparisonReport, "sglang_comparison.html", "sglang_comparison_v2.html"),
+        (AIDynamoComparisonReport, "ai_dynamo_comparison.html", "ai_dynamo_comparison_v2.html"),
+    ],
+)
+def test_v2_report_file_names(
+    slurm_system: SlurmSystem,
+    report_cls: type[ComparisonReport],
+    legacy_name: str,
+    v2_name: str,
+) -> None:
+    report = report_cls(
+        slurm_system,
+        TestScenario(name="comparison", test_runs=[]),
+        slurm_system.output_path,
+        ComparisonReportConfig(enable=True),
+    )
+
+    assert report.report_file_name == legacy_name
+    assert report.v2_report_file_name == v2_name
 
 
 class TestCreateTable:

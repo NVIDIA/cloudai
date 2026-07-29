@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections import Counter, defaultdict
+from collections.abc import Mapping
+from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import jinja2
 from pydantic import Field
@@ -43,6 +46,21 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
+@dataclass
+class ComparisonSection:
+    """Normalized comparison data consumed by both report renderers."""
+
+    group: GroupedTestRuns
+    title: str
+    dfs: list[pd.DataFrame]
+    info_columns: list[str]
+    data_columns: list[str]
+    y_axis_label: str
+    chart_type: Literal["line", "bar"] = "line"
+    legacy_chart_title: str | None = None
+    legacy_category_prefix: str = ""
+
+
 class ComparisonReportConfig(ReportConfig):
     """Configuration for a comparison report."""
 
@@ -53,12 +71,41 @@ class ComparisonReportConfig(ReportConfig):
 class ComparisonReport(Reporter, ABC):
     """Base class for comparison reports that generate both charts and tables."""
 
+    CHART_COLORS: ClassVar[tuple[str, ...]] = (
+        "#5e9c00",
+        "#39424e",
+        "#2563eb",
+        "#b45309",
+        "#7c3aed",
+        "#0891b2",
+        "#be123c",
+    )
+    CHART_POINT_STYLES: ClassVar[tuple[str, ...]] = (
+        "circle",
+        "rectRot",
+        "triangle",
+        "rect",
+        "star",
+        "crossRot",
+        "dash",
+    )
+    CHART_DASH_STYLES: ClassVar[tuple[tuple[int, ...], ...]] = (
+        (),
+        (8, 4),
+        (2, 3),
+        (10, 3, 2, 3),
+        (5, 5),
+        (12, 4),
+        (3, 2),
+    )
+
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.template_path = Path(__file__).parent.parent / "util"
         self.template_name = "nixl_report_template.jinja2"
+        self.v2_template_name = "comparison-report-v2.jinja2"
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
 
@@ -66,10 +113,8 @@ class ComparisonReport(Reporter, ABC):
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
 
     @abstractmethod
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]: ...
-
-    @abstractmethod
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]: ...
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        """Return normalized sections without performing any rendering."""
 
     def comparison_values(self, tr: TestRun) -> dict[str, object]:
         """Return TestRun values used to label differences between compared runs."""
@@ -96,14 +141,60 @@ class ComparisonReport(Reporter, ABC):
     def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedTestRuns:
         """Create a comparison group using report-specific comparison values."""
         diff = diff_comparison_values([self.comparison_values(tr) for tr in trs])
+        compact_names = [self._compact_case_name(tr) for tr in trs]
+        duplicate_names = Counter(compact_names)
+        duplicate_indexes: defaultdict[str, int] = defaultdict(int)
         items: list[TRGroupItem] = []
         for idx, tr in enumerate(trs):
             name = f"{group_idx}.{idx}"
             if diff:
                 item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
                 name = " ".join(item_name_parts).replace("extra_env_vars.", "")
-            items.append(TRGroupItem(name=name, tr=tr))
+
+            compact_name = compact_names[idx]
+            if duplicate_names[compact_name] > 1:
+                duplicate_indexes[compact_name] += 1
+                compact_name = f"{compact_name} · run={duplicate_indexes[compact_name]}"
+
+            diff_label = self._format_diff_label(diff, idx)
+            full_name = f"{compact_name} — {diff_label}" if diff_label else compact_name
+            items.append(
+                TRGroupItem(
+                    name=name,
+                    tr=tr,
+                    compact_name=compact_name,
+                    full_name=full_name,
+                )
+            )
         return GroupedTestRuns(name=self.group_name(trs), items=items)
+
+    @staticmethod
+    def _compact_case_name(tr: TestRun) -> str:
+        parts = [tr.name]
+        if tr.step > 0:
+            parts.append(f"step={tr.step}")
+        if tr.iterations > 1:
+            parts.append(f"iter={tr.current_iteration}")
+        return " · ".join(parts)
+
+    @classmethod
+    def _flatten_diff_value(cls, field: str, value: object) -> list[str]:
+        if isinstance(value, Mapping):
+            flattened: list[str] = []
+            for key, nested_value in value.items():
+                nested_field = f"{field}.{key}" if field else str(key)
+                flattened.extend(cls._flatten_diff_value(nested_field, nested_value))
+            return flattened
+
+        value_text = ",".join(str(item) for item in value) if isinstance(value, (list, tuple)) else str(value)
+        return [f"{field.replace('extra_env_vars.', '')}={value_text}"]
+
+    @classmethod
+    def _format_diff_label(cls, diff: dict[str, list[object]], item_idx: int) -> str:
+        parts: list[str] = []
+        for field, values in diff.items():
+            parts.extend(cls._flatten_diff_value(field, values[item_idx]))
+        return " · ".join(parts)
 
     def group_test_runs(self) -> list[GroupedTestRuns]:
         """Group loaded TestRuns for this comparison report."""
@@ -125,9 +216,56 @@ class ComparisonReport(Reporter, ABC):
 
         return [self.create_group(group, group_idx=str(group_idx)) for group_idx, group in enumerate(groups)]
 
-    def get_bokeh_html(self) -> tuple[str, str]:
-        cmp_groups = self.group_test_runs()
-        charts: list[bk.figure] = self.create_charts(cmp_groups)
+    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
+        """Render legacy Rich tables from normalized sections."""
+        return [
+            self.create_table(
+                section.group,
+                section.dfs,
+                section.title,
+                section.info_columns,
+                section.data_columns,
+            )
+            for section in self.build_sections(cmp_groups)
+        ]
+
+    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
+        """Render legacy Bokeh charts from normalized sections."""
+        charts: list[bk.figure] = []
+        for section in self.build_sections(cmp_groups):
+            if section.chart_type == "bar":
+                charts.append(self.create_bar_chart(section))
+            else:
+                charts.append(
+                    self.create_chart(
+                        section.group,
+                        section.dfs,
+                        section.legacy_chart_title or section.title,
+                        section.info_columns,
+                        section.data_columns,
+                        section.y_axis_label,
+                    )
+                )
+        return charts
+
+    def get_bokeh_html(self, sections: list[ComparisonSection] | None = None) -> tuple[str, str]:
+        if sections is None:
+            sections = self.build_sections(self.group_test_runs())
+        charts: list[bk.figure] = []
+        for section in sections:
+            if section.chart_type == "bar":
+                charts.append(self.create_bar_chart(section))
+            else:
+                charts.append(
+                    self.create_chart(
+                        section.group,
+                        section.dfs,
+                        section.legacy_chart_title or section.title,
+                        section.info_columns,
+                        section.data_columns,
+                        section.y_axis_label,
+                    )
+                )
 
         # layout with 2 charts per row
         rows = []
@@ -141,7 +279,7 @@ class ComparisonReport(Reporter, ABC):
         bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
         return bokeh_script, bokeh_div
 
-    def generate(self):
+    def generate(self) -> None:
         self.load_test_runs()
         if not self.trs:
             logging.debug(f"Skipping {self.__class__.__name__} report generation, no results found.")
@@ -149,17 +287,26 @@ class ComparisonReport(Reporter, ABC):
 
         console = Console(record=True)
         cmp_groups = self.group_test_runs()
+        sections = self.build_sections(cmp_groups)
 
-        tables = self.create_tables(cmp_groups)
-        for table in tables:
+        for section in sections:
+            table = self.create_table(
+                section.group,
+                section.dfs,
+                section.title,
+                section.info_columns,
+                section.data_columns,
+            )
             console.print(table)
             console.print()
 
-        bokeh_script, bokeh_div = self.get_bokeh_html()
+        bokeh_script, bokeh_div = self.get_bokeh_html(sections)
 
-        template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_path)).get_template(
-            self.template_name
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(self.template_path),
+            autoescape=jinja2.select_autoescape(),
         )
+        template = env.get_template(self.template_name)
         html_content = template.render(
             title=f"{self.test_scenario.name} Comparison Report",
             bokeh_script=bokeh_script,
@@ -172,6 +319,22 @@ class ComparisonReport(Reporter, ABC):
             f.write(html_content)
 
         logging.info(f"Comparison report created: {html_file}")
+
+        v2_template = env.get_template(self.v2_template_name)
+        v2_content = v2_template.render(
+            name=f"{self.test_scenario.name} Comparison Report",
+            sections=self._build_v2_sections(sections),
+        )
+        v2_file = self.results_root / self.v2_report_file_name
+        with v2_file.open("w") as f:
+            f.write(v2_content)
+
+        logging.info(f"Comparison report v2 created: {v2_file}")
+
+    @property
+    def v2_report_file_name(self) -> str:
+        report_path = Path(self.report_file_name)
+        return f"{report_path.stem}_v2{report_path.suffix}"
 
     @staticmethod
     def _extract_cmp_values(data: list) -> tuple[float | None, float | None]:
@@ -190,6 +353,175 @@ class ComparisonReport(Reporter, ABC):
         diff = val1 - val2
         diff_percent = (diff / val2) * 100
         return f"{diff:+.2f} ({diff_percent:+.2f}%)"
+
+    @staticmethod
+    def _display_value(value: Any) -> str:
+        if value is None:
+            return "n/a"
+        try:
+            if lazy.pd.isna(value):
+                return "n/a"
+        except (TypeError, ValueError):
+            pass
+        return str(value)
+
+    @staticmethod
+    def _numeric_value(value: Any) -> float | None:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not lazy.np.isfinite(numeric):
+            return None
+        return numeric
+
+    @staticmethod
+    def _chart_label(item: TRGroupItem, data_column: str, include_metric: bool, *, full: bool) -> str:
+        item_label = item.v2_full_name if full else item.v2_compact_name
+        return f"{item_label} · {data_column}" if include_metric else item_label
+
+    def _build_v2_bar_datasets(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
+        widest_df = max(section.dfs, key=len)
+        labels = [self._display_value(value) for value in widest_df[section.info_columns[0]].tolist()]
+        datasets: list[dict[str, Any]] = []
+        include_metric = len(section.data_columns) > 1
+        for data_column in section.data_columns:
+            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
+                color = self.CHART_COLORS[len(datasets) % len(self.CHART_COLORS)]
+                datasets.append(
+                    {
+                        "label": self._chart_label(item, data_column, include_metric, full=False),
+                        "compactLabel": self._chart_label(item, data_column, include_metric, full=False),
+                        "fullLabel": self._chart_label(item, data_column, include_metric, full=True),
+                        "comparisonMetric": data_column,
+                        "data": [
+                            self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
+                        ],
+                        "backgroundColor": f"{color}cc",
+                        "borderColor": color,
+                        "borderWidth": 1,
+                        "pointStyle": self.CHART_POINT_STYLES[item_idx % len(self.CHART_POINT_STYLES)],
+                    }
+                )
+        return labels, datasets
+
+    def _build_v2_line_datasets(self, section: ComparisonSection) -> list[dict[str, Any]]:
+        datasets: list[dict[str, Any]] = []
+        include_metric = len(section.data_columns) > 1
+        for data_column in section.data_columns:
+            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
+                points: list[dict[str, float]] = []
+                if not df.empty and data_column in df:
+                    pairs = zip(
+                        df[section.info_columns[0]].tolist(),
+                        df[data_column].tolist(),
+                        strict=True,
+                    )
+                    for x_value, y_value in pairs:
+                        x = self._numeric_value(x_value)
+                        y = self._numeric_value(y_value)
+                        if x is not None and y is not None:
+                            points.append({"x": x, "y": y})
+                color = self.CHART_COLORS[len(datasets) % len(self.CHART_COLORS)]
+                datasets.append(
+                    {
+                        "label": self._chart_label(item, data_column, include_metric, full=False),
+                        "compactLabel": self._chart_label(item, data_column, include_metric, full=False),
+                        "fullLabel": self._chart_label(item, data_column, include_metric, full=True),
+                        "comparisonMetric": data_column,
+                        "data": points,
+                        "borderColor": color,
+                        "backgroundColor": color,
+                        "borderDash": self.CHART_DASH_STYLES[item_idx % len(self.CHART_DASH_STYLES)],
+                        "pointStyle": self.CHART_POINT_STYLES[item_idx % len(self.CHART_POINT_STYLES)],
+                        "pointRadius": 4,
+                        "pointHoverRadius": 6,
+                        "borderWidth": 2,
+                        "tension": 0.12,
+                    }
+                )
+        return datasets
+
+    @staticmethod
+    def _find_v2_overlaps(datasets: list[dict[str, Any]]) -> list[str]:
+        overlaps: list[str] = []
+        for left_idx, left in enumerate(datasets):
+            if not left["data"]:
+                continue
+            for right in datasets[left_idx + 1 :]:
+                if left["comparisonMetric"] != right["comparisonMetric"]:
+                    continue
+                if left["data"] == right["data"]:
+                    overlaps.append(f"{left['compactLabel']} and {right['compactLabel']} overlap exactly.")
+        return overlaps
+
+    def _build_v2_chart(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
+        if section.chart_type == "bar":
+            chart_labels, datasets = self._build_v2_bar_datasets(section)
+        else:
+            chart_labels = None
+            datasets = self._build_v2_line_datasets(section)
+
+        return {
+            "id": f"comparison-chart-{chart_idx}",
+            "type": section.chart_type,
+            "labels": chart_labels,
+            "datasets": datasets,
+            "x_axis_label": section.info_columns[0],
+            "y_axis_label": section.y_axis_label,
+            "overlaps": self._find_v2_overlaps(datasets),
+        }
+
+    def _build_v2_table(self, section: ComparisonSection) -> dict[str, Any]:
+        widest_df = max(section.dfs, key=len)
+        show_diff = len(section.group.items) == 2
+        data_headers: list[dict[str, str]] = []
+        for data_column in section.data_columns:
+            for item in section.group.items:
+                data_headers.append(
+                    {
+                        "compact_name": item.v2_compact_name,
+                        "full_name": item.v2_full_name,
+                        "metric": data_column,
+                    }
+                )
+            if show_diff:
+                data_headers.append(
+                    {
+                        "compact_name": "Difference",
+                        "full_name": "Difference",
+                        "metric": data_column,
+                    }
+                )
+
+        rows: list[dict[str, list[str]]] = []
+        for row_idx in range(len(widest_df)):
+            info_cells = [self._display_value(widest_df[column].get(row_idx, None)) for column in section.info_columns]
+            data_cells: list[str] = []
+            for data_column in section.data_columns:
+                raw_values = [df[data_column].get(row_idx, None) for df in section.dfs]
+                data_cells.extend(self._display_value(value) for value in raw_values)
+                if show_diff:
+                    val1, val2 = self._extract_cmp_values(raw_values)
+                    data_cells.append(self._format_diff_cell(val1, val2))
+            rows.append({"info_cells": info_cells, "data_cells": data_cells})
+
+        return {
+            "info_headers": section.info_columns,
+            "data_headers": data_headers,
+            "rows": rows,
+        }
+
+    def _build_v2_sections(self, sections: list[ComparisonSection]) -> list[dict[str, Any]]:
+        return [
+            {
+                "title": section.title,
+                "group_name": "All cases" if section.group.name == "all-in-one" else section.group.name,
+                "chart": self._build_v2_chart(section, idx),
+                "table": self._build_v2_table(section),
+            }
+            for idx, section in enumerate(sections)
+        ]
 
     def create_table(
         self,
@@ -303,3 +635,65 @@ class ComparisonReport(Reporter, ABC):
         p.xaxis.major_label_orientation = lazy.np.pi / 4
 
         return p
+
+    def create_bar_chart(self, section: ComparisonSection) -> bk.figure:
+        """Render the legacy grouped bar chart used by categorical sections."""
+        factors: list[tuple[str, str]] = []
+        values: list[float] = []
+        categories: list[str] = []
+        runs: list[str] = []
+        colors: list[str] = []
+        color_cycle = cycle(["#1f77b4", "#17becf", "#2ca02c", "#bcbd22", "#ff7f0e"])
+        color_by_run = {item.name: next(color_cycle) for item in section.group.items}
+        info_column = section.info_columns[0]
+
+        for df, item in zip(section.dfs, section.group.items, strict=True):
+            for _, row in df.iterrows():
+                category = f"{section.legacy_category_prefix}{row[info_column]}"
+                for data_column in section.data_columns:
+                    value = self._numeric_value(row[data_column])
+                    if value is None:
+                        continue
+                    factor_category = category if len(section.data_columns) == 1 else f"{category} {data_column}"
+                    factors.append((factor_category, item.name))
+                    values.append(value)
+                    categories.append(factor_category)
+                    runs.append(item.name)
+                    colors.append(color_by_run[item.name])
+
+        x_range = lazy.bokeh_models.FactorRange(*factors)
+        x_range.range_padding = 0.1
+        plot = lazy.bokeh_plotting.figure(
+            title=f"{section.title}: {section.group.name}",
+            x_range=x_range,
+            y_axis_label=section.y_axis_label,
+            width=800,
+            height=500,
+            tools="save,reset",
+        )
+        hover = lazy.bokeh_models.HoverTool(
+            tooltips=[
+                (info_column.title(), "@category"),
+                ("Run", "@run"),
+                ("Value", "@value{0.0000}"),
+            ]
+        )
+        plot.add_tools(hover)
+
+        if not values:
+            return plot
+
+        source = lazy.bokeh_models.ColumnDataSource(
+            data={
+                "x": factors,
+                "category": categories,
+                "run": runs,
+                "value": values,
+                "color": colors,
+            }
+        )
+        plot.vbar(x="x", top="value", width=0.8, fill_color="color", line_color="color", source=source)
+        plot.xaxis.major_label_orientation = 0.8
+        y_max = max(values)
+        plot.y_range = lazy.bokeh_models.Range1d(start=0, end=y_max * 1.1 if y_max > 0 else 1)
+        return plot

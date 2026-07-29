@@ -92,3 +92,4 @@ def test_nixl_ep_comparison_report_generates_html(slurm_system: cloudai.systems.
     report.generate()
 
     assert (slurm_system.output_path / "nixl_ep_comparison.html").exists()
+    assert (slurm_system.output_path / "nixl_ep_comparison_v2.html").exists()

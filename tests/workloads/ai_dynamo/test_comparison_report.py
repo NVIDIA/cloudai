@@ -88,3 +88,4 @@ def test_ai_dynamo_comparison_report_generates_html(slurm_system: SlurmSystem) -
     report.generate()
 
     assert (slurm_system.output_path / "ai_dynamo_comparison.html").exists()
+    assert (slurm_system.output_path / "ai_dynamo_comparison_v2.html").exists()
