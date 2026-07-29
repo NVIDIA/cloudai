@@ -51,3 +51,4 @@ ep = 8
 "profiling.record_shapes" = "true"
 "profiling.record_memory_history" = "true"
 "profiling.memory_snapshot_path" = "memory_profile.pickle"
+"profiling.pytorch_profiler_collect_chakra" = "true"

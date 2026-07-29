@@ -14,11 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import logging
 import os
 import re
-import shutil
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
@@ -577,36 +575,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
         if not step_times_s:
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
-        try:
-            self._rename_pytorch_profile(tr)
-        except (OSError, shutil.Error) as e:
-            logging.warning(f"Failed to rename pytorch_profile directory: {e}")
-
         return JobStatusResult(is_successful=True)
-
-    def _rename_pytorch_profile(self, tr: TestRun) -> None:
-        """
-        Rename pytorch_profile/ to tensorboard/ inside the NemoRun experiment directory.
-
-        PyTorchProfilerPlugin writes TensorBoard events to pytorch_profile/, which is a
-        misleading name — the data is tensorboard events, not profiling traces. This renames
-        it to tensorboard/ to match the MegatronRun output convention.
-        """
-        experiment_name = tr.test.cmd_args.wandb_experiment_name
-        if not experiment_name:
-            return
-
-        base_pattern = os.path.join(str(tr.output_path), "experiments", experiment_name, "*", experiment_name)
-        task_dirs = [p for p in glob.glob(base_pattern) if os.path.isdir(p)]
-        if not task_dirs:
-            return
-
-        for task_dir in task_dirs:
-            src = os.path.join(task_dir, "pytorch_profile")
-            dst = os.path.join(task_dir, "tensorboard")
-            if os.path.isdir(src) and not os.path.exists(dst):
-                os.rename(src, dst)
-                logging.info(f"Renamed {src} to {dst}")
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
