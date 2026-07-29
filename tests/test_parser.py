@@ -66,6 +66,48 @@ class Test_Parser:
 
         assert "custom_hook_test" in {test.name for test in tests}
 
+    def test_custom_hook_root_is_used_for_hook_scenario_resolution(self, parser: Parser, tmp_path: Path):
+        """A hook *scenario* toml (referenced via pre_test) must also be resolved from the custom hook_root,
+        not just hook test tomls under `<hook_root>/test`."""
+        hook_root = tmp_path / "hooks"
+        hook_test_root = hook_root / "test"
+        hook_test_root.mkdir(parents=True)
+
+        (hook_test_root / "custom_hook_test.toml").write_text(
+            'name = "custom_hook_test"\n'
+            'description = "custom hook test"\n'
+            'test_template_name = "Sleep"\n'
+            "\n"
+            "[cmd_args]\n"
+            "seconds = 1\n"
+        )
+        (hook_root / "custom_hook_scenario.toml").write_text(
+            'name = "custom_hook"\n\n[[Tests]]\nid = "Tests.hook"\ntest_name = "custom_hook_test"\n'
+        )
+
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "main_test.toml").write_text(
+            'name = "main_test"\ndescription = "main test"\ntest_template_name = "Sleep"\n\n[cmd_args]\nseconds = 1\n'
+        )
+        test_scenario_path = tmp_path / "test_scenario.toml"
+        test_scenario_path.write_text(
+            'name = "main-scenario"\n'
+            'pre_test = "custom_hook"\n\n'
+            "[[Tests]]\n"
+            'id = "Tests.main"\n'
+            'test_name = "main_test"\n'
+        )
+
+        parser = Parser(parser.system_config_path, hook_root)
+
+        _, _, test_scenario = parser.parse(tests_dir, test_scenario_path)
+
+        assert test_scenario is not None
+        pre_test = test_scenario.test_runs[0].pre_test
+        assert pre_test is not None
+        assert pre_test.name == "custom_hook"
+
     @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"

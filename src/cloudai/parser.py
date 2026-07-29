@@ -37,7 +37,6 @@ from .test_scenario_parser import TestScenarioParser
 from .toml_utils import format_toml_decode_error
 
 HOOK_ROOT = Path("conf/hook")
-HOOK_TEST_ROOT = HOOK_ROOT / "test"
 
 
 class Parser:
