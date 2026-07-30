@@ -48,7 +48,4 @@ ep = 8
 "profiling.profile_step_start" = "45"
 "profiling.profile_step_end" = "50"
 "profiling.profile_ranks" = "[0]"
-"profiling.record_shapes" = "true"
-"profiling.record_memory_history" = "true"
-"profiling.memory_snapshot_path" = "memory_profile.pickle"
 "profiling.pytorch_profiler_collect_chakra" = "true"

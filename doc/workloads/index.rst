@@ -14,7 +14,6 @@ Available Workloads
    ":doc:`ai_dynamo`", "✅", "✅", "❌", "❌"
    ":doc:`bash_cmd`", "✅", "❌", "❌", "❌"
    ":doc:`chakra_replay`", "✅", "❌", "❌", "❌"
-   ":doc:`chakra_tracing`", "✅", "❌", "❌", "❌"
    ":doc:`ddlb`", "✅", "❌", "❌", "❌"
    ":doc:`deepep`", "✅", "❌", "❌", "❌"
    ":doc:`dynamo_mocker`", "❌", "❌", "❌", "✅"
