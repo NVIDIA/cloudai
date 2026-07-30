@@ -55,7 +55,7 @@ dynamo_args["frontend-node"]=""
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|pydantic_core._pydantic_core.ValidationError|Unsupported.connector.type"
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|pydantic_core._pydantic_core.ValidationError|Unsupported.connector.type|error: unrecognized arguments:|tomllib.TOMLDecodeError"
 
 # sglang_dsr1-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
@@ -620,6 +620,56 @@ function launch_node_setup_cmd()
   fi
 
   log "Node environment:\n$(env)" >> "$logfile" 2>&1
+}
+
+function localize_runtime_config_files()
+{
+  local node_name="${SLURMD_NODENAME:-$(hostname)}"
+  local runtime_dir="${RESULTS_DIR}/runtime"
+  local manifest="${runtime_dir}/${node_name}.json"
+  local environment_file="${runtime_dir}/${node_name}.env.sh"
+  if [[ ! -f "$manifest" ]]; then
+    return
+  fi
+
+  python3 - "$manifest" "$runtime_dir" "$node_name" > "$environment_file" <<'PY' || return $?
+import json
+import os
+import shlex
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text())
+runtime_dir = Path(sys.argv[2])
+node_name = sys.argv[3]
+
+for config_var, replacements in manifest.items():
+    source = Path(os.environ[config_var])
+    target = runtime_dir / f"{source.stem}.{node_name}{source.suffix}"
+
+    content = source.read_text()
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    target.write_text(content)
+    print(f"export {config_var}={shlex.quote(str(target))}")
+PY
+  source "$environment_file"
+}
+
+function setup_hicache()
+{
+  if [[ -z "${HICACHE_CONFIG_FILE:-}" ]]; then
+    return
+  fi
+
+  if [[ ! -f "${HICACHE_CONFIG_FILE}" ]]; then
+    log "ERROR: HICACHE_CONFIG_FILE does not exist: ${HICACHE_CONFIG_FILE}"
+    exit 1
+  fi
+
+  prefill_args["--hicache-storage-backend-extra-config"]="@${HICACHE_CONFIG_FILE}"
+  decode_args["--hicache-storage-backend-extra-config"]="@${HICACHE_CONFIG_FILE}"
+  log "Using HiCache config file: ${HICACHE_CONFIG_FILE}"
 }
 
 _require_cmd() {
@@ -1373,6 +1423,8 @@ function main()
   launch_node_setup_cmd
 
   validate_environment
+  localize_runtime_config_files || { log "ERROR: Failed to localize runtime config files"; exit 1; }
+  setup_hicache
 
   if _is_vllm || _is_sglang; then
     cd "${dynamo_args["workspace-path"]}" || { log "ERROR: Failed to cd to ${dynamo_args["workspace-path"]}"; exit 1; }

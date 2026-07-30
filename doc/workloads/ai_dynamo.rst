@@ -148,6 +148,14 @@ existing report generation.
 backend-specific cache cleanup, for example ``/cloudai_run_results/routerctl.sh restart`` if a test needs to restart the
 Dynamo router between phases. ``health-check-between-phases`` probes the frontend after the command.
 
+Comparison Reports
+------------------
+
+CloudAI provides the scenario-level ``ai_dynamo_comparison`` report. It compares AI Dynamo runs using the standard
+LLM serving tables and charts for TTFT, TPOT, successful prompts, output-token throughput, TPS per user, and TPS per
+GPU. When ``aiperf_accuracy`` is configured and its result is available, the report also compares model accuracy.
+Both AIPerf and GenAI-Perf CSV output are supported.
+
 AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
 as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =
 "auto"`` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM
@@ -211,6 +219,92 @@ storage, must be visible and writable from every node that is expected to share 
 LMCache YAML values can use runtime placeholders. CloudAI renders them inside the Slurm job before launching workers:
 ``{frontend_node}``, ``{frontend_ip}``, ``{results_dir}``, and ``{storage_cache_dir}``. Unknown placeholders fail the
 run before worker processes start.
+
+Propagating HiCache Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Define a HiCache storage-backend configuration under ``[cmd_args.hicache]``. CloudAI serializes the object as
+``hicache-config.toml`` in the run output directory, exposes its container path through ``HICACHE_CONFIG_FILE``, and
+passes the resolved path to both workers as ``--hicache-storage-backend-extra-config``:
+
+.. code-block:: toml
+
+   [cmd_args]
+     [cmd_args.hicache.plugin.posix]
+     active = true
+     use_uring = "false"
+
+     [cmd_args.dynamo.prefill_worker]
+     extra-args = "--enable-hierarchical-cache"
+
+     [cmd_args.dynamo.prefill_worker.args]
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+     [cmd_args.dynamo.decode_worker]
+     extra-args = "--enable-hierarchical-cache"
+
+     [cmd_args.dynamo.decode_worker.args]
+     hicache-size = 8
+     hicache-ratio = 0
+     hicache-write-policy = "write_through"
+     hicache-mem-layout = "page_first"
+     hicache-storage-prefetch-policy = "wait_complete"
+     hicache-storage-backend = "nixl"
+
+The remaining HiCache engine options stay in the worker ``args`` sections so they can be configured or swept through
+DSE normally.
+
+The runtime replacement mechanism below supports per-node HiCache values. For example, change the POSIX setting above
+to ``use_uring = "${use_uring}"`` and have the startup manifest replace ``${use_uring}`` with ``false`` or ``true``.
+The worker receives the resulting per-node TOML path automatically.
+
+For a self-contained single-node smoke test using NIXL's POSIX plugin, run the following on a node with at least two
+GPUs (one each for the prefill and decode workers):
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config <slurm system toml> \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/sglang_hicache.toml
+
+Per-node Startup Commands and Runtime Replacements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On Slurm, ``startup_cmd`` runs once per allocated node before the workload. It runs on the host by default. Set
+``startup_cmd_docker_image`` to run it in a container using the workload's mounts:
+
+.. code-block:: toml
+
+   [cmd_args]
+   startup_cmd = "/mnt/discovery/discover-device.sh"
+   startup_cmd_docker_image = "nvcr.io/example/discovery-tools:latest"
+
+CloudAI exports ``CLOUDAI_RUNTIME_FILE`` to the command. It points to ``runtime/<node>.json`` in the test output
+directory, or ``/cloudai_run_results/runtime/<node>.json`` inside a startup container. Write replacements there:
+
+.. code-block:: json
+
+   {
+     "LMCACHE_CONFIG_FILE": {
+       "${device}": "/dev/ng4n1",
+       "${namespace_id}": "1"
+     },
+     "HICACHE_CONFIG_FILE": {
+       "${use_uring}": "false"
+     }
+   }
+
+Each top-level key names an environment variable containing a config path. AIDynamo creates a per-node copy, applies
+literal replacements, then updates the variable to point to that copy.
+
+For ``lmcache-config.yaml`` on ``node-01``, the result is ``lmcache-config.node-01.yaml``. The shared source remains
+unchanged. LMCache placeholders are rendered afterward in the per-node copy. Missing manifest means no replacements.
+
+Startup runs once per test case in normal and ``--single-sbatch`` modes.
 
 If the selected LMCache mode needs a controller, CloudAI can start one on the frontend node:
 

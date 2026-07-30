@@ -46,6 +46,7 @@ AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
 AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
+HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
 
 
 class Args(BaseModel):
@@ -394,8 +395,11 @@ class AIDynamoCmdArgs(CmdArgs):
     model_config = ConfigDict(extra="forbid")
 
     docker_image_url: str
+    startup_cmd: str | None = None
+    startup_cmd_docker_image: str | None = None
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
+    hicache: dict | None = None
     lmcache: dict | None = None
     lmcache_controller: LMCacheController | None = None
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
@@ -451,6 +455,7 @@ class AIDynamoTestDefinition(TestDefinition):
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     _dcgm_exporter_image: Optional[DockerImage] = None
+    _startup_cmd_docker_image: DockerImage | None = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
     repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
@@ -495,6 +500,15 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._dcgm_exporter_image
 
     @property
+    def startup_cmd_docker_image(self) -> DockerImage | None:
+        image_url = self.cmd_args.startup_cmd_docker_image
+        if not image_url:
+            return None
+        if not self._startup_cmd_docker_image or self._startup_cmd_docker_image.url != image_url:
+            self._startup_cmd_docker_image = DockerImage(url=image_url)
+        return self._startup_cmd_docker_image
+
+    @property
     def hf_model(self) -> HFModel:
         if not self._hf_model:
             logging.info(f"Creating HFModel for: {self.cmd_args.dynamo.model}")
@@ -514,6 +528,8 @@ class AIDynamoTestDefinition(TestDefinition):
         ]
         if self.dcgm_exporter_image:
             installables.append(self.dcgm_exporter_image)
+        if self.cmd_args.startup_cmd and self.startup_cmd_docker_image:
+            installables.append(self.startup_cmd_docker_image)
         return installables
 
     def _has_aiperf_accuracy_results(self, output_path: Path) -> bool:

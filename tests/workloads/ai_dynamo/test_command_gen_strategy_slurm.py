@@ -19,12 +19,14 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import toml
 import yaml
 
-from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.core import GitRepo
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    HICACHE_CONFIG_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoArgs,
@@ -141,6 +143,72 @@ def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> 
     )
 
     assert repo in tdef.installables
+
+
+def test_startup_cmd_image_is_installable(cmd_args: AIDynamoCmdArgs) -> None:
+    cmd_args.startup_cmd = "/mnt/discover.sh"
+    cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+    tdef = AIDynamoTestDefinition(
+        name="test",
+        description="desc",
+        test_template_name="template",
+        cmd_args=cmd_args,
+    )
+
+    assert tdef.startup_cmd_docker_image in tdef.installables
+
+
+def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    td.cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=nvcr.io/test/discovery:latest" in command
+    assert "--nodes=2" in command
+    assert "--nodelist=n0,n1" in command
+    assert "--ntasks=2" in command
+    assert "--ntasks-per-node=1" in command
+    assert "startup-node-%n-stdout.txt" in command
+    assert "CLOUDAI_RUNTIME_FILE=" in command
+    assert "${SLURMD_NODENAME:-$(hostname)}.json" in command
+    assert "/mnt/discover.sh" in command
+    assert command.endswith("|| exit 1")
+
+
+def test_gen_startup_srun_command_runs_on_bare_metal_by_default(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.startup_cmd = "/host/discover.sh"
+
+    command = strategy._gen_startup_srun_command()
+
+    assert command is not None
+    assert "--container-image=" not in command
+    assert "--container-mounts=" not in command
+    assert f"{strategy.test_run.output_path.absolute()}/runtime/" in command
+    assert "/cloudai_run_results/runtime/" not in command
+
+
+def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.startup_cmd = "/mnt/discover.sh"
+    scenario = TestScenario(name="scenario", test_runs=[test_run])
+    runner = SingleSbatchRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=scenario,
+        output_path=slurm_system.output_path,
+    )
+
+    test_block = runner.get_single_tr_block(test_run)
+
+    assert "/mnt/discover.sh" in test_block
+    assert test_block.count("srun ") == 2
+    assert test_block.count(f"--output={test_run.output_path.absolute()}/stdout.txt") == 2
 
 
 @pytest.mark.parametrize(
@@ -581,6 +649,54 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
     assert backup_config == config
     assert "--lmcache" not in result
+
+
+def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    td.cmd_args.hicache = {
+        "plugin": {
+            "posix": {
+                "active": True,
+                "use_uring": "false",
+            },
+        }
+    }
+
+    strategy._gen_script_args(td)
+
+    config_path = strategy.test_run.output_path / HICACHE_CONFIG_FILE_NAME
+    config = toml.loads(config_path.read_text())
+    assert (
+        strategy.final_env_vars["HICACHE_CONFIG_FILE"]
+        == f"{strategy.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
+    )
+    assert config["plugin"]["posix"]["active"] is True
+    assert config["plugin"]["posix"]["use_uring"] == "false"
+
+
+def test_hicache_config_supports_dse(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.hicache = {"plugin": {"posix": {"use_uring": ["false", "true"]}}}
+
+    assert test_run.is_dse_job is True
+    assert test_run.param_space["hicache.plugin.posix.use_uring"] == ["false", "true"]
+
+    new_test_run = test_run.apply_params_set({"hicache.plugin.posix.use_uring": "true"})
+
+    new_hicache = cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.hicache
+    assert new_hicache is not None
+    assert new_hicache["plugin"]["posix"]["use_uring"] == "true"
+
+
+def test_hicache_config_is_backend_agnostic(cmd_args: AIDynamoCmdArgs) -> None:
+    data = cmd_args.model_dump()
+    data["hicache"] = {"plugin": {"posix": {"active": True}}}
+
+    parsed = AIDynamoCmdArgs.model_validate(data)
+
+    assert parsed.dynamo.backend == "vllm"
+    assert parsed.hicache == data["hicache"]
 
 
 def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:

@@ -20,6 +20,7 @@ import textwrap
 from pathlib import Path
 from typing import Any, List, cast
 
+import toml
 import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -28,6 +29,7 @@ from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import (
+    HICACHE_CONFIG_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
     LMCACHE_CONFIG_FILE_NAME,
     AIDynamoTestDefinition,
@@ -57,6 +59,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
+        if self.td.cmd_args.hicache is not None:
+            env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
             env_vars["LMCACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{LMCACHE_CONFIG_FILE_NAME}"
         return env_vars
@@ -70,18 +74,49 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return str(self.td.docker_image.installed_path)
         return None
 
-    def _gen_dcgm_srun_prefix(self, image_path: str) -> list[str]:
-        srun_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}", f"--container-image={image_path}"]
-        mounts = self.container_mounts()
-        if mounts:
-            srun_parts.append(f"--container-mounts={','.join(mounts)}")
-        if not self.system.container_mount_home:
-            srun_parts.append("--no-container-mount-home")
+    def _gen_aux_srun_prefix(self, image_path: str | None = None) -> list[str]:
+        srun_parts = ["srun", "--export=ALL", f"--mpi={self.mpi}"]
+        if image_path:
+            srun_parts.append(f"--container-image={image_path}")
+            mounts = self.container_mounts()
+            if mounts:
+                srun_parts.append(f"--container-mounts={','.join(mounts)}")
+            if not self.system.container_mount_home:
+                srun_parts.append("--no-container-mount-home")
         if self.system.extra_srun_args:
             srun_parts.append(self.system.extra_srun_args)
         if self.test_run.extra_srun_args:
             srun_parts.append(self.test_run.extra_srun_args)
         return srun_parts
+
+    def _gen_startup_srun_command(self) -> str | None:
+        configured_cmd = self.td.cmd_args.startup_cmd
+        if not configured_cmd:
+            return None
+
+        num_nodes, node_list = self.get_cached_nodes_spec()
+        image = self.td.startup_cmd_docker_image
+        out_dir = self.test_run.output_path.absolute()
+        runtime_dir = (
+            f"{self.CONTAINER_MOUNT_OUTPUT}/runtime" if image else str(self.test_run.output_path.absolute() / "runtime")
+        )
+        runtime_file = f"{runtime_dir}/${{SLURMD_NODENAME:-$(hostname)}}.json"
+        startup_cmd = (
+            f'mkdir -p {shlex.quote(runtime_dir)}; export CLOUDAI_RUNTIME_FILE="{runtime_file}"; {configured_cmd}'
+        )
+        parts = [
+            *self._gen_aux_srun_prefix(str(image.installed_path) if image else None),
+            f"--nodes={num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            f"--output={out_dir}/startup-node-%n-stdout.txt",
+            f"--error={out_dir}/startup-node-%n-stderr.txt",
+            "bash",
+            "-lc",
+            shlex.quote(startup_cmd),
+        ]
+        return " \\\n  ".join(parts) + " || exit 1"
 
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
@@ -131,6 +166,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         config = yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False)
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
+
+    def _prepare_hicache_config(self) -> None:
+        if self.td.cmd_args.hicache is None:
+            return
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        config = toml.dumps(self.td.cmd_args.hicache)
+        (self.test_run.output_path / HICACHE_CONFIG_FILE_NAME).write_text(config)
 
     def _render_aiperf_args(self, args: dict[str, Any]) -> str:
         parts: list[str] = []
@@ -364,6 +407,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f"{self.CONTAINER_MOUNT_OUTPUT}/{AIPERF_SCRIPT_FILE_NAME}"
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
+        self._prepare_hicache_config()
         self._prepare_lmcache_config()
         aiperf_script = self._prepare_aiperf_script()
         if not td.repo.installed_path:
@@ -438,7 +482,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ]
         )
         srun_cmd.extend(self._gen_script_args(self.td))
-        return " \\\n  ".join(srun_cmd) + "\n"
+        main_command = " \\\n  ".join(srun_cmd) + "\n"
+        startup_command = self._gen_startup_srun_command()
+        if startup_command:
+            return f"{startup_command}\n{main_command}"
+        return main_command
 
     def _gen_dcgm_launcher_block(self) -> list[str]:
         dcgm_image = self.td.dcgm_exporter_image
@@ -451,7 +499,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         dcgm_cmd = f"DCGM_EXPORTER_LISTEN=:{port} dcgm-exporter"
         dcgm_step_name = "cloudai-dcgm-exporter"
         srun_parts = [
-            *self._gen_dcgm_srun_prefix(str(dcgm_image.installed_path)),
+            *self._gen_aux_srun_prefix(str(dcgm_image.installed_path)),
             "--overlap",
             f"--job-name={dcgm_step_name}",
             f"-N{num_nodes}",

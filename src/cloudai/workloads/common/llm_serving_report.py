@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import abc
 import itertools
+import math
 import pathlib
 from typing import TYPE_CHECKING, Any, cast
 
@@ -95,7 +96,7 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
 
     @staticmethod
     def _metric_value(value: float | int | None) -> float | str:
-        if value is None:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
             return "n/a"
         return round(float(value), 4)
 

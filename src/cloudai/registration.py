@@ -48,6 +48,7 @@ def register_all():
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
     from cloudai.workloads.ai_dynamo import (
+        AIDynamoComparisonReport,
         AIDynamoKubernetesJsonGenStrategy,
         AIDynamoReportGenerationStrategy,
         AIDynamoSlurmCommandGenStrategy,
@@ -352,6 +353,11 @@ def register_all():
         "osu_bench_comparison",
         OSUBenchComparisonReport,
         ComparisonReportConfig(enable=True, group_by=["benchmark"]),
+    )
+    Registry().add_scenario_report(
+        "ai_dynamo_comparison",
+        AIDynamoComparisonReport,
+        ComparisonReportConfig(enable=True),
     )
     Registry().add_scenario_report(
         "vllm_comparison",

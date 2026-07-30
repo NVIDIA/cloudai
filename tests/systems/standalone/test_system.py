@@ -108,3 +108,39 @@ def test_kill_job(mock_execute, standalone_system, standalone_job):
     kill_command = f"kill -9 {standalone_job.id}"
 
     mock_execute.assert_called_once_with(kill_command)
+
+
+@pytest.mark.parametrize("job_id", [0, "0", "00", "+0", "-0", -1, "-1", "not-a-pid"])
+@patch("cloudai.util.CommandShell.execute")
+def test_kill_job_skips_invalid_pid(mock_execute, standalone_system, mock_test, job_id):
+    """
+    Test that standalone dry-run sentinel IDs and invalid PIDs are not killed.
+
+    Args:
+        mock_execute (MagicMock): Mocked CommandShell execute method.
+        standalone_system (StandaloneSystem): Instance of the system under test.
+        mock_test (Test): The mock test instance associated with the job.
+        job_id (int | str): Job ID that must not be killed.
+    """
+    job = StandaloneJob(mock_test, id=job_id)
+
+    standalone_system.kill(job)
+
+    mock_execute.assert_not_called()
+
+
+@patch("cloudai.util.CommandShell.execute")
+def test_kill_job_normalizes_numeric_pid(mock_execute, standalone_system, mock_test):
+    """
+    Test that standalone termination uses a validated numeric process ID.
+
+    Args:
+        mock_execute (MagicMock): Mocked CommandShell execute method.
+        standalone_system (StandaloneSystem): Instance of the system under test.
+        mock_test (Test): The mock test instance associated with the job.
+    """
+    job = StandaloneJob(mock_test, id="0012345")
+
+    standalone_system.kill(job)
+
+    mock_execute.assert_called_once_with("kill -9 12345")

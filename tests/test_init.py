@@ -23,6 +23,7 @@ from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
+    AIDynamoComparisonReport,
     AIDynamoKubernetesJsonGenStrategy,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
@@ -287,6 +288,7 @@ def test_scenario_reports():
         "nixl_ep_comparison",
         "nccl_comparison",
         "osu_bench_comparison",
+        "ai_dynamo_comparison",
         "vllm_comparison",
         "sglang_comparison",
     ]
@@ -300,6 +302,7 @@ def test_scenario_reports():
         NixlEPComparisonReport,
         NcclComparisonReport,
         OSUBenchComparisonReport,
+        AIDynamoComparisonReport,
         VLLMComparisonReport,
         SGLangComparisonReport,
     ]
@@ -317,6 +320,7 @@ def test_report_configs():
         "nixl_ep_comparison",
         "nccl_comparison",
         "osu_bench_comparison",
+        "ai_dynamo_comparison",
         "vllm_comparison",
         "sglang_comparison",
     ]

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,6 +78,22 @@ class StandaloneSystem(System):
         Args:
             job (BaseJob): The job to be terminated.
         """
-        cmd = f"kill -9 {job.id}"
-        logging.debug(f"Executing termination command for job {job.id}: {cmd}")
+        try:
+            pid = int(str(job.id).strip())
+        except ValueError:
+            logging.warning(
+                "Skipping termination for standalone job %s because it is not a valid process ID.",
+                job.id,
+            )
+            return
+
+        if pid <= 0:
+            logging.warning(
+                "Skipping termination for standalone job %s because it does not reference a launched process.",
+                job.id,
+            )
+            return
+
+        cmd = f"kill -9 {pid}"
+        logging.debug(f"Executing termination command for job {pid}: {cmd}")
         self.cmd_shell.execute(cmd)
