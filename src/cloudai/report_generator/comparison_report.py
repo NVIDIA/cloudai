@@ -61,7 +61,6 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
-    legacy_chart_title: str | None = None
     legacy_category_prefix: str = ""
 
 
@@ -305,7 +304,7 @@ class ComparisonReport(Reporter, ABC):
                     self.create_chart(
                         section.group,
                         section.dfs,
-                        section.legacy_chart_title or section.title,
+                        section.title,
                         section.info_columns,
                         section.data_columns,
                         section.y_axis_label,
@@ -325,7 +324,7 @@ class ComparisonReport(Reporter, ABC):
                     self.create_chart(
                         section.group,
                         section.dfs,
-                        section.legacy_chart_title or section.title,
+                        section.title,
                         section.info_columns,
                         section.data_columns,
                         section.y_axis_label,

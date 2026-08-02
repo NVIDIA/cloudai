@@ -70,7 +70,6 @@ class NcclComparisonReport(ComparisonReport):
                         x_axis_type="indexed_category",
                         x_axis_column="Size Human-readable",
                         x_axis_label="Message size",
-                        legacy_chart_title="Latecy",
                     ),
                     cloudai.report_generator.comparison_report.ComparisonSection(
                         group=group,
