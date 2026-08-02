@@ -207,30 +207,6 @@ class ComparisonReport(Reporter, ABC):
             sort_keys=False,
         ).rstrip()
 
-    @classmethod
-    def _diff_entries(cls, differences: collections.abc.Mapping[str, object] | None) -> list[dict[str, str]]:
-        entries: list[dict[str, str]] = []
-
-        def format_scalar(value: object) -> str:
-            return yaml.safe_dump(value, default_flow_style=True, sort_keys=False).splitlines()[0]
-
-        def visit(value: object, path: str) -> None:
-            if isinstance(value, collections.abc.Mapping):
-                for key, nested_value in value.items():
-                    visit(nested_value, f"{path}.{key}" if path else str(key))
-                return
-            if isinstance(value, (list, tuple)):
-                if any(isinstance(item, (collections.abc.Mapping, list, tuple)) for item in value):
-                    for idx, nested_value in enumerate(value):
-                        visit(nested_value, f"{path}[{idx}]")
-                    return
-                entries.append({"name": path, "value": ", ".join(format_scalar(item) for item in value)})
-                return
-            entries.append({"name": path, "value": format_scalar(value)})
-
-        visit(cls._without_nulls(differences or {}) or {}, "")
-        return entries
-
     def group_test_runs(self) -> list[GroupedTestRuns]:
         """Group loaded TestRuns for this comparison report."""
         if not self.group_by:
@@ -540,7 +516,7 @@ class ComparisonReport(Reporter, ABC):
                 "case_details": [
                     {
                         "name": item.compact_name_v2,
-                        "differences": self._diff_entries(item.differences),
+                        "differences_yaml": self._format_diff_yaml(item.differences),
                     }
                     for item in section.group.items
                 ],

@@ -179,12 +179,6 @@ class TestGrouping:
             "      - 2\n"
             "      - 3"
         )
-        assert ComparisonReport._diff_entries(differences) == [
-            {"name": "phases[0].name", "value": "prefill"},
-            {"name": "phases[0].workers", "value": "0, 1"},
-            {"name": "phases[1].name", "value": "decode"},
-            {"name": "phases[1].workers", "value": "2, 3"},
-        ]
 
     def test_differences_skip_null_defaults_recursively_v2(self) -> None:
         diff: dict[str, list[object]] = {
@@ -204,7 +198,6 @@ class TestGrouping:
             "phases": [{"name": "prefill", "command": "serve"}],
         }
         assert ComparisonReport._format_diff_yaml(first) == "phases:\n  - name: prefill"
-        assert ComparisonReport._diff_entries(first) == [{"name": "phases[0].name", "value": "prefill"}]
 
 
 class TestComparisonValues:

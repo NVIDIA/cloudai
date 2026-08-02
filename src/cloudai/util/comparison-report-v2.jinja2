@@ -101,34 +101,15 @@
         margin: 0 0 0.45rem;
         font-size: 0.92rem;
     }
-    .case-diff-list {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0;
+    .case-differences-yaml {
         margin: 0;
-        font-family: "SFMono-Regular", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 0.76rem;
-    }
-    .case-diff-list dt {
-        min-width: 0;
-        margin-top: 0.55rem;
-        padding-top: 0.55rem;
-        border-top: 1px solid rgba(17, 17, 17, 0.06);
-        overflow-wrap: anywhere;
-        color: var(--nv-muted);
-        font-weight: 650;
-    }
-    .case-diff-list dt:first-of-type {
-        margin-top: 0;
-        padding-top: 0;
-        border-top: 0;
-    }
-    .case-diff-list dd {
-        min-width: 0;
-        margin: 0.15rem 0 0;
+        white-space: pre-wrap;
         overflow-wrap: anywhere;
         word-break: normal;
+        font-family: "SFMono-Regular", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.76rem;
         color: var(--nv-ink);
+        line-height: 1.45;
     }
     .no-differences {
         margin: 0;
@@ -572,13 +553,8 @@
                 {% for case in section.case_details %}
                 <article class="case-context-card">
                     <h3>{{ case.name }}</h3>
-                    {% if case.differences %}
-                    <dl class="case-diff-list">
-                        {% for difference in case.differences %}
-                        <dt>{{ difference.name }}</dt>
-                        <dd>{{ difference.value }}</dd>
-                        {% endfor %}
-                    </dl>
+                    {% if case.differences_yaml %}
+                    <pre class="case-differences-yaml">{{ case.differences_yaml }}</pre>
                     {% else %}
                     <p class="no-differences">No differing parameters.</p>
                     {% endif %}

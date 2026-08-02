@@ -147,6 +147,7 @@ def test_payload_uses_compact_labels_and_structured_differences_v2(
 
     chart = cmp_report._build_chart_v2(section, 0)
     table = cmp_report._build_table_v2(section)
+    section_payload = cmp_report._build_sections_v2([section])[0]
 
     assert chart["datasets"][0]["label"] == "case-a"
     assert "fullLabel" not in chart["datasets"][0]
@@ -155,6 +156,7 @@ def test_payload_uses_compact_labels_and_structured_differences_v2(
     assert table["data_headers"][0]["differences_yaml"] == (
         f"docker_image_url: {long_image}\nprefill:\n  gpu_ids:\n    - '0'\n    - '1'\n  tensor_parallel_size: 2"
     )
+    assert section_payload["case_details"][0]["differences_yaml"] == table["data_headers"][0]["differences_yaml"]
 
 
 def test_indexed_category_axis_uses_display_labels_v2(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
