@@ -103,7 +103,7 @@ class ComparisonReport(Reporter, ABC):
         """Return TestRun values used to label differences between compared runs."""
         return {
             "NUM_NODES": tr.num_nodes,
-            **tr.test.cmd_args.model_dump(),
+            **tr.test.cmd_args.model_dump(exclude_none=True),
             **{f"extra_env_vars.{key}": value for key, value in tr.test.extra_env_vars.items()},
         }
 
@@ -163,7 +163,7 @@ class ComparisonReport(Reporter, ABC):
         """Return one run's differing parameters as a nested mapping."""
         result: dict[str, Any] = {}
         for field, values in diff.items():
-            value = cls._without_nulls(values[item_idx])
+            value = values[item_idx]
             if value is None:
                 continue
             path = field.split(".")
@@ -177,30 +177,12 @@ class ComparisonReport(Reporter, ABC):
             target[path[-1]] = value
         return result
 
-    @classmethod
-    def _without_nulls(cls, value: object) -> object | None:
-        """Remove null defaults from a structured difference."""
-        if value is None:
-            return None
-        if isinstance(value, collections.abc.Mapping):
-            cleaned = {
-                key: cleaned_value
-                for key, nested_value in value.items()
-                if (cleaned_value := cls._without_nulls(nested_value)) is not None
-            }
-            return cleaned or ({} if not value else None)
-        if isinstance(value, (list, tuple)):
-            cleaned_items = [cleaned_item for item in value if (cleaned_item := cls._without_nulls(item)) is not None]
-            return cleaned_items or ([] if not value else None)
-        return value
-
-    @classmethod
-    def _format_diff_yaml(cls, differences: collections.abc.Mapping[str, object] | None) -> str:
-        cleaned = cls._without_nulls(differences or {}) or {}
-        if not cleaned:
+    @staticmethod
+    def _format_diff_yaml(differences: collections.abc.Mapping[str, object] | None) -> str:
+        if not differences:
             return ""
         return yaml.dump(
-            cleaned,
+            differences,
             Dumper=_IndentedSafeDumper,
             allow_unicode=True,
             default_flow_style=False,

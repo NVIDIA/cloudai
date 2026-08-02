@@ -201,7 +201,8 @@ def _diff_mapping_values(values: list[object]) -> list[object] | None:
             continue
 
         for idx, nested_value in enumerate(nested_diff):
-            cast(dict[object, object], diff_by_run[idx])[key] = nested_value
+            if nested_value is not None:
+                cast(dict[object, object], diff_by_run[idx])[key] = nested_value
 
     if any(diff_by_run):
         return diff_by_run

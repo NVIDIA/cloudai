@@ -83,7 +83,9 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
 
     def comparison_values(self, tr: cloudai.core.TestRun) -> dict[str, object]:
         values = super().comparison_values(tr)
-        values.update({f"bench_cmd_args.{k}": v for k, v in self.benchmark_cmd_args(tr).model_dump().items()})
+        values.update(
+            {f"bench_cmd_args.{k}": v for k, v in self.benchmark_cmd_args(tr).model_dump(exclude_none=True).items()}
+        )
         return values
 
     def load_test_runs(self) -> None:

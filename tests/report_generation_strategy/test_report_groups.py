@@ -180,24 +180,26 @@ class TestGrouping:
             "      - 3"
         )
 
-    def test_differences_skip_null_defaults_recursively_v2(self) -> None:
-        diff: dict[str, list[object]] = {
-            "docker_image_url": [None, "nvcr.io/example/image:latest"],
-            "phases": [
-                [{"name": "prefill", "command": None}, None],
-                [{"name": "prefill", "command": "serve"}],
-            ],
-        }
+    def test_structured_differences_skip_null_defaults_v2(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {"docker_image_url": None, "prefill": {"gpu_ids": None, "tensor_parallel_size": 2}},
+                {
+                    "docker_image_url": "nvcr.io/example/image:latest",
+                    "prefill": {"gpu_ids": "0,1", "tensor_parallel_size": 1},
+                },
+            ]
+        )
 
         first = ComparisonReport._structured_diff(diff, 0)
         second = ComparisonReport._structured_diff(diff, 1)
 
-        assert first == {"phases": [{"name": "prefill"}]}
+        assert first == {"prefill": {"tensor_parallel_size": 2}}
         assert second == {
             "docker_image_url": "nvcr.io/example/image:latest",
-            "phases": [{"name": "prefill", "command": "serve"}],
+            "prefill": {"gpu_ids": "0,1", "tensor_parallel_size": 1},
         }
-        assert ComparisonReport._format_diff_yaml(first) == "phases:\n  - name: prefill"
+        assert ComparisonReport._format_diff_yaml(first) == "prefill:\n  tensor_parallel_size: 2"
 
 
 class TestComparisonValues:
@@ -250,7 +252,7 @@ class TestComparisonValues:
 
         assert diff == {
             "prefill": [
-                {"gpu_ids": None, "tensor_parallel_size": 2},
+                {"tensor_parallel_size": 2},
                 {"gpu_ids": "0,1", "tensor_parallel_size": 1},
             ]
         }
