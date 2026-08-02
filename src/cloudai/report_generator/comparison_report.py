@@ -224,8 +224,11 @@ class ComparisonReport(Reporter, ABC):
 
     def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
         """Render legacy Bokeh charts from normalized sections."""
+        return self._render_bokeh_charts(self.build_sections(cmp_groups))
+
+    def _render_bokeh_charts(self, sections: list[ComparisonSection]) -> list[bk.figure]:
         charts: list[bk.figure] = []
-        for section in self.build_sections(cmp_groups):
+        for section in sections:
             if section.chart_type == "bar":
                 charts.append(self.create_bar_chart(section))
             else:
@@ -244,21 +247,7 @@ class ComparisonReport(Reporter, ABC):
     def get_bokeh_html(self, sections: list[ComparisonSection] | None = None) -> tuple[str, str]:
         if sections is None:
             sections = self.build_sections(self.group_test_runs())
-        charts: list[bk.figure] = []
-        for section in sections:
-            if section.chart_type == "bar":
-                charts.append(self.create_bar_chart(section))
-            else:
-                charts.append(
-                    self.create_chart(
-                        section.group,
-                        section.dfs,
-                        section.title,
-                        section.info_columns,
-                        section.data_columns,
-                        section.y_axis_label,
-                    )
-                )
+        charts = self._render_bokeh_charts(sections)
 
         # layout with 2 charts per row
         rows = []
@@ -318,7 +307,7 @@ class ComparisonReport(Reporter, ABC):
         console_html = self._render_console(sections)
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(self.template_path),
-            autoescape=jinja2.select_autoescape(),
+            autoescape=jinja2.select_autoescape(enabled_extensions=("html", "htm", "xml", "jinja2")),
         )
         rendered_reports = [
             ("Comparison report", self.report_file_name, self._render_html(env, sections, console_html)),
@@ -327,7 +316,7 @@ class ComparisonReport(Reporter, ABC):
 
         for report_name, file_name, content in rendered_reports:
             report_path = self.results_root / file_name
-            report_path.write_text(content)
+            report_path.write_text(content, encoding="utf-8")
             logging.info(f"{report_name} created: {report_path}")
 
     @property
