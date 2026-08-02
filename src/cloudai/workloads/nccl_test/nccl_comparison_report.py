@@ -64,6 +64,9 @@ class NcclComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=list(self.LATENCY_DATA_COLUMNS),
                         y_axis_label="Time (us)",
+                        x_axis_type="indexed_category",
+                        x_axis_column="Size Human-readable",
+                        x_axis_label="Message size",
                         legacy_chart_title="Latecy",
                     ),
                     ComparisonSection(
@@ -73,6 +76,9 @@ class NcclComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=list(self.BANDWIDTH_DATA_COLUMNS),
                         y_axis_label="Busbw (GB/s)",
+                        x_axis_type="indexed_category",
+                        x_axis_column="Size Human-readable",
+                        x_axis_label="Message size",
                     ),
                 ]
             )

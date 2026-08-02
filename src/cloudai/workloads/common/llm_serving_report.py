@@ -202,6 +202,7 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
                         data_columns=["value"],
                         y_axis_label="Latency (ms)",
                         chart_type="bar",
+                        y_axis_type="auto",
                     ),
                     cloudai.report_generator.comparison_report.ComparisonSection(
                         group=group,

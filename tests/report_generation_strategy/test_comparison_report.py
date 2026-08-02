@@ -110,6 +110,17 @@ def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_t
     assert ".chart-shell.is-enhanced ~ .chart-fallback" in v2_content
     assert "dataset.borderDash = []" in v2_content
     assert "overflow-x: auto" in v2_content
+    assert "width: fit-content" in v2_content
+    assert "min-width: 100%" not in v2_content
+    assert "const isShiftWheel = event.shiftKey" in v2_content
+    assert "event.deltaY) >= Math.abs(event.deltaX)" in v2_content
+    assert "wheel: {\n                                    enabled: false" in v2_content
+    assert "Shift + wheel or pinch to zoom" in v2_content
+    assert "max-width: 18rem" in v2_content
+    assert "width: clamp(16rem, 24vw, 32rem)" not in v2_content
+    assert 'mode: "xy"' in v2_content
+    assert "indexedCategoryLimits" not in v2_content
+    assert "useAutoLogScale" in v2_content
     assert nccl_tr.name in v2_content
 
 
@@ -145,6 +156,44 @@ def test_v2_payload_uses_compact_labels_and_structured_differences(
     assert table["data_headers"][0]["differences_yaml"] == (
         f'docker_image_url: "{long_image}"\nprefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
     )
+
+
+def test_v2_indexed_category_axis_uses_display_labels(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
+        dfs=[pd.DataFrame({"size": [256, 1024, 4096], "size_label": ["256B", "1KB", "4KB"], "value": [1, 2, 3]})],
+        title="Latency",
+        info_columns=["size"],
+        data_columns=["value"],
+        y_axis_label="Time (us)",
+        x_axis_type="indexed_category",
+        x_axis_column="size_label",
+        x_axis_label="Message size",
+    )
+
+    chart = cmp_report._build_v2_chart(section, 0)
+
+    assert chart["x_axis_type"] == "indexed_category"
+    assert chart["x_axis_label"] == "Message size"
+    assert chart["labels"] == ["256B", "1KB", "4KB"]
+    assert chart["datasets"][0]["data"] == [1.0, 2.0, 3.0]
+
+
+def test_v2_auto_y_axis_is_in_payload(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
+        dfs=[pd.DataFrame({"metric": ["TTFT", "TPOT"], "value": [3500, 3.5]})],
+        title="Latency",
+        info_columns=["metric"],
+        data_columns=["value"],
+        y_axis_label="Latency (ms)",
+        chart_type="bar",
+        y_axis_type="auto",
+    )
+
+    chart = cmp_report._build_v2_chart(section, 0)
+
+    assert chart["y_axis_type"] == "auto"
 
 
 @pytest.mark.parametrize(

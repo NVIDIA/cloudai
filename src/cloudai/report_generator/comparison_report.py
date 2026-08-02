@@ -57,6 +57,10 @@ class ComparisonSection:
     data_columns: list[str]
     y_axis_label: str
     chart_type: Literal["line", "bar"] = "line"
+    x_axis_type: Literal["linear", "logarithmic", "category", "indexed_category"] = "logarithmic"
+    x_axis_column: str | None = None
+    x_axis_label: str | None = None
+    y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
     legacy_chart_title: str | None = None
     legacy_category_prefix: str = ""
 
@@ -428,45 +432,63 @@ class ComparisonReport(Reporter, ABC):
                 )
         return labels, datasets
 
-    def _build_v2_line_datasets(self, section: ComparisonSection) -> list[dict[str, Any]]:
+    def _build_v2_line_datasets(self, section: ComparisonSection) -> tuple[list[str] | None, list[dict[str, Any]]]:
         datasets: list[dict[str, Any]] = []
         include_metric = len(section.data_columns) > 1
+        x_column = section.x_axis_column or section.info_columns[0]
+        labels: list[str] | None = None
+        if section.x_axis_type in ("category", "indexed_category"):
+            widest_df = max(section.dfs, key=len)
+            labels = [self._display_value(value) for value in widest_df[x_column].tolist()]
+
         for data_column in section.data_columns:
             for item, df in zip(section.group.items, section.dfs, strict=True):
-                points: list[dict[str, float]] = []
-                if not df.empty and data_column in df:
-                    pairs = zip(
-                        df[section.info_columns[0]].tolist(),
-                        df[data_column].tolist(),
-                        strict=True,
+                if labels is not None:
+                    data: list[float | None] | list[dict[str, float]] = [
+                        self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
+                    ]
+                else:
+                    points: list[dict[str, float]] = []
+                    pairs = (
+                        zip(
+                            df[x_column].tolist(),
+                            df[data_column].tolist(),
+                            strict=True,
+                        )
+                        if not df.empty and data_column in df
+                        else []
                     )
                     for x_value, y_value in pairs:
-                        x = self._numeric_value(x_value)
-                        y = self._numeric_value(y_value)
-                        if x is not None and y is not None:
-                            points.append({"x": x, "y": y})
+                        numeric_x = self._numeric_value(x_value)
+                        numeric_y = self._numeric_value(y_value)
+                        if numeric_x is not None and numeric_y is not None:
+                            points.append({"x": numeric_x, "y": numeric_y})
+                    data = points
                 datasets.append(
                     {
                         "label": self._chart_label(item, data_column, include_metric),
-                        "data": points,
+                        "data": data,
                     }
                 )
-        return datasets
+        return labels, datasets
 
     def _build_v2_chart(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
         if section.chart_type == "bar":
             chart_labels, datasets = self._build_v2_bar_datasets(section)
+            x_axis_type = "category"
         else:
-            chart_labels = None
-            datasets = self._build_v2_line_datasets(section)
+            chart_labels, datasets = self._build_v2_line_datasets(section)
+            x_axis_type = section.x_axis_type
 
         return {
             "id": f"comparison-chart-{chart_idx}",
             "type": section.chart_type,
             "labels": chart_labels,
             "datasets": datasets,
-            "x_axis_label": section.info_columns[0],
+            "x_axis_label": section.x_axis_label or section.x_axis_column or section.info_columns[0],
+            "x_axis_type": x_axis_type,
             "y_axis_label": section.y_axis_label,
+            "y_axis_type": section.y_axis_type,
         }
 
     def _build_v2_table(self, section: ComparisonSection) -> dict[str, Any]:

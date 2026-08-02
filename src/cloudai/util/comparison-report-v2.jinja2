@@ -15,12 +15,14 @@
     }
     .comparison-grid {
         display: flex;
-        flex-direction: column;
+        flex-wrap: wrap;
+        align-items: flex-start;
         gap: 1.25rem;
     }
     .comparison-card {
-        width: 100%;
-        min-width: 0;
+        flex: 0 1 auto;
+        width: fit-content;
+        min-width: min(100%, 42rem);
         max-width: 100%;
         padding: 1.25rem;
         border: 1px solid var(--nv-border);
@@ -140,7 +142,7 @@
         display: none;
     }
     .comparison-table-shell {
-        width: 100%;
+        width: fit-content;
         max-width: 100%;
         overflow-x: auto;
         overscroll-behavior-inline: contain;
@@ -153,27 +155,28 @@
         margin: 0;
         width: max-content;
         max-width: none;
-        min-width: 100%;
         table-layout: auto;
         border-radius: 0;
         box-shadow: none;
         font-size: 0.9rem;
     }
-    .comparison-table th,
     .comparison-table td {
         white-space: nowrap;
     }
     .comparison-table th {
         min-width: 8rem;
         vertical-align: bottom;
+        white-space: normal;
     }
     .run-label {
         display: block;
+        max-width: 18rem;
+        overflow-wrap: anywhere;
         color: var(--nv-ink);
     }
     .run-differences {
         margin: 0.45rem 0 0;
-        width: clamp(16rem, 24vw, 32rem);
+        max-width: 18rem;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
         word-break: normal;
@@ -207,7 +210,7 @@
             padding: 10px 12px;
         }
         .run-differences {
-            width: 15rem;
+            max-width: 15rem;
         }
     }
 </style>
@@ -237,6 +240,14 @@
 
             const payload = JSON.parse(dataNode.textContent);
             const isLine = payload.type === "line";
+            const isCategory = payload.x_axis_type === "category";
+            const isIndexedCategory = payload.x_axis_type === "indexed_category";
+
+            if (isIndexedCategory) {
+                payload.datasets.forEach((dataset) => {
+                    dataset.data = dataset.data.map((value, index) => ({x: index, y: value}));
+                });
+            }
             payload.datasets.forEach((dataset, index) => {
                 const color = seriesColor(index);
                 dataset.borderColor = color;
@@ -252,6 +263,39 @@
                 dataset.pointBorderWidth = isLine ? 1.5 : 0;
                 dataset.tension = isLine ? 0.12 : 0;
             });
+
+            const xScale = {
+                type: isIndexedCategory ? "linear" : payload.x_axis_type,
+                title: {
+                    display: true,
+                    text: payload.x_axis_label
+                },
+                grid: {
+                    color: "rgba(57, 66, 78, 0.08)"
+                }
+            };
+            if (isIndexedCategory) {
+                xScale.min = -0.5;
+                xScale.max = payload.labels.length - 0.5;
+                xScale.ticks = {
+                    stepSize: 1,
+                    callback: function (value) {
+                        const index = Math.round(value);
+                        return Math.abs(value - index) < 0.001 ? (payload.labels[index] || "") : "";
+                    }
+                };
+            }
+
+            const numericValues = payload.datasets.flatMap((dataset) => dataset.data.map((point) => {
+                const value = point !== null && typeof point === "object" ? point.y : point;
+                return typeof value === "number" && Number.isFinite(value) ? value : null;
+            })).filter((value) => value !== null);
+            const positiveValues = numericValues.filter((value) => value > 0);
+            const useAutoLogScale = payload.y_axis_type === "auto"
+                && positiveValues.length === numericValues.length
+                && Math.max(...positiveValues) / Math.min(...positiveValues) >= 100;
+            const yAxisType = useAutoLogScale ? "logarithmic" :
+                (payload.y_axis_type === "auto" ? "linear" : payload.y_axis_type);
 
             const chart = new Chart(canvas, {
                 type: payload.type,
@@ -283,7 +327,11 @@
                                         return "";
                                     }
                                     const parsed = items[0].parsed;
-                                    return payload.x_axis_label + ": " + (isLine ? parsed.x : items[0].label);
+                                    const categoryLabel = isIndexedCategory
+                                        ? payload.labels[Math.round(parsed.x)]
+                                        : items[0].label;
+                                    return payload.x_axis_label + ": "
+                                        + ((isCategory || isIndexedCategory) ? categoryLabel : parsed.x);
                                 },
                                 label: function (context) {
                                     const value = context.parsed.y;
@@ -295,11 +343,12 @@
                             pan: {
                                 enabled: true,
                                 mode: "xy",
-                                modifierKey: "shift"
+                                modifierKey: "shift",
+                                threshold: 2
                             },
                             zoom: {
                                 wheel: {
-                                    enabled: true
+                                    enabled: false
                                 },
                                 pinch: {
                                     enabled: true
@@ -309,21 +358,13 @@
                         }
                     },
                     scales: {
-                        x: {
-                            type: isLine ? "logarithmic" : "category",
-                            title: {
-                                display: true,
-                                text: payload.x_axis_label
-                            },
-                            grid: {
-                                color: "rgba(57, 66, 78, 0.08)"
-                            }
-                        },
+                        x: xScale,
                         y: {
-                            beginAtZero: payload.type === "bar",
+                            type: yAxisType,
+                            beginAtZero: payload.type === "bar" && yAxisType === "linear",
                             title: {
                                 display: true,
-                                text: payload.y_axis_label
+                                text: payload.y_axis_label + (yAxisType === "logarithmic" ? " (log scale)" : "")
                             },
                             grid: {
                                 color: "rgba(57, 66, 78, 0.10)"
@@ -333,6 +374,35 @@
                 }
             });
             canvas.parentElement.classList.add("is-enhanced");
+
+            canvas.addEventListener("wheel", function (event) {
+                const isShiftWheel = event.shiftKey;
+                const isTrackpadPinch = event.ctrlKey && !event.shiftKey;
+                if (!isShiftWheel && !isTrackpadPinch) {
+                    return;
+                }
+
+                const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+                if (delta === 0) {
+                    return;
+                }
+
+                event.preventDefault();
+                const speed = 0.1;
+                const factor = delta < 0 ? 1 + speed : 2 - 1 / (1 - speed);
+                const rect = canvas.getBoundingClientRect();
+                chart.zoom(
+                    {
+                        x: factor,
+                        y: factor,
+                        focalPoint: {
+                            x: event.clientX - rect.left,
+                            y: event.clientY - rect.top
+                        }
+                    },
+                    "none"
+                );
+            }, {passive: false});
 
             const card = canvas.closest(".comparison-card");
             const fallback = card ? card.querySelector(".chart-fallback") : null;
@@ -371,7 +441,7 @@
             ></canvas>
         </div>
         <div class="chart-controls">
-            <p>Wheel or pinch to zoom · Shift + drag to pan · double-click to reset</p>
+            <p>Shift + wheel or pinch to zoom · Shift + drag to pan · double-click to reset</p>
             <button type="button" class="reset-zoom js-reset-zoom">Reset view</button>
         </div>
         <p class="chart-fallback">Interactive chart unavailable. The complete numeric data remains available below.</p>
