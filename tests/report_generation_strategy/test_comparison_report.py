@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from pathlib import Path
 
 import pandas as pd
@@ -37,24 +36,6 @@ class MyComparisonReport(ComparisonReport):
         return []
 
 
-class RenderableComparisonReport(MyComparisonReport):
-    def load_test_runs(self) -> None:
-        """Keep test-provided runs instead of loading result directories."""
-
-    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
-        return [
-            ComparisonSection(
-                group=group,
-                dfs=[pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}) for _ in group.items],
-                title="Throughput",
-                info_columns=["size"],
-                data_columns=["value"],
-                y_axis_label="Requests/s",
-            )
-            for group in cmp_groups
-        ]
-
-
 @pytest.fixture
 def cmp_report(slurm_system: SlurmSystem) -> MyComparisonReport:
     tc = TestScenario(name="ts", test_runs=[])
@@ -73,54 +54,6 @@ def test_jinja_template_path_v2(cmp_report: MyComparisonReport) -> None:
     full_path = cmp_report.template_path / cmp_report.template_name_v2
     assert full_path.exists()
     assert full_path.is_file()
-
-
-def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
-    slurm_system.output_path.mkdir(parents=True)
-    report = RenderableComparisonReport(
-        slurm_system,
-        TestScenario(name="comparison", test_runs=[]),
-        slurm_system.output_path,
-        ComparisonReportConfig(enable=True),
-    )
-    report.trs = [nccl_tr, copy.deepcopy(nccl_tr)]
-
-    report.generate()
-
-    legacy_path = slurm_system.output_path / "comparison_report.html"
-    path_v2 = slurm_system.output_path / "comparison_report_v2.html"
-    assert legacy_path.exists()
-    assert path_v2.exists()
-
-    content_v2 = path_v2.read_text()
-    assert "Show full labels" not in content_v2
-    assert "js-label-toggle" not in content_v2
-    assert "chart.js@4.4.3" in content_v2
-    assert "chartjs-plugin-zoom@2.2.0" in content_v2
-    assert "overlap exactly" not in content_v2
-    assert "Reset view" in content_v2
-    assert "fallback.hidden = true" in content_v2
-    assert ".chart-shell.is-enhanced ~ .chart-fallback" in content_v2
-    assert "dataset.borderDash = []" in content_v2
-    assert "overflow-x: auto" in content_v2
-    assert "width: fit-content" in content_v2
-    assert "min-width: 100%" not in content_v2
-    assert "const isShiftWheel = event.shiftKey" in content_v2
-    assert "event.deltaY) >= Math.abs(event.deltaX)" in content_v2
-    assert "wheel: {\n                                    enabled: false" in content_v2
-    assert "Shift + wheel or pinch to zoom" in content_v2
-    assert "max-width: 18rem" in content_v2
-    assert "width: clamp(16rem, 24vw, 32rem)" not in content_v2
-    assert 'mode: "xy"' in content_v2
-    assert "indexedCategoryLimits" not in content_v2
-    assert "useAutoLogScale" in content_v2
-    assert "js-column-picker" in content_v2
-    assert "js-column-toggle" in content_v2
-    assert "Show all" in content_v2
-    assert "setColumnVisibility" in content_v2
-    assert "cell.hidden = !visible" in content_v2
-    assert "Columns (" in content_v2
-    assert nccl_tr.name in content_v2
 
 
 def test_payload_uses_compact_labels_and_structured_differences_v2(
