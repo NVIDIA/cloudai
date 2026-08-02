@@ -141,13 +141,89 @@
     .chart-shell.is-enhanced ~ .chart-fallback {
         display: none;
     }
+    .comparison-table-region {
+        width: fit-content;
+        max-width: 100%;
+        margin-top: 1.1rem;
+    }
+    .table-toolbar {
+        position: relative;
+        display: flex;
+        width: fit-content;
+        margin-bottom: 0.45rem;
+    }
+    .column-picker {
+        display: none;
+    }
+    .column-picker.is-enhanced {
+        display: block;
+    }
+    .column-picker summary {
+        padding: 0.35rem 0.7rem;
+        border: 1px solid rgba(118, 185, 0, 0.42);
+        border-radius: 999px;
+        background: var(--nv-surface);
+        color: var(--nv-green-strong);
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        list-style: none;
+    }
+    .column-picker summary::-webkit-details-marker {
+        display: none;
+    }
+    .column-picker summary:hover {
+        background: var(--nv-green-soft);
+    }
+    .column-picker-panel {
+        position: absolute;
+        z-index: 10;
+        top: calc(100% + 0.35rem);
+        left: 0;
+        display: grid;
+        gap: 0.35rem;
+        width: max-content;
+        min-width: 16rem;
+        max-width: min(32rem, calc(100vw - 3rem));
+        max-height: min(28rem, 70vh);
+        padding: 0.7rem;
+        overflow: auto;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-md);
+        background: var(--nv-surface);
+        box-shadow: var(--nv-shadow);
+    }
+    .column-picker-option {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+        gap: 0.5rem;
+        min-width: 0;
+        font-size: 0.8rem;
+        line-height: 1.35;
+        cursor: pointer;
+    }
+    .column-picker-option span {
+        overflow-wrap: anywhere;
+    }
+    .show-all-columns {
+        width: fit-content;
+        margin-top: 0.35rem;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-sm);
+        background: var(--nv-surface-alt);
+        color: var(--nv-ink);
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
     .comparison-table-shell {
         width: fit-content;
         max-width: 100%;
         overflow-x: auto;
         overscroll-behavior-inline: contain;
         scrollbar-gutter: stable;
-        margin-top: 1.1rem;
         border: 1px solid rgba(17, 17, 17, 0.07);
         border-radius: var(--radius-md);
     }
@@ -216,6 +292,48 @@
 </style>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".js-column-picker").forEach((picker) => {
+            const table = document.getElementById(picker.dataset.tableId);
+            if (!table) {
+                return;
+            }
+
+            const inputs = Array.from(picker.querySelectorAll(".js-column-toggle"));
+            const summary = picker.querySelector(".js-column-picker-summary");
+            const showAllButton = picker.querySelector(".js-show-all-columns");
+
+            function setColumnVisibility(columnIndex, visible) {
+                Array.from(table.rows).forEach((row) => {
+                    const cell = row.cells[columnIndex];
+                    if (cell) {
+                        cell.hidden = !visible;
+                    }
+                });
+            }
+
+            function updateSummary() {
+                const visibleCount = inputs.filter((input) => input.checked).length;
+                summary.textContent = `Columns (${visibleCount}/${inputs.length})`;
+            }
+
+            inputs.forEach((input) => {
+                input.addEventListener("change", function () {
+                    setColumnVisibility(Number(input.dataset.columnIndex), input.checked);
+                    updateSummary();
+                });
+            });
+            showAllButton.addEventListener("click", function () {
+                inputs.forEach((input) => {
+                    input.checked = true;
+                    setColumnVisibility(Number(input.dataset.columnIndex), true);
+                });
+                updateSummary();
+            });
+
+            updateSummary();
+            picker.classList.add("is-enhanced");
+        });
+
         const rootStyles = getComputedStyle(document.documentElement);
         const nvidiaGreen = rootStyles.getPropertyValue("--nv-green").trim() || "#76b900";
         const nvidiaDarkGray = rootStyles.getPropertyValue("--nv-dark-gray").trim() || "#1e1e1e";
@@ -469,8 +587,41 @@
             </div>
         </details>
 
-        <div class="comparison-table-shell">
-            <table class="comparison-table">
+        {% set table_id = "comparison-table-" ~ loop.index0 %}
+        <div class="comparison-table-region">
+            <div class="table-toolbar">
+                <details class="column-picker js-column-picker" data-table-id="{{ table_id }}">
+                    <summary class="js-column-picker-summary">Columns</summary>
+                    <div class="column-picker-panel" role="group" aria-label="Visible table columns">
+                        {% for header in section.table.info_headers %}
+                        <label class="column-picker-option">
+                            <input
+                                type="checkbox"
+                                class="js-column-toggle"
+                                data-column-index="{{ loop.index0 }}"
+                                checked
+                            >
+                            <span>{{ header }}</span>
+                        </label>
+                        {% endfor %}
+                        {% set info_column_count = section.table.info_headers | length %}
+                        {% for header in section.table.data_headers %}
+                        <label class="column-picker-option">
+                            <input
+                                type="checkbox"
+                                class="js-column-toggle"
+                                data-column-index="{{ info_column_count + loop.index0 }}"
+                                checked
+                            >
+                            <span>{{ header.name }} · {{ header.metric }}</span>
+                        </label>
+                        {% endfor %}
+                        <button type="button" class="show-all-columns js-show-all-columns">Show all</button>
+                    </div>
+                </details>
+            </div>
+            <div class="comparison-table-shell">
+            <table class="comparison-table" id="{{ table_id }}">
                 <thead>
                     <tr>
                         {% for header in section.table.info_headers %}
@@ -500,6 +651,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
     </section>
     {% endfor %}

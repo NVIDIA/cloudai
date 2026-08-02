@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
+import collections
+import collections.abc
+import dataclasses
 import logging
 from abc import ABC, abstractmethod
-from collections import Counter, defaultdict
-from collections.abc import Mapping
-from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-@dataclass
+@dataclasses.dataclass
 class ComparisonSection:
     """Normalized comparison data consumed by both report renderers."""
 
@@ -118,8 +118,8 @@ class ComparisonReport(Reporter, ABC):
         """Create a comparison group using report-specific comparison values."""
         diff = diff_comparison_values([self.comparison_values(tr) for tr in trs])
         compact_names = [self._compact_case_name(tr) for tr in trs]
-        duplicate_names = Counter(compact_names)
-        duplicate_indexes: defaultdict[str, int] = defaultdict(int)
+        duplicate_names = collections.Counter(compact_names)
+        duplicate_indexes: collections.defaultdict[str, int] = collections.defaultdict(int)
         items: list[TRGroupItem] = []
         for idx, tr in enumerate(trs):
             name = f"{group_idx}.{idx}"
@@ -156,6 +156,9 @@ class ComparisonReport(Reporter, ABC):
         """Return one run's differing parameters as a nested mapping."""
         result: dict[str, Any] = {}
         for field, values in diff.items():
+            value = cls._without_nulls(values[item_idx])
+            if value is None:
+                continue
             path = field.split(".")
             target = result
             for key in path[:-1]:
@@ -164,8 +167,25 @@ class ComparisonReport(Reporter, ABC):
                     nested = {}
                     target[key] = nested
                 target = nested
-            target[path[-1]] = values[item_idx]
+            target[path[-1]] = value
         return result
+
+    @classmethod
+    def _without_nulls(cls, value: object) -> object | None:
+        """Remove null defaults from a structured difference."""
+        if value is None:
+            return None
+        if isinstance(value, collections.abc.Mapping):
+            cleaned = {
+                key: cleaned_value
+                for key, nested_value in value.items()
+                if (cleaned_value := cls._without_nulls(nested_value)) is not None
+            }
+            return cleaned or ({} if not value else None)
+        if isinstance(value, (list, tuple)):
+            cleaned_items = [cleaned_item for item in value if (cleaned_item := cls._without_nulls(item)) is not None]
+            return cleaned_items or ([] if not value else None)
+        return value
 
     @staticmethod
     def _yaml_scalar(value: object) -> str:
@@ -181,13 +201,13 @@ class ComparisonReport(Reporter, ABC):
     @classmethod
     def _diff_yaml_lines(cls, value: object, indent: int = 0) -> list[str]:
         prefix = "  " * indent
-        if isinstance(value, Mapping):
+        if isinstance(value, collections.abc.Mapping):
             lines: list[str] = []
             for key, nested_value in value.items():
                 is_nested_sequence = isinstance(nested_value, (list, tuple)) and any(
-                    isinstance(item, (Mapping, list, tuple)) for item in nested_value
+                    isinstance(item, (collections.abc.Mapping, list, tuple)) for item in nested_value
                 )
-                if isinstance(nested_value, Mapping) or is_nested_sequence:
+                if isinstance(nested_value, collections.abc.Mapping) or is_nested_sequence:
                     lines.append(f"{prefix}{key}:")
                     lines.extend(cls._diff_yaml_lines(nested_value, indent + 1))
                 elif isinstance(nested_value, (list, tuple)):
@@ -199,7 +219,16 @@ class ComparisonReport(Reporter, ABC):
         if isinstance(value, (list, tuple)):
             lines = []
             for item in value:
-                if isinstance(item, (Mapping, list, tuple)):
+                if isinstance(item, collections.abc.Mapping):
+                    nested_lines = cls._diff_yaml_lines(item, indent + 1)
+                    if nested_lines:
+                        nested_prefix = "  " * (indent + 1)
+                        first_line = nested_lines[0].removeprefix(nested_prefix)
+                        lines.append(f"{prefix}- {first_line}")
+                        lines.extend(nested_lines[1:])
+                    else:
+                        lines.append(f"{prefix}- {{}}")
+                elif isinstance(item, (list, tuple)):
                     lines.append(f"{prefix}-")
                     lines.extend(cls._diff_yaml_lines(item, indent + 1))
                 else:
@@ -208,20 +237,20 @@ class ComparisonReport(Reporter, ABC):
         return [f"{prefix}{cls._yaml_scalar(value)}"]
 
     @classmethod
-    def _format_diff_yaml(cls, differences: Mapping[str, object] | None) -> str:
-        return "\n".join(cls._diff_yaml_lines(differences or {}))
+    def _format_diff_yaml(cls, differences: collections.abc.Mapping[str, object] | None) -> str:
+        return "\n".join(cls._diff_yaml_lines(cls._without_nulls(differences or {}) or {}))
 
     @classmethod
-    def _diff_entries(cls, differences: Mapping[str, object] | None) -> list[dict[str, str]]:
+    def _diff_entries(cls, differences: collections.abc.Mapping[str, object] | None) -> list[dict[str, str]]:
         entries: list[dict[str, str]] = []
 
         def visit(value: object, path: str) -> None:
-            if isinstance(value, Mapping):
+            if isinstance(value, collections.abc.Mapping):
                 for key, nested_value in value.items():
                     visit(nested_value, f"{path}.{key}" if path else str(key))
                 return
             if isinstance(value, (list, tuple)):
-                if any(isinstance(item, (Mapping, list, tuple)) for item in value):
+                if any(isinstance(item, (collections.abc.Mapping, list, tuple)) for item in value):
                     for idx, nested_value in enumerate(value):
                         visit(nested_value, f"{path}[{idx}]")
                     return
@@ -229,7 +258,7 @@ class ComparisonReport(Reporter, ABC):
                 return
             entries.append({"name": path, "value": cls._yaml_scalar(value)})
 
-        visit(differences or {}, "")
+        visit(cls._without_nulls(differences or {}) or {}, "")
         return entries
 
     def group_test_runs(self) -> list[GroupedTestRuns]:

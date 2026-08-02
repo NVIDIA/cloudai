@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,42 +16,47 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import pathlib
 from typing import TYPE_CHECKING
 
-from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
-from cloudai.report_generator.groups import GroupedTestRuns
+import cloudai.core
+import cloudai.report_generator.comparison_report
+import cloudai.report_generator.groups
+import cloudai.workloads.nixl_bench.nixl_bench as nixl_bench
 from cloudai.util.lazy_imports import lazy
-
-from .nixl_bench import NIXLBenchTestDefinition
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class NIXLBenchComparisonReport(ComparisonReport):
+class NIXLBenchComparisonReport(cloudai.report_generator.comparison_report.ComparisonReport):
     """Comparison report for NIXL Bench."""
 
     INFO_COLUMNS = ("block_size", "batch_size")
 
     def __init__(
-        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
+        self,
+        system: cloudai.core.System,
+        test_scenario: cloudai.core.TestScenario,
+        results_root: pathlib.Path,
+        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.report_file_name = "nixl_comparison.html"
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, nixl_bench.NIXLBenchTestDefinition)]
 
-    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
-        sections: list[ComparisonSection] = []
+    def build_sections(
+        self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
+    ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
+        sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
             sections.extend(
                 [
-                    ComparisonSection(
+                    cloudai.report_generator.comparison_report.ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Latency",
@@ -59,7 +64,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         data_columns=["avg_lat"],
                         y_axis_label="Time (us)",
                     ),
-                    ComparisonSection(
+                    cloudai.report_generator.comparison_report.ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Bandwidth",
@@ -71,7 +76,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
             )
         return sections
 
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
+    def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
         if (tr.output_path / "nixlbench.csv").exists():
             return lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
         return lazy.pd.DataFrame(

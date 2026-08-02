@@ -169,7 +169,7 @@ class TestGrouping:
         }
 
         assert ComparisonReport._format_diff_yaml(differences) == (
-            'phases:\n  -\n    name: "prefill"\n    workers: [0, 1]\n  -\n    name: "decode"\n    workers: [2, 3]'
+            'phases:\n  - name: "prefill"\n    workers: [0, 1]\n  - name: "decode"\n    workers: [2, 3]'
         )
         assert ComparisonReport._diff_entries(differences) == [
             {"name": "phases[0].name", "value": '"prefill"'},
@@ -177,6 +177,26 @@ class TestGrouping:
             {"name": "phases[1].name", "value": '"decode"'},
             {"name": "phases[1].workers", "value": "2, 3"},
         ]
+
+    def test_v2_differences_skip_null_defaults_recursively(self) -> None:
+        diff: dict[str, list[object]] = {
+            "docker_image_url": [None, "nvcr.io/example/image:latest"],
+            "phases": [
+                [{"name": "prefill", "command": None}, None],
+                [{"name": "prefill", "command": "serve"}],
+            ],
+        }
+
+        first = ComparisonReport._structured_diff(diff, 0)
+        second = ComparisonReport._structured_diff(diff, 1)
+
+        assert first == {"phases": [{"name": "prefill"}]}
+        assert second == {
+            "docker_image_url": "nvcr.io/example/image:latest",
+            "phases": [{"name": "prefill", "command": "serve"}],
+        }
+        assert ComparisonReport._format_diff_yaml(first) == 'phases:\n  - name: "prefill"'
+        assert ComparisonReport._diff_entries(first) == [{"name": "phases[0].name", "value": '"prefill"'}]
 
 
 class TestComparisonValues:

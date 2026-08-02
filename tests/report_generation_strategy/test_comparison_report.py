@@ -121,6 +121,12 @@ def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_t
     assert 'mode: "xy"' in v2_content
     assert "indexedCategoryLimits" not in v2_content
     assert "useAutoLogScale" in v2_content
+    assert "js-column-picker" in v2_content
+    assert "js-column-toggle" in v2_content
+    assert "Show all" in v2_content
+    assert "setColumnVisibility" in v2_content
+    assert "cell.hidden = !visible" in v2_content
+    assert "Columns (" in v2_content
     assert nccl_tr.name in v2_content
 
 
