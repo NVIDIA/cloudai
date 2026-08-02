@@ -30,7 +30,7 @@ class TRGroupItem:
     differences: dict[str, Any] | None = None
 
     @property
-    def v2_compact_name(self) -> str:
+    def compact_name_v2(self) -> str:
         """Return the concise label used by v2 reports."""
         return self.compact_name or self.name
 

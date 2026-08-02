@@ -76,8 +76,8 @@ def test_jinja_template_path(cmp_report: MyComparisonReport) -> None:
     assert full_path.is_file()
 
 
-def test_v2_jinja_template_path(cmp_report: MyComparisonReport) -> None:
-    full_path = cmp_report.template_path / cmp_report.v2_template_name
+def test_jinja_template_path_v2(cmp_report: MyComparisonReport) -> None:
+    full_path = cmp_report.template_path / cmp_report.template_name_v2
     assert full_path.exists()
     assert full_path.is_file()
 
@@ -95,42 +95,42 @@ def test_generate_writes_legacy_and_v2_reports(slurm_system: SlurmSystem, nccl_t
     report.generate()
 
     legacy_path = slurm_system.output_path / "comparison_report.html"
-    v2_path = slurm_system.output_path / "comparison_report_v2.html"
+    path_v2 = slurm_system.output_path / "comparison_report_v2.html"
     assert legacy_path.exists()
-    assert v2_path.exists()
+    assert path_v2.exists()
 
-    v2_content = v2_path.read_text()
-    assert "Show full labels" not in v2_content
-    assert "js-label-toggle" not in v2_content
-    assert "chart.js@4.4.3" in v2_content
-    assert "chartjs-plugin-zoom@2.2.0" in v2_content
-    assert "overlap exactly" not in v2_content
-    assert "Reset view" in v2_content
-    assert "fallback.hidden = true" in v2_content
-    assert ".chart-shell.is-enhanced ~ .chart-fallback" in v2_content
-    assert "dataset.borderDash = []" in v2_content
-    assert "overflow-x: auto" in v2_content
-    assert "width: fit-content" in v2_content
-    assert "min-width: 100%" not in v2_content
-    assert "const isShiftWheel = event.shiftKey" in v2_content
-    assert "event.deltaY) >= Math.abs(event.deltaX)" in v2_content
-    assert "wheel: {\n                                    enabled: false" in v2_content
-    assert "Shift + wheel or pinch to zoom" in v2_content
-    assert "max-width: 18rem" in v2_content
-    assert "width: clamp(16rem, 24vw, 32rem)" not in v2_content
-    assert 'mode: "xy"' in v2_content
-    assert "indexedCategoryLimits" not in v2_content
-    assert "useAutoLogScale" in v2_content
-    assert "js-column-picker" in v2_content
-    assert "js-column-toggle" in v2_content
-    assert "Show all" in v2_content
-    assert "setColumnVisibility" in v2_content
-    assert "cell.hidden = !visible" in v2_content
-    assert "Columns (" in v2_content
-    assert nccl_tr.name in v2_content
+    content_v2 = path_v2.read_text()
+    assert "Show full labels" not in content_v2
+    assert "js-label-toggle" not in content_v2
+    assert "chart.js@4.4.3" in content_v2
+    assert "chartjs-plugin-zoom@2.2.0" in content_v2
+    assert "overlap exactly" not in content_v2
+    assert "Reset view" in content_v2
+    assert "fallback.hidden = true" in content_v2
+    assert ".chart-shell.is-enhanced ~ .chart-fallback" in content_v2
+    assert "dataset.borderDash = []" in content_v2
+    assert "overflow-x: auto" in content_v2
+    assert "width: fit-content" in content_v2
+    assert "min-width: 100%" not in content_v2
+    assert "const isShiftWheel = event.shiftKey" in content_v2
+    assert "event.deltaY) >= Math.abs(event.deltaX)" in content_v2
+    assert "wheel: {\n                                    enabled: false" in content_v2
+    assert "Shift + wheel or pinch to zoom" in content_v2
+    assert "max-width: 18rem" in content_v2
+    assert "width: clamp(16rem, 24vw, 32rem)" not in content_v2
+    assert 'mode: "xy"' in content_v2
+    assert "indexedCategoryLimits" not in content_v2
+    assert "useAutoLogScale" in content_v2
+    assert "js-column-picker" in content_v2
+    assert "js-column-toggle" in content_v2
+    assert "Show all" in content_v2
+    assert "setColumnVisibility" in content_v2
+    assert "cell.hidden = !visible" in content_v2
+    assert "Columns (" in content_v2
+    assert nccl_tr.name in content_v2
 
 
-def test_v2_payload_uses_compact_labels_and_structured_differences(
+def test_payload_uses_compact_labels_and_structured_differences_v2(
     cmp_report: MyComparisonReport, nccl_tr: TestRun
 ) -> None:
     long_image = "nvcr.io/example/" + ("very-long-image-name-" * 10) + ":latest"
@@ -152,8 +152,8 @@ def test_v2_payload_uses_compact_labels_and_structured_differences(
         y_axis_label="Requests/s",
     )
 
-    chart = cmp_report._build_v2_chart(section, 0)
-    table = cmp_report._build_v2_table(section)
+    chart = cmp_report._build_chart_v2(section, 0)
+    table = cmp_report._build_table_v2(section)
 
     assert chart["datasets"][0]["label"] == "case-a"
     assert "fullLabel" not in chart["datasets"][0]
@@ -164,7 +164,7 @@ def test_v2_payload_uses_compact_labels_and_structured_differences(
     )
 
 
-def test_v2_indexed_category_axis_uses_display_labels(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+def test_indexed_category_axis_uses_display_labels_v2(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
     section = ComparisonSection(
         group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
         dfs=[pd.DataFrame({"size": [256, 1024, 4096], "size_label": ["256B", "1KB", "4KB"], "value": [1, 2, 3]})],
@@ -177,7 +177,7 @@ def test_v2_indexed_category_axis_uses_display_labels(cmp_report: MyComparisonRe
         x_axis_label="Message size",
     )
 
-    chart = cmp_report._build_v2_chart(section, 0)
+    chart = cmp_report._build_chart_v2(section, 0)
 
     assert chart["x_axis_type"] == "indexed_category"
     assert chart["x_axis_label"] == "Message size"
@@ -185,7 +185,7 @@ def test_v2_indexed_category_axis_uses_display_labels(cmp_report: MyComparisonRe
     assert chart["datasets"][0]["data"] == [1.0, 2.0, 3.0]
 
 
-def test_v2_auto_y_axis_is_in_payload(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
     section = ComparisonSection(
         group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
         dfs=[pd.DataFrame({"metric": ["TTFT", "TPOT"], "value": [3500, 3.5]})],
@@ -197,13 +197,13 @@ def test_v2_auto_y_axis_is_in_payload(cmp_report: MyComparisonReport, nccl_tr: T
         y_axis_type="auto",
     )
 
-    chart = cmp_report._build_v2_chart(section, 0)
+    chart = cmp_report._build_chart_v2(section, 0)
 
     assert chart["y_axis_type"] == "auto"
 
 
 @pytest.mark.parametrize(
-    ("report_cls", "legacy_name", "v2_name"),
+    ("report_cls", "legacy_name", "name_v2"),
     [
         (NIXLBenchComparisonReport, "nixl_comparison.html", "nixl_comparison_v2.html"),
         (NixlEPComparisonReport, "nixl_ep_comparison.html", "nixl_ep_comparison_v2.html"),
@@ -214,11 +214,11 @@ def test_v2_auto_y_axis_is_in_payload(cmp_report: MyComparisonReport, nccl_tr: T
         (AIDynamoComparisonReport, "ai_dynamo_comparison.html", "ai_dynamo_comparison_v2.html"),
     ],
 )
-def test_v2_report_file_names(
+def test_report_file_names_v2(
     slurm_system: SlurmSystem,
     report_cls: type[ComparisonReport],
     legacy_name: str,
-    v2_name: str,
+    name_v2: str,
 ) -> None:
     report = report_cls(
         slurm_system,
@@ -228,7 +228,7 @@ def test_v2_report_file_names(
     )
 
     assert report.report_file_name == legacy_name
-    assert report.v2_report_file_name == v2_name
+    assert report.report_file_name_v2 == name_v2
 
 
 class TestCreateTable:

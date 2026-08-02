@@ -81,7 +81,7 @@ class ComparisonReport(Reporter, ABC):
         super().__init__(system, test_scenario, results_root, config)
         self.template_path = Path(__file__).parent.parent / "util"
         self.template_name = "nixl_report_template.jinja2"
-        self.v2_template_name = "comparison-report-v2.jinja2"
+        self.template_name_v2 = "comparison-report-v2.jinja2"
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
 
@@ -385,19 +385,19 @@ class ComparisonReport(Reporter, ABC):
 
         logging.info(f"Comparison report created: {html_file}")
 
-        v2_template = env.get_template(self.v2_template_name)
-        v2_content = v2_template.render(
+        template_v2 = env.get_template(self.template_name_v2)
+        content_v2 = template_v2.render(
             name=f"{self.test_scenario.name} Comparison Report",
-            sections=self._build_v2_sections(sections),
+            sections=self._build_sections_v2(sections),
         )
-        v2_file = self.results_root / self.v2_report_file_name
-        with v2_file.open("w") as f:
-            f.write(v2_content)
+        file_v2 = self.results_root / self.report_file_name_v2
+        with file_v2.open("w") as f:
+            f.write(content_v2)
 
-        logging.info(f"Comparison report v2 created: {v2_file}")
+        logging.info(f"Comparison report v2 created: {file_v2}")
 
     @property
-    def v2_report_file_name(self) -> str:
+    def report_file_name_v2(self) -> str:
         report_path = Path(self.report_file_name)
         return f"{report_path.stem}_v2{report_path.suffix}"
 
@@ -442,9 +442,9 @@ class ComparisonReport(Reporter, ABC):
 
     @staticmethod
     def _chart_label(item: TRGroupItem, data_column: str, include_metric: bool) -> str:
-        return f"{item.v2_compact_name} · {data_column}" if include_metric else item.v2_compact_name
+        return f"{item.compact_name_v2} · {data_column}" if include_metric else item.compact_name_v2
 
-    def _build_v2_bar_datasets(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
+    def _build_bar_datasets_v2(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
         widest_df = max(section.dfs, key=len)
         labels = [self._display_value(value) for value in widest_df[section.info_columns[0]].tolist()]
         datasets: list[dict[str, Any]] = []
@@ -461,7 +461,7 @@ class ComparisonReport(Reporter, ABC):
                 )
         return labels, datasets
 
-    def _build_v2_line_datasets(self, section: ComparisonSection) -> tuple[list[str] | None, list[dict[str, Any]]]:
+    def _build_line_datasets_v2(self, section: ComparisonSection) -> tuple[list[str] | None, list[dict[str, Any]]]:
         datasets: list[dict[str, Any]] = []
         include_metric = len(section.data_columns) > 1
         x_column = section.x_axis_column or section.info_columns[0]
@@ -501,12 +501,12 @@ class ComparisonReport(Reporter, ABC):
                 )
         return labels, datasets
 
-    def _build_v2_chart(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
+    def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
         if section.chart_type == "bar":
-            chart_labels, datasets = self._build_v2_bar_datasets(section)
+            chart_labels, datasets = self._build_bar_datasets_v2(section)
             x_axis_type = "category"
         else:
-            chart_labels, datasets = self._build_v2_line_datasets(section)
+            chart_labels, datasets = self._build_line_datasets_v2(section)
             x_axis_type = section.x_axis_type
 
         return {
@@ -520,7 +520,7 @@ class ComparisonReport(Reporter, ABC):
             "y_axis_type": section.y_axis_type,
         }
 
-    def _build_v2_table(self, section: ComparisonSection) -> dict[str, Any]:
+    def _build_table_v2(self, section: ComparisonSection) -> dict[str, Any]:
         widest_df = max(section.dfs, key=len)
         show_diff = len(section.group.items) == 2
         data_headers: list[dict[str, str]] = []
@@ -528,7 +528,7 @@ class ComparisonReport(Reporter, ABC):
             for item in section.group.items:
                 data_headers.append(
                     {
-                        "name": item.v2_compact_name,
+                        "name": item.compact_name_v2,
                         "differences_yaml": self._format_diff_yaml(item.differences),
                         "metric": data_column,
                     }
@@ -560,16 +560,16 @@ class ComparisonReport(Reporter, ABC):
             "rows": rows,
         }
 
-    def _build_v2_sections(self, sections: list[ComparisonSection]) -> list[dict[str, Any]]:
+    def _build_sections_v2(self, sections: list[ComparisonSection]) -> list[dict[str, Any]]:
         return [
             {
                 "title": section.title,
                 "group_name": "All cases" if section.group.name == "all-in-one" else section.group.name,
-                "chart": self._build_v2_chart(section, idx),
-                "table": self._build_v2_table(section),
+                "chart": self._build_chart_v2(section, idx),
+                "table": self._build_table_v2(section),
                 "case_details": [
                     {
-                        "name": item.v2_compact_name,
+                        "name": item.compact_name_v2,
                         "differences": self._diff_entries(item.differences),
                     }
                     for item in section.group.items

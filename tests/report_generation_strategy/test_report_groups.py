@@ -121,7 +121,7 @@ class TestGrouping:
         assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
         assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
-    def test_v2_compact_name_includes_step_and_multi_iteration(
+    def test_compact_name_includes_step_and_multi_iteration_v2(
         self, slurm_system: SlurmSystem, nccl_tr: TestRun
     ) -> None:
         nccl_tr.name = "case-a"
@@ -131,19 +131,19 @@ class TestGrouping:
 
         item = _comparison_report(slurm_system, [nccl_tr], group_by=[]).group_test_runs()[0].items[0]
 
-        assert item.v2_compact_name == "case-a · step=3 · iter=0"
+        assert item.compact_name_v2 == "case-a · step=3 · iter=0"
 
-    def test_v2_duplicate_compact_names_are_disambiguated(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
+    def test_duplicate_compact_names_are_disambiguated_v2(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         items = (
             _comparison_report(slurm_system, [nccl_tr, copy.deepcopy(nccl_tr)], group_by=[]).group_test_runs()[0].items
         )
 
-        assert [item.v2_compact_name for item in items] == [
+        assert [item.compact_name_v2 for item in items] == [
             f"{nccl_tr.name} · run=1",
             f"{nccl_tr.name} · run=2",
         ]
 
-    def test_v2_differences_are_structured_and_rendered_as_yaml(self) -> None:
+    def test_differences_are_structured_and_rendered_as_yaml_v2(self) -> None:
         diff: dict[str, list[object]] = {
             "prefill": [
                 {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
@@ -160,7 +160,7 @@ class TestGrouping:
             'prefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
         )
 
-    def test_v2_yaml_keeps_lists_of_mappings_structured(self) -> None:
+    def test_yaml_keeps_lists_of_mappings_structured_v2(self) -> None:
         differences = {
             "phases": [
                 {"name": "prefill", "workers": [0, 1]},
@@ -178,7 +178,7 @@ class TestGrouping:
             {"name": "phases[1].workers", "value": "2, 3"},
         ]
 
-    def test_v2_differences_skip_null_defaults_recursively(self) -> None:
+    def test_differences_skip_null_defaults_recursively_v2(self) -> None:
         diff: dict[str, list[object]] = {
             "docker_image_url": [None, "nvcr.io/example/image:latest"],
             "phases": [
