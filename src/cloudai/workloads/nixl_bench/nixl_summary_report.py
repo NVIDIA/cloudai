@@ -19,9 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cloudai.report_generator.comparison_report
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
@@ -46,15 +45,13 @@ class NIXLBenchComparisonReport(ComparisonReport):
         super().load_test_runs()
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
-    def build_sections(
-        self, cmp_groups: list[GroupedTestRuns]
-    ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
-        sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
             sections.extend(
                 [
-                    cloudai.report_generator.comparison_report.ComparisonSection(
+                    ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Latency",
@@ -62,7 +59,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         data_columns=["avg_lat"],
                         y_axis_label="Time (us)",
                     ),
-                    cloudai.report_generator.comparison_report.ComparisonSection(
+                    ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Bandwidth",

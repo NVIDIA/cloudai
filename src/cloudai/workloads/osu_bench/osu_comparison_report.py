@@ -20,9 +20,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cloudai.report_generator.comparison_report
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
@@ -66,16 +65,14 @@ class OSUBenchComparisonReport(ComparisonReport):
         """Only include a metric if all compared DataFrames have it."""
         return bool(dfs) and all((col in df.columns) and df[col].notna().any() for df in dfs)
 
-    def build_sections(
-        self, cmp_groups: list[GroupedTestRuns]
-    ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
-        sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
 
             if self._has_metric(dfs, "avg_lat"):
                 sections.append(
-                    cloudai.report_generator.comparison_report.ComparisonSection(
+                    ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Latency",
@@ -86,7 +83,7 @@ class OSUBenchComparisonReport(ComparisonReport):
                 )
             if self._has_metric(dfs, "mb_sec"):
                 sections.append(
-                    cloudai.report_generator.comparison_report.ComparisonSection(
+                    ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Bandwidth",
@@ -97,7 +94,7 @@ class OSUBenchComparisonReport(ComparisonReport):
                 )
             if self._has_metric(dfs, "messages_sec"):
                 sections.append(
-                    cloudai.report_generator.comparison_report.ComparisonSection(
+                    ComparisonSection(
                         group=group,
                         dfs=dfs,
                         title="Message Rate",
