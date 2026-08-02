@@ -67,7 +67,7 @@ class ComparisonSection:
 class _IndentedSafeDumper(yaml.SafeDumper):
     """Indent sequence items beneath their mapping key."""
 
-    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+    def increase_indent(self, flow: bool = False, indentless: bool = False):
         del indentless  # Required by PyYAML's keyword-call interface; indentation is always enabled.
         super().increase_indent(flow, indentless=False)
 
@@ -272,16 +272,8 @@ class ComparisonReport(Reporter, ABC):
         bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
         return bokeh_script, bokeh_div
 
-    def generate(self) -> None:
-        self.load_test_runs()
-        if not self.trs:
-            logging.debug(f"Skipping {self.__class__.__name__} report generation, no results found.")
-            return
-
+    def _render_console(self, sections: list[ComparisonSection]) -> str:
         console = Console(record=True)
-        cmp_groups = self.group_test_runs()
-        sections = self.build_sections(cmp_groups)
-
         for section in sections:
             table = self.create_table(
                 section.group,
@@ -292,37 +284,51 @@ class ComparisonReport(Reporter, ABC):
             )
             console.print(table)
             console.print()
+        return console.export_html()
 
+    def _render_html(
+        self,
+        env: jinja2.Environment,
+        sections: list[ComparisonSection],
+        console_html: str,
+    ) -> str:
         bokeh_script, bokeh_div = self.get_bokeh_html(sections)
+        template = env.get_template(self.template_name)
+        return template.render(
+            title=f"{self.test_scenario.name} Comparison Report",
+            bokeh_script=bokeh_script,
+            bokeh_div=bokeh_div,
+            rich_html=console_html,
+        )
 
+    def _render_html_v2(self, env: jinja2.Environment, sections: list[ComparisonSection]) -> str:
+        template_v2 = env.get_template(self.template_name_v2)
+        return template_v2.render(
+            name=f"{self.test_scenario.name} Comparison Report",
+            sections=self._build_sections_v2(sections),
+        )
+
+    def generate(self):
+        self.load_test_runs()
+        if not self.trs:
+            logging.debug(f"Skipping {self.__class__.__name__} report generation, no results found.")
+            return
+
+        sections = self.build_sections(self.group_test_runs())
+        console_html = self._render_console(sections)
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(self.template_path),
             autoescape=jinja2.select_autoescape(),
         )
-        template = env.get_template(self.template_name)
-        html_content = template.render(
-            title=f"{self.test_scenario.name} Comparison Report",
-            bokeh_script=bokeh_script,
-            bokeh_div=bokeh_div,
-            rich_html=console.export_html(),
-        )
+        rendered_reports = [
+            ("Comparison report", self.report_file_name, self._render_html(env, sections, console_html)),
+            ("Comparison report v2", self.report_file_name_v2, self._render_html_v2(env, sections)),
+        ]
 
-        html_file = self.results_root / self.report_file_name
-        with open(html_file, "w") as f:
-            f.write(html_content)
-
-        logging.info(f"Comparison report created: {html_file}")
-
-        template_v2 = env.get_template(self.template_name_v2)
-        content_v2 = template_v2.render(
-            name=f"{self.test_scenario.name} Comparison Report",
-            sections=self._build_sections_v2(sections),
-        )
-        file_v2 = self.results_root / self.report_file_name_v2
-        with file_v2.open("w") as f:
-            f.write(content_v2)
-
-        logging.info(f"Comparison report v2 created: {file_v2}")
+        for report_name, file_name, content in rendered_reports:
+            report_path = self.results_root / file_name
+            report_path.write_text(content)
+            logging.info(f"{report_name} created: {report_path}")
 
     @property
     def report_file_name_v2(self) -> str:
