@@ -153,7 +153,7 @@ def test_payload_uses_compact_labels_and_structured_differences_v2(
     assert "borderColor" not in chart["datasets"][0]
     assert table["data_headers"][0]["name"] == "case-a"
     assert table["data_headers"][0]["differences_yaml"] == (
-        f'docker_image_url: "{long_image}"\nprefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
+        f"docker_image_url: {long_image}\nprefill:\n  gpu_ids:\n    - '0'\n    - '1'\n  tensor_parallel_size: 2"
     )
 
 

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import jinja2
+import yaml
 from pydantic import Field
 from rich.console import Console
 from rich.table import Table
@@ -61,6 +62,14 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
+
+
+class _IndentedSafeDumper(yaml.SafeDumper):
+    """Indent sequence items beneath their mapping key."""
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        del indentless  # Required by PyYAML's keyword-call interface; indentation is always enabled.
+        super().increase_indent(flow, indentless=False)
 
 
 class ComparisonReportConfig(ReportConfig):
@@ -185,62 +194,25 @@ class ComparisonReport(Reporter, ABC):
             return cleaned_items or ([] if not value else None)
         return value
 
-    @staticmethod
-    def _yaml_scalar(value: object) -> str:
-        if value is None:
-            return "null"
-        if isinstance(value, bool):
-            return str(value).lower()
-        if isinstance(value, str):
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-            return f'"{escaped}"'
-        return str(value)
-
-    @classmethod
-    def _diff_yaml_lines(cls, value: object, indent: int = 0) -> list[str]:
-        prefix = "  " * indent
-        if isinstance(value, collections.abc.Mapping):
-            lines: list[str] = []
-            for key, nested_value in value.items():
-                is_nested_sequence = isinstance(nested_value, (list, tuple)) and any(
-                    isinstance(item, (collections.abc.Mapping, list, tuple)) for item in nested_value
-                )
-                if isinstance(nested_value, collections.abc.Mapping) or is_nested_sequence:
-                    lines.append(f"{prefix}{key}:")
-                    lines.extend(cls._diff_yaml_lines(nested_value, indent + 1))
-                elif isinstance(nested_value, (list, tuple)):
-                    rendered = ", ".join(cls._yaml_scalar(item) for item in nested_value)
-                    lines.append(f"{prefix}{key}: [{rendered}]")
-                else:
-                    lines.append(f"{prefix}{key}: {cls._yaml_scalar(nested_value)}")
-            return lines
-        if isinstance(value, (list, tuple)):
-            lines = []
-            for item in value:
-                if isinstance(item, collections.abc.Mapping):
-                    nested_lines = cls._diff_yaml_lines(item, indent + 1)
-                    if nested_lines:
-                        nested_prefix = "  " * (indent + 1)
-                        first_line = nested_lines[0].removeprefix(nested_prefix)
-                        lines.append(f"{prefix}- {first_line}")
-                        lines.extend(nested_lines[1:])
-                    else:
-                        lines.append(f"{prefix}- {{}}")
-                elif isinstance(item, (list, tuple)):
-                    lines.append(f"{prefix}-")
-                    lines.extend(cls._diff_yaml_lines(item, indent + 1))
-                else:
-                    lines.append(f"{prefix}- {cls._yaml_scalar(item)}")
-            return lines
-        return [f"{prefix}{cls._yaml_scalar(value)}"]
-
     @classmethod
     def _format_diff_yaml(cls, differences: collections.abc.Mapping[str, object] | None) -> str:
-        return "\n".join(cls._diff_yaml_lines(cls._without_nulls(differences or {}) or {}))
+        cleaned = cls._without_nulls(differences or {}) or {}
+        if not cleaned:
+            return ""
+        return yaml.dump(
+            cleaned,
+            Dumper=_IndentedSafeDumper,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,
+        ).rstrip()
 
     @classmethod
     def _diff_entries(cls, differences: collections.abc.Mapping[str, object] | None) -> list[dict[str, str]]:
         entries: list[dict[str, str]] = []
+
+        def format_scalar(value: object) -> str:
+            return yaml.safe_dump(value, default_flow_style=True, sort_keys=False).splitlines()[0]
 
         def visit(value: object, path: str) -> None:
             if isinstance(value, collections.abc.Mapping):
@@ -252,9 +224,9 @@ class ComparisonReport(Reporter, ABC):
                     for idx, nested_value in enumerate(value):
                         visit(nested_value, f"{path}[{idx}]")
                     return
-                entries.append({"name": path, "value": ", ".join(cls._yaml_scalar(item) for item in value)})
+                entries.append({"name": path, "value": ", ".join(format_scalar(item) for item in value)})
                 return
-            entries.append({"name": path, "value": cls._yaml_scalar(value)})
+            entries.append({"name": path, "value": format_scalar(value)})
 
         visit(cls._without_nulls(differences or {}) or {}, "")
         return entries

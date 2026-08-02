@@ -157,7 +157,7 @@ class TestGrouping:
         assert first == {"prefill": {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2}}
         assert second == {"prefill": {"gpu_ids": ["2", "3"], "tensor_parallel_size": 4}}
         assert ComparisonReport._format_diff_yaml(first) == (
-            'prefill:\n  gpu_ids: ["0", "1"]\n  tensor_parallel_size: 2'
+            "prefill:\n  gpu_ids:\n    - '0'\n    - '1'\n  tensor_parallel_size: 2"
         )
 
     def test_yaml_keeps_lists_of_mappings_structured_v2(self) -> None:
@@ -169,12 +169,20 @@ class TestGrouping:
         }
 
         assert ComparisonReport._format_diff_yaml(differences) == (
-            'phases:\n  - name: "prefill"\n    workers: [0, 1]\n  - name: "decode"\n    workers: [2, 3]'
+            "phases:\n"
+            "  - name: prefill\n"
+            "    workers:\n"
+            "      - 0\n"
+            "      - 1\n"
+            "  - name: decode\n"
+            "    workers:\n"
+            "      - 2\n"
+            "      - 3"
         )
         assert ComparisonReport._diff_entries(differences) == [
-            {"name": "phases[0].name", "value": '"prefill"'},
+            {"name": "phases[0].name", "value": "prefill"},
             {"name": "phases[0].workers", "value": "0, 1"},
-            {"name": "phases[1].name", "value": '"decode"'},
+            {"name": "phases[1].name", "value": "decode"},
             {"name": "phases[1].workers", "value": "2, 3"},
         ]
 
@@ -195,8 +203,8 @@ class TestGrouping:
             "docker_image_url": "nvcr.io/example/image:latest",
             "phases": [{"name": "prefill", "command": "serve"}],
         }
-        assert ComparisonReport._format_diff_yaml(first) == 'phases:\n  - name: "prefill"'
-        assert ComparisonReport._diff_entries(first) == [{"name": "phases[0].name", "value": '"prefill"'}]
+        assert ComparisonReport._format_diff_yaml(first) == "phases:\n  - name: prefill"
+        assert ComparisonReport._diff_entries(first) == [{"name": "phases[0].name", "value": "prefill"}]
 
 
 class TestComparisonValues:
