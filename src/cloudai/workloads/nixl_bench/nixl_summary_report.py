@@ -16,40 +16,38 @@
 
 from __future__ import annotations
 
-import pathlib
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cloudai.core
 import cloudai.report_generator.comparison_report
-import cloudai.report_generator.groups
-import cloudai.workloads.nixl_bench.nixl_bench as nixl_bench
+from cloudai.core import System, TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
+
+from .nixl_bench import NIXLBenchTestDefinition
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class NIXLBenchComparisonReport(cloudai.report_generator.comparison_report.ComparisonReport):
+class NIXLBenchComparisonReport(ComparisonReport):
     """Comparison report for NIXL Bench."""
 
     INFO_COLUMNS = ("block_size", "batch_size")
 
     def __init__(
-        self,
-        system: cloudai.core.System,
-        test_scenario: cloudai.core.TestScenario,
-        results_root: pathlib.Path,
-        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.report_file_name = "nixl_comparison.html"
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, nixl_bench.NIXLBenchTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
     def build_sections(
-        self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
+        self, cmp_groups: list[GroupedTestRuns]
     ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
         sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
@@ -76,7 +74,7 @@ class NIXLBenchComparisonReport(cloudai.report_generator.comparison_report.Compa
             )
         return sections
 
-    def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
+    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         if (tr.output_path / "nixlbench.csv").exists():
             return lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
         return lazy.pd.DataFrame(

@@ -16,25 +16,26 @@
 
 from __future__ import annotations
 
-import pathlib
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cloudai.core
 import cloudai.report_generator.comparison_report
-import cloudai.report_generator.groups
-import cloudai.workloads.nccl_test.nccl as nccl
-import cloudai.workloads.nccl_test.performance_report_generation_strategy as performance_report_generation_strategy
-from cloudai.report_generator.comparison_report import ComparisonReportConfig as ComparisonReportConfig
+from cloudai.core import System, TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import (
     add_human_readable_sizes,
 )
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
+
+from .performance_report_generation_strategy import extract_nccl_data
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class NcclComparisonReport(cloudai.report_generator.comparison_report.ComparisonReport):
+class NcclComparisonReport(ComparisonReport):
     """Comparison report for NCCL Test."""
 
     INFO_COLUMNS = ("Size (B)", "Count", "Type", "Redop")
@@ -42,21 +43,17 @@ class NcclComparisonReport(cloudai.report_generator.comparison_report.Comparison
     BANDWIDTH_DATA_COLUMNS = ("Busbw (GB/s) Out-of-place", "Busbw (GB/s) In-place")
 
     def __init__(
-        self,
-        system: cloudai.core.System,
-        test_scenario: cloudai.core.TestScenario,
-        results_root: pathlib.Path,
-        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.report_file_name = "nccl_comparison.html"
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, nccl.NCCLTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
 
     def build_sections(
-        self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
+        self, cmp_groups: list[GroupedTestRuns]
     ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
         sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
@@ -90,10 +87,8 @@ class NcclComparisonReport(cloudai.report_generator.comparison_report.Comparison
             )
         return sections
 
-    def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
-        parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = (
-            performance_report_generation_strategy.extract_nccl_data(tr.output_path / "stdout.txt")
-        )
+    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
+        parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(tr.output_path / "stdout.txt")
         if not parsed_data_rows:
             return lazy.pd.DataFrame()
 

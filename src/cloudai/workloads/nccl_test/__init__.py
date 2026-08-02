@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.report_generator.comparison_report import ComparisonReportConfig
-
 from .grading_strategy import NcclTestGradingStrategy
 from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
-from .nccl_comparison_report import NcclComparisonReport
+from .nccl_comparison_report import ComparisonReportConfig, NcclComparisonReport
 from .performance_report_generation_strategy import NcclTestPerformanceReportGenerationStrategy
 from .prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from .runai_json_gen_strategy import NcclTestRunAIJsonGenStrategy

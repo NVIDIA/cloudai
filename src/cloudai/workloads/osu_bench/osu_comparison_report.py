@@ -17,39 +17,37 @@
 from __future__ import annotations
 
 import logging
-import pathlib
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cloudai.core
 import cloudai.report_generator.comparison_report
-import cloudai.report_generator.groups
-import cloudai.workloads.osu_bench.osu_bench as osu_bench
+from cloudai.core import System, TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
+
+from .osu_bench import OSUBenchTestDefinition
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class OSUBenchComparisonReport(cloudai.report_generator.comparison_report.ComparisonReport):
+class OSUBenchComparisonReport(ComparisonReport):
     """Comparison report for OSU Bench."""
 
     INFO_COLUMNS = ("size",)
 
     def __init__(
-        self,
-        system: cloudai.core.System,
-        test_scenario: cloudai.core.TestScenario,
-        results_root: pathlib.Path,
-        config: cloudai.report_generator.comparison_report.ComparisonReportConfig,
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.report_file_name = "osu_bench_comparison.html"
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, osu_bench.OSUBenchTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, OSUBenchTestDefinition)]
 
-    def extract_data_as_df(self, tr: cloudai.core.TestRun) -> pd.DataFrame:
+    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         csv_path = tr.output_path / "osu_bench.csv"
         if not csv_path.exists():
             return lazy.pd.DataFrame()
@@ -69,7 +67,7 @@ class OSUBenchComparisonReport(cloudai.report_generator.comparison_report.Compar
         return bool(dfs) and all((col in df.columns) and df[col].notna().any() for df in dfs)
 
     def build_sections(
-        self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
+        self, cmp_groups: list[GroupedTestRuns]
     ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
         sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
