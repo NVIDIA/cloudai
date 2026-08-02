@@ -61,7 +61,6 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
-    legacy_category_prefix: str = ""
 
 
 class ComparisonReportConfig(ReportConfig):
@@ -703,7 +702,7 @@ class ComparisonReport(Reporter, ABC):
 
         for df, item in zip(section.dfs, section.group.items, strict=True):
             for _, row in df.iterrows():
-                category = f"{section.legacy_category_prefix}{row[info_column]}"
+                category = str(row[info_column])
                 for data_column in section.data_columns:
                     value = self._numeric_value(row[data_column])
                     if value is None:

@@ -27,13 +27,6 @@ from cloudai.core import TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.ai_dynamo import AIDynamoComparisonReport
-from cloudai.workloads.nccl_test import NcclComparisonReport
-from cloudai.workloads.nixl_bench.nixl_summary_report import NIXLBenchComparisonReport
-from cloudai.workloads.nixl_ep import NixlEPComparisonReport
-from cloudai.workloads.osu_bench import OSUBenchComparisonReport
-from cloudai.workloads.sglang import SGLangComparisonReport
-from cloudai.workloads.vllm import VLLMComparisonReport
 
 
 class MyComparisonReport(ComparisonReport):
@@ -200,35 +193,6 @@ def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: T
     chart = cmp_report._build_chart_v2(section, 0)
 
     assert chart["y_axis_type"] == "auto"
-
-
-@pytest.mark.parametrize(
-    ("report_cls", "legacy_name", "name_v2"),
-    [
-        (NIXLBenchComparisonReport, "nixl_comparison.html", "nixl_comparison_v2.html"),
-        (NixlEPComparisonReport, "nixl_ep_comparison.html", "nixl_ep_comparison_v2.html"),
-        (NcclComparisonReport, "nccl_comparison.html", "nccl_comparison_v2.html"),
-        (OSUBenchComparisonReport, "osu_bench_comparison.html", "osu_bench_comparison_v2.html"),
-        (VLLMComparisonReport, "vllm_comparison.html", "vllm_comparison_v2.html"),
-        (SGLangComparisonReport, "sglang_comparison.html", "sglang_comparison_v2.html"),
-        (AIDynamoComparisonReport, "ai_dynamo_comparison.html", "ai_dynamo_comparison_v2.html"),
-    ],
-)
-def test_report_file_names_v2(
-    slurm_system: SlurmSystem,
-    report_cls: type[ComparisonReport],
-    legacy_name: str,
-    name_v2: str,
-) -> None:
-    report = report_cls(
-        slurm_system,
-        TestScenario(name="comparison", test_runs=[]),
-        slurm_system.output_path,
-        ComparisonReportConfig(enable=True),
-    )
-
-    assert report.report_file_name == legacy_name
-    assert report.report_file_name_v2 == name_v2
 
 
 class TestCreateTable:

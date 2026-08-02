@@ -138,7 +138,6 @@ class NixlEPComparisonReport(cloudai.report_generator.comparison_report.Comparis
                         data_columns=[bandwidth_column],
                         y_axis_label="Bandwidth (GB/s)",
                         chart_type="bar",
-                        legacy_category_prefix="Node ",
                     )
                 )
             for time_column in time_columns:
@@ -151,7 +150,6 @@ class NixlEPComparisonReport(cloudai.report_generator.comparison_report.Comparis
                         data_columns=[time_column],
                         y_axis_label="Time (us)",
                         chart_type="bar",
-                        legacy_category_prefix="Node ",
                     )
                 )
 
