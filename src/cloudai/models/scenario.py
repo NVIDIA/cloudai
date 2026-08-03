@@ -191,7 +191,6 @@ class TestScenarioModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    sol_path: Optional[str] = None
     sol: MetricSOLConfig = Field(default_factory=dict)
     job_status_check: bool = True
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
