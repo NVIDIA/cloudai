@@ -16,8 +16,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cloudai.core import System, TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
@@ -82,6 +83,11 @@ class NcclComparisonReport(ComparisonReport):
                 ]
             )
         return sections
+
+    def _build_table_v2(self, section: ComparisonSection) -> dict[str, Any]:
+        filtered_info_columns = [column for column in section.info_columns if column not in ("Type", "Redop")]
+        section_v2 = dataclasses.replace(section, info_columns=filtered_info_columns)
+        return super()._build_table_v2(section_v2)
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(tr.output_path / "stdout.txt")
