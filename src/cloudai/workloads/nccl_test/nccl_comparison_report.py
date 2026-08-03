@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-from rich.table import Table
+from typing import TYPE_CHECKING, Any
 
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import (
     add_human_readable_sizes,
@@ -33,7 +32,6 @@ from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 from .performance_report_generation_strategy import extract_nccl_data
 
 if TYPE_CHECKING:
-    import bokeh.plotting as bk
     import pandas as pd
 
 
@@ -54,29 +52,42 @@ class NcclComparisonReport(ComparisonReport):
         super().load_test_runs()
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        tables: list[Table] = []
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            tables.extend(
+            sections.extend(
                 [
-                    self.create_table(
-                        group,
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Latency",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=list(self.LATENCY_DATA_COLUMNS),
+                        y_axis_label="Time (us)",
+                        x_axis_type="indexed_category",
+                        x_axis_column="Size Human-readable",
+                        x_axis_label="Message size",
                     ),
-                    self.create_table(
-                        group,
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Bandwidth",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=list(self.BANDWIDTH_DATA_COLUMNS),
+                        y_axis_label="Busbw (GB/s)",
+                        x_axis_type="indexed_category",
+                        x_axis_column="Size Human-readable",
+                        x_axis_label="Message size",
                     ),
                 ]
             )
-        return tables
+        return sections
+
+    def _build_table_v2(self, section: ComparisonSection) -> dict[str, Any]:
+        filtered_info_columns = [column for column in section.info_columns if column not in ("Type", "Redop")]
+        section_v2 = dataclasses.replace(section, info_columns=filtered_info_columns)
+        return super()._build_table_v2(section_v2)
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(tr.output_path / "stdout.txt")
@@ -117,17 +128,3 @@ class NcclComparisonReport(ComparisonReport):
         df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
 
         return df
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
-        charts: list[bk.figure] = []
-        for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            if chart := self.create_chart(
-                group, dfs, "Latecy", list(self.INFO_COLUMNS), list(self.LATENCY_DATA_COLUMNS), "Time (us)"
-            ):
-                charts.append(chart)
-            if chart := self.create_chart(
-                group, dfs, "Bandwidth", list(self.INFO_COLUMNS), list(self.BANDWIDTH_DATA_COLUMNS), "Busbw (GB/s)"
-            ):
-                charts.append(chart)
-        return charts

@@ -144,6 +144,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
     report.generate()
 
     assert (slurm_system.output_path / "vllm_comparison.html").exists()
+    assert (slurm_system.output_path / "vllm_comparison_v2.html").exists()
 
 
 def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
@@ -246,3 +247,4 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
     report.generate()
 
     assert (slurm_system.output_path / "sglang_comparison.html").exists()
+    assert (slurm_system.output_path / "sglang_comparison_v2.html").exists()

@@ -16,11 +16,8 @@
 
 from __future__ import annotations
 
-import itertools
 import pathlib
-from typing import TYPE_CHECKING, Any, ClassVar, cast
-
-import rich.table
+from typing import TYPE_CHECKING, ClassVar
 
 import cloudai.core
 import cloudai.report_generator.comparison_report
@@ -30,7 +27,6 @@ import cloudai.workloads.nixl_ep.nixl_ep as nixl_ep
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
-    import bokeh.plotting as bk
     import pandas as pd
 
 
@@ -123,104 +119,38 @@ class NixlEPComparisonReport(cloudai.report_generator.comparison_report.Comparis
     def _available_columns(self, dfs: list[pd.DataFrame], columns: tuple[str, ...]) -> list[str]:
         return [column for column in columns if self._has_metric(dfs, column)]
 
-    def create_tables(
+    def build_sections(
         self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
-    ) -> list[rich.table.Table]:
-        tables: list[rich.table.Table] = []
+    ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
+        sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
             bandwidth_columns = self._available_columns(dfs, self.BANDWIDTH_COLUMNS)
             time_columns = self._available_columns(dfs, self.TIME_COLUMNS)
 
             for bandwidth_column in bandwidth_columns:
-                tables.append(
-                    self.create_table(
-                        group,
+                sections.append(
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title=bandwidth_column,
                         info_columns=[self.NODE_COLUMN],
                         data_columns=[bandwidth_column],
+                        y_axis_label="Bandwidth (GB/s)",
+                        chart_type="bar",
                     )
                 )
             for time_column in time_columns:
-                tables.append(
-                    self.create_table(
-                        group,
+                sections.append(
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title=time_column,
                         info_columns=[self.NODE_COLUMN],
                         data_columns=[time_column],
+                        y_axis_label="Time (us)",
+                        chart_type="bar",
                     )
                 )
 
-        return tables
-
-    def _create_metric_bar_chart(
-        self,
-        group: cloudai.report_generator.groups.GroupedTestRuns,
-        dfs: list[pd.DataFrame],
-        metric_column: str,
-        y_axis_label: str,
-    ) -> bk.figure:
-        factors: list[tuple[str, str]] = []
-        values: list[float] = []
-        nodes: list[str] = []
-        runs: list[str] = []
-        colors: list[str] = []
-        color_cycler = itertools.cycle(["#1f77b4", "#17becf", "#2ca02c", "#bcbd22", "#ff7f0e"])
-        color_by_run = {item.name: next(color_cycler) for item in group.items}
-
-        for df, item in zip(dfs, group.items, strict=True):
-            if metric_column not in df.columns:
-                continue
-            for _, row in df.iterrows():
-                value = row[metric_column]
-                if not isinstance(value, (int, float)):
-                    continue
-                node = f"Node {row[self.NODE_COLUMN]}"
-                factors.append((node, item.name))
-                values.append(float(value))
-                nodes.append(node)
-                runs.append(item.name)
-                colors.append(color_by_run[item.name])
-
-        x_range = lazy.bokeh_models.FactorRange(*factors)
-        cast(Any, x_range).range_padding = 0.1
-        plot = lazy.bokeh_plotting.figure(
-            title=f"{metric_column}: {group.name}",
-            x_range=x_range,
-            y_axis_label=y_axis_label,
-            width=800,
-            height=500,
-            tools="save,reset",
-        )
-        hover = lazy.bokeh_models.HoverTool(tooltips=[("Node", "@node"), ("Run", "@run"), ("Value", "@value{0.0000}")])
-        plot.add_tools(hover)
-
-        if not values:
-            return plot
-
-        source = lazy.bokeh_models.ColumnDataSource(
-            data={
-                "x": factors,
-                "node": nodes,
-                "run": runs,
-                "value": values,
-                "color": colors,
-            }
-        )
-        plot.vbar(x="x", top="value", width=0.8, fill_color="color", line_color="color", source=source)
-        plot.xaxis.major_label_orientation = 0.8
-        y_max = max(values)
-        plot.y_range = lazy.bokeh_models.Range1d(start=0, end=y_max * 1.1 if y_max > 0 else 1)
-        return plot
-
-    def create_charts(self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]) -> list[bk.figure]:
-        charts: list[bk.figure] = []
-        for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            for column in self._available_columns(dfs, self.BANDWIDTH_COLUMNS):
-                charts.append(self._create_metric_bar_chart(group, dfs, column, "Bandwidth (GB/s)"))
-            for column in self._available_columns(dfs, self.TIME_COLUMNS):
-                charts.append(self._create_metric_bar_chart(group, dfs, column, "Time (us)"))
-        return charts
+        return sections

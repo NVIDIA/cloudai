@@ -17,12 +17,9 @@
 from __future__ import annotations
 
 import abc
-import itertools
 import math
 import pathlib
-from typing import TYPE_CHECKING, Any, cast
-
-import rich.table
+from typing import TYPE_CHECKING, Any
 
 import cloudai.core
 import cloudai.models.workload
@@ -31,7 +28,6 @@ import cloudai.report_generator.groups
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
-    import bokeh.plotting as bk
     import pandas as pd
 
     from cloudai.workloads.common import llm_serving
@@ -87,7 +83,9 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
 
     def comparison_values(self, tr: cloudai.core.TestRun) -> dict[str, object]:
         values = super().comparison_values(tr)
-        values.update({f"bench_cmd_args.{k}": v for k, v in self.benchmark_cmd_args(tr).model_dump().items()})
+        values.update(
+            {f"bench_cmd_args.{k}": v for k, v in self.benchmark_cmd_args(tr).model_dump(exclude_none=True).items()}
+        )
         return values
 
     def load_test_runs(self) -> None:
@@ -190,130 +188,51 @@ class LLMServingComparisonReport(cloudai.report_generator.comparison_report.Comp
             .reset_index(drop=True)
         )
 
-    def create_tables(
+    def build_sections(
         self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]
-    ) -> list[rich.table.Table]:
-        tables: list[rich.table.Table] = []
+    ) -> list[cloudai.report_generator.comparison_report.ComparisonSection]:
+        sections: list[cloudai.report_generator.comparison_report.ComparisonSection] = []
         for group in cmp_groups:
             extracted_dfs = [self._extract_data_as_df_cached(item.tr) for item in group.items]
-            tables.extend(
+            sections.extend(
                 [
-                    self.create_table(
-                        group,
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=[self._group_df(df, "latency") for df in extracted_dfs],
                         title="Latency",
                         info_columns=["metric"],
                         data_columns=["value"],
+                        y_axis_label="Latency (ms)",
+                        chart_type="bar",
+                        y_axis_type="auto",
                     ),
-                    self.create_table(
-                        group,
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=[self._group_df(df, "success") for df in extracted_dfs],
                         title="Successful Prompts",
                         info_columns=["metric"],
                         data_columns=["value"],
+                        y_axis_label="Prompts / %",
+                        chart_type="bar",
                     ),
-                    self.create_table(
-                        group,
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=[self._group_df(df, "throughput") for df in extracted_dfs],
                         title="Throughput",
                         info_columns=["metric"],
                         data_columns=["value"],
+                        y_axis_label="Throughput",
+                        chart_type="bar",
                     ),
-                    self.create_table(
-                        group,
+                    cloudai.report_generator.comparison_report.ComparisonSection(
+                        group=group,
                         dfs=[self._group_df(df, "quality") for df in extracted_dfs],
                         title="Quality",
                         info_columns=["metric"],
                         data_columns=["value"],
+                        y_axis_label="Score",
+                        chart_type="bar",
                     ),
                 ]
             )
-        return tables
-
-    def _create_metric_bar_chart(
-        self,
-        group: cloudai.report_generator.groups.GroupedTestRuns,
-        dfs: list[pd.DataFrame],
-        title: str,
-        y_axis_label: str,
-    ) -> bk.figure:
-        factors: list[tuple[str, str]] = []
-        values: list[float] = []
-        colors: list[str] = []
-        color_cycler = itertools.cycle(["#1f77b4", "#17becf", "#2ca02c", "#bcbd22", "#ff7f0e"])
-        color_by_run = {item.name: next(color_cycler) for item in group.items}
-
-        for df, run_name in zip(dfs, [item.name for item in group.items], strict=True):
-            for _, row in df.iterrows():
-                value = row["value"]
-                if not isinstance(value, (float, int)):
-                    continue
-                factors.append((row["metric"], run_name))
-                values.append(float(value))
-                colors.append(color_by_run[run_name])
-
-        x_range = lazy.bokeh_models.FactorRange(*factors)
-        cast(Any, x_range).range_padding = 0.1
-        p = lazy.bokeh_plotting.figure(
-            title=f"{title}: {group.name}",
-            x_range=x_range,
-            y_axis_label=y_axis_label,
-            width=800,
-            height=500,
-            tools="save,reset",
-        )
-        hover = lazy.bokeh_models.HoverTool(
-            tooltips=[("Metric", "@metric"), ("Run", "@run"), ("Value", "@value{0.0000}")]
-        )
-        p.add_tools(hover)
-
-        if not values:
-            return p
-
-        source = lazy.bokeh_models.ColumnDataSource(
-            data={
-                "x": factors,
-                "metric": [metric for metric, _ in factors],
-                "run": [run for _, run in factors],
-                "value": values,
-                "color": colors,
-            }
-        )
-        p.vbar(x="x", top="value", width=0.8, fill_color="color", line_color="color", source=source)
-        p.xaxis.major_label_orientation = 0.8
-        p.y_range = lazy.bokeh_models.Range1d(start=0, end=max(values) * 1.1)
-        return p
-
-    def create_charts(self, cmp_groups: list[cloudai.report_generator.groups.GroupedTestRuns]) -> list[bk.figure]:
-        charts: list[bk.figure] = []
-        for group in cmp_groups:
-            extracted_dfs = [self._extract_data_as_df_cached(item.tr) for item in group.items]
-            charts.extend(
-                [
-                    self._create_metric_bar_chart(
-                        group,
-                        [self._group_df(df, "latency") for df in extracted_dfs],
-                        "Latency",
-                        "Latency (ms)",
-                    ),
-                    self._create_metric_bar_chart(
-                        group,
-                        [self._group_df(df, "success") for df in extracted_dfs],
-                        "Successful Prompts",
-                        "Prompts / %",
-                    ),
-                    self._create_metric_bar_chart(
-                        group,
-                        [self._group_df(df, "throughput") for df in extracted_dfs],
-                        "Throughput",
-                        "Throughput",
-                    ),
-                    self._create_metric_bar_chart(
-                        group,
-                        [self._group_df(df, "quality") for df in extracted_dfs],
-                        "Quality",
-                        "Score",
-                    ),
-                ]
-            )
-        return charts
+        return sections

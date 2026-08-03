@@ -16,13 +16,11 @@
 
 import copy
 
-import bokeh.plotting as bk
 import pandas as pd
-from rich.table import Table
 
 from cloudai import TestRun
 from cloudai.core import TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import diff_comparison_values
 from cloudai.systems.slurm import SlurmSystem
@@ -32,10 +30,7 @@ class GroupingComparisonReport(ComparisonReport):
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         return pd.DataFrame()
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        return []
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         return []
 
 
@@ -126,6 +121,86 @@ class TestGrouping:
         assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
         assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
+    def test_compact_name_includes_step_and_multi_iteration_v2(
+        self, slurm_system: SlurmSystem, nccl_tr: TestRun
+    ) -> None:
+        nccl_tr.name = "case-a"
+        nccl_tr.step = 3
+        nccl_tr.iterations = 2
+        nccl_tr.current_iteration = 0
+
+        item = _comparison_report(slurm_system, [nccl_tr], group_by=[]).group_test_runs()[0].items[0]
+
+        assert item.compact_name_v2 == "case-a · step=3 · iter=0"
+
+    def test_duplicate_compact_names_are_disambiguated_v2(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
+        items = (
+            _comparison_report(slurm_system, [nccl_tr, copy.deepcopy(nccl_tr)], group_by=[]).group_test_runs()[0].items
+        )
+
+        assert [item.compact_name_v2 for item in items] == [
+            f"{nccl_tr.name} · run=1",
+            f"{nccl_tr.name} · run=2",
+        ]
+
+    def test_differences_are_structured_and_rendered_as_yaml_v2(self) -> None:
+        diff: dict[str, list[object]] = {
+            "prefill": [
+                {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
+                {"gpu_ids": ["2", "3"], "tensor_parallel_size": 4},
+            ]
+        }
+
+        first = ComparisonReport._structured_diff(diff, 0)
+        second = ComparisonReport._structured_diff(diff, 1)
+
+        assert first == {"prefill": {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2}}
+        assert second == {"prefill": {"gpu_ids": ["2", "3"], "tensor_parallel_size": 4}}
+        assert ComparisonReport._format_diff_yaml(first) == (
+            "prefill:\n  gpu_ids:\n    - '0'\n    - '1'\n  tensor_parallel_size: 2"
+        )
+
+    def test_yaml_keeps_lists_of_mappings_structured_v2(self) -> None:
+        differences = {
+            "phases": [
+                {"name": "prefill", "workers": [0, 1]},
+                {"name": "decode", "workers": [2, 3]},
+            ]
+        }
+
+        assert ComparisonReport._format_diff_yaml(differences) == (
+            "phases:\n"
+            "  - name: prefill\n"
+            "    workers:\n"
+            "      - 0\n"
+            "      - 1\n"
+            "  - name: decode\n"
+            "    workers:\n"
+            "      - 2\n"
+            "      - 3"
+        )
+
+    def test_structured_differences_skip_null_defaults_v2(self) -> None:
+        diff = diff_comparison_values(
+            [
+                {"docker_image_url": None, "prefill": {"gpu_ids": None, "tensor_parallel_size": 2}},
+                {
+                    "docker_image_url": "nvcr.io/example/image:latest",
+                    "prefill": {"gpu_ids": "0,1", "tensor_parallel_size": 1},
+                },
+            ]
+        )
+
+        first = ComparisonReport._structured_diff(diff, 0)
+        second = ComparisonReport._structured_diff(diff, 1)
+
+        assert first == {"prefill": {"tensor_parallel_size": 2}}
+        assert second == {
+            "docker_image_url": "nvcr.io/example/image:latest",
+            "prefill": {"gpu_ids": "0,1", "tensor_parallel_size": 1},
+        }
+        assert ComparisonReport._format_diff_yaml(first) == "prefill:\n  tensor_parallel_size: 2"
+
 
 class TestComparisonValues:
     def test_diff_comparison_values_normalizes_numeric_equivalents(self) -> None:
@@ -177,7 +252,7 @@ class TestComparisonValues:
 
         assert diff == {
             "prefill": [
-                {"gpu_ids": None, "tensor_parallel_size": 2},
+                {"tensor_parallel_size": 2},
                 {"gpu_ids": "0,1", "tensor_parallel_size": 1},
             ]
         }

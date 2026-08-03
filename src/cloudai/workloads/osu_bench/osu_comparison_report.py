@@ -20,17 +20,14 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from rich.table import Table
-
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
 from .osu_bench import OSUBenchTestDefinition
 
 if TYPE_CHECKING:
-    import bokeh.plotting as bk
     import pandas as pd
 
 
@@ -68,81 +65,43 @@ class OSUBenchComparisonReport(ComparisonReport):
         """Only include a metric if all compared DataFrames have it."""
         return bool(dfs) and all((col in df.columns) and df[col].notna().any() for df in dfs)
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        tables: list[Table] = []
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
 
             if self._has_metric(dfs, "avg_lat"):
-                tables.append(
-                    self.create_table(
-                        group,
+                sections.append(
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Latency",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["avg_lat"],
+                        y_axis_label="Time (us)",
                     )
                 )
             if self._has_metric(dfs, "mb_sec"):
-                tables.append(
-                    self.create_table(
-                        group,
+                sections.append(
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Bandwidth",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["mb_sec"],
+                        y_axis_label="Bandwidth (MB/s)",
                     )
                 )
             if self._has_metric(dfs, "messages_sec"):
-                tables.append(
-                    self.create_table(
-                        group,
+                sections.append(
+                    ComparisonSection(
+                        group=group,
                         dfs=dfs,
                         title="Message Rate",
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["messages_sec"],
+                        y_axis_label="Messages/s",
                     )
                 )
 
-        return tables
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
-        charts: list[bk.figure] = []
-        for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-
-            if self._has_metric(dfs, "avg_lat"):
-                charts.append(
-                    self.create_chart(
-                        group,
-                        dfs,
-                        "Latency",
-                        list(self.INFO_COLUMNS),
-                        ["avg_lat"],
-                        "Time (us)",
-                    )
-                )
-            if self._has_metric(dfs, "mb_sec"):
-                charts.append(
-                    self.create_chart(
-                        group,
-                        dfs,
-                        "Bandwidth",
-                        list(self.INFO_COLUMNS),
-                        ["mb_sec"],
-                        "Bandwidth (MB/s)",
-                    )
-                )
-            if self._has_metric(dfs, "messages_sec"):
-                charts.append(
-                    self.create_chart(
-                        group,
-                        dfs,
-                        "Message Rate",
-                        list(self.INFO_COLUMNS),
-                        ["messages_sec"],
-                        "Messages/s",
-                    )
-                )
-
-        return charts
+        return sections

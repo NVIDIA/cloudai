@@ -16,16 +16,14 @@
 
 from pathlib import Path
 
-import bokeh.plotting as bk
 import pandas as pd
 import pytest
 import toml
 from packaging.requirements import Requirement
 from packaging.version import Version
-from rich.table import Table
 
 from cloudai.core import TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
 
@@ -34,10 +32,7 @@ class MyComparisonReport(ComparisonReport):
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         return pd.DataFrame()
 
-    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
-        return []
-
-    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         return []
 
 
@@ -53,6 +48,86 @@ def test_jinja_template_path(cmp_report: MyComparisonReport) -> None:
     full_path = cmp_report.template_path / cmp_report.template_name
     assert full_path.exists()
     assert full_path.is_file()
+
+
+def test_jinja_template_path_v2(cmp_report: MyComparisonReport) -> None:
+    full_path = cmp_report.template_path / cmp_report.template_name_v2
+    assert full_path.exists()
+    assert full_path.is_file()
+
+
+def test_payload_uses_compact_labels_and_structured_differences_v2(
+    cmp_report: MyComparisonReport, nccl_tr: TestRun
+) -> None:
+    long_image = "nvcr.io/example/" + ("very-long-image-name-" * 10) + ":latest"
+    item = TRGroupItem(
+        name=f"docker_image_url={long_image}",
+        tr=nccl_tr,
+        compact_name="case-a",
+        differences={
+            "docker_image_url": long_image,
+            "prefill": {"gpu_ids": ["0", "1"], "tensor_parallel_size": 2},
+        },
+    )
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[item]),
+        dfs=[pd.DataFrame({"size": [1], "value": [10]})],
+        title="Throughput",
+        info_columns=["size"],
+        data_columns=["value"],
+        y_axis_label="Requests/s",
+    )
+
+    chart = cmp_report._build_chart_v2(section, 0)
+    table = cmp_report._build_table_v2(section)
+    section_payload = cmp_report._build_sections_v2([section])[0]
+
+    assert chart["datasets"][0]["label"] == "case-a"
+    assert "fullLabel" not in chart["datasets"][0]
+    assert "borderColor" not in chart["datasets"][0]
+    assert table["data_headers"][0]["name"] == "case-a"
+    assert table["data_headers"][0]["differences_yaml"] == (
+        f"docker_image_url: {long_image}\nprefill:\n  gpu_ids:\n    - '0'\n    - '1'\n  tensor_parallel_size: 2"
+    )
+    assert section_payload["case_details"][0]["differences_yaml"] == table["data_headers"][0]["differences_yaml"]
+
+
+def test_indexed_category_axis_uses_display_labels_v2(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
+        dfs=[pd.DataFrame({"size": [256, 1024, 4096], "size_label": ["256B", "1KB", "4KB"], "value": [1, 2, 3]})],
+        title="Latency",
+        info_columns=["size"],
+        data_columns=["value"],
+        y_axis_label="Time (us)",
+        x_axis_type="indexed_category",
+        x_axis_column="size_label",
+        x_axis_label="Message size",
+    )
+
+    chart = cmp_report._build_chart_v2(section, 0)
+
+    assert chart["x_axis_type"] == "indexed_category"
+    assert chart["x_axis_label"] == "Message size"
+    assert chart["labels"] == ["256B", "1KB", "4KB"]
+    assert chart["datasets"][0]["data"] == [1.0, 2.0, 3.0]
+
+
+def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
+        dfs=[pd.DataFrame({"metric": ["TTFT", "TPOT"], "value": [3500, 3.5]})],
+        title="Latency",
+        info_columns=["metric"],
+        data_columns=["value"],
+        y_axis_label="Latency (ms)",
+        chart_type="bar",
+        y_axis_type="auto",
+    )
+
+    chart = cmp_report._build_chart_v2(section, 0)
+
+    assert chart["y_axis_type"] == "auto"
 
 
 class TestCreateTable:

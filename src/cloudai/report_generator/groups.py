@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import Any
 
 from cloudai.core import TestRun
 
@@ -25,6 +26,13 @@ class TRGroupItem:
 
     name: str
     tr: TestRun
+    compact_name: str | None = None
+    differences: dict[str, Any] | None = None
+
+    @property
+    def compact_name_v2(self) -> str:
+        """Return the concise label used by v2 reports."""
+        return self.compact_name or self.name
 
 
 @dataclass
