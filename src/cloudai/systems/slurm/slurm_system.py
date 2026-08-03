@@ -105,6 +105,7 @@ class SlurmSystem(System):
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
+    hf_local_home_path: Optional[Path] = None
     scheduler: str = "slurm"
     monitor_interval: int = 60
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
@@ -130,6 +131,13 @@ class SlurmSystem(System):
     def _reject_blank_transient_patterns(cls, value: list[str]) -> list[str]:
         if any(not pattern.strip() for pattern in value):
             raise ValueError("extra_transient_status_errors entries must be non-blank")
+        return value
+
+    @field_validator("hf_local_home_path")
+    @classmethod
+    def _require_absolute_hf_local_home_path(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("hf_local_home_path must be an absolute path")
         return value
 
     @property

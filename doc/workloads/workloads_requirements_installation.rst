@@ -33,6 +33,15 @@ Hugging Face Models
 
 Some workloads require Hugging Face models. CloudAI will download the models from Hugging Face and cache them in the location specified by System's ``hf_home_path`` field. By default, it is set to ``<INSTALL_DIR>/huggingface``, but any other location can be specified. When Slurm is used, this location will be mounted to the container.
 
+Slurm systems can optionally set ``hf_local_home_path`` to an absolute compute-node local path. CloudAI will continue
+to install and validate models in the shared ``hf_home_path``, then automatically copy each model required by the job
+to ``hf_local_home_path`` on every allocated node before starting any containers. The local cache is reused when the
+same model revision is already present. If ``hf_local_home_path`` is not set, model installation and mounting behave
+exactly as before.
+
+Both paths must use the same absolute location on every allocated node. ``hf_home_path`` must be readable from the
+compute nodes, while ``hf_local_home_path`` must be writable and should refer to local storage such as node-local NVMe.
+
 Authentication with Hugging Face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -16,6 +16,7 @@
 
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 
@@ -31,6 +32,15 @@ def installer(slurm_system: SlurmSystem):
     si.system.install_path.mkdir()
     si._check_low_thread_environment = lambda threshold=None: False
     return si
+
+
+def test_local_hf_staging_requires_flock(installer: SlurmInstaller, tmp_path: Path) -> None:
+    installer.system.hf_local_home_path = tmp_path / "local-hf"
+
+    with patch.object(installer, "_is_binary_installed", return_value=True) as is_binary_installed:
+        installer._check_required_binaries()
+
+    is_binary_installed.assert_any_call("flock")
 
 
 class TestInstallOneDocker:

@@ -33,6 +33,10 @@ def installer(slurm_system, tmp_path: Path) -> BaseInstaller:
     return BaseInstaller(slurm_system)
 
 
+def test_cache_dir_name() -> None:
+    assert HFModel(model_name="Qwen/Qwen3-0.6B").cache_dir_name == "models--Qwen--Qwen3-0.6B"
+
+
 def test_download(hf_model: HFModel, installer: BaseInstaller) -> None:
     assert hf_model._installed_path is None
 

@@ -54,7 +54,10 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, str(e))
 
     def _check_required_binaries(self) -> None:
-        for binary in self.PREREQUISITES:
+        required_binaries = self.PREREQUISITES
+        if self.system.hf_local_home_path is not None:
+            required_binaries += ("flock",)
+        for binary in required_binaries:
             if not self._is_binary_installed(binary):
                 raise EnvironmentError(f"Required binary '{binary}' is not installed.")
 

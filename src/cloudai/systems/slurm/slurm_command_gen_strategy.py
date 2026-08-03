@@ -15,15 +15,16 @@
 # limitations under the License.
 
 import logging
+import shlex
 from abc import abstractmethod
 from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast, final
+from typing import Any, Dict, Iterable, List, Optional, cast, final
 
 import toml
 
-from cloudai.core import CommandGenStrategy, Registry, System, TestRun, TestScenario
+from cloudai.core import CommandGenStrategy, HFModel, Registry, System, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 
 from .slurm_system import SlurmSystem
@@ -104,6 +105,106 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 mounts.append(f"{nccl_topo_file_path}:{nccl_topo_file_path}")
 
         return mounts
+
+    @property
+    def runtime_hf_home_path(self) -> Path:
+        """Return the host HF cache path to mount for workload execution."""
+        return self.system.hf_local_home_path or self.system.hf_home_path
+
+    @classmethod
+    def collect_hf_models(cls, test_runs: Iterable[TestRun]) -> list[HFModel]:
+        """Collect unique HF models required by test runs and their hooks."""
+        models: set[HFModel] = set()
+        pending = list(test_runs)
+        while pending:
+            test_run = pending.pop()
+            models.update(item for item in test_run.test.installables if isinstance(item, HFModel))
+            for scenario in (test_run.pre_test, test_run.post_test):
+                if scenario:
+                    pending.extend(scenario.test_runs)
+        return sorted(models, key=lambda model: model.model_name)
+
+    def gen_hf_model_staging_command(
+        self,
+        models: Iterable[HFModel] | None = None,
+        node_spec: tuple[int, list[str]] | None = None,
+    ) -> str | None:
+        """Generate a host-side Slurm step that stages HF models on every compute node."""
+        local_hf_home = self.system.hf_local_home_path
+        if local_hf_home is None:
+            return None
+
+        models_to_stage = list(models) if models is not None else self.collect_hf_models([self.test_run])
+        models_to_stage = sorted(set(models_to_stage), key=lambda model: model.model_name)
+        if not models_to_stage:
+            return None
+
+        shared_hf_home = self.system.hf_home_path.absolute()
+        local_hf_home = local_hf_home.absolute()
+        if shared_hf_home == local_hf_home:
+            raise ValueError("hf_local_home_path must be different from hf_home_path")
+
+        source_hub = shlex.quote(str(shared_hf_home / "hub"))
+        target_hf_home = shlex.quote(str(local_hf_home))
+        model_cache_dirs = " ".join(shlex.quote(model.cache_dir_name) for model in models_to_stage)
+        stage_script = "\n".join(
+            [
+                "set -euo pipefail",
+                f"source_hub={source_hub}",
+                f"target_hf_home={target_hf_home}",
+                'target_hub="$target_hf_home/hub"',
+                'staging_state="$target_hf_home/.cloudai-staging"',
+                'mkdir -p "$target_hub" "$staging_state/locks" "$staging_state/models"',
+                f"for model_cache_dir in {model_cache_dirs}; do",
+                '  source_model="$source_hub/$model_cache_dir"',
+                '  target_model="$target_hub/$model_cache_dir"',
+                '  state_file="$staging_state/models/$model_cache_dir"',
+                '  lock_file="$staging_state/locks/$model_cache_dir.lock"',
+                '  if [ ! -d "$source_model/snapshots" ]; then',
+                '    echo "CloudAI: shared HF cache is missing $source_model/snapshots on $(hostname)" >&2',
+                "    exit 1",
+                "  fi",
+                '  source_state="$(find "$source_model/snapshots" -mindepth 1 -maxdepth 1 -type d '
+                "-printf '%f\\n' | LC_ALL=C sort)\"",
+                '  if [ -z "$source_state" ]; then',
+                '    echo "CloudAI: shared HF cache has no snapshots for $model_cache_dir on $(hostname)" >&2',
+                "    exit 1",
+                "  fi",
+                "  (",
+                "    flock --exclusive 9",
+                '    if [ -d "$target_model" ] && [ -f "$state_file" ] '
+                '&& [ "$(cat "$state_file")" = "$source_state" ]; then',
+                '      echo "CloudAI: $model_cache_dir is already staged on $(hostname)"',
+                "      exit 0",
+                "    fi",
+                '    echo "CloudAI: staging $model_cache_dir on $(hostname)"',
+                '    mkdir -p "$target_model"',
+                '    cp -a "$source_model/." "$target_model/"',
+                '    state_tmp="$state_file.${SLURM_JOB_ID:-$$}.${SLURM_PROCID:-0}.tmp"',
+                '    printf \'%s\\n\' "$source_state" > "$state_tmp"',
+                '    mv "$state_tmp" "$state_file"',
+                '  ) 9>"$lock_file"',
+                "done",
+            ]
+        )
+
+        num_nodes, node_list = node_spec or self.get_cached_nodes_spec()
+        output_path = self.test_run.output_path.absolute()
+        command_parts = [
+            "srun",
+            "--export=ALL",
+            "--mpi=none",
+            f"--nodes={num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            f"--output={output_path}/hf-stage-node-%N-stdout.txt",
+            f"--error={output_path}/hf-stage-node-%N-stderr.txt",
+            "bash",
+            "-lc",
+            shlex.quote(stage_script),
+        ]
+        return " \\\n  ".join(command_parts) + " || exit 1"
 
     def gen_exec_command(self) -> str:
         srun_command = self._gen_srun_command()
@@ -361,6 +462,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if self.final_env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(), ""])
+        if hf_staging_command := self.gen_hf_model_staging_command():
+            batch_script_content.extend([hf_staging_command, ""])
         batch_script_content.extend([self._ranks_mapping_cmd(), ""])
         batch_script_content.extend([self._metadata_cmd(), ""])
 

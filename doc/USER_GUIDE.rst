@@ -542,6 +542,27 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 
 3. Test specific mounts can be mounted in-code.
 
+Automated Compute-Node Local Hugging Face Cache
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Slurm users can opt in to automatic model staging by configuring separate shared and compute-node local Hugging Face
+cache paths:
+
+.. code-block:: toml
+
+   hf_home_path = "/shared/cloudai/huggingface"
+   hf_local_home_path = "/raid/cloudai"
+
+``cloudai install`` and the pre-run installation check continue to use ``hf_home_path``. After Slurm allocates the
+nodes, CloudAI copies the cache directory for every Hugging Face model required by the job from ``hf_home_path`` to
+``hf_local_home_path`` on each node. Staging completes before CloudAI starts any workload container, and a staging
+failure stops the job.
+
+CloudAI retains the local cache and reuses it across jobs when the underlying node-local storage persists. Per-model
+locks protect concurrent jobs, and models whose installed revisions have not changed are not copied again. The local
+path must be absolute, writable, identical on every compute node, and isolated per user when the storage is not
+administered as a shared cache. Leave ``hf_local_home_path`` unset to preserve the default shared-cache behavior.
+
 Head Node without Shared Storage Available on Compute Nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

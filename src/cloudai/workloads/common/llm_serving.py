@@ -370,7 +370,7 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         return self.workload_name.lower().replace(" ", "-")
 
     def _container_mounts(self) -> list[str]:
-        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
+        return [f"{self.runtime_hf_home_path.absolute()}:/root/.cache/huggingface"]
 
     def image_path(self) -> str | None:
         return str(self.tdef.docker_image.installed_path)
