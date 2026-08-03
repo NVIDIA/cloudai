@@ -31,7 +31,8 @@ from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
 
-from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .core import CommandGenStrategy, Reporter, System, TestRun, case_name
+from .metrics import MetricAssessmentSummary, assess_test_run_metrics, summarize_assessments
 from .models.scenario import TestRunDetails
 
 
@@ -43,9 +44,12 @@ class ReportItem:
     description: str
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
+    sol_summaries: list[MetricAssessmentSummary] | None = None
 
     @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
+    def from_test_runs(
+        cls, test_runs: list[TestRun], results_root: Path, system: System | None = None
+    ) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
         for tr in test_runs:
             ri = ReportItem(case_name(tr), tr.test.description)
@@ -53,6 +57,15 @@ class ReportItem:
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
             if metadata := load_system_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
+            if system is not None:
+                try:
+                    ri.sol_summaries = [
+                        summary
+                        for summary in summarize_assessments(assess_test_run_metrics(system, tr))
+                        if summary.matched
+                    ]
+                except Exception as exc:
+                    logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)
             report_items.append(ri)
 
         return report_items
@@ -101,7 +114,7 @@ class StatusReporter(Reporter):
             self.template_file
         )
 
-        report_items = ReportItem.from_test_runs(self.trs, self.results_root)
+        report_items = ReportItem.from_test_runs(self.trs, self.results_root, self.system)
         report = template.render(name=self.test_scenario.name, report_items=report_items)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
@@ -133,6 +146,34 @@ class StatusReporter(Reporter):
             console.print(table)  # doesn't print to stdout, captures only
 
         logging.info(capture.get())
+
+        sol_table = Table(title="Performance vs SOL", title_justify="left", show_lines=True, box=box.DOUBLE_EDGE)
+        for col in ["Case", "Metric", "Coverage", "Worst", "Median", "Best"]:
+            sol_table.add_column(col, overflow="fold")
+
+        has_sol = False
+        for tr in self.trs:
+            try:
+                summaries = summarize_assessments(assess_test_run_metrics(self.system, tr))
+            except Exception as exc:
+                logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)
+                continue
+            for summary in summaries:
+                if summary.matched == 0:
+                    continue
+                has_sol = True
+                values = [summary.worst_attainment, summary.median_attainment, summary.best_attainment]
+                sol_table.add_row(
+                    case_name(tr),
+                    summary.metric.display_name,
+                    f"{summary.matched}/{summary.observations}",
+                    *(f"{value:.1%}" if value is not None else "n/a" for value in values),
+                )
+
+        if has_sol:
+            with console.capture() as capture:
+                console.print(sol_table)
+            logging.info(capture.get())
 
 
 class DSEReporter(Reporter):

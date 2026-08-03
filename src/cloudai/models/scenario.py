@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serial
 from typing_extensions import Self
 
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
+from cloudai.metrics import MetricSOLConfig, parse_sol_spec
 from cloudai.models.workload import TestDefinition
 
 
@@ -82,7 +83,7 @@ class TestRunModel(BaseModel):
     )
     weight: int = 0
     iterations: int = 1
-    sol: Optional[float] = None
+    sol: float | MetricSOLConfig | None = None
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
@@ -103,6 +104,13 @@ class TestRunModel(BaseModel):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: Optional[str] = None
     agent_config: Optional[dict[str, Any]] = Field(default=None, description="Agent configuration.")
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: Any) -> float | MetricSOLConfig | None:
+        if isinstance(value, dict):
+            return parse_sol_spec(value)
+        return value
 
     def tdef_model_dump(self, by_alias: bool) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
@@ -184,11 +192,17 @@ class TestScenarioModel(BaseModel):
 
     name: str
     sol_path: Optional[str] = None
+    sol: MetricSOLConfig = Field(default_factory=dict)
     job_status_check: bool = True
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
     post_test: Optional[str] = None
     reports: dict[str, ReportConfig] = Field(default_factory=dict)
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: dict[str, Any] | None) -> MetricSOLConfig:
+        return parse_sol_spec(value)
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):

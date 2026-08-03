@@ -354,16 +354,16 @@
                 });
             }
             payload.datasets.forEach((dataset, index) => {
-                const color = seriesColor(index);
+                const color = seriesColor(dataset.source_color_index ?? index);
                 dataset.borderColor = color;
                 dataset.backgroundColor = color;
                 dataset.borderWidth = isLine ? Math.max(2, 5 - index * 0.75) : 1;
-                dataset.borderDash = [];
+                dataset.borderDash = dataset.is_sol ? [8, 5] : [];
                 dataset.borderCapStyle = "round";
                 dataset.borderJoinStyle = "round";
                 dataset.pointStyle = pointStyles[index % pointStyles.length];
-                dataset.pointRadius = isLine ? Math.max(3, 6 - index * 0.5) : 0;
-                dataset.pointHoverRadius = isLine ? Math.max(5, 8 - index * 0.5) : 0;
+                dataset.pointRadius = dataset.is_sol ? 0 : (isLine ? Math.max(3, 6 - index * 0.5) : 0);
+                dataset.pointHoverRadius = dataset.is_sol ? 0 : (isLine ? Math.max(5, 8 - index * 0.5) : 0);
                 dataset.pointBorderColor = "#ffffff";
                 dataset.pointBorderWidth = isLine ? 1.5 : 0;
                 dataset.tension = isLine ? 0.12 : 0;

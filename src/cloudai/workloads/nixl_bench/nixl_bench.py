@@ -16,7 +16,16 @@
 
 from __future__ import annotations
 
-from cloudai.core import JobStatusResult, TestRun
+from typing import Any, cast
+
+from cloudai.core import JobStatusResult, System, TestRun
+from cloudai.metrics import (
+    TRANSFER_BANDWIDTH,
+    TRANSFER_LATENCY,
+    MetricObservation,
+    TransferCoordinates,
+)
+from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.common.nixl import (
     NIXLBaseCmdArgs,
     NIXLBaseTestDefinition,
@@ -55,3 +64,22 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
             return JobStatusResult(is_successful=False, error_message=f"NIXLBench data not found in {tr.output_path}.")
 
         return JobStatusResult(is_successful=True)
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[MetricObservation]:
+        del system
+        csv_path = tr.output_path / "nixlbench.csv"
+        df = lazy.pd.read_csv(csv_path) if csv_path.is_file() else extract_nixlbench_data(tr.output_path / "stdout.txt")
+        observations: list[MetricObservation] = []
+        for row in df.itertuples(index=False):
+            row = cast(Any, row)
+            coordinates = TransferCoordinates(
+                payload_size_bytes=int(row.block_size),
+                batch_size=int(row.batch_size),
+            )
+            observations.extend(
+                [
+                    MetricObservation(TRANSFER_LATENCY, float(row.avg_lat), coordinates),
+                    MetricObservation(TRANSFER_BANDWIDTH, float(row.bw_gb_sec), coordinates),
+                ]
+            )
+        return observations

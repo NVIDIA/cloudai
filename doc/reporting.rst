@@ -53,6 +53,50 @@ Enabling or disabling a report needs to be done in the system configuration:
    per_test = { enable = false }
    status = { enable = true }
 
+Speed-of-Light comparisons
+--------------------------
+
+CloudAI can compare canonical workload metrics with configured Speed-of-Light (SOL) targets. SOL configuration is
+metric-specific and is validated while the system or scenario TOML is parsed. Implementation details such as a
+communication backend are deliberately not part of the target schema.
+
+For NIXL Bench, transfer targets can be configured in the system or scenario configuration:
+
+.. code-block:: toml
+
+   [sol.transfer_bandwidth]
+   default = 100.0 # GB/s
+
+   [sol.transfer_latency]
+   default = 8.0 # us
+
+For NCCL, targets are selected by collective and placement:
+
+.. code-block:: toml
+
+   [sol.collective_bus_bandwidth.all_reduce]
+   out_of_place = 250.0 # GB/s
+   in_place = 300.0 # GB/s
+
+   [sol.collective_latency.all_reduce]
+   out_of_place = 12.0 # us
+   in_place = 10.0 # us
+
+A test case can override a complete metric target from the system or scenario:
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "nixl-case"
+   test_name = "nixl-bench"
+
+   [Tests.sol.transfer_bandwidth]
+   default = 120.0
+
+The precedence is test case, then scenario, then system. General console and HTML reports summarize coverage and
+worst/median/best SOL attainment for every supported case. NIXL and NCCL comparison reports additionally include
+measured, SOL, and percentage-of-SOL columns and draw the SOL as a dashed chart series.
+
 .. _reporting-registration:
 
 Reporting Registration

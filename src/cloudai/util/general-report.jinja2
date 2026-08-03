@@ -7,6 +7,7 @@
         <th>Description</th>
         <th>Results</th>
         <th>Nodes</th>
+        <th>Performance vs SOL</th>
     </tr>
     {% for item in report_items %}
     <tr>
@@ -22,6 +23,24 @@
         {% else %}
             <td>No nodes info</td>
         {% endif %}
+        <td>
+        {% if item.sol_summaries %}
+            <table>
+                <tr><th>Metric</th><th>Coverage</th><th>Worst</th><th>Median</th><th>Best</th></tr>
+                {% for summary in item.sol_summaries if summary.matched %}
+                <tr>
+                    <td>{{ summary.metric.display_name }}</td>
+                    <td>{{ summary.matched }}/{{ summary.observations }}</td>
+                    <td>{{ "%.1f%%"|format(summary.worst_attainment * 100) }}</td>
+                    <td>{{ "%.1f%%"|format(summary.median_attainment * 100) }}</td>
+                    <td>{{ "%.1f%%"|format(summary.best_attainment * 100) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            No SOL data
+        {% endif %}
+        </td>
     </tr>
     {% endfor %}
 </table>

@@ -23,7 +23,19 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 
 from cloudai.core import TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
+from cloudai.metrics import (
+    TRANSFER_BANDWIDTH,
+    MetricObservation,
+    TransferCoordinates,
+    assess_observation,
+    parse_sol_spec,
+)
+from cloudai.report_generator.comparison_report import (
+    ComparisonReport,
+    ComparisonReportConfig,
+    ComparisonSection,
+    MetricColumn,
+)
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
 
@@ -128,6 +140,45 @@ def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: T
     chart = cmp_report._build_chart_v2(section, 0)
 
     assert chart["y_axis_type"] == "auto"
+
+
+def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
+    cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observation = MetricObservation(
+        TRANSFER_BANDWIDTH,
+        80,
+        TransferCoordinates(payload_size_bytes=1024),
+    )
+    assessment = assess_observation(
+        observation,
+        parse_sol_spec({"transfer_bandwidth": {"default": 100}}),
+    )
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
+    section = ComparisonSection(
+        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
+        dfs=[pd.DataFrame({"size": [1024], "bandwidth": [80]})],
+        title="Bandwidth",
+        info_columns=["size"],
+        data_columns=["bandwidth"],
+        y_axis_label="GB/s",
+        x_axis_type="linear",
+        metric_columns={
+            "bandwidth": MetricColumn(
+                TRANSFER_BANDWIDTH,
+                coordinate_columns={"payload_size_bytes": "size"},
+            )
+        },
+    )
+
+    table = cmp_report._build_table_v2(section)
+    chart = cmp_report._build_chart_v2(section, 0)
+
+    assert [header["name"] for header in table["data_headers"]] == ["case-a", "case-a · SOL", "case-a · % SOL"]
+    assert table["rows"][0]["data_cells"] == ["80", "100.0", "80.0%"]
+    assert chart["datasets"][1]["label"] == "case-a · SOL"
+    assert chart["datasets"][1]["data"] == [{"x": 1024.0, "y": 100.0}]
+    assert chart["datasets"][1]["is_sol"] is True
 
 
 class TestCreateTable:

@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
+from cloudai.metrics import COLLECTIVE_BUS_BANDWIDTH, COLLECTIVE_LATENCY
+from cloudai.report_generator.comparison_report import (
+    ComparisonReport,
+    ComparisonReportConfig,
+    ComparisonSection,
+    MetricColumn,
+)
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import (
     add_human_readable_sizes,
@@ -67,6 +73,18 @@ class NcclComparisonReport(ComparisonReport):
                         x_axis_type="indexed_category",
                         x_axis_column="Size Human-readable",
                         x_axis_label="Message size",
+                        metric_columns={
+                            self.LATENCY_DATA_COLUMNS[0]: MetricColumn(
+                                COLLECTIVE_LATENCY,
+                                coordinate_columns={"message_size_bytes": "Size (B)"},
+                                coordinate_values={"placement": "out_of_place"},
+                            ),
+                            self.LATENCY_DATA_COLUMNS[1]: MetricColumn(
+                                COLLECTIVE_LATENCY,
+                                coordinate_columns={"message_size_bytes": "Size (B)"},
+                                coordinate_values={"placement": "in_place"},
+                            ),
+                        },
                     ),
                     ComparisonSection(
                         group=group,
@@ -78,6 +96,18 @@ class NcclComparisonReport(ComparisonReport):
                         x_axis_type="indexed_category",
                         x_axis_column="Size Human-readable",
                         x_axis_label="Message size",
+                        metric_columns={
+                            self.BANDWIDTH_DATA_COLUMNS[0]: MetricColumn(
+                                COLLECTIVE_BUS_BANDWIDTH,
+                                coordinate_columns={"message_size_bytes": "Size (B)"},
+                                coordinate_values={"placement": "out_of_place"},
+                            ),
+                            self.BANDWIDTH_DATA_COLUMNS[1]: MetricColumn(
+                                COLLECTIVE_BUS_BANDWIDTH,
+                                coordinate_columns={"message_size_bytes": "Size (B)"},
+                                coordinate_values={"placement": "in_place"},
+                            ),
+                        },
                     ),
                 ]
             )

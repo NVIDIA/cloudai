@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Mapping, Optional, Set, Type
 import toml
 from pydantic import ValidationError
 
+from cloudai.metrics import MetricSOLConfig, merge_sol_configs
 from cloudai.util import deep_merge, format_time_limit, parse_time_limit
 
 from .core import (
@@ -151,7 +152,8 @@ class TestScenarioParser:
                 raise TestScenarioParsingError(msg)
 
         test_runs_by_id: dict[str, TestRun] = {
-            trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test) for trm in ts_model.tests
+            trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
+            for trm in ts_model.tests
         }
 
         tests_data: dict[str, TestRunModel] = {trm.id: trm for trm in ts_model.tests}
@@ -166,6 +168,7 @@ class TestScenarioParser:
             test_runs=list(test_runs_by_id.values()),
             job_status_check=ts_model.job_status_check,
             reports=ts_model.reports,
+            metric_sol=merge_sol_configs(self.system.sol, ts_model.sol),
         )
 
     def _create_test_run(
@@ -174,6 +177,7 @@ class TestScenarioParser:
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
+        scenario_sol: MetricSOLConfig | None = None,
     ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
@@ -183,6 +187,7 @@ class TestScenarioParser:
             normalized_weight (float): Normalized weight for the test.
             pre_test (Optional[TestScenario]): TestScenario object representing the pre-test sequence.
             post_test (Optional[TestScenario]): TestScenario object representing the post-test sequence.
+            scenario_sol: Scenario-level metric SOL configuration.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -195,6 +200,9 @@ class TestScenarioParser:
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
+        metric_sol = test_info.sol if isinstance(test_info.sol, dict) else None
+        legacy_sol = test_info.sol if isinstance(test_info.sol, (float, int)) else None
+
         tr = TestRun(
             test_info.id,
             tdef,
@@ -202,7 +210,8 @@ class TestScenarioParser:
             iterations=test_info.iterations,
             nodes=test_info.nodes,
             time_limit=total_time_limit,
-            sol=test_info.sol,
+            sol=legacy_sol,
+            metric_sol=merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,

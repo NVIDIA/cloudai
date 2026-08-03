@@ -23,7 +23,7 @@ import logging
 from abc import ABC, abstractmethod
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import jinja2
 import yaml
@@ -32,6 +32,7 @@ from rich.console import Console
 from rich.table import Table
 
 from cloudai.core import Reporter, System, TestRun, TestScenario
+from cloudai.metrics import MetricAssessment, MetricDefinition, assess_test_run_metrics, coordinates_dict
 from cloudai.models.scenario import ReportConfig
 from cloudai.util.lazy_imports import lazy
 
@@ -45,6 +46,15 @@ from .util import (
 if TYPE_CHECKING:
     import bokeh.plotting as bk
     import pandas as pd
+
+
+@dataclasses.dataclass
+class MetricColumn:
+    """Declare which canonical metric and coordinates a dataframe column represents."""
+
+    metric: MetricDefinition
+    coordinate_columns: dict[str, str] = dataclasses.field(default_factory=dict)
+    coordinate_values: dict[str, object] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
@@ -62,6 +72,7 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
+    metric_columns: dict[str, MetricColumn] = dataclasses.field(default_factory=dict)
 
 
 class _IndentedSafeDumper(yaml.SafeDumper):
@@ -91,6 +102,50 @@ class ComparisonReport(Reporter, ABC):
         self.template_name_v2 = "comparison-report-v2.jinja2"
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
+        self._metric_assessment_cache: dict[int, list[MetricAssessment]] = {}
+
+    def _assessments(self, tr: TestRun) -> list[MetricAssessment]:
+        cache_key = id(tr)
+        if cache_key not in self._metric_assessment_cache:
+            self._metric_assessment_cache[cache_key] = assess_test_run_metrics(self.system, tr)
+        return self._metric_assessment_cache[cache_key]
+
+    @staticmethod
+    def _coordinate_matches(actual: object, expected: object) -> bool:
+        if actual == expected:
+            return True
+        try:
+            return float(cast(Any, actual)) == float(cast(Any, expected))
+        except (TypeError, ValueError):
+            return str(actual) == str(expected)
+
+    def _assessment_for_row(
+        self, section: ComparisonSection, data_column: str, item_idx: int, row_idx: int
+    ) -> MetricAssessment | None:
+        binding = section.metric_columns.get(data_column)
+        if binding is None or row_idx >= len(section.dfs[item_idx]):
+            return None
+        df = section.dfs[item_idx]
+        row = df.iloc[row_idx]
+        expected = {
+            **binding.coordinate_values,
+            **{name: row[column] for name, column in binding.coordinate_columns.items()},
+        }
+        for assessment in self._assessments(section.group.items[item_idx].tr):
+            if assessment.observation.metric is not binding.metric:
+                continue
+            coordinates = coordinates_dict(assessment.observation.coordinates)
+            if all(self._coordinate_matches(coordinates.get(name), value) for name, value in expected.items()):
+                return assessment
+        return None
+
+    def _column_has_sol(self, section: ComparisonSection, data_column: str) -> bool:
+        return any(
+            (assessment := self._assessment_for_row(section, data_column, item_idx, row_idx)) is not None
+            and assessment.sol is not None
+            for item_idx, df in enumerate(section.dfs)
+            for row_idx in range(len(df))
+        )
 
     @abstractmethod
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
@@ -218,6 +273,7 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
+                section=section,
             )
             for section in self.build_sections(cmp_groups)
         ]
@@ -240,6 +296,7 @@ class ComparisonReport(Reporter, ABC):
                         section.info_columns,
                         section.data_columns,
                         section.y_axis_label,
+                        section=section,
                     )
                 )
         return charts
@@ -270,6 +327,7 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
+                section=section,
             )
             console.print(table)
             console.print()
@@ -393,8 +451,9 @@ class ComparisonReport(Reporter, ABC):
             widest_df = max(section.dfs, key=len)
             labels = [self._display_value(value) for value in widest_df[x_column].tolist()]
 
+        series_idx = 0
         for data_column in section.data_columns:
-            for item, df in zip(section.group.items, section.dfs, strict=True):
+            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
                 if labels is not None:
                     data: list[float | None] | list[dict[str, float]] = [
                         self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
@@ -420,8 +479,35 @@ class ComparisonReport(Reporter, ABC):
                     {
                         "label": self._chart_label(item, data_column, include_metric),
                         "data": data,
+                        "source_color_index": series_idx,
                     }
                 )
+                if self._column_has_sol(section, data_column):
+                    sol_values = [
+                        (
+                            assessment.sol
+                            if (assessment := self._assessment_for_row(section, data_column, item_idx, row_idx))
+                            else None
+                        )
+                        for row_idx in range(len(df))
+                    ]
+                    if labels is None:
+                        sol_data = [
+                            {"x": numeric_x, "y": sol}
+                            for x_value, sol in zip(df[x_column].tolist(), sol_values, strict=True)
+                            if (numeric_x := self._numeric_value(x_value)) is not None and sol is not None
+                        ]
+                    else:
+                        sol_data = sol_values
+                    datasets.append(
+                        {
+                            "label": f"{self._chart_label(item, data_column, include_metric)} · SOL",
+                            "data": sol_data,
+                            "is_sol": True,
+                            "source_color_index": series_idx,
+                        }
+                    )
+                series_idx += 1
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -448,6 +534,7 @@ class ComparisonReport(Reporter, ABC):
         show_diff = len(section.group.items) == 2
         data_headers: list[dict[str, str]] = []
         for data_column in section.data_columns:
+            show_sol = self._column_has_sol(section, data_column)
             for item in section.group.items:
                 data_headers.append(
                     {
@@ -456,6 +543,13 @@ class ComparisonReport(Reporter, ABC):
                         "metric": data_column,
                     }
                 )
+                if show_sol:
+                    data_headers.extend(
+                        [
+                            {"name": f"{item.compact_name_v2} · SOL", "differences_yaml": "", "metric": data_column},
+                            {"name": f"{item.compact_name_v2} · % SOL", "differences_yaml": "", "metric": data_column},
+                        ]
+                    )
             if show_diff:
                 data_headers.append(
                     {
@@ -471,7 +565,19 @@ class ComparisonReport(Reporter, ABC):
             data_cells: list[str] = []
             for data_column in section.data_columns:
                 raw_values = [df[data_column].get(row_idx, None) for df in section.dfs]
-                data_cells.extend(self._display_value(value) for value in raw_values)
+                show_sol = self._column_has_sol(section, data_column)
+                for item_idx, value in enumerate(raw_values):
+                    data_cells.append(self._display_value(value))
+                    if show_sol:
+                        assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
+                        data_cells.extend(
+                            [
+                                self._display_value(assessment.sol if assessment else None),
+                                f"{assessment.attainment:.1%}"
+                                if assessment is not None and assessment.attainment is not None
+                                else "n/a",
+                            ]
+                        )
                 if show_diff:
                     val1, val2 = self._extract_cmp_values(raw_values)
                     data_cells.append(self._format_diff_cell(val1, val2))
@@ -501,6 +607,34 @@ class ComparisonReport(Reporter, ABC):
             for idx, section in enumerate(sections)
         ]
 
+    def _rich_data_points(
+        self,
+        section: ComparisonSection | None,
+        data_column: str,
+        dfs: list[pd.DataFrame],
+        row_idx: int,
+        enable_diff_column: bool,
+    ) -> list[str]:
+        raw_values = [df[data_column].get(row_idx, "n/a") for df in dfs]
+        show_sol = section is not None and self._column_has_sol(section, data_column)
+        data_points: list[str] = []
+        for item_idx, value in enumerate(raw_values):
+            data_points.append(str(value))
+            if show_sol and section is not None:
+                assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
+                data_points.extend(
+                    [
+                        self._display_value(assessment.sol if assessment else None),
+                        f"{assessment.attainment:.1%}"
+                        if assessment is not None and assessment.attainment is not None
+                        else "n/a",
+                    ]
+                )
+        if enable_diff_column:
+            val1, val2 = self._extract_cmp_values(raw_values)
+            data_points.append(self._format_diff_cell(val1, val2))
+        return data_points
+
     def create_table(
         self,
         group: GroupedTestRuns,
@@ -508,6 +642,7 @@ class ComparisonReport(Reporter, ABC):
         title: str,
         info_columns: list[str],
         data_columns: list[str],
+        section: ComparisonSection | None = None,
     ) -> Table:
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
@@ -518,6 +653,7 @@ class ComparisonReport(Reporter, ABC):
         enable_diff_column = len(group.items) == 2
 
         for col in data_columns:
+            show_sol = section is not None and self._column_has_sol(section, col)
             for item in group.items:
                 style = next(style_cycle)
                 name_str = "\n".join(item.name.split())
@@ -528,6 +664,9 @@ class ComparisonReport(Reporter, ABC):
                     header_style=style,
                     no_wrap=False,
                 )
+                if show_sol:
+                    table.add_column(f"{name_str}\nSOL", overflow="fold", style=style, header_style=style)
+                    table.add_column(f"{name_str}\n% SOL", overflow="fold", style=style, header_style=style)
 
             if enable_diff_column:
                 diff_style = next(style_cycle)
@@ -537,15 +676,7 @@ class ComparisonReport(Reporter, ABC):
         for row_idx in range(len(df_with_max_rows)):
             data = []
             for col in data_columns:
-                data_points = []
-                for df in dfs:
-                    data_points.append(str(df[col].get(row_idx, "n/a")))
-
-                if enable_diff_column:
-                    val1, val2 = self._extract_cmp_values(data_points)
-                    data_points.append(self._format_diff_cell(val1, val2))
-
-                data.extend(data_points)
+                data.extend(self._rich_data_points(section, col, dfs, row_idx, enable_diff_column))
 
             table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)
 
@@ -559,6 +690,7 @@ class ComparisonReport(Reporter, ABC):
         info_columns: list[str],
         data_columns: list[str],
         y_axis_label: str,
+        section: ComparisonSection | None = None,
     ) -> bk.figure:
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
@@ -581,7 +713,8 @@ class ComparisonReport(Reporter, ABC):
             logging.debug(f"No data available to create chart for group {group.name}, skipping.")
             return p
 
-        for df, name in zip(dfs, [item.name for item in group.items], strict=True):
+        sol_y_values: list[float] = []
+        for item_idx, (df, name) in enumerate(zip(dfs, [item.name for item in group.items], strict=True)):
             if df.empty:
                 continue
 
@@ -597,12 +730,35 @@ class ComparisonReport(Reporter, ABC):
                 color = next(style_cycle)
                 p.line("x", "y", source=source, line_color=color, line_width=2, legend_label=f"{name} {col}")
                 p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=f"{name} {col}")
+                if section is not None and self._column_has_sol(section, col):
+                    sol_values = [
+                        (
+                            assessment.sol
+                            if (assessment := self._assessment_for_row(section, col, item_idx, row_idx))
+                            else None
+                        )
+                        for row_idx in range(len(df))
+                    ]
+                    sol_points = [
+                        (x, y) for x, y in zip(df[info_columns[0]].tolist(), sol_values, strict=True) if y is not None
+                    ]
+                    sol_y_values.extend(point[1] for point in sol_points)
+                    p.line(
+                        [point[0] for point in sol_points],
+                        [point[1] for point in sol_points],
+                        line_color=color,
+                        line_dash="dashed",
+                        line_width=2,
+                        legend_label=f"{name} {col} SOL",
+                    )
 
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"
 
-        y_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
-        y_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
+        measured_y_values = [df[col].max() for df in dfs for col in data_columns if not df.empty]
+        measured_y_min_values = [df[col].min() for df in dfs for col in data_columns if not df.empty]
+        y_max = max([*measured_y_values, *sol_y_values])
+        y_min = min([*measured_y_min_values, *sol_y_values])
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
         df_with_max_rows = max(dfs, key=len)

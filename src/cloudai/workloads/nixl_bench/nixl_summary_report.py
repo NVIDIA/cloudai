@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
+from cloudai.metrics import TRANSFER_BANDWIDTH, TRANSFER_LATENCY
+from cloudai.report_generator.comparison_report import (
+    ComparisonReport,
+    ComparisonReportConfig,
+    ComparisonSection,
+    MetricColumn,
+)
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
@@ -58,6 +64,15 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["avg_lat"],
                         y_axis_label="Time (us)",
+                        metric_columns={
+                            "avg_lat": MetricColumn(
+                                TRANSFER_LATENCY,
+                                coordinate_columns={
+                                    "payload_size_bytes": "block_size",
+                                    "batch_size": "batch_size",
+                                },
+                            )
+                        },
                     ),
                     ComparisonSection(
                         group=group,
@@ -66,6 +81,15 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["bw_gb_sec"],
                         y_axis_label="Busbw (GB/s)",
+                        metric_columns={
+                            "bw_gb_sec": MetricColumn(
+                                TRANSFER_BANDWIDTH,
+                                coordinate_columns={
+                                    "payload_size_bytes": "block_size",
+                                    "batch_size": "batch_size",
+                                },
+                            )
+                        },
                     ),
                 ]
             )
