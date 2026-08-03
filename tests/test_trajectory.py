@@ -16,6 +16,7 @@
 
 from ast import literal_eval
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -119,11 +120,16 @@ def test_find_returns_none_for_unknown_columns(tmp_path: Path) -> None:
     assert trajectory.find(env_params={"speed": 2}) is None
 
 
-def test_trajectory_rejects_invalid_or_non_increasing_steps(tmp_path: Path) -> None:
+@pytest.mark.parametrize("step", [0, True, 1.0])
+def test_trajectory_rejects_invalid_steps(tmp_path: Path, step: Any) -> None:
     trajectory = Trajectory(iteration_dir=tmp_path)
 
     with pytest.raises(ValueError, match="positive integer"):
-        trajectory.append(step=0, action={"x": 1}, reward=1.0, observation={"metric": 1.0})
+        trajectory.append(step=step, action={"x": 1}, reward=1.0, observation={"metric": 1.0})
+
+
+def test_trajectory_rejects_non_increasing_steps(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
 
     trajectory.append(step=2, action={"x": 1}, reward=1.0, observation={"metric": 1.0})
     with pytest.raises(ValueError, match="steps must increase"):

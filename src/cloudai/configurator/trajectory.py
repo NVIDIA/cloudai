@@ -22,7 +22,6 @@ import csv
 import logging
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from numbers import Integral
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -94,7 +93,10 @@ class Trajectory:
         record: dict[str, object] = {"step": step}
         domains = {"action": action, "reward": reward, "observation": observation, **values}
         for domain, value in domains.items():
-            _flatten_value(record, domain, value)
+            for field, field_value in _flatten_value(domain, value).items():
+                if field in record:
+                    raise ValueError(f"trajectory values produce duplicate column: {field}")
+                record[field] = deepcopy(field_value)
 
         fields = tuple(record)
         expected_fields = tuple(self._dataframe.columns)
@@ -102,7 +104,25 @@ class Trajectory:
             raise ValueError(f"trajectory record fields changed: expected {expected_fields}, got {fields}")
 
         row = lazy.pd.Series(record, dtype=object)
-        self._persist(row, action=action, reward=reward, observation=observation)
+        row_trajectory = lazy.pd.Series(
+            {
+                "step": row["step"],
+                "action": action,
+                "reward": reward,
+                "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
+            },
+            dtype=object,
+        )
+        metadata_fields = tuple(
+            field for field in row.index if field == "step" or field.split(".", maxsplit=1)[0] not in self._core_domains
+        )
+        row_metadata = row[list(metadata_fields)] if len(metadata_fields) > 1 else None
+
+        if row_metadata is not None:
+            _validate_csv_header(self.metadata_path, tuple(row_metadata.index))
+        _append_csv_row(row_trajectory, self.output_path)
+        if row_metadata is not None:
+            _append_csv_row(row_metadata, self.metadata_path)
 
         row_frame = row.to_frame().T.astype(object)
         self._dataframe = lazy.pd.concat([self._dataframe, row_frame], ignore_index=True).astype(object)
@@ -113,7 +133,10 @@ class Trajectory:
         """Return a copy of the first row matching all supplied domain values."""
         criteria: dict[str, object] = {}
         for domain, value in values.items():
-            _flatten_value(criteria, domain, value)
+            for field, field_value in _flatten_value(domain, value).items():
+                if field in criteria:
+                    raise ValueError(f"trajectory values produce duplicate column: {field}")
+                criteria[field] = field_value
 
         if any(field not in self._dataframe.columns for field in criteria):
             return None
@@ -137,48 +160,25 @@ class Trajectory:
             raise ValueError("trajectory dataframe must contain a step column")
 
         previous_step: int | None = None
-        for step in self._dataframe["step"]:
+        for dataframe_step in self._dataframe["step"]:
+            step = dataframe_step.item() if hasattr(dataframe_step, "item") else dataframe_step
             self._validate_step(step)
             if previous_step is not None and step <= previous_step:
                 raise ValueError(f"trajectory steps must increase: last step is {previous_step}, got {step}")
-            previous_step = int(step)
+            previous_step = step
 
     @staticmethod
     def _validate_step(step: object) -> None:
-        if isinstance(step, bool) or not isinstance(step, Integral) or step < 1:
+        if type(step) is not int or step < 1:
             raise ValueError(f"trajectory step must be a positive integer; got {step}")
 
-    def _persist(self, row: pd.Series, *, action: object, reward: object, observation: object) -> None:
-        core_row = lazy.pd.Series(
-            {
-                "step": row["step"],
-                "action": action,
-                "reward": reward,
-                "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
-            },
-            dtype=object,
-        )
-        metadata_fields = tuple(
-            field for field in row.index if field == "step" or field.split(".", maxsplit=1)[0] not in self._core_domains
-        )
-        metadata_row = row[list(metadata_fields)] if len(metadata_fields) > 1 else None
 
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        core_header = _validate_csv_header(self.output_path, self._core_fields)
-        metadata_header = (
-            _validate_csv_header(self.metadata_path, metadata_fields) if metadata_row is not None else False
-        )
-
-        core_row.to_frame().T.to_csv(self.output_path, mode="a", header=core_header, index=False)
-        logging.debug("Wrote trajectory row to %s.", self.output_path)
-        if metadata_row is not None:
-            metadata_row.to_frame().T.to_csv(
-                self.metadata_path,
-                mode="a",
-                header=metadata_header,
-                index=False,
-            )
-            logging.debug("Wrote trajectory metadata row to %s.", self.metadata_path)
+def _append_csv_row(row: pd.Series, path: Path) -> None:
+    """Validate and append one Series to a CSV file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = _validate_csv_header(path, tuple(row.index))
+    row.to_frame().T.to_csv(path, mode="a", header=header, index=False)
+    logging.debug("Wrote trajectory row to %s.", path)
 
 
 def _validate_csv_header(path: Path, fields: tuple[str, ...]) -> bool:
@@ -193,17 +193,19 @@ def _validate_csv_header(path: Path, fields: tuple[str, ...]) -> bool:
     return False
 
 
-def _flatten_value(record: dict[str, object], key: str, value: object) -> None:
-    """Flatten mappings into dot-separated columns while preserving leaf values."""
+def _flatten_value(key: str, value: object) -> dict[str, object]:
+    """Flatten a value into dot-separated columns."""
     if isinstance(value, Mapping):
+        record: dict[str, object] = {}
         for child_key, child_value in value.items():
             if not isinstance(child_key, str):
                 raise TypeError(f"trajectory mapping keys must be strings: {child_key}")
-            _flatten_value(record, f"{key}.{child_key}", child_value)
-        return
-    if key in record:
-        raise ValueError(f"trajectory values produce duplicate column: {key}")
-    record[key] = deepcopy(value)
+            for field, field_value in _flatten_value(f"{key}.{child_key}", child_value).items():
+                if field in record:
+                    raise ValueError(f"trajectory values produce duplicate column: {field}")
+                record[field] = field_value
+        return record
+    return {key: value}
 
 
 def _copy_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
