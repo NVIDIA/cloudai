@@ -19,8 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cloudai import metrics
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.metrics import COLLECTIVE_BUS_BANDWIDTH, COLLECTIVE_LATENCY
 from cloudai.report_generator.comparison_report import (
     ComparisonReport,
     ComparisonReportConfig,
@@ -75,12 +75,12 @@ class NcclComparisonReport(ComparisonReport):
                         x_axis_label="Message size",
                         metric_columns={
                             self.LATENCY_DATA_COLUMNS[0]: MetricColumn(
-                                COLLECTIVE_LATENCY,
+                                metrics.COLLECTIVE_LATENCY,
                                 coordinate_columns={"message_size_bytes": "Size (B)"},
                                 coordinate_values={"placement": "out_of_place"},
                             ),
                             self.LATENCY_DATA_COLUMNS[1]: MetricColumn(
-                                COLLECTIVE_LATENCY,
+                                metrics.COLLECTIVE_LATENCY,
                                 coordinate_columns={"message_size_bytes": "Size (B)"},
                                 coordinate_values={"placement": "in_place"},
                             ),
@@ -98,12 +98,12 @@ class NcclComparisonReport(ComparisonReport):
                         x_axis_label="Message size",
                         metric_columns={
                             self.BANDWIDTH_DATA_COLUMNS[0]: MetricColumn(
-                                COLLECTIVE_BUS_BANDWIDTH,
+                                metrics.COLLECTIVE_BUS_BANDWIDTH,
                                 coordinate_columns={"message_size_bytes": "Size (B)"},
                                 coordinate_values={"placement": "out_of_place"},
                             ),
                             self.BANDWIDTH_DATA_COLUMNS[1]: MetricColumn(
-                                COLLECTIVE_BUS_BANDWIDTH,
+                                metrics.COLLECTIVE_BUS_BANDWIDTH,
                                 coordinate_columns={"message_size_bytes": "Size (B)"},
                                 coordinate_values={"placement": "in_place"},
                             ),

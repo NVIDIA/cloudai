@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
 
+from cloudai import metrics
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
-from cloudai.metrics import MetricObservation
 
 from ..configurator.env_params import EnvParamSpec
 
@@ -208,7 +208,7 @@ class TestDefinition(BaseModel, ABC):
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         return JobStatusResult(is_successful=True)
 
-    def metric_observations(self, system: System, tr: TestRun) -> list[MetricObservation]:
+    def metric_observations(self, system: System, tr: TestRun) -> list[metrics.MetricObservation]:
         """Return canonical metric observations produced by this test run, if supported."""
         return []
 

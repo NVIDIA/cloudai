@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Mapping, Optional, Set, Type
 import toml
 from pydantic import ValidationError
 
-from cloudai.metrics import MetricSOLConfig, merge_sol_configs
+from cloudai import metrics
 from cloudai.util import deep_merge, format_time_limit, parse_time_limit
 
 from .core import (
@@ -168,7 +168,7 @@ class TestScenarioParser:
             test_runs=list(test_runs_by_id.values()),
             job_status_check=ts_model.job_status_check,
             reports=ts_model.reports,
-            metric_sol=merge_sol_configs(self.system.sol, ts_model.sol),
+            metric_sol=metrics.merge_sol_configs(self.system.sol, ts_model.sol),
         )
 
     def _create_test_run(
@@ -177,7 +177,7 @@ class TestScenarioParser:
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
-        scenario_sol: MetricSOLConfig | None = None,
+        scenario_sol: metrics.MetricSOLConfig | None = None,
     ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
@@ -211,7 +211,7 @@ class TestScenarioParser:
             nodes=test_info.nodes,
             time_limit=total_time_limit,
             sol=legacy_sol,
-            metric_sol=merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
+            metric_sol=metrics.merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,

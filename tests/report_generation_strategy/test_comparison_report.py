@@ -22,14 +22,8 @@ import toml
 from packaging.requirements import Requirement
 from packaging.version import Version
 
+from cloudai import metrics
 from cloudai.core import TestRun, TestScenario
-from cloudai.metrics import (
-    TRANSFER_BANDWIDTH,
-    MetricObservation,
-    TransferCoordinates,
-    assess_observation,
-    parse_sol_spec,
-)
 from cloudai.report_generator.comparison_report import (
     ComparisonReport,
     ComparisonReportConfig,
@@ -145,14 +139,14 @@ def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: T
 def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
     cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    observation = MetricObservation(
-        TRANSFER_BANDWIDTH,
+    observation = metrics.MetricObservation(
+        metrics.TRANSFER_BANDWIDTH,
         80,
-        TransferCoordinates(payload_size_bytes=1024),
+        metrics.TransferCoordinates(payload_size_bytes=1024),
     )
-    assessment = assess_observation(
+    assessment = metrics.assess_observation(
         observation,
-        parse_sol_spec({"transfer_bandwidth": {"default": 100}}),
+        metrics.parse_sol_spec({"transfer_bandwidth": {"default": 100}}),
     )
     monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
     section = ComparisonSection(
@@ -165,7 +159,7 @@ def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
         x_axis_type="linear",
         metric_columns={
             "bandwidth": MetricColumn(
-                TRANSFER_BANDWIDTH,
+                metrics.TRANSFER_BANDWIDTH,
                 coordinate_columns={"payload_size_bytes": "size"},
             )
         },

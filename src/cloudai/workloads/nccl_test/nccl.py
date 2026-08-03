@@ -16,13 +16,8 @@
 
 from typing import Literal, Optional, Union, cast
 
+from cloudai import metrics
 from cloudai.core import DockerImage, Installable, JobStatusResult, System, TestRun
-from cloudai.metrics import (
-    COLLECTIVE_BUS_BANDWIDTH,
-    COLLECTIVE_LATENCY,
-    CollectiveCoordinates,
-    MetricObservation,
-)
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -195,7 +190,7 @@ class NCCLTestDefinition(TestDefinition):
             ),
         )
 
-    def metric_observations(self, system: System, tr: TestRun) -> list[MetricObservation]:
+    def metric_observations(self, system: System, tr: TestRun) -> list[metrics.MetricObservation]:
         del system
         from .performance_report_generation_strategy import extract_nccl_data
 
@@ -204,22 +199,24 @@ class NCCLTestDefinition(TestDefinition):
         if not isinstance(subtest_name, str):
             return []
         collective = subtest_name.removesuffix("_mpi").removesuffix("_perf")
-        observations: list[MetricObservation] = []
+        observations: list[metrics.MetricObservation] = []
         for row in rows:
             message_size = int(row[0])
             for placement, latency_idx, bandwidth_idx in (
                 ("out_of_place", 5, 7),
                 ("in_place", 9, 11),
             ):
-                coordinates = CollectiveCoordinates(
+                coordinates = metrics.CollectiveCoordinates(
                     collective=collective,
                     placement=cast(Literal["in_place", "out_of_place"], placement),
                     message_size_bytes=message_size,
                 )
                 observations.extend(
                     [
-                        MetricObservation(COLLECTIVE_LATENCY, float(row[latency_idx]), coordinates),
-                        MetricObservation(COLLECTIVE_BUS_BANDWIDTH, float(row[bandwidth_idx]), coordinates),
+                        metrics.MetricObservation(metrics.COLLECTIVE_LATENCY, float(row[latency_idx]), coordinates),
+                        metrics.MetricObservation(
+                            metrics.COLLECTIVE_BUS_BANDWIDTH, float(row[bandwidth_idx]), coordinates
+                        ),
                     ]
                 )
         return observations

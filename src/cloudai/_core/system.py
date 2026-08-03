@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cloudai.metrics import MetricSOLConfig, parse_sol_spec
+from cloudai import metrics
 
 from .installables import Installable
 
@@ -42,12 +42,12 @@ class System(ABC, BaseModel):
     hf_home_path: Path = Field(default_factory=lambda data: data["install_path"] / "huggingface")
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: int = 1
-    sol: MetricSOLConfig = Field(default_factory=dict)
+    sol: metrics.MetricSOLConfig = Field(default_factory=dict)
 
     @field_validator("sol", mode="before")
     @classmethod
-    def _parse_sol(cls, value: dict[str, Any] | None) -> MetricSOLConfig:
-        return parse_sol_spec(value)
+    def _parse_sol(cls, value: dict[str, Any] | None) -> metrics.MetricSOLConfig:
+        return metrics.parse_sol_spec(value)
 
     @abstractmethod
     def update(self) -> None:
