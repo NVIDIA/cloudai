@@ -146,7 +146,7 @@ def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
     )
     assessment = cloudai.metrics.assess_observation(
         observation,
-        cloudai.metrics.parse_sol_spec({"transfer_bandwidth": {"default": 100}}),
+        cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
     )
     monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
     section = ComparisonSection(

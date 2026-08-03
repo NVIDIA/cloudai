@@ -22,9 +22,9 @@ import math
 import statistics
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, field_validator
 
 
 class OptimizationDirection(str, Enum):
@@ -54,46 +54,58 @@ class CollectiveCoordinates(BaseModel):
     message_size_bytes: int = Field(gt=0)
 
 
-class TransferSOL(BaseModel):
-    """Scalar SOL targets for transfer directions, in the metric's canonical unit."""
+class SOLTarget(BaseModel):
+    """One SOL value and the coordinate selector under which it applies."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    default: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    read: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    write: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    value: float = Field(gt=0, allow_inf_nan=False)
 
-    @field_validator("default", "read", "write")
+    @field_validator("value")
     @classmethod
-    def reject_non_finite(cls, value: float | None) -> float | None:
-        if value is not None and not math.isfinite(value):
+    def reject_non_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
             raise ValueError("SOL values must be finite")
         return value
 
+    def selector(self) -> dict[str, Any]:
+        """Return the explicitly configured coordinate subset for generic matching."""
+        match = self.model_dump(mode="python", exclude={"value"}, exclude_none=True).get("match", {})
+        if not isinstance(match, dict):
+            raise TypeError(f"{type(self).__name__}.match must serialize to a dictionary")
+        return match
 
-class CollectivePlacementSOL(BaseModel):
-    """Scalar SOL targets for the two NCCL placement modes."""
+
+class TransferMatch(BaseModel):
+    """Optional transfer coordinates that select an SOL target."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    in_place: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    out_of_place: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    operation: Literal["default", "read", "write"] | None = None
+    payload_size_bytes: int | None = Field(default=None, gt=0)
+    batch_size: int | None = Field(default=None, gt=0)
 
 
-class CollectiveSOL(RootModel[dict[str, CollectivePlacementSOL]]):
-    """SOL targets keyed by normalized collective name, with optional ``default``."""
+class TransferSOLTarget(SOLTarget):
+    """SOL target selected by any explicitly configured transfer coordinates."""
 
-    @field_validator("root")
-    @classmethod
-    def reject_blank_collective_names(
-        cls, value: dict[str, CollectivePlacementSOL]
-    ) -> dict[str, CollectivePlacementSOL]:
-        if any(not name.strip() for name in value):
-            raise ValueError("Collective SOL names must be non-blank")
-        return value
+    match: TransferMatch = Field(default_factory=TransferMatch)
 
 
-SOLResolver = Callable[[BaseModel, BaseModel], float | None]
+class CollectiveMatch(BaseModel):
+    """Optional collective coordinates that select an SOL target."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    collective: str | None = Field(default=None, min_length=1)
+    placement: Literal["in_place", "out_of_place"] | None = None
+    message_size_bytes: int | None = Field(default=None, gt=0)
+
+
+class CollectiveSOLTarget(SOLTarget):
+    """SOL target selected by any explicitly configured collective coordinates."""
+
+    match: CollectiveMatch = Field(default_factory=CollectiveMatch)
 
 
 @dataclass(frozen=True)
@@ -105,21 +117,7 @@ class MetricDefinition:
     unit: str
     direction: OptimizationDirection
     coordinates_type: type[BaseModel]
-    sol_type: type[BaseModel]
-    resolve_sol: SOLResolver
-
-
-def _resolve_transfer_sol(config: BaseModel, coordinates: BaseModel) -> float | None:
-    assert isinstance(config, TransferSOL)
-    assert isinstance(coordinates, TransferCoordinates)
-    return getattr(config, coordinates.operation) or config.default
-
-
-def _resolve_collective_sol(config: BaseModel, coordinates: BaseModel) -> float | None:
-    assert isinstance(config, CollectiveSOL)
-    assert isinstance(coordinates, CollectiveCoordinates)
-    targets = config.root.get(coordinates.collective) or config.root.get("default")
-    return getattr(targets, coordinates.placement) if targets else None
+    sol_target_type: type[SOLTarget]
 
 
 TRANSFER_BANDWIDTH = MetricDefinition(
@@ -128,8 +126,7 @@ TRANSFER_BANDWIDTH = MetricDefinition(
     unit="GB/s",
     direction=OptimizationDirection.MAXIMIZE,
     coordinates_type=TransferCoordinates,
-    sol_type=TransferSOL,
-    resolve_sol=_resolve_transfer_sol,
+    sol_target_type=TransferSOLTarget,
 )
 TRANSFER_LATENCY = MetricDefinition(
     key="transfer_latency",
@@ -137,8 +134,7 @@ TRANSFER_LATENCY = MetricDefinition(
     unit="us",
     direction=OptimizationDirection.MINIMIZE,
     coordinates_type=TransferCoordinates,
-    sol_type=TransferSOL,
-    resolve_sol=_resolve_transfer_sol,
+    sol_target_type=TransferSOLTarget,
 )
 COLLECTIVE_BUS_BANDWIDTH = MetricDefinition(
     key="collective_bus_bandwidth",
@@ -146,8 +142,7 @@ COLLECTIVE_BUS_BANDWIDTH = MetricDefinition(
     unit="GB/s",
     direction=OptimizationDirection.MAXIMIZE,
     coordinates_type=CollectiveCoordinates,
-    sol_type=CollectiveSOL,
-    resolve_sol=_resolve_collective_sol,
+    sol_target_type=CollectiveSOLTarget,
 )
 COLLECTIVE_LATENCY = MetricDefinition(
     key="collective_latency",
@@ -155,8 +150,7 @@ COLLECTIVE_LATENCY = MetricDefinition(
     unit="us",
     direction=OptimizationDirection.MINIMIZE,
     coordinates_type=CollectiveCoordinates,
-    sol_type=CollectiveSOL,
-    resolve_sol=_resolve_collective_sol,
+    sol_target_type=CollectiveSOLTarget,
 )
 
 
@@ -182,16 +176,41 @@ class MetricCatalog:
             raise ValueError(f"Unknown SOL metric '{key}'. Available metrics: {available}") from exc
 
 
-MetricSOLConfig = dict[str, BaseModel]
+MetricSOLConfig = dict[str, list[SerializeAsAny[SOLTarget]]]
+
+
+def _selectors_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    """Return whether two selectors can match the same coordinates."""
+    return all(first[key] == second[key] for key in first.keys() & second.keys())
+
+
+def _validate_unambiguous_targets(metric_key: str, targets: list[SOLTarget]) -> None:
+    """Reject targets for which specificity cannot determine a unique winner."""
+    selectors = [target.selector() for target in targets]
+    for index, selector in enumerate(selectors):
+        for other in selectors[index + 1 :]:
+            if len(selector) == len(other) and _selectors_overlap(selector, other):
+                raise ValueError(
+                    f"Ambiguous SOL targets for metric '{metric_key}': {selector} and {other} "
+                    "can match the same observation with equal specificity"
+                )
 
 
 def parse_sol_spec(value: dict[str, Any] | None) -> MetricSOLConfig:
-    """Parse a metric-keyed SOL dictionary using each metric's own schema."""
+    """Parse metric-keyed SOL target lists using each metric's target schema."""
     if value is None:
         return {}
     if not isinstance(value, dict):
         raise ValueError("Structured SOL configuration must be a dictionary")
-    return {key: MetricCatalog.get(key).sol_type.model_validate(config) for key, config in value.items()}
+    parsed: MetricSOLConfig = {}
+    for key, raw_targets in value.items():
+        metric = MetricCatalog.get(key)
+        if not isinstance(raw_targets, list) or not raw_targets:
+            raise ValueError(f"SOL metric '{key}' must contain a non-empty list of targets")
+        targets = [metric.sol_target_type.model_validate(target) for target in raw_targets]
+        _validate_unambiguous_targets(key, targets)
+        parsed[key] = targets
+    return parsed
 
 
 def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
@@ -201,6 +220,19 @@ def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
         if config:
             merged.update(config)
     return merged
+
+
+def resolve_sol(targets: list[SOLTarget], coordinates: BaseModel) -> float | None:
+    """Resolve the most specific SOL target matching the observation coordinates."""
+    coordinate_values = coordinates.model_dump(mode="python")
+    matches = [
+        target
+        for target in targets
+        if all(coordinate_values.get(key) == value for key, value in target.selector().items())
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda target: len(target.selector())).value
 
 
 @dataclass(frozen=True)
@@ -246,8 +278,8 @@ class MetricAssessmentSummary:
 
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
     """Resolve and compare one observation against the configured SOL for its metric."""
-    metric_config = sol_config.get(observation.metric.key)
-    sol = observation.metric.resolve_sol(metric_config, observation.coordinates) if metric_config else None
+    targets = sol_config.get(observation.metric.key)
+    sol = resolve_sol(targets, observation.coordinates) if targets else None
     if sol is None:
         return MetricAssessment(observation=observation, sol=None, attainment=None, gap=None)
 

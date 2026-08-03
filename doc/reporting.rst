@@ -60,27 +60,36 @@ CloudAI can compare canonical workload metrics with configured Speed-of-Light (S
 metric-specific and is validated while the system or scenario TOML is parsed. Implementation details such as a
 communication backend are deliberately not part of the target schema.
 
-For NIXL Bench, transfer targets can be configured in the system or scenario configuration:
+For NIXL Bench, transfer targets can be configured in the system or scenario configuration. A target without
+``match`` is the default; a matching target with more coordinates takes precedence:
 
 .. code-block:: toml
 
-   [sol.transfer_bandwidth]
-   default = 100.0 # GB/s
+   [[sol.transfer_bandwidth]]
+   value = 100.0 # GB/s
 
-   [sol.transfer_latency]
-   default = 8.0 # us
+   [[sol.transfer_bandwidth]]
+   value = 120.0 # GB/s
+   match = { operation = "read", payload_size_bytes = 1048576 }
+
+   [[sol.transfer_latency]]
+   value = 8.0 # us
 
 For NCCL, targets are selected by collective and placement:
 
 .. code-block:: toml
 
-   [sol.collective_bus_bandwidth.all_reduce]
-   out_of_place = 250.0 # GB/s
-   in_place = 300.0 # GB/s
+   [[sol.collective_bus_bandwidth]]
+   value = 250.0 # GB/s
+   match = { collective = "all_reduce", placement = "out_of_place" }
 
-   [sol.collective_latency.all_reduce]
-   out_of_place = 12.0 # us
-   in_place = 10.0 # us
+   [[sol.collective_bus_bandwidth]]
+   value = 300.0 # GB/s
+   match = { collective = "all_reduce", placement = "in_place" }
+
+   [[sol.collective_latency]]
+   value = 10.0 # us
+   match = { collective = "all_reduce", placement = "in_place" }
 
 A test case can override a complete metric target from the system or scenario:
 
@@ -90,8 +99,8 @@ A test case can override a complete metric target from the system or scenario:
    id = "nixl-case"
    test_name = "nixl-bench"
 
-   [Tests.sol.transfer_bandwidth]
-   default = 120.0
+   [[Tests.sol.transfer_bandwidth]]
+   value = 120.0
 
 The precedence is test case, then scenario, then system. General console and HTML reports summarize coverage and
 worst/median/best SOL attainment for every supported case. NIXL and NCCL comparison reports additionally include
