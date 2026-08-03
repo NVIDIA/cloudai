@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cloudai import metrics
+import cloudai.metrics
 from cloudai.core import System, TestRun, TestScenario
 from cloudai.report_generator.comparison_report import (
     ComparisonReport,
@@ -66,7 +66,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         y_axis_label="Time (us)",
                         metric_columns={
                             "avg_lat": MetricColumn(
-                                metrics.TRANSFER_LATENCY,
+                                cloudai.metrics.TRANSFER_LATENCY,
                                 coordinate_columns={
                                     "payload_size_bytes": "block_size",
                                     "batch_size": "batch_size",
@@ -83,7 +83,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         y_axis_label="Busbw (GB/s)",
                         metric_columns={
                             "bw_gb_sec": MetricColumn(
-                                metrics.TRANSFER_BANDWIDTH,
+                                cloudai.metrics.TRANSFER_BANDWIDTH,
                                 coordinate_columns={
                                     "payload_size_bytes": "block_size",
                                     "batch_size": "batch_size",

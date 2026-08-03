@@ -31,7 +31,7 @@ from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
-from cloudai import metrics
+import cloudai.metrics
 from cloudai.core import Reporter, System, TestRun, TestScenario
 from cloudai.models.scenario import ReportConfig
 from cloudai.util.lazy_imports import lazy
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 class MetricColumn:
     """Declare which canonical metric and coordinates a dataframe column represents."""
 
-    metric: metrics.MetricDefinition
+    metric: cloudai.metrics.MetricDefinition
     coordinate_columns: dict[str, str] = dataclasses.field(default_factory=dict)
     coordinate_values: dict[str, object] = dataclasses.field(default_factory=dict)
 
@@ -102,12 +102,12 @@ class ComparisonReport(Reporter, ABC):
         self.template_name_v2 = "comparison-report-v2.jinja2"
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
-        self._metric_assessment_cache: dict[int, list[metrics.MetricAssessment]] = {}
+        self._metric_assessment_cache: dict[int, list[cloudai.metrics.MetricAssessment]] = {}
 
-    def _assessments(self, tr: TestRun) -> list[metrics.MetricAssessment]:
+    def _assessments(self, tr: TestRun) -> list[cloudai.metrics.MetricAssessment]:
         cache_key = id(tr)
         if cache_key not in self._metric_assessment_cache:
-            self._metric_assessment_cache[cache_key] = metrics.assess_test_run_metrics(self.system, tr)
+            self._metric_assessment_cache[cache_key] = cloudai.metrics.assess_test_run_metrics(self.system, tr)
         return self._metric_assessment_cache[cache_key]
 
     @staticmethod
@@ -121,7 +121,7 @@ class ComparisonReport(Reporter, ABC):
 
     def _assessment_for_row(
         self, section: ComparisonSection, data_column: str, item_idx: int, row_idx: int
-    ) -> metrics.MetricAssessment | None:
+    ) -> cloudai.metrics.MetricAssessment | None:
         binding = section.metric_columns.get(data_column)
         if binding is None or row_idx >= len(section.dfs[item_idx]):
             return None
@@ -134,7 +134,7 @@ class ComparisonReport(Reporter, ABC):
         for assessment in self._assessments(section.group.items[item_idx].tr):
             if assessment.observation.metric is not binding.metric:
                 continue
-            coordinates = metrics.coordinates_dict(assessment.observation.coordinates)
+            coordinates = cloudai.metrics.coordinates_dict(assessment.observation.coordinates)
             if all(self._coordinate_matches(coordinates.get(name), value) for name, value in expected.items()):
                 return assessment
         return None

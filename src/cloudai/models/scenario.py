@@ -22,7 +22,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 from typing_extensions import Self
 
-from cloudai import metrics
+import cloudai.metrics
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
 from cloudai.models.workload import TestDefinition
 
@@ -83,7 +83,7 @@ class TestRunModel(BaseModel):
     )
     weight: int = 0
     iterations: int = 1
-    sol: float | metrics.MetricSOLConfig | None = None
+    sol: float | cloudai.metrics.MetricSOLConfig | None = None
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
@@ -107,9 +107,9 @@ class TestRunModel(BaseModel):
 
     @field_validator("sol", mode="before")
     @classmethod
-    def parse_sol(cls, value: Any) -> float | metrics.MetricSOLConfig | None:
+    def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:
         if isinstance(value, dict):
-            return metrics.parse_sol_spec(value)
+            return cloudai.metrics.parse_sol_spec(value)
         return value
 
     def tdef_model_dump(self, by_alias: bool) -> dict:
@@ -191,7 +191,7 @@ class TestScenarioModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    sol: metrics.MetricSOLConfig = Field(default_factory=dict)
+    sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
     job_status_check: bool = True
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
@@ -200,8 +200,8 @@ class TestScenarioModel(BaseModel):
 
     @field_validator("sol", mode="before")
     @classmethod
-    def parse_sol(cls, value: dict[str, Any] | None) -> metrics.MetricSOLConfig:
-        return metrics.parse_sol_spec(value)
+    def parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
+        return cloudai.metrics.parse_sol_spec(value)
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):

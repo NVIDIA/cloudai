@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
 
-from cloudai import metrics
+import cloudai.metrics
 
 from ..util import flatten_dict
 from .registry import Registry
@@ -92,7 +92,7 @@ class TestRun:
     step: int = 0
     time_limit: Optional[str] = None
     sol: Optional[float] = None
-    metric_sol: metrics.MetricSOLConfig = field(default_factory=dict)
+    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
     weight: float = 0.0
     ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
@@ -258,7 +258,7 @@ class TestScenario:
     test_runs: list[TestRun]
     job_status_check: bool = True
     reports: dict[str, ReportConfig] = field(default_factory=dict)
-    metric_sol: metrics.MetricSOLConfig = field(default_factory=dict)
+    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
 
     def __repr__(self) -> str:
         """

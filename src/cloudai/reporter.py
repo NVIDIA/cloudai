@@ -27,7 +27,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai import metrics
+import cloudai.metrics
 from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 from cloudai.util.lazy_imports import lazy
@@ -44,7 +44,7 @@ class ReportItem:
     description: str
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
-    sol_summaries: list[metrics.MetricAssessmentSummary] | None = None
+    sol_summaries: list[cloudai.metrics.MetricAssessmentSummary] | None = None
 
     @classmethod
     def from_test_runs(
@@ -61,7 +61,9 @@ class ReportItem:
                 try:
                     ri.sol_summaries = [
                         summary
-                        for summary in metrics.summarize_assessments(metrics.assess_test_run_metrics(system, tr))
+                        for summary in cloudai.metrics.summarize_assessments(
+                            cloudai.metrics.assess_test_run_metrics(system, tr)
+                        )
                         if summary.matched
                     ]
                 except Exception as exc:
@@ -154,7 +156,9 @@ class StatusReporter(Reporter):
         has_sol = False
         for tr in self.trs:
             try:
-                summaries = metrics.summarize_assessments(metrics.assess_test_run_metrics(self.system, tr))
+                summaries = cloudai.metrics.summarize_assessments(
+                    cloudai.metrics.assess_test_run_metrics(self.system, tr)
+                )
             except Exception as exc:
                 logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)
                 continue

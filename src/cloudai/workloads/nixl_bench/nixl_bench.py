@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from cloudai import metrics
+import cloudai.metrics
 from cloudai.core import JobStatusResult, System, TestRun
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.common.nixl import (
@@ -60,21 +60,25 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
 
         return JobStatusResult(is_successful=True)
 
-    def metric_observations(self, system: System, tr: TestRun) -> list[metrics.MetricObservation]:
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
         del system
         csv_path = tr.output_path / "nixlbench.csv"
         df = lazy.pd.read_csv(csv_path) if csv_path.is_file() else extract_nixlbench_data(tr.output_path / "stdout.txt")
-        observations: list[metrics.MetricObservation] = []
+        observations: list[cloudai.metrics.MetricObservation] = []
         for row in df.itertuples(index=False):
             row = cast(Any, row)
-            coordinates = metrics.TransferCoordinates(
+            coordinates = cloudai.metrics.TransferCoordinates(
                 payload_size_bytes=int(row.block_size),
                 batch_size=int(row.batch_size),
             )
             observations.extend(
                 [
-                    metrics.MetricObservation(metrics.TRANSFER_LATENCY, float(row.avg_lat), coordinates),
-                    metrics.MetricObservation(metrics.TRANSFER_BANDWIDTH, float(row.bw_gb_sec), coordinates),
+                    cloudai.metrics.MetricObservation(
+                        cloudai.metrics.TRANSFER_LATENCY, float(row.avg_lat), coordinates
+                    ),
+                    cloudai.metrics.MetricObservation(
+                        cloudai.metrics.TRANSFER_BANDWIDTH, float(row.bw_gb_sec), coordinates
+                    ),
                 ]
             )
         return observations
