@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -40,18 +41,20 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return [*cmd, *tdef.extra_srun_args]
 
+    def _gen_srun_command(self) -> str:
+        srun_command = super()._gen_srun_command()
+        exit_code_path = shlex.quote(str((self.test_run.output_path / EXIT_CODE_FILE_NAME).absolute()))
+        return (
+            f"{srun_command}; "
+            "rc=$?; "
+            f"""printf '%s\\n' "$rc" > {exit_code_path}; """
+            """(exit "$rc")"""
+        )
+
     def generate_test_command(self) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         if self.test_run.test.extra_cmd_args:
             command_parts.append(self.test_run.test.extra_args_str)
 
-        command = " ".join(command_parts)
-        wrapped_command = (
-            f"( {command} ); "
-            r"rc=\$?; "
-            rf"printf '%s\n' \"\$rc\" > /cloudai_run_results/{EXIT_CODE_FILE_NAME}; "
-            r"exit \"\$rc\""
-        )
-
-        return [wrapped_command]
+        return command_parts
