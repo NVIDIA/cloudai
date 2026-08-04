@@ -173,6 +173,7 @@ def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
     assert chart["datasets"][1]["label"] == "case-a · SOL"
     assert chart["datasets"][1]["data"] == [{"x": 1024.0, "y": 100.0}]
     assert chart["datasets"][1]["is_sol"] is True
+    assert chart["sol_color"] == "#741D9D"
 
 
 class TestCreateTable:

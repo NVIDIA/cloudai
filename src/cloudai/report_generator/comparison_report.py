@@ -93,6 +93,8 @@ class ComparisonReportConfig(ReportConfig):
 class ComparisonReport(Reporter, ABC):
     """Base class for comparison reports that generate both charts and tables."""
 
+    SOL_REFERENCE_COLOR = "#741D9D"
+
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
@@ -523,6 +525,7 @@ class ComparisonReport(Reporter, ABC):
             "type": section.chart_type,
             "labels": chart_labels,
             "datasets": datasets,
+            "sol_color": self.SOL_REFERENCE_COLOR,
             "x_axis_label": section.x_axis_label or section.x_axis_column or section.info_columns[0],
             "x_axis_type": x_axis_type,
             "y_axis_label": section.y_axis_label,
@@ -746,9 +749,19 @@ class ComparisonReport(Reporter, ABC):
                     p.line(
                         [point[0] for point in sol_points],
                         [point[1] for point in sol_points],
-                        line_color=color,
+                        line_color=self.SOL_REFERENCE_COLOR,
                         line_dash="dashed",
-                        line_width=2,
+                        line_width=3,
+                        legend_label=f"{name} {col} SOL",
+                    )
+                    p.scatter(
+                        [point[0] for point in sol_points],
+                        [point[1] for point in sol_points],
+                        marker="diamond",
+                        fill_color=self.SOL_REFERENCE_COLOR,
+                        line_color="#ffffff",
+                        line_width=1.5,
+                        size=10,
                         legend_label=f"{name} {col} SOL",
                     )
 
