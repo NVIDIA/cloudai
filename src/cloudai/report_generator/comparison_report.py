@@ -149,6 +149,34 @@ class ComparisonReport(Reporter, ABC):
             for row_idx in range(len(df))
         )
 
+    def _shared_sol_curve(
+        self, section: ComparisonSection, data_column: str, x_column: str
+    ) -> list[tuple[Any, float]] | None:
+        """Return the SOL curve when every compared item resolves the same points."""
+        curves: list[list[tuple[Any, float]]] = []
+        for item_idx, df in enumerate(section.dfs):
+            curve: list[tuple[Any, float]] = []
+            for row_idx in range(len(df)):
+                assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
+                if assessment is not None and assessment.sol is not None:
+                    curve.append((df[x_column].iloc[row_idx], assessment.sol))
+            if not curve:
+                return None
+            curves.append(curve)
+
+        reference = curves[0]
+        if any(
+            len(curve) != len(reference)
+            or any(
+                not self._coordinate_matches(actual_x, expected_x)
+                or not self._coordinate_matches(actual_sol, expected_sol)
+                for (actual_x, actual_sol), (expected_x, expected_sol) in zip(curve, reference, strict=True)
+            )
+            for curve in curves[1:]
+        ):
+            return None
+        return reference
+
     @abstractmethod
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
 
@@ -455,7 +483,7 @@ class ComparisonReport(Reporter, ABC):
 
         series_idx = 0
         for data_column in section.data_columns:
-            for item_idx, (item, df) in enumerate(zip(section.group.items, section.dfs, strict=True)):
+            for item, df in zip(section.group.items, section.dfs, strict=True):
                 if labels is not None:
                     data: list[float | None] | list[dict[str, float]] = [
                         self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
@@ -484,32 +512,26 @@ class ComparisonReport(Reporter, ABC):
                         "source_color_index": series_idx,
                     }
                 )
-                if self._column_has_sol(section, data_column):
-                    sol_values = [
-                        (
-                            assessment.sol
-                            if (assessment := self._assessment_for_row(section, data_column, item_idx, row_idx))
-                            else None
-                        )
-                        for row_idx in range(len(df))
-                    ]
-                    if labels is None:
-                        sol_data = [
-                            {"x": numeric_x, "y": sol}
-                            for x_value, sol in zip(df[x_column].tolist(), sol_values, strict=True)
-                            if (numeric_x := self._numeric_value(x_value)) is not None and sol is not None
-                        ]
-                    else:
-                        sol_data = sol_values
-                    datasets.append(
-                        {
-                            "label": f"{self._chart_label(item, data_column, include_metric)} · SOL",
-                            "data": sol_data,
-                            "is_sol": True,
-                            "source_color_index": series_idx,
-                        }
-                    )
                 series_idx += 1
+
+            if (sol_curve := self._shared_sol_curve(section, data_column, x_column)) is None:
+                continue
+            if labels is None:
+                sol_data = [
+                    {"x": numeric_x, "y": sol}
+                    for x_value, sol in sol_curve
+                    if (numeric_x := self._numeric_value(x_value)) is not None
+                ]
+            else:
+                sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
+                sol_data = [sol_by_label.get(label) for label in labels]
+            datasets.append(
+                {
+                    "label": f"{data_column} · SOL" if include_metric else "SOL",
+                    "data": sol_data,
+                    "is_sol": True,
+                }
+            )
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -717,7 +739,7 @@ class ComparisonReport(Reporter, ABC):
             return p
 
         sol_y_values: list[float] = []
-        for item_idx, (df, name) in enumerate(zip(dfs, [item.name for item in group.items], strict=True)):
+        for df, name in zip(dfs, [item.name for item in group.items], strict=True):
             if df.empty:
                 continue
 
@@ -733,37 +755,32 @@ class ComparisonReport(Reporter, ABC):
                 color = next(style_cycle)
                 p.line("x", "y", source=source, line_color=color, line_width=2, legend_label=f"{name} {col}")
                 p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=f"{name} {col}")
-                if section is not None and self._column_has_sol(section, col):
-                    sol_values = [
-                        (
-                            assessment.sol
-                            if (assessment := self._assessment_for_row(section, col, item_idx, row_idx))
-                            else None
-                        )
-                        for row_idx in range(len(df))
-                    ]
-                    sol_points = [
-                        (x, y) for x, y in zip(df[info_columns[0]].tolist(), sol_values, strict=True) if y is not None
-                    ]
-                    sol_y_values.extend(point[1] for point in sol_points)
-                    p.line(
-                        [point[0] for point in sol_points],
-                        [point[1] for point in sol_points],
-                        line_color=self.SOL_REFERENCE_COLOR,
-                        line_dash="dashed",
-                        line_width=3,
-                        legend_label=f"{name} {col} SOL",
-                    )
-                    p.scatter(
-                        [point[0] for point in sol_points],
-                        [point[1] for point in sol_points],
-                        marker="diamond",
-                        fill_color=self.SOL_REFERENCE_COLOR,
-                        line_color="#ffffff",
-                        line_width=1.5,
-                        size=10,
-                        legend_label=f"{name} {col} SOL",
-                    )
+
+        if section is not None:
+            for col in data_columns:
+                sol_points = self._shared_sol_curve(section, col, info_columns[0])
+                if sol_points is None:
+                    continue
+                sol_y_values.extend(point[1] for point in sol_points)
+                sol_label = f"{col} SOL" if len(data_columns) > 1 else "SOL"
+                p.line(
+                    [point[0] for point in sol_points],
+                    [point[1] for point in sol_points],
+                    line_color=self.SOL_REFERENCE_COLOR,
+                    line_dash="dashed",
+                    line_width=3,
+                    legend_label=sol_label,
+                )
+                p.scatter(
+                    [point[0] for point in sol_points],
+                    [point[1] for point in sol_points],
+                    marker="diamond",
+                    fill_color=self.SOL_REFERENCE_COLOR,
+                    line_color="#ffffff",
+                    line_width=1.5,
+                    size=10,
+                    legend_label=sol_label,
+                )
 
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 from pathlib import Path
 
 import pandas as pd
@@ -170,10 +171,99 @@ def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
 
     assert [header["name"] for header in table["data_headers"]] == ["case-a", "case-a · SOL", "case-a · % SOL"]
     assert table["rows"][0]["data_cells"] == ["80", "100.0", "80.0%"]
-    assert chart["datasets"][1]["label"] == "case-a · SOL"
+    assert chart["datasets"][1]["label"] == "SOL"
     assert chart["datasets"][1]["data"] == [{"x": 1024.0, "y": 100.0}]
     assert chart["datasets"][1]["is_sol"] is True
     assert chart["sol_color"] == "#741D9D"
+
+
+def test_chart_v2_renders_one_shared_sol_curve(
+    cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    second_tr = dataclasses.replace(nccl_tr, name="case-b")
+    observation = cloudai.metrics.MetricObservation(
+        cloudai.metrics.TRANSFER_BANDWIDTH,
+        80,
+        cloudai.metrics.TransferCoordinates(payload_size_bytes=1024),
+    )
+    assessment = cloudai.metrics.assess_observation(
+        observation,
+        cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
+    )
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
+    section = ComparisonSection(
+        group=GroupedTestRuns(
+            name="all-in-one",
+            items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
+        ),
+        dfs=[
+            pd.DataFrame({"size": [1024], "bandwidth": [80]}),
+            pd.DataFrame({"size": [1024], "bandwidth": [90]}),
+        ],
+        title="Bandwidth",
+        info_columns=["size"],
+        data_columns=["bandwidth"],
+        y_axis_label="GB/s",
+        x_axis_type="linear",
+        metric_columns={
+            "bandwidth": MetricColumn(
+                cloudai.metrics.TRANSFER_BANDWIDTH,
+                coordinate_columns={"payload_size_bytes": "size"},
+            )
+        },
+    )
+
+    chart = cmp_report._build_chart_v2(section, 0)
+
+    sol_datasets = [dataset for dataset in chart["datasets"] if dataset.get("is_sol")]
+    assert sol_datasets == [{"label": "SOL", "data": [{"x": 1024.0, "y": 100.0}], "is_sol": True}]
+
+
+def test_chart_v2_omits_sol_when_compared_runs_disagree(
+    cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    second_tr = dataclasses.replace(nccl_tr, name="case-b")
+    observation = cloudai.metrics.MetricObservation(
+        cloudai.metrics.TRANSFER_BANDWIDTH,
+        80,
+        cloudai.metrics.TransferCoordinates(payload_size_bytes=1024),
+    )
+    assessments = {
+        id(nccl_tr): cloudai.metrics.assess_observation(
+            observation,
+            cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
+        ),
+        id(second_tr): cloudai.metrics.assess_observation(
+            observation,
+            cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 120}]}),
+        ),
+    }
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessments[id(tr)]])
+    section = ComparisonSection(
+        group=GroupedTestRuns(
+            name="all-in-one",
+            items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
+        ),
+        dfs=[
+            pd.DataFrame({"size": [1024], "bandwidth": [80]}),
+            pd.DataFrame({"size": [1024], "bandwidth": [90]}),
+        ],
+        title="Bandwidth",
+        info_columns=["size"],
+        data_columns=["bandwidth"],
+        y_axis_label="GB/s",
+        x_axis_type="linear",
+        metric_columns={
+            "bandwidth": MetricColumn(
+                cloudai.metrics.TRANSFER_BANDWIDTH,
+                coordinate_columns={"payload_size_bytes": "size"},
+            )
+        },
+    )
+
+    chart = cmp_report._build_chart_v2(section, 0)
+
+    assert not any(dataset.get("is_sol") for dataset in chart["datasets"])
 
 
 class TestCreateTable:
