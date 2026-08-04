@@ -122,6 +122,33 @@ def test_collective_sol_uses_collective_and_placement() -> None:
     assert assessment.attainment == pytest.approx(0.96)
 
 
+def test_collective_sol_accepts_zero_byte_nccl_observation() -> None:
+    config = cloudai.metrics.parse_sol_spec(
+        {
+            "collective_latency": [
+                {
+                    "value": 10,
+                    "match": {
+                        "collective": "all_gather",
+                        "placement": "out_of_place",
+                        "message_size_bytes": 0,
+                    },
+                }
+            ]
+        }
+    )
+    observation = cloudai.metrics.MetricObservation(
+        cloudai.metrics.COLLECTIVE_LATENCY,
+        12.5,
+        cloudai.metrics.CollectiveCoordinates(collective="all_gather", placement="out_of_place", message_size_bytes=0),
+    )
+
+    assessment = cloudai.metrics.assess_observation(observation, config)
+
+    assert assessment.sol == 10
+    assert assessment.attainment == pytest.approx(0.8)
+
+
 def test_scenario_and_test_case_accept_structured_sol() -> None:
     scenario = TestScenarioModel.model_validate(
         {

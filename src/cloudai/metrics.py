@@ -51,7 +51,7 @@ class CollectiveCoordinates(BaseModel):
 
     collective: str = Field(min_length=1)
     placement: Literal["in_place", "out_of_place"]
-    message_size_bytes: int = Field(gt=0)
+    message_size_bytes: int = Field(ge=0)
 
 
 class SOLTarget(BaseModel):
@@ -99,7 +99,7 @@ class CollectiveMatch(BaseModel):
 
     collective: str | None = Field(default=None, min_length=1)
     placement: Literal["in_place", "out_of_place"] | None = None
-    message_size_bytes: int | None = Field(default=None, gt=0)
+    message_size_bytes: int | None = Field(default=None, ge=0)
 
 
 class CollectiveSOLTarget(SOLTarget):
