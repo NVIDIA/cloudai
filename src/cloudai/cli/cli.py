@@ -88,8 +88,9 @@ def common_options(f):
         "--system-config",
         "system_cfg",
         required=True,
+        envvar="CLOUDAI_SYSTEM_CONFIG",
         type=click.Path(exists=True, resolve_path=True, path_type=Path),
-        help="System config path.",
+        help="System config path. Can also be set via the CLOUDAI_SYSTEM_CONFIG environment variable.",
     )(f)
     f = click.option(
         "--tests-dir",
