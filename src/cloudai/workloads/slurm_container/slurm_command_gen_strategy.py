@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .slurm_container import SlurmContainerTestDefinition
+from .slurm_container import EXIT_CODE_FILE_NAME, SlurmContainerTestDefinition
 
 
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
@@ -39,6 +40,16 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         cmd = super().gen_srun_prefix(use_pretest_extras, with_num_nodes)
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return [*cmd, *tdef.extra_srun_args]
+
+    def _gen_srun_command(self) -> str:
+        srun_command = super()._gen_srun_command()
+        exit_code_path = shlex.quote(str((self.test_run.output_path / EXIT_CODE_FILE_NAME).absolute()))
+        return (
+            f"{srun_command}; "
+            "rc=$?; "
+            f"""printf '%s\\n' "$rc" > {exit_code_path}; """
+            """(exit "$rc")"""
+        )
 
     def generate_test_command(self) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)

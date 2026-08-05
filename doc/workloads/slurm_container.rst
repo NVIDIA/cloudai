@@ -15,7 +15,7 @@ Test TOML example:
    test_template_name = "SlurmContainer"
 
    [cmd_args]
-   image_path = "/path/to/container.sqsh"
+   docker_image_url = "/path/to/container.sqsh"
    cmd = "python train.py"
 
 Test Scenario example:
@@ -47,8 +47,16 @@ Test-in-Scenario example:
    test_template_name = "SlurmContainer"
 
      [Tests.cmd_args]
-     image_path = "/path/to/container.sqsh"
+     docker_image_url = "/path/to/container.sqsh"
      cmd = "python train.py"
+
+Run Status
+----------
+
+CloudAI determines success by reading the per-test ``exit_code.txt`` file from
+the test output directory. Only integer ``0`` is successful. Any non-zero
+integer, or a missing, malformed, unreadable, or undecodable file, marks the run
+as failed. Slurm-style exit code ``0:0`` is not accepted.
 
 API Documentation
 -----------------
