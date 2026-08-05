@@ -1,47 +1,272 @@
 {% extends "base-report.jinja2" %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"
+        integrity="sha384-tgbB5AKnszdcfwcZtTfuhR3Ko1XZdlDfsLtkxiiAZiVkkXCkFmp+FQFh+V/UTo54"
+        crossorigin="anonymous"></script>
+<style>
+    .report-table > tbody > tr > td {
+        vertical-align: top;
+    }
+    .sol-overview {
+        display: grid;
+        gap: 0.35rem;
+        min-width: 18rem;
+    }
+    .sol-overview strong,
+    .sol-coverage {
+        display: block;
+    }
+    .sol-overview span,
+    .sol-coverage {
+        color: var(--nv-muted);
+        font-size: 0.82rem;
+    }
+    .sol-details-row:hover {
+        background: transparent;
+    }
+    .sol-details-row > td {
+        padding: 0 16px 16px;
+    }
+    .sol-details {
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-md);
+        background: var(--nv-surface-alt);
+        overflow: hidden;
+    }
+    .sol-details > summary {
+        padding: 0.8rem 1rem;
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .sol-details-content {
+        display: grid;
+        gap: 1rem;
+        padding: 0 1rem 1rem;
+    }
+    .sol-metric-card {
+        min-width: 0;
+        padding: 1rem;
+        border: 1px solid rgba(17, 17, 17, 0.08);
+        border-radius: var(--radius-sm);
+        background: var(--nv-surface);
+    }
+    .sol-metric-card h3 {
+        margin-bottom: 0.25rem;
+    }
+    .sol-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+        gap: 0.65rem;
+        margin: 0.8rem 0;
+    }
+    .sol-stat {
+        padding: 0.65rem 0.75rem;
+        border-radius: var(--radius-sm);
+        background: var(--nv-surface-alt);
+    }
+    .sol-stat span,
+    .sol-stat strong {
+        display: block;
+    }
+    .sol-stat span {
+        color: var(--nv-muted);
+        font-size: 0.75rem;
+    }
+    .sol-chart-shell {
+        position: relative;
+        height: clamp(360px, 44vh, 480px);
+        margin-top: 0.8rem;
+    }
+    .sol-chart-shell canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+    .sol-observation-table-region {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .sol-observation-table {
+        width: max-content;
+        min-width: 100%;
+        margin-top: 0.8rem;
+        box-shadow: none;
+        font-size: 0.82rem;
+    }
+    .sol-observation-table th,
+    .sol-observation-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+    .sol-explanation {
+        margin: 0 0 0.8rem;
+        font-size: 0.88rem;
+    }
+</style>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const pointStyles = ["circle", "rectRot", "triangle", "rect", "star"];
+        const colors = ["#76b900", "#1e1e1e", "#0072ce", "#dc582a", "#00a9a2"];
+
+        function seriesColor(index) {
+            if (colors[index]) {
+                return colors[index];
+            }
+            return `hsl(${Math.round((96 + index * 137.508) % 360)} 68% 40%)`;
+        }
+
+        function initializeSOLChart(canvas) {
+            if (canvas.dataset.chartInitialized === "true" || typeof Chart === "undefined") {
+                return;
+            }
+            const dataNode = document.getElementById(canvas.dataset.chartDataId);
+            if (!dataNode) {
+                return;
+            }
+            canvas.dataset.chartInitialized = "true";
+            const payload = JSON.parse(dataNode.textContent);
+            payload.datasets.forEach((dataset, index) => {
+                const color = dataset.is_sol ? payload.sol_color : seriesColor(dataset.source_color_index ?? index);
+                dataset.borderColor = color;
+                dataset.backgroundColor = color;
+                dataset.order = dataset.is_sol ? 0 : 1;
+                dataset.borderWidth = dataset.is_sol ? 3 : 2;
+                dataset.borderDash = dataset.is_sol ? [8, 5] : [];
+                dataset.pointStyle = dataset.is_sol ? "rectRot" : pointStyles[index % pointStyles.length];
+                dataset.pointRadius = dataset.is_sol ? 6 : 4;
+                dataset.pointHoverRadius = dataset.is_sol ? 8 : 6;
+                dataset.pointBorderColor = "#ffffff";
+                dataset.pointBorderWidth = 1.5;
+                dataset.tension = 0;
+                dataset.data = dataset.data.map((value, pointIndex) => ({x: pointIndex, y: value}));
+            });
+            new Chart(canvas, {
+                type: "line",
+                data: {datasets: payload.datasets},
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+                    animation: false,
+                    interaction: {mode: "nearest", intersect: true},
+                    plugins: {legend: {position: "bottom", labels: {usePointStyle: true, boxWidth: 8, padding: 10}}},
+                    scales: {
+                        x: {
+                            type: "linear",
+                            min: -0.5,
+                            max: payload.labels.length - 0.5,
+                            afterBuildTicks: function (axis) {
+                                axis.ticks = payload.labels.map((_label, index) => ({value: index}));
+                            },
+                            ticks: {
+                                autoSkip: false,
+                                minRotation: 45,
+                                maxRotation: 45,
+                                callback: function (value) { return payload.labels[Math.round(value)] || ""; }
+                            },
+                            title: {display: true, text: payload.x_axis_label}
+                        },
+                        y: {title: {display: true, text: payload.y_axis_label}}
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll(".js-sol-details").forEach((details) => {
+            details.addEventListener("toggle", function () {
+                if (!details.open) {
+                    return;
+                }
+                details.querySelectorAll(".js-sol-chart").forEach(initializeSOLChart);
+            });
+        });
+    });
+</script>
+{% endblock %}
+
 {% block content %}
-<table>
-    <tr>
-        <th>Test</th>
-        <th>Description</th>
-        <th>Results</th>
-        <th>Nodes</th>
-        <th>Performance vs SOL</th>
-    </tr>
+<p class="sol-explanation">Attainment compares each measurement with its applicable SOL. 100% means SOL; higher is better.</p>
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Test</th>
+            <th>Description</th>
+            <th>Results</th>
+            <th>Nodes</th>
+            <th>Performance vs SOL</th>
+        </tr>
+    </thead>
+    <tbody>
     {% for item in report_items %}
-    <tr>
-        <td>{{ item.name }}</td>
-        <td>{{ item.description }}</td>
-        {% if item.logs_path %}
-            <td><a href="{{ item.logs_path }}">logs</a></td>
-        {% else %}
-            <td>no logs</td>
-        {% endif %}
-        {% if item.nodes %}
-            <td>{{ item.nodes }}</td>
-        {% else %}
-            <td>No nodes info</td>
-        {% endif %}
-        <td>
-        {% if item.sol_summaries %}
-            <table>
-                <tr><th>Metric</th><th>Coverage</th><th>Worst</th><th>Median</th><th>Best</th></tr>
-                {% for summary in item.sol_summaries if summary.matched %}
-                <tr>
-                    <td>{{ summary.metric.display_name }}</td>
-                    <td>{{ summary.matched }}/{{ summary.observations }}</td>
-                    <td>{{ "%.1f%%"|format(summary.worst_attainment * 100) }}</td>
-                    <td>{{ "%.1f%%"|format(summary.median_attainment * 100) }}</td>
-                    <td>{{ "%.1f%%"|format(summary.best_attainment * 100) }}</td>
-                </tr>
+        <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.description }}</td>
+            <td>{% if item.logs_path %}<a href="{{ item.logs_path }}">logs</a>{% else %}no logs{% endif %}</td>
+            <td>{% if item.nodes %}{{ item.nodes }}{% else %}No nodes info{% endif %}</td>
+            <td>
+            {% if item.sol_metrics %}
+                <div class="sol-overview">
+                {% for metric in item.sol_metrics %}
+                    <div>
+                        <strong>{{ metric.display_name }}</strong>
+                        <span>{{ metric.coverage_text }} · median {{ metric.median }} · worst {{ metric.worst }}</span>
+                    </div>
                 {% endfor %}
-            </table>
-        {% else %}
-            No SOL data
+                </div>
+            {% else %}
+                No applicable SOL values
+            {% endif %}
+            </td>
+        </tr>
+        {% if item.sol_metrics %}
+        <tr class="sol-details-row">
+            <td colspan="5">
+                <details class="sol-details js-sol-details">
+                    <summary>Show SOL analysis for this test</summary>
+                    <div class="sol-details-content">
+                    {% for metric in item.sol_metrics %}
+                        <section class="sol-metric-card">
+                            <h3>{{ metric.display_name }}</h3>
+                            <span class="sol-coverage">{{ metric.coverage_text }}</span>
+                            <div class="sol-stat-grid">
+                                <div class="sol-stat"><span>Worst attainment</span><strong>{{ metric.worst }}</strong></div>
+                                <div class="sol-stat"><span>Median attainment</span><strong>{{ metric.median }}</strong></div>
+                                <div class="sol-stat"><span>Best attainment</span><strong>{{ metric.best }}</strong></div>
+                            </div>
+                            {% if metric.chart %}
+                            <div class="sol-chart-shell">
+                                <canvas class="js-sol-chart" data-chart-data-id="{{ metric.chart.id }}-data"
+                                        aria-label="{{ metric.display_name }} versus SOL"></canvas>
+                            </div>
+                            <script type="application/json" id="{{ metric.chart.id }}-data">{{ metric.chart | tojson }}</script>
+                            {% endif %}
+                            <div class="sol-observation-table-region">
+                                <table class="sol-observation-table">
+                                    <thead><tr>
+                                    {% for header in metric.coordinate_headers %}<th>{{ header }}</th>{% endfor %}
+                                        <th>Measured ({{ metric.unit }})</th><th>SOL ({{ metric.unit }})</th>
+                                        <th>Attainment</th><th>Gap ({{ metric.unit }})</th><th>Applicable SOL target</th>
+                                    </tr></thead>
+                                    <tbody>
+                                    {% for row in metric.rows %}
+                                        <tr>
+                                        {% for value in row.coordinates %}<td>{{ value }}</td>{% endfor %}
+                                            <td>{{ row.measured }}</td><td>{{ row.sol }}</td><td>{{ row.attainment }}</td>
+                                            <td>{{ row.gap }}</td><td>{{ row.target }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    {% endfor %}
+                    </div>
+                </details>
+            </td>
+        </tr>
         {% endif %}
-        </td>
-    </tr>
     {% endfor %}
+    </tbody>
 </table>
 {% endblock %}

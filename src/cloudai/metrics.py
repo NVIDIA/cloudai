@@ -118,6 +118,8 @@ class MetricDefinition:
     direction: OptimizationDirection
     coordinates_type: type[BaseModel]
     sol_target_type: type[SOLTarget]
+    chart_x_coordinate: str | None = None
+    chart_x_label: str | None = None
 
 
 TRANSFER_BANDWIDTH = MetricDefinition(
@@ -127,6 +129,8 @@ TRANSFER_BANDWIDTH = MetricDefinition(
     direction=OptimizationDirection.MAXIMIZE,
     coordinates_type=TransferCoordinates,
     sol_target_type=TransferSOLTarget,
+    chart_x_coordinate="payload_size_bytes",
+    chart_x_label="Payload size",
 )
 TRANSFER_LATENCY = MetricDefinition(
     key="transfer_latency",
@@ -135,6 +139,8 @@ TRANSFER_LATENCY = MetricDefinition(
     direction=OptimizationDirection.MINIMIZE,
     coordinates_type=TransferCoordinates,
     sol_target_type=TransferSOLTarget,
+    chart_x_coordinate="payload_size_bytes",
+    chart_x_label="Payload size",
 )
 COLLECTIVE_BUS_BANDWIDTH = MetricDefinition(
     key="collective_bus_bandwidth",
@@ -143,6 +149,8 @@ COLLECTIVE_BUS_BANDWIDTH = MetricDefinition(
     direction=OptimizationDirection.MAXIMIZE,
     coordinates_type=CollectiveCoordinates,
     sol_target_type=CollectiveSOLTarget,
+    chart_x_coordinate="message_size_bytes",
+    chart_x_label="Message size",
 )
 COLLECTIVE_LATENCY = MetricDefinition(
     key="collective_latency",
@@ -151,6 +159,8 @@ COLLECTIVE_LATENCY = MetricDefinition(
     direction=OptimizationDirection.MINIMIZE,
     coordinates_type=CollectiveCoordinates,
     sol_target_type=CollectiveSOLTarget,
+    chart_x_coordinate="message_size_bytes",
+    chart_x_label="Message size",
 )
 
 
@@ -222,7 +232,7 @@ def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
     return merged
 
 
-def resolve_sol(targets: list[SOLTarget], coordinates: BaseModel) -> float | None:
+def resolve_sol_target(targets: list[SOLTarget], coordinates: BaseModel) -> SOLTarget | None:
     """Resolve the most specific SOL target matching the observation coordinates."""
     coordinate_values = coordinates.model_dump(mode="python")
     matches = [
@@ -232,7 +242,13 @@ def resolve_sol(targets: list[SOLTarget], coordinates: BaseModel) -> float | Non
     ]
     if not matches:
         return None
-    return max(matches, key=lambda target: len(target.selector())).value
+    return max(matches, key=lambda target: len(target.selector()))
+
+
+def resolve_sol(targets: list[SOLTarget], coordinates: BaseModel) -> float | None:
+    """Resolve the most specific SOL value matching the observation coordinates."""
+    target = resolve_sol_target(targets, coordinates)
+    return target.value if target is not None else None
 
 
 @dataclass(frozen=True)
@@ -260,6 +276,7 @@ class MetricAssessment:
 
     observation: MetricObservation
     sol: float | None
+    sol_target: SOLTarget | None
     attainment: float | None
     gap: float | None
 
@@ -279,9 +296,10 @@ class MetricAssessmentSummary:
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
     """Resolve and compare one observation against the configured SOL for its metric."""
     targets = sol_config.get(observation.metric.key)
-    sol = resolve_sol(targets, observation.coordinates) if targets else None
-    if sol is None:
-        return MetricAssessment(observation=observation, sol=None, attainment=None, gap=None)
+    sol_target = resolve_sol_target(targets, observation.coordinates) if targets else None
+    if sol_target is None:
+        return MetricAssessment(observation=observation, sol=None, sol_target=None, attainment=None, gap=None)
+    sol = sol_target.value
 
     attainment = (
         observation.value / sol
@@ -291,6 +309,7 @@ def assess_observation(observation: MetricObservation, sol_config: MetricSOLConf
     return MetricAssessment(
         observation=observation,
         sol=sol,
+        sol_target=sol_target,
         attainment=attainment,
         gap=observation.value - sol,
     )

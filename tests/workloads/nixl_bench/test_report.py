@@ -18,9 +18,16 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.core import TestRun
+from cloudai.core import TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReportConfig
+from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.nixl import extract_nixlbench_data
-from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_bench import (
+    NIXLBenchCmdArgs,
+    NIXLBenchComparisonReport,
+    NIXLBenchTestDefinition,
+)
 
 LEGACY_FORMAT = """
 Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)
@@ -69,6 +76,26 @@ def test_nixl_bench_report_parsing(tmp_path: Path, sample: str, exp_latency: lis
     assert df["batch_size"].tolist() == [1, 1, 1, 1]
     assert df["avg_lat"].tolist() == exp_latency
     assert df["bw_gb_sec"].tolist() == exp_bw
+
+
+def test_comparison_report_uses_human_readable_payload_axis(nixl_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    nixl_tr.output_path.joinpath("nixlbench.csv").write_text(
+        "block_size,batch_size,avg_lat,bw_gb_sec\n4096,1,3.5,1.2\n1048576,1,18.1,58.0\n"
+    )
+    report = NIXLBenchComparisonReport(
+        slurm_system,
+        TestScenario(name="nixl", test_runs=[nixl_tr]),
+        nixl_tr.output_path,
+        ComparisonReportConfig(enable=True),
+    )
+    group = GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case", tr=nixl_tr)])
+
+    sections = report.build_sections([group])
+
+    assert sections[0].dfs[0][report.BLOCK_SIZE_LABEL_COLUMN].tolist() == ["4KB", "1MB"]
+    assert sections[0].x_axis_type == "indexed_category"
+    assert sections[0].x_axis_column == report.BLOCK_SIZE_LABEL_COLUMN
+    assert sections[0].x_axis_label == "Payload size"
 
 
 def test_nixlbench_report_parsing__noisy_output(tmp_path: Path):

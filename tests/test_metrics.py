@@ -215,6 +215,8 @@ def test_most_specific_matching_sol_target_wins() -> None:
     assessment = cloudai.metrics.assess_observation(observation, config)
 
     assert assessment.sol == 120
+    assert assessment.sol_target is not None
+    assert assessment.sol_target.selector() == {"operation": "read", "payload_size_bytes": 1024}
     assert assessment.attainment == pytest.approx(0.75)
 
 

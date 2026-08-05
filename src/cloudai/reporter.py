@@ -19,7 +19,7 @@ import logging
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import jinja2
 import toml
@@ -37,6 +37,173 @@ from .models.scenario import TestRunDetails
 
 
 @dataclass
+class SOLMetricReport:
+    """Presentation-ready SOL details for one metric in one test run."""
+
+    key: str
+    display_name: str
+    unit: str
+    coverage_text: str
+    worst: str
+    median: str
+    best: str
+    coordinate_headers: list[str]
+    rows: list[dict[str, Any]]
+    chart: dict[str, Any] | None
+
+
+def _coordinate_label(name: str) -> str:
+    return name.removesuffix("_bytes").replace("_", " ").capitalize()
+
+
+def _format_bytes(value: Any) -> str:
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if size == 0:
+        return "0B"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:g}{unit}"
+        size /= 1024
+    return str(value)
+
+
+def _coordinate_value(name: str, value: Any) -> str:
+    return _format_bytes(value) if name.endswith("_bytes") else str(value).replace("_", " ")
+
+
+def _build_metric_chart(
+    metric: cloudai.metrics.MetricDefinition,
+    assessments: list[cloudai.metrics.MetricAssessment],
+    chart_id: str,
+) -> dict[str, Any] | None:
+    x_coordinate = metric.chart_x_coordinate
+    if x_coordinate is None:
+        return None
+    coordinates = [cloudai.metrics.coordinates_dict(item.observation.coordinates) for item in assessments]
+    x_values = sorted({coordinate[x_coordinate] for coordinate in coordinates})
+    if len(x_values) < 2:
+        return None
+
+    other_coordinates = [name for name in coordinates[0] if name != x_coordinate]
+    varying_coordinates = [
+        name for name in other_coordinates if len({coordinate[name] for coordinate in coordinates}) > 1
+    ]
+    grouped: dict[tuple[Any, ...], list[tuple[cloudai.metrics.MetricAssessment, dict[str, Any]]]] = {}
+    for assessment, coordinate in zip(assessments, coordinates, strict=True):
+        series_key = tuple(coordinate[name] for name in varying_coordinates)
+        grouped.setdefault(series_key, []).append((assessment, coordinate))
+
+    datasets: list[dict[str, Any]] = []
+    sol_datasets: dict[tuple[float | None, ...], dict[str, Any]] = {}
+    for series_idx, (series_key, points) in enumerate(grouped.items()):
+        label = (
+            " · ".join(
+                f"{_coordinate_label(name)}={_coordinate_value(name, value)}"
+                for name, value in zip(varying_coordinates, series_key, strict=True)
+            )
+            or "Measured"
+        )
+        point_by_x = {coordinate[x_coordinate]: assessment for assessment, coordinate in points}
+        datasets.append(
+            {
+                "label": label,
+                "data": [point_by_x[x].observation.value if x in point_by_x else None for x in x_values],
+                "source_color_index": series_idx,
+            }
+        )
+        sol_data = tuple(point_by_x[x].sol if x in point_by_x else None for x in x_values)
+        if not any(value is not None for value in sol_data):
+            continue
+        if existing := sol_datasets.get(sol_data):
+            existing["label"] = "SOL"
+            continue
+        sol_dataset = {
+            "label": f"{label} · SOL" if varying_coordinates else "SOL",
+            "data": list(sol_data),
+            "is_sol": True,
+        }
+        sol_datasets[sol_data] = sol_dataset
+        datasets.append(sol_dataset)
+
+    return {
+        "id": chart_id,
+        "type": "line",
+        "labels": [_coordinate_value(x_coordinate, value) for value in x_values],
+        "datasets": datasets,
+        "sol_color": "#741D9D",
+        "x_axis_label": metric.chart_x_label or _coordinate_label(x_coordinate),
+        "x_axis_type": "indexed_category",
+        "y_axis_label": f"{metric.display_name} ({metric.unit})",
+        "y_axis_type": "linear",
+    }
+
+
+def _build_sol_metric_reports(
+    assessments: list[cloudai.metrics.MetricAssessment], item_idx: int
+) -> list[SOLMetricReport]:
+    grouped: dict[str, list[cloudai.metrics.MetricAssessment]] = {}
+    for assessment in assessments:
+        grouped.setdefault(assessment.observation.metric.key, []).append(assessment)
+
+    reports: list[SOLMetricReport] = []
+    for metric_idx, metric_assessments in enumerate(grouped.values()):
+        summary = cloudai.metrics.summarize_assessments(metric_assessments)[0]
+        if summary.matched == 0:
+            continue
+        metric = summary.metric
+        coordinate_headers = list(cloudai.metrics.coordinates_dict(metric_assessments[0].observation.coordinates))
+        rows = []
+        for assessment in metric_assessments:
+            coordinate = cloudai.metrics.coordinates_dict(assessment.observation.coordinates)
+            selector = assessment.sol_target.selector() if assessment.sol_target is not None else None
+            rows.append(
+                {
+                    "coordinates": [_coordinate_value(name, coordinate[name]) for name in coordinate_headers],
+                    "measured": f"{assessment.observation.value:g}",
+                    "sol": f"{assessment.sol:g}" if assessment.sol is not None else "n/a",
+                    "attainment": f"{assessment.attainment:.1%}" if assessment.attainment is not None else "n/a",
+                    "gap": f"{assessment.gap:+g}" if assessment.gap is not None else "n/a",
+                    "target": (
+                        ", ".join(
+                            f"{_coordinate_label(name)}={_coordinate_value(name, value)}"
+                            for name, value in selector.items()
+                        )
+                        if selector
+                        else ("Default" if assessment.sol_target is not None else "n/a")
+                    ),
+                }
+            )
+
+        coverage_text = (
+            f"{summary.observations} measurements compared with SOL"
+            if summary.matched == summary.observations
+            else f"SOL available for {summary.matched} of {summary.observations} measurements"
+        )
+        reports.append(
+            SOLMetricReport(
+                key=metric.key,
+                display_name=metric.display_name,
+                unit=metric.unit,
+                coverage_text=coverage_text,
+                worst=f"{summary.worst_attainment:.1%}",
+                median=f"{summary.median_attainment:.1%}",
+                best=f"{summary.best_attainment:.1%}",
+                coordinate_headers=[_coordinate_label(name) for name in coordinate_headers],
+                rows=rows,
+                chart=_build_metric_chart(
+                    metric,
+                    metric_assessments,
+                    f"sol-chart-{item_idx}-{metric_idx}",
+                ),
+            )
+        )
+    return reports
+
+
+@dataclass
 class ReportItem:
     """Enhanced report item for Slurm systems with node information."""
 
@@ -45,13 +212,14 @@ class ReportItem:
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
     sol_summaries: list[cloudai.metrics.MetricAssessmentSummary] | None = None
+    sol_metrics: list[SOLMetricReport] | None = None
 
     @classmethod
     def from_test_runs(
         cls, test_runs: list[TestRun], results_root: Path, system: System | None = None
     ) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
-        for tr in test_runs:
+        for item_idx, tr in enumerate(test_runs):
             ri = ReportItem(case_name(tr), tr.test.description)
             if tr.output_path.exists():
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
@@ -59,13 +227,11 @@ class ReportItem:
                 ri.nodes = metadata.slurm.node_list
             if system is not None:
                 try:
+                    assessments = cloudai.metrics.assess_test_run_metrics(system, tr)
                     ri.sol_summaries = [
-                        summary
-                        for summary in cloudai.metrics.summarize_assessments(
-                            cloudai.metrics.assess_test_run_metrics(system, tr)
-                        )
-                        if summary.matched
+                        summary for summary in cloudai.metrics.summarize_assessments(assessments) if summary.matched
                     ]
+                    ri.sol_metrics = _build_sol_metric_reports(assessments, item_idx)
                 except Exception as exc:
                     logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)
             report_items.append(ri)

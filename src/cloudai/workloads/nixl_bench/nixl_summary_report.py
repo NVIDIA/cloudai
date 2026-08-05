@@ -28,6 +28,7 @@ from cloudai.report_generator.comparison_report import (
     MetricColumn,
 )
 from cloudai.report_generator.groups import GroupedTestRuns
+from cloudai.report_generator.util import add_human_readable_sizes
 from cloudai.util.lazy_imports import lazy
 
 from .nixl_bench import NIXLBenchTestDefinition
@@ -40,6 +41,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
     """Comparison report for NIXL Bench."""
 
     INFO_COLUMNS = ("block_size", "batch_size")
+    BLOCK_SIZE_LABEL_COLUMN = "block_size_human_readable"
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -64,6 +66,9 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["avg_lat"],
                         y_axis_label="Time (us)",
+                        x_axis_type="indexed_category",
+                        x_axis_column=self.BLOCK_SIZE_LABEL_COLUMN,
+                        x_axis_label="Payload size",
                         metric_columns={
                             "avg_lat": MetricColumn(
                                 cloudai.metrics.TRANSFER_LATENCY,
@@ -81,6 +86,9 @@ class NIXLBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["bw_gb_sec"],
                         y_axis_label="Busbw (GB/s)",
+                        x_axis_type="indexed_category",
+                        x_axis_column=self.BLOCK_SIZE_LABEL_COLUMN,
+                        x_axis_label="Payload size",
                         metric_columns={
                             "bw_gb_sec": MetricColumn(
                                 cloudai.metrics.TRANSFER_BANDWIDTH,
@@ -97,10 +105,12 @@ class NIXLBenchComparisonReport(ComparisonReport):
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         if (tr.output_path / "nixlbench.csv").exists():
-            return lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
+            df = lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
+            return add_human_readable_sizes(df, "block_size", self.BLOCK_SIZE_LABEL_COLUMN)
         return lazy.pd.DataFrame(
             {
                 "block_size": lazy.pd.Series([], dtype=int),
+                self.BLOCK_SIZE_LABEL_COLUMN: lazy.pd.Series([], dtype=str),
                 "batch_size": lazy.pd.Series([], dtype=int),
                 "avg_lat": lazy.pd.Series([], dtype=float),
                 "bw_gb_sec": lazy.pd.Series([], dtype=float),

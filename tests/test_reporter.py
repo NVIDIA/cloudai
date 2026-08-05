@@ -24,12 +24,20 @@ from typing import Any
 import pytest
 import toml
 
+import cloudai.metrics
 from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
+from cloudai.reporter import (
+    DSEReporter,
+    PerTestReporter,
+    ReportItem,
+    StatusReporter,
+    TarballReporter,
+    _build_sol_metric_reports,
+)
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -313,27 +321,77 @@ class TestSlurmReportItem:
         [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
         assert report_item.nodes == slurm_metadata.slurm.node_list
 
-    def test_metadata_for_single_sbatch(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
-        run_dir = slurm_system.output_path / "run_dir"
-        run_dir.mkdir(parents=True, exist_ok=True)
-        (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
-        with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
-            toml.dump(slurm_metadata.model_dump(), f)
-        tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
-            nodes=["node1"],
-            output_path=run_dir,
-        )
 
-        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
-        assert report_item.nodes == slurm_metadata.slurm.node_list
+def test_sol_metric_report_explains_full_coverage_and_builds_chart() -> None:
+    config = cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]})
+    assessments = [
+        cloudai.metrics.assess_observation(
+            cloudai.metrics.MetricObservation(
+                cloudai.metrics.TRANSFER_BANDWIDTH,
+                measured,
+                cloudai.metrics.TransferCoordinates(payload_size_bytes=payload_size),
+            ),
+            config,
+        )
+        for payload_size, measured in ((1024, 80), (2048, 90))
+    ]
+
+    [report] = _build_sol_metric_reports(assessments, item_idx=0)
+
+    assert report.coverage_text == "2 measurements compared with SOL"
+    assert report.worst == "80.0%"
+    assert report.median == "85.0%"
+    assert report.rows[0]["target"] == "Default"
+    assert report.chart is not None
+    assert report.chart["labels"] == ["1KB", "2KB"]
+    assert report.chart["datasets"][0]["data"] == [80, 90]
+    assert report.chart["datasets"][1]["data"] == [100.0, 100.0]
+
+
+def test_sol_metric_report_explains_partial_coverage() -> None:
+    config = cloudai.metrics.parse_sol_spec(
+        {"transfer_bandwidth": [{"value": 100, "match": {"payload_size_bytes": 1024}}]}
+    )
+    assessments = [
+        cloudai.metrics.assess_observation(
+            cloudai.metrics.MetricObservation(
+                cloudai.metrics.TRANSFER_BANDWIDTH,
+                measured,
+                cloudai.metrics.TransferCoordinates(payload_size_bytes=payload_size),
+            ),
+            config,
+        )
+        for payload_size, measured in ((1024, 80), (2048, 90))
+    ]
+
+    [report] = _build_sol_metric_reports(assessments, item_idx=0)
+
+    assert report.coverage_text == "SOL available for 1 of 2 measurements"
+    assert report.rows[0]["target"] == "Payload size=1KB"
+    assert report.rows[1]["sol"] == "n/a"
+
+
+def test_metadata_for_single_sbatch(slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
+    run_dir = slurm_system.output_path / "run_dir"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
+    with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
+        toml.dump(slurm_metadata.model_dump(), f)
+    tr = TestRun(
+        name="run_dir",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="NCCL test",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+        output_path=run_dir,
+    )
+
+    [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+    assert report_item.nodes == slurm_metadata.slurm.node_list
 
 
 def test_report_order() -> None:
