@@ -127,7 +127,7 @@ class TestDefinition(BaseModel, ABC):
         description=(
             "Environment parameters sampled by the env per trial. Sibling to "
             "cmd_args; not part of the agent's action space. CloudAIGymEnv samples, "
-            "persists to env.csv, and includes them in the trajectory cache key."
+            "persists them in the trajectory output, and includes them in the trajectory cache key."
         ),
     )
 

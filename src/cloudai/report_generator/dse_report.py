@@ -128,6 +128,14 @@ def _safe_literal_eval(raw: Any, default: Any) -> Any:
     return default
 
 
+def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
+    """Load a trajectory CSV as a DataFrame."""
+    trajectory_file = iteration_dir / "trajectory.csv"
+    if not trajectory_file.is_file():
+        return None
+    return trajectory_file, lazy.pd.read_csv(trajectory_file)
+
+
 def _format_scalar(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4f}".rstrip("0").rstrip(".")
@@ -239,12 +247,12 @@ def _build_trajectory_steps(
     test_case: TestRun,
     test_runs: list[TestRun],
 ) -> list[TrajectoryStep] | None:
-    trajectory_file = iteration_dir / "trajectory.csv"
-    if not trajectory_file.is_file():
-        logging.warning(f"No trajectory file found for {test_case.name} at {trajectory_file}")
+    loaded_trajectory = load_trajectory_dataframe(iteration_dir)
+    if loaded_trajectory is None:
+        logging.warning(f"No trajectory file found for {test_case.name} in {iteration_dir}")
         return None
 
-    df = lazy.pd.read_csv(trajectory_file)
+    trajectory_file, df = loaded_trajectory
     if df.empty:
         logging.warning(f"No trajectory data found for {test_case.name} at {trajectory_file}")
         return None

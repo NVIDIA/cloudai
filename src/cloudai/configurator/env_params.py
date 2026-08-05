@@ -27,11 +27,9 @@ values, and the knob never enters the agent's action space.
 
 from __future__ import annotations
 
-import csv
 import dataclasses
 import math
 import random
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -237,30 +235,6 @@ class EnvParams:
     def observation_descriptors(self) -> Dict[str, ObsLeafDescriptor]:
         """Per-parameter observation-leaf descriptors, keyed by parameter name."""
         return {name: param.observation_descriptor() for name, param in self.params.items()}
-
-
-def write_env_params(path: Path, step: int, sample: Dict[str, Any]) -> None:
-    """
-    Append one trial's env_params sample to a step-aligned CSV.
-
-    The CSV mirrors how ``trajectory.csv`` serialises its ``action`` column
-    (one row per env.step(), sample dict stringified in a single cell) so the
-    two files align 1:1 on ``step`` and a plain ``merge`` joins them.
-
-    Empty samples are skipped, so a run without env_params writes nothing and
-    callers can sink every trial unconditionally.
-    """
-    if step < 1:
-        raise ValueError(f"step must be a positive trial index (cloudai DSE is 1-based); got {step}")
-    if not sample:
-        return
-    new_file = not path.exists()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", newline="") as f:
-        writer = csv.writer(f)
-        if new_file:
-            writer.writerow(("step", "env"))
-        writer.writerow([step, sample])
 
 
 def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:

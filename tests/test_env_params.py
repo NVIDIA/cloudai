@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import dataclasses
 import random
-from pathlib import Path
 from typing import Any, List, Union
 
 import pytest
@@ -45,7 +44,6 @@ from cloudai.configurator.env_params import (
     EnvParams,
     EnvParamSpec,
     ObsLeafDescriptor,
-    write_env_params,
 )
 from cloudai.core import TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -202,27 +200,6 @@ def test_env_params_is_immutable() -> None:
     env_params = EnvParams(params={"ball_speed": EnvParam(candidates=[1, 2])}, seed=0)
     with pytest.raises(dataclasses.FrozenInstanceError):
         env_params.seed = 1  # pyright: ignore[reportAttributeAccessIssue]
-
-
-# --- write_env_params: unchanged persistence contract ---
-
-
-def test_csv_sink_skips_empty_samples_and_rejects_zero_step(tmp_path: Path) -> None:
-    path = tmp_path / "env.csv"
-    write_env_params(path, 1, {})  # empty -> no-op, no file
-    assert not path.exists()
-    with pytest.raises(ValueError, match="must be a positive trial index"):
-        write_env_params(path, 0, {"ball_speed": 1})
-
-
-def test_csv_sink_writes_header_then_rows(tmp_path: Path) -> None:
-    path = tmp_path / "env.csv"
-    write_env_params(path, 1, {"ball_speed": 2})
-    write_env_params(path, 2, {"ball_speed": 3})
-    contents = path.read_text().strip().splitlines()
-    assert contents[0] == "step,env"
-    assert contents[1].startswith("1,")
-    assert contents[2].startswith("2,")
 
 
 # --- EnvParams.from_test: resolves candidate lists from cmd_args, once at env formulation ---
