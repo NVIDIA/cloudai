@@ -133,7 +133,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 continue
             models = {item for item in test_run.test.installables if isinstance(item, HFModel)}
             if models:
-                groups.setdefault(local_hf_home.resolve(), set()).update(models)
+                groups.setdefault(local_hf_home, set()).update(models)
         return [
             (path, sorted(models, key=lambda model: model.model_name))
             for path, models in sorted(groups.items(), key=lambda item: str(item[0]))
@@ -147,19 +147,26 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> str:
         """Generate a host-side Slurm step that stages HF models on every compute node."""
         models_to_stage = sorted(set(models), key=lambda model: model.model_name)
-        shared_hf_home = self.system.hf_home_path.resolve()
-        local_hf_home = local_hf_home_path.resolve()
-        if shared_hf_home == local_hf_home:
-            raise ValueError("hf_local_home_path must be different from hf_home_path")
-
-        source_hub = shlex.quote(str(shared_hf_home / "hub"))
-        target_hf_home = shlex.quote(str(local_hf_home))
+        configured_shared_hf_home = shlex.quote(str(self.system.hf_home_path.absolute()))
+        configured_local_hf_home = shlex.quote(str(local_hf_home_path.absolute()))
         model_cache_dirs = " ".join(shlex.quote(model.cache_dir_name) for model in models_to_stage)
         stage_script = "\n".join(
             [
                 "set -euo pipefail",
-                f"source_hub={source_hub}",
-                f"target_hf_home={target_hf_home}",
+                f"configured_shared_hf_home={configured_shared_hf_home}",
+                f"configured_local_hf_home={configured_local_hf_home}",
+                (
+                    "command -v realpath >/dev/null 2>&1 || { "
+                    'echo "CloudAI: local HF staging requires realpath" >&2; exit 1; }'
+                ),
+                'shared_hf_home="$(realpath -m -- "$configured_shared_hf_home")"',
+                'local_hf_home="$(realpath -m -- "$configured_local_hf_home")"',
+                'if [ "$shared_hf_home" = "$local_hf_home" ]; then',
+                '  echo "CloudAI: hf_local_home_path must be different from hf_home_path on $(hostname)" >&2',
+                "  exit 1",
+                "fi",
+                'source_hub="$shared_hf_home/hub"',
+                'target_hf_home="$local_hf_home"',
                 'target_hub="$target_hf_home/hub"',
                 'staging_state="$target_hf_home/.cloudai-staging"',
                 'command -v flock >/dev/null 2>&1 || { echo "CloudAI: local HF staging requires flock" >&2; exit 1; }',

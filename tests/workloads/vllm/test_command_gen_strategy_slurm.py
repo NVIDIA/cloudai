@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import shlex
-import subprocess
 from pathlib import Path
 from typing import cast
 
@@ -93,7 +92,7 @@ def test_local_hf_model_staging_precedes_container_steps(
     vllm_cmd_gen_strategy._write_sbatch_script("main-command")
     script = (vllm_cmd_gen_strategy.test_run.output_path / "cloudai_sbatch_script.sh").read_text()
 
-    assert f"target_hf_home={local_hf_home.absolute()}" in script
+    assert f"configured_local_hf_home={local_hf_home.absolute()}" in script
     assert "--ntasks-per-node=1" in script
     assert script.index("CloudAI: staging") < script.index("mapping-stdout.txt")
     assert script.index("CloudAI: staging") < script.index("main-command")
@@ -101,29 +100,6 @@ def test_local_hf_model_staging_precedes_container_steps(
 
 def test_hf_model_staging_is_disabled_by_default(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
     assert vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run]) == []
-
-
-def test_local_hf_path_must_differ_from_shared_cache(
-    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy,
-) -> None:
-    vllm_cmd_gen_strategy.tdef.hf_local_home_path = vllm_cmd_gen_strategy.system.hf_home_path
-
-    with pytest.raises(ValueError, match="hf_local_home_path must be different from hf_home_path"):
-        vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])
-
-
-def test_local_hf_path_symlink_must_not_target_shared_cache(
-    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
-) -> None:
-    shared_hf_home = tmp_path / "shared-hf"
-    shared_hf_home.mkdir()
-    local_hf_home = tmp_path / "local-hf"
-    local_hf_home.symlink_to(shared_hf_home, target_is_directory=True)
-    vllm_cmd_gen_strategy.system.hf_home_path = shared_hf_home
-    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
-
-    with pytest.raises(ValueError, match="hf_local_home_path must be different from hf_home_path"):
-        vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])
 
 
 def _local_hf_stage_script(strategy: VllmSlurmCommandGenStrategy, shared_hf_home: Path, local_hf_home: Path) -> str:
@@ -134,68 +110,80 @@ def _local_hf_stage_script(strategy: VllmSlurmCommandGenStrategy, shared_hf_home
     return command_parts[command_parts.index("-lc") + 1]
 
 
-def test_local_hf_stage_script_copies_and_reuses_model_cache(
+def test_local_hf_path_separation_is_checked_on_compute_node(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    shared_hf_home = tmp_path / "shared-hf"
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, shared_hf_home)
+
+    assert 'shared_hf_home="$(realpath -m -- "$configured_shared_hf_home")"' in stage_script
+    assert 'local_hf_home="$(realpath -m -- "$configured_local_hf_home")"' in stage_script
+    assert 'if [ "$shared_hf_home" = "$local_hf_home" ]; then' in stage_script
+    assert "hf_local_home_path must be different from hf_home_path" in stage_script
+
+
+def test_local_hf_paths_are_preserved_for_compute_node_resolution(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    submission_shared = tmp_path / "submission-shared"
+    submission_local = tmp_path / "submission-local"
+    submission_shared.mkdir()
+    submission_local.mkdir()
+    configured_shared = tmp_path / "shared-hf"
+    configured_local = tmp_path / "local-hf"
+    configured_shared.symlink_to(submission_shared, target_is_directory=True)
+    configured_local.symlink_to(submission_local, target_is_directory=True)
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, configured_shared, configured_local)
+    assert vllm_cmd_gen_strategy._container_mounts() == [f"{configured_local}:/root/.cache/huggingface"]
+    assert f"configured_shared_hf_home={configured_shared}" in stage_script
+    assert f"configured_local_hf_home={configured_local}" in stage_script
+    assert str(submission_shared) not in stage_script
+    assert str(submission_local) not in stage_script
+
+    configured_shared.unlink()
+    configured_local.unlink()
+    compute_shared = tmp_path / "compute-shared"
+    compute_local = tmp_path / "compute-local"
+    compute_shared.mkdir()
+    compute_local.mkdir()
+    configured_shared.symlink_to(compute_shared, target_is_directory=True)
+    configured_local.symlink_to(compute_local, target_is_directory=True)
+
+    assert configured_shared.resolve() == compute_shared
+    assert configured_local.resolve() == compute_local
+
+
+def test_local_hf_stage_script_validates_and_reuses_model_cache(
     vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
 ) -> None:
     shared_hf_home = tmp_path / "shared-hf"
     local_hf_home = tmp_path / "local-hf"
     model_cache = "models--Qwen--Qwen3-0.6B"
-    source_model = shared_hf_home / "hub" / model_cache
-    source_snapshot = source_model / "snapshots" / "revision-1"
-    source_blob = source_model / "blobs" / "weights"
-    source_snapshot.mkdir(parents=True)
-    source_blob.parent.mkdir()
-    source_blob.write_text("shared")
-    (source_snapshot / "model.safetensors").symlink_to("../../blobs/weights")
 
     stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, local_hf_home)
 
-    first_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
-    assert f"CloudAI: staging {model_cache}" in first_run.stdout
-
-    local_blob = local_hf_home / "hub" / model_cache / "blobs" / "weights"
-    local_snapshot_file = local_hf_home / "hub" / model_cache / "snapshots" / "revision-1" / "model.safetensors"
-    assert local_blob.read_text() == "shared"
-    assert local_snapshot_file.read_text() == "shared"
-
-    second_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
-    assert f"CloudAI: {model_cache} is already staged" in second_run.stdout
-
-    local_blob.write_text("incomplete")
-    third_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
-    assert f"CloudAI: staging {model_cache}" in third_run.stdout
-    assert local_blob.read_text() == "shared"
+    assert f"for model_cache_dir in {model_cache}; do" in stage_script
+    assert "flock --exclusive 9" in stage_script
+    assert stage_script.count('missing_entries="$(comm -23') == 2
+    assert f"CloudAI: {model_cache} is already staged" not in stage_script
+    assert "CloudAI: $model_cache_dir is already staged" in stage_script
+    assert 'cp -a "$source_model/." "$target_model/"' in stage_script
+    assert "local HF cache verification failed" in stage_script
 
 
-def test_local_hf_stage_detects_same_size_reference_change(
+def test_local_hf_stage_manifest_includes_reference_contents(
     vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
 ) -> None:
     shared_hf_home = tmp_path / "shared-hf"
     local_hf_home = tmp_path / "local-hf"
-    model_cache = "models--Qwen--Qwen3-0.6B"
-    source_model = shared_hf_home / "hub" / model_cache
-    source_blob = source_model / "blobs" / "weights"
-    source_blob.parent.mkdir(parents=True)
-    source_blob.write_text("shared")
-    for revision in ("revision-1", "revision-2"):
-        snapshot = source_model / "snapshots" / revision
-        snapshot.mkdir(parents=True)
-        (snapshot / "model.safetensors").symlink_to("../../blobs/weights")
-    source_ref = source_model / "refs" / "main"
-    source_ref.parent.mkdir()
-    source_ref.write_text("revision-1")
 
     stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, local_hf_home)
-    subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
 
-    local_ref = local_hf_home / "hub" / model_cache / "refs" / "main"
-    assert local_ref.read_text() == "revision-1"
-
-    source_ref.write_text("revision-2")
-    second_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
-
-    assert f"CloudAI: staging {model_cache}" in second_run.stdout
-    assert local_ref.read_text() == "revision-2"
+    assert 'find "$1/refs" -type f' in stage_script
+    assert 'ref_content="$(< "$1/refs/$ref_path")"' in stage_script
+    assert 'printf \'r refs/%s %s\\n\' "$ref_path" "$ref_content"' in stage_script
 
 
 def test_sweep_detection(vllm: VllmTestDefinition) -> None:
