@@ -20,7 +20,9 @@ import pytest
 
 import cloudai.metrics
 from cloudai.core import TestRun, TestScenario
+from cloudai.models.scenario import ReportConfig
 from cloudai.report_generator.comparison_report import ComparisonReportConfig
+from cloudai.reporter import StatusReporter
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.nixl import extract_nixlbench_data
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchComparisonReport, NIXLBenchTestDefinition
@@ -97,6 +99,27 @@ def test_comparison_report_contains_sol(
     html = tmp_path.joinpath("nixl_comparison_v2.html").read_text()
     assert "Bandwidth" in html
     assert "100.0" in html
+    assert "58.0%" in html
+
+
+def test_generic_report_contains_sol(tmp_path: Path, nixl_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    nixl_tr.output_path.joinpath("nixlbench.csv").write_text(
+        "block_size,batch_size,avg_lat,bw_gb_sec\n4096,1,3.5,1.2\n1048576,1,18.1,58.0\n"
+    )
+    nixl_tr.metric_sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="nixl", test_runs=[nixl_tr]),
+        tmp_path,
+        ReportConfig(enable=True),
+    )
+    reporter.trs = [nixl_tr]
+
+    reporter.generate_scenario_report()
+
+    html = tmp_path.joinpath("nixl.html").read_text()
+    assert "Show SOL analysis" in html
+    assert "100" in html
     assert "58.0%" in html
 
 

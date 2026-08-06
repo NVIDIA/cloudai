@@ -95,8 +95,9 @@ A test case can replace the targets for a metric inherited from the scenario or 
    [[Tests.sol.bandwidth]]
    value = 120.0
 
-The precedence is test case, then scenario, then system. NCCL and NIXL comparison v2 reports include measured, SOL,
-and percentage-of-SOL columns and draw a shared SOL curve when every compared run resolves the same targets.
+The precedence is test case, then scenario, then system. Generic scenario HTML reports show per-test SOL summaries,
+detailed comparisons, and charts. NCCL and NIXL comparison v2 reports include measured, SOL, and percentage-of-SOL
+columns and draw a shared SOL curve when every compared run resolves the same targets.
 
 .. _reporting-registration:
 
