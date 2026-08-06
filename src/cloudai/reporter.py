@@ -116,7 +116,8 @@ def _build_metric_chart(
 
 
 def _build_sol_metric_reports(
-    assessments: list[cloudai.metrics.MetricAssessment], item_idx: int
+    assessments: list[cloudai.metrics.MetricAssessment],
+    item_idx: int,
 ) -> list[SOLMetricReport]:
     grouped: dict[str, list[cloudai.metrics.MetricAssessment]] = {}
     for assessment in assessments:
@@ -290,36 +291,6 @@ class StatusReporter(Reporter):
             console.print(table)  # doesn't print to stdout, captures only
 
         logging.info(capture.get())
-
-        sol_table = Table(title="Performance vs SOL", title_justify="left", show_lines=True, box=box.DOUBLE_EDGE)
-        for col in ["Case", "Metric", "Coverage", "Worst", "Median", "Best"]:
-            sol_table.add_column(col, overflow="fold")
-
-        has_sol = False
-        for tr in self.trs:
-            try:
-                summaries = cloudai.metrics.summarize_assessments(
-                    cloudai.metrics.assess_test_run_metrics(self.system, tr)
-                )
-            except Exception as exc:
-                logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)
-                continue
-            for summary in summaries:
-                if summary.matched == 0:
-                    continue
-                has_sol = True
-                values = [summary.worst_attainment, summary.median_attainment, summary.best_attainment]
-                sol_table.add_row(
-                    case_name(tr),
-                    summary.metric.display_name,
-                    f"{summary.matched}/{summary.observations}",
-                    *(f"{value:.1%}" if value is not None else "n/a" for value in values),
-                )
-
-        if has_sol:
-            with console.capture() as capture:
-                console.print(sol_table)
-            logging.info(capture.get())
 
 
 class DSEReporter(Reporter):

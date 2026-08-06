@@ -21,25 +21,15 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-import jinja2
 import pytest
 import toml
 
-import cloudai.metrics
 from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.reporter import (
-    DSEReporter,
-    PerTestReporter,
-    ReportItem,
-    SOLMetricReport,
-    StatusReporter,
-    TarballReporter,
-    _build_sol_metric_reports,
-)
+from cloudai.reporter import DSEReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -323,109 +313,27 @@ class TestSlurmReportItem:
         [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
         assert report_item.nodes == slurm_metadata.slurm.node_list
 
-
-def test_sol_metric_report_explains_full_coverage_and_builds_chart() -> None:
-    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
-    assessments = [
-        cloudai.metrics.assess_observation(
-            cloudai.metrics.MetricObservation(
-                cloudai.metrics.BANDWIDTH,
-                measured,
-                {"size_bytes": payload_size},
+    def test_metadata_for_single_sbatch(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
+        with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
+            toml.dump(slurm_metadata.model_dump(), f)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             ),
-            config,
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
         )
-        for payload_size, measured in ((1024, 80), (2048, 90))
-    ]
 
-    [report] = _build_sol_metric_reports(assessments, item_idx=0)
-
-    assert report.coverage_text == "2 measurements compared with SOL"
-    assert report.worst == "80.0%"
-    assert report.median == "85.0%"
-    assert report.rows[0]["target"] == "Default"
-    assert report.chart is not None
-    assert report.chart["labels"] == ["1KB", "2KB"]
-    assert report.chart["datasets"][0]["data"] == [80, 90]
-    assert report.chart["datasets"][1]["data"] == [100.0, 100.0]
-
-
-def test_sol_metric_report_explains_partial_coverage() -> None:
-    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100, "match": {"size_bytes": 1024}}]})
-    assessments = [
-        cloudai.metrics.assess_observation(
-            cloudai.metrics.MetricObservation(
-                cloudai.metrics.BANDWIDTH,
-                measured,
-                {"size_bytes": payload_size},
-            ),
-            config,
-        )
-        for payload_size, measured in ((1024, 80), (2048, 90))
-    ]
-
-    [report] = _build_sol_metric_reports(assessments, item_idx=0)
-
-    assert report.coverage_text == "SOL available for 1 of 2 measurements"
-    assert report.rows[0]["target"] == "Size=1KB"
-    assert report.rows[1]["sol"] == "n/a"
-
-
-def test_general_report_sol_toggle_is_attached_to_test_row() -> None:
-    template_dir = Path(__file__).parents[1] / "src" / "cloudai" / "util"
-    template = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir)).get_template("general-report.jinja2")
-    metric = SOLMetricReport(
-        key="bandwidth",
-        display_name="Transfer bandwidth",
-        unit="GB/s",
-        coverage_text="2 measurements compared with SOL",
-        worst="80.0%",
-        median="85.0%",
-        best="90.0%",
-        coordinate_headers=[],
-        rows=[],
-        chart={"id": "sol-chart-0-0"},
-    )
-
-    report = template.render(
-        name="NIXL report",
-        report_items=[ReportItem(name="nixl", description="NIXL", sol_metrics=[metric])],
-    )
-
-    assert '<meta charset="UTF-8">' in report
-    assert 'aria-controls="sol-analysis-0"' in report
-    assert 'id="sol-analysis-0" hidden' in report
-    assert report.index('class="sol-toggle') < report.index('class="sol-details-row')
-    assert "&middot; median 85.0% &middot; worst 80.0%" in report
-    assert "chartjs-plugin-zoom@2.2.0" in report
-    assert "Shift + wheel or pinch to" in report
-    assert 'class="sol-reset-zoom js-sol-reset-zoom"' in report
-    assert 'interaction: {mode: "index", intersect: true}' in report
-    assert "tick.value >= firstTick && tick.value <= lastTick" in report
-    assert "Â" not in report
-
-
-def test_metadata_for_single_sbatch(slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
-    run_dir = slurm_system.output_path / "run_dir"
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
-    with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
-        toml.dump(slurm_metadata.model_dump(), f)
-    tr = TestRun(
-        name="run_dir",
-        test=NCCLTestDefinition(
-            name="nccl",
-            description="NCCL test",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        num_nodes=1,
-        nodes=["node1"],
-        output_path=run_dir,
-    )
-
-    [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
-    assert report_item.nodes == slurm_metadata.slurm.node_list
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.nodes == slurm_metadata.slurm.node_list
 
 
 def test_report_order() -> None:

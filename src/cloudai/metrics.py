@@ -91,18 +91,8 @@ class MetricCatalog:
         return {key: cls.dimension(key).validate(value) for key, value in values.items()}
 
 
-SIZE_BYTES = DimensionDefinition(
-    "size_bytes",
-    "Size",
-    Annotated[int, Field(strict=True, ge=0)],
-    ordered=True,
-)
-BATCH_SIZE = DimensionDefinition(
-    "batch_size",
-    "Batch size",
-    Annotated[int, Field(strict=True, gt=0)],
-    ordered=True,
-)
+SIZE_BYTES = DimensionDefinition("size_bytes", "Size", Annotated[int, Field(strict=True, ge=0)], ordered=True)
+BATCH_SIZE = DimensionDefinition("batch_size", "Batch size", Annotated[int, Field(strict=True, gt=0)], ordered=True)
 OPERATION = DimensionDefinition("operation", "Operation", Annotated[str, Field(strict=True, min_length=1)])
 PLACEMENT = DimensionDefinition("placement", "Placement", Literal["in_place", "out_of_place"])
 BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Literal["bus", "payload", "wire"])
@@ -223,9 +213,27 @@ class MetricAssessment:
 
     observation: MetricObservation
     target: SOLTarget | None
-    sol: float | None
-    attainment: float | None
-    gap: float | None
+
+    @property
+    def sol(self) -> float | None:
+        """Return the applicable SOL value."""
+        return self.target.value if self.target is not None else None
+
+    @property
+    def attainment(self) -> float | None:
+        """Return the measured performance relative to SOL."""
+        if self.target is None:
+            return None
+        if self.observation.metric.direction is OptimizationDirection.MAXIMIZE:
+            return self.observation.value / self.target.value
+        return self.target.value / self.observation.value
+
+    @property
+    def gap(self) -> float | None:
+        """Return the signed difference between the measurement and SOL."""
+        if self.target is None:
+            return None
+        return self.observation.value - self.target.value
 
 
 @dataclass(frozen=True)
@@ -258,21 +266,7 @@ def assess_observation(observation: MetricObservation, sol_config: MetricSOLConf
         if all(observation.dimensions.get(key) == value for key, value in target.match.items())
     ]
     target = max(matches, key=lambda item: len(item.match)) if matches else None
-    if target is None:
-        return MetricAssessment(observation, target=None, sol=None, attainment=None, gap=None)
-
-    attainment = (
-        observation.value / target.value
-        if observation.metric.direction is OptimizationDirection.MAXIMIZE
-        else target.value / observation.value
-    )
-    return MetricAssessment(
-        observation,
-        target=target,
-        sol=target.value,
-        attainment=attainment,
-        gap=observation.value - target.value,
-    )
+    return MetricAssessment(observation, target)
 
 
 def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment]:
@@ -303,10 +297,7 @@ def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAss
     return summaries
 
 
-def build_metric_view(
-    metric: MetricDefinition,
-    assessment_groups: list[list[MetricAssessment]],
-) -> MetricView | None:
+def build_metric_view(metric: MetricDefinition, assessment_groups: list[list[MetricAssessment]]) -> MetricView | None:
     """Choose a useful x-axis and series dimensions from observed data."""
     groups = [
         [assessment for assessment in group if assessment.observation.metric is metric] for group in assessment_groups
