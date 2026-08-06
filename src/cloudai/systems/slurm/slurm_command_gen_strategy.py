@@ -167,8 +167,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "  {",
                 "    find \"$1\" \\( -type f -printf 'f %P %s\\n' -o -type l -printf 'l %P %l\\n' \\)",
                 '    if [ -d "$1/refs" ]; then',
-                "      find \"$1/refs\" -type f -printf '%P\\0' | LC_ALL=C sort -z | "
-                "while IFS= read -r -d '' ref_path; do",
+                (
+                    "      find \"$1/refs\" -type f -printf '%P\\0' | LC_ALL=C sort -z | "
+                    "while IFS= read -r -d '' ref_path; do"
+                ),
                 '        ref_content="$(< "$1/refs/$ref_path")"',
                 '        printf \'r refs/%s %s\\n\' "$ref_path" "$ref_content"',
                 "      done",
