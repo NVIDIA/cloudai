@@ -325,13 +325,13 @@ class TestSlurmReportItem:
 
 
 def test_sol_metric_report_explains_full_coverage_and_builds_chart() -> None:
-    config = cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]})
+    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
     assessments = [
         cloudai.metrics.assess_observation(
             cloudai.metrics.MetricObservation(
-                cloudai.metrics.TRANSFER_BANDWIDTH,
+                cloudai.metrics.BANDWIDTH,
                 measured,
-                cloudai.metrics.TransferCoordinates(payload_size_bytes=payload_size),
+                {"size_bytes": payload_size},
             ),
             config,
         )
@@ -351,15 +351,13 @@ def test_sol_metric_report_explains_full_coverage_and_builds_chart() -> None:
 
 
 def test_sol_metric_report_explains_partial_coverage() -> None:
-    config = cloudai.metrics.parse_sol_spec(
-        {"transfer_bandwidth": [{"value": 100, "match": {"payload_size_bytes": 1024}}]}
-    )
+    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100, "match": {"size_bytes": 1024}}]})
     assessments = [
         cloudai.metrics.assess_observation(
             cloudai.metrics.MetricObservation(
-                cloudai.metrics.TRANSFER_BANDWIDTH,
+                cloudai.metrics.BANDWIDTH,
                 measured,
-                cloudai.metrics.TransferCoordinates(payload_size_bytes=payload_size),
+                {"size_bytes": payload_size},
             ),
             config,
         )
@@ -369,7 +367,7 @@ def test_sol_metric_report_explains_partial_coverage() -> None:
     [report] = _build_sol_metric_reports(assessments, item_idx=0)
 
     assert report.coverage_text == "SOL available for 1 of 2 measurements"
-    assert report.rows[0]["target"] == "Payload size=1KB"
+    assert report.rows[0]["target"] == "Size=1KB"
     assert report.rows[1]["sol"] == "n/a"
 
 
@@ -377,7 +375,7 @@ def test_general_report_sol_toggle_is_attached_to_test_row() -> None:
     template_dir = Path(__file__).parents[1] / "src" / "cloudai" / "util"
     template = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir)).get_template("general-report.jinja2")
     metric = SOLMetricReport(
-        key="transfer_bandwidth",
+        key="bandwidth",
         display_name="Transfer bandwidth",
         unit="GB/s",
         coverage_text="2 measurements compared with SOL",

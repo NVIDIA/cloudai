@@ -29,7 +29,6 @@ from cloudai.report_generator.comparison_report import (
     ComparisonReport,
     ComparisonReportConfig,
     ComparisonSection,
-    MetricColumn,
 )
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
@@ -137,34 +136,25 @@ def test_auto_y_axis_is_in_payload_v2(cmp_report: MyComparisonReport, nccl_tr: T
     assert chart["y_axis_type"] == "auto"
 
 
-def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
+def test_metric_observations_build_sol_table_and_chart_v2(
     cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    observation = cloudai.metrics.MetricObservation(
-        cloudai.metrics.TRANSFER_BANDWIDTH,
-        80,
-        cloudai.metrics.TransferCoordinates(payload_size_bytes=1024),
-    )
-    assessment = cloudai.metrics.assess_observation(
-        observation,
-        cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
-    )
-    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
-    section = ComparisonSection(
-        group=GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)]),
-        dfs=[pd.DataFrame({"size": [1024], "bandwidth": [80]})],
-        title="Bandwidth",
-        info_columns=["size"],
-        data_columns=["bandwidth"],
-        y_axis_label="GB/s",
-        x_axis_type="linear",
-        metric_columns={
-            "bandwidth": MetricColumn(
-                cloudai.metrics.TRANSFER_BANDWIDTH,
-                coordinate_columns={"payload_size_bytes": "size"},
-            )
-        },
-    )
+    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
+    assessments = [
+        cloudai.metrics.assess_observation(
+            cloudai.metrics.MetricObservation(
+                cloudai.metrics.BANDWIDTH,
+                measured,
+                {"size_bytes": size, "operation": "write", "bandwidth_basis": "payload"},
+            ),
+            config,
+        )
+        for size, measured in ((1024, 80), (2048, 90))
+    ]
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: assessments)
+    group = GroupedTestRuns(name="all-in-one", items=[TRGroupItem(name="case-a", tr=nccl_tr)])
+
+    [section] = cmp_report.build_metric_sections([group], (cloudai.metrics.BANDWIDTH,))
 
     table = cmp_report._build_table_v2(section)
     chart = cmp_report._build_chart_v2(section, 0)
@@ -172,7 +162,7 @@ def test_metric_column_automatically_injects_sol_into_table_and_chart_v2(
     assert [header["name"] for header in table["data_headers"]] == ["case-a", "case-a · SOL", "case-a · % SOL"]
     assert table["rows"][0]["data_cells"] == ["80", "100.0", "80.0%"]
     assert chart["datasets"][1]["label"] == "SOL"
-    assert chart["datasets"][1]["data"] == [{"x": 1024.0, "y": 100.0}]
+    assert chart["datasets"][1]["data"] == [100.0, 100.0]
     assert chart["datasets"][1]["is_sol"] is True
     assert chart["sol_color"] == "#741D9D"
 
@@ -181,85 +171,49 @@ def test_chart_v2_renders_one_shared_sol_curve(
     cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     second_tr = dataclasses.replace(nccl_tr, name="case-b")
-    observation = cloudai.metrics.MetricObservation(
-        cloudai.metrics.TRANSFER_BANDWIDTH,
-        80,
-        cloudai.metrics.TransferCoordinates(payload_size_bytes=1024),
+    config = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
+    assessments = [
+        cloudai.metrics.assess_observation(
+            cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 80, {"size_bytes": size}),
+            config,
+        )
+        for size in (1024, 2048)
+    ]
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: assessments)
+    group = GroupedTestRuns(
+        name="all-in-one",
+        items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
     )
-    assessment = cloudai.metrics.assess_observation(
-        observation,
-        cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
-    )
-    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessment])
-    section = ComparisonSection(
-        group=GroupedTestRuns(
-            name="all-in-one",
-            items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
-        ),
-        dfs=[
-            pd.DataFrame({"size": [1024], "bandwidth": [80]}),
-            pd.DataFrame({"size": [1024], "bandwidth": [90]}),
-        ],
-        title="Bandwidth",
-        info_columns=["size"],
-        data_columns=["bandwidth"],
-        y_axis_label="GB/s",
-        x_axis_type="linear",
-        metric_columns={
-            "bandwidth": MetricColumn(
-                cloudai.metrics.TRANSFER_BANDWIDTH,
-                coordinate_columns={"payload_size_bytes": "size"},
-            )
-        },
-    )
+
+    [section] = cmp_report.build_metric_sections([group], (cloudai.metrics.BANDWIDTH,))
 
     chart = cmp_report._build_chart_v2(section, 0)
 
     sol_datasets = [dataset for dataset in chart["datasets"] if dataset.get("is_sol")]
-    assert sol_datasets == [{"label": "SOL", "data": [{"x": 1024.0, "y": 100.0}], "is_sol": True}]
+    assert sol_datasets == [{"label": "SOL", "data": [100.0, 100.0], "is_sol": True}]
 
 
 def test_chart_v2_omits_sol_when_compared_runs_disagree(
     cmp_report: MyComparisonReport, nccl_tr: TestRun, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     second_tr = dataclasses.replace(nccl_tr, name="case-b")
-    observation = cloudai.metrics.MetricObservation(
-        cloudai.metrics.TRANSFER_BANDWIDTH,
-        80,
-        cloudai.metrics.TransferCoordinates(payload_size_bytes=1024),
-    )
     assessments = {
-        id(nccl_tr): cloudai.metrics.assess_observation(
-            observation,
-            cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 100}]}),
-        ),
-        id(second_tr): cloudai.metrics.assess_observation(
-            observation,
-            cloudai.metrics.parse_sol_spec({"transfer_bandwidth": [{"value": 120}]}),
-        ),
-    }
-    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: [assessments[id(tr)]])
-    section = ComparisonSection(
-        group=GroupedTestRuns(
-            name="all-in-one",
-            items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
-        ),
-        dfs=[
-            pd.DataFrame({"size": [1024], "bandwidth": [80]}),
-            pd.DataFrame({"size": [1024], "bandwidth": [90]}),
-        ],
-        title="Bandwidth",
-        info_columns=["size"],
-        data_columns=["bandwidth"],
-        y_axis_label="GB/s",
-        x_axis_type="linear",
-        metric_columns={
-            "bandwidth": MetricColumn(
-                cloudai.metrics.TRANSFER_BANDWIDTH,
-                coordinate_columns={"payload_size_bytes": "size"},
+        id(tr): [
+            cloudai.metrics.assess_observation(
+                cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 80, {"size_bytes": size}),
+                cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": sol}]}),
             )
-        },
+            for size in (1024, 2048)
+        ]
+        for tr, sol in ((nccl_tr, 100), (second_tr, 120))
+    }
+    monkeypatch.setattr(cmp_report, "_assessments", lambda tr: assessments[id(tr)])
+    group = GroupedTestRuns(
+        name="all-in-one",
+        items=[TRGroupItem(name="case-a", tr=nccl_tr), TRGroupItem(name="case-b", tr=second_tr)],
     )
+
+    [section] = cmp_report.build_metric_sections([group], (cloudai.metrics.BANDWIDTH,))
 
     chart = cmp_report._build_chart_v2(section, 0)
 

@@ -17,31 +17,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import cloudai.metrics
-from cloudai.core import System, TestRun, TestScenario
+from cloudai.core import System, TestScenario
 from cloudai.report_generator.comparison_report import (
     ComparisonReport,
     ComparisonReportConfig,
     ComparisonSection,
-    MetricColumn,
 )
 from cloudai.report_generator.groups import GroupedTestRuns
-from cloudai.report_generator.util import add_human_readable_sizes
-from cloudai.util.lazy_imports import lazy
 
 from .nixl_bench import NIXLBenchTestDefinition
-
-if TYPE_CHECKING:
-    import pandas as pd
 
 
 class NIXLBenchComparisonReport(ComparisonReport):
     """Comparison report for NIXL Bench."""
-
-    INFO_COLUMNS = ("block_size", "batch_size")
-    BLOCK_SIZE_LABEL_COLUMN = "block_size_human_readable"
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -54,65 +44,4 @@ class NIXLBenchComparisonReport(ComparisonReport):
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
-        sections: list[ComparisonSection] = []
-        for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            sections.extend(
-                [
-                    ComparisonSection(
-                        group=group,
-                        dfs=dfs,
-                        title="Latency",
-                        info_columns=list(self.INFO_COLUMNS),
-                        data_columns=["avg_lat"],
-                        y_axis_label="Time (us)",
-                        x_axis_type="indexed_category",
-                        x_axis_column=self.BLOCK_SIZE_LABEL_COLUMN,
-                        x_axis_label="Payload size",
-                        metric_columns={
-                            "avg_lat": MetricColumn(
-                                cloudai.metrics.TRANSFER_LATENCY,
-                                coordinate_columns={
-                                    "payload_size_bytes": "block_size",
-                                    "batch_size": "batch_size",
-                                },
-                            )
-                        },
-                    ),
-                    ComparisonSection(
-                        group=group,
-                        dfs=dfs,
-                        title="Bandwidth",
-                        info_columns=list(self.INFO_COLUMNS),
-                        data_columns=["bw_gb_sec"],
-                        y_axis_label="Busbw (GB/s)",
-                        x_axis_type="indexed_category",
-                        x_axis_column=self.BLOCK_SIZE_LABEL_COLUMN,
-                        x_axis_label="Payload size",
-                        metric_columns={
-                            "bw_gb_sec": MetricColumn(
-                                cloudai.metrics.TRANSFER_BANDWIDTH,
-                                coordinate_columns={
-                                    "payload_size_bytes": "block_size",
-                                    "batch_size": "batch_size",
-                                },
-                            )
-                        },
-                    ),
-                ]
-            )
-        return sections
-
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
-        if (tr.output_path / "nixlbench.csv").exists():
-            df = lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
-            return add_human_readable_sizes(df, "block_size", self.BLOCK_SIZE_LABEL_COLUMN)
-        return lazy.pd.DataFrame(
-            {
-                "block_size": lazy.pd.Series([], dtype=int),
-                self.BLOCK_SIZE_LABEL_COLUMN: lazy.pd.Series([], dtype=str),
-                "batch_size": lazy.pd.Series([], dtype=int),
-                "avg_lat": lazy.pd.Series([], dtype=float),
-                "bw_gb_sec": lazy.pd.Series([], dtype=float),
-            }
-        )
+        return self.build_metric_sections(cmp_groups, (cloudai.metrics.LATENCY, cloudai.metrics.BANDWIDTH))

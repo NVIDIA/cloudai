@@ -92,10 +92,10 @@ def test_comparison_report_uses_human_readable_payload_axis(nixl_tr: TestRun, sl
 
     sections = report.build_sections([group])
 
-    assert sections[0].dfs[0][report.BLOCK_SIZE_LABEL_COLUMN].tolist() == ["4KB", "1MB"]
+    assert sections[0].dfs[0]["Size label"].tolist() == ["4KB", "1MB"]
     assert sections[0].x_axis_type == "indexed_category"
-    assert sections[0].x_axis_column == report.BLOCK_SIZE_LABEL_COLUMN
-    assert sections[0].x_axis_label == "Payload size"
+    assert sections[0].x_axis_column == "Size label"
+    assert sections[0].x_axis_label == "Size"
 
 
 def test_nixlbench_report_parsing__noisy_output(tmp_path: Path):

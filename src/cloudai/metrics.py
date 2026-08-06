@@ -14,17 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Canonical metric observations and Speed-of-Light assessment models."""
+"""Semantic metric observations and Speed-of-Light assessment."""
 
 from __future__ import annotations
 
 import math
 import statistics
+from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+
+MetricValue: TypeAlias = str | int | float | bool
+MetricDimensions: TypeAlias = Mapping[str, MetricValue]
 
 
 class OptimizationDirection(str, Enum):
@@ -34,32 +39,115 @@ class OptimizationDirection(str, Enum):
     MINIMIZE = "minimize"
 
 
-class TransferCoordinates(BaseModel):
-    """Semantic coordinates for a point-to-point data transfer measurement."""
+@dataclass(frozen=True)
+class DimensionDefinition:
+    """A typed semantic dimension shared by metric observations and SOL selectors."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    key: str
+    label: str
+    value_type: Any
+    ordered: bool = False
 
-    operation: Literal["default", "read", "write"] = "default"
-    payload_size_bytes: int = Field(gt=0)
-    batch_size: int = Field(default=1, gt=0)
+    def validate(self, value: Any) -> MetricValue:
+        """Validate one configured or observed dimension value."""
+        return TypeAdapter(self.value_type).validate_python(value)
 
 
-class CollectiveCoordinates(BaseModel):
-    """Semantic coordinates for a collective communication measurement."""
+@dataclass(frozen=True)
+class MetricDefinition:
+    """A measured quantity independent of the workload that produced it."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    key: str
+    display_name: str
+    unit: str
+    direction: OptimizationDirection
+    preferred_x: tuple[str, ...] = ()
 
-    collective: str = Field(min_length=1)
-    placement: Literal["in_place", "out_of_place"]
-    message_size_bytes: int = Field(ge=0)
+
+class MetricCatalog:
+    """Registry of metrics and dimensions supported by structured SOL configuration."""
+
+    _metrics: ClassVar[dict[str, MetricDefinition]] = {}
+    _dimensions: ClassVar[dict[str, DimensionDefinition]] = {}
+
+    @classmethod
+    def metric(cls, key: str) -> MetricDefinition:
+        try:
+            return cls._metrics[key]
+        except KeyError as exc:
+            available = ", ".join(sorted(cls._metrics))
+            raise ValueError(f"Unknown SOL metric '{key}'. Available metrics: {available}") from exc
+
+    @classmethod
+    def dimension(cls, key: str) -> DimensionDefinition:
+        try:
+            return cls._dimensions[key]
+        except KeyError as exc:
+            available = ", ".join(sorted(cls._dimensions))
+            raise ValueError(f"Unknown metric dimension '{key}'. Available dimensions: {available}") from exc
+
+    @classmethod
+    def validate_dimensions(cls, values: Mapping[str, Any]) -> MetricDimensions:
+        return {key: cls.dimension(key).validate(value) for key, value in values.items()}
+
+
+SIZE_BYTES = DimensionDefinition(
+    "size_bytes",
+    "Size",
+    Annotated[int, Field(strict=True, ge=0)],
+    ordered=True,
+)
+BATCH_SIZE = DimensionDefinition(
+    "batch_size",
+    "Batch size",
+    Annotated[int, Field(strict=True, gt=0)],
+    ordered=True,
+)
+OPERATION = DimensionDefinition("operation", "Operation", Annotated[str, Field(strict=True, min_length=1)])
+PLACEMENT = DimensionDefinition("placement", "Placement", Literal["in_place", "out_of_place"])
+BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Literal["bus", "payload", "wire"])
+BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=True, min_length=1)])
+SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
+TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
+
+BANDWIDTH = MetricDefinition(
+    key="bandwidth",
+    display_name="Bandwidth",
+    unit="GB/s",
+    direction=OptimizationDirection.MAXIMIZE,
+    preferred_x=(SIZE_BYTES.key, BATCH_SIZE.key),
+)
+LATENCY = MetricDefinition(
+    key="latency",
+    display_name="Latency",
+    unit="us",
+    direction=OptimizationDirection.MINIMIZE,
+    preferred_x=(SIZE_BYTES.key, BATCH_SIZE.key),
+)
+
+MetricCatalog._metrics = {metric.key: metric for metric in (BANDWIDTH, LATENCY)}
+MetricCatalog._dimensions = {
+    dimension.key: dimension
+    for dimension in (
+        SIZE_BYTES,
+        BATCH_SIZE,
+        OPERATION,
+        PLACEMENT,
+        BANDWIDTH_BASIS,
+        BACKEND,
+        SOURCE_MEMORY,
+        TARGET_MEMORY,
+    )
+}
 
 
 class SOLTarget(BaseModel):
-    """One SOL value and the coordinate selector under which it applies."""
+    """One SOL value and the observation dimensions under which it applies."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     value: float = Field(gt=0, allow_inf_nan=False)
+    match: MetricDimensions = Field(default_factory=dict)
 
     @field_validator("value")
     @classmethod
@@ -68,163 +156,45 @@ class SOLTarget(BaseModel):
             raise ValueError("SOL values must be finite")
         return value
 
-    def selector(self) -> dict[str, Any]:
-        """Return the explicitly configured coordinate subset for generic matching."""
-        match = self.model_dump(mode="python", exclude={"value"}, exclude_none=True).get("match", {})
-        if not isinstance(match, dict):
-            raise TypeError(f"{type(self).__name__}.match must serialize to a dictionary")
-        return match
-
-
-class TransferMatch(BaseModel):
-    """Optional transfer coordinates that select an SOL target."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    operation: Literal["default", "read", "write"] | None = None
-    payload_size_bytes: int | None = Field(default=None, gt=0)
-    batch_size: int | None = Field(default=None, gt=0)
-
-
-class TransferSOLTarget(SOLTarget):
-    """SOL target selected by any explicitly configured transfer coordinates."""
-
-    match: TransferMatch = Field(default_factory=TransferMatch)
-
-
-class CollectiveMatch(BaseModel):
-    """Optional collective coordinates that select an SOL target."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    collective: str | None = Field(default=None, min_length=1)
-    placement: Literal["in_place", "out_of_place"] | None = None
-    message_size_bytes: int | None = Field(default=None, ge=0)
-
-
-class CollectiveSOLTarget(SOLTarget):
-    """SOL target selected by any explicitly configured collective coordinates."""
-
-    match: CollectiveMatch = Field(default_factory=CollectiveMatch)
-
-
-@dataclass(frozen=True)
-class MetricDefinition:
-    """Static semantic definition of a metric produced by one or more workloads."""
-
-    key: str
-    display_name: str
-    unit: str
-    direction: OptimizationDirection
-    coordinates_type: type[BaseModel]
-    sol_target_type: type[SOLTarget]
-    chart_x_coordinate: str | None = None
-    chart_x_label: str | None = None
-
-
-TRANSFER_BANDWIDTH = MetricDefinition(
-    key="transfer_bandwidth",
-    display_name="Transfer bandwidth",
-    unit="GB/s",
-    direction=OptimizationDirection.MAXIMIZE,
-    coordinates_type=TransferCoordinates,
-    sol_target_type=TransferSOLTarget,
-    chart_x_coordinate="payload_size_bytes",
-    chart_x_label="Payload size",
-)
-TRANSFER_LATENCY = MetricDefinition(
-    key="transfer_latency",
-    display_name="Transfer latency",
-    unit="us",
-    direction=OptimizationDirection.MINIMIZE,
-    coordinates_type=TransferCoordinates,
-    sol_target_type=TransferSOLTarget,
-    chart_x_coordinate="payload_size_bytes",
-    chart_x_label="Payload size",
-)
-COLLECTIVE_BUS_BANDWIDTH = MetricDefinition(
-    key="collective_bus_bandwidth",
-    display_name="Collective bus bandwidth",
-    unit="GB/s",
-    direction=OptimizationDirection.MAXIMIZE,
-    coordinates_type=CollectiveCoordinates,
-    sol_target_type=CollectiveSOLTarget,
-    chart_x_coordinate="message_size_bytes",
-    chart_x_label="Message size",
-)
-COLLECTIVE_LATENCY = MetricDefinition(
-    key="collective_latency",
-    display_name="Collective latency",
-    unit="us",
-    direction=OptimizationDirection.MINIMIZE,
-    coordinates_type=CollectiveCoordinates,
-    sol_target_type=CollectiveSOLTarget,
-    chart_x_coordinate="message_size_bytes",
-    chart_x_label="Message size",
-)
-
-
-class MetricCatalog:
-    """Registry of canonical metric definitions used to validate SOL configuration."""
-
-    _metrics: ClassVar[dict[str, MetricDefinition]] = {
-        metric.key: metric
-        for metric in (
-            TRANSFER_BANDWIDTH,
-            TRANSFER_LATENCY,
-            COLLECTIVE_BUS_BANDWIDTH,
-            COLLECTIVE_LATENCY,
-        )
-    }
-
+    @field_validator("match", mode="before")
     @classmethod
-    def get(cls, key: str) -> MetricDefinition:
-        try:
-            return cls._metrics[key]
-        except KeyError as exc:
-            available = ", ".join(sorted(cls._metrics))
-            raise ValueError(f"Unknown SOL metric '{key}'. Available metrics: {available}") from exc
+    def validate_match(cls, value: dict[str, Any] | None) -> MetricDimensions:
+        return MetricCatalog.validate_dimensions(value or {})
 
 
-MetricSOLConfig = dict[str, list[SerializeAsAny[SOLTarget]]]
+MetricSOLConfig: TypeAlias = dict[str, list[SOLTarget]]
 
 
-def _selectors_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
-    """Return whether two selectors can match the same coordinates."""
+def _selectors_overlap(first: MetricDimensions, second: MetricDimensions) -> bool:
     return all(first[key] == second[key] for key in first.keys() & second.keys())
 
 
-def _validate_unambiguous_targets(metric_key: str, targets: list[SOLTarget]) -> None:
-    """Reject targets for which specificity cannot determine a unique winner."""
-    selectors = [target.selector() for target in targets]
-    for index, selector in enumerate(selectors):
-        for other in selectors[index + 1 :]:
-            if len(selector) == len(other) and _selectors_overlap(selector, other):
-                raise ValueError(
-                    f"Ambiguous SOL targets for metric '{metric_key}': {selector} and {other} "
-                    "can match the same observation with equal specificity"
-                )
-
-
 def parse_sol_spec(value: dict[str, Any] | None) -> MetricSOLConfig:
-    """Parse metric-keyed SOL target lists using each metric's target schema."""
+    """Parse and validate metric-keyed SOL targets."""
     if value is None:
         return {}
     if not isinstance(value, dict):
         raise ValueError("Structured SOL configuration must be a dictionary")
+
     parsed: MetricSOLConfig = {}
-    for key, raw_targets in value.items():
-        metric = MetricCatalog.get(key)
+    for metric_key, raw_targets in value.items():
+        MetricCatalog.metric(metric_key)
         if not isinstance(raw_targets, list) or not raw_targets:
-            raise ValueError(f"SOL metric '{key}' must contain a non-empty list of targets")
-        targets = [metric.sol_target_type.model_validate(target) for target in raw_targets]
-        _validate_unambiguous_targets(key, targets)
-        parsed[key] = targets
+            raise ValueError(f"SOL metric '{metric_key}' must contain a non-empty list of targets")
+        targets = [SOLTarget.model_validate(target) for target in raw_targets]
+        for index, target in enumerate(targets):
+            for other in targets[index + 1 :]:
+                if len(target.match) == len(other.match) and _selectors_overlap(target.match, other.match):
+                    raise ValueError(
+                        f"Ambiguous SOL targets for metric '{metric_key}': {target.match} and {other.match} "
+                        "can match the same observation with equal specificity"
+                    )
+        parsed[metric_key] = targets
     return parsed
 
 
 def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
-    """Merge SOL configurations by metric key; later levels replace a complete metric."""
+    """Merge SOL configurations; a more specific level replaces an entire metric."""
     merged: MetricSOLConfig = {}
     for config in configs:
         if config:
@@ -232,58 +202,35 @@ def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
     return merged
 
 
-def resolve_sol_target(targets: list[SOLTarget], coordinates: BaseModel) -> SOLTarget | None:
-    """Resolve the most specific SOL target matching the observation coordinates."""
-    coordinate_values = coordinates.model_dump(mode="python")
-    matches = [
-        target
-        for target in targets
-        if all(coordinate_values.get(key) == value for key, value in target.selector().items())
-    ]
-    if not matches:
-        return None
-    return max(matches, key=lambda target: len(target.selector()))
-
-
-def resolve_sol(targets: list[SOLTarget], coordinates: BaseModel) -> float | None:
-    """Resolve the most specific SOL value matching the observation coordinates."""
-    target = resolve_sol_target(targets, coordinates)
-    return target.value if target is not None else None
-
-
 @dataclass(frozen=True)
 class MetricObservation:
-    """One finite measured value at typed semantic coordinates."""
+    """One finite measured value and the conditions under which it was observed."""
 
     metric: MetricDefinition
     value: float
-    coordinates: BaseModel
+    dimensions: MetricDimensions
 
     def __post_init__(self) -> None:
-        """Validate that the value and coordinates match the metric definition."""
+        """Validate the measurement and normalize its dimensions."""
         if not math.isfinite(self.value):
             raise ValueError(f"Metric '{self.metric.key}' observation must be finite")
-        if not isinstance(self.coordinates, self.metric.coordinates_type):
-            raise TypeError(
-                f"Metric '{self.metric.key}' requires {self.metric.coordinates_type.__name__}, "
-                f"got {type(self.coordinates).__name__}"
-            )
+        object.__setattr__(self, "dimensions", MetricCatalog.validate_dimensions(self.dimensions))
 
 
 @dataclass(frozen=True)
 class MetricAssessment:
-    """A measured observation enriched with its resolved SOL and normalized attainment."""
+    """A metric observation with its applicable SOL comparison."""
 
     observation: MetricObservation
+    target: SOLTarget | None
     sol: float | None
-    sol_target: SOLTarget | None
     attainment: float | None
     gap: float | None
 
 
 @dataclass(frozen=True)
 class MetricAssessmentSummary:
-    """Compact distribution summary for one metric in one test run."""
+    """Compact SOL coverage and attainment summary for one metric."""
 
     metric: MetricDefinition
     observations: int
@@ -293,41 +240,54 @@ class MetricAssessmentSummary:
     best_attainment: float | None
 
 
+@dataclass(frozen=True)
+class MetricView:
+    """The default semantic layout for presenting one metric."""
+
+    metric: MetricDefinition
+    x_dimension: str | None
+    series_dimensions: tuple[str, ...]
+
+
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
-    """Resolve and compare one observation against the configured SOL for its metric."""
-    targets = sol_config.get(observation.metric.key)
-    sol_target = resolve_sol_target(targets, observation.coordinates) if targets else None
-    if sol_target is None:
-        return MetricAssessment(observation=observation, sol=None, sol_target=None, attainment=None, gap=None)
-    sol = sol_target.value
+    """Resolve the most specific target and assess one observation."""
+    targets = sol_config.get(observation.metric.key, [])
+    matches = [
+        target
+        for target in targets
+        if all(observation.dimensions.get(key) == value for key, value in target.match.items())
+    ]
+    target = max(matches, key=lambda item: len(item.match)) if matches else None
+    if target is None:
+        return MetricAssessment(observation, target=None, sol=None, attainment=None, gap=None)
 
     attainment = (
-        observation.value / sol
+        observation.value / target.value
         if observation.metric.direction is OptimizationDirection.MAXIMIZE
-        else sol / observation.value
+        else target.value / observation.value
     )
     return MetricAssessment(
-        observation=observation,
-        sol=sol,
-        sol_target=sol_target,
+        observation,
+        target=target,
+        sol=target.value,
         attainment=attainment,
-        gap=observation.value - sol,
+        gap=observation.value - target.value,
     )
 
 
 def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment]:
-    """Collect and assess every canonical metric produced by a completed test run."""
+    """Collect and assess every metric produced by a completed test run."""
     observations = test_run.test.metric_observations(system, test_run)
     return [assess_observation(observation, test_run.metric_sol) for observation in observations]
 
 
 def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAssessmentSummary]:
-    """Summarize SOL coverage and attainment by canonical metric."""
+    """Summarize SOL coverage and attainment by metric."""
     grouped: dict[str, list[MetricAssessment]] = {}
     for assessment in assessments:
         grouped.setdefault(assessment.observation.metric.key, []).append(assessment)
 
-    summaries: list[MetricAssessmentSummary] = []
+    summaries = []
     for metric_assessments in grouped.values():
         attainments = [item.attainment for item in metric_assessments if item.attainment is not None]
         summaries.append(
@@ -343,6 +303,74 @@ def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAss
     return summaries
 
 
-def coordinates_dict(coordinates: BaseModel) -> dict[str, Any]:
-    """Return coordinates as a serialization-safe dictionary."""
-    return coordinates.model_dump(mode="json")
+def build_metric_view(
+    metric: MetricDefinition,
+    assessment_groups: list[list[MetricAssessment]],
+) -> MetricView | None:
+    """Choose a useful x-axis and series dimensions from observed data."""
+    groups = [
+        [assessment for assessment in group if assessment.observation.metric is metric] for group in assessment_groups
+    ]
+    observations = [assessment.observation for group in groups for assessment in group]
+    if not observations:
+        return None
+
+    dimensions = list(observations[0].dimensions)
+    x_dimension = next(
+        (
+            dimension
+            for dimension in metric.preferred_x
+            if any(
+                len({assessment.observation.dimensions[dimension] for assessment in group}) > 1
+                for group in groups
+                if group and dimension in group[0].observation.dimensions
+            )
+        ),
+        None,
+    )
+    if x_dimension is None:
+        x_dimension = next(
+            (
+                dimension
+                for dimension in dimensions
+                if MetricCatalog.dimension(dimension).ordered
+                and len({observation.dimensions[dimension] for observation in observations}) > 1
+            ),
+            None,
+        )
+    if x_dimension is None:
+        return MetricView(metric, x_dimension=None, series_dimensions=())
+
+    series_dimensions = []
+    for dimension in dimensions:
+        if dimension == x_dimension:
+            continue
+        for group in groups:
+            values_by_x: dict[MetricValue, set[MetricValue]] = defaultdict(set)
+            for assessment in group:
+                observation_dimensions = assessment.observation.dimensions
+                values_by_x[observation_dimensions[x_dimension]].add(observation_dimensions[dimension])
+            if any(len(values) > 1 for values in values_by_x.values()):
+                series_dimensions.append(dimension)
+                break
+
+    return MetricView(metric, x_dimension, tuple(series_dimensions))
+
+
+def dimension_label(key: str) -> str:
+    """Return a human-readable label for a registered dimension."""
+    return MetricCatalog.dimension(key).label
+
+
+def format_dimension(key: str, value: object) -> str:
+    """Format one semantic dimension value for reports."""
+    if key == SIZE_BYTES.key:
+        try:
+            size = float(int(str(value)))
+        except ValueError:
+            return str(value)
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if size < 1024 or unit == "TB":
+                return f"{size:g}{unit}"
+            size /= 1024
+    return str(value).replace("_", " ")

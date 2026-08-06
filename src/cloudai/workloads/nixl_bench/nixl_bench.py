@@ -67,17 +67,25 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
         observations: list[cloudai.metrics.MetricObservation] = []
         for row in df.itertuples(index=False):
             row = cast(Any, row)
-            coordinates = cloudai.metrics.TransferCoordinates(
-                payload_size_bytes=int(row.block_size),
-                batch_size=int(row.batch_size),
-            )
+            dimensions: cloudai.metrics.MetricDimensions = {
+                "operation": str(getattr(self.cmd_args, "op_type", "default")).lower(),
+                "size_bytes": int(row.block_size),
+                "batch_size": int(row.batch_size),
+                "backend": str(getattr(self.cmd_args, "backend", "default")).lower(),
+                "source_memory": str(getattr(self.cmd_args, "initiator_seg_type", "default")).lower(),
+                "target_memory": str(getattr(self.cmd_args, "target_seg_type", "default")).lower(),
+            }
             observations.extend(
                 [
                     cloudai.metrics.MetricObservation(
-                        cloudai.metrics.TRANSFER_LATENCY, float(row.avg_lat), coordinates
+                        cloudai.metrics.LATENCY,
+                        float(row.avg_lat),
+                        dimensions,
                     ),
                     cloudai.metrics.MetricObservation(
-                        cloudai.metrics.TRANSFER_BANDWIDTH, float(row.bw_gb_sec), coordinates
+                        cloudai.metrics.BANDWIDTH,
+                        float(row.bw_gb_sec),
+                        {**dimensions, "bandwidth_basis": "payload"},
                     ),
                 ]
             )

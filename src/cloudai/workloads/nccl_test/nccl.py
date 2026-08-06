@@ -206,18 +206,22 @@ class NCCLTestDefinition(TestDefinition):
                 ("out_of_place", 5, 7),
                 ("in_place", 9, 11),
             ):
-                coordinates = cloudai.metrics.CollectiveCoordinates(
-                    collective=collective,
-                    placement=cast(Literal["in_place", "out_of_place"], placement),
-                    message_size_bytes=message_size,
-                )
+                dimensions: cloudai.metrics.MetricDimensions = {
+                    "operation": collective,
+                    "placement": cast(Literal["in_place", "out_of_place"], placement),
+                    "size_bytes": message_size,
+                }
                 observations.extend(
                     [
                         cloudai.metrics.MetricObservation(
-                            cloudai.metrics.COLLECTIVE_LATENCY, float(row[latency_idx]), coordinates
+                            cloudai.metrics.LATENCY,
+                            float(row[latency_idx]),
+                            dimensions,
                         ),
                         cloudai.metrics.MetricObservation(
-                            cloudai.metrics.COLLECTIVE_BUS_BANDWIDTH, float(row[bandwidth_idx]), coordinates
+                            cloudai.metrics.BANDWIDTH,
+                            float(row[bandwidth_idx]),
+                            {**dimensions, "bandwidth_basis": "bus"},
                         ),
                     ]
                 )

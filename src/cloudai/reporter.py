@@ -52,61 +52,35 @@ class SOLMetricReport:
     chart: dict[str, Any] | None
 
 
-def _coordinate_label(name: str) -> str:
-    return name.removesuffix("_bytes").replace("_", " ").capitalize()
-
-
-def _format_bytes(value: Any) -> str:
-    try:
-        size = int(value)
-    except (TypeError, ValueError):
-        return str(value)
-    if size == 0:
-        return "0B"
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size < 1024 or unit == "TB":
-            return f"{size:g}{unit}"
-        size /= 1024
-    return str(value)
-
-
-def _coordinate_value(name: str, value: Any) -> str:
-    return _format_bytes(value) if name.endswith("_bytes") else str(value).replace("_", " ")
-
-
 def _build_metric_chart(
     metric: cloudai.metrics.MetricDefinition,
     assessments: list[cloudai.metrics.MetricAssessment],
     chart_id: str,
 ) -> dict[str, Any] | None:
-    x_coordinate = metric.chart_x_coordinate
-    if x_coordinate is None:
-        return None
-    coordinates = [cloudai.metrics.coordinates_dict(item.observation.coordinates) for item in assessments]
-    x_values = sorted({coordinate[x_coordinate] for coordinate in coordinates})
-    if len(x_values) < 2:
+    rows = [{**assessment.observation.dimensions, "assessment": assessment} for assessment in assessments]
+    df = lazy.pd.DataFrame(rows)
+    view = cloudai.metrics.build_metric_view(metric, [assessments])
+    if view is None or view.x_dimension is None:
         return None
 
-    other_coordinates = [name for name in coordinates[0] if name != x_coordinate]
-    varying_coordinates = [
-        name for name in other_coordinates if len({coordinate[name] for coordinate in coordinates}) > 1
-    ]
-    grouped: dict[tuple[Any, ...], list[tuple[cloudai.metrics.MetricAssessment, dict[str, Any]]]] = {}
-    for assessment, coordinate in zip(assessments, coordinates, strict=True):
-        series_key = tuple(coordinate[name] for name in varying_coordinates)
-        grouped.setdefault(series_key, []).append((assessment, coordinate))
+    x_dimension = view.x_dimension
+    series_dimensions = list(view.series_dimensions)
+    grouped = df.groupby(series_dimensions, dropna=False, sort=False) if series_dimensions else [((), df)]
+    x_values = sorted(df[x_dimension].unique())
 
     datasets: list[dict[str, Any]] = []
     sol_datasets: dict[tuple[float | None, ...], dict[str, Any]] = {}
-    for series_idx, (series_key, points) in enumerate(grouped.items()):
+    for series_idx, (series_key, series_df) in enumerate(grouped):
+        if not isinstance(series_key, tuple):
+            series_key = (series_key,)
         label = (
             " · ".join(
-                f"{_coordinate_label(name)}={_coordinate_value(name, value)}"
-                for name, value in zip(varying_coordinates, series_key, strict=True)
+                f"{cloudai.metrics.dimension_label(name)}={cloudai.metrics.format_dimension(name, value)}"
+                for name, value in zip(series_dimensions, series_key, strict=True)
             )
             or "Measured"
         )
-        point_by_x = {coordinate[x_coordinate]: assessment for assessment, coordinate in points}
+        point_by_x = {row[x_dimension]: row.assessment for _, row in series_df.iterrows()}
         datasets.append(
             {
                 "label": label,
@@ -121,7 +95,7 @@ def _build_metric_chart(
             existing["label"] = "SOL"
             continue
         sol_dataset = {
-            "label": f"{label} · SOL" if varying_coordinates else "SOL",
+            "label": f"{label} · SOL" if series_dimensions else "SOL",
             "data": list(sol_data),
             "is_sol": True,
         }
@@ -131,10 +105,10 @@ def _build_metric_chart(
     return {
         "id": chart_id,
         "type": "line",
-        "labels": [_coordinate_value(x_coordinate, value) for value in x_values],
+        "labels": [cloudai.metrics.format_dimension(x_dimension, value) for value in x_values],
         "datasets": datasets,
         "sol_color": "#741D9D",
-        "x_axis_label": metric.chart_x_label or _coordinate_label(x_coordinate),
+        "x_axis_label": cloudai.metrics.dimension_label(x_dimension),
         "x_axis_type": "indexed_category",
         "y_axis_label": f"{metric.display_name} ({metric.unit})",
         "y_axis_type": "linear",
@@ -154,25 +128,27 @@ def _build_sol_metric_reports(
         if summary.matched == 0:
             continue
         metric = summary.metric
-        coordinate_headers = list(cloudai.metrics.coordinates_dict(metric_assessments[0].observation.coordinates))
+        coordinate_headers = list(metric_assessments[0].observation.dimensions)
         rows = []
         for assessment in metric_assessments:
-            coordinate = cloudai.metrics.coordinates_dict(assessment.observation.coordinates)
-            selector = assessment.sol_target.selector() if assessment.sol_target is not None else None
+            dimensions = assessment.observation.dimensions
+            selector = assessment.target.match if assessment.target is not None else None
             rows.append(
                 {
-                    "coordinates": [_coordinate_value(name, coordinate[name]) for name in coordinate_headers],
+                    "coordinates": [
+                        cloudai.metrics.format_dimension(name, dimensions[name]) for name in coordinate_headers
+                    ],
                     "measured": f"{assessment.observation.value:g}",
                     "sol": f"{assessment.sol:g}" if assessment.sol is not None else "n/a",
                     "attainment": f"{assessment.attainment:.1%}" if assessment.attainment is not None else "n/a",
                     "gap": f"{assessment.gap:+g}" if assessment.gap is not None else "n/a",
                     "target": (
                         ", ".join(
-                            f"{_coordinate_label(name)}={_coordinate_value(name, value)}"
+                            f"{cloudai.metrics.dimension_label(name)}={cloudai.metrics.format_dimension(name, value)}"
                             for name, value in selector.items()
                         )
                         if selector
-                        else ("Default" if assessment.sol_target is not None else "n/a")
+                        else ("Default" if assessment.target is not None else "n/a")
                     ),
                 }
             )
@@ -191,7 +167,7 @@ def _build_sol_metric_reports(
                 worst=f"{summary.worst_attainment:.1%}",
                 median=f"{summary.median_attainment:.1%}",
                 best=f"{summary.best_attainment:.1%}",
-                coordinate_headers=[_coordinate_label(name) for name in coordinate_headers],
+                coordinate_headers=[cloudai.metrics.dimension_label(name) for name in coordinate_headers],
                 rows=rows,
                 chart=_build_metric_chart(
                     metric,

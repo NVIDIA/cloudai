@@ -23,7 +23,7 @@ import logging
 from abc import ABC, abstractmethod
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 import jinja2
 import yaml
@@ -49,15 +49,6 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass
-class MetricColumn:
-    """Declare which canonical metric and coordinates a dataframe column represents."""
-
-    metric: cloudai.metrics.MetricDefinition
-    coordinate_columns: dict[str, str] = dataclasses.field(default_factory=dict)
-    coordinate_values: dict[str, object] = dataclasses.field(default_factory=dict)
-
-
-@dataclasses.dataclass
 class ComparisonSection:
     """Normalized comparison data consumed by both report renderers."""
 
@@ -72,7 +63,6 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
-    metric_columns: dict[str, MetricColumn] = dataclasses.field(default_factory=dict)
 
 
 class _IndentedSafeDumper(yaml.SafeDumper):
@@ -94,6 +84,8 @@ class ComparisonReport(Reporter, ABC):
     """Base class for comparison reports that generate both charts and tables."""
 
     SOL_REFERENCE_COLOR = "#741D9D"
+    SOL_COLUMN_SUFFIX = " SOL"
+    ATTAINMENT_COLUMN_SUFFIX = " % SOL"
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -112,73 +104,178 @@ class ComparisonReport(Reporter, ABC):
             self._metric_assessment_cache[cache_key] = cloudai.metrics.assess_test_run_metrics(self.system, tr)
         return self._metric_assessment_cache[cache_key]
 
-    @staticmethod
-    def _coordinate_matches(actual: object, expected: object) -> bool:
-        if actual == expected:
-            return True
-        try:
-            return float(cast(Any, actual)) == float(cast(Any, expected))
-        except (TypeError, ValueError):
-            return str(actual) == str(expected)
+    @classmethod
+    def _sol_column(cls, data_column: str) -> str:
+        return f"{data_column}{cls.SOL_COLUMN_SUFFIX}"
 
-    def _assessment_for_row(
-        self, section: ComparisonSection, data_column: str, item_idx: int, row_idx: int
-    ) -> cloudai.metrics.MetricAssessment | None:
-        binding = section.metric_columns.get(data_column)
-        if binding is None or row_idx >= len(section.dfs[item_idx]):
-            return None
-        df = section.dfs[item_idx]
-        row = df.iloc[row_idx]
-        expected = {
-            **binding.coordinate_values,
-            **{name: row[column] for name, column in binding.coordinate_columns.items()},
-        }
-        for assessment in self._assessments(section.group.items[item_idx].tr):
-            if assessment.observation.metric is not binding.metric:
-                continue
-            coordinates = cloudai.metrics.coordinates_dict(assessment.observation.coordinates)
-            if all(self._coordinate_matches(coordinates.get(name), value) for name, value in expected.items()):
-                return assessment
-        return None
+    @classmethod
+    def _attainment_column(cls, data_column: str) -> str:
+        return f"{data_column}{cls.ATTAINMENT_COLUMN_SUFFIX}"
 
     def _column_has_sol(self, section: ComparisonSection, data_column: str) -> bool:
-        return any(
-            (assessment := self._assessment_for_row(section, data_column, item_idx, row_idx)) is not None
-            and assessment.sol is not None
-            for item_idx, df in enumerate(section.dfs)
-            for row_idx in range(len(df))
-        )
+        sol_column = self._sol_column(data_column)
+        return any(sol_column in df and df[sol_column].notna().any() for df in section.dfs)
 
     def _shared_sol_curve(
         self, section: ComparisonSection, data_column: str, x_column: str
     ) -> list[tuple[Any, float]] | None:
         """Return the SOL curve when every compared item resolves the same points."""
+        sol_column = self._sol_column(data_column)
         curves: list[list[tuple[Any, float]]] = []
-        for item_idx, df in enumerate(section.dfs):
-            curve: list[tuple[Any, float]] = []
-            for row_idx in range(len(df)):
-                assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
-                if assessment is not None and assessment.sol is not None:
-                    curve.append((df[x_column].iloc[row_idx], assessment.sol))
+        for df in section.dfs:
+            if x_column not in df or sol_column not in df:
+                return None
+            curve = [
+                (x_value, float(sol))
+                for x_value, sol in zip(df[x_column], df[sol_column], strict=True)
+                if not lazy.pd.isna(sol)
+            ]
             if not curve:
                 return None
             curves.append(curve)
 
         reference = curves[0]
-        if any(
-            len(curve) != len(reference)
-            or any(
-                not self._coordinate_matches(actual_x, expected_x)
-                or not self._coordinate_matches(actual_sol, expected_sol)
-                for (actual_x, actual_sol), (expected_x, expected_sol) in zip(curve, reference, strict=True)
-            )
-            for curve in curves[1:]
-        ):
+        if any(curve != reference for curve in curves[1:]):
             return None
         return reference
 
-    @abstractmethod
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
+    def build_metric_sections(
+        self,
+        cmp_groups: list[GroupedTestRuns],
+        metrics: tuple[cloudai.metrics.MetricDefinition, ...],
+    ) -> list[ComparisonSection]:
+        """Build comparison sections directly from semantic metric observations."""
+        sections = []
+        for group in cmp_groups:
+            assessment_groups = [self._assessments(item.tr) for item in group.items]
+            for metric in metrics:
+                view = cloudai.metrics.build_metric_view(metric, assessment_groups)
+                if view is None:
+                    continue
+                frames = [self._assessment_frame(assessments, metric) for assessments in assessment_groups]
+                section = (
+                    self._build_curve_metric_section(group, view, frames)
+                    if view.x_dimension is not None
+                    else self._build_scalar_metric_section(group, metric, frames)
+                )
+                sections.append(section)
+        return sections
+
+    @staticmethod
+    def _assessment_frame(
+        assessments: list[cloudai.metrics.MetricAssessment],
+        metric: cloudai.metrics.MetricDefinition,
+    ) -> pd.DataFrame:
+        """Convert one run's assessments into a semantic dataframe."""
+        return lazy.pd.DataFrame(
+            [
+                {
+                    **assessment.observation.dimensions,
+                    "measured": assessment.observation.value,
+                    "sol": assessment.sol,
+                    "attainment": assessment.attainment,
+                }
+                for assessment in assessments
+                if assessment.observation.metric is metric
+            ]
+        )
+
+    def _build_scalar_metric_section(
+        self,
+        group: GroupedTestRuns,
+        metric: cloudai.metrics.MetricDefinition,
+        frames: list[pd.DataFrame],
+    ) -> ComparisonSection:
+        """Build a compact categorical section for a scalar metric."""
+        data_column = metric.display_name
+        dfs = []
+        for frame in frames:
+            first = frame.iloc[0] if not frame.empty else None
+            dfs.append(
+                lazy.pd.DataFrame(
+                    {
+                        "Measurement": [metric.display_name],
+                        data_column: [first.measured if first is not None else None],
+                        self._sol_column(data_column): [first.sol if first is not None else None],
+                        self._attainment_column(data_column): [first.attainment if first is not None else None],
+                    }
+                )
+            )
+        return ComparisonSection(
+            group=group,
+            title=metric.display_name,
+            dfs=dfs,
+            info_columns=["Measurement"],
+            data_columns=[data_column],
+            y_axis_label=f"{metric.display_name} ({metric.unit})",
+            chart_type="bar",
+            x_axis_type="category",
+        )
+
+    def _build_curve_metric_section(
+        self,
+        group: GroupedTestRuns,
+        view: cloudai.metrics.MetricView,
+        frames: list[pd.DataFrame],
+    ) -> ComparisonSection:
+        """Pivot varying observations into measured and SOL comparison curves."""
+        x_dimension = view.x_dimension
+        if x_dimension is None:
+            raise ValueError("A curve metric view requires an x dimension")
+        series_dimensions = list(view.series_dimensions)
+        nonempty_frames = [frame for frame in frames if not frame.empty]
+        series_keys = list(
+            dict.fromkeys(
+                tuple(row)
+                for frame in nonempty_frames
+                for row in (
+                    frame[series_dimensions].drop_duplicates().itertuples(index=False, name=None)
+                    if series_dimensions
+                    else [()]
+                )
+            )
+        )
+        data_columns = [
+            " · ".join(
+                f"{cloudai.metrics.dimension_label(dimension)}={cloudai.metrics.format_dimension(dimension, value)}"
+                for dimension, value in zip(series_dimensions, key, strict=True)
+            )
+            or view.metric.display_name
+            for key in series_keys
+        ]
+
+        x_column = cloudai.metrics.dimension_label(x_dimension)
+        x_label_column = f"{x_column} label"
+        dfs = []
+        for frame in frames:
+            x_values = sorted(frame[x_dimension].unique()) if not frame.empty else []
+            result = lazy.pd.DataFrame(
+                {
+                    x_column: x_values,
+                    x_label_column: [cloudai.metrics.format_dimension(x_dimension, value) for value in x_values],
+                }
+            )
+            for series_key, data_column in zip(series_keys, data_columns, strict=True):
+                points = frame
+                for dimension, value in zip(series_dimensions, series_key, strict=True):
+                    points = points[points[dimension] == value]
+                points = points.groupby(x_dimension, as_index=False).first().set_index(x_dimension)
+                result[data_column] = result[x_column].map(points["measured"])
+                result[self._sol_column(data_column)] = result[x_column].map(points["sol"])
+                result[self._attainment_column(data_column)] = result[x_column].map(points["attainment"])
+            dfs.append(result)
+
+        return ComparisonSection(
+            group=group,
+            title=view.metric.display_name,
+            dfs=dfs,
+            info_columns=[x_column],
+            data_columns=data_columns,
+            y_axis_label=f"{view.metric.display_name} ({view.metric.unit})",
+            x_axis_type="indexed_category",
+            x_axis_column=x_label_column,
+            x_axis_label=x_column,
+        )
 
     @abstractmethod
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
@@ -594,13 +691,13 @@ class ComparisonReport(Reporter, ABC):
                 for item_idx, value in enumerate(raw_values):
                     data_cells.append(self._display_value(value))
                     if show_sol:
-                        assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
+                        df = section.dfs[item_idx]
+                        sol = df[self._sol_column(data_column)].get(row_idx, None)
+                        attainment = df[self._attainment_column(data_column)].get(row_idx, None)
                         data_cells.extend(
                             [
-                                self._display_value(assessment.sol if assessment else None),
-                                f"{assessment.attainment:.1%}"
-                                if assessment is not None and assessment.attainment is not None
-                                else "n/a",
+                                self._display_value(sol),
+                                f"{attainment:.1%}" if self._numeric_value(attainment) is not None else "n/a",
                             ]
                         )
                 if show_diff:
@@ -646,13 +743,13 @@ class ComparisonReport(Reporter, ABC):
         for item_idx, value in enumerate(raw_values):
             data_points.append(str(value))
             if show_sol and section is not None:
-                assessment = self._assessment_for_row(section, data_column, item_idx, row_idx)
+                df = dfs[item_idx]
+                sol = df[self._sol_column(data_column)].get(row_idx, None)
+                attainment = df[self._attainment_column(data_column)].get(row_idx, None)
                 data_points.extend(
                     [
-                        self._display_value(assessment.sol if assessment else None),
-                        f"{assessment.attainment:.1%}"
-                        if assessment is not None and assessment.attainment is not None
-                        else "n/a",
+                        self._display_value(sol),
+                        f"{attainment:.1%}" if self._numeric_value(attainment) is not None else "n/a",
                     ]
                 )
         if enable_diff_column:
