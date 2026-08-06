@@ -563,10 +563,12 @@ nodes, CloudAI copies the cache directory for every Hugging Face model required 
 failure stops the job.
 
 CloudAI retains the local cache and reuses it across jobs when the underlying node-local storage persists. Per-model
-locks protect concurrent jobs, and complete model caches are not copied again. Compute nodes must provide the ``flock``
-utility. The local path must be absolute, writable, different from ``hf_home_path``, identical on every compute node,
-and isolated per user when the storage is not administered as a shared cache. Leave ``hf_local_home_path`` unset to
-preserve the default shared-cache behavior. Pre-test and post-test workloads opt in independently.
+locks protect concurrent jobs. While holding the corresponding lock, CloudAI compares cache manifests: complete model
+caches are not copied again, and incomplete caches are repaired from the shared cache. Compute nodes must provide the
+``flock`` utility. The local path must be absolute, writable, different from ``hf_home_path``, identical on every
+compute node, and isolated per user when the storage is not administered as a shared cache. Leave
+``hf_local_home_path`` unset to preserve the default shared-cache behavior. Pre-test and post-test workloads opt in
+independently.
 
 Head Node without Shared Storage Available on Compute Nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

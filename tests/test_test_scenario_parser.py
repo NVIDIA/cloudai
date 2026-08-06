@@ -25,6 +25,7 @@ from cloudai.core import TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
 from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportConfig
+from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
 
 
 class DummyTestRun(TestRun):
@@ -112,6 +113,14 @@ def test_hf_local_home_path_is_parsed_as_a_test_definition_field() -> None:
     test_run = model.tests[0]
     assert test_run.hf_local_home_path == Path("/raid/cloudai")
     assert test_run.tdef_model_dump(by_alias=True)["hf_local_home_path"] == Path("/raid/cloudai")
+    test_definition = SleepTestDefinition(
+        name="sleep",
+        description="sleep",
+        test_template_name="Sleep",
+        cmd_args=SleepCmdArgs(),
+        **test_run.tdef_model_dump(by_alias=True),
+    )
+    assert test_definition.hf_local_home_path == Path("/raid/cloudai")
 
 
 def test_hf_local_home_path_must_be_absolute() -> None:
@@ -125,4 +134,13 @@ def test_hf_local_home_path_must_be_absolute() -> None:
         test_name = "vLLM"
         hf_local_home_path = "raid/cloudai"
         """)
+        )
+
+    with pytest.raises(ValidationError, match="hf_local_home_path must be an absolute path"):
+        SleepTestDefinition(
+            name="sleep",
+            description="sleep",
+            test_template_name="Sleep",
+            cmd_args=SleepCmdArgs(),
+            hf_local_home_path=Path("raid/cloudai"),
         )

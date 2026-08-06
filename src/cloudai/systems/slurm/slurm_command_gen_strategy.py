@@ -194,8 +194,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "  (",
                 "    flock --exclusive 9",
                 '    if [ -d "$target_model" ]; then',
-                '      missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
-                '<(cache_manifest "$target_model"))"',
+                (
+                    '      missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
+                    '<(cache_manifest "$target_model"))"'
+                ),
                 '      if [ -z "$missing_entries" ]; then',
                 '        echo "CloudAI: $model_cache_dir is already staged on $(hostname)"',
                 "        exit 0",
@@ -204,8 +206,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 '    echo "CloudAI: staging $model_cache_dir on $(hostname)"',
                 '    mkdir -p "$target_model"',
                 '    cp -a "$source_model/." "$target_model/"',
-                '    missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
-                '<(cache_manifest "$target_model"))"',
+                (
+                    '    missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
+                    '<(cache_manifest "$target_model"))"'
+                ),
                 '    if [ -n "$missing_entries" ]; then',
                 '      echo "CloudAI: local HF cache verification failed for $model_cache_dir on $(hostname)" >&2',
                 "      exit 1",
