@@ -109,15 +109,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @property
     def runtime_hf_home_path(self) -> Path:
         """Return the host HF cache path to mount for workload execution."""
-        return self.effective_hf_local_home_path() or self.system.hf_home_path
-
-    def effective_hf_local_home_path(self, test_run: TestRun | None = None) -> Path | None:
-        """Return the test override or system default for node-local HF storage."""
-        test_run = test_run or self.test_run
-        return test_run.test.hf_local_home_path or self.system.hf_local_home_path
+        return self.test_run.test.hf_local_home_path or self.system.hf_home_path
 
     @staticmethod
-    def flatten_test_runs(test_runs: Iterable[TestRun]) -> list[TestRun]:
+    def _flatten_test_runs(test_runs: Iterable[TestRun]) -> list[TestRun]:
         """Return test runs together with all recursively configured hooks."""
         flattened: list[TestRun] = []
         pending = list(test_runs)
@@ -129,19 +124,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                     pending.extend(scenario.test_runs)
         return flattened
 
-    @classmethod
-    def collect_hf_models(cls, test_runs: Iterable[TestRun]) -> list[HFModel]:
-        """Collect unique HF models required by test runs and their hooks."""
-        models: set[HFModel] = set()
-        for test_run in cls.flatten_test_runs(test_runs):
-            models.update(item for item in test_run.test.installables if isinstance(item, HFModel))
-        return sorted(models, key=lambda model: model.model_name)
-
-    def collect_hf_model_staging_groups(self, test_runs: Iterable[TestRun]) -> list[tuple[Path, list[HFModel]]]:
+    def _collect_hf_model_staging_groups(self, test_runs: Iterable[TestRun]) -> list[tuple[Path, list[HFModel]]]:
         """Group required HF models by their effective node-local cache path."""
         groups: dict[Path, set[HFModel]] = {}
-        for test_run in self.flatten_test_runs(test_runs):
-            local_hf_home = self.effective_hf_local_home_path(test_run)
+        for test_run in self._flatten_test_runs(test_runs):
+            local_hf_home = test_run.test.hf_local_home_path
             if local_hf_home is None:
                 continue
             models = {item for item in test_run.test.installables if isinstance(item, HFModel)}
@@ -152,24 +139,16 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             for path, models in sorted(groups.items(), key=lambda item: str(item[0]))
         ]
 
-    def gen_hf_model_staging_command(
+    def _gen_hf_model_staging_command(
         self,
-        models: Iterable[HFModel] | None = None,
+        models: Iterable[HFModel],
+        local_hf_home_path: Path,
         node_spec: tuple[int, list[str]] | None = None,
-        local_hf_home_path: Path | None = None,
-    ) -> str | None:
+    ) -> str:
         """Generate a host-side Slurm step that stages HF models on every compute node."""
-        local_hf_home = local_hf_home_path or self.effective_hf_local_home_path()
-        if local_hf_home is None:
-            return None
-
-        models_to_stage = list(models) if models is not None else self.collect_hf_models([self.test_run])
-        models_to_stage = sorted(set(models_to_stage), key=lambda model: model.model_name)
-        if not models_to_stage:
-            return None
-
+        models_to_stage = sorted(set(models), key=lambda model: model.model_name)
         shared_hf_home = self.system.hf_home_path.absolute()
-        local_hf_home = local_hf_home.absolute()
+        local_hf_home = local_hf_home_path.absolute()
         if shared_hf_home == local_hf_home:
             raise ValueError("hf_local_home_path must be different from hf_home_path")
 
@@ -183,35 +162,43 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 f"target_hf_home={target_hf_home}",
                 'target_hub="$target_hf_home/hub"',
                 'staging_state="$target_hf_home/.cloudai-staging"',
-                'mkdir -p "$target_hub" "$staging_state/locks" "$staging_state/models"',
+                'command -v flock >/dev/null 2>&1 || { echo "CloudAI: local HF staging requires flock" >&2; exit 1; }',
+                "cache_manifest() {",
+                "  find \"$1\" \\( -type f -printf 'f %P %s\\n' -o -type l -printf 'l %P %l\\n' \\) | LC_ALL=C sort",
+                "}",
+                'mkdir -p "$target_hub" "$staging_state/locks"',
                 f"for model_cache_dir in {model_cache_dirs}; do",
                 '  source_model="$source_hub/$model_cache_dir"',
                 '  target_model="$target_hub/$model_cache_dir"',
-                '  state_file="$staging_state/models/$model_cache_dir"',
                 '  lock_file="$staging_state/locks/$model_cache_dir.lock"',
                 '  if [ ! -d "$source_model/snapshots" ]; then',
                 '    echo "CloudAI: shared HF cache is missing $source_model/snapshots on $(hostname)" >&2',
                 "    exit 1",
                 "  fi",
-                '  source_state="$(find "$source_model/snapshots" -mindepth 1 -maxdepth 1 -type d '
-                "-printf '%f\\n' | LC_ALL=C sort)\"",
-                '  if [ -z "$source_state" ]; then',
-                '    echo "CloudAI: shared HF cache has no snapshots for $model_cache_dir on $(hostname)" >&2',
+                '  source_manifest="$(cache_manifest "$source_model")"',
+                '  if [ -z "$source_manifest" ]; then',
+                '    echo "CloudAI: shared HF cache has no files for $model_cache_dir on $(hostname)" >&2',
                 "    exit 1",
                 "  fi",
                 "  (",
                 "    flock --exclusive 9",
-                '    if [ -d "$target_model" ] && [ -f "$state_file" ] '
-                '&& [ "$(cat "$state_file")" = "$source_state" ]; then',
-                '      echo "CloudAI: $model_cache_dir is already staged on $(hostname)"',
-                "      exit 0",
+                '    if [ -d "$target_model" ]; then',
+                '      missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
+                '<(cache_manifest "$target_model"))"',
+                '      if [ -z "$missing_entries" ]; then',
+                '        echo "CloudAI: $model_cache_dir is already staged on $(hostname)"',
+                "        exit 0",
+                "      fi",
                 "    fi",
                 '    echo "CloudAI: staging $model_cache_dir on $(hostname)"',
                 '    mkdir -p "$target_model"',
                 '    cp -a "$source_model/." "$target_model/"',
-                '    state_tmp="$state_file.${SLURM_JOB_ID:-$$}.${SLURM_PROCID:-0}.tmp"',
-                '    printf \'%s\\n\' "$source_state" > "$state_tmp"',
-                '    mv "$state_tmp" "$state_file"',
+                '    missing_entries="$(comm -23 <(printf \'%s\\n\' "$source_manifest") '
+                '<(cache_manifest "$target_model"))"',
+                '    if [ -n "$missing_entries" ]; then',
+                '      echo "CloudAI: local HF cache verification failed for $model_cache_dir on $(hostname)" >&2',
+                "      exit 1",
+                "    fi",
                 '  ) 9>"$lock_file"',
                 "done",
             ]
@@ -242,14 +229,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> list[str]:
         """Generate staging steps for each local HF cache used by the test runs."""
         commands = []
-        for local_hf_home, models in self.collect_hf_model_staging_groups(test_runs):
-            command = self.gen_hf_model_staging_command(
+        for local_hf_home, models in self._collect_hf_model_staging_groups(test_runs):
+            command = self._gen_hf_model_staging_command(
                 models=models,
-                node_spec=node_spec,
                 local_hf_home_path=local_hf_home,
+                node_spec=node_spec,
             )
-            if command:
-                commands.append(command)
+            commands.append(command)
         return commands
 
     def gen_exec_command(self) -> str:

@@ -542,6 +542,8 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 
 3. Test specific mounts can be mounted in-code.
 
+.. _automated-compute-node-local-hf-cache:
+
 Automated Compute-Node Local Hugging Face Cache
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -561,10 +563,10 @@ nodes, CloudAI copies the cache directory for every Hugging Face model required 
 failure stops the job.
 
 CloudAI retains the local cache and reuses it across jobs when the underlying node-local storage persists. Per-model
-locks protect concurrent jobs, and models whose installed revisions have not changed are not copied again. The local
-path must be absolute, writable, identical on every compute node, and isolated per user when the storage is not
-administered as a shared cache. A Slurm system configuration can instead set ``hf_local_home_path`` as the default for
-all tests; a test-level value takes precedence. Leave both unset to preserve the default shared-cache behavior.
+locks protect concurrent jobs, and complete model caches are not copied again. Compute nodes must provide the ``flock``
+utility. The local path must be absolute, writable, different from ``hf_home_path``, identical on every compute node,
+and isolated per user when the storage is not administered as a shared cache. Leave ``hf_local_home_path`` unset to
+preserve the default shared-cache behavior. Pre-test and post-test workloads opt in independently.
 
 Head Node without Shared Storage Available on Compute Nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

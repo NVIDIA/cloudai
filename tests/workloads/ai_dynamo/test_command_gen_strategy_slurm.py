@@ -136,7 +136,7 @@ def test_container_mounts_use_opt_in_local_hf_cache(
     strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
 ) -> None:
     local_hf_home = tmp_path / "local-hf"
-    strategy.system.hf_local_home_path = local_hf_home
+    strategy.test_run.test.hf_local_home_path = local_hf_home
 
     mounts = strategy._container_mounts()
 
@@ -225,7 +225,7 @@ def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSy
 def test_single_sbatch_stages_hf_models_before_auxiliary_container_steps(
     slurm_system: SlurmSystem, test_run: TestRun, tmp_path: Path
 ) -> None:
-    slurm_system.hf_local_home_path = tmp_path / "local-hf"
+    test_run.test.hf_local_home_path = tmp_path / "local-hf"
     scenario = TestScenario(name="scenario", test_runs=[test_run])
     runner = SingleSbatchRunner(
         mode="run",

@@ -97,7 +97,7 @@ def test_report_spec_is_parsed() -> None:
     assert cfg.group_by == ["my_field"]
 
 
-def test_hf_local_home_path_is_a_test_definition_override() -> None:
+def test_hf_local_home_path_is_parsed_as_a_test_definition_field() -> None:
     model = TestScenarioModel.model_validate(
         toml.loads("""
     name = "scenario"

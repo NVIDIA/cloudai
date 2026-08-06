@@ -79,46 +79,37 @@ def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) ->
 
 def test_local_hf_container_mount_is_opt_in(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path) -> None:
     local_hf_home = tmp_path / "local-hf"
-    vllm_cmd_gen_strategy.system.hf_local_home_path = local_hf_home
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
 
     assert vllm_cmd_gen_strategy._container_mounts() == [f"{local_hf_home.absolute()}:/root/.cache/huggingface"]
-
-
-def test_test_local_hf_path_overrides_system_default(
-    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
-) -> None:
-    system_local_hf_home = tmp_path / "system-local-hf"
-    test_local_hf_home = tmp_path / "test-local-hf"
-    vllm_cmd_gen_strategy.system.hf_local_home_path = system_local_hf_home
-    vllm_cmd_gen_strategy.tdef.hf_local_home_path = test_local_hf_home
-
-    assert vllm_cmd_gen_strategy._container_mounts() == [f"{test_local_hf_home.absolute()}:/root/.cache/huggingface"]
-    staging_command = vllm_cmd_gen_strategy.gen_hf_model_staging_command()
-    assert staging_command is not None
-    assert f"target_hf_home={test_local_hf_home.absolute()}" in staging_command
-    assert str(system_local_hf_home.absolute()) not in staging_command
 
 
 def test_local_hf_model_staging_precedes_container_steps(
     vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
 ) -> None:
     local_hf_home = tmp_path / "local-hf"
-    vllm_cmd_gen_strategy.system.hf_local_home_path = local_hf_home
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
 
     vllm_cmd_gen_strategy._write_sbatch_script("main-command")
     script = (vllm_cmd_gen_strategy.test_run.output_path / "cloudai_sbatch_script.sh").read_text()
 
-    assert "models--Qwen--Qwen3-0.6B" in script
-    assert f"source_hub={vllm_cmd_gen_strategy.system.hf_home_path.absolute()}/hub" in script
     assert f"target_hf_home={local_hf_home.absolute()}" in script
-    assert 'staging_state="$target_hf_home/.cloudai-staging"' in script
     assert "--ntasks-per-node=1" in script
     assert script.index("CloudAI: staging") < script.index("mapping-stdout.txt")
     assert script.index("CloudAI: staging") < script.index("main-command")
 
 
 def test_hf_model_staging_is_disabled_by_default(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-    assert vllm_cmd_gen_strategy.gen_hf_model_staging_command() is None
+    assert vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run]) == []
+
+
+def test_local_hf_path_must_differ_from_shared_cache(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy,
+) -> None:
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = vllm_cmd_gen_strategy.system.hf_home_path
+
+    with pytest.raises(ValueError, match="hf_local_home_path must be different from hf_home_path"):
+        vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])
 
 
 def test_local_hf_stage_script_copies_and_reuses_model_cache(
@@ -136,9 +127,8 @@ def test_local_hf_stage_script_copies_and_reuses_model_cache(
     (source_snapshot / "model.safetensors").symlink_to("../../blobs/weights")
 
     vllm_cmd_gen_strategy.system.hf_home_path = shared_hf_home
-    vllm_cmd_gen_strategy.system.hf_local_home_path = local_hf_home
-    command = vllm_cmd_gen_strategy.gen_hf_model_staging_command()
-    assert command is not None
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
+    command = vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])[0]
     command_parts = [part for part in shlex.split(command) if part.strip()]
     stage_script = command_parts[command_parts.index("-lc") + 1]
 
@@ -150,10 +140,13 @@ def test_local_hf_stage_script_copies_and_reuses_model_cache(
     assert local_blob.read_text() == "shared"
     assert local_snapshot_file.read_text() == "shared"
 
-    local_blob.write_text("already-local")
     second_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
     assert f"CloudAI: {model_cache} is already staged" in second_run.stdout
-    assert local_blob.read_text() == "already-local"
+
+    local_blob.write_text("incomplete")
+    third_run = subprocess.run(["bash", "-lc", stage_script], check=True, capture_output=True, text=True)
+    assert f"CloudAI: staging {model_cache}" in third_run.stdout
+    assert local_blob.read_text() == "shared"
 
 
 def test_sweep_detection(vllm: VllmTestDefinition) -> None:

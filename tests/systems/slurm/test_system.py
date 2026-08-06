@@ -770,16 +770,3 @@ class TestHfHomePath:
     def test_custom(self, system_args: dict):
         system = SlurmSystem(**system_args, hf_home_path=system_args["output_path"] / "custom")
         assert system.hf_home_path == system_args["output_path"] / "custom"
-
-    def test_local_cache_is_disabled_by_default(self, system_args: dict):
-        system = SlurmSystem(**system_args)
-        assert system.hf_local_home_path is None
-
-    def test_custom_local_cache(self, system_args: dict, tmp_path: Path):
-        local_path = tmp_path / "local-hf"
-        system = SlurmSystem(**system_args, hf_local_home_path=local_path)
-        assert system.hf_local_home_path == local_path
-
-    def test_local_cache_requires_absolute_path(self, system_args: dict):
-        with pytest.raises(ValidationError, match="hf_local_home_path must be an absolute path"):
-            SlurmSystem(**system_args, hf_local_home_path=Path("local-hf"))
