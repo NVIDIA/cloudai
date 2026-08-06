@@ -791,6 +791,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not self._doca_memos_preflight_enabled():
             return []
         return [
+            "ulimit -l unlimited",
             *self._gen_doca_memos_hugepage_setup_block(),
             *self._gen_doca_memos_health_check_block(),
         ]

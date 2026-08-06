@@ -6,7 +6,7 @@ scheduler = "slurm"
 
 install_path = "/mnt/lustre/users/spothula/cloudai/.install"
 output_path = "/mnt/lustre/users/spothula/cloudai/results"
-hf_home_path = "/mnt/lustre/users/spothula/cloudai/huggingface"
+hf_home_path = "/mnt/lustre/cloudai/huggingface"
 
 default_partition = "daria"
 gpus_per_node = 4
