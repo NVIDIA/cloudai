@@ -258,7 +258,6 @@ class TestScenario:
     test_runs: list[TestRun]
     job_status_check: bool = True
     reports: dict[str, ReportConfig] = field(default_factory=dict)
-    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
 
     def __repr__(self) -> str:
         """

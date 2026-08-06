@@ -16,6 +16,7 @@
 
 import contextlib
 import logging
+import statistics
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,7 +41,6 @@ from .models.scenario import TestRunDetails
 class SOLMetricReport:
     """Presentation-ready SOL details for one metric in one test run."""
 
-    key: str
     display_name: str
     unit: str
     coverage_text: str
@@ -135,10 +135,14 @@ def _build_sol_metric_reports(
 
     reports: list[SOLMetricReport] = []
     for metric_idx, metric_assessments in enumerate(grouped.values()):
-        summary = cloudai.metrics.summarize_assessments(metric_assessments)[0]
-        if summary.matched == 0:
+        attainments = [
+            attainment for assessment in metric_assessments if (attainment := assessment.attainment) is not None
+        ]
+        if not attainments:
             continue
-        metric = summary.metric
+        metric = metric_assessments[0].observation.metric
+        observations = len(metric_assessments)
+        matched = len(attainments)
         coordinate_headers = list(metric_assessments[0].observation.dimensions)
         rows = []
         for assessment in metric_assessments:
@@ -165,19 +169,18 @@ def _build_sol_metric_reports(
             )
 
         coverage_text = (
-            f"{summary.observations} measurements compared with SOL"
-            if summary.matched == summary.observations
-            else f"SOL available for {summary.matched} of {summary.observations} measurements"
+            f"{observations} measurements compared with SOL"
+            if matched == observations
+            else f"SOL available for {matched} of {observations} measurements"
         )
         reports.append(
             SOLMetricReport(
-                key=metric.key,
                 display_name=metric.display_name,
                 unit=metric.unit,
                 coverage_text=coverage_text,
-                worst=f"{summary.worst_attainment:.1%}",
-                median=f"{summary.median_attainment:.1%}",
-                best=f"{summary.best_attainment:.1%}",
+                worst=f"{min(attainments):.1%}",
+                median=f"{statistics.median(attainments):.1%}",
+                best=f"{max(attainments):.1%}",
                 coordinate_headers=[cloudai.metrics.dimension_label(name) for name in coordinate_headers],
                 rows=rows,
                 chart=_build_metric_chart(
@@ -198,7 +201,6 @@ class ReportItem:
     description: str
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
-    sol_summaries: list[cloudai.metrics.MetricAssessmentSummary] | None = None
     sol_metrics: list[SOLMetricReport] | None = None
 
     @classmethod
@@ -215,9 +217,6 @@ class ReportItem:
             if system is not None:
                 try:
                     assessments = cloudai.metrics.assess_test_run_metrics(system, tr)
-                    ri.sol_summaries = [
-                        summary for summary in cloudai.metrics.summarize_assessments(assessments) if summary.matched
-                    ]
                     ri.sol_metrics = _build_sol_metric_reports(assessments, item_idx)
                 except Exception as exc:
                     logging.warning("Failed to assess SOL metrics for '%s': %s", tr.output_path, exc)

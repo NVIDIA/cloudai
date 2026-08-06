@@ -52,15 +52,13 @@ class SOLComparisonReport(ComparisonReport):
         self,
         group: GroupedTestRuns,
         metric: cloudai.metrics.MetricDefinition,
-        x_dimension: str | None,
+        x_dimension: str,
         series_dimensions: tuple[str, ...] = (),
     ) -> ComparisonSection | None:
         """Build one explicitly configured metric section for a comparison group."""
         frames = [self._assessment_frame(self._assessments(item.tr), metric) for item in group.items]
         if all(frame.empty for frame in frames):
             return None
-        if x_dimension is None:
-            return self._build_scalar_section(group, metric, frames)
         return self._build_curve_section(group, metric, x_dimension, series_dimensions, frames)
 
     @staticmethod
@@ -80,38 +78,6 @@ class SOLComparisonReport(ComparisonReport):
                 for assessment in assessments
                 if assessment.observation.metric is metric
             ]
-        )
-
-    def _build_scalar_section(
-        self,
-        group: GroupedTestRuns,
-        metric: cloudai.metrics.MetricDefinition,
-        frames: list[pd.DataFrame],
-    ) -> ComparisonSection:
-        """Build a compact table and bar chart for a scalar metric."""
-        data_column = metric.display_name
-        dfs = []
-        for frame in frames:
-            first = frame.iloc[0] if not frame.empty else None
-            dfs.append(
-                lazy.pd.DataFrame(
-                    {
-                        "Measurement": [metric.display_name],
-                        data_column: [first.measured if first is not None else None],
-                        self._sol_column(data_column): [first.sol if first is not None else None],
-                        self._attainment_column(data_column): [first.attainment if first is not None else None],
-                    }
-                )
-            )
-        return ComparisonSection(
-            group=group,
-            title=metric.display_name,
-            dfs=dfs,
-            info_columns=["Measurement"],
-            data_columns=[data_column],
-            y_axis_label=f"{metric.display_name} ({metric.unit})",
-            chart_type="bar",
-            x_axis_type="category",
         )
 
     def _build_curve_section(
@@ -206,6 +172,8 @@ class SOLComparisonReport(ComparisonReport):
 
     def _build_line_datasets_v2(self, section: ComparisonSection) -> tuple[list[str] | None, list[dict[str, Any]]]:
         labels, datasets = super()._build_line_datasets_v2(section)
+        if labels is None:
+            raise ValueError("SOL comparison charts require a categorical x-axis")
         include_metric = len(section.data_columns) > 1
         x_column = section.x_axis_column or section.info_columns[0]
         inserted = 0
@@ -213,15 +181,8 @@ class SOLComparisonReport(ComparisonReport):
             sol_curve = self._shared_sol_curve(section, data_column, x_column)
             if sol_curve is None:
                 continue
-            if labels is None:
-                sol_data: list[float | None] | list[dict[str, float]] = [
-                    {"x": numeric_x, "y": sol}
-                    for x_value, sol in sol_curve
-                    if (numeric_x := self._numeric_value(x_value)) is not None
-                ]
-            else:
-                sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
-                sol_data = [sol_by_label.get(label) for label in labels]
+            sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
+            sol_data = [sol_by_label.get(label) for label in labels]
             insert_at = (metric_idx + 1) * len(section.group.items) + inserted
             datasets.insert(
                 insert_at,

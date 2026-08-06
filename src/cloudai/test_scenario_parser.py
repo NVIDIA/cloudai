@@ -168,7 +168,6 @@ class TestScenarioParser:
             test_runs=list(test_runs_by_id.values()),
             job_status_check=ts_model.job_status_check,
             reports=ts_model.reports,
-            metric_sol=cloudai.metrics.merge_sol_configs(self.system.sol, ts_model.sol),
         )
 
     def _create_test_run(

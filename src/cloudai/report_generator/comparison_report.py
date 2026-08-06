@@ -501,20 +501,6 @@ class ComparisonReport(Reporter, ABC):
             for idx, section in enumerate(sections)
         ]
 
-    def _rich_data_points(
-        self,
-        data_column: str,
-        dfs: list[pd.DataFrame],
-        row_idx: int,
-        enable_diff_column: bool,
-    ) -> list[str]:
-        raw_values = [df[data_column].get(row_idx, "n/a") for df in dfs]
-        data_points = [str(value) for value in raw_values]
-        if enable_diff_column:
-            val1, val2 = self._extract_cmp_values(raw_values)
-            data_points.append(self._format_diff_cell(val1, val2))
-        return data_points
-
     def create_table(
         self,
         group: GroupedTestRuns,
@@ -551,7 +537,11 @@ class ComparisonReport(Reporter, ABC):
         for row_idx in range(len(df_with_max_rows)):
             data = []
             for col in data_columns:
-                data.extend(self._rich_data_points(col, dfs, row_idx, enable_diff_column))
+                data_points = [str(df[col].get(row_idx, "n/a")) for df in dfs]
+                if enable_diff_column:
+                    val1, val2 = self._extract_cmp_values(data_points)
+                    data_points.append(self._format_diff_cell(val1, val2))
+                data.extend(data_points)
 
             table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)
 
@@ -607,10 +597,8 @@ class ComparisonReport(Reporter, ABC):
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"
 
-        measured_y_values = [df[col].max() for df in dfs for col in data_columns if not df.empty]
-        measured_y_min_values = [df[col].min() for df in dfs for col in data_columns if not df.empty]
-        y_max = max(measured_y_values)
-        y_min = min(measured_y_min_values)
+        y_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
+        y_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
         df_with_max_rows = max(dfs, key=len)

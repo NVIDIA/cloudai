@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import math
-import statistics
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -45,7 +44,6 @@ class DimensionDefinition:
     key: str
     label: str
     value_type: Any
-    ordered: bool = False
 
     def validate(self, value: Any) -> MetricValue:
         """Validate one configured or observed dimension value."""
@@ -89,11 +87,11 @@ class MetricCatalog:
         return {key: cls.dimension(key).validate(value) for key, value in values.items()}
 
 
-SIZE_BYTES = DimensionDefinition("size_bytes", "Size", Annotated[int, Field(strict=True, ge=0)], ordered=True)
-BATCH_SIZE = DimensionDefinition("batch_size", "Batch size", Annotated[int, Field(strict=True, gt=0)], ordered=True)
+SIZE_BYTES = DimensionDefinition("size_bytes", "Size", Annotated[int, Field(strict=True, ge=0)])
+BATCH_SIZE = DimensionDefinition("batch_size", "Batch size", Annotated[int, Field(strict=True, gt=0)])
 OPERATION = DimensionDefinition("operation", "Operation", Annotated[str, Field(strict=True, min_length=1)])
 PLACEMENT = DimensionDefinition("placement", "Placement", Literal["in_place", "out_of_place"])
-BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Literal["bus", "payload", "wire"])
+BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Literal["bus", "payload"])
 BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=True, min_length=1)])
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
@@ -134,13 +132,6 @@ class SOLTarget(BaseModel):
 
     value: float = Field(gt=0, allow_inf_nan=False)
     match: MetricDimensions = Field(default_factory=dict)
-
-    @field_validator("value")
-    @classmethod
-    def reject_non_finite(cls, value: float) -> float:
-        if not math.isfinite(value):
-            raise ValueError("SOL values must be finite")
-        return value
 
     @field_validator("match", mode="before")
     @classmethod
@@ -236,18 +227,6 @@ class MetricAssessment:
         return self.observation.value - self.target.value
 
 
-@dataclass(frozen=True)
-class MetricAssessmentSummary:
-    """Compact SOL coverage and attainment summary for one metric."""
-
-    metric: MetricDefinition
-    observations: int
-    matched: int
-    worst_attainment: float | None
-    median_attainment: float | None
-    best_attainment: float | None
-
-
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
     """Resolve the most specific target and assess one observation."""
     targets = sol_config.get(observation.metric.key, [])
@@ -264,28 +243,6 @@ def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment
     """Collect and assess every metric produced by a completed test run."""
     observations = test_run.test.metric_observations(system, test_run)
     return [assess_observation(observation, test_run.metric_sol) for observation in observations]
-
-
-def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAssessmentSummary]:
-    """Summarize SOL coverage and attainment by metric."""
-    grouped: dict[str, list[MetricAssessment]] = {}
-    for assessment in assessments:
-        grouped.setdefault(assessment.observation.metric.key, []).append(assessment)
-
-    summaries = []
-    for metric_assessments in grouped.values():
-        attainments = [attainment for item in metric_assessments if (attainment := item.attainment) is not None]
-        summaries.append(
-            MetricAssessmentSummary(
-                metric=metric_assessments[0].observation.metric,
-                observations=len(metric_assessments),
-                matched=len(attainments),
-                worst_attainment=min(attainments) if attainments else None,
-                median_attainment=statistics.median(attainments) if attainments else None,
-                best_attainment=max(attainments) if attainments else None,
-            )
-        )
-    return summaries
 
 
 def dimension_label(key: str) -> str:
