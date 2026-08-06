@@ -4,14 +4,21 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"
         integrity="sha384-tgbB5AKnszdcfwcZtTfuhR3Ko1XZdlDfsLtkxiiAZiVkkXCkFmp+FQFh+V/UTo54"
         crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"
+        integrity="sha384-Cs3dgUx6+jDxxuqHvVH8Onpyj2LF1gKZurLDlhqzuJmUqVYMJ0THTWpxK5Z086Zm"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"
+        integrity="sha384-dwwI6ICEN/0ZQlS5owhUa/6ZzvwUPmjH45bFVCAcjgjTulbHJvlE+TGU3g1k0N3R"
+        crossorigin="anonymous"></script>
 <style>
     .report-table > tbody > tr > td {
         vertical-align: top;
     }
     .sol-overview {
         display: grid;
-        gap: 0.35rem;
-        min-width: 18rem;
+        grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+        gap: 0.5rem 1rem;
+        min-width: 32rem;
     }
     .sol-overview strong,
     .sol-coverage {
@@ -26,24 +33,41 @@
         background: transparent;
     }
     .sol-details-row > td {
-        padding: 0 16px 16px;
+        padding: 0;
     }
-    .sol-details {
-        border: 1px solid var(--nv-border);
-        border-radius: var(--radius-md);
-        background: var(--nv-surface-alt);
-        overflow: hidden;
-    }
-    .sol-details > summary {
-        padding: 0.8rem 1rem;
+    .sol-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.65rem;
+        padding: 0;
+        border: 0;
         color: var(--nv-green-strong);
+        background: transparent;
+        font: inherit;
         font-weight: 700;
         cursor: pointer;
+    }
+    .sol-toggle::before {
+        content: "\25B6";
+        font-size: 0.7em;
+    }
+    .sol-toggle[aria-expanded="true"]::before {
+        content: "\25BC";
+    }
+    .sol-toggle:hover {
+        text-decoration: underline;
+    }
+    .sol-details {
+        border: 0;
+        border-radius: 0;
+        background: var(--nv-surface-alt);
+        overflow: hidden;
     }
     .sol-details-content {
         display: grid;
         gap: 1rem;
-        padding: 0 1rem 1rem;
+        padding: 1rem;
     }
     .sol-metric-card {
         min-width: 0;
@@ -82,6 +106,30 @@
     .sol-chart-shell canvas {
         width: 100% !important;
         height: 100% !important;
+    }
+    .sol-chart-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        margin-top: 0.55rem;
+    }
+    .sol-chart-controls p {
+        margin: 0;
+        font-size: 0.8rem;
+    }
+    .sol-reset-zoom {
+        padding: 0.35rem 0.7rem;
+        border: 1px solid rgba(118, 185, 0, 0.42);
+        border-radius: 999px;
+        background: var(--nv-surface);
+        color: var(--nv-green-strong);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .sol-reset-zoom:hover {
+        background: var(--nv-green-soft);
     }
     .sol-observation-table-region {
         max-width: 100%;
@@ -141,7 +189,7 @@
                 dataset.tension = 0;
                 dataset.data = dataset.data.map((value, pointIndex) => ({x: pointIndex, y: value}));
             });
-            new Chart(canvas, {
+            const chart = new Chart(canvas, {
                 type: "line",
                 data: {datasets: payload.datasets},
                 options: {
@@ -149,15 +197,25 @@
                     maintainAspectRatio: false,
                     devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
                     animation: false,
-                    interaction: {mode: "nearest", intersect: true},
-                    plugins: {legend: {position: "bottom", labels: {usePointStyle: true, boxWidth: 8, padding: 10}}},
+                    interaction: {mode: "index", intersect: true},
+                    plugins: {
+                        legend: {position: "bottom", labels: {usePointStyle: true, boxWidth: 8, padding: 10}},
+                        zoom: {
+                            pan: {enabled: true, mode: "xy", modifierKey: "shift", threshold: 2},
+                            zoom: {wheel: {enabled: false}, pinch: {enabled: true}, mode: "xy"}
+                        }
+                    },
                     scales: {
                         x: {
                             type: "linear",
                             min: -0.5,
                             max: payload.labels.length - 0.5,
                             afterBuildTicks: function (axis) {
-                                axis.ticks = payload.labels.map((_label, index) => ({value: index}));
+                                const firstTick = Math.max(0, Math.ceil(axis.min));
+                                const lastTick = Math.min(payload.labels.length - 1, Math.floor(axis.max));
+                                axis.ticks = payload.labels
+                                    .map((_label, index) => ({value: index}))
+                                    .filter((tick) => tick.value >= firstTick && tick.value <= lastTick);
                             },
                             ticks: {
                                 autoSkip: false,
@@ -171,14 +229,57 @@
                     }
                 }
             });
-        }
 
-        document.querySelectorAll(".js-sol-details").forEach((details) => {
-            details.addEventListener("toggle", function () {
-                if (!details.open) {
+            canvas.addEventListener("wheel", function (event) {
+                const isShiftWheel = event.shiftKey;
+                const isTrackpadPinch = event.ctrlKey && !event.shiftKey;
+                if ((!isShiftWheel && !isTrackpadPinch) || typeof chart.zoom !== "function") {
                     return;
                 }
-                details.querySelectorAll(".js-sol-chart").forEach(initializeSOLChart);
+                const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+                if (delta === 0) {
+                    return;
+                }
+                event.preventDefault();
+                const speed = isTrackpadPinch ? 0.02 : 0.1;
+                const factor = delta < 0 ? 1 + speed : 2 - 1 / (1 - speed);
+                const rect = canvas.getBoundingClientRect();
+                chart.zoom(
+                    {
+                        x: factor,
+                        y: factor,
+                        focalPoint: {x: event.clientX - rect.left, y: event.clientY - rect.top}
+                    },
+                    "none"
+                );
+            }, {passive: false});
+
+            const card = canvas.closest(".sol-metric-card");
+            const resetButton = card ? card.querySelector(".js-sol-reset-zoom") : null;
+            if (resetButton && typeof chart.resetZoom === "function") {
+                resetButton.addEventListener("click", function () {
+                    chart.resetZoom();
+                });
+                canvas.addEventListener("dblclick", function () {
+                    chart.resetZoom();
+                });
+            } else if (resetButton) {
+                resetButton.hidden = true;
+            }
+        }
+
+        document.querySelectorAll(".js-sol-toggle").forEach((toggle) => {
+            toggle.addEventListener("click", function () {
+                const details = document.getElementById(toggle.getAttribute("aria-controls"));
+                if (!details) {
+                    return;
+                }
+                const opening = toggle.getAttribute("aria-expanded") !== "true";
+                toggle.setAttribute("aria-expanded", opening.toString());
+                details.hidden = !opening;
+                if (opening) {
+                    details.querySelectorAll(".js-sol-chart").forEach(initializeSOLChart);
+                }
             });
         });
     });
@@ -210,20 +311,21 @@
                 {% for metric in item.sol_metrics %}
                     <div>
                         <strong>{{ metric.display_name }}</strong>
-                        <span>{{ metric.coverage_text }} · median {{ metric.median }} · worst {{ metric.worst }}</span>
+                        <span>{{ metric.coverage_text }} &middot; median {{ metric.median }} &middot; worst {{ metric.worst }}</span>
                     </div>
                 {% endfor %}
                 </div>
+                <button class="sol-toggle js-sol-toggle" type="button" aria-expanded="false"
+                        aria-controls="sol-analysis-{{ loop.index0 }}">Show SOL analysis</button>
             {% else %}
                 No applicable SOL values
             {% endif %}
             </td>
         </tr>
         {% if item.sol_metrics %}
-        <tr class="sol-details-row">
+        <tr class="sol-details-row" id="sol-analysis-{{ loop.index0 }}" hidden>
             <td colspan="5">
-                <details class="sol-details js-sol-details">
-                    <summary>Show SOL analysis for this test</summary>
+                <div class="sol-details">
                     <div class="sol-details-content">
                     {% for metric in item.sol_metrics %}
                         <section class="sol-metric-card">
@@ -238,6 +340,13 @@
                             <div class="sol-chart-shell">
                                 <canvas class="js-sol-chart" data-chart-data-id="{{ metric.chart.id }}-data"
                                         aria-label="{{ metric.display_name }} versus SOL"></canvas>
+                            </div>
+                            <div class="sol-chart-controls">
+                                <p>
+                                    Click a legend entry to show or hide a series &middot; Shift + wheel or pinch to
+                                    zoom &middot; Shift + drag to pan &middot; double-click to reset
+                                </p>
+                                <button type="button" class="sol-reset-zoom js-sol-reset-zoom">Reset view</button>
                             </div>
                             <script type="application/json" id="{{ metric.chart.id }}-data">{{ metric.chart | tojson }}</script>
                             {% endif %}
@@ -262,7 +371,7 @@
                         </section>
                     {% endfor %}
                     </div>
-                </details>
+                </div>
             </td>
         </tr>
         {% endif %}

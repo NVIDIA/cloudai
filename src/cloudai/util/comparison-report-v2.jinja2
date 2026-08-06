@@ -385,7 +385,11 @@
                 xScale.min = -0.5;
                 xScale.max = payload.labels.length - 0.5;
                 xScale.afterBuildTicks = function (axis) {
-                    axis.ticks = payload.labels.map((_label, index) => ({value: index}));
+                    const firstTick = Math.max(0, Math.ceil(axis.min));
+                    const lastTick = Math.min(payload.labels.length - 1, Math.floor(axis.max));
+                    axis.ticks = payload.labels
+                        .map((_label, index) => ({value: index}))
+                        .filter((tick) => tick.value >= firstTick && tick.value <= lastTick);
                 };
                 xScale.ticks = {
                     autoSkip: false,
@@ -425,7 +429,7 @@
                     devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
                     animation: false,
                     interaction: {
-                        mode: "nearest",
+                        mode: "index",
                         intersect: true
                     },
                     plugins: {

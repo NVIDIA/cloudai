@@ -21,6 +21,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import jinja2
 import pytest
 import toml
 
@@ -34,6 +35,7 @@ from cloudai.reporter import (
     DSEReporter,
     PerTestReporter,
     ReportItem,
+    SOLMetricReport,
     StatusReporter,
     TarballReporter,
     _build_sol_metric_reports,
@@ -369,6 +371,40 @@ def test_sol_metric_report_explains_partial_coverage() -> None:
     assert report.coverage_text == "SOL available for 1 of 2 measurements"
     assert report.rows[0]["target"] == "Payload size=1KB"
     assert report.rows[1]["sol"] == "n/a"
+
+
+def test_general_report_sol_toggle_is_attached_to_test_row() -> None:
+    template_dir = Path(__file__).parents[1] / "src" / "cloudai" / "util"
+    template = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir)).get_template("general-report.jinja2")
+    metric = SOLMetricReport(
+        key="transfer_bandwidth",
+        display_name="Transfer bandwidth",
+        unit="GB/s",
+        coverage_text="2 measurements compared with SOL",
+        worst="80.0%",
+        median="85.0%",
+        best="90.0%",
+        coordinate_headers=[],
+        rows=[],
+        chart={"id": "sol-chart-0-0"},
+    )
+
+    report = template.render(
+        name="NIXL report",
+        report_items=[ReportItem(name="nixl", description="NIXL", sol_metrics=[metric])],
+    )
+
+    assert '<meta charset="UTF-8">' in report
+    assert 'aria-controls="sol-analysis-0"' in report
+    assert 'id="sol-analysis-0" hidden' in report
+    assert report.index('class="sol-toggle') < report.index('class="sol-details-row')
+    assert "&middot; median 85.0% &middot; worst 80.0%" in report
+    assert "chartjs-plugin-zoom@2.2.0" in report
+    assert "Shift + wheel or pinch to" in report
+    assert 'class="sol-reset-zoom js-sol-reset-zoom"' in report
+    assert 'interaction: {mode: "index", intersect: true}' in report
+    assert "tick.value >= firstTick && tick.value <= lastTick" in report
+    assert "Â" not in report
 
 
 def test_metadata_for_single_sbatch(slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
