@@ -629,9 +629,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-lc",
             shlex.quote(setup_command),
         ]
+        srun_command = " \\\n  ".join(srun_parts)
         return [
             "# Set host hugepages for DOCA_MEMOS LMCache.",
-            " \\\n  ".join(srun_parts),
+            *self._wrap_fail_closed(srun_command, "DOCA_MEMOS hugepage setup failed; refusing to start Dynamo"),
         ]
 
     def _gen_doca_memos_health_check_block(self) -> list[str]:
@@ -681,9 +682,24 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-lc",
             shlex.quote(shlex.join(health_cmd)),
         ]
+        srun_command = " \\\n  ".join(srun_parts)
         return [
             "# Run DOCA_MEMOS/NIXL health check on every node before AI Dynamo.",
-            " \\\n  ".join(srun_parts),
+            *self._wrap_fail_closed(srun_command, "DOCA_MEMOS preflight failed; refusing to start Dynamo"),
+        ]
+
+    @staticmethod
+    def _wrap_fail_closed(command: str, failure_message: str) -> list[str]:
+        lines = command.splitlines()
+        if not lines:
+            return []
+        lines[0] = f"if ! {lines[0]}"
+        lines[-1] = f"{lines[-1]}; then"
+        return [
+            *lines,
+            f"  echo {shlex.quote(failure_message)} >&2",
+            "  exit 1",
+            "fi",
         ]
 
     def _gen_doca_memos_preflight_block(self) -> list[str]:

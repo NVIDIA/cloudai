@@ -696,6 +696,9 @@ def test_gen_exec_command_includes_doca_memos_preflight(strategy: AIDynamoSlurmC
     assert "doca-memos-hugepages-node-%n-stdout.txt" in script
     assert 'sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=$target"' in script
     assert "doca_memos_health_check.py" in script
+    assert script.count("if ! srun \\") >= 2
+    assert "DOCA_MEMOS hugepage setup failed; refusing to start Dynamo" in script
+    assert "DOCA_MEMOS preflight failed; refusing to start Dynamo" in script
     assert "--base-lmcache-config-json" in script
     assert "--output-config-dir /cloudai_run_results" in script
     assert "--skip-data-path-check" not in script
