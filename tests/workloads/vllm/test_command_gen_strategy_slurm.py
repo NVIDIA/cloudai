@@ -112,6 +112,20 @@ def test_local_hf_path_must_differ_from_shared_cache(
         vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])
 
 
+def test_local_hf_path_symlink_must_not_target_shared_cache(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    shared_hf_home = tmp_path / "shared-hf"
+    shared_hf_home.mkdir()
+    local_hf_home = tmp_path / "local-hf"
+    local_hf_home.symlink_to(shared_hf_home, target_is_directory=True)
+    vllm_cmd_gen_strategy.system.hf_home_path = shared_hf_home
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
+
+    with pytest.raises(ValueError, match="hf_local_home_path must be different from hf_home_path"):
+        vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run])
+
+
 def _local_hf_stage_script(strategy: VllmSlurmCommandGenStrategy, shared_hf_home: Path, local_hf_home: Path) -> str:
     strategy.system.hf_home_path = shared_hf_home
     strategy.tdef.hf_local_home_path = local_hf_home

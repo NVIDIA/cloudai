@@ -133,7 +133,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 continue
             models = {item for item in test_run.test.installables if isinstance(item, HFModel)}
             if models:
-                groups.setdefault(local_hf_home.absolute(), set()).update(models)
+                groups.setdefault(local_hf_home.resolve(), set()).update(models)
         return [
             (path, sorted(models, key=lambda model: model.model_name))
             for path, models in sorted(groups.items(), key=lambda item: str(item[0]))
@@ -147,8 +147,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> str:
         """Generate a host-side Slurm step that stages HF models on every compute node."""
         models_to_stage = sorted(set(models), key=lambda model: model.model_name)
-        shared_hf_home = self.system.hf_home_path.absolute()
-        local_hf_home = local_hf_home_path.absolute()
+        shared_hf_home = self.system.hf_home_path.resolve()
+        local_hf_home = local_hf_home_path.resolve()
         if shared_hf_home == local_hf_home:
             raise ValueError("hf_local_home_path must be different from hf_home_path")
 
