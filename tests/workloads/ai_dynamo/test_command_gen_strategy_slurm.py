@@ -380,6 +380,39 @@ def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto
     assert "--no-server-metrics" not in script
 
 
+def test_aiperf_phase_restart_services_renders_barrier_and_dynamo_args(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.dynamo.aiperf_phase_restart_services = True
+    td.cmd_args.dynamo.aiperf_phase_setup_scope = "all"
+    td.cmd_args.dynamo.aiperf_phase_setup_cmd_scope = "all"
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
+        AIPerfPhase.model_validate(
+            {
+                "name": "round_2",
+                "setup-cmd": "rm -rf /tmp/lmcache/*",
+                "args": {"concurrency": 2},
+            }
+        ),
+    ]
+
+    result = strategy._gen_script_args(td)
+
+    assert '--dynamo-aiperf-phase-restart-services "True"' in result
+    assert '--dynamo-aiperf-phase-setup-scope "all"' in result
+    assert '--dynamo-aiperf-phase-setup-cmd-scope "all"' in result
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == "n0,n1"
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "request_aiperf_phase_setup()" in script
+    assert "request_aiperf_phase_setup 0 round_1 ''" in script
+    assert "request_aiperf_phase_setup 1 round_2 'rm -rf /tmp/lmcache/*'" in script
+    assert "Running AIPerf phase setup for round_2" not in script
+
+
 def test_generated_aiperf_script_rejects_list_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"

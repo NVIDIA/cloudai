@@ -1,0 +1,131 @@
+name = "agentic-gpt-oss20-pareto-cmx-g1-g2-g35-single-large-2phase"
+description = "GPT-OSS-20B large agentic workload: G1 HBM + 1,000 GiB/node G2 CPU + G3.5 CMX, single-node two-phase concurrency sweep"
+test_template_name = "AIDynamo"
+dse_excluded_args = ["cmd_args.aiperf_phases"]
+
+[cmd_args]
+docker_image_url = "artifactory.nvidia.com/sw-nbu-swx-storage-devops-docker-local/nixl/dynamo-vllm-nixl-cmx:1.2.0-cuda13-lmcache-389b9cfc-doca-41a1f020-nixl-cd2f6d49-hnogit-vllm0.20.2-build24-x86_64"
+workloads = "aiperf.sh"
+
+[repo]
+url = "https://github.com/ai-dynamo/dynamo.git"
+commit = "v0.9.0"
+
+  [cmd_args.doca-memos-preflight]
+  enabled = true
+  health-check = true
+  setup-hugepages = true
+  skip-data-path-check = false
+
+  [cmd_args.lmcache]
+  chunk_size = 512
+  local_cpu = true
+  max_local_cpu_size = 250.0
+  local_cpu_use_hugepages = true
+  nixl_buffer_device = "cpu"
+
+    [cmd_args.lmcache.extra_config]
+    enable_nixl_storage = true
+    nixl_presence_cache = true
+    nixl_presence_cache_only = true
+    nixl_async_put = true
+    nixl_sync_mode = "STRICT"
+    nixl_pool_size = 0
+    nixl_backend = "DOCA_MEMOS"
+
+      [cmd_args.lmcache.extra_config.nixl_backend_params]
+      query_mem_mode = "actual"
+
+  [cmd_args.dynamo]
+  backend = "vllm"
+  mode = "aggregate"
+  model = "openai/gpt-oss-20b"
+  ingress-cmd = "python3 -m dynamo.frontend --no-kv-events --router-reset-states --router-mode kv --router-ttl 86400 --kv-overlap-score-weight 1000"
+  aiperf-phase-restart-services = true
+  aiperf-phase-setup-scope = "all"
+  aiperf-phase-setup-cmd-scope = "all"
+
+    [cmd_args.dynamo.prefill_worker]
+    num-nodes = 1
+    nodes = "daria01"
+    cmd = "python3 -m dynamo.vllm"
+    worker-initialized-regex = "VllmWorker.*has.been.initialized"
+    extra-args = "--kv-cache-metrics --kv-cache-metrics-sample 0.01 --kv-transfer-config '{\"kv_connector\":\"LMCacheConnectorV1\",\"kv_role\":\"kv_both\"}'"
+
+      [cmd_args.dynamo.prefill_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+      gpu-memory-utilization = 0.8
+
+    [cmd_args.dynamo.decode_worker]
+    num-nodes = 0
+    cmd = "python3 -m dynamo.vllm"
+    worker-initialized-regex = "VllmWorker.*has.been.initialized"
+
+      [cmd_args.dynamo.decode_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+      gpu-memory-utilization = 0.8
+
+  [cmd_args.aiperf]
+  health-check-between-phases = true
+  continue-on-phase-failure = false
+
+    [cmd_args.aiperf.args]
+    server-metrics = "auto"
+    endpoint-type = "chat"
+    streaming = true
+    export-level = "records"
+    slice-duration = 30
+    server-metrics-formats = "csv,json,jsonl"
+    extra-inputs = "ignore_eos:true"
+    dataset-sampling-strategy = "sequential"
+    export-http-trace = "true"
+    user-centric-rate = 6.6666666667
+    num-users = 400
+    session-turns-mean = 15
+    user-context-prompt-length = 64000
+    shared-system-prompt-length = 1000
+    synthetic-input-tokens-mean = 2048
+    synthetic-input-tokens-stddev = 0
+    osl = 64
+    num-dataset-entries = 400
+    conversation-num = 400
+    concurrency = 400
+    max-workers = 200
+    warmup-request-count = 5
+
+  [[cmd_args.aiperf_phases]]
+  name = "c400_agentic"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 400
+    max-workers = 200
+    slice-duration = 30
+    warmup-request-count = 5
+    user-centric-rate = 6.6666666667
+    num-users = 400
+    num-dataset-entries = 400
+    conversation-num = 400
+
+  [[cmd_args.aiperf_phases]]
+  name = "c550_agentic"
+
+    [cmd_args.aiperf_phases.args]
+    concurrency = 550
+    max-workers = 200
+    slice-duration = 30
+    warmup-request-count = 5
+    user-centric-rate = 9.1666666667
+    num-users = 550
+    num-dataset-entries = 550
+    conversation-num = 550
+
+[extra_env_vars]
+AIPERF_DATASET_CONFIGURATION_TIMEOUT = "900"
+AIPERF_SERVICE_PROFILE_CONFIGURE_TIMEOUT = "900"
+HF_HUB_OFFLINE = "1"
+PYTHONHASHSEED = "0"
+PROMETHEUS_MULTIPROC_DIR = "/tmp/lmcache_prometheus"
+UCX_TLS = "all"
+UCX_HANDLE_ERRORS = "bt,freeze"

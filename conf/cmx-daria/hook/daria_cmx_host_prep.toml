@@ -1,0 +1,6 @@
+name = "daria_cmx_host_prep"
+
+[[Tests]]
+id = "daria-cmx-host-prep"
+test_name = "daria-cmx-host-prep"
+time_limit = "00:10:00"

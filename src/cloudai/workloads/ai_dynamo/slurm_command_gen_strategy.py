@@ -70,6 +70,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
+        _, node_list = self.get_cached_nodes_spec()
+        if node_list:
+            env_vars["DYNAMO_NODELIST"] = ",".join(node_list)
+        else:
+            env_vars["DYNAMO_NODELIST"] = "$(scontrol show hostname $SLURM_JOB_NODELIST | paste -sd, -)"
         if self.td.cmd_args.hicache is not None:
             env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
@@ -324,6 +329,54 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ).rstrip()
         ]
 
+    def _render_aiperf_phase_restart_helpers(self) -> str:
+        return textwrap.dedent(
+            """\
+            phase_expected_nodes() {
+              echo "${DYNAMO_NODELIST:?DYNAMO_NODELIST is not set}" | tr ',' ' '
+            }
+
+            wait_for_phase_markers() {
+              local prefix="$1"
+              local suffix="$2"
+              local timeout="${AIPERF_PHASE_SETUP_TIMEOUT:-900}"
+              local deadline=$((SECONDS + timeout))
+              local missing=""
+              while :; do
+                missing=""
+                for node in $(phase_expected_nodes); do
+                  if [[ ! -f "${prefix}_${node}.${suffix}" ]]; then
+                    missing="${missing} ${node}"
+                  fi
+                done
+                if [[ -z "${missing}" ]]; then
+                  return 0
+                fi
+                if (( SECONDS >= deadline )); then
+                  log "FATAL: timed out waiting for AIPerf phase ${suffix} marker(s):${missing}"
+                  return 1
+                fi
+                sleep 1
+              done
+            }
+
+            request_aiperf_phase_setup() {
+              local phase_index="$1"
+              local phase_name="$2"
+              local setup_cmd="${3:-}"
+              local prefix="${AIPERF_PHASE_SETUP_PREFIX:-/cloudai_run_results/aiperf_phase_setup}_${phase_index}"
+
+              rm -f "${prefix}.request" "${prefix}.name" "${prefix}.cmd" "${prefix}"_*.stopped "${prefix}"_*.done
+              printf '%s\\n' "${phase_name}" > "${prefix}.name"
+              printf '%s' "${setup_cmd}" > "${prefix}.cmd"
+              log "Requesting AIPerf phase setup for ${phase_name}"
+              touch "${prefix}.request"
+              wait_for_phase_markers "${prefix}" "done"
+              rm -f "${prefix}.request"
+            }
+            """
+        ).rstrip()
+
     def _render_between_aiperf_phases_block(
         self,
         phase_name: str,
@@ -344,9 +397,54 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             .splitlines()
         )
 
+    def _render_aiperf_phase_setup_lines(
+        self,
+        phase_index: int,
+        phase: AIPerfPhase,
+        phase_restart_services: bool,
+    ) -> list[str]:
+        phase_setup = phase.setup_cmd if "setup_cmd" in phase.model_fields_set else None
+        if phase_restart_services:
+            return [
+                "request_aiperf_phase_setup "
+                f"{phase_index} {shlex.quote(phase.name)} {shlex.quote(phase_setup or '')}"
+            ]
+
+        return self._render_aiperf_setup_blocks(f"Running AIPerf phase setup for {phase.name}", phase_setup)
+
+    def _render_aiperf_phase_report_lines(
+        self,
+        phase_index: int,
+        phases_count: int,
+        report_source: str,
+        report_file: str,
+    ) -> list[str]:
+        lines = [
+            textwrap.dedent(
+                f"""\
+                if [[ "$phase_status" -eq 0 ]]; then
+                  mkdir -p {shlex.quote(str(Path(report_file).parent))}
+                """
+            ).rstrip()
+        ]
+
+        if report_source != report_file:
+            lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
+        lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
+
+        if phases_count > 1 and phase_index == phases_count - 1:
+            final_report_file = self._runtime_result_path("aiperf_report.csv")
+            lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
+            if report_file != final_report_file:
+                lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
+            lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
+
+        return lines
+
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
+        phase_restart_services = self.td.cmd_args.dynamo.aiperf_phase_restart_services
         blocks = [
             textwrap.dedent(
                 f"""\
@@ -362,6 +460,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 """
             ).rstrip()
         ]
+
+        if phase_restart_services:
+            blocks.append(self._render_aiperf_phase_restart_helpers())
 
         blocks.extend(self._render_aiperf_setup_blocks("Running aiperf setup", self.td.cmd_args.aiperf.setup_cmd))
 
@@ -385,8 +486,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 run_cmd = cmd
             log_message = f"Running {phase.name}: {cmd}"
-            phase_setup = phase.setup_cmd if "setup_cmd" in phase.model_fields_set else None
-            phase_lines = self._render_aiperf_setup_blocks(f"Running AIPerf phase setup for {phase.name}", phase_setup)
+            phase_lines = self._render_aiperf_phase_setup_lines(idx, phase, phase_restart_services)
             phase_lines.append(
                 textwrap.dedent(
                     f"""\
@@ -408,24 +508,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             phase_lines.extend(
                 [
                     "fi",
-                    textwrap.dedent(
-                        f"""\
-                        if [[ "$phase_status" -eq 0 ]]; then
-                          mkdir -p {shlex.quote(str(Path(report_file).parent))}
-                        """
-                    ).rstrip(),
+                    *self._render_aiperf_phase_report_lines(idx, len(phases), report_source, report_file),
                 ]
             )
-            if report_source != report_file:
-                phase_lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
-            phase_lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
-
-            if not single_phase and idx == len(phases) - 1:
-                final_report_file = self._runtime_result_path("aiperf_report.csv")
-                phase_lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
-                if report_file != final_report_file:
-                    phase_lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
-                phase_lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
 
             if not single_phase and idx < len(phases) - 1:
                 phase_lines.extend(
