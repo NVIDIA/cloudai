@@ -564,6 +564,19 @@ _current_node_name() {
   echo "${SLURMD_NODENAME:-$(hostname)}"
 }
 
+_select_node_lmcache_config() {
+  [[ -n "${SLURM_JOB_ID:-}" ]] || return 0
+
+  local node_name
+  local node_config
+  node_name="$(_current_node_name)"
+  node_config="${RESULTS_DIR}/lmcache-config-${SLURM_JOB_ID}-${node_name}.yaml"
+  if [[ -f "$node_config" ]]; then
+    export LMCACHE_CONFIG_FILE="$node_config"
+    log "Using node-local LMCache config: $LMCACHE_CONFIG_FILE"
+  fi
+}
+
 _is_frontend_node() {
   local name="$(_current_node_name)"
   [[ ",${dynamo_args["frontend-node"]}," == *",$name,"* ]]
@@ -1432,6 +1445,7 @@ function main()
 
   cd "$RESULTS_DIR" || { log "ERROR: Failed to cd to $RESULTS_DIR"; exit 1; }
 
+  _select_node_lmcache_config
   render_lmcache_config
 
   log_gpu_utilization &

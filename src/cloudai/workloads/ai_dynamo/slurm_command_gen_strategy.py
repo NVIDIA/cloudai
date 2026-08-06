@@ -14,8 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
+import math
 import shlex
+import shutil
 import textwrap
 from pathlib import Path
 from typing import Any, List, cast
@@ -38,6 +41,10 @@ from .ai_dynamo import (
 )
 
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
+DOCA_MEMOS_HEALTH_CHECK_FILE_NAME = "doca_memos_health_check.py"
+DOCA_MEMOS_BASE_LMCACHE_CONFIG_FILE_NAME = "lmcache-config.base.json"
+DOCA_MEMOS_CONTAINER_MOUNTS = ("/dev:/dev", "/sys/class/nvme:/sys/class/nvme")
+HUGEPAGE_SIZE_MIB = 2
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -53,6 +60,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         logging.info(f"storage_cache_dir: {self.td.cmd_args.storage_cache_dir}")
         if self.td.cmd_args.storage_cache_dir:
             result.append(f"{self.td.cmd_args.storage_cache_dir}:{self.td.cmd_args.storage_cache_dir}")
+
+        if self._doca_memos_preflight_enabled():
+            existing_mounts = set(self.td.extra_container_mounts) | set(result)
+            result.extend(mount for mount in DOCA_MEMOS_CONTAINER_MOUNTS if mount not in existing_mounts)
 
         return result
 
@@ -166,6 +177,61 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         config = yaml.safe_dump(self.td.cmd_args.lmcache, sort_keys=False)
         (self.test_run.output_path / LMCACHE_CONFIG_FILE_NAME).write_text(config)
         (self.test_run.output_path / LMCACHE_CONFIG_BACKUP_FILE_NAME).write_text(config)
+
+    def _lmcache_config(self) -> dict[str, Any] | None:
+        config = self.td.cmd_args.lmcache
+        if config is None:
+            return None
+        if not isinstance(config, dict):
+            raise ValueError("LMCache config must be a mapping")
+        return config
+
+    def _doca_memos_preflight_enabled(self) -> bool:
+        return self.td.cmd_args.doca_memos_preflight.enabled
+
+    def _doca_memos_health_check_enabled(self) -> bool:
+        preflight = self.td.cmd_args.doca_memos_preflight
+        return preflight.enabled and preflight.health_check
+
+    def _doca_memos_hugepage_setup_enabled(self) -> bool:
+        preflight = self.td.cmd_args.doca_memos_preflight
+        return preflight.enabled and preflight.setup_hugepages
+
+    def _doca_memos_backend_params(self) -> dict[str, Any]:
+        config = self._lmcache_config()
+        if config is None:
+            raise ValueError("DOCA_MEMOS preflight requires LMCache config")
+
+        extra_config = config.get("extra_config")
+        if not isinstance(extra_config, dict):
+            raise ValueError("DOCA_MEMOS preflight requires LMCache extra_config")
+
+        backend_params = extra_config.get("nixl_backend_params") or {}
+        if not isinstance(backend_params, dict):
+            raise ValueError("DOCA_MEMOS preflight requires nixl_backend_params to be a mapping when set")
+        return dict(backend_params)
+
+    def _doca_memos_device_is_auto(self) -> bool:
+        device_name = str(self._doca_memos_backend_params().get("device_name", "")).strip()
+        return not device_name or device_name.casefold() == "auto"
+
+    def _prepare_doca_memos_health_check_script(self) -> Path:
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        source_path = Path(__file__).parent / DOCA_MEMOS_HEALTH_CHECK_FILE_NAME
+        destination_path = self.test_run.output_path / DOCA_MEMOS_HEALTH_CHECK_FILE_NAME
+        shutil.copyfile(source_path, destination_path)
+        destination_path.chmod(0o755)
+        return destination_path
+
+    def _prepare_doca_memos_base_lmcache_config(self) -> Path:
+        config = self._lmcache_config()
+        if config is None:
+            raise ValueError("DOCA_MEMOS automatic device discovery requires LMCache config")
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        base_config_path = self.test_run.output_path / DOCA_MEMOS_BASE_LMCACHE_CONFIG_FILE_NAME
+        base_config_path.write_text(json.dumps(config, indent=2, sort_keys=False) + "\n")
+        return base_config_path
 
     def _prepare_hicache_config(self) -> None:
         if self.td.cmd_args.hicache is None:
@@ -488,6 +554,146 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return f"{startup_command}\n{main_command}"
         return main_command
 
+    @staticmethod
+    def _max_int(value: Any, default: int = 1) -> int:
+        if value is None:
+            return default
+        if isinstance(value, list):
+            return max((AIDynamoSlurmCommandGenStrategy._max_int(item, default) for item in value), default=default)
+        return int(value)
+
+    @staticmethod
+    def _max_float(value: Any) -> float:
+        if isinstance(value, list):
+            if not value:
+                raise ValueError("Expected a non-empty numeric list")
+            return max(AIDynamoSlurmCommandGenStrategy._max_float(item) for item in value)
+        return float(value)
+
+    def _desired_hugepages(self) -> int | None:
+        config = self._lmcache_config()
+        if not config or not config.get("local_cpu_use_hugepages"):
+            return None
+
+        max_local_cpu_size = config.get("max_local_cpu_size")
+        if max_local_cpu_size is None:
+            raise ValueError("local_cpu_use_hugepages requires max_local_cpu_size in the LMCache config")
+
+        worker_tps = [self.td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size]
+        if self.td.cmd_args.dynamo.prefill_worker:
+            worker_tps.append(self.td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size)
+        max_tp = max(self._max_int(tp) for tp in worker_tps)
+        size_gib = self._max_float(max_local_cpu_size)
+        if max_tp <= 0 or size_gib <= 0:
+            raise ValueError(
+                f"local_cpu_use_hugepages requires positive TP and max_local_cpu_size, got {max_tp=} {size_gib=}"
+            )
+
+        margin = self.td.cmd_args.doca_memos_preflight.hugepage_margin
+        return math.ceil(max_tp * size_gib * margin * 1024 / HUGEPAGE_SIZE_MIB)
+
+    def _gen_doca_memos_hugepage_setup_block(self) -> list[str]:
+        if not self._doca_memos_hugepage_setup_enabled():
+            return []
+
+        desired_hugepages = self._desired_hugepages()
+        if desired_hugepages is None:
+            return []
+
+        num_nodes, node_list = self.get_cached_nodes_spec()
+        out_dir = self.test_run.output_path.absolute()
+        setup_command = (
+            f"target={desired_hugepages}; "
+            "current=$(cat /proc/sys/vm/nr_hugepages); "
+            'if [ "$current" -lt "$target" ]; then '
+            'sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=$target" >/dev/null; '
+            "fi; "
+            "actual=$(cat /proc/sys/vm/nr_hugepages); "
+            'if [ "$actual" -lt "$target" ]; then '
+            'echo "nr_hugepages=$actual, expected at least $target" >&2; exit 1; '
+            "fi; "
+            'printf "node=%s nr_hugepages=%s\\n" "$(hostname)" "$actual"; '
+            "grep -E 'HugePages_Total|HugePages_Free|Hugepagesize' /proc/meminfo"
+        )
+        srun_parts = [
+            "srun",
+            "--export=ALL",
+            f"--nodes={num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            "--kill-on-bad-exit=1",
+            f"--output={out_dir / 'doca-memos-hugepages-node-%n-stdout.txt'}",
+            f"--error={out_dir / 'doca-memos-hugepages-node-%n-stderr.txt'}",
+            "bash",
+            "-lc",
+            shlex.quote(setup_command),
+        ]
+        return [
+            "# Set host hugepages for DOCA_MEMOS LMCache.",
+            " \\\n  ".join(srun_parts),
+        ]
+
+    def _gen_doca_memos_health_check_block(self) -> list[str]:
+        if not self._doca_memos_health_check_enabled():
+            return []
+
+        self._prepare_doca_memos_health_check_script()
+        preflight = self.td.cmd_args.doca_memos_preflight
+        backend_params = self._doca_memos_backend_params()
+        health_cmd = [
+            "timeout",
+            f"{preflight.srun_timeout_sec}s",
+            "python3",
+            f"{self.CONTAINER_MOUNT_OUTPUT}/{DOCA_MEMOS_HEALTH_CHECK_FILE_NAME}",
+            "--backend-params-json",
+            json.dumps(backend_params, separators=(",", ":")),
+            "--size",
+            str(preflight.probe_size_bytes),
+            "--transfer-timeout",
+            str(preflight.transfer_timeout_sec),
+        ]
+        if self._doca_memos_device_is_auto():
+            self._prepare_doca_memos_base_lmcache_config()
+            health_cmd.extend(
+                [
+                    "--base-lmcache-config-json",
+                    f"{self.CONTAINER_MOUNT_OUTPUT}/{DOCA_MEMOS_BASE_LMCACHE_CONFIG_FILE_NAME}",
+                    "--output-config-dir",
+                    self.CONTAINER_MOUNT_OUTPUT,
+                ]
+            )
+        if preflight.skip_data_path_check:
+            health_cmd.append("--skip-data-path-check")
+
+        num_nodes, node_list = self.get_cached_nodes_spec()
+        out_dir = self.test_run.output_path.absolute()
+        srun_parts = [
+            *self._gen_aux_srun_prefix(self.image_path()),
+            f"--nodes={num_nodes}",
+            *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
+            f"--ntasks={num_nodes}",
+            "--ntasks-per-node=1",
+            "--kill-on-bad-exit=1",
+            f"--output={out_dir / 'doca-memos-health-node-%n-stdout.txt'}",
+            f"--error={out_dir / 'doca-memos-health-node-%n-stderr.txt'}",
+            "bash",
+            "-lc",
+            shlex.quote(shlex.join(health_cmd)),
+        ]
+        return [
+            "# Run DOCA_MEMOS/NIXL health check on every node before AI Dynamo.",
+            " \\\n  ".join(srun_parts),
+        ]
+
+    def _gen_doca_memos_preflight_block(self) -> list[str]:
+        if not self._doca_memos_preflight_enabled():
+            return []
+        return [
+            *self._gen_doca_memos_hugepage_setup_block(),
+            *self._gen_doca_memos_health_check_block(),
+        ]
+
     def _gen_dcgm_launcher_block(self) -> list[str]:
         dcgm_image = self.td.dcgm_exporter_image
         if not dcgm_image:
@@ -592,6 +798,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             pre_test_command = self.gen_pre_test(self.test_run.pre_test, self.test_run.output_path)
             command_list.extend([pre_test_command, "if [ $PRE_TEST_SUCCESS -eq 1 ]; then"])
             indent = "    "
+
+        doca_memos_preflight_block = self._gen_doca_memos_preflight_block()
+        if doca_memos_preflight_block:
+            command_list.extend(f"{indent}{line}" for line in doca_memos_preflight_block)
 
         dcgm_block = self._gen_dcgm_launcher_block()
         if dcgm_block:
