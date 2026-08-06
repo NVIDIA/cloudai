@@ -14,7 +14,7 @@ test -r /mnt/lustre
 test -d /mnt/lustre/users/spothula/cloudai/.install
 find /mnt/lustre/users/spothula/cloudai/.install -maxdepth 1 -name '*.sqsh' -print -quit | grep -q .
 
-srun --overlap --nodes=${SLURM_JOB_NUM_NODES} --ntasks=${SLURM_JOB_NUM_NODES} --ntasks-per-node=1 bash -lc '
+srun --overlap --ntasks=${SLURM_JOB_NUM_NODES} --ntasks-per-node=1 bash -lc '
   set -euo pipefail
   echo node=\\$(hostname)
   sudo -n modprobe rdma_ucm
