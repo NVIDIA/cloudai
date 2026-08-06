@@ -545,12 +545,14 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 Automated Compute-Node Local Hugging Face Cache
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Slurm users can opt in to automatic model staging by configuring separate shared and compute-node local Hugging Face
-cache paths:
+Slurm users can opt individual tests in to automatic model staging by setting a compute-node local Hugging Face cache
+path in the test scenario:
 
 .. code-block:: toml
 
-   hf_home_path = "/shared/cloudai/huggingface"
+   [[Tests]]
+   id = "dynamo.vllm.local-hf"
+   test_name = "vLLM"
    hf_local_home_path = "/raid/cloudai"
 
 ``cloudai install`` and the pre-run installation check continue to use ``hf_home_path``. After Slurm allocates the
@@ -561,7 +563,8 @@ failure stops the job.
 CloudAI retains the local cache and reuses it across jobs when the underlying node-local storage persists. Per-model
 locks protect concurrent jobs, and models whose installed revisions have not changed are not copied again. The local
 path must be absolute, writable, identical on every compute node, and isolated per user when the storage is not
-administered as a shared cache. Leave ``hf_local_home_path`` unset to preserve the default shared-cache behavior.
+administered as a shared cache. A Slurm system configuration can instead set ``hf_local_home_path`` as the default for
+all tests; a test-level value takes precedence. Leave both unset to preserve the default shared-cache behavior.
 
 Head Node without Shared Storage Available on Compute Nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

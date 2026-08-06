@@ -84,6 +84,21 @@ def test_local_hf_container_mount_is_opt_in(vllm_cmd_gen_strategy: VllmSlurmComm
     assert vllm_cmd_gen_strategy._container_mounts() == [f"{local_hf_home.absolute()}:/root/.cache/huggingface"]
 
 
+def test_test_local_hf_path_overrides_system_default(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    system_local_hf_home = tmp_path / "system-local-hf"
+    test_local_hf_home = tmp_path / "test-local-hf"
+    vllm_cmd_gen_strategy.system.hf_local_home_path = system_local_hf_home
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = test_local_hf_home
+
+    assert vllm_cmd_gen_strategy._container_mounts() == [f"{test_local_hf_home.absolute()}:/root/.cache/huggingface"]
+    staging_command = vllm_cmd_gen_strategy.gen_hf_model_staging_command()
+    assert staging_command is not None
+    assert f"target_hf_home={test_local_hf_home.absolute()}" in staging_command
+    assert str(system_local_hf_home.absolute()) not in staging_command
+
+
 def test_local_hf_model_staging_precedes_container_steps(
     vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
 ) -> None:

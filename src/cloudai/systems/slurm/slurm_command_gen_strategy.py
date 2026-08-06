@@ -109,28 +109,57 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @property
     def runtime_hf_home_path(self) -> Path:
         """Return the host HF cache path to mount for workload execution."""
-        return self.system.hf_local_home_path or self.system.hf_home_path
+        return self.effective_hf_local_home_path() or self.system.hf_home_path
+
+    def effective_hf_local_home_path(self, test_run: TestRun | None = None) -> Path | None:
+        """Return the test override or system default for node-local HF storage."""
+        test_run = test_run or self.test_run
+        return test_run.test.hf_local_home_path or self.system.hf_local_home_path
+
+    @staticmethod
+    def flatten_test_runs(test_runs: Iterable[TestRun]) -> list[TestRun]:
+        """Return test runs together with all recursively configured hooks."""
+        flattened: list[TestRun] = []
+        pending = list(test_runs)
+        while pending:
+            test_run = pending.pop()
+            flattened.append(test_run)
+            for scenario in (test_run.pre_test, test_run.post_test):
+                if scenario:
+                    pending.extend(scenario.test_runs)
+        return flattened
 
     @classmethod
     def collect_hf_models(cls, test_runs: Iterable[TestRun]) -> list[HFModel]:
         """Collect unique HF models required by test runs and their hooks."""
         models: set[HFModel] = set()
-        pending = list(test_runs)
-        while pending:
-            test_run = pending.pop()
+        for test_run in cls.flatten_test_runs(test_runs):
             models.update(item for item in test_run.test.installables if isinstance(item, HFModel))
-            for scenario in (test_run.pre_test, test_run.post_test):
-                if scenario:
-                    pending.extend(scenario.test_runs)
         return sorted(models, key=lambda model: model.model_name)
+
+    def collect_hf_model_staging_groups(self, test_runs: Iterable[TestRun]) -> list[tuple[Path, list[HFModel]]]:
+        """Group required HF models by their effective node-local cache path."""
+        groups: dict[Path, set[HFModel]] = {}
+        for test_run in self.flatten_test_runs(test_runs):
+            local_hf_home = self.effective_hf_local_home_path(test_run)
+            if local_hf_home is None:
+                continue
+            models = {item for item in test_run.test.installables if isinstance(item, HFModel)}
+            if models:
+                groups.setdefault(local_hf_home.absolute(), set()).update(models)
+        return [
+            (path, sorted(models, key=lambda model: model.model_name))
+            for path, models in sorted(groups.items(), key=lambda item: str(item[0]))
+        ]
 
     def gen_hf_model_staging_command(
         self,
         models: Iterable[HFModel] | None = None,
         node_spec: tuple[int, list[str]] | None = None,
+        local_hf_home_path: Path | None = None,
     ) -> str | None:
         """Generate a host-side Slurm step that stages HF models on every compute node."""
-        local_hf_home = self.system.hf_local_home_path
+        local_hf_home = local_hf_home_path or self.effective_hf_local_home_path()
         if local_hf_home is None:
             return None
 
@@ -205,6 +234,23 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             shlex.quote(stage_script),
         ]
         return " \\\n  ".join(command_parts) + " || exit 1"
+
+    def gen_hf_model_staging_commands(
+        self,
+        test_runs: Iterable[TestRun],
+        node_spec: tuple[int, list[str]] | None = None,
+    ) -> list[str]:
+        """Generate staging steps for each local HF cache used by the test runs."""
+        commands = []
+        for local_hf_home, models in self.collect_hf_model_staging_groups(test_runs):
+            command = self.gen_hf_model_staging_command(
+                models=models,
+                node_spec=node_spec,
+                local_hf_home_path=local_hf_home,
+            )
+            if command:
+                commands.append(command)
+        return commands
 
     def gen_exec_command(self) -> str:
         srun_command = self._gen_srun_command()
@@ -462,7 +508,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if self.final_env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(), ""])
-        if hf_staging_command := self.gen_hf_model_staging_command():
+        for hf_staging_command in self.gen_hf_model_staging_commands([self.test_run]):
             batch_script_content.extend([hf_staging_command, ""])
         batch_script_content.extend([self._ranks_mapping_cmd(), ""])
         batch_script_content.extend([self._metadata_cmd(), ""])

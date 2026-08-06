@@ -19,6 +19,7 @@ from typing import List, Optional, cast
 
 import pytest
 import toml
+from pydantic import ValidationError
 
 from cloudai.core import TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestScenarioModel
@@ -94,3 +95,34 @@ def test_report_spec_is_parsed() -> None:
     cfg = cast(ComparisonReportConfig, model.reports["nccl_comparison"])
     assert cfg.enable is False
     assert cfg.group_by == ["my_field"]
+
+
+def test_hf_local_home_path_is_a_test_definition_override() -> None:
+    model = TestScenarioModel.model_validate(
+        toml.loads("""
+    name = "scenario"
+
+    [[Tests]]
+    id = "1"
+    test_name = "vLLM"
+    hf_local_home_path = "/raid/cloudai"
+    """)
+    )
+
+    test_run = model.tests[0]
+    assert test_run.hf_local_home_path == Path("/raid/cloudai")
+    assert test_run.tdef_model_dump(by_alias=True)["hf_local_home_path"] == Path("/raid/cloudai")
+
+
+def test_hf_local_home_path_must_be_absolute() -> None:
+    with pytest.raises(ValidationError, match="hf_local_home_path must be an absolute path"):
+        TestScenarioModel.model_validate(
+            toml.loads("""
+        name = "scenario"
+
+        [[Tests]]
+        id = "1"
+        test_name = "vLLM"
+        hf_local_home_path = "raid/cloudai"
+        """)
+        )

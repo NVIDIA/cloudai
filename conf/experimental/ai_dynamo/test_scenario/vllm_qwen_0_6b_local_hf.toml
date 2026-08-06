@@ -14,15 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Pair this scenario with a Slurm system configuration containing:
-# hf_local_home_path = "/raid/cloudai"
-
 name = "dynamo-vllm-qwen-0.6b-local-hf"
 job_status_check = false
 
 [[Tests]]
 id = "dynamo.vllm.qwen-0.6b.local-hf"
 test_name = "vLLM"
+# Opt only this test in to compute-node local Hugging Face model staging.
+hf_local_home_path = "/raid/cloudai"
 num_nodes = 1
 time_limit = "00:10:00"
 

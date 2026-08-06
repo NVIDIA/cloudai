@@ -19,8 +19,6 @@ scheduler = "slurm"
 
 install_path = "./install_dir"
 output_path = "./results"
-# Optional: stage required Hugging Face models from the shared cache to this compute-node local path.
-# hf_local_home_path = "/raid/cloudai"
 default_partition = "partition_1"
 
 mpi = "pmix"
