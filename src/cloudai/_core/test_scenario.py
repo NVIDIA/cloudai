@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
 
+import cloudai.metrics
+
 from ..util import flatten_dict
 from .registry import Registry
 from .system import System
@@ -90,6 +92,7 @@ class TestRun:
     step: int = 0
     time_limit: Optional[str] = None
     sol: Optional[float] = None
+    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
     weight: float = 0.0
     ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)

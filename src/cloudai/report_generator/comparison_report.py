@@ -93,9 +93,6 @@ class ComparisonReport(Reporter, ABC):
         self.group_by: list[str] = config.group_by
 
     @abstractmethod
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
-
-    @abstractmethod
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         """Return normalized sections without performing any rendering."""
 
@@ -393,6 +390,7 @@ class ComparisonReport(Reporter, ABC):
             widest_df = max(section.dfs, key=len)
             labels = [self._display_value(value) for value in widest_df[x_column].tolist()]
 
+        series_idx = 0
         for data_column in section.data_columns:
             for item, df in zip(section.group.items, section.dfs, strict=True):
                 if labels is not None:
@@ -420,8 +418,10 @@ class ComparisonReport(Reporter, ABC):
                     {
                         "label": self._chart_label(item, data_column, include_metric),
                         "data": data,
+                        "source_color_index": series_idx,
                     }
                 )
+                series_idx += 1
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -537,14 +537,10 @@ class ComparisonReport(Reporter, ABC):
         for row_idx in range(len(df_with_max_rows)):
             data = []
             for col in data_columns:
-                data_points = []
-                for df in dfs:
-                    data_points.append(str(df[col].get(row_idx, "n/a")))
-
+                data_points = [str(df[col].get(row_idx, "n/a")) for df in dfs]
                 if enable_diff_column:
                     val1, val2 = self._extract_cmp_values(data_points)
                     data_points.append(self._format_diff_cell(val1, val2))
-
                 data.extend(data_points)
 
             table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)

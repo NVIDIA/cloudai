@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, cast
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
+import cloudai.metrics
+from cloudai.core import DockerImage, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -188,3 +189,42 @@ class NCCLTestDefinition(TestDefinition):
                 "If the issue persists, contact the system administrator."
             ),
         )
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        del system
+        from .performance_report_generation_strategy import extract_nccl_data
+
+        rows, _, _, _ = extract_nccl_data(tr.output_path / "stdout.txt")
+        subtest_name = self.cmd_args.subtest_name
+        if not isinstance(subtest_name, str):
+            return []
+        collective = subtest_name.removesuffix("_mpi").removesuffix("_perf")
+        observations: list[cloudai.metrics.MetricObservation] = []
+        for row in rows:
+            message_size = int(row[0])
+            for placement, latency_idx, bandwidth_idx in (
+                ("out_of_place", 5, 7),
+                ("in_place", 9, 11),
+            ):
+                dimensions: cloudai.metrics.MetricDimensions = {
+                    "operation": collective,
+                    "placement": cast(Literal["in_place", "out_of_place"], placement),
+                    "size_bytes": message_size,
+                }
+                observations.extend(
+                    [
+                        cloudai.metrics.MetricObservation(
+                            cloudai.metrics.LATENCY,
+                            float(row[latency_idx]),
+                            dimensions,
+                            x_dimension=cloudai.metrics.SIZE_BYTES.key,
+                        ),
+                        cloudai.metrics.MetricObservation(
+                            cloudai.metrics.BANDWIDTH,
+                            float(row[bandwidth_idx]),
+                            {**dimensions, "bandwidth_basis": "bus"},
+                            x_dimension=cloudai.metrics.SIZE_BYTES.key,
+                        ),
+                    ]
+                )
+        return observations
