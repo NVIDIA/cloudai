@@ -50,7 +50,7 @@ commit = "v0.9.0"
     nodes = "daria01"
     cmd = "python3 -m dynamo.vllm"
     worker-initialized-regex = "VllmWorker.*has.been.initialized"
-    extra-args = "--kv-cache-metrics --kv-cache-metrics-sample 0.01 --kv-transfer-config '{\"kv_connector\":\"LMCacheConnectorV1\",\"kv_role\":\"kv_both\"}'"
+    extra-args = "--kv-cache-metrics --kv-cache-metrics-sample 0.01 --kv-transfer-config {\"kv_connector\":\"LMCacheConnectorV1\",\"kv_role\":\"kv_both\"}"
 
       [cmd_args.dynamo.prefill_worker.args]
       tensor-parallel-size = 4
