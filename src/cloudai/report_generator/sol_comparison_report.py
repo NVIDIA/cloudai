@@ -31,13 +31,11 @@ if TYPE_CHECKING:
 
 
 class SOLComparisonReport(ComparisonReport):
-    """Build SOL comparisons for workloads with explicitly declared metric views."""
+    """Build explicitly configured SOL metric comparisons."""
 
     SOL_REFERENCE_COLOR = "#741D9D"
     SOL_COLUMN_SUFFIX = " SOL"
     ATTAINMENT_COLUMN_SUFFIX = " % SOL"
-
-    metric_views: tuple[cloudai.metrics.MetricView, ...] = ()
 
     def _assessments(self, tr: TestRun) -> list[cloudai.metrics.MetricAssessment]:
         return cloudai.metrics.assess_test_run_metrics(self.system, tr)
@@ -50,22 +48,20 @@ class SOLComparisonReport(ComparisonReport):
     def _attainment_column(cls, data_column: str) -> str:
         return f"{data_column}{cls.ATTAINMENT_COLUMN_SUFFIX}"
 
-    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
-        """Build SOL sections using the workload's explicit metric views."""
-        sections = []
-        for group in cmp_groups:
-            assessment_groups = [self._assessments(item.tr) for item in group.items]
-            for view in self.metric_views:
-                frames = [self._assessment_frame(assessments, view.metric) for assessments in assessment_groups]
-                if all(frame.empty for frame in frames):
-                    continue
-                section = (
-                    self._build_curve_section(group, view, frames)
-                    if view.x_dimension is not None
-                    else self._build_scalar_section(group, view.metric, frames)
-                )
-                sections.append(section)
-        return sections
+    def build_metric_section(
+        self,
+        group: GroupedTestRuns,
+        metric: cloudai.metrics.MetricDefinition,
+        x_dimension: str | None,
+        series_dimensions: tuple[str, ...] = (),
+    ) -> ComparisonSection | None:
+        """Build one explicitly configured metric section for a comparison group."""
+        frames = [self._assessment_frame(self._assessments(item.tr), metric) for item in group.items]
+        if all(frame.empty for frame in frames):
+            return None
+        if x_dimension is None:
+            return self._build_scalar_section(group, metric, frames)
+        return self._build_curve_section(group, metric, x_dimension, series_dimensions, frames)
 
     @staticmethod
     def _assessment_frame(
@@ -121,32 +117,27 @@ class SOLComparisonReport(ComparisonReport):
     def _build_curve_section(
         self,
         group: GroupedTestRuns,
-        view: cloudai.metrics.MetricView,
+        metric: cloudai.metrics.MetricDefinition,
+        x_dimension: str,
+        series_dimensions: tuple[str, ...],
         frames: list[pd.DataFrame],
     ) -> ComparisonSection:
-        """Build measured and SOL curves for one explicitly configured view."""
-        x_dimension = view.x_dimension
-        if x_dimension is None:
-            raise ValueError("A curve metric view requires an x dimension")
-        series_dimensions = list(view.series_dimensions)
+        """Build measured and SOL curves using explicit axis and series dimensions."""
+        series = list(series_dimensions)
         series_keys = list(
             dict.fromkeys(
                 tuple(row)
                 for frame in frames
                 if not frame.empty
-                for row in (
-                    frame[series_dimensions].drop_duplicates().itertuples(index=False, name=None)
-                    if series_dimensions
-                    else [()]
-                )
+                for row in (frame[series].drop_duplicates().itertuples(index=False, name=None) if series else [()])
             )
         )
         data_columns = [
             " · ".join(
                 f"{cloudai.metrics.dimension_label(dimension)}={cloudai.metrics.format_dimension(dimension, value)}"
-                for dimension, value in zip(series_dimensions, key, strict=True)
+                for dimension, value in zip(series, key, strict=True)
             )
-            or view.metric.display_name
+            or metric.display_name
             for key in series_keys
         ]
 
@@ -168,7 +159,7 @@ class SOLComparisonReport(ComparisonReport):
                     result[self._attainment_column(data_column)] = None
                     continue
                 points = frame
-                for dimension, value in zip(series_dimensions, series_key, strict=True):
+                for dimension, value in zip(series, series_key, strict=True):
                     points = points[points[dimension] == value]
                 points = points.groupby(x_dimension, as_index=False).first().set_index(x_dimension)
                 result[data_column] = result[x_column].map(points["measured"])
@@ -178,11 +169,11 @@ class SOLComparisonReport(ComparisonReport):
 
         return ComparisonSection(
             group=group,
-            title=view.metric.display_name,
+            title=metric.display_name,
             dfs=dfs,
             info_columns=[x_column],
             data_columns=data_columns,
-            y_axis_label=f"{view.metric.display_name} ({view.metric.unit})",
+            y_axis_label=f"{metric.display_name} ({metric.unit})",
             x_axis_type="indexed_category",
             x_axis_column=x_label_column,
             x_axis_label=x_column,

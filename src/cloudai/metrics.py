@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import math
 import statistics
-from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -61,7 +60,6 @@ class MetricDefinition:
     display_name: str
     unit: str
     direction: OptimizationDirection
-    preferred_x: tuple[str, ...] = ()
 
 
 class MetricCatalog:
@@ -105,14 +103,12 @@ BANDWIDTH = MetricDefinition(
     display_name="Bandwidth",
     unit="GB/s",
     direction=OptimizationDirection.MAXIMIZE,
-    preferred_x=(SIZE_BYTES.key, BATCH_SIZE.key),
 )
 LATENCY = MetricDefinition(
     key="latency",
     display_name="Latency",
     unit="us",
     direction=OptimizationDirection.MINIMIZE,
-    preferred_x=(SIZE_BYTES.key, BATCH_SIZE.key),
 )
 
 MetricCatalog._metrics = {metric.key: metric for metric in (BANDWIDTH, LATENCY)}
@@ -194,17 +190,21 @@ def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
 
 @dataclass(frozen=True)
 class MetricObservation:
-    """One finite measured value and the conditions under which it was observed."""
+    """One finite measured value, its dimensions, and optional independent variable."""
 
     metric: MetricDefinition
     value: float
     dimensions: MetricDimensions
+    x_dimension: str | None = None
 
     def __post_init__(self) -> None:
         """Validate the measurement and normalize its dimensions."""
         if not math.isfinite(self.value):
             raise ValueError(f"Metric '{self.metric.key}' observation must be finite")
-        object.__setattr__(self, "dimensions", MetricCatalog.validate_dimensions(self.dimensions))
+        dimensions = MetricCatalog.validate_dimensions(self.dimensions)
+        if self.x_dimension is not None and self.x_dimension not in dimensions:
+            raise ValueError(f"Metric observation x dimension '{self.x_dimension}' is absent from its dimensions")
+        object.__setattr__(self, "dimensions", dimensions)
 
 
 @dataclass(frozen=True)
@@ -248,15 +248,6 @@ class MetricAssessmentSummary:
     best_attainment: float | None
 
 
-@dataclass(frozen=True)
-class MetricView:
-    """The default semantic layout for presenting one metric."""
-
-    metric: MetricDefinition
-    x_dimension: str | None
-    series_dimensions: tuple[str, ...]
-
-
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
     """Resolve the most specific target and assess one observation."""
     targets = sol_config.get(observation.metric.key, [])
@@ -283,7 +274,7 @@ def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAss
 
     summaries = []
     for metric_assessments in grouped.values():
-        attainments = [item.attainment for item in metric_assessments if item.attainment is not None]
+        attainments = [attainment for item in metric_assessments if (attainment := item.attainment) is not None]
         summaries.append(
             MetricAssessmentSummary(
                 metric=metric_assessments[0].observation.metric,
@@ -295,57 +286,6 @@ def summarize_assessments(assessments: list[MetricAssessment]) -> list[MetricAss
             )
         )
     return summaries
-
-
-def build_metric_view(metric: MetricDefinition, assessment_groups: list[list[MetricAssessment]]) -> MetricView | None:
-    """Choose a useful x-axis and series dimensions from observed data."""
-    groups = [
-        [assessment for assessment in group if assessment.observation.metric is metric] for group in assessment_groups
-    ]
-    observations = [assessment.observation for group in groups for assessment in group]
-    if not observations:
-        return None
-
-    dimensions = list(observations[0].dimensions)
-    x_dimension = next(
-        (
-            dimension
-            for dimension in metric.preferred_x
-            if any(
-                len({assessment.observation.dimensions[dimension] for assessment in group}) > 1
-                for group in groups
-                if group and dimension in group[0].observation.dimensions
-            )
-        ),
-        None,
-    )
-    if x_dimension is None:
-        x_dimension = next(
-            (
-                dimension
-                for dimension in dimensions
-                if MetricCatalog.dimension(dimension).ordered
-                and len({observation.dimensions[dimension] for observation in observations}) > 1
-            ),
-            None,
-        )
-    if x_dimension is None:
-        return MetricView(metric, x_dimension=None, series_dimensions=())
-
-    series_dimensions = []
-    for dimension in dimensions:
-        if dimension == x_dimension:
-            continue
-        for group in groups:
-            values_by_x: dict[MetricValue, set[MetricValue]] = defaultdict(set)
-            for assessment in group:
-                observation_dimensions = assessment.observation.dimensions
-                values_by_x[observation_dimensions[x_dimension]].add(observation_dimensions[dimension])
-            if any(len(values) > 1 for values in values_by_x.values()):
-                series_dimensions.append(dimension)
-                break
-
-    return MetricView(metric, x_dimension, tuple(series_dimensions))
 
 
 def dimension_label(key: str) -> str:

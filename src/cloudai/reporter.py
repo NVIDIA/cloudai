@@ -57,14 +57,23 @@ def _build_metric_chart(
     assessments: list[cloudai.metrics.MetricAssessment],
     chart_id: str,
 ) -> dict[str, Any] | None:
-    rows = [{**assessment.observation.dimensions, "assessment": assessment} for assessment in assessments]
-    df = lazy.pd.DataFrame(rows)
-    view = cloudai.metrics.build_metric_view(metric, [assessments])
-    if view is None or view.x_dimension is None:
+    x_dimension = assessments[0].observation.x_dimension
+    if x_dimension is None:
         return None
 
-    x_dimension = view.x_dimension
-    series_dimensions = list(view.series_dimensions)
+    rows = [{**assessment.observation.dimensions, "assessment": assessment} for assessment in assessments]
+    df = lazy.pd.DataFrame(rows)
+    series_dimensions = []
+    for dimension in assessments[0].observation.dimensions:
+        if dimension == x_dimension:
+            continue
+        values_by_x: dict[cloudai.metrics.MetricValue, set[cloudai.metrics.MetricValue]] = {}
+        for assessment in assessments:
+            dimensions = assessment.observation.dimensions
+            values_by_x.setdefault(dimensions[x_dimension], set()).add(dimensions[dimension])
+        if any(len(values) > 1 for values in values_by_x.values()):
+            series_dimensions.append(dimension)
+
     grouped = df.groupby(series_dimensions, dropna=False, sort=False) if series_dimensions else [((), df)]
     x_values = sorted(df[x_dimension].unique())
 
@@ -119,9 +128,10 @@ def _build_sol_metric_reports(
     assessments: list[cloudai.metrics.MetricAssessment],
     item_idx: int,
 ) -> list[SOLMetricReport]:
-    grouped: dict[str, list[cloudai.metrics.MetricAssessment]] = {}
+    grouped: dict[tuple[str, str | None], list[cloudai.metrics.MetricAssessment]] = {}
     for assessment in assessments:
-        grouped.setdefault(assessment.observation.metric.key, []).append(assessment)
+        observation = assessment.observation
+        grouped.setdefault((observation.metric.key, observation.x_dimension), []).append(assessment)
 
     reports: list[SOLMetricReport] = []
     for metric_idx, metric_assessments in enumerate(grouped.values()):

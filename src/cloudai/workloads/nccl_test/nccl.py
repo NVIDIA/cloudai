@@ -217,11 +217,13 @@ class NCCLTestDefinition(TestDefinition):
                             cloudai.metrics.LATENCY,
                             float(row[latency_idx]),
                             dimensions,
+                            x_dimension=cloudai.metrics.SIZE_BYTES.key,
                         ),
                         cloudai.metrics.MetricObservation(
                             cloudai.metrics.BANDWIDTH,
                             float(row[bandwidth_idx]),
                             {**dimensions, "bandwidth_basis": "bus"},
+                            x_dimension=cloudai.metrics.SIZE_BYTES.key,
                         ),
                     ]
                 )

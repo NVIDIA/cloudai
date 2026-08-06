@@ -22,26 +22,15 @@ import cloudai.metrics
 from cloudai.core import System, TestScenario
 from cloudai.report_generator.comparison_report import (
     ComparisonReportConfig,
+    ComparisonSection,
 )
+from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.sol_comparison_report import SOLComparisonReport
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 
 
 class NcclComparisonReport(SOLComparisonReport):
     """Comparison report for NCCL Test."""
-
-    metric_views = (
-        cloudai.metrics.MetricView(
-            cloudai.metrics.LATENCY,
-            x_dimension=cloudai.metrics.SIZE_BYTES.key,
-            series_dimensions=(cloudai.metrics.PLACEMENT.key,),
-        ),
-        cloudai.metrics.MetricView(
-            cloudai.metrics.BANDWIDTH,
-            x_dimension=cloudai.metrics.SIZE_BYTES.key,
-            series_dimensions=(cloudai.metrics.PLACEMENT.key,),
-        ),
-    )
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -52,3 +41,17 @@ class NcclComparisonReport(SOLComparisonReport):
     def load_test_runs(self):
         super().load_test_runs()
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
+
+    def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
+        sections = []
+        for group in cmp_groups:
+            for metric in (cloudai.metrics.LATENCY, cloudai.metrics.BANDWIDTH):
+                section = self.build_metric_section(
+                    group,
+                    metric,
+                    x_dimension=cloudai.metrics.SIZE_BYTES.key,
+                    series_dimensions=(cloudai.metrics.PLACEMENT.key,),
+                )
+                if section is not None:
+                    sections.append(section)
+        return sections
