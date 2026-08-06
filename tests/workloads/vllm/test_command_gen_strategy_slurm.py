@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from pathlib import Path
 from typing import cast
 
@@ -73,6 +74,116 @@ def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) ->
     assert vllm_cmd_gen_strategy._container_mounts() == [
         f"{vllm_cmd_gen_strategy.system.hf_home_path.absolute()}:/root/.cache/huggingface"
     ]
+
+
+def test_local_hf_container_mount_is_opt_in(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path) -> None:
+    local_hf_home = tmp_path / "local-hf"
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
+
+    assert vllm_cmd_gen_strategy._container_mounts() == [f"{local_hf_home.absolute()}:/root/.cache/huggingface"]
+
+
+def test_local_hf_model_staging_precedes_container_steps(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    local_hf_home = tmp_path / "local-hf"
+    vllm_cmd_gen_strategy.tdef.hf_local_home_path = local_hf_home
+
+    vllm_cmd_gen_strategy._write_sbatch_script("main-command")
+    script = (vllm_cmd_gen_strategy.test_run.output_path / "cloudai_sbatch_script.sh").read_text()
+
+    assert f"configured_local_hf_home={local_hf_home.absolute()}" in script
+    assert "--ntasks-per-node=1" in script
+    assert script.index("CloudAI: staging") < script.index("mapping-stdout.txt")
+    assert script.index("CloudAI: staging") < script.index("main-command")
+
+
+def test_hf_model_staging_is_disabled_by_default(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+    assert vllm_cmd_gen_strategy.gen_hf_model_staging_commands([vllm_cmd_gen_strategy.test_run]) == []
+
+
+def _local_hf_stage_script(strategy: VllmSlurmCommandGenStrategy, shared_hf_home: Path, local_hf_home: Path) -> str:
+    strategy.system.hf_home_path = shared_hf_home
+    strategy.tdef.hf_local_home_path = local_hf_home
+    command = strategy.gen_hf_model_staging_commands([strategy.test_run])[0]
+    command_parts = [part for part in shlex.split(command) if part.strip()]
+    return command_parts[command_parts.index("-lc") + 1]
+
+
+def test_local_hf_path_separation_is_checked_on_compute_node(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    shared_hf_home = tmp_path / "shared-hf"
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, shared_hf_home)
+
+    assert 'shared_hf_home="$(realpath -m -- "$configured_shared_hf_home")"' in stage_script
+    assert 'local_hf_home="$(realpath -m -- "$configured_local_hf_home")"' in stage_script
+    assert 'if [ "$shared_hf_home" = "$local_hf_home" ]; then' in stage_script
+    assert "hf_local_home_path must be different from hf_home_path" in stage_script
+
+
+def test_local_hf_paths_are_preserved_for_compute_node_resolution(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    submission_shared = tmp_path / "submission-shared"
+    submission_local = tmp_path / "submission-local"
+    submission_shared.mkdir()
+    submission_local.mkdir()
+    configured_shared = tmp_path / "shared-hf"
+    configured_local = tmp_path / "local-hf"
+    configured_shared.symlink_to(submission_shared, target_is_directory=True)
+    configured_local.symlink_to(submission_local, target_is_directory=True)
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, configured_shared, configured_local)
+    assert vllm_cmd_gen_strategy._container_mounts() == [f"{configured_local}:/root/.cache/huggingface"]
+    assert f"configured_shared_hf_home={configured_shared}" in stage_script
+    assert f"configured_local_hf_home={configured_local}" in stage_script
+    assert str(submission_shared) not in stage_script
+    assert str(submission_local) not in stage_script
+
+    configured_shared.unlink()
+    configured_local.unlink()
+    compute_shared = tmp_path / "compute-shared"
+    compute_local = tmp_path / "compute-local"
+    compute_shared.mkdir()
+    compute_local.mkdir()
+    configured_shared.symlink_to(compute_shared, target_is_directory=True)
+    configured_local.symlink_to(compute_local, target_is_directory=True)
+
+    assert configured_shared.resolve() == compute_shared
+    assert configured_local.resolve() == compute_local
+
+
+def test_local_hf_stage_script_validates_and_reuses_model_cache(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    shared_hf_home = tmp_path / "shared-hf"
+    local_hf_home = tmp_path / "local-hf"
+    model_cache = "models--Qwen--Qwen3-0.6B"
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, local_hf_home)
+
+    assert f"for model_cache_dir in {model_cache}; do" in stage_script
+    assert "flock --exclusive 9" in stage_script
+    assert stage_script.count('missing_entries="$(comm -23') == 2
+    assert f"CloudAI: {model_cache} is already staged" not in stage_script
+    assert "CloudAI: $model_cache_dir is already staged" in stage_script
+    assert 'cp -a "$source_model/." "$target_model/"' in stage_script
+    assert "local HF cache verification failed" in stage_script
+
+
+def test_local_hf_stage_manifest_includes_reference_contents(
+    vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, tmp_path: Path
+) -> None:
+    shared_hf_home = tmp_path / "shared-hf"
+    local_hf_home = tmp_path / "local-hf"
+
+    stage_script = _local_hf_stage_script(vllm_cmd_gen_strategy, shared_hf_home, local_hf_home)
+
+    assert 'find "$1/refs" -type f' in stage_script
+    assert 'ref_content="$(< "$1/refs/$ref_path")"' in stage_script
+    assert 'printf \'r refs/%s %s\\n\' "$ref_path" "$ref_content"' in stage_script
 
 
 def test_sweep_detection(vllm: VllmTestDefinition) -> None:

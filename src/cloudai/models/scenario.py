@@ -96,6 +96,7 @@ class TestRunModel(BaseModel):
     dse_excluded_args: Optional[list[str]] = None
     extra_env_vars: dict[str, str | list[str]] | None = None
     extra_container_mounts: Optional[list[str]] = None
+    hf_local_home_path: Path | None = None
     git_repos: Optional[list[GitRepo]] = None
     nsys: Optional[NsysConfiguration] = None
     agent: Optional[str] = None
@@ -118,6 +119,7 @@ class TestRunModel(BaseModel):
             "dse_excluded_args": self.dse_excluded_args,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
+            "hf_local_home_path": self.hf_local_home_path,
             "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
             "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
             "nsys": self.nsys.model_dump(exclude_unset=True) if self.nsys else None,
@@ -158,6 +160,13 @@ class TestRunModel(BaseModel):
                 f"Agent {agent} is not registered. Available agents are: {', '.join(registry.agent_names())}"
             )
         return agent
+
+    @field_validator("hf_local_home_path")
+    @classmethod
+    def _require_absolute_hf_local_home_path(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("hf_local_home_path must be an absolute path")
+        return value
 
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:

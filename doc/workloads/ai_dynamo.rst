@@ -432,6 +432,7 @@ Supported Backends
 The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
 
 - **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **vLLM with compute-node local Hugging Face staging** — use ``test_scenario/vllm_qwen_0_6b_local_hf.toml``
 - **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
 - **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
 

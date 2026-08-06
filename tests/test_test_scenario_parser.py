@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,11 +19,13 @@ from typing import List, Optional, cast
 
 import pytest
 import toml
+from pydantic import ValidationError
 
 from cloudai.core import TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
 from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportConfig
+from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
 
 
 class DummyTestRun(TestRun):
@@ -94,3 +96,51 @@ def test_report_spec_is_parsed() -> None:
     cfg = cast(ComparisonReportConfig, model.reports["nccl_comparison"])
     assert cfg.enable is False
     assert cfg.group_by == ["my_field"]
+
+
+def test_hf_local_home_path_is_parsed_as_a_test_definition_field() -> None:
+    model = TestScenarioModel.model_validate(
+        toml.loads("""
+    name = "scenario"
+
+    [[Tests]]
+    id = "1"
+    test_name = "vLLM"
+    hf_local_home_path = "/raid/cloudai"
+    """)
+    )
+
+    test_run = model.tests[0]
+    assert test_run.hf_local_home_path == Path("/raid/cloudai")
+    assert test_run.tdef_model_dump(by_alias=True)["hf_local_home_path"] == Path("/raid/cloudai")
+    test_definition = SleepTestDefinition(
+        name="sleep",
+        description="sleep",
+        test_template_name="Sleep",
+        cmd_args=SleepCmdArgs(),
+        **test_run.tdef_model_dump(by_alias=True),
+    )
+    assert test_definition.hf_local_home_path == Path("/raid/cloudai")
+
+
+def test_hf_local_home_path_must_be_absolute() -> None:
+    with pytest.raises(ValidationError, match="hf_local_home_path must be an absolute path"):
+        TestScenarioModel.model_validate(
+            toml.loads("""
+        name = "scenario"
+
+        [[Tests]]
+        id = "1"
+        test_name = "vLLM"
+        hf_local_home_path = "raid/cloudai"
+        """)
+        )
+
+    with pytest.raises(ValidationError, match="hf_local_home_path must be an absolute path"):
+        SleepTestDefinition(
+            name="sleep",
+            description="sleep",
+            test_template_name="Sleep",
+            cmd_args=SleepCmdArgs(),
+            hf_local_home_path=Path("raid/cloudai"),
+        )

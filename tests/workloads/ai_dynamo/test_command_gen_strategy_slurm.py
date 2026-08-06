@@ -132,6 +132,17 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert mounts == expected
 
 
+def test_container_mounts_use_opt_in_local_hf_cache(
+    strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
+) -> None:
+    local_hf_home = tmp_path / "local-hf"
+    strategy.test_run.test.hf_local_home_path = local_hf_home
+
+    mounts = strategy._container_mounts()
+
+    assert mounts[0] == f"{local_hf_home.absolute()}:{strategy.CONTAINER_MOUNT_HF_HOME}"
+
+
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
     repo = GitRepo(url="https://github.com/example/custom-tools.git", commit="main")
     tdef = AIDynamoTestDefinition(
@@ -209,6 +220,27 @@ def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSy
     assert "/mnt/discover.sh" in test_block
     assert test_block.count("srun ") == 2
     assert test_block.count(f"--output={test_run.output_path.absolute()}/stdout.txt") == 2
+
+
+def test_single_sbatch_stages_hf_models_before_auxiliary_container_steps(
+    slurm_system: SlurmSystem, test_run: TestRun, tmp_path: Path
+) -> None:
+    test_run.test.hf_local_home_path = tmp_path / "local-hf"
+    scenario = TestScenario(name="scenario", test_runs=[test_run])
+    runner = SingleSbatchRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=scenario,
+        output_path=slurm_system.output_path,
+    )
+
+    auxiliary_commands = runner.aux_commands()
+
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    assert td.hf_model.cache_dir_name in auxiliary_commands[0]
+    assert "hf-stage-node-%N-stdout.txt" in auxiliary_commands[0]
+    assert "slurm-metadata.sh" in auxiliary_commands[1]
+    assert "mapping-stdout.txt" in auxiliary_commands[2]
 
 
 @pytest.mark.parametrize(

@@ -16,6 +16,7 @@
 
 from abc import ABC
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -112,6 +113,7 @@ class TestDefinition(BaseModel, ABC):
     extra_env_vars: dict[str, Union[str, List[str]]] = {}
     extra_cmd_args: dict[str, str] = {}
     extra_container_mounts: list[str] = []
+    hf_local_home_path: Path | None = None
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
     predictor: Optional[PredictorConfig] = None
@@ -162,6 +164,13 @@ class TestDefinition(BaseModel, ABC):
     def is_domain_randomization_enabled(self) -> bool:
         """Whether the config declares domain randomization: at least one ``env_params`` annotation."""
         return bool(self.env_params)
+
+    @field_validator("hf_local_home_path")
+    @classmethod
+    def _require_absolute_hf_local_home_path(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("hf_local_home_path must be an absolute path")
+        return value
 
     @property
     def is_dse_job(self) -> bool:

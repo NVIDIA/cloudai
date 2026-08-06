@@ -106,12 +106,17 @@ class SingleSbatchRunner(SlurmRunner):
         return max_nodes, node_list
 
     def aux_commands(self) -> list[str]:
-        tr = copy.deepcopy(next(self.all_trs))
+        test_runs = list(self.all_trs)
+        tr = copy.deepcopy(test_runs[0])
         tr.output_path = self.scenario_root
-        max_nodes, _ = self.extract_sbatch_nodes_spec()
+        max_nodes, node_list = self.extract_sbatch_nodes_spec()
         tr.num_nodes = max_nodes
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
-        return [cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
+        commands = cmd_gen.gen_hf_model_staging_commands(
+            test_runs,
+            node_spec=(max_nodes, node_list),
+        )
+        return [*commands, cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
 
     def get_single_tr_block(self, tr: TestRun) -> str:
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))

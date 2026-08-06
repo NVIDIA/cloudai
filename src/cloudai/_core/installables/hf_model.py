@@ -47,6 +47,11 @@ class HFModel(Installable):
     def installed_path(self, value: Path) -> None:
         self._installed_path = value
 
+    @property
+    def cache_dir_name(self) -> str:
+        """Return this model's directory name in the Hugging Face Hub cache."""
+        return f"models--{self.model_name.replace('/', '--')}"
+
     def __eq__(self, other: object) -> bool:
         return isinstance(other, HFModel) and other.model_name == self.model_name
 
