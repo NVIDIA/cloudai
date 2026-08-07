@@ -17,23 +17,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig, ComparisonSection
+import cloudai.metrics
+from cloudai.core import System, TestScenario
+from cloudai.report_generator.comparison_report import (
+    ComparisonReportConfig,
+    ComparisonSection,
+)
+from cloudai.report_generator.comparison_report_metric import MetricComparisonReport
 from cloudai.report_generator.groups import GroupedTestRuns
-from cloudai.util.lazy_imports import lazy
 
 from .nixl_bench import NIXLBenchTestDefinition
 
-if TYPE_CHECKING:
-    import pandas as pd
 
-
-class NIXLBenchComparisonReport(ComparisonReport):
+class NIXLBenchComparisonReport(MetricComparisonReport):
     """Comparison report for NIXL Bench."""
-
-    INFO_COLUMNS = ("block_size", "batch_size")
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
@@ -46,39 +44,14 @@ class NIXLBenchComparisonReport(ComparisonReport):
         self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
-        sections: list[ComparisonSection] = []
+        sections = []
         for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            sections.extend(
-                [
-                    ComparisonSection(
-                        group=group,
-                        dfs=dfs,
-                        title="Latency",
-                        info_columns=list(self.INFO_COLUMNS),
-                        data_columns=["avg_lat"],
-                        y_axis_label="Time (us)",
-                    ),
-                    ComparisonSection(
-                        group=group,
-                        dfs=dfs,
-                        title="Bandwidth",
-                        info_columns=list(self.INFO_COLUMNS),
-                        data_columns=["bw_gb_sec"],
-                        y_axis_label="Busbw (GB/s)",
-                    ),
-                ]
-            )
+            for metric in (cloudai.metrics.LATENCY, cloudai.metrics.BANDWIDTH):
+                section = self.build_metric_section(
+                    group=group,
+                    metric=metric,
+                    x_dimension=cloudai.metrics.SIZE_BYTES.key,
+                )
+                if section is not None:
+                    sections.append(section)
         return sections
-
-    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
-        if (tr.output_path / "nixlbench.csv").exists():
-            return lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
-        return lazy.pd.DataFrame(
-            {
-                "block_size": lazy.pd.Series([], dtype=int),
-                "batch_size": lazy.pd.Series([], dtype=int),
-                "avg_lat": lazy.pd.Series([], dtype=float),
-                "bw_gb_sec": lazy.pd.Series([], dtype=float),
-            }
-        )

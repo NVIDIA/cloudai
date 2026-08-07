@@ -14,13 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from pathlib import Path
 
 import pytest
 
-from cloudai.core import TestRun
+import cloudai.metrics
+from cloudai.core import TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReportConfig
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.nixl import extract_nixlbench_data
-from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchComparisonReport, NIXLBenchTestDefinition
 
 LEGACY_FORMAT = """
 Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)
@@ -69,6 +73,52 @@ def test_nixl_bench_report_parsing(tmp_path: Path, sample: str, exp_latency: lis
     assert df["batch_size"].tolist() == [1, 1, 1, 1]
     assert df["avg_lat"].tolist() == exp_latency
     assert df["bw_gb_sec"].tolist() == exp_bw
+
+
+def test_comparison_report_contains_sol(
+    tmp_path: Path,
+    nixl_tr: TestRun,
+    slurm_system: SlurmSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    test_runs = []
+    for batch_size in (1, 4, 16):
+        tr = copy.deepcopy(nixl_tr)
+        tr.name = f"nixl_test_batch_{batch_size}"
+        tr.output_path = tmp_path / f"batch-{batch_size}"
+        tr.output_path.mkdir()
+        tr.output_path.joinpath("nixlbench.csv").write_text(
+            f"block_size,batch_size,avg_lat,bw_gb_sec\n4096,{batch_size},3.5,1.2\n1048576,{batch_size},18.1,58.0\n"
+        )
+        tr.metric_sol = cloudai.metrics.parse_sol_spec(
+            {
+                "bandwidth": [{"value": 100}],
+                "latency": [{"value": 10}],
+            }
+        )
+        test_runs.append(tr)
+
+    report = NIXLBenchComparisonReport(
+        slurm_system,
+        TestScenario(name="nixl", test_runs=test_runs),
+        tmp_path,
+        ComparisonReportConfig(enable=True),
+    )
+    monkeypatch.setattr(report, "load_test_runs", lambda: setattr(report, "trs", test_runs))
+
+    report.generate()
+
+    legacy_html = tmp_path.joinpath("nixl_comparison.html").read_text()
+    assert "SOL" in legacy_html
+    assert "100.0" in legacy_html
+    assert "58.0%" in legacy_html
+
+    html = tmp_path.joinpath("nixl_comparison_v2.html").read_text()
+    assert "Bandwidth" in html
+    assert "100.0" in html
+    assert "58.0%" in html
+    assert html.count('"source_color_index":') == 6
+    assert html.count('"is_sol": true') == 2
 
 
 def test_nixlbench_report_parsing__noisy_output(tmp_path: Path):

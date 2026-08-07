@@ -16,7 +16,11 @@
 
 from __future__ import annotations
 
-from cloudai.core import JobStatusResult, TestRun
+from typing import Any, cast
+
+import cloudai.metrics
+from cloudai.core import JobStatusResult, System, TestRun
+from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.common.nixl import (
     NIXLBaseCmdArgs,
     NIXLBaseTestDefinition,
@@ -55,3 +59,34 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
             return JobStatusResult(is_successful=False, error_message=f"NIXLBench data not found in {tr.output_path}.")
 
         return JobStatusResult(is_successful=True)
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        del system
+        csv_path = tr.output_path / "nixlbench.csv"
+        df = lazy.pd.read_csv(csv_path) if csv_path.is_file() else extract_nixlbench_data(tr.output_path / "stdout.txt")
+        observations: list[cloudai.metrics.MetricObservation] = []
+        for row in df.itertuples(index=False):
+            row = cast(Any, row)
+            dimensions: cloudai.metrics.MetricDimensions = {
+                "operation": str(getattr(self.cmd_args, "op_type", None) or "default").lower(),
+                "size_bytes": int(row.block_size),
+                "batch_size": int(row.batch_size),
+                "backend": str(getattr(self.cmd_args, "backend", None) or "default").lower(),
+                "source_memory": str(getattr(self.cmd_args, "initiator_seg_type", None) or "default").lower(),
+                "target_memory": str(getattr(self.cmd_args, "target_seg_type", None) or "default").lower(),
+            }
+            observations.extend(
+                [
+                    cloudai.metrics.MetricObservation(
+                        cloudai.metrics.LATENCY,
+                        float(row.avg_lat),
+                        dimensions,
+                    ),
+                    cloudai.metrics.MetricObservation(
+                        cloudai.metrics.BANDWIDTH,
+                        float(row.bw_gb_sec),
+                        {**dimensions, "bandwidth_basis": "payload"},
+                    ),
+                ]
+            )
+        return observations

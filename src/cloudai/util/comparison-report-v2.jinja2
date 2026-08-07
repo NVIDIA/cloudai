@@ -20,16 +20,14 @@
         overflow-x: hidden;
     }
     .comparison-grid {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 42rem), 1fr));
+        align-items: start;
         gap: 1.25rem;
     }
     .comparison-card {
-        flex: 0 1 auto;
-        width: fit-content;
-        min-width: min(100%, 42rem);
-        max-width: 100%;
+        width: 100%;
+        min-width: 0;
         padding: 1.25rem;
         border: 1px solid var(--nv-border);
         border-radius: var(--radius-lg);
@@ -47,8 +45,8 @@
     }
     .chart-shell {
         position: relative;
-        height: 340px;
-        min-height: 260px;
+        height: clamp(440px, 48vh, 520px);
+        min-height: 440px;
     }
     .chart-shell canvas {
         width: 100% !important;
@@ -266,7 +264,8 @@
             padding: 1rem;
         }
         .chart-shell {
-            height: 300px;
+            height: clamp(360px, 55vh, 460px);
+            min-height: 360px;
         }
         .comparison-table th,
         .comparison-table td {
@@ -337,11 +336,12 @@
             return `hsl(${hue} 68% 40%)`;
         }
 
-        document.querySelectorAll(".js-comparison-chart").forEach((canvas) => {
+        function initializeComparisonChart(canvas) {
             const dataNode = document.getElementById(canvas.dataset.chartDataId);
-            if (!dataNode || typeof Chart === "undefined") {
+            if (!dataNode || typeof Chart === "undefined" || canvas.dataset.chartInitialized === "true") {
                 return;
             }
+            canvas.dataset.chartInitialized = "true";
 
             const payload = JSON.parse(dataNode.textContent);
             const isLine = payload.type === "line";
@@ -354,18 +354,20 @@
                 });
             }
             payload.datasets.forEach((dataset, index) => {
-                const color = seriesColor(index);
+                const color = dataset.is_sol ? payload.sol_color : seriesColor(dataset.source_color_index ?? index);
                 dataset.borderColor = color;
                 dataset.backgroundColor = color;
-                dataset.borderWidth = isLine ? Math.max(2, 5 - index * 0.75) : 1;
-                dataset.borderDash = [];
+                dataset.order = dataset.is_sol ? 0 : 1;
+                dataset.borderWidth = dataset.is_sol ? 3 : (isLine ? Math.max(2, 5 - index * 0.75) : 1);
+                dataset.borderDash = dataset.is_sol ? [8, 5] : [];
                 dataset.borderCapStyle = "round";
                 dataset.borderJoinStyle = "round";
-                dataset.pointStyle = pointStyles[index % pointStyles.length];
-                dataset.pointRadius = isLine ? Math.max(3, 6 - index * 0.5) : 0;
-                dataset.pointHoverRadius = isLine ? Math.max(5, 8 - index * 0.5) : 0;
+                dataset.pointStyle = dataset.is_sol ? "rectRot" : pointStyles[index % pointStyles.length];
+                dataset.pointRadius = dataset.is_sol ? 8 : (isLine ? Math.max(3, 6 - index * 0.5) : 0);
+                dataset.pointHoverRadius = dataset.is_sol ? 10 : (isLine ? Math.max(5, 8 - index * 0.5) : 0);
+                dataset.pointBackgroundColor = color;
                 dataset.pointBorderColor = "#ffffff";
-                dataset.pointBorderWidth = isLine ? 1.5 : 0;
+                dataset.pointBorderWidth = dataset.is_sol ? 2 : (isLine ? 1.5 : 0);
                 dataset.tension = isLine ? 0.12 : 0;
             });
 
@@ -382,8 +384,21 @@
             if (isIndexedCategory) {
                 xScale.min = -0.5;
                 xScale.max = payload.labels.length - 0.5;
+                xScale.afterBuildTicks = function (axis) {
+                    const firstTick = Math.max(0, Math.ceil(axis.min));
+                    const lastTick = Math.min(payload.labels.length - 1, Math.floor(axis.max));
+                    axis.ticks = payload.labels
+                        .map((_label, index) => ({value: index}))
+                        .filter((tick) => tick.value >= firstTick && tick.value <= lastTick);
+                };
                 xScale.ticks = {
-                    stepSize: 1,
+                    autoSkip: false,
+                    minRotation: 45,
+                    maxRotation: 45,
+                    padding: 4,
+                    font: {
+                        size: 10
+                    },
                     callback: function (value) {
                         const index = Math.round(value);
                         return Math.abs(value - index) < 0.001 ? (payload.labels[index] || "") : "";
@@ -411,18 +426,22 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+                    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+                    animation: false,
                     interaction: {
                         mode: "index",
-                        intersect: false
+                        intersect: true
                     },
                     plugins: {
                         legend: {
                             position: "bottom",
                             labels: {
                                 usePointStyle: true,
-                                boxWidth: 10,
-                                padding: 16
+                                boxWidth: 8,
+                                padding: 10,
+                                font: {
+                                    size: 11
+                                }
                             }
                         },
                         tooltip: {
@@ -493,7 +512,7 @@
                 }
 
                 event.preventDefault();
-                const speed = 0.1;
+                const speed = isTrackpadPinch ? 0.02 : 0.1;
                 const factor = delta < 0 ? 1 + speed : 2 - 1 / (1 - speed);
                 const rect = canvas.getBoundingClientRect();
                 chart.zoom(
@@ -525,7 +544,23 @@
             } else if (resetButton) {
                 resetButton.hidden = true;
             }
-        });
+        }
+
+        const chartCanvases = document.querySelectorAll(".js-comparison-chart");
+        if ("IntersectionObserver" in window) {
+            const chartObserver = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) {
+                        return;
+                    }
+                    initializeComparisonChart(entry.target);
+                    chartObserver.unobserve(entry.target);
+                });
+            }, {rootMargin: "300px 0px"});
+            chartCanvases.forEach((canvas) => chartObserver.observe(canvas));
+        } else {
+            chartCanvases.forEach(initializeComparisonChart);
+        }
     });
 </script>
 {% endblock %}
@@ -546,7 +581,10 @@
             ></canvas>
         </div>
         <div class="chart-controls">
-            <p>Shift + wheel or pinch to zoom · Shift + drag to pan · double-click to reset</p>
+            <p>
+                Click a legend entry to show or hide a series · Shift + wheel or pinch to zoom · Shift + drag to pan ·
+                double-click to reset
+            </p>
             <button type="button" class="reset-zoom js-reset-zoom">Reset view</button>
         </div>
         <p class="chart-fallback">Interactive chart unavailable. The complete numeric data remains available below.</p>

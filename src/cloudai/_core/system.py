@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+import cloudai.metrics
 
 from .installables import Installable
 
@@ -40,6 +42,12 @@ class System(ABC, BaseModel):
     hf_home_path: Path = Field(default_factory=lambda data: data["install_path"] / "huggingface")
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: int = 1
+    sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def _parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
+        return cloudai.metrics.parse_sol_spec(value)
 
     @abstractmethod
     def update(self) -> None:
