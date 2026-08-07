@@ -81,41 +81,44 @@ def test_comparison_report_contains_sol(
     slurm_system: SlurmSystem,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sample = "block_size,batch_size,avg_lat,bw_gb_sec\n4096,1,3.5,1.2\n1048576,1,18.1,58.0\n"
-    nixl_tr.output_path.joinpath("nixlbench.csv").write_text(sample)
-    nixl_tr.metric_sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]})
-
-    other_tr = copy.deepcopy(nixl_tr)
-    other_tr.name = "nixl_test_other"
-    other_tr.output_path = tmp_path / "other"
-    other_tr.output_path.mkdir()
-    other_tr.output_path.joinpath("nixlbench.csv").write_text(sample)
-    other_tr.metric_sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 120}]})
+    test_runs = []
+    for batch_size in (1, 4, 16):
+        tr = copy.deepcopy(nixl_tr)
+        tr.name = f"nixl_test_batch_{batch_size}"
+        tr.output_path = tmp_path / f"batch-{batch_size}"
+        tr.output_path.mkdir()
+        tr.output_path.joinpath("nixlbench.csv").write_text(
+            f"block_size,batch_size,avg_lat,bw_gb_sec\n4096,{batch_size},3.5,1.2\n1048576,{batch_size},18.1,58.0\n"
+        )
+        tr.metric_sol = cloudai.metrics.parse_sol_spec(
+            {
+                "bandwidth": [{"value": 100}],
+                "latency": [{"value": 10}],
+            }
+        )
+        test_runs.append(tr)
 
     report = NIXLBenchComparisonReport(
         slurm_system,
-        TestScenario(name="nixl", test_runs=[nixl_tr, other_tr]),
+        TestScenario(name="nixl", test_runs=test_runs),
         tmp_path,
         ComparisonReportConfig(enable=True),
     )
-    monkeypatch.setattr(report, "load_test_runs", lambda: setattr(report, "trs", [nixl_tr, other_tr]))
+    monkeypatch.setattr(report, "load_test_runs", lambda: setattr(report, "trs", test_runs))
 
     report.generate()
 
     legacy_html = tmp_path.joinpath("nixl_comparison.html").read_text()
-    assert '<span class="r2"> SOL     </span>' in legacy_html
+    assert "SOL" in legacy_html
     assert "100.0" in legacy_html
     assert "58.0%" in legacy_html
 
     html = tmp_path.joinpath("nixl_comparison_v2.html").read_text()
     assert "Bandwidth" in html
     assert "100.0" in html
-    assert "120.0" in html
     assert "58.0%" in html
-    assert '"is_sol": true' not in html
-    latency_section = html.split("<h2>Latency</h2>", 1)[1].split("</section>", 1)[0]
-    assert "· SOL" not in latency_section
-    assert "· % SOL" not in latency_section
+    assert html.count('"source_color_index":') == 6
+    assert html.count('"is_sol": true') == 2
 
 
 def test_nixlbench_report_parsing__noisy_output(tmp_path: Path):

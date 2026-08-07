@@ -47,13 +47,12 @@ class MetricComparisonReport(ComparisonReport, abc.ABC):
         group: GroupedTestRuns,
         metric: cloudai.metrics.MetricDefinition,
         x_dimension: str,
-        series_dimensions: tuple[str, ...] = (),
     ) -> ComparisonSection | None:
         """Build one explicitly configured metric section for a comparison group."""
         frames = [self._assessment_frame(self._assessments(item.tr), metric) for item in group.items]
         if all(frame.empty for frame in frames):
             return None
-        return self._build_curve_section(group, metric, x_dimension, series_dimensions, frames)
+        return self._build_curve_section(group, metric, x_dimension, frames)
 
     @staticmethod
     def _assessment_frame(
@@ -79,19 +78,33 @@ class MetricComparisonReport(ComparisonReport, abc.ABC):
         group: GroupedTestRuns,
         metric: cloudai.metrics.MetricDefinition,
         x_dimension: str,
-        series_dimensions: tuple[str, ...],
         frames: list[pd.DataFrame],
     ) -> ComparisonSection:
-        """Build measured and SOL curves using explicit axis and series dimensions."""
-        series = list(series_dimensions)
-        series_keys = list(
+        """Build measured curves, splitting repeated x values by their other dimensions."""
+        value_columns = {"measured", "sol", "attainment"}
+        series = list(
             dict.fromkeys(
-                tuple(row)
+                column
                 for frame in frames
-                if not frame.empty
-                for row in (frame[series].drop_duplicates().itertuples(index=False, name=None) if series else [()])
+                for column in frame.columns
+                if column != x_dimension and column not in value_columns
             )
         )
+        split_series = any(not frame.empty and frame[x_dimension].duplicated().any() for frame in frames)
+        series_keys = (
+            list(
+                dict.fromkeys(
+                    tuple(row)
+                    for frame in frames
+                    if not frame.empty
+                    for row in frame[series].drop_duplicates().itertuples(index=False, name=None)
+                )
+            )
+            if split_series
+            else [()]
+        )
+        if not split_series:
+            series = []
         data_columns = [
             " · ".join(
                 f"{cloudai.metrics.dimension_label(dimension)}={cloudai.metrics.format_dimension(dimension, value)}"

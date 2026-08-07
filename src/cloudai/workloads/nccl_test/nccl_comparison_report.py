@@ -50,7 +50,6 @@ class NcclComparisonReport(MetricComparisonReport):
                     group,
                     metric,
                     x_dimension=cloudai.metrics.SIZE_BYTES.key,
-                    series_dimensions=(cloudai.metrics.PLACEMENT.key,),
                 )
                 if section is not None:
                     sections.append(section)

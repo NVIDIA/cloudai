@@ -381,27 +381,18 @@ class ComparisonReport(Reporter, ABC):
         return any(sol_column in df.columns and df[sol_column].notna().any() for df in dfs)
 
     @classmethod
-    def _shared_sol_curve(
-        cls, dfs: list[pd.DataFrame], data_column: str, x_column: str
-    ) -> list[tuple[Any, float]] | None:
-        """Return a SOL curve only when it is identical for every compared run."""
-        sol_column = cls._sol_column(data_column)
-
-        curves = []
+    def _sol_curve(cls, dfs: list[pd.DataFrame], data_columns: list[str], x_column: str) -> list[tuple[Any, float]]:
+        """Return the first available SOL value for each x value."""
+        points = []
         for df in dfs:
-            if x_column not in df.columns or sol_column not in df.columns:
-                return None
-            curve = [
-                (x_value, float(sol))
-                for x_value, sol in zip(df[x_column], df[sol_column], strict=True)
-                if not lazy.pd.isna(sol)
-            ]
-            if not curve:
-                return None
-            curves.append(curve)
-
-        reference = curves[0]
-        return reference if all(curve == reference for curve in curves[1:]) else None
+            for data_column in data_columns:
+                sol_column = cls._sol_column(data_column)
+                if x_column in df.columns and sol_column in df.columns and df[sol_column].notna().any():
+                    points.append(df[[x_column, sol_column]].rename(columns={sol_column: "sol"}))
+        if not points:
+            return []
+        curve = lazy.pd.concat(points).dropna(subset=["sol"]).drop_duplicates(x_column).sort_values(x_column)
+        return list(curve[[x_column, "sol"]].itertuples(index=False, name=None))
 
     def _build_bar_datasets_v2(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
         widest_df = max(section.dfs, key=len)
@@ -432,6 +423,8 @@ class ComparisonReport(Reporter, ABC):
         series_idx = 0
         for data_column in section.data_columns:
             for item, df in zip(section.group.items, section.dfs, strict=True):
+                if data_column not in df.columns or not df[data_column].notna().any():
+                    continue
                 if labels is not None:
                     data: list[float | None] | list[dict[str, float]] = [
                         self._numeric_value(df[data_column].get(row_idx, None)) for row_idx in range(len(labels))
@@ -461,22 +454,16 @@ class ComparisonReport(Reporter, ABC):
                     }
                 )
                 series_idx += 1
-            sol_curve = self._shared_sol_curve(section.dfs, data_column, x_column)
-            if sol_curve is not None:
-                if labels is None:
-                    sol_data: list[dict[str, float]] | list[float | None] = [
-                        {"x": float(x_value), "y": value} for x_value, value in sol_curve
-                    ]
-                else:
-                    sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
-                    sol_data = [sol_by_label.get(label) for label in labels]
-                datasets.append(
-                    {
-                        "label": f"{data_column} · SOL" if include_metric else "SOL",
-                        "data": sol_data,
-                        "is_sol": True,
-                    }
-                )
+        sol_curve = self._sol_curve(section.dfs, section.data_columns, x_column)
+        if sol_curve:
+            if labels is None:
+                sol_data: list[dict[str, float]] | list[float | None] = [
+                    {"x": float(x_value), "y": value} for x_value, value in sol_curve
+                ]
+            else:
+                sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
+                sol_data = [sol_by_label.get(label) for label in labels]
+            datasets.append({"label": "SOL", "data": sol_data, "is_sol": True})
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -683,6 +670,8 @@ class ComparisonReport(Reporter, ABC):
                 continue
 
             for col in data_columns:
+                if col not in df.columns or not df[col].notna().any():
+                    continue
                 source = lazy.bokeh_models.ColumnDataSource(
                     data={
                         "x": df[info_columns[0]].tolist(),
@@ -696,20 +685,17 @@ class ComparisonReport(Reporter, ABC):
                 p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=f"{name} {col}")
 
         sol_values = []
-        for data_column in data_columns:
-            sol_curve = self._shared_sol_curve(dfs, data_column, info_columns[0])
-            if sol_curve is None:
-                continue
+        sol_curve = self._sol_curve(dfs, data_columns, info_columns[0])
+        if sol_curve:
             x_values, y_values = zip(*sol_curve, strict=True)
             sol_values.extend(y_values)
-            label = f"{data_column} SOL" if len(data_columns) > 1 else "SOL"
             p.line(
                 x_values,
                 y_values,
                 line_color=SOL_COLOR,
                 line_dash="dashed",
                 line_width=3,
-                legend_label=label,
+                legend_label="SOL",
             )
             p.scatter(
                 x_values,
@@ -717,7 +703,7 @@ class ComparisonReport(Reporter, ABC):
                 marker="diamond",
                 fill_color=SOL_COLOR,
                 size=9,
-                legend_label=label,
+                legend_label="SOL",
             )
 
         p.legend.location = "top_left"
