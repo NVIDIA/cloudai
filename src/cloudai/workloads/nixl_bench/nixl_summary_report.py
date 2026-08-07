@@ -51,6 +51,7 @@ class NIXLBenchComparisonReport(MetricComparisonReport):
                     group=group,
                     metric=metric,
                     x_dimension=cloudai.metrics.SIZE_BYTES.key,
+                    series_dimensions=(cloudai.metrics.BATCH_SIZE.key,),
                 )
                 if section is not None:
                     sections.append(section)

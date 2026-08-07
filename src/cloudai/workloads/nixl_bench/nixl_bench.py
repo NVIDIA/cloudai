@@ -68,12 +68,12 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
         for row in df.itertuples(index=False):
             row = cast(Any, row)
             dimensions: cloudai.metrics.MetricDimensions = {
-                "operation": str(getattr(self.cmd_args, "op_type", "default")).lower(),
+                "operation": str(getattr(self.cmd_args, "op_type", None) or "default").lower(),
                 "size_bytes": int(row.block_size),
                 "batch_size": int(row.batch_size),
-                "backend": str(getattr(self.cmd_args, "backend", "default")).lower(),
-                "source_memory": str(getattr(self.cmd_args, "initiator_seg_type", "default")).lower(),
-                "target_memory": str(getattr(self.cmd_args, "target_seg_type", "default")).lower(),
+                "backend": str(getattr(self.cmd_args, "backend", None) or "default").lower(),
+                "source_memory": str(getattr(self.cmd_args, "initiator_seg_type", None) or "default").lower(),
+                "target_memory": str(getattr(self.cmd_args, "target_seg_type", None) or "default").lower(),
             }
             observations.extend(
                 [

@@ -214,6 +214,8 @@ class MetricAssessment:
             return None
         if self.observation.metric.direction is OptimizationDirection.MAXIMIZE:
             return self.observation.value / self.target.value
+        if self.observation.value == 0:
+            return None
         return self.target.value / self.observation.value
 
 

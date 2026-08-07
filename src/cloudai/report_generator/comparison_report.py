@@ -430,8 +430,7 @@ class ComparisonReport(Reporter, ABC):
             labels = [self._display_value(value) for value in widest_df[x_column].tolist()]
 
         series_idx = 0
-        inserted = 0
-        for metric_idx, data_column in enumerate(section.data_columns):
+        for data_column in section.data_columns:
             for item, df in zip(section.group.items, section.dfs, strict=True):
                 if labels is not None:
                     data: list[float | None] | list[dict[str, float]] = [
@@ -471,15 +470,13 @@ class ComparisonReport(Reporter, ABC):
                 else:
                     sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
                     sol_data = [sol_by_label.get(label) for label in labels]
-                datasets.insert(
-                    (metric_idx + 1) * len(section.group.items) + inserted,
+                datasets.append(
                     {
                         "label": f"{data_column} · SOL" if include_metric else "SOL",
                         "data": sol_data,
                         "is_sol": True,
-                    },
+                    }
                 )
-                inserted += 1
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -726,10 +723,18 @@ class ComparisonReport(Reporter, ABC):
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"
 
-        measured_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
-        measured_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
-        y_max = max([measured_max, *sol_values])
-        y_min = min([measured_min, *sol_values])
+        measured_values = [
+            numeric
+            for df in dfs
+            if not df.empty
+            for col in data_columns
+            for value in df[col]
+            if (numeric := self._numeric_value(value)) is not None
+        ]
+        if not measured_values and not sol_values:
+            return p
+        y_max = max([*measured_values, *sol_values])
+        y_min = min([*measured_values, *sol_values])
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
         df_with_max_rows = max(dfs, key=len)

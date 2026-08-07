@@ -201,11 +201,15 @@ class NCCLTestDefinition(TestDefinition):
         collective = subtest_name.removesuffix("_mpi").removesuffix("_perf")
         observations: list[cloudai.metrics.MetricObservation] = []
         for row in rows:
-            message_size = int(row[0])
-            for placement, latency_idx, bandwidth_idx in (
-                ("out_of_place", 5, 7),
-                ("in_place", 9, 11),
-            ):
+            try:
+                message_size = int(row[0])
+                placement_values = (
+                    ("out_of_place", float(row[5]), float(row[7])),
+                    ("in_place", float(row[9]), float(row[11])),
+                )
+            except (IndexError, TypeError, ValueError):
+                continue
+            for placement, latency, bandwidth in placement_values:
                 dimensions: cloudai.metrics.MetricDimensions = {
                     "operation": collective,
                     "placement": cast(Literal["in_place", "out_of_place"], placement),
@@ -215,12 +219,12 @@ class NCCLTestDefinition(TestDefinition):
                     [
                         cloudai.metrics.MetricObservation(
                             cloudai.metrics.LATENCY,
-                            float(row[latency_idx]),
+                            latency,
                             dimensions,
                         ),
                         cloudai.metrics.MetricObservation(
                             cloudai.metrics.BANDWIDTH,
-                            float(row[bandwidth_idx]),
+                            bandwidth,
                             {**dimensions, "bandwidth_basis": "bus"},
                         ),
                     ]
