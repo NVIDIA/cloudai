@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 SOL_REFERENCE_COLOR = "#741D9D"
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(kw_only=True)
 class ComparisonSection:
     """Normalized comparison data consumed by both report renderers."""
 
@@ -58,11 +58,11 @@ class ComparisonSection:
     dfs: list[pd.DataFrame]
     info_columns: list[str]
     data_columns: list[str]
-    y_axis_label: str
     chart_type: Literal["line", "bar"] = "line"
     x_axis_type: Literal["linear", "logarithmic", "category", "indexed_category"] = "logarithmic"
     x_axis_column: str | None = None
     x_axis_label: str | None = None
+    y_axis_label: str
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
 
 
