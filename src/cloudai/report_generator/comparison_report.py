@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import bokeh.plotting as bk
     import pandas as pd
 
-SOL_REFERENCE_COLOR = "#741D9D"
+SOL_COLOR = "#741D9D"
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -501,7 +501,7 @@ class ComparisonReport(Reporter, ABC):
             "y_axis_type": section.y_axis_type,
         }
         if any(self._has_sol(section.dfs, column) for column in section.data_columns):
-            chart["sol_color"] = SOL_REFERENCE_COLOR
+            chart["sol_color"] = SOL_COLOR
         return chart
 
     def _build_table_v2(self, section: ComparisonSection) -> dict[str, Any]:
@@ -709,7 +709,7 @@ class ComparisonReport(Reporter, ABC):
             p.line(
                 x_values,
                 y_values,
-                line_color=SOL_REFERENCE_COLOR,
+                line_color=SOL_COLOR,
                 line_dash="dashed",
                 line_width=3,
                 legend_label=label,
@@ -718,7 +718,7 @@ class ComparisonReport(Reporter, ABC):
                 x_values,
                 y_values,
                 marker="diamond",
-                fill_color=SOL_REFERENCE_COLOR,
+                fill_color=SOL_COLOR,
                 size=9,
                 legend_label=label,
             )
