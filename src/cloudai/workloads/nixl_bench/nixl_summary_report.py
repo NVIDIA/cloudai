@@ -48,8 +48,8 @@ class NIXLBenchComparisonReport(MetricComparisonReport):
         for group in cmp_groups:
             for metric in (cloudai.metrics.LATENCY, cloudai.metrics.BANDWIDTH):
                 section = self.build_metric_section(
-                    group,
-                    metric,
+                    group=group,
+                    metric=metric,
                     x_dimension=cloudai.metrics.SIZE_BYTES.key,
                 )
                 if section is not None:

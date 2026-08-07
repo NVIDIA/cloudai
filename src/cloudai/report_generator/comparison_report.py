@@ -50,14 +50,6 @@ SOL_REFERENCE_COLOR = "#741D9D"
 
 
 @dataclasses.dataclass
-class SOLColumns:
-    """Columns containing a metric's SOL target and resulting attainment."""
-
-    target: str
-    attainment: str
-
-
-@dataclasses.dataclass
 class ComparisonSection:
     """Normalized comparison data consumed by both report renderers."""
 
@@ -72,7 +64,6 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
-    sol_columns: dict[str, SOLColumns] = dataclasses.field(default_factory=dict)
 
 
 class _IndentedSafeDumper(yaml.SafeDumper):
@@ -227,7 +218,6 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
-                section.sol_columns,
             )
             for section in self.build_sections(cmp_groups)
         ]
@@ -250,7 +240,6 @@ class ComparisonReport(Reporter, ABC):
                         section.info_columns,
                         section.data_columns,
                         section.y_axis_label,
-                        section.sol_columns,
                     )
                 )
         return charts
@@ -281,7 +270,6 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
-                section.sol_columns,
             )
             console.print(table)
             console.print()
@@ -380,34 +368,32 @@ class ComparisonReport(Reporter, ABC):
         return f"{item.compact_name_v2} · {data_column}" if include_metric else item.compact_name_v2
 
     @staticmethod
-    def _applicable_sol_columns(
-        dfs: list[pd.DataFrame], sol_columns: dict[str, SOLColumns], data_column: str
-    ) -> SOLColumns | None:
-        columns = sol_columns.get(data_column)
-        if columns is None:
-            return None
-        return columns if any(columns.target in df and df[columns.target].notna().any() for df in dfs) else None
-
-    @classmethod
-    def _column_has_sol(cls, section: ComparisonSection, data_column: str) -> bool:
-        return cls._applicable_sol_columns(section.dfs, section.sol_columns, data_column) is not None
+    def _sol_column(data_column: str) -> str:
+        return f"{data_column} SOL"
 
     @staticmethod
+    def _attainment_column(data_column: str) -> str:
+        return f"{data_column} % SOL"
+
+    @classmethod
+    def _has_sol(cls, dfs: list[pd.DataFrame], data_column: str) -> bool:
+        sol_column = cls._sol_column(data_column)
+        return any(sol_column in df.columns and df[sol_column].notna().any() for df in dfs)
+
+    @classmethod
     def _shared_sol_curve(
-        dfs: list[pd.DataFrame], sol_columns: dict[str, SOLColumns], data_column: str, x_column: str
+        cls, dfs: list[pd.DataFrame], data_column: str, x_column: str
     ) -> list[tuple[Any, float]] | None:
         """Return a SOL curve only when it is identical for every compared run."""
-        columns = sol_columns.get(data_column)
-        if columns is None:
-            return None
+        sol_column = cls._sol_column(data_column)
 
         curves = []
         for df in dfs:
-            if x_column not in df.columns or columns.target not in df.columns:
+            if x_column not in df.columns or sol_column not in df.columns:
                 return None
             curve = [
                 (x_value, float(sol))
-                for x_value, sol in zip(df[x_column], df[columns.target], strict=True)
+                for x_value, sol in zip(df[x_column], df[sol_column], strict=True)
                 if not lazy.pd.isna(sol)
             ]
             if not curve:
@@ -476,7 +462,7 @@ class ComparisonReport(Reporter, ABC):
                     }
                 )
                 series_idx += 1
-            sol_curve = self._shared_sol_curve(section.dfs, section.sol_columns, data_column, x_column)
+            sol_curve = self._shared_sol_curve(section.dfs, data_column, x_column)
             if sol_curve is not None:
                 if labels is None:
                     sol_data: list[dict[str, float]] | list[float | None] = [
@@ -514,7 +500,7 @@ class ComparisonReport(Reporter, ABC):
             "y_axis_label": section.y_axis_label,
             "y_axis_type": section.y_axis_type,
         }
-        if section.sol_columns:
+        if any(self._has_sol(section.dfs, column) for column in section.data_columns):
             chart["sol_color"] = SOL_REFERENCE_COLOR
         return chart
 
@@ -523,7 +509,7 @@ class ComparisonReport(Reporter, ABC):
         show_diff = len(section.group.items) == 2
         data_headers: list[dict[str, str]] = []
         for data_column in section.data_columns:
-            show_sol = self._column_has_sol(section, data_column)
+            show_sol = self._has_sol(section.dfs, data_column)
             for item in section.group.items:
                 data_headers.append(
                     {
@@ -558,7 +544,6 @@ class ComparisonReport(Reporter, ABC):
             data_cells = self._table_data(
                 section.dfs,
                 section.data_columns,
-                section.sol_columns,
                 row_idx,
                 show_diff,
             )
@@ -595,9 +580,7 @@ class ComparisonReport(Reporter, ABC):
         title: str,
         info_columns: list[str],
         data_columns: list[str],
-        sol_columns: dict[str, SOLColumns] | None = None,
     ) -> Table:
-        sol_columns = sol_columns or {}
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         table = Table(title=f"{title}: {group.name}", title_justify="left")
@@ -607,7 +590,7 @@ class ComparisonReport(Reporter, ABC):
         enable_diff_column = len(group.items) == 2
 
         for col in data_columns:
-            columns = self._applicable_sol_columns(dfs, sol_columns, col)
+            show_sol = self._has_sol(dfs, col)
             for item in group.items:
                 style = next(style_cycle)
                 name_str = "\n".join(item.name.split())
@@ -618,7 +601,7 @@ class ComparisonReport(Reporter, ABC):
                     header_style=style,
                     no_wrap=False,
                 )
-                if columns is not None:
+                if show_sol:
                     table.add_column(f"{name_str}\nSOL\n{col}", overflow="fold", no_wrap=False)
                     table.add_column(f"{name_str}\n% SOL\n{col}", overflow="fold", no_wrap=False)
 
@@ -631,7 +614,6 @@ class ComparisonReport(Reporter, ABC):
             data = self._table_data(
                 dfs,
                 data_columns,
-                sol_columns,
                 row_idx,
                 enable_diff_column,
             )
@@ -643,20 +625,21 @@ class ComparisonReport(Reporter, ABC):
         self,
         dfs: list[pd.DataFrame],
         data_columns: list[str],
-        sol_columns: dict[str, SOLColumns],
         row_idx: int,
         show_diff: bool,
     ) -> list[str]:
         """Build one table row from measured and optional SOL values."""
         data = []
         for data_column in data_columns:
-            columns = self._applicable_sol_columns(dfs, sol_columns, data_column)
+            sol_column = self._sol_column(data_column)
+            attainment_column = self._attainment_column(data_column)
+            has_sol = self._has_sol(dfs, data_column)
             raw_values = [df[data_column].get(row_idx, None) for df in dfs]
             for df, value in zip(dfs, raw_values, strict=True):
                 data.append(self._display_value(value))
-                if columns is not None:
-                    sol = df[columns.target].get(row_idx, None)
-                    attainment = df[columns.attainment].get(row_idx, None)
+                if has_sol:
+                    sol = df[sol_column].get(row_idx, None)
+                    attainment = df[attainment_column].get(row_idx, None)
                     data.extend(
                         [
                             self._display_value(sol),
@@ -676,9 +659,7 @@ class ComparisonReport(Reporter, ABC):
         info_columns: list[str],
         data_columns: list[str],
         y_axis_label: str,
-        sol_columns: dict[str, SOLColumns] | None = None,
     ) -> bk.figure:
-        sol_columns = sol_columns or {}
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         p = lazy.bokeh_plotting.figure(
@@ -719,7 +700,7 @@ class ComparisonReport(Reporter, ABC):
 
         sol_values = []
         for data_column in data_columns:
-            sol_curve = self._shared_sol_curve(dfs, sol_columns, data_column, info_columns[0])
+            sol_curve = self._shared_sol_curve(dfs, data_column, info_columns[0])
             if sol_curve is None:
                 continue
             x_values, y_values = zip(*sol_curve, strict=True)

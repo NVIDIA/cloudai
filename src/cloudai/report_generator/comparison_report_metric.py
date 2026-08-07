@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 import cloudai.core
 import cloudai.metrics
-from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonSection, SOLColumns
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonSection
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
@@ -103,10 +103,6 @@ class MetricComparisonReport(ComparisonReport, abc.ABC):
 
         x_column = cloudai.metrics.dimension_label(x_dimension)
         x_label_column = f"{x_column} label"
-        sol_columns = {
-            data_column: SOLColumns(target=f"{data_column} SOL", attainment=f"{data_column} % SOL")
-            for data_column in data_columns
-        }
         dfs = []
         for frame in frames:
             x_values = sorted(frame[x_dimension].unique()) if not frame.empty else []
@@ -119,16 +115,16 @@ class MetricComparisonReport(ComparisonReport, abc.ABC):
             for series_key, data_column in zip(series_keys, data_columns, strict=True):
                 if frame.empty:
                     result[data_column] = None
-                    result[sol_columns[data_column].target] = None
-                    result[sol_columns[data_column].attainment] = None
+                    result[f"{data_column} SOL"] = None
+                    result[f"{data_column} % SOL"] = None
                     continue
                 points = frame
                 for dimension, value in zip(series, series_key, strict=True):
                     points = points[points[dimension] == value]
                 points = points.groupby(x_dimension, as_index=False).first().set_index(x_dimension)
                 result[data_column] = result[x_column].map(points["measured"])
-                result[sol_columns[data_column].target] = result[x_column].map(points["sol"])
-                result[sol_columns[data_column].attainment] = result[x_column].map(points["attainment"])
+                result[f"{data_column} SOL"] = result[x_column].map(points["sol"])
+                result[f"{data_column} % SOL"] = result[x_column].map(points["attainment"])
             dfs.append(result)
 
         return ComparisonSection(
@@ -141,5 +137,4 @@ class MetricComparisonReport(ComparisonReport, abc.ABC):
             x_axis_type="indexed_category",
             x_axis_column=x_label_column,
             x_axis_label=x_column,
-            sol_columns=sol_columns,
         )
