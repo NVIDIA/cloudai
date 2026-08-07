@@ -638,6 +638,7 @@ _aiperf_phase_restart_services_enabled() {
 _init_runtime_env() {
   if _is_vllm || _is_sglang; then
     export HF_HOME="${HUGGINGFACE_HOME}"
+    export HF_HUB_CACHE="${HUGGINGFACE_HOME%/}/hub"
     hf cache scan || echo "HF cache scan failed"
   fi
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"

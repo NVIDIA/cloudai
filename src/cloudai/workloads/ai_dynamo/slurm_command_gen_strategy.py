@@ -50,6 +50,8 @@ HUGEPAGE_SIZE_MIB = 2
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
 
+    CONTAINER_MOUNT_HF_HOME = "/root/.cache/huggingface"
+
     @property
     def td(self) -> AIDynamoTestDefinition:
         return cast(AIDynamoTestDefinition, self.test_run.test)
