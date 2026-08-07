@@ -94,6 +94,11 @@ def test_comparison_report_contains_sol(
 
     report.generate()
 
+    legacy_html = tmp_path.joinpath("nixl_comparison.html").read_text()
+    assert "SOL" in legacy_html
+    assert "100.0" in legacy_html
+    assert "58.0%" in legacy_html
+
     html = tmp_path.joinpath("nixl_comparison_v2.html").read_text()
     assert "Bandwidth" in html
     assert "100.0" in html

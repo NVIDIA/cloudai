@@ -24,12 +24,12 @@ from cloudai.report_generator.comparison_report import (
     ComparisonReportConfig,
     ComparisonSection,
 )
+from cloudai.report_generator.comparison_report_metric import MetricComparisonReport
 from cloudai.report_generator.groups import GroupedTestRuns
-from cloudai.report_generator.sol_comparison_report import SOLComparisonReport
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 
 
-class NcclComparisonReport(SOLComparisonReport):
+class NcclComparisonReport(MetricComparisonReport):
     """Comparison report for NCCL Test."""
 
     def __init__(

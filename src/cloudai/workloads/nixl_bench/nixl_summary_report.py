@@ -24,13 +24,13 @@ from cloudai.report_generator.comparison_report import (
     ComparisonReportConfig,
     ComparisonSection,
 )
+from cloudai.report_generator.comparison_report_metric import MetricComparisonReport
 from cloudai.report_generator.groups import GroupedTestRuns
-from cloudai.report_generator.sol_comparison_report import SOLComparisonReport
 
 from .nixl_bench import NIXLBenchTestDefinition
 
 
-class NIXLBenchComparisonReport(SOLComparisonReport):
+class NIXLBenchComparisonReport(MetricComparisonReport):
     """Comparison report for NIXL Bench."""
 
     def __init__(

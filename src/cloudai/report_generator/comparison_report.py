@@ -46,6 +46,16 @@ if TYPE_CHECKING:
     import bokeh.plotting as bk
     import pandas as pd
 
+SOL_REFERENCE_COLOR = "#741D9D"
+
+
+@dataclasses.dataclass
+class SOLColumns:
+    """Columns containing a metric's SOL target and resulting attainment."""
+
+    target: str
+    attainment: str
+
 
 @dataclasses.dataclass
 class ComparisonSection:
@@ -62,6 +72,7 @@ class ComparisonSection:
     x_axis_column: str | None = None
     x_axis_label: str | None = None
     y_axis_type: Literal["linear", "logarithmic", "auto"] = "linear"
+    sol_columns: dict[str, SOLColumns] = dataclasses.field(default_factory=dict)
 
 
 class _IndentedSafeDumper(yaml.SafeDumper):
@@ -95,6 +106,7 @@ class ComparisonReport(Reporter, ABC):
     @abstractmethod
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         """Return normalized sections without performing any rendering."""
+        raise NotImplementedError
 
     def comparison_values(self, tr: TestRun) -> dict[str, object]:
         """Return TestRun values used to label differences between compared runs."""
@@ -215,6 +227,7 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
+                section.sol_columns,
             )
             for section in self.build_sections(cmp_groups)
         ]
@@ -237,6 +250,7 @@ class ComparisonReport(Reporter, ABC):
                         section.info_columns,
                         section.data_columns,
                         section.y_axis_label,
+                        section.sol_columns,
                     )
                 )
         return charts
@@ -267,6 +281,7 @@ class ComparisonReport(Reporter, ABC):
                 section.title,
                 section.info_columns,
                 section.data_columns,
+                section.sol_columns,
             )
             console.print(table)
             console.print()
@@ -364,6 +379,44 @@ class ComparisonReport(Reporter, ABC):
     def _chart_label(item: TRGroupItem, data_column: str, include_metric: bool) -> str:
         return f"{item.compact_name_v2} · {data_column}" if include_metric else item.compact_name_v2
 
+    @staticmethod
+    def _applicable_sol_columns(
+        dfs: list[pd.DataFrame], sol_columns: dict[str, SOLColumns], data_column: str
+    ) -> SOLColumns | None:
+        columns = sol_columns.get(data_column)
+        if columns is None:
+            return None
+        return columns if any(columns.target in df and df[columns.target].notna().any() for df in dfs) else None
+
+    @classmethod
+    def _column_has_sol(cls, section: ComparisonSection, data_column: str) -> bool:
+        return cls._applicable_sol_columns(section.dfs, section.sol_columns, data_column) is not None
+
+    @staticmethod
+    def _shared_sol_curve(
+        dfs: list[pd.DataFrame], sol_columns: dict[str, SOLColumns], data_column: str, x_column: str
+    ) -> list[tuple[Any, float]] | None:
+        """Return a SOL curve only when it is identical for every compared run."""
+        columns = sol_columns.get(data_column)
+        if columns is None:
+            return None
+
+        curves = []
+        for df in dfs:
+            if x_column not in df.columns or columns.target not in df.columns:
+                return None
+            curve = [
+                (x_value, float(sol))
+                for x_value, sol in zip(df[x_column], df[columns.target], strict=True)
+                if not lazy.pd.isna(sol)
+            ]
+            if not curve:
+                return None
+            curves.append(curve)
+
+        reference = curves[0]
+        return reference if all(curve == reference for curve in curves[1:]) else None
+
     def _build_bar_datasets_v2(self, section: ComparisonSection) -> tuple[list[str], list[dict[str, Any]]]:
         widest_df = max(section.dfs, key=len)
         labels = [self._display_value(value) for value in widest_df[section.info_columns[0]].tolist()]
@@ -391,7 +444,8 @@ class ComparisonReport(Reporter, ABC):
             labels = [self._display_value(value) for value in widest_df[x_column].tolist()]
 
         series_idx = 0
-        for data_column in section.data_columns:
+        inserted = 0
+        for metric_idx, data_column in enumerate(section.data_columns):
             for item, df in zip(section.group.items, section.dfs, strict=True):
                 if labels is not None:
                     data: list[float | None] | list[dict[str, float]] = [
@@ -422,6 +476,24 @@ class ComparisonReport(Reporter, ABC):
                     }
                 )
                 series_idx += 1
+            sol_curve = self._shared_sol_curve(section.dfs, section.sol_columns, data_column, x_column)
+            if sol_curve is not None:
+                if labels is None:
+                    sol_data: list[dict[str, float]] | list[float | None] = [
+                        {"x": float(x_value), "y": value} for x_value, value in sol_curve
+                    ]
+                else:
+                    sol_by_label = {self._display_value(x_value): sol for x_value, sol in sol_curve}
+                    sol_data = [sol_by_label.get(label) for label in labels]
+                datasets.insert(
+                    (metric_idx + 1) * len(section.group.items) + inserted,
+                    {
+                        "label": f"{data_column} · SOL" if include_metric else "SOL",
+                        "data": sol_data,
+                        "is_sol": True,
+                    },
+                )
+                inserted += 1
         return labels, datasets
 
     def _build_chart_v2(self, section: ComparisonSection, chart_idx: int) -> dict[str, Any]:
@@ -432,7 +504,7 @@ class ComparisonReport(Reporter, ABC):
             chart_labels, datasets = self._build_line_datasets_v2(section)
             x_axis_type = section.x_axis_type
 
-        return {
+        chart = {
             "id": f"comparison-chart-{chart_idx}",
             "type": section.chart_type,
             "labels": chart_labels,
@@ -442,12 +514,16 @@ class ComparisonReport(Reporter, ABC):
             "y_axis_label": section.y_axis_label,
             "y_axis_type": section.y_axis_type,
         }
+        if section.sol_columns:
+            chart["sol_color"] = SOL_REFERENCE_COLOR
+        return chart
 
     def _build_table_v2(self, section: ComparisonSection) -> dict[str, Any]:
         widest_df = max(section.dfs, key=len)
         show_diff = len(section.group.items) == 2
         data_headers: list[dict[str, str]] = []
         for data_column in section.data_columns:
+            show_sol = self._column_has_sol(section, data_column)
             for item in section.group.items:
                 data_headers.append(
                     {
@@ -456,6 +532,17 @@ class ComparisonReport(Reporter, ABC):
                         "metric": data_column,
                     }
                 )
+                if show_sol:
+                    data_headers.extend(
+                        [
+                            {"name": f"{item.compact_name_v2} · SOL", "differences_yaml": "", "metric": data_column},
+                            {
+                                "name": f"{item.compact_name_v2} · % SOL",
+                                "differences_yaml": "",
+                                "metric": data_column,
+                            },
+                        ]
+                    )
             if show_diff:
                 data_headers.append(
                     {
@@ -468,13 +555,13 @@ class ComparisonReport(Reporter, ABC):
         rows: list[dict[str, list[str]]] = []
         for row_idx in range(len(widest_df)):
             info_cells = [self._display_value(widest_df[column].get(row_idx, None)) for column in section.info_columns]
-            data_cells: list[str] = []
-            for data_column in section.data_columns:
-                raw_values = [df[data_column].get(row_idx, None) for df in section.dfs]
-                data_cells.extend(self._display_value(value) for value in raw_values)
-                if show_diff:
-                    val1, val2 = self._extract_cmp_values(raw_values)
-                    data_cells.append(self._format_diff_cell(val1, val2))
+            data_cells = self._table_data(
+                section.dfs,
+                section.data_columns,
+                section.sol_columns,
+                row_idx,
+                show_diff,
+            )
             rows.append({"info_cells": info_cells, "data_cells": data_cells})
 
         return {
@@ -508,7 +595,9 @@ class ComparisonReport(Reporter, ABC):
         title: str,
         info_columns: list[str],
         data_columns: list[str],
+        sol_columns: dict[str, SOLColumns] | None = None,
     ) -> Table:
+        sol_columns = sol_columns or {}
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         table = Table(title=f"{title}: {group.name}", title_justify="left")
@@ -518,6 +607,7 @@ class ComparisonReport(Reporter, ABC):
         enable_diff_column = len(group.items) == 2
 
         for col in data_columns:
+            columns = self._applicable_sol_columns(dfs, sol_columns, col)
             for item in group.items:
                 style = next(style_cycle)
                 name_str = "\n".join(item.name.split())
@@ -528,6 +618,9 @@ class ComparisonReport(Reporter, ABC):
                     header_style=style,
                     no_wrap=False,
                 )
+                if columns is not None:
+                    table.add_column(f"{name_str}\nSOL\n{col}", overflow="fold", no_wrap=False)
+                    table.add_column(f"{name_str}\n% SOL\n{col}", overflow="fold", no_wrap=False)
 
             if enable_diff_column:
                 diff_style = next(style_cycle)
@@ -535,17 +628,45 @@ class ComparisonReport(Reporter, ABC):
 
         df_with_max_rows = max(dfs, key=len)
         for row_idx in range(len(df_with_max_rows)):
-            data = []
-            for col in data_columns:
-                data_points = [str(df[col].get(row_idx, "n/a")) for df in dfs]
-                if enable_diff_column:
-                    val1, val2 = self._extract_cmp_values(data_points)
-                    data_points.append(self._format_diff_cell(val1, val2))
-                data.extend(data_points)
-
+            data = self._table_data(
+                dfs,
+                data_columns,
+                sol_columns,
+                row_idx,
+                enable_diff_column,
+            )
             table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)
 
         return table
+
+    def _table_data(
+        self,
+        dfs: list[pd.DataFrame],
+        data_columns: list[str],
+        sol_columns: dict[str, SOLColumns],
+        row_idx: int,
+        show_diff: bool,
+    ) -> list[str]:
+        """Build one table row from measured and optional SOL values."""
+        data = []
+        for data_column in data_columns:
+            columns = self._applicable_sol_columns(dfs, sol_columns, data_column)
+            raw_values = [df[data_column].get(row_idx, None) for df in dfs]
+            for df, value in zip(dfs, raw_values, strict=True):
+                data.append(self._display_value(value))
+                if columns is not None:
+                    sol = df[columns.target].get(row_idx, None)
+                    attainment = df[columns.attainment].get(row_idx, None)
+                    data.extend(
+                        [
+                            self._display_value(sol),
+                            f"{attainment:.1%}" if self._numeric_value(attainment) is not None else "n/a",
+                        ]
+                    )
+            if show_diff:
+                val1, val2 = self._extract_cmp_values(raw_values)
+                data.append(self._format_diff_cell(val1, val2))
+        return data
 
     def create_chart(
         self,
@@ -555,7 +676,9 @@ class ComparisonReport(Reporter, ABC):
         info_columns: list[str],
         data_columns: list[str],
         y_axis_label: str,
+        sol_columns: dict[str, SOLColumns] | None = None,
     ) -> bk.figure:
+        sol_columns = sol_columns or {}
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         p = lazy.bokeh_plotting.figure(
@@ -594,11 +717,38 @@ class ComparisonReport(Reporter, ABC):
                 p.line("x", "y", source=source, line_color=color, line_width=2, legend_label=f"{name} {col}")
                 p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=f"{name} {col}")
 
+        sol_values = []
+        for data_column in data_columns:
+            sol_curve = self._shared_sol_curve(dfs, sol_columns, data_column, info_columns[0])
+            if sol_curve is None:
+                continue
+            x_values, y_values = zip(*sol_curve, strict=True)
+            sol_values.extend(y_values)
+            label = f"{data_column} SOL" if len(data_columns) > 1 else "SOL"
+            p.line(
+                x_values,
+                y_values,
+                line_color=SOL_REFERENCE_COLOR,
+                line_dash="dashed",
+                line_width=3,
+                legend_label=label,
+            )
+            p.scatter(
+                x_values,
+                y_values,
+                marker="diamond",
+                fill_color=SOL_REFERENCE_COLOR,
+                size=9,
+                legend_label=label,
+            )
+
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"
 
-        y_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
-        y_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
+        measured_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
+        measured_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
+        y_max = max([measured_max, *sol_values])
+        y_min = min([measured_min, *sol_values])
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
         df_with_max_rows = max(dfs, key=len)
