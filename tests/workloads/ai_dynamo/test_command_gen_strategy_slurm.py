@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import shlex
 from pathlib import Path
 from typing import cast
@@ -36,6 +37,7 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     AIPerfPhase,
+    DocaMemosPreflight,
     GenAIPerf,
     LMCacheController,
     WorkerBaseArgs,
@@ -378,6 +380,39 @@ def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto
     assert "--no-server-metrics" not in script
 
 
+def test_aiperf_phase_restart_services_renders_barrier_and_dynamo_args(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.workloads = "aiperf.sh"
+    td.cmd_args.dynamo.aiperf_phase_restart_services = True
+    td.cmd_args.dynamo.aiperf_phase_setup_scope = "all"
+    td.cmd_args.dynamo.aiperf_phase_setup_cmd_scope = "all"
+    td.cmd_args.aiperf_phases = [
+        AIPerfPhase.model_validate({"name": "round_1", "args": {"concurrency": 1}}),
+        AIPerfPhase.model_validate(
+            {
+                "name": "round_2",
+                "setup-cmd": "rm -rf /tmp/lmcache/*",
+                "args": {"concurrency": 2},
+            }
+        ),
+    ]
+
+    result = strategy._gen_script_args(td)
+
+    assert '--dynamo-aiperf-phase-restart-services "True"' in result
+    assert '--dynamo-aiperf-phase-setup-scope "all"' in result
+    assert '--dynamo-aiperf-phase-setup-cmd-scope "all"' in result
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == "n0,n1"
+
+    script = (strategy.test_run.output_path / "aiperf.sh").read_text()
+    assert "request_aiperf_phase_setup()" in script
+    assert "request_aiperf_phase_setup 0 round_1 ''" in script
+    assert "request_aiperf_phase_setup 1 round_2 'rm -rf /tmp/lmcache/*'" in script
+    assert "Running AIPerf phase setup for round_2" not in script
+
+
 def test_generated_aiperf_script_rejects_list_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"
@@ -649,6 +684,108 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
     assert config["extra_config"]["nixl_path"] == "{storage_cache_dir}"
     assert backup_config == config
     assert "--lmcache" not in result
+
+
+def test_doca_memos_preflight_requires_doca_memos_lmcache(cmd_args: AIDynamoCmdArgs) -> None:
+    data = cmd_args.model_dump()
+    data["doca_memos_preflight"] = {"enabled": True}
+
+    with pytest.raises(ValueError, match=r"requires cmd_args\.lmcache"):
+        AIDynamoCmdArgs.model_validate(data)
+
+    data["lmcache"] = {
+        "extra_config": {
+            "enable_nixl_storage": True,
+            "nixl_backend": "POSIX",
+        }
+    }
+
+    with pytest.raises(ValueError, match='requires nixl_backend="DOCA_MEMOS"'):
+        AIDynamoCmdArgs.model_validate(data)
+
+
+def test_gen_exec_command_includes_doca_memos_preflight(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache = {
+        "chunk_size": 512,
+        "local_cpu": True,
+        "local_cpu_use_hugepages": True,
+        "max_local_cpu_size": 25.0,
+        "extra_config": {
+            "enable_nixl_storage": True,
+            "nixl_backend": "DOCA_MEMOS",
+            "nixl_backend_params": {"device_name": "auto"},
+        },
+    }
+    td.cmd_args.doca_memos_preflight = DocaMemosPreflight(enabled=True, setup_hugepages=True)
+
+    strategy.gen_exec_command()
+
+    script = (strategy.test_run.output_path / "cloudai_sbatch_script.sh").read_text()
+    base_config = json.loads((strategy.test_run.output_path / "lmcache-config.base.json").read_text())
+    assert (strategy.test_run.output_path / "doca_memos_health_check.py").exists()
+    assert base_config["chunk_size"] == 512
+    assert base_config["extra_config"]["nixl_backend_params"]["device_name"] == "auto"
+    assert "doca-memos-hugepages-node-%n-stdout.txt" in script
+    assert 'sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=$target"' in script
+    assert "doca_memos_health_check.py" in script
+    assert script.count("if ! srun \\") >= 2
+    assert "DOCA_MEMOS hugepage setup failed; refusing to start Dynamo" in script
+    assert "DOCA_MEMOS preflight failed; refusing to start Dynamo" in script
+    assert "--base-lmcache-config-json" in script
+    assert "--output-config-dir /cloudai_run_results" in script
+    assert "--skip-data-path-check" not in script
+    assert "--nodelist=n0,n1" in script
+    assert "/dev:/dev" in script
+    assert "/sys/class/nvme:/sys/class/nvme" in script
+    assert script.index("doca-memos-hugepages-node-%n-stdout.txt") < script.index("doca_memos_health_check.py")
+    assert script.index("doca_memos_health_check.py") < script.index("ai_dynamo.sh")
+
+
+def test_doca_memos_preflight_with_explicit_device_skips_node_config(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.lmcache = {
+        "chunk_size": 512,
+        "extra_config": {
+            "enable_nixl_storage": True,
+            "nixl_backend": "DOCA_MEMOS",
+            "nixl_backend_params": {"device_name": "/dev/ng3n1"},
+        },
+    }
+    td.cmd_args.doca_memos_preflight = DocaMemosPreflight(enabled=True)
+
+    strategy.gen_exec_command()
+
+    script = (strategy.test_run.output_path / "cloudai_sbatch_script.sh").read_text()
+    assert "doca_memos_health_check.py" in script
+    assert "/dev/ng3n1" in script
+    assert "--base-lmcache-config-json" not in script
+    assert not (strategy.test_run.output_path / "lmcache-config.base.json").exists()
+
+
+def test_doca_memos_preflight_uses_dse_expanded_lmcache_config(
+    slurm_system: SlurmSystem,
+    test_run: TestRun,
+) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.lmcache = {
+        "chunk_size": [256, 512],
+        "extra_config": {
+            "enable_nixl_storage": True,
+            "nixl_backend": "DOCA_MEMOS",
+            "nixl_backend_params": {"device_name": "auto"},
+        },
+    }
+    td.cmd_args.doca_memos_preflight = DocaMemosPreflight(enabled=True)
+
+    expanded_run = test_run.apply_params_set({"lmcache.chunk_size": 512})
+    strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, expanded_run)
+    strategy.gen_exec_command()
+
+    base_config = json.loads((strategy.test_run.output_path / "lmcache-config.base.json").read_text())
+    assert base_config["chunk_size"] == 512
 
 
 def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:

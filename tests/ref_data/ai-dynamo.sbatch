@@ -10,13 +10,13 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,/tmp:/tmp --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,/tmp:/tmp --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 # Start DCGM exporter on each node.
 echo "Starting DCGM exporter..."
-srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --overlap --job-name=cloudai-dcgm-exporter -N2 --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/dcgm-node-%n-stdout.txt --error=__OUTPUT_DIR__/output/dcgm-node-%n-stderr.txt bash -lc 'DCGM_EXPORTER_LISTEN=:9501 dcgm-exporter' &
+srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-distroless --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,/tmp:/tmp --overlap --job-name=cloudai-dcgm-exporter -N2 --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/dcgm-node-%n-stdout.txt --error=__OUTPUT_DIR__/output/dcgm-node-%n-stderr.txt bash -lc 'DCGM_EXPORTER_LISTEN=:9501 dcgm-exporter' &
 DCGM_EXPORTER_SRUN_PID=$!
 echo "DCGM exporter srun PID: ${DCGM_EXPORTER_SRUN_PID}"
 DCGM_EXPORTER_STEP_ID=
@@ -66,7 +66,7 @@ srun \
   --mpi=pmix \
   -N2 \
   --container-image=nvcr.io/nvidia/ai-dynamo:24.09 \
-  --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp \
+  --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,/tmp:/tmp \
   --nodes=2 \
   --ntasks=2 \
   --ntasks-per-node=1 \
@@ -78,7 +78,7 @@ srun \
   --install-dir /cloudai_install \
   --results-dir /cloudai_run_results \
   --dynamo-repo /cloudai_install/dynamo__f7e468c7e8ff0d1426db987564e60572167e8464 \
-  --hf-home /cloudai_install/huggingface \
+  --hf-home /root/.cache/huggingface \
   --workloads aiperf.sh \
   --failure-marker /cloudai_run_results/failure-marker.txt \
   --success-marker /cloudai_run_results/success-marker.txt \

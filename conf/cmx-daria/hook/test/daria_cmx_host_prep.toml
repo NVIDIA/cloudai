@@ -1,0 +1,27 @@
+name = "daria-cmx-host-prep"
+description = "Daria CMX host-side pre-test checks for Lustre, RDMA UCM, and cached images"
+test_template_name = "BashCmd"
+
+[cmd_args]
+cmd = """
+set -euo pipefail
+
+echo Daria CMX host prep on $(hostname)
+echo SLURM_JOB_NODELIST=${SLURM_JOB_NODELIST:-}
+
+test -d /mnt/lustre
+test -r /mnt/lustre
+test -d /mnt/lustre/users/spothula/cloudai/.install
+find /mnt/lustre/users/spothula/cloudai/.install -maxdepth 1 -name '*.sqsh' -print -quit | grep -q .
+
+srun --overlap --ntasks=${SLURM_JOB_NUM_NODES} --ntasks-per-node=1 bash -lc '
+  set -euo pipefail
+  echo node=\\$(hostname)
+  sudo -n modprobe rdma_ucm
+  test -e /dev/infiniband/rdma_cm
+  test -d /mnt/lustre
+  test -r /mnt/lustre
+  test -d /dev/hugepages
+  ls -l /dev/ng* 2>/dev/null || true
+'
+"""

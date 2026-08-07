@@ -17,7 +17,7 @@
 import csv
 import logging
 from pathlib import Path
-from typing import Literal, Optional, cast
+from typing import Any, Literal, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -162,6 +162,7 @@ class AIDynamoArgs(BaseModel):
 
     model: str = "Qwen/Qwen3-0.6B"
     backend: Literal["vllm", "sglang", "sglang_dsr1"] = "vllm"
+    mode: Literal["disaggregated", "aggregate"] = "disaggregated"
     endpoint: str = Field(default="v1/chat/completions")
     connector: Optional[str | list[str]] = None
 
@@ -195,6 +196,21 @@ class AIDynamoArgs(BaseModel):
         default="/usr/local/ucx/bin/ucx_info -d |grep Transport | sort -u;",
         serialization_alias="node-setup-cmd",
         validation_alias=AliasChoices("node-setup-cmd", "node_setup_cmd"),
+    )
+    aiperf_phase_restart_services: bool = Field(
+        default=False,
+        serialization_alias="aiperf-phase-restart-services",
+        validation_alias=AliasChoices("aiperf-phase-restart-services", "aiperf_phase_restart_services"),
+    )
+    aiperf_phase_setup_scope: Literal["frontend", "all"] = Field(
+        default="all",
+        serialization_alias="aiperf-phase-setup-scope",
+        validation_alias=AliasChoices("aiperf-phase-setup-scope", "aiperf_phase_setup_scope"),
+    )
+    aiperf_phase_setup_cmd_scope: Literal["frontend", "all"] = Field(
+        default="frontend",
+        serialization_alias="aiperf-phase-setup-cmd-scope",
+        validation_alias=AliasChoices("aiperf-phase-setup-cmd-scope", "aiperf_phase_setup_cmd_scope"),
     )
     port: int = Field(
         default=8000,
@@ -381,6 +397,53 @@ class Constraints(BaseModel):
     tp_times_pp_le_gpus_per_node: bool = True
 
 
+class DocaMemosPreflight(BaseModel):
+    """Optional DOCA_MEMOS-specific preflight checks for AI Dynamo Slurm runs."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: bool = False
+    health_check: bool = Field(
+        default=True,
+        serialization_alias="health-check",
+        validation_alias=AliasChoices("health-check", "health_check"),
+    )
+    setup_hugepages: bool = Field(
+        default=False,
+        serialization_alias="setup-hugepages",
+        validation_alias=AliasChoices("setup-hugepages", "setup_hugepages"),
+    )
+    skip_data_path_check: bool = Field(
+        default=False,
+        serialization_alias="skip-data-path-check",
+        validation_alias=AliasChoices("skip-data-path-check", "skip_data_path_check"),
+    )
+    probe_size_bytes: int = Field(
+        default=6 * 1024 * 1024,
+        gt=0,
+        serialization_alias="probe-size-bytes",
+        validation_alias=AliasChoices("probe-size-bytes", "probe_size_bytes"),
+    )
+    transfer_timeout_sec: float = Field(
+        default=45.0,
+        gt=0,
+        serialization_alias="transfer-timeout-sec",
+        validation_alias=AliasChoices("transfer-timeout-sec", "transfer_timeout_sec"),
+    )
+    srun_timeout_sec: int = Field(
+        default=90,
+        gt=0,
+        serialization_alias="srun-timeout-sec",
+        validation_alias=AliasChoices("srun-timeout-sec", "srun_timeout_sec"),
+    )
+    hugepage_margin: float = Field(
+        default=1.10,
+        gt=0,
+        serialization_alias="hugepage-margin",
+        validation_alias=AliasChoices("hugepage-margin", "hugepage_margin"),
+    )
+
+
 class LMCacheController(BaseModel):
     """Optional LMCache controller process to launch on the frontend node."""
 
@@ -402,6 +465,11 @@ class AIDynamoCmdArgs(CmdArgs):
     hicache: dict | None = None
     lmcache: dict | None = None
     lmcache_controller: LMCacheController | None = None
+    doca_memos_preflight: DocaMemosPreflight = Field(
+        default_factory=DocaMemosPreflight,
+        serialization_alias="doca-memos-preflight",
+        validation_alias=AliasChoices("doca-memos-preflight", "doca_memos_preflight"),
+    )
     genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
     aiperf: AIPerf = Field(default_factory=AIPerf)
     aiperf_phases: list[AIPerfPhase] | None = None
@@ -417,6 +485,46 @@ class AIDynamoCmdArgs(CmdArgs):
             if workload not in allowed_workloads:
                 raise ValueError(f"Invalid workload: {workload}. Available workloads: {allowed_workloads}")
         return ",".join(values)
+
+    @staticmethod
+    def _is_enabled_value(value: Any) -> bool:
+        if isinstance(value, list):
+            return all(AIDynamoCmdArgs._is_enabled_value(item) for item in value)
+        return value is True
+
+    @staticmethod
+    def _is_doca_memos_backend(value: Any) -> bool:
+        if isinstance(value, list):
+            return all(AIDynamoCmdArgs._is_doca_memos_backend(item) for item in value)
+        return isinstance(value, str) and value.casefold() == "doca_memos"
+
+    @model_validator(mode="after")
+    def validate_doca_memos_preflight(self) -> "AIDynamoCmdArgs":
+        """Validate DOCA_MEMOS preflight is only enabled for DOCA_MEMOS LMCache configurations."""
+        preflight = self.doca_memos_preflight
+        if not preflight.enabled:
+            return self
+        if not preflight.health_check and not preflight.setup_hugepages:
+            raise ValueError("doca_memos_preflight.enabled requires health_check or setup_hugepages")
+        if self.lmcache is None:
+            raise ValueError("doca_memos_preflight requires cmd_args.lmcache")
+
+        extra_config = self.lmcache.get("extra_config")
+        if not isinstance(extra_config, dict):
+            raise ValueError("doca_memos_preflight requires cmd_args.lmcache.extra_config")
+        if not self._is_enabled_value(extra_config.get("enable_nixl_storage")):
+            raise ValueError("doca_memos_preflight requires enable_nixl_storage=true")
+        if not self._is_doca_memos_backend(extra_config.get("nixl_backend")):
+            raise ValueError('doca_memos_preflight requires nixl_backend="DOCA_MEMOS"')
+
+        backend_params = extra_config.get("nixl_backend_params") or {}
+        if not isinstance(backend_params, dict):
+            raise ValueError("doca_memos_preflight requires nixl_backend_params to be a mapping when set")
+        device_name = str(backend_params.get("device_name", "")).strip()
+        if not preflight.health_check and (not device_name or device_name.casefold() == "auto"):
+            raise ValueError("automatic DOCA_MEMOS device discovery requires doca_memos_preflight.health_check=true")
+
+        return self
 
     @property
     def workloads_list(self) -> list[str]:

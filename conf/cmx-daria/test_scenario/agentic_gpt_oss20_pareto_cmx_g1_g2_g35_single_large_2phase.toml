@@ -1,0 +1,9 @@
+name = "agentic-gpt-oss20-pareto-cmx-g1-g2-g35-single-large-2phase"
+
+pre_test = "daria_cmx_host_prep"
+
+[[Tests]]
+id = "agentic-gpt-oss20-pareto-cmx-g1-g2-g35-single-large-2phase"
+test_name = "agentic-gpt-oss20-pareto-cmx-g1-g2-g35-single-large-2phase"
+nodes = ["daria01"]
+time_limit = "24:00:00"
