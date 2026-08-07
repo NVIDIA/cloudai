@@ -81,13 +81,11 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
                         cloudai.metrics.LATENCY,
                         float(row.avg_lat),
                         dimensions,
-                        x_dimension=cloudai.metrics.SIZE_BYTES.key,
                     ),
                     cloudai.metrics.MetricObservation(
                         cloudai.metrics.BANDWIDTH,
                         float(row.bw_gb_sec),
                         {**dimensions, "bandwidth_basis": "payload"},
-                        x_dimension=cloudai.metrics.SIZE_BYTES.key,
                     ),
                 ]
             )

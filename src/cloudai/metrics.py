@@ -181,20 +181,17 @@ def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
 
 @dataclass(frozen=True)
 class MetricObservation:
-    """One finite measured value, its dimensions, and optional independent variable."""
+    """One finite measured value and its dimensions."""
 
     metric: MetricDefinition
     value: float
     dimensions: MetricDimensions
-    x_dimension: str | None = None
 
     def __post_init__(self) -> None:
         """Validate the measurement and normalize its dimensions."""
         if not math.isfinite(self.value):
             raise ValueError(f"Metric '{self.metric.key}' observation must be finite")
         dimensions = MetricCatalog.validate_dimensions(self.dimensions)
-        if self.x_dimension is not None and self.x_dimension not in dimensions:
-            raise ValueError(f"Metric observation x dimension '{self.x_dimension}' is absent from its dimensions")
         object.__setattr__(self, "dimensions", dimensions)
 
 
@@ -218,13 +215,6 @@ class MetricAssessment:
         if self.observation.metric.direction is OptimizationDirection.MAXIMIZE:
             return self.observation.value / self.target.value
         return self.target.value / self.observation.value
-
-    @property
-    def gap(self) -> float | None:
-        """Return the signed difference between the measurement and SOL."""
-        if self.target is None:
-            return None
-        return self.observation.value - self.target.value
 
 
 def assess_observation(observation: MetricObservation, sol_config: MetricSOLConfig) -> MetricAssessment:
