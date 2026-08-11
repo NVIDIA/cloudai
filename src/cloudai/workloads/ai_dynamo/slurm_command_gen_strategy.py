@@ -47,8 +47,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def td(self) -> AIDynamoTestDefinition:
         return cast(AIDynamoTestDefinition, self.test_run.test)
 
+    @property
+    def hf_home_path(self) -> Path:
+        return self.td.cmd_args.hf_home_path or self.system.hf_home_path
+
     def _container_mounts(self) -> list[str]:
-        result = [f"{self.system.hf_home_path.absolute()}:{self.CONTAINER_MOUNT_HF_HOME}"]
+        result = [f"{self.hf_home_path.absolute()}:{self.CONTAINER_MOUNT_HF_HOME}"]
 
         logging.info(f"storage_cache_dir: {self.td.cmd_args.storage_cache_dir}")
         if self.td.cmd_args.storage_cache_dir:

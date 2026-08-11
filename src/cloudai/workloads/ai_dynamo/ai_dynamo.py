@@ -397,6 +397,7 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     startup_cmd: str | None = None
     startup_cmd_docker_image: str | None = None
+    hf_home_path: Path | None = None
     storage_cache_dir: Optional[str | list[str]] = Field(default="/tmp", serialization_alias="storage_cache_dir")
     dynamo: AIDynamoArgs
     hicache: dict | None = None
@@ -407,6 +408,13 @@ class AIDynamoCmdArgs(CmdArgs):
     aiperf_phases: list[AIPerfPhase] | None = None
     aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
+
+    @field_validator("hf_home_path")
+    @classmethod
+    def validate_hf_home_path(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("hf_home_path must be an absolute path")
+        return value
 
     @field_validator("workloads", mode="before")
     @classmethod

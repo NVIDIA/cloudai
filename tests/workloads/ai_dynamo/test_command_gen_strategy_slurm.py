@@ -132,6 +132,25 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert mounts == expected
 
 
+def test_container_mounts_use_configured_hf_home(
+    strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
+) -> None:
+    hf_home_path = tmp_path / "local-hf"
+    test_run.test.cmd_args.hf_home_path = hf_home_path
+
+    mounts = strategy._container_mounts()
+
+    assert mounts[0] == f"{hf_home_path.absolute()}:{strategy.CONTAINER_MOUNT_HF_HOME}"
+
+
+def test_hf_home_path_must_be_absolute(cmd_args: AIDynamoCmdArgs) -> None:
+    data = cmd_args.model_dump(by_alias=True)
+    data["hf_home_path"] = "local-hf"
+
+    with pytest.raises(ValueError, match="hf_home_path must be an absolute path"):
+        AIDynamoCmdArgs.model_validate(data)
+
+
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
     repo = GitRepo(url="https://github.com/example/custom-tools.git", commit="main")
     tdef = AIDynamoTestDefinition(
