@@ -37,7 +37,8 @@ declare -A aiperf_args
 declare -A aiperf_config
 declare -A aiperf_accuracy_args
 declare -A aiperf_accuracy_config
-declare -a DYNAMO_WORKER_PIDS=()
+declare -a DYNAMO_DECODE_PIDS=()
+declare -a DYNAMO_PREFILL_PIDS=()
 
 lmcache_controller_cmd=""
 SHARED_NODE_DISAGG="false"
@@ -1023,7 +1024,7 @@ function start_router()
 _stop_pid() {
   local pid="$1"
   local name="$2"
-  local timeout="${DYNAMO_PHASE_STOP_TIMEOUT:-30}"
+  local timeout="${DYNAMO_PHASE_RESTART_STOP_TIMEOUT_SEC:-${DYNAMO_PHASE_STOP_TIMEOUT:-120}}"
   if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
     return
   fi
@@ -1044,16 +1045,48 @@ _stop_pid() {
   wait "${pid}" 2>/dev/null || true
 }
 
+_stop_pid_array() {
+  local name="$1"
+  shift
+
+  local pid
+  for pid in "$@"; do
+    _stop_pid "${pid}" "${name}"
+  done
+}
+
+_kill_residual_phase_processes() {
+  if _is_frontend_node; then
+    pkill -TERM -f "^python[0-9.]* -m dynamo.frontend" 2>/dev/null || true
+    if _has_connector "kvbm"; then
+      pkill -TERM -f "^cargo run" 2>/dev/null || true
+      pkill -TERM -f "^sample-registry" 2>/dev/null || true
+    fi
+  fi
+
+  if _is_vllm && { _is_prefill_node || _is_decode_node; }; then
+    pkill -TERM -f "^python[0-9.]* -m dynamo.vllm" 2>/dev/null || true
+    sleep "${DYNAMO_PHASE_RESTART_GRACE_SEC:-5}"
+    pkill -KILL -f "^python[0-9.]* -m dynamo.vllm" 2>/dev/null || true
+  fi
+}
+
 stop_phase_managed_dynamo_services() {
   if _is_frontend_node && [[ -x "${RESULTS_DIR}/routerctl.sh" ]]; then
     "${RESULTS_DIR}/routerctl.sh" stop || true
   fi
 
-  local pid
-  for pid in "${DYNAMO_WORKER_PIDS[@]:-}"; do
-    _stop_pid "${pid}" "Dynamo worker"
-  done
-  DYNAMO_WORKER_PIDS=()
+  if _is_decode_node; then
+    _stop_pid_array "decode worker" "${DYNAMO_DECODE_PIDS[@]:-}"
+    DYNAMO_DECODE_PIDS=()
+  fi
+
+  if _is_prefill_node; then
+    _stop_pid_array "prefill worker" "${DYNAMO_PREFILL_PIDS[@]:-}"
+    DYNAMO_PREFILL_PIDS=()
+  fi
+
+  _kill_residual_phase_processes
 }
 
 start_phase_managed_dynamo_services() {
@@ -1064,11 +1097,11 @@ start_phase_managed_dynamo_services() {
   log "Starting phase-managed Dynamo services for [${phase_name}] with generation ${DYNAMO_PHASE_GENERATION}"
 
   if _is_decode_node; then
-    launch_decode &
+    launch_decode
   fi
 
   if _is_prefill_node; then
-    launch_prefill &
+    launch_prefill
   fi
 
   if _is_frontend_node; then
@@ -1216,7 +1249,7 @@ function launch_decode()
       ${args_arr[@]} \
       ${decode_config["extra-args"]} > $log_file 2>&1 &
     local pid=$!
-    DYNAMO_WORKER_PIDS+=("${pid}")
+    DYNAMO_DECODE_PIDS+=("${pid}")
     log "Decode worker $i PID: ${pid}"
   done
 }
@@ -1293,7 +1326,7 @@ function launch_prefill()
       ${args_arr[@]} \
       ${prefill_config["extra-args"]} > $log_file 2>&1 &
     local pid=$!
-    DYNAMO_WORKER_PIDS+=("${pid}")
+    DYNAMO_PREFILL_PIDS+=("${pid}")
     log "Prefill worker $i PID: ${pid}"
   done
 }
