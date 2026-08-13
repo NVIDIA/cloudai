@@ -60,6 +60,7 @@ class CloudAIGymEnv(BaseGym):
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
+        self._pinned_nodes: list[str] = []
         super().__init__()
 
     @property
@@ -158,6 +159,8 @@ class CloudAIGymEnv(BaseGym):
 
             new_tr = copy.deepcopy(self.test_run)
             new_tr.output_path = self.runner.get_job_output_path(new_tr)
+            if self.test_run.test.pin_nodes_to_first_step and self._pinned_nodes:
+                new_tr.nodes = self._pinned_nodes
             self.runner.test_scenario.test_runs = [new_tr]
 
             self.runner.shutting_down = False
@@ -168,6 +171,17 @@ class CloudAIGymEnv(BaseGym):
                 self.runner.run()
             except Exception as e:
                 logging.error(f"Error running step {self.test_run.step}: {e}")
+
+            if self.test_run.test.pin_nodes_to_first_step and not self._pinned_nodes and self.runner.jobs:
+                job = next(iter(self.runner.jobs.values()))
+                out, _ = self.runner.system.fetch_command_output(
+                    f"sacct -j {job.id} -p --noheader -X --format=NodeList"
+                )
+                spec = out.splitlines()[0] if out.splitlines() else ""
+                nodes = spec.strip().replace("|", "")
+                if nodes and nodes != "Unknown":
+                    self._pinned_nodes = [nodes]
+                    logging.info(f"Pinned DSE nodes to: {nodes}")
 
             if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
                 self.test_run = self.runner.test_scenario.test_runs[0]
