@@ -900,7 +900,7 @@ function write_routerctl()
   export ROUTER_HEALTH_MODEL="${dynamo_args["model"]}"
   export ROUTER_PID_FILE="${RESULTS_DIR}/router.pid"
   export ROUTER_LOG_FILE="${RESULTS_DIR}/dynamo_ingress.log"
-  export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-120}"
+  export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-300}"
   export ROUTER_STOP_TIMEOUT="${ROUTER_STOP_TIMEOUT:-30}"
 
   cat > "${RESULTS_DIR}/routerctl.sh" <<'EOF'
@@ -915,7 +915,7 @@ log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
 : "${ROUTER_HEALTH_MODEL:?ROUTER_HEALTH_MODEL is not set}"
 : "${ROUTER_PID_FILE:?ROUTER_PID_FILE is not set}"
 : "${ROUTER_LOG_FILE:?ROUTER_LOG_FILE is not set}"
-: "${ROUTER_START_TIMEOUT:=120}"
+: "${ROUTER_START_TIMEOUT:=300}"
 : "${ROUTER_STOP_TIMEOUT:=30}"
 
 router_pid() {
@@ -1097,17 +1097,17 @@ start_phase_managed_dynamo_services() {
   log "Starting phase-managed Dynamo services for [${phase_name}] with generation ${DYNAMO_PHASE_GENERATION}"
 
   if _is_decode_node; then
-    launch_decode
+    launch_decode || return 1
   fi
 
   if _is_prefill_node; then
-    launch_prefill
+    launch_prefill || return 1
   fi
 
   if _is_frontend_node; then
-    launch_ingress
+    launch_ingress || return 1
     if _is_sglang_dsr1; then
-      launch_sgl_http_server
+      launch_sgl_http_server || return 1
     fi
   fi
 }
@@ -1180,7 +1180,11 @@ handle_aiperf_phase_setup_requests() {
 
     if [[ "${participates}" == "true" ]]; then
       _run_aiperf_phase_setup_cmd "${prefix}.cmd" || return 1
-      start_phase_managed_dynamo_services "${phase_index}" "${phase_name}"
+      if ! start_phase_managed_dynamo_services "${phase_index}" "${phase_name}"; then
+        mark_failed "Failed to start phase-managed Dynamo services for [${phase_name}]"
+        stop_phase_managed_dynamo_services
+        return 1
+      fi
     fi
     touch "${done_marker}"
     log "AIPerf phase setup completed for [${phase_name}]"
@@ -1683,7 +1687,7 @@ function main()
   # Workers launch BEFORE the ingress: launch_ingress blocks in
   # wait_for_router, and the router only becomes ready once a worker
   # registers — on a combined frontend+worker node the old order serialized
-  # the whole ROUTER_START_TIMEOUT (120 s of failing readiness curls) in
+  # the whole ROUTER_START_TIMEOUT of failing readiness curls in
   # front of every worker start. Workers only need etcd/nats (waited above)
   # and the lmcache config from setup_lmcache; they never talk to the router.
   local phase_restart_services=false
@@ -1705,9 +1709,9 @@ function main()
 
   if _is_frontend_node; then
     if [[ "${phase_restart_services}" != "true" ]]; then
-      launch_ingress
+      launch_ingress || { mark_failed "Failed to start Dynamo ingress"; exit 1; }
       if _is_sglang_dsr1; then
-        launch_sgl_http_server
+        launch_sgl_http_server || { mark_failed "Failed to start SGL HTTP server"; exit 1; }
       fi
       sleep 10
     fi
