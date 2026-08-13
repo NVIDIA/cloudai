@@ -172,16 +172,17 @@ class CloudAIGymEnv(BaseGym):
             except Exception as e:
                 logging.error(f"Error running step {self.test_run.step}: {e}")
 
-            if self.test_run.test.pin_nodes_to_first_step and not self._pinned_nodes and self.runner.jobs:
-                job = next(iter(self.runner.jobs.values()))
-                out, _ = self.runner.system.fetch_command_output(
-                    f"sacct -j {job.id} -p --noheader -X --format=NodeList"
-                )
-                spec = out.splitlines()[0] if out.splitlines() else ""
-                nodes = spec.strip().replace("|", "")
-                if nodes and nodes != "Unknown":
-                    self._pinned_nodes = [nodes]
-                    logging.info(f"Pinned DSE nodes to: {nodes}")
+            if self.test_run.test.pin_nodes_to_first_step and not self._pinned_nodes:
+                job_id = getattr(self.runner, "last_submitted_job_id", "")
+                if job_id:
+                    out, _ = self.runner.system.fetch_command_output(
+                        f"sacct -j {job_id} -p --noheader -X --format=NodeList"
+                    )
+                    spec = out.splitlines()[0] if out.splitlines() else ""
+                    nodes = spec.strip().replace("|", "")
+                    if nodes and nodes not in ("Unknown", ""):
+                        self._pinned_nodes = [nodes]
+                        logging.info(f"Pinned DSE nodes to: {nodes}")
 
             if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
                 self.test_run = self.runner.test_scenario.test_runs[0]
