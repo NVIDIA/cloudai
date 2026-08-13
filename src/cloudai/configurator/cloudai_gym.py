@@ -174,12 +174,11 @@ class CloudAIGymEnv(BaseGym):
 
             if self.test_run.test.pin_nodes_to_first_step and not self._pinned_nodes:
                 get_job_id = getattr(self.runner, "get_job_id", None)
+                fetch_cmd = getattr(self.runner.system, "fetch_command_output", None)
                 for f in new_tr.output_path.rglob("*.stdout"):
                     job_id = get_job_id(f.read_text(errors="ignore"), "") if get_job_id else None
-                    if job_id:
-                        out, _ = self.runner.system.fetch_command_output(
-                            f"sacct -j {job_id} -p --noheader -X --format=NodeList"
-                        )
+                    if job_id and fetch_cmd:
+                        out, _ = fetch_cmd(f"sacct -j {job_id} -p --noheader -X --format=NodeList")
                         nodes = out.splitlines()[0].strip().replace("|", "") if out.splitlines() else ""
                         if nodes and nodes != "Unknown":
                             self._pinned_nodes = [nodes]
