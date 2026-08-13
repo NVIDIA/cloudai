@@ -42,7 +42,6 @@ class SlurmRunner(BaseRunner):
         super().__init__(mode, system, test_scenario, output_path)
         self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
-        self.last_submitted_job_id: str = ""
 
     def get_job_id(self, stdout: str, stderr: str) -> int | None:
         match = re.search(r"Submitted batch job (\d+)", stdout)
@@ -72,7 +71,6 @@ class SlurmRunner(BaseRunner):
                     message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted slurm job: {job_id}")
-        self.last_submitted_job_id = str(job_id)
         return SlurmJob(tr, id=job_id)
 
     def on_job_submit(self, tr: TestRun) -> None:
