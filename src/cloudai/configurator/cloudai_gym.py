@@ -159,7 +159,7 @@ class CloudAIGymEnv(BaseGym):
 
             new_tr = copy.deepcopy(self.test_run)
             new_tr.output_path = self.runner.get_job_output_path(new_tr)
-            if self.test_run.test.pin_nodes_to_first_step and self._pinned_nodes:
+            if self.test_run.test.pin_nodelist and self._pinned_nodes:
                 new_tr.nodes = self._pinned_nodes
             self.runner.test_scenario.test_runs = [new_tr]
 
@@ -172,7 +172,7 @@ class CloudAIGymEnv(BaseGym):
             except Exception as e:
                 logging.error(f"Error running step {self.test_run.step}: {e}")
 
-            if self.test_run.test.pin_nodes_to_first_step and not self._pinned_nodes:
+            if self.test_run.test.pin_nodelist and not self._pinned_nodes:
                 get_job_id = getattr(self.runner, "get_job_id", None)
                 fetch_cmd = getattr(self.runner.system, "fetch_command_output", None)
                 for f in new_tr.output_path.rglob("*.stdout"):

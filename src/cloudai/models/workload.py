@@ -123,7 +123,7 @@ class TestDefinition(BaseModel, ABC):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
-    pin_nodes_to_first_step: bool = Field(
+    pin_nodelist: bool = Field(
         default=False,
         description="If True, all DSE steps after the first will be pinned to the same nodes as step 1.",
     )
