@@ -436,13 +436,6 @@ class DocaMemosPreflight(BaseModel):
         serialization_alias="srun-timeout-sec",
         validation_alias=AliasChoices("srun-timeout-sec", "srun_timeout_sec"),
     )
-    hugepage_margin: float = Field(
-        default=1.10,
-        gt=0,
-        serialization_alias="hugepage-margin",
-        validation_alias=AliasChoices("hugepage-margin", "hugepage_margin"),
-    )
-
 
 class LMCacheController(BaseModel):
     """Optional LMCache controller process to launch on the frontend node."""

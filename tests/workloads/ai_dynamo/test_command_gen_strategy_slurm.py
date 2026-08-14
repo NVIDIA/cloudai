@@ -37,12 +37,12 @@ from cloudai.workloads.ai_dynamo import (
     AIPerf,
     AIPerfAccuracy,
     AIPerfPhase,
-    DocaMemosPreflight,
     GenAIPerf,
     LMCacheController,
     WorkerBaseArgs,
     WorkerConfig,
 )
+from cloudai.workloads.ai_dynamo.ai_dynamo import DocaMemosPreflight
 
 
 @pytest.fixture
@@ -727,6 +727,7 @@ def test_gen_exec_command_includes_doca_memos_preflight(strategy: AIDynamoSlurmC
     assert base_config["chunk_size"] == 512
     assert base_config["extra_config"]["nixl_backend_params"]["device_name"] == "auto"
     assert "doca-memos-hugepages-node-%n-stdout.txt" in script
+    assert "target=112641;" in script
     assert 'sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=$target"' in script
     assert "doca_memos_health_check.py" in script
     assert script.count("if ! srun \\") >= 2
@@ -736,8 +737,8 @@ def test_gen_exec_command_includes_doca_memos_preflight(strategy: AIDynamoSlurmC
     assert "--output-config-dir /cloudai_run_results" in script
     assert "--skip-data-path-check" not in script
     assert "--nodelist=n0,n1" in script
-    assert "/dev:/dev" in script
-    assert "/sys/class/nvme:/sys/class/nvme" in script
+    assert "/dev:/dev" not in script
+    assert "/sys/class/nvme:/sys/class/nvme" not in script
     assert script.index("doca-memos-hugepages-node-%n-stdout.txt") < script.index("doca_memos_health_check.py")
     assert script.index("doca_memos_health_check.py") < script.index("ai_dynamo.sh")
 

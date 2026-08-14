@@ -2,6 +2,10 @@ name = "agentic-gpt-oss20-doca-memos-single"
 description = "GPT-OSS-20B agentic workload: LMCache local CPU plus CMX DOCA_MEMOS, single node"
 test_template_name = "AIDynamo"
 dse_excluded_args = ["cmd_args.aiperf_phases"]
+extra_container_mounts = [
+  "/dev:/dev",
+  "/sys/class/nvme:/sys/class/nvme",
+]
 
 [cmd_args]
 docker_image_url = "artifactory.nvidia.com/sw-nbu-swx-storage-devops-docker-local/nixl/dynamo-vllm-nixl-cmx:1.2.0-cuda13-lmcache-389b9cfc-doca-41a1f020-nixl-cd2f6d49-hnogit-vllm0.20.2-build24-x86_64"

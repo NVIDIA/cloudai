@@ -17,6 +17,7 @@
 import json
 import logging
 import math
+import os
 import shlex
 import shutil
 import textwrap
@@ -43,8 +44,9 @@ from .ai_dynamo import (
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
 DOCA_MEMOS_HEALTH_CHECK_FILE_NAME = "doca_memos_health_check.py"
 DOCA_MEMOS_BASE_LMCACHE_CONFIG_FILE_NAME = "lmcache-config.base.json"
-DOCA_MEMOS_CONTAINER_MOUNTS = ("/dev:/dev", "/sys/class/nvme:/sys/class/nvme")
 HUGEPAGE_SIZE_MIB = 2
+LOCAL_CPU_HUGEPAGE_BUFFER_RATIO = 1.10
+NORMAL_HUGEPAGES_ENV = "CLOUDAI_NORMAL_NR_HUGEPAGES"
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -62,10 +64,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         logging.info(f"storage_cache_dir: {self.td.cmd_args.storage_cache_dir}")
         if self.td.cmd_args.storage_cache_dir:
             result.append(f"{self.td.cmd_args.storage_cache_dir}:{self.td.cmd_args.storage_cache_dir}")
-
-        if self._doca_memos_preflight_enabled():
-            existing_mounts = set(self.td.extra_container_mounts) | set(result)
-            result.extend(mount for mount in DOCA_MEMOS_CONTAINER_MOUNTS if mount not in existing_mounts)
 
         return result
 
@@ -657,27 +655,41 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return max(AIDynamoSlurmCommandGenStrategy._max_float(item) for item in value)
         return float(value)
 
+    @staticmethod
+    def _normal_hugepages() -> int:
+        raw_value = os.environ.get(NORMAL_HUGEPAGES_ENV, "0")
+        try:
+            value = int(raw_value)
+        except ValueError as exc:
+            raise ValueError(f"{NORMAL_HUGEPAGES_ENV} must be an integer, got {raw_value!r}") from exc
+        if value < 0:
+            raise ValueError(f"{NORMAL_HUGEPAGES_ENV} must be >= 0, got {value}")
+        return value
+
     def _desired_hugepages(self) -> int | None:
         config = self._lmcache_config()
-        if not config or not config.get("local_cpu_use_hugepages"):
+        if not config:
             return None
 
-        max_local_cpu_size = config.get("max_local_cpu_size")
-        if max_local_cpu_size is None:
-            raise ValueError("local_cpu_use_hugepages requires max_local_cpu_size in the LMCache config")
+        if config.get("local_cpu_use_hugepages"):
+            max_local_cpu_size = config.get("max_local_cpu_size")
+            if max_local_cpu_size is None:
+                raise ValueError("local_cpu_use_hugepages requires max_local_cpu_size in the LMCache config")
 
-        worker_tps = [self.td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size]
-        if self.td.cmd_args.dynamo.prefill_worker:
-            worker_tps.append(self.td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size)
-        max_tp = max(self._max_int(tp) for tp in worker_tps)
-        size_gib = self._max_float(max_local_cpu_size)
-        if max_tp <= 0 or size_gib <= 0:
-            raise ValueError(
-                f"local_cpu_use_hugepages requires positive TP and max_local_cpu_size, got {max_tp=} {size_gib=}"
-            )
+            prefill_worker = self.td.cmd_args.dynamo.prefill_worker
+            max_tp = self._max_int(prefill_worker.args.tensor_parallel_size if prefill_worker else None, default=1)
+            size_gib = self._max_float(max_local_cpu_size)
+            if max_tp <= 0 or size_gib <= 0:
+                raise ValueError(
+                    f"local_cpu_use_hugepages requires positive TP and max_local_cpu_size, got {max_tp=} {size_gib=}"
+                )
+            return math.ceil(max_tp * size_gib * LOCAL_CPU_HUGEPAGE_BUFFER_RATIO * 1024 / HUGEPAGE_SIZE_MIB)
 
-        margin = self.td.cmd_args.doca_memos_preflight.hugepage_margin
-        return math.ceil(max_tp * size_gib * margin * 1024 / HUGEPAGE_SIZE_MIB)
+        extra_config = config.get("extra_config") or {}
+        if isinstance(extra_config, dict) and extra_config.get("nixl_use_hugepages"):
+            return None
+
+        return self._normal_hugepages()
 
     def _gen_doca_memos_hugepage_setup_block(self) -> list[str]:
         if not self._doca_memos_hugepage_setup_enabled():
@@ -691,13 +703,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         out_dir = self.test_run.output_path.absolute()
         setup_command = (
             f"target={desired_hugepages}; "
-            "current=$(cat /proc/sys/vm/nr_hugepages); "
-            'if [ "$current" -lt "$target" ]; then '
             'sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=$target" >/dev/null; '
-            "fi; "
             "actual=$(cat /proc/sys/vm/nr_hugepages); "
-            'if [ "$actual" -lt "$target" ]; then '
-            'echo "nr_hugepages=$actual, expected at least $target" >&2; exit 1; '
+            'if [ "$actual" -ne "$target" ]; then '
+            'echo "nr_hugepages=$actual, expected=$target" >&2; exit 1; '
             "fi; "
             'printf "node=%s nr_hugepages=%s\\n" "$(hostname)" "$actual"; '
             "grep -E 'HugePages_Total|HugePages_Free|Hugepagesize' /proc/meminfo"
