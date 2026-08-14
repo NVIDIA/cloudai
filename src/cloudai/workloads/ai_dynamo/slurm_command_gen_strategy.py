@@ -349,35 +349,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             .splitlines()
         )
 
-    def _render_aiperf_phase_report_lines(
-        self,
-        phase_index: int,
-        phases_count: int,
-        report_source: str,
-        report_file: str,
-    ) -> list[str]:
-        lines = [
-            textwrap.dedent(
-                f"""\
-                if [[ "$phase_status" -eq 0 ]]; then
-                  mkdir -p {shlex.quote(str(Path(report_file).parent))}
-                """
-            ).rstrip()
-        ]
-
-        if report_source != report_file:
-            lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
-        lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
-
-        if phases_count > 1 and phase_index == phases_count - 1:
-            final_report_file = self._runtime_result_path("aiperf_report.csv")
-            lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
-            if report_file != final_report_file:
-                lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
-            lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
-
-        return lines
-
     def _render_aiperf_script(self) -> str:
         phases = self.td.cmd_args.aiperf_phases or [AIPerfPhase.model_validate({"name": "aiperf"})]
         single_phase = len(phases) == 1
@@ -442,9 +413,24 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             phase_lines.extend(
                 [
                     "fi",
-                    *self._render_aiperf_phase_report_lines(idx, len(phases), report_source, report_file),
+                    textwrap.dedent(
+                        f"""\
+                        if [[ "$phase_status" -eq 0 ]]; then
+                          mkdir -p {shlex.quote(str(Path(report_file).parent))}
+                        """
+                    ).rstrip(),
                 ]
             )
+            if report_source != report_file:
+                phase_lines.append(f"  cp {shlex.quote(report_source)} {shlex.quote(report_file)}")
+            phase_lines.append(f"  log {shlex.quote(f'AIPerf report saved to {report_file}')}")
+
+            if not single_phase and idx == len(phases) - 1:
+                final_report_file = self._runtime_result_path("aiperf_report.csv")
+                phase_lines.append(f"  mkdir -p {shlex.quote(str(Path(final_report_file).parent))}")
+                if report_file != final_report_file:
+                    phase_lines.append(f"  cp {shlex.quote(report_file)} {shlex.quote(final_report_file)}")
+                phase_lines.append(f"  log {shlex.quote(f'Final AIPerf report saved to {final_report_file}')}")
 
             if not single_phase and idx < len(phases) - 1:
                 phase_lines.extend(
