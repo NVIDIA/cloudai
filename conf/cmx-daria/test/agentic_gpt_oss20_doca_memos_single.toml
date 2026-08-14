@@ -1,7 +1,6 @@
 name = "agentic-gpt-oss20-doca-memos-single"
 description = "GPT-OSS-20B agentic workload: LMCache local CPU plus CMX DOCA_MEMOS, single node"
 test_template_name = "AIDynamo"
-dse_excluded_args = ["cmd_args.aiperf_phases"]
 extra_container_mounts = [
   "/dev:/dev",
   "/sys/class/nvme:/sys/class/nvme",
@@ -65,9 +64,6 @@ workloads = "aiperf.sh"
       kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
 
   [cmd_args.aiperf]
-  health-check-between-phases = true
-  continue-on-phase-failure = false
-
     [cmd_args.aiperf.args]
     server-metrics = "auto"
     endpoint-type = "chat"
@@ -91,97 +87,6 @@ workloads = "aiperf.sh"
     concurrency = 40
     max-workers = 100
     warmup-request-count = 5
-
-  [[cmd_args.aiperf_phases]]
-  name = "c040_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 40
-    max-workers = 100
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 0.6666666667
-    num-users = 40
-    num-dataset-entries = 40
-    conversation-num = 40
-
-  [[cmd_args.aiperf_phases]]
-  name = "c080_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 80
-    max-workers = 100
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 1.3333333333
-    num-users = 80
-    num-dataset-entries = 80
-    conversation-num = 80
-
-  [[cmd_args.aiperf_phases]]
-  name = "c100_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 100
-    max-workers = 100
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 1.6666666667
-    num-users = 100
-    num-dataset-entries = 100
-    conversation-num = 100
-
-  [[cmd_args.aiperf_phases]]
-  name = "c150_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 150
-    max-workers = 200
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 2.5
-    num-users = 150
-    num-dataset-entries = 150
-    conversation-num = 150
-
-  [[cmd_args.aiperf_phases]]
-  name = "c200_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 200
-    max-workers = 200
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 3.3333333333
-    num-users = 200
-    num-dataset-entries = 200
-    conversation-num = 200
-
-  [[cmd_args.aiperf_phases]]
-  name = "c250_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 250
-    max-workers = 200
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 4.1666666667
-    num-users = 250
-    num-dataset-entries = 250
-    conversation-num = 250
-
-  [[cmd_args.aiperf_phases]]
-  name = "c300_agentic"
-
-    [cmd_args.aiperf_phases.args]
-    concurrency = 300
-    max-workers = 200
-    slice-duration = 30
-    warmup-request-count = 5
-    user-centric-rate = 5.0
-    num-users = 300
-    num-dataset-entries = 300
-    conversation-num = 300
 
 [extra_env_vars]
 AIPERF_DATASET_CONFIGURATION_TIMEOUT = "900"

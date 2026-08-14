@@ -37,8 +37,6 @@ declare -A aiperf_args
 declare -A aiperf_config
 declare -A aiperf_accuracy_args
 declare -A aiperf_accuracy_config
-declare -a DYNAMO_DECODE_PIDS=()
-declare -a DYNAMO_PREFILL_PIDS=()
 
 lmcache_controller_cmd=""
 SHARED_NODE_DISAGG="false"
@@ -48,9 +46,6 @@ dynamo_args["backend"]="vllm"
 dynamo_args["mode"]="disaggregated"
 dynamo_args["node-setup-cmd"]=""
 dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
-dynamo_args["aiperf-phase-restart-services"]="False"
-dynamo_args["aiperf-phase-setup-scope"]="all"
-dynamo_args["aiperf-phase-setup-cmd-scope"]="frontend"
 dynamo_args["port"]=$((8080 + SLURM_JOBID % 100))
 dynamo_args["endpoint"]="v1/chat/completions"
 dynamo_args["model"]="Qwen/Qwen3-0.6B"
@@ -105,11 +100,6 @@ _csv_lists_overlap() {
     fi
   done
   return 1
-}
-
-_truthy() {
-  local value="${1:-}"
-  [[ "${value,,}" == "true" || "${value}" == "1" || "${value,,}" == "yes" ]]
 }
 
 _gpus_per_node() {
@@ -522,11 +512,11 @@ _total_workers_decode() {
 }
 
 _count_initialized_prefill() {
-  grep -i -l -E "${prefill_config["worker-initialized-regex"]}" $(_worker_log_glob_for_role "prefill") 2>/dev/null | wc -l
+  grep -i -l -E "${prefill_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
 }
 
 _count_initialized_decode() {
-  grep -i -l -E "${decode_config["worker-initialized-regex"]}" $(_worker_log_glob_for_role "decode") 2>/dev/null | wc -l
+  grep -i -l -E "${decode_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
 }
 
 _expected_ready_prefill() {
@@ -564,20 +554,7 @@ _gpu_list_for_worker_offset() {
 _log_file_for_worker() {
   local role="$1"
   local idx="$2"
-  if _aiperf_phase_restart_services_enabled && [[ -n "${DYNAMO_PHASE_GENERATION:-}" ]]; then
-    echo "${RESULTS_DIR}/dynamo_${role}_${SLURM_NODEID}_${idx}.r${DYNAMO_PHASE_GENERATION}.log"
-    return
-  fi
   echo "${RESULTS_DIR}/dynamo_${role}_${SLURM_NODEID}_${idx}.log"
-}
-
-_worker_log_glob_for_role() {
-  local role="$1"
-  if _aiperf_phase_restart_services_enabled && [[ -n "${DYNAMO_PHASE_GENERATION:-}" ]]; then
-    echo "${RESULTS_DIR}/dynamo_${role}_"*"_"*".r${DYNAMO_PHASE_GENERATION}.log"
-    return
-  fi
-  echo "${RESULTS_DIR}/dynamo_"*"${role}"*""
 }
 
 function log_node_role()
@@ -630,10 +607,6 @@ _is_aiperf_workload() {
 
 _is_aiperf_accuracy_enabled() {
   [[ -n "${aiperf_accuracy_config["--script"]:-}" ]]
-}
-
-_aiperf_phase_restart_services_enabled() {
-  _truthy "${dynamo_args["aiperf-phase-restart-services"]:-False}"
 }
 
 _init_runtime_env() {
@@ -846,14 +819,9 @@ validate_environment() {
 function wait_for_frontend_marker()
 {
   while [ ! -f "$DONE_MARKER" ]; do
-    handle_aiperf_phase_setup_requests
     exit_on_error
-    if _aiperf_phase_restart_services_enabled; then
-      sleep 1
-    else
-      log "Waiting for frontend completion marker by polling $DONE_MARKER"
-      sleep 30
-    fi
+    log "Waiting for frontend completion marker by polling $DONE_MARKER"
+    sleep 30
   done
 
   log "Done marker found."
@@ -900,7 +868,7 @@ function write_routerctl()
   export ROUTER_HEALTH_MODEL="${dynamo_args["model"]}"
   export ROUTER_PID_FILE="${RESULTS_DIR}/router.pid"
   export ROUTER_LOG_FILE="${RESULTS_DIR}/dynamo_ingress.log"
-  export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-300}"
+  export ROUTER_START_TIMEOUT="${ROUTER_START_TIMEOUT:-120}"
   export ROUTER_STOP_TIMEOUT="${ROUTER_STOP_TIMEOUT:-30}"
 
   cat > "${RESULTS_DIR}/routerctl.sh" <<'EOF'
@@ -915,7 +883,7 @@ log() { echo "[$(date +%F\ %T) $(hostname)]: $*"; }
 : "${ROUTER_HEALTH_MODEL:?ROUTER_HEALTH_MODEL is not set}"
 : "${ROUTER_PID_FILE:?ROUTER_PID_FILE is not set}"
 : "${ROUTER_LOG_FILE:?ROUTER_LOG_FILE is not set}"
-: "${ROUTER_START_TIMEOUT:=300}"
+: "${ROUTER_START_TIMEOUT:=120}"
 : "${ROUTER_STOP_TIMEOUT:=30}"
 
 router_pid() {
@@ -1021,176 +989,6 @@ function start_router()
   "${RESULTS_DIR}/routerctl.sh" start
 }
 
-_stop_pid() {
-  local pid="$1"
-  local name="$2"
-  local timeout="${DYNAMO_PHASE_RESTART_STOP_TIMEOUT_SEC:-${DYNAMO_PHASE_STOP_TIMEOUT:-120}}"
-  if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
-    return
-  fi
-
-  log "Stopping ${name} pid=${pid}"
-  kill -TERM "${pid}" 2>/dev/null || true
-
-  local deadline=$((SECONDS + timeout))
-  while kill -0 "${pid}" 2>/dev/null; do
-    if (( SECONDS >= deadline )); then
-      log "WARN: ${name} pid=${pid} did not stop within ${timeout}s; sending SIGKILL"
-      kill -KILL "${pid}" 2>/dev/null || true
-      break
-    fi
-    sleep 1
-  done
-
-  wait "${pid}" 2>/dev/null || true
-}
-
-_stop_pid_array() {
-  local name="$1"
-  shift
-
-  local pid
-  for pid in "$@"; do
-    _stop_pid "${pid}" "${name}"
-  done
-}
-
-_kill_residual_phase_processes() {
-  if _is_frontend_node; then
-    pkill -TERM -f "^python[0-9.]* -m dynamo.frontend" 2>/dev/null || true
-    if _has_connector "kvbm"; then
-      pkill -TERM -f "^cargo run" 2>/dev/null || true
-      pkill -TERM -f "^sample-registry" 2>/dev/null || true
-    fi
-  fi
-
-  if _is_vllm && { _is_prefill_node || _is_decode_node; }; then
-    pkill -TERM -f "^python[0-9.]* -m dynamo.vllm" 2>/dev/null || true
-    sleep "${DYNAMO_PHASE_RESTART_GRACE_SEC:-5}"
-    pkill -KILL -f "^python[0-9.]* -m dynamo.vllm" 2>/dev/null || true
-  fi
-}
-
-stop_phase_managed_dynamo_services() {
-  if _is_frontend_node && [[ -x "${RESULTS_DIR}/routerctl.sh" ]]; then
-    "${RESULTS_DIR}/routerctl.sh" stop || true
-  fi
-
-  if _is_decode_node; then
-    _stop_pid_array "decode worker" "${DYNAMO_DECODE_PIDS[@]:-}"
-    DYNAMO_DECODE_PIDS=()
-  fi
-
-  if _is_prefill_node; then
-    _stop_pid_array "prefill worker" "${DYNAMO_PREFILL_PIDS[@]:-}"
-    DYNAMO_PREFILL_PIDS=()
-  fi
-
-  _kill_residual_phase_processes
-}
-
-start_phase_managed_dynamo_services() {
-  local phase_index="$1"
-  local phase_name="$2"
-
-  export DYNAMO_PHASE_GENERATION=$((phase_index + 1))
-  log "Starting phase-managed Dynamo services for [${phase_name}] with generation ${DYNAMO_PHASE_GENERATION}"
-
-  if _is_decode_node; then
-    launch_decode || return 1
-  fi
-
-  if _is_prefill_node; then
-    launch_prefill || return 1
-  fi
-
-  if _is_frontend_node; then
-    launch_ingress || return 1
-    if _is_sglang_dsr1; then
-      launch_sgl_http_server || return 1
-    fi
-  fi
-}
-
-_wait_for_aiperf_phase_markers() {
-  local prefix="$1"
-  local suffix="$2"
-  local timeout="${AIPERF_PHASE_SETUP_TIMEOUT:-900}"
-  local deadline=$((SECONDS + timeout))
-  local node
-
-  while :; do
-    local missing=""
-    for node in $(echo "${DYNAMO_NODELIST}" | tr ',' ' '); do
-      if [[ ! -f "${prefix}_${node}.${suffix}" ]]; then
-        missing="${missing} ${node}"
-      fi
-    done
-    if [[ -z "${missing}" ]]; then
-      return 0
-    fi
-    if (( SECONDS >= deadline )); then
-      mark_failed "Timed out waiting for AIPerf phase ${suffix} marker(s):${missing}"
-      return 1
-    fi
-    sleep 1
-  done
-}
-
-_run_aiperf_phase_setup_cmd() {
-  local cmd_file="$1"
-  local cmd_scope="${dynamo_args["aiperf-phase-setup-cmd-scope"]:-frontend}"
-
-  [[ -s "${cmd_file}" ]] || return 0
-  if [[ "${cmd_scope}" == "all" ]] || { [[ "${cmd_scope}" == "frontend" ]] && _is_frontend_node; }; then
-    log "Running AIPerf phase setup command from ${cmd_file}"
-    bash -lc "$(cat "${cmd_file}")"
-  fi
-}
-
-handle_aiperf_phase_setup_requests() {
-  _aiperf_phase_restart_services_enabled || return 0
-
-  local request
-  for request in "${RESULTS_DIR}"/aiperf_phase_setup_*.request; do
-    [[ -f "${request}" ]] || continue
-
-    local prefix="${request%.request}"
-    local node_name="$(_current_node_name)"
-    local done_marker="${prefix}_${node_name}.done"
-    local stopped_marker="${prefix}_${node_name}.stopped"
-    [[ -f "${done_marker}" ]] && continue
-
-    local phase_index="${prefix##*_}"
-    local phase_name
-    phase_name="$(cat "${prefix}.name" 2>/dev/null || echo "${phase_index}")"
-
-    local setup_scope="${dynamo_args["aiperf-phase-setup-scope"]:-all}"
-    local participates=false
-    if [[ "${setup_scope}" == "all" ]] || { [[ "${setup_scope}" == "frontend" ]] && _is_frontend_node; }; then
-      participates=true
-    fi
-
-    if [[ "${participates}" == "true" ]]; then
-      log "Stopping phase-managed Dynamo services for [${phase_name}]"
-      stop_phase_managed_dynamo_services
-    fi
-    touch "${stopped_marker}"
-    _wait_for_aiperf_phase_markers "${prefix}" "stopped" || return 1
-
-    if [[ "${participates}" == "true" ]]; then
-      _run_aiperf_phase_setup_cmd "${prefix}.cmd" || return 1
-      if ! start_phase_managed_dynamo_services "${phase_index}" "${phase_name}"; then
-        mark_failed "Failed to start phase-managed Dynamo services for [${phase_name}]"
-        stop_phase_managed_dynamo_services
-        return 1
-      fi
-    fi
-    touch "${done_marker}"
-    log "AIPerf phase setup completed for [${phase_name}]"
-  done
-}
-
 launch_sgl_http_server() {
   local script_path="${dynamo_args["repo"]}/components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
   local port="${dynamo_args["sgl-http-port"]}"
@@ -1252,9 +1050,6 @@ function launch_decode()
       ${decode_config["cmd"]} \
       ${args_arr[@]} \
       ${decode_config["extra-args"]} > $log_file 2>&1 &
-    local pid=$!
-    DYNAMO_DECODE_PIDS+=("${pid}")
-    log "Decode worker $i PID: ${pid}"
   done
 }
 
@@ -1329,9 +1124,6 @@ function launch_prefill()
       ${prefill_config["cmd"]} \
       ${args_arr[@]} \
       ${prefill_config["extra-args"]} > $log_file 2>&1 &
-    local pid=$!
-    DYNAMO_PREFILL_PIDS+=("${pid}")
-    log "Prefill worker $i PID: ${pid}"
   done
 }
 
@@ -1584,7 +1376,6 @@ function launch_workload()
   export AIPERF_ENDPOINT="${dynamo_args["endpoint"]}"
   export AIPERF_FAILURE_MARKER="${FATAL_ERROR_MARKER}"
   export AIPERF_SERVER_METRICS_URLS="$(_resolve_aiperf_server_metrics_urls)"
-  export AIPERF_PHASE_SETUP_PREFIX="${RESULTS_DIR}/aiperf_phase_setup"
 
   # Build config and workload args as proper bash arrays to preserve
   # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
@@ -1625,15 +1416,7 @@ function launch_workload()
 
 function launch_workloads()
 {
-  if _aiperf_phase_restart_services_enabled; then
-    if _is_genai_perf_workload || _is_aiperf_accuracy_enabled; then
-      mark_failed "aiperf-phase-restart-services currently supports aiperf.sh-only runs"
-      return 1
-    fi
-    log "AIPerf phase restart mode enabled: services will be started by each phase setup barrier"
-  else
-    wait_for_dynamo_frontend
-  fi
+  wait_for_dynamo_frontend
 
   if _is_genai_perf_workload; then
     launch_workload genai_perf_config genai_perf_args || return $?
@@ -1687,34 +1470,27 @@ function main()
   # Workers launch BEFORE the ingress: launch_ingress blocks in
   # wait_for_router, and the router only becomes ready once a worker
   # registers — on a combined frontend+worker node the old order serialized
-  # the whole ROUTER_START_TIMEOUT of failing readiness curls in
+  # the whole ROUTER_START_TIMEOUT (120 s of failing readiness curls) in
   # front of every worker start. Workers only need etcd/nats (waited above)
   # and the lmcache config from setup_lmcache; they never talk to the router.
-  local phase_restart_services=false
-  if _aiperf_phase_restart_services_enabled && _is_aiperf_workload; then
-    phase_restart_services=true
-  fi
-
-  if [[ "${phase_restart_services}" != "true" ]] && _is_decode_node; then
+  if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
     log_node_role "$(_current_node_name)" "decode"
     launch_decode &
   fi
 
-  if [[ "${phase_restart_services}" != "true" ]] && _is_prefill_node; then
+  if _is_prefill_node; then
     log "Node ID: $SLURM_NODEID, Role: prefill"
     log_node_role "$(_current_node_name)" "prefill"
     launch_prefill &
   fi
 
   if _is_frontend_node; then
-    if [[ "${phase_restart_services}" != "true" ]]; then
-      launch_ingress || { mark_failed "Failed to start Dynamo ingress"; exit 1; }
-      if _is_sglang_dsr1; then
-        launch_sgl_http_server || { mark_failed "Failed to start SGL HTTP server"; exit 1; }
-      fi
-      sleep 10
+    launch_ingress
+    if _is_sglang_dsr1; then
+      launch_sgl_http_server
     fi
+    sleep 10
 
     launch_workloads &
   fi
