@@ -57,7 +57,8 @@ dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
 dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed.|pydantic_core._pydantic_core.ValidationError|Unsupported.connector.type|error: unrecognized arguments:|tomllib.TOMLDecodeError"
 
-# sglang_dsr1-specific optional ports. Ignored by vllm.
+# Backend rendezvous ports. Prefill and decode use distinct ports so their
+# distributed groups can share physical nodes safely.
 dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
@@ -121,10 +122,148 @@ _current_node_ip() {
   _resolve_host_ip "$(_current_node_name)"
 }
 
+_normalize_worker_topology() {
+  local role
+  for role in prefill decode; do
+    local -n role_config="${role}_config"
+    if [[ -z "${role_config["nodes-per-worker"]:-}" ]]; then
+      if _is_sglang_dsr1 && [[ "${role_config["num-nodes"]}" -gt 0 ]]; then
+        role_config["nodes-per-worker"]="${role_config["num-nodes"]}"
+      else
+        role_config["nodes-per-worker"]=1
+      fi
+    fi
+  done
+}
+
+_role_node_index() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  _csv_index_of "${role_config["node-list"]}" "$(_current_node_name)"
+}
+
+_role_group_rank() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  local node_index
+  node_index="$(_role_node_index "$role")"
+  if [[ "$node_index" -lt 0 ]]; then
+    echo "-1"
+    return
+  fi
+  echo $(( node_index % role_config["nodes-per-worker"] ))
+}
+
+_role_group_leader() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  local node_index leader_index
+  local -a role_nodes
+  node_index="$(_role_node_index "$role")"
+  if [[ "$node_index" -lt 0 ]]; then
+    echo ""
+    return
+  fi
+  leader_index=$(( (node_index / role_config["nodes-per-worker"]) * role_config["nodes-per-worker"] ))
+  IFS=',' read -ra role_nodes <<< "${role_config["node-list"]}"
+  echo "${role_nodes[$leader_index]}"
+}
+
+_role_is_multinode() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  [[ "${role_config["nodes-per-worker"]}" -gt 1 ]]
+}
+
+_role_is_group_leader() {
+  [[ "$(_role_group_rank "$1")" -eq 0 ]]
+}
+
+_role_is_vllm_headless() {
+  local role="$1"
+  _is_vllm && _role_is_multinode "$role" && ! _role_is_group_leader "$role"
+}
+
+_validate_worker_topology() {
+  local role
+  for role in prefill decode; do
+    local -n role_config="${role}_config"
+    local -n role_args="${role}_args"
+    local num_nodes="${role_config["num-nodes"]}"
+    local nodes_per_worker="${role_config["nodes-per-worker"]}"
+    local tp="${role_args["--tensor-parallel-size"]}"
+    local pp="${role_args["--pipeline-parallel-size"]}"
+    local world_size=$(( tp * pp ))
+
+    if [[ "$num_nodes" -eq 0 ]]; then
+      continue
+    fi
+    if [[ "$nodes_per_worker" -lt 1 || "$num_nodes" -lt 1 || $((num_nodes % nodes_per_worker)) -ne 0 ]]; then
+      log "ERROR: ${role} num-nodes (${num_nodes}) must be positive and divisible by nodes-per-worker (${nodes_per_worker})"
+      exit 1
+    fi
+    # The specialized DSR1 path derives TP/DP from the allocated node count
+    # after this structural validation.
+    if _is_sglang_dsr1; then
+      continue
+    fi
+    if [[ $((world_size % nodes_per_worker)) -ne 0 ]]; then
+      log "ERROR: ${role} TP*PP (${world_size}) must be divisible by nodes-per-worker (${nodes_per_worker})"
+      exit 1
+    fi
+    if [[ "$nodes_per_worker" -gt 1 && "${role_config["multiple-workers-per-node"],,}" == "true" ]]; then
+      log "ERROR: ${role} multiple-workers-per-node is incompatible with nodes-per-worker > 1"
+      exit 1
+    fi
+    if [[ "$nodes_per_worker" -gt 1 && "${role_args["--data-parallel-size"]:-1}" -ne 1 ]]; then
+      log "ERROR: ${role} generic multinode data parallelism is not supported"
+      exit 1
+    fi
+  done
+}
+
+_apply_multinode_role_args() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  local -n role_args="${role}_args"
+
+  if ! _role_is_multinode "$role"; then
+    return
+  fi
+
+  local node_rank leader_host leader_ip rendezvous_port
+  node_rank="$(_role_group_rank "$role")"
+  if [[ "$node_rank" -lt 0 ]]; then
+    return
+  fi
+  leader_host="$(_role_group_leader "$role")"
+  leader_ip="$(_resolve_host_ip "$leader_host")"
+  rendezvous_port="${dynamo_args["${role}-port"]}"
+
+  role_config["group-rank"]="$node_rank"
+  role_config["group-leader"]="$leader_host"
+
+  if _is_vllm; then
+    if [[ -n "${role_args["--distributed-executor-backend"]:-}" && "${role_args["--distributed-executor-backend"]}" != "mp" ]]; then
+      log "ERROR: Multinode Dynamo vLLM supports only --distributed-executor-backend mp"
+      exit 1
+    fi
+    role_args["--distributed-executor-backend"]="mp"
+    role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
+    role_args["--node-rank"]="$node_rank"
+    role_args["--master-addr"]="$leader_ip"
+    role_args["--master-port"]="$rendezvous_port"
+  elif _is_sglang; then
+    role_args["--dist-init-addr"]="${leader_ip}:${rendezvous_port}"
+    role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
+    role_args["--node-rank"]="$node_rank"
+  fi
+}
+
 _apply_sglang_dsr1_section_args() {
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
-  local deepep_path="${dynamo_args["repo"]}/components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
+  local deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
 
   # prefill group
   local prefill_nodes="${prefill_config["num-nodes"]}"
@@ -152,7 +291,7 @@ _apply_sglang_dsr1_section_args() {
   decode_args["--tp-size"]="${decode_args["--tp-size"]:-${decode_total_gpus}}"
   decode_args["--dp-size"]="${decode_args["--dp-size"]:-${decode_total_gpus}}"
 
-  [[ -f "$deepep_path" ]] || log "WARN: deepep-config not found: ${dynamo_args["deepep-config"]}"
+  [[ -f "$deepep_path" ]] || log "WARN: deepep-config not found: ${deepep_path}"
   prefill_args["--deepep-config"]="${deepep_path}"
   decode_args["--deepep-config"]="${deepep_path}"
 
@@ -316,6 +455,9 @@ _patch_dynamo_args() {
 _patch_section_args() {
   if _is_sglang_dsr1; then
     _apply_sglang_dsr1_section_args
+  else
+    _apply_multinode_role_args prefill
+    _apply_multinode_role_args decode
   fi
 }
 
@@ -341,8 +483,13 @@ _compute_worker_allocation_vllm() {
     exit 1
   fi
 
-  prefill_config["gpus-per-worker"]=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
-  decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
+  local prefill_world_size=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
+  local decode_world_size=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
+  local prefill_nodes_per_worker=${prefill_config["nodes-per-worker"]}
+  local decode_nodes_per_worker=${decode_config["nodes-per-worker"]}
+
+  prefill_config["gpus-per-worker"]=$(( prefill_world_size / prefill_nodes_per_worker ))
+  decode_config["gpus-per-worker"]=$(( decode_world_size / decode_nodes_per_worker ))
 
   if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
@@ -362,16 +509,24 @@ _compute_worker_allocation_vllm() {
     prefill_config["workers-per-node"]=1
     prefill_config["gpu-offset"]=${decode_config["gpus-per-worker"]}
   else
-    if [[ "${prefill_config["multiple-workers-per-node"],,}" != "true" ]]; then
+    if [[ "$prefill_nodes_per_worker" -eq 1 && "${prefill_config["multiple-workers-per-node"],,}" != "true" ]]; then
       prefill_config["gpus-per-worker"]=$num_gpus
     fi
 
-    if [[ "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
+    if [[ "$decode_nodes_per_worker" -eq 1 && "${decode_config["multiple-workers-per-node"],,}" != "true" ]]; then
       decode_config["gpus-per-worker"]=$num_gpus
     fi
 
-    prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
-    decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+    if [[ "$prefill_nodes_per_worker" -gt 1 ]]; then
+      prefill_config["workers-per-node"]=1
+    else
+      prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
+    fi
+    if [[ "$decode_nodes_per_worker" -gt 1 ]]; then
+      decode_config["workers-per-node"]=1
+    else
+      decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+    fi
   fi
 
   log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${decode_config["gpus-per-worker"]}"
@@ -421,7 +576,9 @@ _dump_args() {
 function parse_args()
 {
   _parse_cli_pairs "$@"
+  _normalize_worker_topology
   _set_nodelists
+  _validate_worker_topology
   _patch_dynamo_args
 
   _patch_section_args
@@ -499,11 +656,11 @@ exit_on_error() {
 }
 
 _total_workers_prefill() {
-  echo $(( prefill_config["num-nodes"] * prefill_config["workers-per-node"] ))
+  echo $(( (prefill_config["num-nodes"] / prefill_config["nodes-per-worker"]) * prefill_config["workers-per-node"] ))
 }
 
 _total_workers_decode() {
-  echo $(( decode_config["num-nodes"] * decode_config["workers-per-node"] ))
+  echo $(( (decode_config["num-nodes"] / decode_config["nodes-per-worker"]) * decode_config["workers-per-node"] ))
 }
 
 _count_initialized_prefill() {
@@ -515,19 +672,11 @@ _count_initialized_decode() {
 }
 
 _expected_ready_prefill() {
-  if _is_sglang_dsr1; then
-    echo 1
-  else
-    echo "$(_total_workers_prefill)"
-  fi
+  echo "$(_total_workers_prefill)"
 }
 
 _expected_ready_decode() {
-  if _is_sglang_dsr1; then
-    echo 1
-  else
-    echo "$(_total_workers_decode)"
-  fi
+  echo "$(_total_workers_decode)"
 }
 _gpu_list_for_worker() {
   local per_worker=$1
@@ -598,6 +747,10 @@ _init_runtime_env() {
   fi
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
+  export DYN_DISCOVERY_BACKEND="${DYN_DISCOVERY_BACKEND:-etcd}"
+  # Dynamo 1.3.1 defaults to ZMQ. Keep CloudAI's existing NATS service
+  # contract explicit while allowing users to opt into another event plane.
+  export DYN_EVENT_PLANE="${DYN_EVENT_PLANE:-nats}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
 
   # If KVBM is enabled and leader ports are not explicitly provided, derive a
@@ -770,6 +923,13 @@ validate_environment() {
     _check_free_port_or_die "etcd"  "${dynamo_args["etcd-port"]}"
     _check_free_port_or_die "nats"  "${dynamo_args["nats-port"]}"
     _check_free_port_or_die "ingress http" "${dynamo_args["port"]}"
+  fi
+
+  if _is_decode_node && _role_is_multinode decode && _role_is_group_leader decode; then
+    _check_free_port_or_die "decode multinode rendezvous" "${dynamo_args["decode-port"]}"
+  fi
+  if _is_prefill_node && _role_is_multinode prefill && _role_is_group_leader prefill; then
+    _check_free_port_or_die "prefill multinode rendezvous" "${dynamo_args["prefill-port"]}"
   fi
 
   # Decode-node checks for KVBM leader ports (one pub/ack pair per worker).
@@ -982,9 +1142,66 @@ launch_sgl_http_server() {
   fi
 }
 
+_wait_for_tcp() {
+  local host="$1"
+  local port="$2"
+  local timeout="${3:-1800}"
+  log "Waiting up to ${timeout}s for ${host}:${port}"
+  python3 - "$host" "$port" "$timeout" <<'PY'
+import socket
+import sys
+import time
+
+host, port, timeout = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+deadline = time.monotonic() + timeout
+while time.monotonic() < deadline:
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            sys.exit(0)
+    except OSError:
+        time.sleep(2)
+print(f"Timed out waiting for {host}:{port}", file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+_wait_for_role_leader() {
+  local role="$1"
+  if ! _is_vllm || ! _role_is_multinode "$role" || _role_is_group_leader "$role"; then
+    return
+  fi
+
+  local leader_host
+  leader_host="$(_role_group_leader "$role")"
+  _wait_for_tcp "$leader_host" "${dynamo_args["${role}-port"]}" "${DYNAMO_MULTINODE_START_TIMEOUT:-1800}" || {
+    mark_failed "${role} worker timed out waiting for multinode leader ${leader_host}"
+    return 1
+  }
+}
+
+_monitor_worker_processes() {
+  local role="$1"
+  shift
+  local -a pids=("$@")
+  local pid status
+
+  while [[ ! -f "$DONE_MARKER" && ! -f "$FATAL_ERROR_MARKER" ]]; do
+    for pid in "${pids[@]}"; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        wait "$pid"
+        status=$?
+        mark_failed "${role} worker process ${pid} exited unexpectedly with status ${status}"
+        return 1
+      fi
+    done
+    sleep 5
+  done
+}
+
 function launch_decode()
 {
   wait_for_etcd
+  _wait_for_role_leader decode || return $?
 
   local workers_per_node=${decode_config["workers-per-node"]}
   local tp_size=${decode_args["--tensor-parallel-size"]}
@@ -995,7 +1212,12 @@ function launch_decode()
   local base_system_port=${DYN_SYSTEM_PORT:-9090}
   local kvbm_port_stride=2
   local side_channel_host
+  local -a worker_pids=()
+  local -a launch_only_args=()
   side_channel_host="$(_current_node_ip)"
+  if _role_is_vllm_headless decode; then
+    launch_only_args+=("--headless")
+  fi
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -1029,9 +1251,12 @@ function launch_decode()
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
       DYN_KVBM_LEADER_ZMQ_ACK_PORT=$kvbm_ack_port \
       ${decode_config["cmd"]} \
-      ${args_arr[@]} \
+      "${args_arr[@]}" \
+      "${launch_only_args[@]}" \
       ${decode_config["extra-args"]} > $log_file 2>&1 &
+    worker_pids+=("$!")
   done
+  _monitor_worker_processes decode "${worker_pids[@]}"
 }
 
 function wait_for_etcd()
@@ -1046,6 +1271,7 @@ function wait_for_etcd()
 function launch_prefill()
 {
   wait_for_etcd
+  _wait_for_role_leader prefill || return $?
 
   local workers_per_node=${prefill_config["workers-per-node"]}
   local tp_size=${prefill_args["--tensor-parallel-size"]}
@@ -1057,7 +1283,12 @@ function launch_prefill()
   local kvbm_port_stride=2
   local gpu_offset=${prefill_config["gpu-offset"]:-0}
   local side_channel_host
+  local -a worker_pids=()
+  local -a launch_only_args=()
   side_channel_host="$(_current_node_ip)"
+  if _role_is_vllm_headless prefill; then
+    launch_only_args+=("--headless")
+  fi
 
   if [[ "${SHARED_NODE_DISAGG}" == "true" ]]; then
     local decode_workers=${decode_config["workers-per-node"]}
@@ -1103,9 +1334,12 @@ function launch_prefill()
       DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
       DYN_KVBM_LEADER_ZMQ_ACK_PORT=$kvbm_ack_port \
       ${prefill_config["cmd"]} \
-      ${args_arr[@]} \
+      "${args_arr[@]}" \
+      "${launch_only_args[@]}" \
       ${prefill_config["extra-args"]} > $log_file 2>&1 &
+    worker_pids+=("$!")
   done
+  _monitor_worker_processes prefill "${worker_pids[@]}"
 }
 
 function wait_for_dynamo_frontend()
@@ -1153,25 +1387,35 @@ _resolve_aiperf_server_metrics_urls() {
   local base_system_port=${DYN_SYSTEM_PORT:-9090}
   local decode_workers_per_node=${decode_config["workers-per-node"]:-1}
   local prefill_workers_per_node=${prefill_config["workers-per-node"]:-1}
+  local decode_nodes_per_worker=${decode_config["nodes-per-worker"]:-1}
+  local prefill_nodes_per_worker=${prefill_config["nodes-per-worker"]:-1}
   local prefill_system_port_offset=0
   local IFS_SAVE="$IFS"
-  local node i
+  local node i node_index
 
   if [[ "${SHARED_NODE_DISAGG}" == "true" ]]; then
     prefill_system_port_offset=$decode_workers_per_node
   fi
 
   IFS=','
+  node_index=0
   for node in ${decode_config["node-list"]:-}; do
-    for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
-      urls="${urls},http://${node}:$((base_system_port + i))/metrics"
-    done
+    if [[ $((node_index % decode_nodes_per_worker)) -eq 0 ]]; then
+      for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
+        urls="${urls},http://${node}:$((base_system_port + i))/metrics"
+      done
+    fi
+    node_index=$((node_index + 1))
   done
 
+  node_index=0
   for node in ${prefill_config["node-list"]:-}; do
-    for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
-      urls="${urls},http://${node}:$((base_system_port + prefill_system_port_offset + i))/metrics"
-    done
+    if [[ $((node_index % prefill_nodes_per_worker)) -eq 0 ]]; then
+      for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
+        urls="${urls},http://${node}:$((base_system_port + prefill_system_port_offset + i))/metrics"
+      done
+    fi
+    node_index=$((node_index + 1))
   done
 
   if [[ "${dynamo_args["dcgm-exporter-enabled"],,}" == "true" ]]; then
@@ -1478,8 +1722,9 @@ function main()
   wait_for_frontend_marker
 }
 
-log "Starting main"
-main "$@"
-log "Done with main"
-
-perform_exit 0
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  log "Starting main"
+  main "$@"
+  log "Done with main"
+  perform_exit 0
+fi

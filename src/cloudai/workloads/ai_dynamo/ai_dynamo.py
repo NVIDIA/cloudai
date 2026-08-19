@@ -47,6 +47,8 @@ AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
+DYNAMO_VERSION = "1.3.1"
+DYNAMO_COMMIT = "a49702e4432e7fa43cbc88175bddb31604340f19"
 
 
 class Args(BaseModel):
@@ -109,6 +111,11 @@ class WorkerBaseArgs(Args):
         serialization_alias="data-parallel-size",
         validation_alias=AliasChoices("data-parallel-size", "data_parallel_size"),
     )
+    distributed_executor_backend: Literal["mp", "ray"] | None = Field(
+        default=None,
+        serialization_alias="distributed-executor-backend",
+        validation_alias=AliasChoices("distributed-executor-backend", "distributed_executor_backend"),
+    )
 
 
 class WorkerConfig(BaseModel):
@@ -130,6 +137,15 @@ class WorkerConfig(BaseModel):
 
     num_nodes: int | list[int] = Field(
         default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+    )
+    nodes_per_worker: int | list[int] | None = Field(
+        default=None,
+        description=(
+            "Number of physical nodes in one logical Slurm backend worker. When omitted, it defaults to one node "
+            "per worker and preserves the legacy Slurm behavior."
+        ),
+        serialization_alias="nodes-per-worker",
+        validation_alias=AliasChoices("nodes-per-worker", "nodes_per_worker"),
     )
     nodes: str | None = Field(default=None)
 
@@ -161,6 +177,23 @@ class WorkerConfig(BaseModel):
         if missing_fields:
             raise ValueError(f"{', '.join(missing_fields)} must be set when num-nodes is non-zero")
 
+    @model_validator(mode="after")
+    def validate_worker_topology(self) -> "WorkerConfig":
+        """Validate scalar worker topology while allowing DSE lists before unrolling."""
+        if isinstance(self.num_nodes, list) or isinstance(self.nodes_per_worker, list):
+            return self
+
+        nodes_per_worker = self.nodes_per_worker
+        if nodes_per_worker is None:
+            return self
+        if nodes_per_worker < 1:
+            raise ValueError("nodes_per_worker must be at least 1")
+        if self.num_nodes < 1:
+            raise ValueError("num_nodes must be at least 1 when nodes_per_worker is set")
+        if self.num_nodes % nodes_per_worker != 0:
+            raise ValueError("num_nodes must be divisible by nodes_per_worker")
+        if nodes_per_worker > 1 and self.multiple_workers_per_node:
+            raise ValueError("multiple_workers_per_node is incompatible with nodes_per_worker > 1")
         return self
 
 
@@ -418,7 +451,7 @@ class AIDynamoCmdArgs(CmdArgs):
     model_config = ConfigDict(extra="forbid")
 
     dynamo_version: str = Field(
-        default="f7e468c7e8ff0d1426db987564e60572167e8464",
+        default=DYNAMO_COMMIT,
         description="AI Dynamo Git commit, tag, or branch.",
     )
     docker_image_url: str
@@ -629,29 +662,59 @@ class AIDynamoTestDefinition(TestDefinition):
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
         decode_worker = tr.test.cmd_args.dynamo.decode_worker
 
-        prefill_tp = prefill_worker.args.tensor_parallel_size
-        prefill_pp = prefill_worker.args.pipeline_parallel_size
-
-        decode_tp = decode_worker.args.tensor_parallel_size
-        decode_pp = decode_worker.args.pipeline_parallel_size
+        prefill_tp = int(prefill_worker.args.tensor_parallel_size)
+        prefill_pp = int(prefill_worker.args.pipeline_parallel_size)
+        decode_tp = int(decode_worker.args.tensor_parallel_size)
+        decode_pp = int(decode_worker.args.pipeline_parallel_size)
 
         if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
             logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
             return False
         logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
 
-        gpus_per_node = 0
-        slurm_system = cast(SlurmSystem, system)
-        if slurm_system and slurm_system.gpus_per_node:
-            gpus_per_node = slurm_system.gpus_per_node
-
-        if (
-            gpus_per_node > 0
-            and self.constraints.tp_times_pp_le_gpus_per_node
-            and (prefill_tp * prefill_pp > gpus_per_node or decode_tp * decode_pp > gpus_per_node)
+        gpus_per_node = int(getattr(cast(SlurmSystem, system), "gpus_per_node", 0) or 0)
+        role_footprints: dict[str, int] = {}
+        for role, worker, tp, pp in (
+            ("prefill", prefill_worker, prefill_tp, prefill_pp),
+            ("decode", decode_worker, decode_tp, decode_pp),
         ):
-            logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
-            return False
+            num_nodes = int(worker.num_nodes)
+            nodes_per_worker = int(worker.nodes_per_worker or 1)
+            world_size = tp * pp
+            data_parallel_size = worker.args.data_parallel_size
+
+            if num_nodes == 0 and worker.nodes_per_worker is None:
+                role_footprints[role] = 0
+                continue
+            if (
+                nodes_per_worker < 1
+                or num_nodes < 1
+                or num_nodes % nodes_per_worker != 0
+                or world_size < 1
+                or world_size % nodes_per_worker != 0
+                or (nodes_per_worker > 1 and worker.multiple_workers_per_node)
+            ):
+                logging.info("constraint_check failed for invalid %s worker topology", role)
+                return False
+
+            if (
+                nodes_per_worker > 1
+                and tr.test.cmd_args.dynamo.backend in {"vllm", "sglang"}
+                and data_parallel_size not in {None, 1}
+            ):
+                logging.info("constraint_check failed: multinode %s data parallelism is not supported", role)
+                return False
+
+            local_footprint = world_size // nodes_per_worker
+            if (
+                gpus_per_node > 0
+                and self.constraints.tp_times_pp_le_gpus_per_node
+                and local_footprint > gpus_per_node
+            ):
+                logging.info("constraint_check failed for %s worker GPU capacity", role)
+                return False
+            role_footprints[role] = local_footprint
+
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
 
         role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
@@ -665,7 +728,7 @@ class AIDynamoTestDefinition(TestDefinition):
             shared_node_disagg
             and gpus_per_node > 0
             and self.constraints.tp_times_pp_le_gpus_per_node
-            and (prefill_tp * prefill_pp + decode_tp * decode_pp > gpus_per_node)
+            and (role_footprints["prefill"] + role_footprints["decode"] > gpus_per_node)
         ):
             logging.info("constraint_check failed for: shared_node_tp_pp_sum_le_gpus_per_node")
             return False
