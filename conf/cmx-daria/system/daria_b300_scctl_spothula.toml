@@ -1,0 +1,46 @@
+# Daria system configuration for launches through a Daria compute node.
+# Personal-path variant of Juntao Wang's CMS b300_scctl.toml.
+
+name = "daria-b300-scctl-spothula"
+scheduler = "slurm"
+
+install_path = "/mnt/lustre/users/spothula/cloudai/.install"
+output_path = "/mnt/lustre/users/spothula/cloudai/results"
+hf_home_path = "/mnt/lustre/cloudai/huggingface"
+
+default_partition = "daria"
+gpus_per_node = 4
+mpi = "pmix"
+monitor_interval = 10
+extra_srun_args = "--container-remap-root --container-writable"
+extra_sbatch_args = ["--cpus-per-task=256"]
+
+cache_docker_images_locally = true
+
+[[partitions]]
+name = "daria"
+
+  [[partitions.groups]]
+  name = "b300_nodes"
+  nodes = [
+    "daria01",
+    "daria02",
+    "daria03",
+    "daria04",
+    "daria05",
+    "daria06",
+    "daria07",
+    "daria08",
+  ]
+
+[global_env_vars]
+HF_HOME = "/root/.cache/huggingface/"
+HF_HUB_CACHE = "/root/.cache/huggingface/hub"
+
+MELLANOX_VISIBLE_DEVICES = "all"
+
+NCCL_DEBUG = "WARN"
+NCCL_IB_DISABLE = "0"
+NCCL_NET_GDR_LEVEL = "5"
+NCCL_IB_GID_INDEX = "3"
+NCCL_SOCKET_IFNAME = "^lo,docker"

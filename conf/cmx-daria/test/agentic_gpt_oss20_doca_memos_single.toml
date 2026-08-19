@@ -1,0 +1,481 @@
+name = "agentic-gpt-oss20-doca-memos-single"
+description = "GPT-OSS-20B agentic workload: LMCache local CPU plus CMX DOCA_MEMOS, single node"
+test_template_name = "AIDynamo"
+extra_container_mounts = [
+  "/dev:/dev",
+  "/sys/class/nvme:/sys/class/nvme",
+  "/mnt/lustre/cloudai/huggingface:/root/.cache/huggingface",
+]
+
+[cmd_args]
+docker_image_url = "artifactory.nvidia.com/sw-nbu-swx-storage-devops-docker-local/nixl/dynamo-vllm-nixl-cmx:1.2.0-cuda13-lmcache-389b9cfc-doca-41a1f020-nixl-cd2f6d49-hnogit-vllm0.20.2-build24-x86_64"
+startup_cmd = """
+set -euo pipefail
+
+echo "Daria CMX startup prep on $(hostname)"
+test -d /mnt/lustre
+test -r /mnt/lustre
+test -d /mnt/lustre/users/spothula/cloudai/.install
+find /mnt/lustre/users/spothula/cloudai/.install -maxdepth 1 -name '*.sqsh' -print -quit | grep -q .
+test -d /mnt/lustre/cloudai/huggingface/hub/models--openai--gpt-oss-20b/snapshots
+
+sudo -n modprobe rdma_ucm
+test -e /dev/infiniband/rdma_cm
+test -d /dev/hugepages
+ls -l /dev/ng* 2>/dev/null || true
+
+ulimit -l unlimited
+target="${CLOUDAI_CMX_NR_HUGEPAGES:?CLOUDAI_CMX_NR_HUGEPAGES is not set}"
+sudo -n /usr/sbin/sysctl -w "vm.nr_hugepages=${target}" >/dev/null
+actual="$(cat /proc/sys/vm/nr_hugepages)"
+if [ "${actual}" -lt "${target}" ]; then
+  echo "nr_hugepages=${actual}, expected at least ${target}" >&2
+  exit 1
+fi
+printf "node=%s nr_hugepages=%s\\n" "$(hostname)" "${actual}"
+grep -E 'HugePages_Total|HugePages_Free|Hugepagesize' /proc/meminfo
+
+doca_memos_device="$(
+python3 - <<'PY'
+import re
+from pathlib import Path
+
+controller_pattern = re.compile(r"^nvme(?P<controller>\\d+)$")
+generic_pattern = re.compile(r"^ng(?P<controller>\\d+)n\\d+$")
+candidates = []
+for controller_path in sorted(Path("/sys/class/nvme").glob("nvme*"), key=lambda path: path.name):
+    match = controller_pattern.fullmatch(controller_path.name)
+    if not match:
+        continue
+    try:
+        state = (controller_path / "state").read_text().strip()
+        model = (controller_path / "model").read_text().strip()
+    except OSError:
+        continue
+    if state != "live" or ("DOCA" not in model and "SNAP" not in model):
+        continue
+    controller_index = match.group("controller")
+    for device in sorted(Path("/dev").glob(f"ng{controller_index}n*"), key=lambda path: path.name):
+        if generic_pattern.fullmatch(device.name):
+            candidates.append(str(device))
+if len(candidates) != 1:
+    raise SystemExit(f"Expected exactly one live DOCA/SNAP generic namespace, found {len(candidates)}: {candidates}")
+print(candidates[0])
+PY
+)"
+echo "DOCA_MEMOS device discovered: ${doca_memos_device}"
+sudo -n chmod a+rw "${doca_memos_device}"
+ls -l "${doca_memos_device}"
+
+doca_memos_nguid="$(
+python3 - "${doca_memos_device}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+device_name = Path(sys.argv[1]).name
+match = re.fullmatch(r"ng(?P<controller>\\d+)n(?P<namespace>\\d+)", device_name) or re.fullmatch(
+    r"nvme(?P<controller>\\d+)n(?P<namespace>\\d+)",
+    device_name,
+)
+if not match:
+    raise SystemExit(f"Unable to derive NVMe namespace from {device_name}")
+controller = f"nvme{match.group('controller')}"
+namespace = f"{controller}n{match.group('namespace')}"
+sysfs_root = Path("/sys/class/nvme")
+nguid_paths = (
+    sysfs_root / namespace / "nguid",
+    sysfs_root / controller / namespace / "nguid",
+)
+nguid_path = next((path for path in nguid_paths if path.is_file()), None)
+if nguid_path is None:
+    checked = ", ".join(str(path) for path in nguid_paths)
+    raise SystemExit(f"Cannot find NGUID for {device_name}; checked {checked}")
+nguid = nguid_path.read_text().strip().replace("-", "").casefold()
+if not re.fullmatch(r"[0-9a-f]{32}", nguid):
+    raise SystemExit(f"Invalid NGUID {nguid!r} for {device_name}; expected 32 hex characters")
+print(nguid)
+PY
+)"
+echo "DOCA_MEMOS_NGUID_DISCOVERED device=${doca_memos_device} nguid=${doca_memos_nguid}"
+
+python3 - "${CLOUDAI_RUNTIME_FILE:?CLOUDAI_RUNTIME_FILE is not set}" "${doca_memos_device}" "${doca_memos_nguid}" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+runtime_file = Path(sys.argv[1])
+device_name = sys.argv[2]
+nguid = sys.argv[3]
+manifest = json.loads(runtime_file.read_text()) if runtime_file.exists() else {}
+replacements = manifest.setdefault("LMCACHE_CONFIG_FILE", {})
+replacements["${doca_memos_device}"] = device_name
+replacements["${doca_memos_nguid}"] = nguid
+runtime_file.parent.mkdir(parents=True, exist_ok=True)
+temporary_path = runtime_file.with_name(f".{runtime_file.name}.{os.getpid()}.tmp")
+temporary_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\\n")
+os.replace(temporary_path, runtime_file)
+print(f"Runtime replacement written: {runtime_file} -> device={device_name} nguid={nguid}")
+PY
+
+run_dir="$(dirname "$(dirname "${CLOUDAI_RUNTIME_FILE}")")"
+health_script="${run_dir}/doca_memos_health_check_inline.py"
+cat > "${health_script}" <<'PY'
+import contextlib
+import ctypes
+import importlib
+import json
+import mmap
+import os
+import re
+import stat
+import sys
+import time
+import traceback
+import uuid
+from pathlib import Path
+
+NVME_GENERIC_DEVICE = re.compile(r"^ng(?P<controller>\\d+)n\\d+$")
+NVME_BLOCK_DEVICE = re.compile(r"^nvme(?P<controller>\\d+)n\\d+$")
+NVME_CONTROLLER = re.compile(r"^nvme(?P<controller>\\d+)$")
+HUGEPAGE_SIZE = 2 * 1024 * 1024
+MAP_HUGETLB = 0x40000
+MAP_HUGE_SHIFT = 26
+MAP_HUGE_2MB = 21 << MAP_HUGE_SHIFT
+
+
+@contextlib.contextmanager
+def hugepage_buffer(size_bytes: int):
+    allocation_size = ((size_bytes + HUGEPAGE_SIZE - 1) // HUGEPAGE_SIZE) * HUGEPAGE_SIZE
+    libc = ctypes.CDLL(None, use_errno=True)
+    mmap_fn = libc.mmap
+    mmap_fn.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_long,
+    ]
+    mmap_fn.restype = ctypes.c_void_p
+    munmap_fn = libc.munmap
+    munmap_fn.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    munmap_fn.restype = ctypes.c_int
+
+    flags = mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_2MB
+    address = mmap_fn(None, allocation_size, mmap.PROT_READ | mmap.PROT_WRITE, flags, -1, 0)
+    if address == ctypes.c_void_p(-1).value:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, f"Unable to allocate {allocation_size} bytes from the 2 MiB hugetlb pool")
+
+    print(
+        f"DOCA_MEMOS_HUGEPAGE_BUFFER_OK address=0x{address:x} size={size_bytes} "
+        f"allocation_size={allocation_size}",
+        flush=True,
+    )
+    try:
+        yield address
+    finally:
+        if munmap_fn(address, allocation_size) != 0:
+            error_number = ctypes.get_errno()
+            raise OSError(error_number, f"Unable to unmap hugetlb buffer at 0x{address:x}")
+
+
+def controller_name(device: Path) -> str:
+    for pattern in (NVME_GENERIC_DEVICE, NVME_BLOCK_DEVICE):
+        match = pattern.fullmatch(device.name)
+        if match:
+            return f"nvme{match.group('controller')}"
+    raise ValueError(f"Cannot derive an NVMe controller from device name {device}")
+
+
+def discover_doca_memos_device() -> str:
+    candidates = []
+    for controller_path in sorted(Path("/sys/class/nvme").glob("nvme*"), key=lambda path: path.name):
+        match = NVME_CONTROLLER.fullmatch(controller_path.name)
+        if not match:
+            continue
+        try:
+            state = (controller_path / "state").read_text().strip()
+            model = (controller_path / "model").read_text().strip()
+        except OSError:
+            continue
+        if state != "live" or ("DOCA" not in model and "SNAP" not in model):
+            continue
+        controller_index = match.group("controller")
+        for device in sorted(Path("/dev").glob(f"ng{controller_index}n*"), key=lambda path: path.name):
+            if NVME_GENERIC_DEVICE.fullmatch(device.name):
+                candidates.append(device)
+
+    if len(candidates) != 1:
+        raise RuntimeError(
+            "Expected exactly one generic namespace for a live DOCA/SNAP controller, "
+            f"found {len(candidates)}: {[str(candidate) for candidate in candidates]}"
+        )
+
+    device_name = str(candidates[0])
+    print(f"DOCA_MEMOS_DEVICE_DISCOVERED device={device_name}", flush=True)
+    return device_name
+
+
+def validate_device(device_name: str) -> None:
+    device = Path(device_name)
+    device_stat = device.stat()
+    if not (stat.S_ISCHR(device_stat.st_mode) or stat.S_ISBLK(device_stat.st_mode)):
+        raise RuntimeError(f"{device} is not a character or block device")
+    if not os.access(device, os.R_OK | os.W_OK):
+        raise PermissionError(f"{device} must be readable and writable")
+
+    controller = controller_name(device)
+    controller_path = Path("/sys/class/nvme") / controller
+    state = (controller_path / "state").read_text().strip()
+    if state != "live":
+        raise RuntimeError(f"{controller} is not live (state={state!r})")
+
+    model = (controller_path / "model").read_text().strip()
+    if "DOCA" not in model and "SNAP" not in model:
+        raise RuntimeError(f"{controller} model {model!r} is not a DOCA/SNAP controller")
+    print(f"DOCA_MEMOS_DEVICE_OK device={device} controller={controller} model={model!r}", flush=True)
+
+
+def load_nixl():
+    import_errors = []
+    for package_name in ("nixl", "nixl_cu13"):
+        try:
+            importlib.import_module(f"{package_name}._utils")
+            nixl_api = importlib.import_module(f"{package_name}._api")
+            return nixl_api.nixl_agent, nixl_api.nixl_agent_config
+        except ImportError as exc:
+            import_errors.append(f"{package_name}: {exc}")
+    raise ImportError("Unable to import a NIXL Python package: " + "; ".join(import_errors))
+
+
+def wait_for_transfer(agent, transfer_handle, timeout_seconds: float) -> None:
+    transfer_state = agent.transfer(transfer_handle)
+    deadline = time.monotonic() + timeout_seconds
+    while transfer_state not in {"DONE", "ERR"}:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"NIXL transfer did not finish within {timeout_seconds:.1f}s")
+        time.sleep(0.001)
+        transfer_state = agent.check_xfer_state(transfer_handle)
+    if transfer_state != "DONE":
+        raise RuntimeError(f"NIXL transfer finished in state {transfer_state!r}")
+
+
+def run_health_check(
+    device_name: str,
+    nguid: str,
+    size_bytes: int = 6 * 1024 * 1024,
+    transfer_timeout: float = 45.0,
+) -> None:
+    validate_device(device_name)
+    nixl_agent, nixl_agent_config = load_nixl()
+    backend_params = {"device_name": device_name, "query_mem_mode": "actual", "num_tasks": "1", "nguid": nguid}
+    agent_name = f"CloudAIDocaMemosHealth{os.getpid()}_{time.time_ns()}"
+    agent = nixl_agent(
+        agent_name,
+        nixl_agent_config(
+            backends=[],
+            enable_prog_thread=True,
+            enable_listen_thread=False,
+        ),
+    )
+    agent.create_backend("DOCA_MEMOS", backend_params)
+
+    with hugepage_buffer(size_bytes) as source_address, hugepage_buffer(size_bytes) as destination_address:
+        ctypes.memset(source_address, 0xA5, size_bytes)
+        ctypes.memset(destination_address, 0, size_bytes)
+
+        local_registration = None
+        object_registration = None
+        transfer_handles = []
+        object_key = uuid.uuid4().hex
+        try:
+            local_registration = agent.register_memory(
+                [
+                    (source_address, size_bytes, 0, ""),
+                    (destination_address, size_bytes, 0, ""),
+                ],
+                "DRAM",
+                backends=["DOCA_MEMOS"],
+            )
+            object_registration = agent.register_memory(
+                [(0, size_bytes, 1, object_key)],
+                "OBJ",
+                backends=["DOCA_MEMOS"],
+            )
+
+            object_descriptor = object_registration.trim()
+            source_descriptor = agent.get_xfer_descs([(source_address, size_bytes, 0)], "DRAM")
+            destination_descriptor = agent.get_xfer_descs([(destination_address, size_bytes, 0)], "DRAM")
+
+            write_handle = agent.initialize_xfer("WRITE", source_descriptor, object_descriptor, agent_name)
+            transfer_handles.append(write_handle)
+            started = time.monotonic()
+            wait_for_transfer(agent, write_handle, transfer_timeout)
+            print(f"DOCA_MEMOS_WRITE_OK seconds={time.monotonic() - started:.6f}", flush=True)
+
+            started = time.monotonic()
+            query_result = agent.query_memory([(0, 0, 1, object_key)], "DOCA_MEMOS", mem_type="OBJ")
+            if not query_result or query_result[0] is None:
+                raise RuntimeError("DOCA_MEMOS query did not find the object just written")
+            print(f"DOCA_MEMOS_QUERY_OK seconds={time.monotonic() - started:.6f}", flush=True)
+
+            read_handle = agent.initialize_xfer("READ", destination_descriptor, object_descriptor, agent_name)
+            transfer_handles.append(read_handle)
+            started = time.monotonic()
+            wait_for_transfer(agent, read_handle, transfer_timeout)
+            if ctypes.string_at(source_address, size_bytes) != ctypes.string_at(destination_address, size_bytes):
+                raise RuntimeError("DOCA_MEMOS read-back data does not match the write")
+            print(f"DOCA_MEMOS_READ_OK seconds={time.monotonic() - started:.6f}", flush=True)
+            validate_device(device_name)
+        finally:
+            for transfer_handle in transfer_handles:
+                with contextlib.suppress(Exception):
+                    agent.release_xfer_handle(transfer_handle)
+            if object_registration is not None:
+                with contextlib.suppress(Exception):
+                    agent.deregister_memory(object_registration, backends=["DOCA_MEMOS"])
+            if local_registration is not None:
+                with contextlib.suppress(Exception):
+                    agent.deregister_memory(local_registration, backends=["DOCA_MEMOS"])
+
+    print(f"DOCA_MEMOS_HEALTH_CHECK_OK size={size_bytes}", flush=True)
+
+
+def write_runtime_replacement(runtime_file: Path, device_name: str) -> None:
+    manifest = json.loads(runtime_file.read_text()) if runtime_file.exists() else {}
+    replacements = manifest.setdefault("LMCACHE_CONFIG_FILE", {})
+    replacements["${doca_memos_device}"] = device_name
+    runtime_file.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = runtime_file.with_name(f".{runtime_file.name}.{os.getpid()}.tmp")
+    temporary_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\\n")
+    os.replace(temporary_path, runtime_file)
+    print(f"Runtime replacement written: {runtime_file} -> {device_name}", flush=True)
+
+
+try:
+    run_health_check(sys.argv[1], sys.argv[2])
+except Exception as exc:
+    print(f"DOCA_MEMOS_HEALTH_CHECK_FAILED: {exc}", file=sys.stderr, flush=True)
+    traceback.print_exc()
+    raise
+PY
+
+container_image="$(
+find /mnt/lustre/users/spothula/cloudai/.install \
+  -maxdepth 1 \
+  -name '*dynamo-vllm-nixl-cmx*1.2.0-cuda13-lmcache-389b9cfc-doca-41a1f020-nixl-cd2f6d49*sqsh' \
+  -print -quit
+)"
+if [ -z "${container_image}" ]; then
+  echo "Unable to find Daria CMX container image in /mnt/lustre/users/spothula/cloudai/.install" >&2
+  exit 1
+fi
+
+echo "Running DOCA_MEMOS write/query/read health check in ${container_image}"
+srun --overlap \
+  --export=ALL \
+  --mpi=pmix \
+  --container-image="${container_image}" \
+  --container-mounts="${run_dir}:/cloudai_run_results,/mnt/lustre/users/spothula/cloudai/.install:/cloudai_install,${run_dir},/dev:/dev,/sys/class/nvme:/sys/class/nvme,/mnt/lustre/cloudai/huggingface:/root/.cache/huggingface,/mnt/lustre/cloudai/huggingface:/cloudai_install/huggingface,/tmp:/tmp" \
+  --no-container-mount-home \
+  --container-remap-root --container-writable \
+  --nodes=1 \
+  --nodelist="$(hostname)" \
+  --ntasks=1 \
+  --ntasks-per-node=1 \
+  --kill-on-bad-exit=1 \
+  --open-mode=append \
+  --output="${run_dir}/doca-memos-health-node-%N-stdout.txt" \
+  --error="${run_dir}/doca-memos-health-node-%N-stderr.txt" \
+  timeout --signal=TERM --kill-after=10s 90s \
+  python3 /cloudai_run_results/doca_memos_health_check_inline.py "${doca_memos_device}" "${doca_memos_nguid}"
+"""
+workloads = "aiperf.sh"
+
+  [cmd_args.lmcache]
+  chunk_size = 512
+  local_cpu = true
+  max_local_cpu_size = 25.0
+  local_cpu_use_hugepages = true
+  nixl_buffer_device = "cpu"
+
+    [cmd_args.lmcache.extra_config]
+    enable_nixl_storage = true
+    nixl_presence_cache = false
+    nixl_presence_cache_only = false
+    nixl_async_put = true
+    nixl_sync_mode = "STRICT"
+    nixl_pool_size = 0
+    nixl_backend = "DOCA_MEMOS"
+
+      [cmd_args.lmcache.extra_config.nixl_backend_params]
+      device_name = "${doca_memos_device}"
+      query_mem_mode = "actual"
+      nguid = "${doca_memos_nguid}"
+
+  [cmd_args.dynamo]
+  backend = "vllm"
+  model = "openai/gpt-oss-20b"
+  ingress-cmd = "python3 -m dynamo.frontend --no-kv-events --router-reset-states --router-mode kv --router-ttl 86400 --kv-overlap-score-weight 1000"
+
+    [cmd_args.dynamo.prefill_worker]
+    num-nodes = 0
+    cmd = "python3 -m dynamo.vllm --is-prefill-worker"
+    worker-initialized-regex = "VllmWorker.*has.been.initialized"
+
+      [cmd_args.dynamo.prefill_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+      gpu-memory-utilization = 0.4
+      kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
+
+    [cmd_args.dynamo.decode_worker]
+    num-nodes = 1
+    cmd = "python3 -m dynamo.vllm"
+    worker-initialized-regex = "VllmWorker.*has.been.initialized"
+    extra-args = "--kv-cache-metrics --kv-cache-metrics-sample 0.01"
+
+      [cmd_args.dynamo.decode_worker.args]
+      tensor-parallel-size = 4
+      pipeline-parallel-size = 1
+      gpu-memory-utilization = 0.4
+      kv-transfer-config = '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
+
+  [cmd_args.aiperf]
+    [cmd_args.aiperf.args]
+    server-metrics = "auto"
+    endpoint-type = "chat"
+    streaming = true
+    export-level = "records"
+    slice-duration = 30
+    server-metrics-formats = "csv,json,jsonl"
+    extra-inputs = "ignore_eos:true"
+    dataset-sampling-strategy = "sequential"
+    export-http-trace = true
+    user-centric-rate = 0.6666666667
+    num-users = 40
+    session-turns-mean = 15
+    user-context-prompt-length = 64000
+    shared-system-prompt-length = 1000
+    synthetic-input-tokens-mean = 2048
+    synthetic-input-tokens-stddev = 0
+    osl = 64
+    num-dataset-entries = 40
+    conversation-num = 40
+    concurrency = 40
+    max-workers = 100
+    warmup-request-count = 5
+
+[extra_env_vars]
+AIPERF_DATASET_CONFIGURATION_TIMEOUT = "900"
+AIPERF_SERVICE_PROFILE_CONFIGURE_TIMEOUT = "900"
+HF_HUB_OFFLINE = "1"
+PYTHONHASHSEED = "0"
+PROMETHEUS_MULTIPROC_DIR = "/tmp/lmcache_prometheus"
+UCX_TLS = "all"
+UCX_HANDLE_ERRORS = "bt,freeze"
+CLOUDAI_CMX_NR_HUGEPAGES = "56320"
+DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | paste -sd, -)"

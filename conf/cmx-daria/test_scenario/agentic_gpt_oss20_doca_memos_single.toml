@@ -1,0 +1,12 @@
+name = "agentic-gpt-oss20-doca-memos-single-review"
+
+[[Tests]]
+id = "agentic-gpt-oss20-doca-memos-single-review"
+test_name = "agentic-gpt-oss20-doca-memos-single"
+nodes = ["daria04"]
+time_limit = "24:00:00"
+
+  [Tests.cmd_args]
+
+    [Tests.cmd_args.dynamo.decode_worker]
+    nodes = "daria04"
