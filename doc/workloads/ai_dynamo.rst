@@ -63,6 +63,43 @@ run on the same allocated node(s) with separate GPU slices.
 
 All node role assignments and orchestration are automatically managed by CloudAI.
 
+Multinode Backend Workers on Slurm
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``prefill_worker.num-nodes`` and ``decode_worker.num-nodes`` specify the total nodes assigned to each role.
+Set ``nodes-per-worker`` to group those nodes into logical backend workers. For example, the following configuration
+creates one prefill worker spanning two nodes and one decode worker spanning two other nodes:
+
+.. code-block:: toml
+
+   [cmd_args.dynamo.prefill_worker]
+   num-nodes = 2
+   nodes-per-worker = 2
+     [cmd_args.dynamo.prefill_worker.args]
+     tensor-parallel-size = 8
+     pipeline-parallel-size = 1
+
+   [cmd_args.dynamo.decode_worker]
+   num-nodes = 2
+   nodes-per-worker = 2
+     [cmd_args.dynamo.decode_worker.args]
+     tensor-parallel-size = 8
+     pipeline-parallel-size = 1
+
+When ``nodes-per-worker`` is omitted, it defaults to ``1`` and preserves the previous one-worker-per-node behavior.
+CloudAI launches vLLM rank 0 as the Dynamo-facing process and the remaining ranks with ``--headless`` using Dynamo's
+multiprocessing executor. SGLang receives ``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every
+participating node.
+
+``tensor-parallel-size * pipeline-parallel-size`` must be divisible by ``nodes-per-worker``, and the resulting
+per-node GPU footprint must fit on each node. Generic multinode data parallelism and Ray-backed Dynamo vLLM groups
+are not currently supported. The Slurm launcher explicitly selects etcd discovery and the NATS event plane.
+
+Dedicated examples are available in ``test_scenario/vllm_multinode_worker_slurm.toml`` and
+``test_scenario/sglang_multinode_worker_slurm.toml``. The existing ``vllm_slurm.toml`` and ``sglang_slurm.toml``
+scenarios retain their previous configurations. The vLLM example inherits ``tensor-parallel-size = 8`` from
+``test/vllm.toml``; the SGLang example sets it explicitly because ``test/sglang.toml`` defaults to ``1``.
+
 Launch and Monitor the Job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -432,8 +469,10 @@ Supported Backends
 The following backends are available via the ``conf/experimental/ai_dynamo/test/`` directory:
 
 - **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
+- **vLLM multinode worker** — use ``test_scenario/vllm_multinode_worker_slurm.toml``
 - **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
 - **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
+- **SGLang multinode worker** — use ``test_scenario/sglang_multinode_worker_slurm.toml``
 
 Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.
 
