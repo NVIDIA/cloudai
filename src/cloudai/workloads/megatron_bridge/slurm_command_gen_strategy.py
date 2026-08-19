@@ -63,14 +63,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
             mbridge_repo_path = self.system.install_path / tdef.megatron_bridge_repo.repo_name  # dry-run compatibility
 
-        venv_path = tdef.python_executable.venv_path
-        if not venv_path:
-            logging.warning(
-                f"The virtual environment for git repo {tdef.python_executable.git_repo} does not exist. "
-                "Please ensure to run installation before running the test."
-            )
-            venv_path = self.system.install_path / tdef.python_executable.venv_name  # dry-run compatibility
-
         launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
         pre_hook_sbatch_path: Optional[Path] = None
@@ -85,10 +77,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
 
-        launcher_python = str((venv_path / "bin" / "python").absolute())
         full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
             " ".join(parts),
-            launcher_python,
             pre_hook_sbatch_path=pre_hook_sbatch_path,
             base_slurm_params=base_slurm_params,
             capture_nodelist=capture_nodelist,
@@ -291,7 +281,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _wrap_launcher_for_job_id_and_quiet_output(
         self,
         launcher_cmd: str,
-        launcher_python: str,
         pre_hook_sbatch_path: Optional[Path] = None,
         base_slurm_params: str = "",
         capture_nodelist: bool = False,
@@ -377,16 +366,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             *pre_hook_lines,
             ': >"$LOG"',
-            "WANDB_INSTALL_RC=0",
-            f'{shlex.quote(launcher_python)} -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',
-            'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then',
-            '  echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2',  # noqa: E501
-            '  tail -n 40 "$LOG" >&2 || true',
-            '  exit "${WANDB_INSTALL_RC}"',
-            "fi",
-            "",
             "LAUNCH_RC=0",
             launch_line,
+            "",
+            'if [ "${LAUNCH_RC}" -ne 0 ]; then',
+            '  echo "Megatron-Bridge launcher failed (exit ${LAUNCH_RC})." >&2',
+            '  tail -n 40 "$LOG" >&2 || true',
+            '  exit "${LAUNCH_RC}"',
+            "fi",
             "",
             # Parse job id from Megatron-Bridge output (multiple possible formats)
             # Patterns: "Submitted batch job 694112", "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
@@ -397,10 +384,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Emit a canonical line for CloudAI to parse
             "",
             'if [ -n "${JOB_ID}" ]; then',
-            '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
-            '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
-            '    tail -n 40 "$LOG" >&2 || true',
-            "  fi",
             '  echo "Submitted batch job ${JOB_ID}"',
             "else",
             '  echo "Failed to retrieve job ID." >&2',
@@ -607,8 +590,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.recompute_modules and "recompute_modules" in fields_set:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
 
-        # The workload is implemented to work only with non-detached MBridge run to obtain perf metrics
-        parts.extend(["--detach", "false"])
+        # CloudAI owns Slurm monitoring and reads metrics from the job's log after completion.
+        parts.extend(["--detach", "true"])
 
         # Optimizer
         add_field("lr", "--lr", args.lr)

@@ -249,42 +249,27 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "export NCCL_IB_HCA=" not in wrapper_content.split("setup_experiment.py")[0]
         assert "export NCCL_DEBUG=" not in wrapper_content.split("setup_experiment.py")[0]
 
-    def test_wrapper_emits_job_id_even_when_launcher_non_zero(
+    def test_wrapper_requires_successful_detached_launcher(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run()
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert 'if [ "${LAUNCH_RC}" -ne 0 ]; then' in wrapper_content
+        assert 'exit "${LAUNCH_RC}"' in wrapper_content
         assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
-        assert 'exit "${LAUNCH_RC}"' not in wrapper_content
         assert "Submitted batch job[ ]+[0-9]+" in wrapper_content
+        assert "--detach true" in wrapper_content
 
-    def test_wrapper_installs_wandb_before_launcher(
+    def test_wrapper_does_not_install_runtime_dependencies(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run()
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
 
-        assert "-m pip install wandb numpy==1.26.4" in wrapper_content
-        wandb_idx = wrapper_content.index("-m pip install wandb")
-        launcher_idx = wrapper_content.index("setup_experiment.py")
-        assert wandb_idx < launcher_idx
-
-    def test_wrapper_exits_when_wandb_install_fails(
-        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
-    ) -> None:
-        tr = make_test_run()
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
-        wrapper_content = self._wrapper_content(cmd_gen)
-
-        assert 'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then' in wrapper_content
-        assert (
-            'echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit '
-            '${WANDB_INSTALL_RC})." >&2'
-        ) in wrapper_content
-        assert 'exit "${WANDB_INSTALL_RC}"' in wrapper_content
+        assert "pip install" not in wrapper_content
+        assert "launcher_compat.py" not in wrapper_content
 
     @pytest.mark.parametrize(
         ("log_content", "expected_is_successful"),
@@ -292,7 +277,10 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             (None, False),
             ("", False),
             ("any\bthing", False),
-            ("ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU", True),
+            (
+                "ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU iteration 1/10",
+                True,
+            ),
         ),
     )
     def test_was_run_successful(

@@ -20,7 +20,7 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .megatron_bridge import extract_mbridge_metrics
+from .metrics import read_mbridge_metrics
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
@@ -29,8 +29,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
     def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
-        return log if log.is_file() else None
+        log_file, _, _ = read_mbridge_metrics(self.test_run.output_path)
+        return log_file
 
     @property
     def results_file(self) -> Path:
@@ -40,13 +40,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         return self.get_log_file() is not None
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
-        log_file = self.get_log_file()
-        if not log_file:
-            return None, [], []
-
-        log_data = log_file.read_text(encoding="utf-8", errors="ignore")
-        step_times_s, gpu_tflops = extract_mbridge_metrics(log_data)
-        return log_file, step_times_s, gpu_tflops
+        return read_mbridge_metrics(self.test_run.output_path)
 
     def generate_report(self) -> None:
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
@@ -61,7 +55,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         if not step_times_s:
             with summary_file.open("w") as f:
                 f.write("MegatronBridge report\n")
-                f.write("No 'Step Time' / 'GPU utilization' lines were found.\n\n")
+                f.write("No 'Step Time' or 'elapsed time per iteration (ms)' lines were found.\n\n")
                 f.write("Searched file:\n")
                 f.write(f"  - {log_file}\n")
             logging.warning("No step metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)

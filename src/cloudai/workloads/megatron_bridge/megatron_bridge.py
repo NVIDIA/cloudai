@@ -16,13 +16,14 @@
 
 import logging
 import os
-import re
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+from .metrics import read_mbridge_metrics
 
 
 class MegatronBridgeCmdArgs(CmdArgs):
@@ -554,48 +555,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        """
-        Ensure that the MBridge script finished correctly.
-
-        The current state of Megatron-Bridge performance scripts makes us running their tool until the very specific
-            failure. Right before the failure the M-Bridge script saves output metrics as JSON.
-
-        - At the point of failure the script asks for reference golden values, that we don't have
-        - Then the script will perform convergence test between provided golden and actual golden - we don't need it
-        """
-        log_path = tr.output_path / "cloudai_megatron_bridge_launcher.log"
-        if not log_path.is_file():
+        """Consider a completed MBridge job successful when its Slurm log contains performance metrics."""
+        log_path, step_times_s, _ = read_mbridge_metrics(tr.output_path)
+        if log_path is None:
             return JobStatusResult(
                 is_successful=False,
-                error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
+                error_message=f"Megatron-Bridge logs not found in {tr.output_path}.",
             )
 
-        log_data = log_path.read_text(encoding="utf-8", errors="ignore")
-        step_times_s, _ = extract_mbridge_metrics(log_data)
         if not step_times_s:
+            log_data = log_path.read_text(encoding="utf-8", errors="ignore")
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         return JobStatusResult(is_successful=True)
-
-
-def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
-    step_times_s: list[float] = []
-    gpu_tflops: list[float] = []
-    step_line_re = re.compile(
-        r"Step Time\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*s.*?"
-        r"GPU utilization:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:MODEL_)?TFLOP/s/GPU",
-        re.IGNORECASE,
-    )
-    for line in logs.splitlines():
-        m = step_line_re.search(line)
-        if m:
-            try:
-                step_times_s.append(float(m.group(1)))
-                gpu_tflops.append(float(m.group(2)))
-            except (ValueError, TypeError):
-                logging.debug("Failed to parse step metrics line: %s", line.rstrip("\n"))
-
-    if len(step_times_s) > 10:
-        step_times_s = step_times_s[-10:]
-        gpu_tflops = gpu_tflops[-10:]
-    return step_times_s, gpu_tflops

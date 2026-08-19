@@ -10,16 +10,14 @@ exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)
 
 
 : >"$LOG"
-WANDB_INSTALL_RC=0
-__INSTALL_DIR__/Run__main-venv/bin/python -m pip install wandb numpy==1.26.4 >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?
-if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then
-  echo "Failed to install runtime deps (wandb, numpy==1.26.4) in launcher venv (exit ${WANDB_INSTALL_RC})." >&2
-  tail -n 40 "$LOG" >&2 || true
-  exit "${WANDB_INSTALL_RC}"
-fi
-
 LAUNCH_RC=0
-NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach false --save_config_filepath /nemo_run/configs/ConfigContainer.yaml --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' logger.log_timers_to_tensorboard=true logger.log_throughput_to_tensorboard=true logger.log_memory_to_tensorboard=true >>"$LOG" 2>&1 || LAUNCH_RC=$?
+NEMORUN_HOME="__OUTPUT_DIR__/output" __INSTALL_DIR__/Run__main-venv/bin/python __INSTALL_DIR__/Megatron-Bridge__main/scripts/performance/setup_experiment.py -p main -t 00:20:00 -i __OUTPUT_DIR__/output/megatron_bridge_image.sqsh -hf dummy_token -ng 8 -gn 8 -cm __INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge -cb 'export CUDA_VISIBLE_DEVICES=0,1,2,3' -cb 'export NCCL_DEBUG=INFO' -m qwen3 -mr 30b_a3b --detach true --save_config_filepath /nemo_run/configs/ConfigContainer.yaml --additional_slurm_params 'gpus-per-node=8;gres=gpu:8' logger.log_timers_to_tensorboard=true logger.log_throughput_to_tensorboard=true logger.log_memory_to_tensorboard=true >>"$LOG" 2>&1 || LAUNCH_RC=$?
+
+if [ "${LAUNCH_RC}" -ne 0 ]; then
+  echo "Megatron-Bridge launcher failed (exit ${LAUNCH_RC})." >&2
+  tail -n 40 "$LOG" >&2 || true
+  exit "${LAUNCH_RC}"
+fi
 
 
 JOB_ID=""
@@ -27,10 +25,6 @@ JOB_ID=$(grep -Eio "(Submitted batch job[ ]+[0-9]+|Job id[: ]+[0-9]+|-[ ]*Job id
 
 
 if [ -n "${JOB_ID}" ]; then
-  if [ "${LAUNCH_RC}" -ne 0 ]; then
-    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2
-    tail -n 40 "$LOG" >&2 || true
-  fi
   echo "Submitted batch job ${JOB_ID}"
 else
   echo "Failed to retrieve job ID." >&2
