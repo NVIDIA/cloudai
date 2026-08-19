@@ -164,6 +164,10 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert mounts == expected
 
 
+def test_final_env_vars_populates_dynamo_nodelist(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    assert "scontrol show hostname $SLURM_JOB_NODELIST" in str(strategy.final_env_vars["DYNAMO_NODELIST"])
+
+
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
     repo = GitRepo(url="https://github.com/example/custom-tools.git", commit="main")
     tdef = AIDynamoTestDefinition(
@@ -601,6 +605,60 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     test_run.num_nodes_explicit = True
 
     assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_allows_multinode_worker_using_group_capacity(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 4
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    for worker in (td.cmd_args.dynamo.prefill_worker, td.cmd_args.dynamo.decode_worker):
+        worker.num_nodes = 2
+        worker.nodes_per_worker = 2
+        worker.args.tensor_parallel_size = 8
+        worker.args.pipeline_parallel_size = 1
+    test_run.num_nodes = 4
+    test_run.nodes = ["n0", "n1", "n2", "n3"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_multinode_worker_rejects_unbalanced_world_size(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 15
+
+    with pytest.raises(ValueError, match=r"TP\*PP \(15\) must be divisible"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_vllm_worker_rejects_ray(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 16
+    worker.args.distributed_executor_backend = "ray"
+
+    with pytest.raises(ValueError, match="only the mp distributed executor"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_worker_topology_is_forwarded_to_runtime(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    prefill = strategy.td.cmd_args.dynamo.prefill_worker
+    decode = strategy.td.cmd_args.dynamo.decode_worker
+    prefill.num_nodes = 2
+    prefill.nodes_per_worker = 2
+    prefill.args.tensor_parallel_size = 16
+    decode.num_nodes = 2
+    decode.nodes_per_worker = 2
+    decode.args.tensor_parallel_size = 16
+
+    args = strategy._gen_script_args(strategy.td)
+
+    assert '--prefill-nodes-per-worker "2"' in args
+    assert '--decode-nodes-per-worker "2"' in args
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
