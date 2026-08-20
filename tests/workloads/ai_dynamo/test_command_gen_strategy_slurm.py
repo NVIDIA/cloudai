@@ -443,13 +443,14 @@ def test_aggregate_mode_omits_decode_script_args(strategy: AIDynamoSlurmCommandG
     td.cmd_args.dynamo.mode = "aggregate"
 
     args = strategy._gen_script_args(td)
+    command = " ".join(args)
 
     assert '--dynamo-mode "aggregate"' in args
-    assert "--prefill-num-nodes" in args
-    assert "--prefill-args-model" in args
-    assert "--decode-num-nodes" not in args
-    assert "--decode-node-list" not in args
-    assert "--decode-args-" not in args
+    assert "--prefill-num-nodes" in command
+    assert "--prefill-args-model" in command
+    assert "--decode-num-nodes" not in command
+    assert "--decode-node-list" not in command
+    assert "--decode-args-" not in command
 
 
 def test_aggregate_mode_uses_prefill_nodes_only(
