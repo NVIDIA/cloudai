@@ -20,23 +20,29 @@ job_status_check = false
 [[Tests]]
 id = "test.disagg.multinode-worker"
 test_name = "sglang"
-time_limit = "00:10:00"
+time_limit = "00:20:00"
 
   [Tests.cmd_args]
     [Tests.cmd_args.dynamo]
     model = "Qwen/Qwen3-0.6B"
     node-setup-cmd = "hostname"
 
+      # Work around the known SGLang multi-node TP overlap-scheduler hang:
+      # https://github.com/sgl-project/sglang/issues/26454
       [Tests.cmd_args.dynamo.prefill_worker]
       num-nodes = 2
       nodes-per-worker = 2
+      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics --disable-overlap-schedule"
 
         [Tests.cmd_args.dynamo.prefill_worker.args]
         tensor-parallel-size = 8
 
+      # Work around the known SGLang multi-node TP CUDA graph replay hang:
+      # https://github.com/sgl-project/sglang/issues/29548
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 2
       nodes-per-worker = 2
+      extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics --disable-overlap-schedule --disable-cuda-graph"
 
         [Tests.cmd_args.dynamo.decode_worker.args]
         tensor-parallel-size = 8
