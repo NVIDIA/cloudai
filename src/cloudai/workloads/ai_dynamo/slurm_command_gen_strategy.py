@@ -445,18 +445,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if td.cmd_args.lmcache_controller:
             args.append(f"--lmcache-controller-cmd {shlex.quote(td.cmd_args.lmcache_controller.cmd)}")
 
-        args.extend(
-            self._get_toml_args(
-                td.cmd_args.dynamo,
-                "--dynamo-",
-                exclude=[
-                    "prefill_worker",
-                    "decode_worker",
-                    "dcgm_exporter",
-                    "dcgm-exporter",
-                ],
-            )
-        )
+        dynamo_excluded_fields = [
+            "prefill_worker",
+            "decode_worker",
+            "dcgm_exporter",
+            "dcgm-exporter",
+        ]
+        if td.cmd_args.dynamo.mode == "disaggregated":
+            dynamo_excluded_fields.append("mode")
+
+        args.extend(self._get_toml_args(td.cmd_args.dynamo, "--dynamo-", exclude=dynamo_excluded_fields))
         if td.cmd_args.dynamo.dcgm_exporter.enabled:
             args.append('--dynamo-dcgm-exporter-enabled "True"')
             args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')

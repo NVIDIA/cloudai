@@ -438,6 +438,20 @@ def test_disaggregate_mode_alias_normalizes() -> None:
     assert args.mode == "disaggregated"
 
 
+def test_default_disaggregated_mode_preserves_legacy_script_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+
+    args = strategy._gen_script_args(td)
+    command = " ".join(args)
+
+    assert td.cmd_args.dynamo.mode == "disaggregated"
+    assert '--dynamo-mode "' not in command
+    assert "--prefill-num-nodes" in command
+    assert "--prefill-args-model" in command
+    assert "--decode-num-nodes" in command
+    assert "--decode-args-model" in command
+
+
 def test_aggregate_mode_omits_decode_script_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.dynamo.mode = "aggregate"
