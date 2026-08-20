@@ -97,7 +97,7 @@ srun \
   --dynamo-nats-port "4222" \
   --dynamo-dcgm-exporter-enabled "True" \
   --dynamo-dcgm-exporter-port "9501" \
-  --prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
+  --prefill-cmd "python3 -m dynamo.vllm" \
   --prefill-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --prefill-multiple-workers-per-node "False" \
   --prefill-num-nodes "1" \

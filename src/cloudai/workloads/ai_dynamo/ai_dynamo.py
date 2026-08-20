@@ -283,7 +283,7 @@ class AIDynamoArgs(BaseModel):
         worker_initialized_regex="VllmWorker.*has.been.initialized",
     )
     prefill_worker: WorkerConfig = WorkerConfig(
-        cmd="python3 -m dynamo.vllm --is-prefill-worker",
+        cmd="python3 -m dynamo.vllm",
         worker_initialized_regex="VllmWorker.*has.been.initialized",
     )
 

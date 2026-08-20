@@ -61,7 +61,7 @@ dse_excluded_args = [
 
       [Tests.cmd_args.dynamo.prefill_worker]
       num-nodes = 1
-      cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+      cmd = 'python3 -m dynamo.vllm'
       worker-initialized-regex = 'VllmWorker.*has.been.initialized'
       extra-args = "--no-enable-expert-parallel"
 

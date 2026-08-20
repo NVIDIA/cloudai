@@ -74,7 +74,7 @@ def cmd_args() -> AIDynamoCmdArgs:
             model="model",
             workspace_path="/workspace",
             prefill_worker=WorkerConfig(
-                cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                cmd="python3 -m dynamo.vllm",
                 worker_initialized_regex="VllmWorker.*has.been.initialized",
                 **{
                     "num-nodes": 1,

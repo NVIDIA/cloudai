@@ -350,6 +350,12 @@ _parse_cli_pairs() {
   done
 }
 
+_set_worker_disaggregation_modes() {
+  # Worker sections already define the role; keep the backend CLI in sync.
+  prefill_args["--disaggregation-mode"]="prefill"
+  decode_args["--disaggregation-mode"]="decode"
+}
+
 _populate_nodelist() {
   local num_nodes="$1"
   local exclude_nodelist="$2"
@@ -576,6 +582,7 @@ _dump_args() {
 function parse_args()
 {
   _parse_cli_pairs "$@"
+  _set_worker_disaggregation_modes
   _normalize_worker_topology
   _set_nodelists
   _validate_worker_topology
