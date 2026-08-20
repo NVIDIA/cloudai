@@ -31,7 +31,7 @@ workloads = "aiperf.sh"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
-    cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+    cmd = 'python3 -m dynamo.vllm'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
     extra-args = "--no-enable-expert-parallel"
 
@@ -75,6 +75,7 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  setup-cmd = "python -m pip install --break-system-packages --ignore-installed blinker==1.9.0 && python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
   health-check-between-phases = true
   continue-on-phase-failure = false
     [cmd_args.aiperf.args]

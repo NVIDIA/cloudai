@@ -81,7 +81,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             workloads="genai_perf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -112,7 +112,7 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
             workloads="aiperf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -137,7 +137,7 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             workloads="aiperf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -164,7 +164,7 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             workloads="genai_perf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
