@@ -86,12 +86,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
 
         launcher_python = str((venv_path / "bin" / "python").absolute())
+        post_hook_sbatch_path = self._gen_post_hook_sbatch() if self.test_run.post_test else None
         full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
             " ".join(parts),
             launcher_python,
             args.wandb_version,
             args.numpy_version,
             pre_hook_sbatch_path=pre_hook_sbatch_path,
+            post_hook_sbatch_path=post_hook_sbatch_path,
             base_slurm_params=base_slurm_params,
             capture_nodelist=capture_nodelist,
         )
@@ -204,6 +206,56 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
         return sbatch_path
 
+    def _gen_post_hook_sbatch(self) -> Path:
+        """Generate a standalone sbatch script running post-hook tests."""
+        post_test = self.test_run.post_test
+        if post_test is None:
+            raise RuntimeError("post_test sbatch requested but post_test is not configured.")
+        if not post_test.test_runs:
+            raise RuntimeError("post_test is configured but contains no test runs.")
+
+        post_hook_output = self.test_run.output_path / "post_hook"
+        post_hook_output.mkdir(parents=True, exist_ok=True)
+
+        first_tr = post_test.test_runs[0]
+        first_strategy = self._get_cmd_gen_strategy(first_tr)
+        self._set_hook_output_path(first_tr, self.test_run.output_path / "post_test")
+        first_tr.output_path.mkdir(parents=True, exist_ok=True)
+
+        sbatch_lines = [
+            "#!/bin/bash",
+            f"#SBATCH --job-name=post_hook_{self.job_name()}",
+            f"#SBATCH --output={post_hook_output.absolute() / 'stdout.txt'}",
+            f"#SBATCH --error={post_hook_output.absolute() / 'stderr.txt'}",
+            f"#SBATCH --partition={self.system.default_partition}",
+        ]
+        if self.system.account:
+            sbatch_lines.append(f"#SBATCH --account={self.system.account}")
+        first_strategy._append_resource_directives(sbatch_lines, first_tr.time_limit)
+        sbatch_lines.extend(
+            [
+                "",
+                "export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)",
+                "",
+            ]
+        )
+
+        for tr in post_test.test_runs:
+            strategy = first_strategy if tr is first_tr else self._get_cmd_gen_strategy(tr)
+            if tr is not first_tr:
+                self._set_hook_output_path(tr, self.test_run.output_path / "post_test")
+                tr.output_path.mkdir(parents=True, exist_ok=True)
+            srun_command = strategy.gen_srun_command()
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={tr.output_path / 'stdout.txt'} --error={tr.output_path / 'stderr.txt'} ", 1
+            )
+            sbatch_lines.append(srun_command_with_output)
+
+        sbatch_path = self.test_run.output_path / "post_hook_sbatch_script.sh"
+        sbatch_path.write_text("\n".join(sbatch_lines))
+        sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
+        return sbatch_path
+
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
@@ -305,6 +357,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         wandb_version: str,
         numpy_version: str,
         pre_hook_sbatch_path: Optional[Path] = None,
+        post_hook_sbatch_path: Optional[Path] = None,
         base_slurm_params: str = "",
         capture_nodelist: bool = False,
     ) -> str:
@@ -316,6 +369,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         If pre_hook_sbatch_path is provided, the pre-hook sbatch is submitted first and its job ID is used as
         a Slurm dependency (afterok) for the main training job, so training only starts if the pre-hook passed.
+
+        If post_hook_sbatch_path is provided, the post-hook sbatch is submitted with an afterany dependency on
+        the main training job, and CloudAI tracks the post-hook job ID.
         """
         output_dir = self.test_run.output_path.absolute()
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -373,6 +429,20 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             launch_line = f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?'
 
+        post_hook_lines: list[str] = ['  echo "Submitted batch job ${JOB_ID}"']
+        if post_hook_sbatch_path is not None:
+            post_hook_lines = [
+                f'  POST_HOOK_SBATCH="{post_hook_sbatch_path.absolute()}"',
+                '  POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID} "$POST_HOOK_SBATCH" 2>&1)',
+                '  POST_HOOK_JOB_ID=$(echo "$POST_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
+                '  if [ -z "$POST_HOOK_JOB_ID" ]; then',
+                '    echo "Failed to submit post-hook job: $POST_HOOK_OUTPUT" >&2',
+                "    exit 1",
+                "  fi",
+                '  echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"',
+                '  echo "Submitted batch job ${POST_HOOK_JOB_ID}"',
+            ]
+
         script_lines = [
             "#!/usr/bin/env bash",
             "set -o pipefail",
@@ -413,7 +483,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
             '    tail -n 40 "$LOG" >&2 || true',
             "  fi",
-            '  echo "Submitted batch job ${JOB_ID}"',
+            *post_hook_lines,
             "else",
             '  echo "Failed to retrieve job ID." >&2',
             '  if [ "${LAUNCH_RC}" -ne 0 ]; then',

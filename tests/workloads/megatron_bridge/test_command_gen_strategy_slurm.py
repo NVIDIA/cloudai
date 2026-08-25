@@ -19,13 +19,14 @@ from typing import Any, Callable, Iterable, cast
 
 import pytest
 
-from cloudai.core import GitRepo, TestRun
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
     MegatronBridgeSlurmCommandGenStrategy,
     MegatronBridgeTestDefinition,
 )
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 WRAPPER_SCRIPT_NAME = "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
 
@@ -300,6 +301,40 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
         assert 'exit "${LAUNCH_RC}"' not in wrapper_content
         assert "Submitted batch job[ ]+[0-9]+" in wrapper_content
+
+    def test_post_hook_runs_as_dependent_job(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        tr = make_test_run(output_subdir="out_post_hook")
+        hook_tdef = NCCLTestDefinition(
+            name="nccl_post",
+            description="post",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            extra_env_vars={"HOOK_VAR": "1"},
+        )
+        post_run = TestRun(
+            test=hook_tdef,
+            name="nccl_post",
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "unused",
+            time_limit="00:05:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[post_run])
+
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        post_hook_script = tr.output_path / "post_hook_sbatch_script.sh"
+
+        assert post_hook_script.exists()
+        post_hook_content = post_hook_script.read_text()
+        assert "#SBATCH --time=00:05:00" in post_hook_content
+        assert "/post_test/nccl_post/stdout.txt" in post_hook_content
+        assert "srun " in post_hook_content
+        assert "POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID}" in wrapper_content
+        assert 'echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"' in wrapper_content
+        assert 'echo "Submitted batch job ${POST_HOOK_JOB_ID}"' in wrapper_content
 
     def test_wrapper_installs_wandb_before_launcher(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
