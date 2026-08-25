@@ -438,6 +438,12 @@ def test_disaggregate_mode_alias_normalizes() -> None:
     assert args.mode == "disaggregated"
 
 
+def test_aggregate_mode_uses_combined_vllm_prefill_command() -> None:
+    args = AIDynamoArgs.model_validate({"mode": "aggregate"})
+
+    assert args.prefill_worker.cmd == "python3 -m dynamo.vllm"
+
+
 def test_default_disaggregated_mode_preserves_legacy_script_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
 

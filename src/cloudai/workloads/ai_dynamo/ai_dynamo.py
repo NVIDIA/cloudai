@@ -247,7 +247,9 @@ class AIDynamoArgs(BaseModel):
 
         if self.backend.lower() == "vllm":
             self.prefill_worker.args.model = self.model
-            if self.mode == "disaggregated":
+            if self.mode == "aggregate":
+                self.prefill_worker.cmd = "python3 -m dynamo.vllm"
+            else:
                 self.decode_worker.args.model = self.model
         elif self.backend.lower() in ["sglang", "sglang_dsr1"]:
             self.prefill_worker.args.model_path = self.model
@@ -612,11 +614,10 @@ class AIDynamoTestDefinition(TestDefinition):
 
         prefill_tp = prefill_worker.args.tensor_parallel_size
         prefill_pp = prefill_worker.args.pipeline_parallel_size
+        decode_tp = decode_worker.args.tensor_parallel_size
+        decode_pp = decode_worker.args.pipeline_parallel_size
 
         if not is_aggregate:
-            decode_tp = decode_worker.args.tensor_parallel_size
-            decode_pp = decode_worker.args.pipeline_parallel_size
-
             if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
                 logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
                 return False
