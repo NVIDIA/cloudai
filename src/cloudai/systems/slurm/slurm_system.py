@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
+import subprocess
 import time
 from copy import copy
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from cloudai.core import BaseJob, File, Installable, System
+from cloudai.core import BaseJob, File, Installable, JobIdRetrievalError, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
@@ -119,6 +122,23 @@ class SlurmSystem(System):
     reports: Optional[dict[str, ReportConfig]] = None
 
     group_allocated: set[SlurmNode] = Field(default_factory=set, exclude=True)
+
+    _REQUIRED_BINARIES: ClassVar[tuple[str, ...]] = (
+        "git",
+        "sbatch",
+        "sinfo",
+        "squeue",
+        "srun",
+        "scancel",
+        "sacct",
+    )
+    _REQUIRED_SRUN_OPTIONS: ClassVar[tuple[str, ...]] = (
+        "--mpi",
+        "--gpus-per-node",
+        "--ntasks-per-node",
+        "--container-image",
+        "--container-mounts",
+    )
 
     @field_validator("reports", mode="before")
     @classmethod
@@ -255,6 +275,73 @@ class SlurmSystem(System):
             *(pattern for pattern in self.extra_transient_status_errors if pattern.strip()),
         ]
         return any(p in stderr for p in patterns)
+
+    @staticmethod
+    def _parse_submitted_job_id(stdout: str) -> int | None:
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if match:
+            return int(match.group(1))
+
+        # Some launchers submit Slurm jobs themselves and use this output format.
+        match = re.search(r"submitted with Job ID (\d+)", stdout)
+        return int(match.group(1)) if match else None
+
+    def submit_job(self, submission_command: str, test_name: str) -> int:
+        """Submit a generated Slurm workload and return its job ID."""
+        stdout, stderr = self.cmd_shell.execute(submission_command).communicate()
+        job_id = self._parse_submitted_job_id(stdout)
+        if job_id is None:
+            raise JobIdRetrievalError(
+                test_name=test_name,
+                command=submission_command,
+                stdout=stdout,
+                stderr=stderr,
+                message="Failed to retrieve job ID.",
+            )
+        return job_id
+
+    def validate_install_environment(self) -> None:
+        """Validate that the configured Slurm environment can run CloudAI workloads."""
+        for binary in self._REQUIRED_BINARIES:
+            if shutil.which(binary) is None:
+                raise EnvironmentError(f"Required binary '{binary}' is not installed.")
+
+        try:
+            result = subprocess.run(["srun", "--help"], text=True, capture_output=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise EnvironmentError(f"Failed to execute 'srun --help': {exc}") from exc
+        missing_options = [option for option in self._REQUIRED_SRUN_OPTIONS if option not in result.stdout]
+        if missing_options:
+            raise EnvironmentError(f"Required srun options missing: {', '.join(missing_options)}")
+
+    def import_docker_image(self, docker_image_url: str, docker_image_path: Path) -> None:
+        """Import a Docker image into the shared Enroot cache through Slurm."""
+        job_name = "CloudAI_install_docker_image"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        job_name = f"{self.account}-{job_name}.{timestamp}" if self.account else f"{job_name}_{timestamp}"
+
+        command = f"srun --export=ALL --partition={self.default_partition}"
+        if self.account:
+            command += f" --account={self.account}"
+        if self.supports_gpu_directives:
+            command += " --gres=gpu:1"
+        if self.extra_srun_args:
+            command += f" {self.extra_srun_args}"
+        command += (
+            f" -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
+        )
+
+        logging.debug("Importing Docker image: %s", command)
+        try:
+            result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Failed to import Docker image {docker_image_url}: {exc.stderr}") from exc
+
+        if "Disk quota exceeded" in result.stderr or "Write error" in result.stderr:
+            raise RuntimeError(
+                f"Failed to cache Docker image {docker_image_url}: {result.stderr}. "
+                "Please check whether the target disk is full or unusable."
+            )
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """

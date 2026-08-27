@@ -19,8 +19,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -186,42 +184,6 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
-    def _import_docker_image(
-        self, srun_prefix: str, docker_image_url: str, docker_image_path: Path
-    ) -> DockerImageCacheResult:
-        job_name = "CloudAI_install_docker_image"
-        if self.system.account:
-            job_name = f"{self.system.account}-{job_name}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        else:
-            job_name = f"{job_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-        # Use -N1 --ntasks=1 to ensure only one compute node downloads the image
-        enroot_import_cmd = f"{srun_prefix} -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
-        logging.debug(f"Importing Docker image: {enroot_import_cmd}")
-        try:
-            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
-
-            if "Disk quota exceeded" in p.stderr or "Write error" in p.stderr:
-                error_message = (
-                    f"Failed to cache Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
-                    f"Error: '{p.stderr}'\n\n"
-                    "This error indicates a disk-related issue. Please check if the disk is full or not usable. "
-                    "If the disk is full, consider using a different disk or removing unnecessary files."
-                )
-                logging.error(error_message)
-                return DockerImageCacheResult(False, Path(), error_message)
-
-            success_message = f"Docker image cached successfully at {docker_image_path}."
-            logging.debug(success_message)
-            logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
-            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
-        except subprocess.CalledProcessError as e:
-            error_message = (
-                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
-            )
-            logging.debug(error_message)
-            return DockerImageCacheResult(False, message=error_message)
-
     def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Cache the Docker image locally using enroot import.
@@ -245,25 +207,20 @@ class DockerImageCacheManager:
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
-        prerequisite_check = self._check_prerequisites()
-        if not prerequisite_check:
-            logging.error(f"Prerequisite check failed: {prerequisite_check.message}")
-            return DockerImageCacheResult(False, Path(), prerequisite_check.message)
-
         if not os.access(self.system.install_path, os.W_OK):
             error_message = f"No permission to write in install path {self.system.install_path}."
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
-        srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
-        if self.system.account:
-            srun_prefix += f" --account={self.system.account}"
-        if self.system.supports_gpu_directives:
-            srun_prefix += " --gres=gpu:1"
-        if self.system.extra_srun_args:
-            srun_prefix += f" {self.system.extra_srun_args}"
+        try:
+            self.system.import_docker_image(docker_image_url, docker_image_path)
+        except RuntimeError as exc:
+            logging.debug(str(exc))
+            return DockerImageCacheResult(False, message=str(exc))
 
-        return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path)
+        success_message = f"Docker image cached successfully at {docker_image_path}."
+        logging.debug(success_message)
+        return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
 
     def _check_prerequisites(self) -> PrerequisiteCheckResult:
         """

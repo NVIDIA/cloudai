@@ -23,7 +23,6 @@ import pytest
 from cloudai.systems.slurm.docker_image_cache_manager import (
     DockerImageCacheManager,
     DockerImageCacheResult,
-    PrerequisiteCheckResult,
 )
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -67,11 +66,8 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
 @patch("pathlib.Path.is_file")
 @patch("pathlib.Path.exists")
 @patch("os.access")
-@patch("subprocess.run")
-@patch("cloudai.systems.slurm.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-def test_cache_docker_image(
-    mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
-):
+@patch("cloudai.systems.slurm.slurm_system.subprocess.run")
+def test_cache_docker_image(mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem):
     manager = DockerImageCacheManager(slurm_system)
 
     # Test when cached file already exists
@@ -89,9 +85,6 @@ def test_cache_docker_image(
         True,
     ]  # install_path exists, subdir_path does not, install_path again
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
-
-    # Ensure prerequisites are always met for the following tests
-    mock_check_prerequisites.return_value = PrerequisiteCheckResult(True, "All prerequisites are met.")
 
     # Reset the mock calls
     mock_run.reset_mock()
@@ -169,22 +162,20 @@ def test_uninstall_cached_image(mock_is_file, mock_unlink, slurm_system: SlurmSy
 
 
 @patch("shutil.which")
-def test_check_prerequisites(mock_which, slurm_system: SlurmSystem):
-    manager = DockerImageCacheManager(slurm_system)
+@patch("cloudai.systems.slurm.slurm_system.subprocess.run")
+def test_check_prerequisites(mock_run, mock_which, slurm_system: SlurmSystem):
+    mock_which.return_value = "/usr/bin/tool"
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["srun", "--help"],
+        returncode=0,
+        stdout=" ".join(slurm_system._REQUIRED_SRUN_OPTIONS),
+        stderr="",
+    )
+    slurm_system.validate_install_environment()
 
-    # Ensure enroot and srun are installed
-    mock_which.side_effect = lambda x: x in ["enroot", "srun"]
-
-    # Test all prerequisites met
-    result = manager._check_prerequisites()
-    assert result.success
-    assert result.message == "All prerequisites are met."
-
-    # Test srun not installed
     mock_which.side_effect = lambda x: x != "srun"
-    result = manager._check_prerequisites()
-    assert not result.success
-    assert result.message == "srun are required for caching Docker images but are not installed."
+    with pytest.raises(EnvironmentError, match="Required binary 'srun' is not installed"):
+        slurm_system.validate_install_environment()
 
 
 def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
@@ -209,9 +200,9 @@ def test_docker_import_with_extra_system_config(
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
     manager = DockerImageCacheManager(slurm_system)
-    manager._check_prerequisites = lambda: PrerequisiteCheckResult(True, "All prerequisites are met.")
 
-    with patch("subprocess.run") as mock_run:
+    with patch("cloudai.systems.slurm.slurm_system.subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stdout="", stderr="")
         res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
         assert res.success
 
@@ -245,10 +236,9 @@ def test_docker_import_with_extra_srun_args(slurm_system: SlurmSystem):
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
     manager = DockerImageCacheManager(slurm_system)
-    manager._check_prerequisites = lambda: PrerequisiteCheckResult(True, "All prerequisites are met.")
 
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
+    with patch("cloudai.systems.slurm.slurm_system.subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stdout="", stderr="")
         res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
         assert res.success
 
