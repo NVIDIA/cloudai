@@ -206,6 +206,31 @@ action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
 
+Custom reward functions
+~~~~~~~~~~~~~~~~~~~~~~~
+
+External Python packages can expose reward functions to CloudAI through the
+``cloudai.reward_functions`` entry point group. For example, a package can register a function in its
+``pyproject.toml`` as follows:
+
+.. code-block:: toml
+
+   [project.entry-points."cloudai.reward_functions"]
+   my_reward = "my_package.rewards:my_reward"
+
+The exported object must be callable with a ``list[float]`` containing the configured metric values and return a
+``float`` reward. Entry point reward functions are discovered when CloudAI starts but imported only when they are
+selected or listed. Select one by setting ``agent_reward_function`` to its entry point name:
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "Tests.1"
+   test_name = "nccl_test_all_reduce"
+   agent_reward_function = "my_reward"
+
+Run ``cloudai list reward-functions`` to list built-in and entry point reward functions.
+
 DSE parameter exclusions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -38,7 +38,7 @@ from cloudai.core import (
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
-from cloudai.registration import register_entrypoint_agents
+from cloudai.registration import register_entrypoint_agents, register_entrypoint_reward_functions
 
 
 class MyTestDefinition(TestDefinition):
@@ -476,3 +476,150 @@ def test_lazy_entrypoint_agent_avoids_import_order_circular_import(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "CircularImportAgent"
+
+
+def test_entrypoint_reward_function_registration_is_lazy():
+    def reward(values: list[float]) -> float:
+        return sum(values)
+
+    class MockEP:
+        name = "lazy_reward"
+        value = "reward_package:reward"
+
+        def __init__(self):
+            self.load_count = 0
+
+        def load(self):
+            self.load_count += 1
+            return reward
+
+    registry = Registry()
+    old_reward = registry.reward_functions_map.pop("lazy_reward", None)
+    old_ep = registry.reward_function_entrypoints_map.pop("lazy_reward", None)
+    ep = MockEP()
+
+    try:
+        with patch("cloudai.registration.entry_points", return_value=[ep]) as mocked_entry_points:
+            register_entrypoint_reward_functions()
+
+        mocked_entry_points.assert_called_once_with(group="cloudai.reward_functions")
+        assert ep.load_count == 0
+        assert registry.has_reward_function("lazy_reward")
+        assert "lazy_reward" in registry.reward_function_names()
+        assert registry.get_reward_function("lazy_reward") is reward
+        assert ep.load_count == 1
+        assert registry.get_reward_function("lazy_reward") is reward
+        assert ep.load_count == 1
+        assert "lazy_reward" not in registry.reward_function_entrypoints_map
+    finally:
+        registry.reward_functions_map.pop("lazy_reward", None)
+        registry.reward_function_entrypoints_map.pop("lazy_reward", None)
+        if old_reward is not None:
+            registry.update_reward_function("lazy_reward", old_reward)
+        if old_ep is not None:
+            registry.add_entrypoint_reward_function("lazy_reward", old_ep)
+
+
+def test_entrypoint_reward_function_type_verified():
+    class MockEP:
+        name = "invalid_reward"
+        value = "reward_package:not_callable"
+
+        def load(self):
+            return 42
+
+    registry = Registry()
+    old_reward = registry.reward_functions_map.pop("invalid_reward", None)
+    old_ep = registry.reward_function_entrypoints_map.pop("invalid_reward", None)
+
+    try:
+        registry.add_entrypoint_reward_function("invalid_reward", MockEP())
+        with (
+            pytest.warns(UserWarning, match="not callable"),
+            pytest.raises(TypeError, match="not callable"),
+        ):
+            registry.get_reward_function("invalid_reward")
+    finally:
+        registry.reward_functions_map.pop("invalid_reward", None)
+        registry.reward_function_entrypoints_map.pop("invalid_reward", None)
+        if old_reward is not None:
+            registry.update_reward_function("invalid_reward", old_reward)
+        if old_ep is not None:
+            registry.add_entrypoint_reward_function("invalid_reward", old_ep)
+
+
+def test_entrypoint_reward_function_duplicate_and_update_behavior():
+    class MockEP:
+        value = "reward_package:reward"
+
+        def load(self):
+            return lambda values: sum(values)
+
+    registry = Registry()
+    names = ["concrete_reward", "entrypoint_reward"]
+    old_rewards = {name: registry.reward_functions_map.pop(name, None) for name in names}
+    old_eps = {name: registry.reward_function_entrypoints_map.pop(name, None) for name in names}
+
+    def replacement(values: list[float]) -> float:
+        return sum(values)
+
+    try:
+        registry.add_reward_function("concrete_reward", replacement)
+        with pytest.raises(ValueError, match="Duplicating implementation"):
+            registry.add_entrypoint_reward_function("concrete_reward", MockEP())
+
+        registry.add_entrypoint_reward_function("entrypoint_reward", MockEP())
+        with pytest.raises(ValueError, match="Duplicating implementation"):
+            registry.add_entrypoint_reward_function("entrypoint_reward", MockEP())
+        with pytest.raises(ValueError, match="Duplicating implementation"):
+            registry.add_reward_function("entrypoint_reward", replacement)
+
+        registry.update_reward_function("entrypoint_reward", replacement)
+        assert registry.get_reward_function("entrypoint_reward") is replacement
+        assert "entrypoint_reward" not in registry.reward_function_entrypoints_map
+    finally:
+        for name in names:
+            registry.reward_functions_map.pop(name, None)
+            registry.reward_function_entrypoints_map.pop(name, None)
+            if old_rewards[name] is not None:
+                registry.update_reward_function(name, old_rewards[name])  # type: ignore
+            if old_eps[name] is not None:
+                registry.add_entrypoint_reward_function(name, old_eps[name])
+
+
+def test_lazy_entrypoint_reward_function_avoids_import_order_circular_import(tmp_path):
+    package_dir = tmp_path / "external_reward_pkg"
+    package_dir.mkdir()
+    (package_dir / "__init__.py").write_text(
+        'from .reward_module import circular_import_reward\n\n__all__ = ["circular_import_reward"]\n'
+    )
+    (package_dir / "reward_module.py").write_text(
+        "from cloudai.core import Registry\n\ndef circular_import_reward(values):\n    return float(sum(values))\n"
+    )
+    dist_info_dir = tmp_path / "external_reward_pkg-1.0.dist-info"
+    dist_info_dir.mkdir()
+    (dist_info_dir / "METADATA").write_text("Name: external-reward-pkg\nVersion: 1.0\n")
+    (dist_info_dir / "entry_points.txt").write_text(
+        "[cloudai.reward_functions]\n"
+        "circular_import_reward = external_reward_pkg.reward_module:circular_import_reward\n"
+    )
+
+    env = os.environ.copy()
+    src_path = str((Path(__file__).resolve().parents[1] / "src").resolve())
+    pythonpath = os.pathsep.join([str(tmp_path), src_path, env.get("PYTHONPATH", "")])
+    env["PYTHONPATH"] = pythonpath
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from external_reward_pkg import reward_module; print(reward_module.circular_import_reward([1, 2]))",
+        ],
+        check=False,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "3.0"

@@ -631,5 +631,14 @@ def handle_list_registered_items(item_type: str, verbose: bool) -> int:
             if verbose:
                 string += f"{agent.__doc__}"
             print(string)
+    elif item_type.lower() == "reward-functions":
+        print("Available reward functions:")
+        for idx, name in enumerate(registry.reward_function_names(), start=1):
+            reward_function = registry.get_reward_function(name)
+            callable_name = getattr(reward_function, "__name__", type(reward_function).__name__)
+            string = f'{idx}. "{name}" function={callable_name}'
+            if verbose:
+                string += f"{getattr(reward_function, '__doc__', None) or ''}"
+            print(string)
 
     return 0
