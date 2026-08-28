@@ -248,8 +248,8 @@ class SingleSbatchRunner(SlurmRunner):
 
         job_id = 0
         if self.mode == "run":
-            exec_cmd = f"sbatch {self.scenario_root / 'cloudai_sbatch_script.sh'}"
-            job_id = self.system.submit_job(exec_cmd, tr.name)
+            script_path = self.scenario_root / "cloudai_sbatch_script.sh"
+            job_id = self.system.submit_sbatch(script_path, tr.name)
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 

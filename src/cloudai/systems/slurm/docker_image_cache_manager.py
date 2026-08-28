@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,147 +18,56 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
+import shlex
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
+
+from cloudai.core import JobIdRetrievalError
 
 if TYPE_CHECKING:
     from cloudai.systems.slurm import SlurmSystem
 
 
-class PrerequisiteCheckResult:
-    """
-    Class representing the result of a prerequisite check.
-
-    Attributes
-        success (bool): Indicates whether the prerequisite check was successful.
-        message (str): A message providing additional information about the result.
-    """
-
-    def __init__(self, success: bool, message: str = "") -> None:
-        """
-        Initialize the PrerequisiteCheckResult.
-
-        Args:
-            success (bool): Indicates whether the prerequisite check was successful.
-            message (str): A message providing additional information about the result.
-        """
-        self.success = success
-        self.message = message
-
-    def __bool__(self):
-        """
-        Return the success status as a boolean.
-
-        Returns
-            bool: True if the check was successful, False otherwise.
-        """
-        return self.success
-
-    def __str__(self):
-        """
-        Return the message as a string.
-
-        Returns
-            str: The message providing additional information about the result.
-        """
-        return self.message
-
-
 class DockerImageCacheResult:
-    """
-    Class representing the result of a Docker image caching operation.
+    """Result of a Docker image caching operation."""
 
-    Attributes
-        success (bool): Indicates whether the operation was successful.
-        docker_image_path (Path): The path to the Docker image.
-        message (str): A message providing additional information about the result.
-    """
-
-    def __init__(self, success: bool, docker_image_path: Optional[Path] = None, message: str = "") -> None:
-        """
-        Initialize the DockerImageCacheResult.
-
-        Args:
-            success (bool): Indicates whether the operation was successful.
-            docker_image_path (Path): The path to the Docker image.
-            message (str): A message providing additional information about the result.
-        """
+    def __init__(
+        self,
+        success: bool,
+        docker_image_path: Optional[Path] = None,
+        message: str = "",
+    ) -> None:
         self.success = success
         self.docker_image_path = docker_image_path
         self.message = message
 
     def __bool__(self):
-        """
-        Return the success status as a boolean.
-
-        Returns
-            bool: True if the operation was successful, False otherwise.
-        """
+        """Return whether the cache operation succeeded."""
         return self.success
 
     def __str__(self):
-        """
-        Return the message as a string.
-
-        Returns
-            str: The message providing additional information about the result.
-        """
+        """Return the result message."""
         return self.message
 
 
 class DockerImageCacheManager:
-    """
-    Manages the caching of Docker images for installation strategies.
-
-    Attributes
-        system (SlurmSystem): The Slurm system configuration.
-    """
+    """Generate and interpret jobs which cache Docker images on a Slurm system."""
 
     def __init__(self, system: SlurmSystem) -> None:
         self.system = system
 
     def ensure_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
-        """
-        Ensure the Docker image exists by checking and optionally caching it.
-
-        Args:
-            docker_image_url (str): URL or file path of the Docker image.
-            docker_image_filename (str): Docker image filename.
-
-        Returns:
-            DockerImageCacheResult: Result of ensuring the Docker image exists.
-        """
-        image_check_result = self.check_docker_image_exists(docker_image_url, docker_image_filename)
-        if image_check_result.success:
-            return image_check_result
-
+        result = self.check_docker_image_exists(docker_image_url, docker_image_filename)
+        if result.success:
+            return result
         if self.system.cache_docker_images_locally:
             return self.cache_docker_image(docker_image_url, docker_image_filename)
-
-        return image_check_result
+        return result
 
     def check_docker_image_exists(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
-        """
-        Check if the Docker image exists without caching it.
-
-        Args:
-            docker_image_url (str): URL or file path of the Docker image.
-            docker_image_filename (str): Docker image filename.
-
-        Returns:
-            DockerImageCacheResult: Result of the Docker image existence check.
-        """
-        logging.debug(
-            f"Checking if Docker image exists: docker_image_url={docker_image_url}, "
-            f"subdir_name={self.system.install_path}, "
-            f"docker_image_filename={docker_image_filename}, "
-            f"cache_docker_images_locally={self.system.cache_docker_images_locally}"
-        )
-
-        # If not caching locally, return True. Defer checking URL accessibility to srun.
         if not self.system.cache_docker_images_locally:
-            return DockerImageCacheResult(True, None, "")
+            return DockerImageCacheResult(True)
 
         docker_image_path = Path(docker_image_url)
         if docker_image_path.is_file() and docker_image_path.exists():
@@ -168,7 +77,6 @@ class DockerImageCacheManager:
                 f"Docker image file path is valid: {docker_image_url}.",
             )
 
-        # Check if the cache file exists
         if not self.system.install_path.exists():
             message = f"Install path {self.system.install_path.absolute()} does not exist."
             logging.debug(message)
@@ -184,85 +92,99 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
+    def _job_name(self) -> str:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if self.system.account:
+            return f"{self.system.account}-CloudAI_install_docker_image.{timestamp}"
+        return f"CloudAI_install_docker_image_{timestamp}"
+
+    def _write_import_script(self, docker_image_url: str, docker_image_path: Path) -> tuple[Path, Path]:
+        job_name = self._job_name()
+        script_path = self.system.install_path / f".{job_name}.sh"
+        stdout_path = self.system.install_path / f".{job_name}.out"
+        stderr_path = self.system.install_path / f".{job_name}.err"
+        directives = [
+            "#!/bin/bash",
+            f"#SBATCH --job-name={job_name}",
+            f"#SBATCH --output={stdout_path}",
+            f"#SBATCH --error={stderr_path}",
+            f"#SBATCH --partition={self.system.default_partition}",
+            "#SBATCH -N1",
+            "#SBATCH --ntasks=1",
+        ]
+        if self.system.account:
+            directives.append(f"#SBATCH --account={self.system.account}")
+        if self.system.supports_gpu_directives:
+            directives.append("#SBATCH --gres=gpu:1")
+        directives.extend(f"#SBATCH {arg}" for arg in self.system.extra_sbatch_args)
+
+        srun = ["srun", "--export=ALL", "--ntasks=1"]
+        if self.system.extra_srun_args:
+            srun.append(self.system.extra_srun_args)
+        srun.extend(
+            [
+                "enroot import -o",
+                shlex.quote(str(docker_image_path)),
+                shlex.quote(f"docker://{docker_image_url}"),
+            ]
+        )
+        script_path.write_text("\n".join([*directives, "", " ".join(srun), ""]), encoding="utf-8")
+        return script_path, stderr_path
+
     def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
-        """
-        Cache the Docker image locally using enroot import.
-
-        Args:
-            docker_image_url (str): URL of the Docker image.
-            docker_image_filename (str): Docker image filename.
-
-        Returns:
-            DockerImageCacheResult: Result of the Docker image caching operation.
-        """
         docker_image_path = self.system.install_path / docker_image_filename
-
         if docker_image_path.is_file():
-            success_message = f"Cached Docker image already exists at {docker_image_path}."
-            logging.info(success_message)
-            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
+            message = f"Cached Docker image already exists at {docker_image_path}."
+            logging.info(message)
+            return DockerImageCacheResult(True, docker_image_path.absolute(), message)
 
         if not self.system.install_path.exists():
-            error_message = f"Install path {self.system.install_path.absolute()} does not exist."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, Path(), error_message)
-
+            message = f"Install path {self.system.install_path.absolute()} does not exist."
+            logging.error(message)
+            return DockerImageCacheResult(False, Path(), message)
         if not os.access(self.system.install_path, os.W_OK):
-            error_message = f"No permission to write in install path {self.system.install_path}."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, Path(), error_message)
+            message = f"No permission to write in install path {self.system.install_path}."
+            logging.error(message)
+            return DockerImageCacheResult(False, Path(), message)
 
+        script_path, stderr_path = self._write_import_script(docker_image_url, docker_image_path)
         try:
-            self.system.import_docker_image(docker_image_url, docker_image_path)
-        except RuntimeError as exc:
-            logging.debug(str(exc))
-            return DockerImageCacheResult(False, message=str(exc))
+            self.system.submit_sbatch(script_path, "Docker image import", wait=True)
+        except JobIdRetrievalError as error:
+            message = f"Failed to import Docker image {docker_image_url}: {error}"
+            logging.error(message)
+            return DockerImageCacheResult(False, message=message)
 
-        success_message = f"Docker image cached successfully at {docker_image_path}."
-        logging.debug(success_message)
-        return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
+        stderr = stderr_path.read_text(encoding="utf-8") if stderr_path.is_file() else ""
+        if docker_image_path.is_file():
+            message = f"Docker image cached successfully at {docker_image_path}."
+            logging.debug(message)
+            return DockerImageCacheResult(True, docker_image_path.absolute(), message)
 
-    def _check_prerequisites(self) -> PrerequisiteCheckResult:
-        """
-        Check prerequisites for caching Docker image.
-
-        Returns:
-            PrerequisiteCheckResult: Result of the prerequisite check.
-        """
-        required_binaries = ["srun"]
-        missing_binaries = [binary for binary in required_binaries if not shutil.which(binary)]
-
-        if missing_binaries:
-            missing_binaries_str = ", ".join(missing_binaries)
-            logging.error(f"{missing_binaries_str} are required for caching Docker images but are not installed.")
-            return PrerequisiteCheckResult(
-                False,
-                f"{missing_binaries_str} are required for caching Docker images but are not installed.",
+        if "Disk quota exceeded" in stderr or "Write error" in stderr:
+            message = (
+                f"Failed to cache Docker image {docker_image_url}. Error: '{stderr}'\n\n"
+                "This error indicates a disk-related issue. Please check if the disk is full or not usable. "
+                "If the disk is full, consider using a different disk or removing unnecessary files."
             )
-
-        return PrerequisiteCheckResult(True, "All prerequisites are met.")
+        else:
+            message = f"Failed to import Docker image {docker_image_url}. Error: {stderr or 'image was not created'}"
+        logging.error(message)
+        return DockerImageCacheResult(False, message=message)
 
     def uninstall_cached_image(self, docker_image_filename: str) -> DockerImageCacheResult:
-        """
-        Remove an existing cached Docker image.
-
-        Args:
-            docker_image_filename (str): Docker image filename.
-
-        Returns:
-            DockerImageCacheResult: Result of the removal operation.
-        """
         docker_image_path = self.system.install_path / docker_image_filename
         if docker_image_path.is_file():
             try:
                 docker_image_path.unlink()
-                success_message = f"Cached Docker image removed successfully from {docker_image_path}."
-                logging.info(success_message)
-                return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
-            except OSError as e:
-                error_message = f"Failed to remove cached Docker image at {docker_image_path}. Error: {e}"
-                logging.error(error_message)
-                return DockerImageCacheResult(False, docker_image_path, error_message)
-        success_message = f"No cached Docker image found to remove at {docker_image_path}."
-        logging.warning(success_message)
-        return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
+                message = f"Cached Docker image removed successfully from {docker_image_path}."
+                logging.info(message)
+                return DockerImageCacheResult(True, docker_image_path.absolute(), message)
+            except OSError as error:
+                message = f"Failed to remove cached Docker image at {docker_image_path}. Error: {error}"
+                logging.error(message)
+                return DockerImageCacheResult(False, docker_image_path, message)
+
+        message = f"No cached Docker image found to remove at {docker_image_path}."
+        logging.warning(message)
+        return DockerImageCacheResult(True, docker_image_path.absolute(), message)

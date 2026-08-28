@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 import shutil
 import subprocess
 import time
@@ -99,6 +100,12 @@ class SlurmPartition(BaseModel):
 
 class SlurmSystem(System):
     """Represents a Slurm system."""
+
+    def submit_sbatch(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
+        """Submit an sbatch script without exposing the CLI transport to callers."""
+        wait_arg = " --wait" if wait else ""
+        command = f"sbatch{wait_arg} {shlex.quote(str(script_path))}"
+        return self.submit_job(command, operation_name)
 
     default_partition: str
     partitions: List[SlurmPartition]
@@ -314,7 +321,7 @@ class SlurmSystem(System):
         if missing_options:
             raise EnvironmentError(f"Required srun options missing: {', '.join(missing_options)}")
 
-    def import_docker_image(self, docker_image_url: str, docker_image_path: Path) -> None:
+    def _deprecated_import_docker_image(self, docker_image_url: str, docker_image_path: Path) -> None:
         """Import a Docker image into the shared Enroot cache through Slurm."""
         job_name = "CloudAI_install_docker_image"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
