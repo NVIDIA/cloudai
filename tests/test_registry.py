@@ -553,7 +553,7 @@ def test_entrypoint_reward_function_duplicate_and_update_behavior():
         value = "reward_package:reward"
 
         def load(self):
-            return lambda values: sum(values)
+            return sum
 
     registry = Registry()
     names = ["concrete_reward", "entrypoint_reward"]
@@ -613,7 +613,8 @@ def test_lazy_entrypoint_reward_function_avoids_import_order_circular_import(tmp
         [
             sys.executable,
             "-c",
-            "from external_reward_pkg import reward_module; print(reward_module.circular_import_reward([1, 2]))",
+            "from cloudai.core import Registry; "
+            "print(Registry().get_reward_function('circular_import_reward')([1, 2]))",
         ],
         check=False,
         env=env,

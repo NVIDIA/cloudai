@@ -614,7 +614,7 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     return files
 
 
-def handle_list_registered_items(item_type: str, verbose: bool) -> int:
+def handle_list_registered_items(item_type: str, verbose: bool) -> int:  # noqa: C901
     registry = Registry()
     if item_type.lower() == "reports":
         print("Available scenario reports:")
@@ -638,7 +638,9 @@ def handle_list_registered_items(item_type: str, verbose: bool) -> int:
             callable_name = getattr(reward_function, "__name__", type(reward_function).__name__)
             string = f'{idx}. "{name}" function={callable_name}'
             if verbose:
-                string += f"{getattr(reward_function, '__doc__', None) or ''}"
+                documentation = getattr(reward_function, "__doc__", None)
+                if documentation:
+                    string += f" {documentation}"
             print(string)
 
     return 0
