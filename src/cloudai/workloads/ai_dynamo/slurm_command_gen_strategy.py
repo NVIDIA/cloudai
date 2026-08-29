@@ -197,18 +197,30 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError(f"{role} worker parallelism must be scalar after DSE unrolling")
 
         world_size = tp * pp
-        if world_size % nodes_per_worker != 0:
+        data_parallel_size = int(dp or 1)
+        is_vllm_multinode_dp = self.td.cmd_args.dynamo.backend == "vllm" and data_parallel_size > 1
+        is_sglang_multinode_dp = self.td.cmd_args.dynamo.backend == "sglang" and data_parallel_size > 1
+        if is_sglang_multinode_dp and not worker.has_extra_arg("--enable-dp-attention"):
+            raise ValueError(f"Multinode SGLang data parallelism for the {role} worker requires --enable-dp-attention")
+        if is_vllm_multinode_dp and data_parallel_size % nodes_per_worker != 0:
+            raise ValueError(
+                f"{role} worker data_parallel_size ({data_parallel_size}) must be divisible by "
+                f"nodes_per_worker ({nodes_per_worker})"
+            )
+        if not is_vllm_multinode_dp and world_size % nodes_per_worker != 0:
             raise ValueError(
                 f"{role} worker TP*PP ({world_size}) must be divisible by nodes_per_worker ({nodes_per_worker})"
             )
-        local_world_size = world_size // nodes_per_worker
+        local_world_size = (
+            world_size * (data_parallel_size // nodes_per_worker)
+            if is_vllm_multinode_dp
+            else world_size // nodes_per_worker
+        )
         gpus_per_node = int(getattr(self.system, "gpus_per_node", 0) or 0)
         if gpus_per_node and local_world_size > gpus_per_node:
             raise ValueError(
                 f"{role} worker needs {local_world_size} GPU(s) per node, but the system has {gpus_per_node}"
             )
-        if self.td.cmd_args.dynamo.backend in {"vllm", "sglang"} and dp not in {None, 1}:
-            raise ValueError(f"Multinode data parallelism is not yet supported for the {role} worker")
         if (
             self.td.cmd_args.dynamo.backend == "vllm"
             and worker.args.distributed_executor_backend not in {None, "mp"}

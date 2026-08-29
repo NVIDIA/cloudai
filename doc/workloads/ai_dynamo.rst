@@ -87,18 +87,31 @@ creates one prefill worker spanning two nodes and one decode worker spanning two
      pipeline-parallel-size = 1
 
 When ``nodes-per-worker`` is omitted, it defaults to ``1`` and preserves the previous one-worker-per-node behavior.
-CloudAI launches vLLM rank 0 as the Dynamo-facing process and the remaining ranks with ``--headless`` using Dynamo's
-multiprocessing executor. SGLang receives ``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every
-participating node.
+For vLLM TP/PP groups, CloudAI launches rank 0 as the Dynamo-facing process and the remaining ranks with
+``--headless`` using Dynamo's multiprocessing executor. When ``data-parallel-size`` is greater than one, CloudAI
+instead launches a full Dynamo vLLM process on every node and derives ``data-parallel-size-local``,
+``data-parallel-start-rank``, the coordinator address, and the RPC port from the worker topology. SGLang receives
+``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every participating node; its configured
+``data-parallel-size`` is forwarded as ``dp-size``.
 
 ``tensor-parallel-size * pipeline-parallel-size`` must be divisible by ``nodes-per-worker``, and the resulting
-per-node GPU footprint must fit on each node. Generic multinode data parallelism and Ray-backed Dynamo vLLM groups
-are not currently supported. The Slurm launcher explicitly selects etcd discovery and the NATS event plane.
+per-node GPU footprint must fit on each node. For vLLM multinode data parallelism, ``data-parallel-size`` must be
+divisible by ``nodes-per-worker``; each DP rank's TP/PP group must fit within one node. Ray-backed Dynamo vLLM groups
+are not currently supported. Generic SGLang multinode data parallelism requires ``--enable-dp-attention`` so its
+configured TP world can be distributed across the worker's nodes. The Slurm launcher explicitly selects etcd
+discovery and the NATS event plane.
+
+No separate WideEP mode is required. Multinode data-parallel orchestration is inferred from
+``nodes-per-worker > 1`` and ``data-parallel-size > 1``. Backend expert-parallel parameters such as vLLM's
+``--enable-expert-parallel`` or SGLang's ``ep-size`` and ``--enable-dp-attention`` remain explicit backend
+configuration.
 
 Dedicated examples are available in ``test_scenario/vllm_multinode_worker_slurm.toml`` and
 ``test_scenario/sglang_multinode_worker_slurm.toml``. The existing ``vllm_slurm.toml`` and ``sglang_slurm.toml``
 scenarios retain their previous configurations. The vLLM example inherits ``tensor-parallel-size = 8`` from
 ``test/vllm.toml``; the SGLang example sets it explicitly because ``test/sglang.toml`` defaults to ``1``.
+WideEP examples are provided in ``test_scenario/vllm_wideep_slurm.toml`` and
+``test_scenario/sglang_wideep_slurm.toml``.
 
 Launch and Monitor the Job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -109,8 +109,34 @@ _gpus_per_node() {
 
 _resolve_host_ip() {
   local host="$1"
-  local ip
-  ip="$(getent ahosts "$host" | grep STREAM | head -n1 | awk '{print $1}')"
+  local ip=""
+  local current_host="$(_current_node_name)"
+  local preferred_iface="${GLOO_SOCKET_IFNAME:-${NCCL_SOCKET_IFNAME:-}}"
+  preferred_iface="${preferred_iface%%,*}"
+  preferred_iface="${preferred_iface#=}"
+
+  # Local hostname resolution can prefer a management address while peers see
+  # the fabric address. Use the configured collective interface for self.
+  if [[ "$host" == "$current_host" && -n "$preferred_iface" && "$preferred_iface" != ^* ]]; then
+    ip="$(ip -o -4 addr show dev "$preferred_iface" scope global 2>/dev/null | awk 'NR == 1 { split($4, a, "/"); print a[1] }')"
+  fi
+
+  # For peers with multiple addresses, prefer the one routed through the same
+  # interface so every rank selects the same rendezvous network.
+  if [[ -z "$ip" && -n "$preferred_iface" && "$preferred_iface" != ^* ]]; then
+    local candidate
+    while read -r candidate; do
+      if ip -4 route get "$candidate" 2>/dev/null | awk -v iface="$preferred_iface" \
+        '$0 ~ ("dev " iface "([[:space:]]|$)") { found = 1 } END { exit !found }'; then
+        ip="$candidate"
+        break
+      fi
+    done < <(getent ahosts "$host" | awk '$2 == "STREAM" && !seen[$1]++ { print $1 }')
+  fi
+
+  if [[ -z "$ip" ]]; then
+    ip="$(getent ahosts "$host" | awk '$2 == "STREAM" { print $1; exit }')"
+  fi
   if [[ -z "$ip" ]]; then
     log "ERROR: Could not resolve IP for host $host"
     exit 1
@@ -175,13 +201,41 @@ _role_is_multinode() {
   [[ "${role_config["nodes-per-worker"]}" -gt 1 ]]
 }
 
+_role_data_parallel_size() {
+  local role="$1"
+  local -n role_args="${role}_args"
+  echo "${role_args["--data-parallel-size"]:-${role_args["--dp-size"]:-1}}"
+}
+
+_normalize_sglang_data_parallel_size() {
+  local role="$1"
+  local -n role_args="${role}_args"
+  if [[ -n "${role_args["--data-parallel-size"]:-}" ]]; then
+    role_args["--dp-size"]="${role_args["--data-parallel-size"]}"
+    unset 'role_args["--data-parallel-size"]'
+  fi
+}
+
+_role_has_extra_arg() {
+  local role="$1"
+  local option="$2"
+  local -n role_config="${role}_config"
+  [[ " ${role_config["extra-args"]:-} " == *" ${option} "* ]]
+}
+
+_role_uses_vllm_multinode_dp() {
+  local role="$1"
+  _is_vllm && _role_is_multinode "$role" && [[ "$(_role_data_parallel_size "$role")" -gt 1 ]]
+}
+
 _role_is_group_leader() {
   [[ "$(_role_group_rank "$1")" -eq 0 ]]
 }
 
 _role_is_vllm_headless() {
   local role="$1"
-  _is_vllm && _role_is_multinode "$role" && ! _role_is_group_leader "$role"
+  _is_vllm && _role_is_multinode "$role" && ! _role_uses_vllm_multinode_dp "$role" \
+    && ! _role_is_group_leader "$role"
 }
 
 _validate_worker_topology() {
@@ -193,6 +247,7 @@ _validate_worker_topology() {
     local nodes_per_worker="${role_config["nodes-per-worker"]}"
     local tp="${role_args["--tensor-parallel-size"]}"
     local pp="${role_args["--pipeline-parallel-size"]}"
+    local dp="$(_role_data_parallel_size "$role")"
     local world_size=$(( tp * pp ))
 
     if [[ "$num_nodes" -eq 0 ]]; then
@@ -207,16 +262,20 @@ _validate_worker_topology() {
     if _is_sglang_dsr1; then
       continue
     fi
-    if [[ $((world_size % nodes_per_worker)) -ne 0 ]]; then
+    if _is_sglang && [[ "$dp" -gt 1 ]] && ! _role_has_extra_arg "$role" "--enable-dp-attention"; then
+      log "ERROR: ${role} multinode SGLang data parallelism requires --enable-dp-attention"
+      exit 1
+    fi
+    if _is_vllm && [[ "$dp" -gt 1 && $((dp % nodes_per_worker)) -ne 0 ]]; then
+      log "ERROR: ${role} data-parallel-size (${dp}) must be divisible by nodes-per-worker (${nodes_per_worker})"
+      exit 1
+    fi
+    if ! { _is_vllm && [[ "$dp" -gt 1 ]]; } && [[ $((world_size % nodes_per_worker)) -ne 0 ]]; then
       log "ERROR: ${role} TP*PP (${world_size}) must be divisible by nodes-per-worker (${nodes_per_worker})"
       exit 1
     fi
     if [[ "$nodes_per_worker" -gt 1 && "${role_config["multiple-workers-per-node"],,}" == "true" ]]; then
       log "ERROR: ${role} multiple-workers-per-node is incompatible with nodes-per-worker > 1"
-      exit 1
-    fi
-    if [[ "$nodes_per_worker" -gt 1 && "${role_args["--data-parallel-size"]:-1}" -ne 1 ]]; then
-      log "ERROR: ${role} generic multinode data parallelism is not supported"
       exit 1
     fi
   done
@@ -249,11 +308,37 @@ _apply_multinode_role_args() {
       exit 1
     fi
     role_args["--distributed-executor-backend"]="mp"
-    role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
-    role_args["--node-rank"]="$node_rank"
-    role_args["--master-addr"]="$leader_ip"
-    role_args["--master-port"]="$rendezvous_port"
+    if _role_uses_vllm_multinode_dp "$role"; then
+      local dp local_dp_size
+      dp="$(_role_data_parallel_size "$role")"
+      local_dp_size=$(( dp / role_config["nodes-per-worker"] ))
+      role_args["--data-parallel-size-local"]="$local_dp_size"
+      role_args["--data-parallel-start-rank"]=$(( node_rank * local_dp_size ))
+      role_args["--data-parallel-address"]="$leader_ip"
+      role_args["--data-parallel-rpc-port"]="$rendezvous_port"
+      unset 'role_args["--nnodes"]'
+      unset 'role_args["--node-rank"]'
+      unset 'role_args["--master-addr"]'
+      unset 'role_args["--master-port"]'
+    else
+      role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
+      role_args["--node-rank"]="$node_rank"
+      role_args["--master-addr"]="$leader_ip"
+      role_args["--master-port"]="$rendezvous_port"
+    fi
   elif _is_sglang; then
+    _normalize_sglang_data_parallel_size "$role"
+    if [[ "${role_args["--ep-size"]:-1}" -gt 1 \
+      && "${role_args["--moe-a2a-backend"]:-}" == "deepep" \
+      && "${dynamo_args["model"]}" == "deepseek-ai/DeepSeek-R1" \
+      && -z "${role_args["--deepep-config"]:-}" ]]; then
+      local deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
+      if [[ -f "$deepep_path" ]]; then
+        role_args["--deepep-config"]="$deepep_path"
+      else
+        log "WARN: deepep-config not found: ${deepep_path}"
+      fi
+    fi
     role_args["--dist-init-addr"]="${leader_ip}:${rendezvous_port}"
     role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
     role_args["--node-rank"]="$node_rank"
@@ -264,6 +349,8 @@ _apply_sglang_dsr1_section_args() {
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
   local deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
+  _normalize_sglang_data_parallel_size prefill
+  _normalize_sglang_data_parallel_size decode
 
   # prefill group
   local prefill_nodes="${prefill_config["num-nodes"]}"
@@ -351,9 +438,12 @@ _parse_cli_pairs() {
 }
 
 _set_worker_disaggregation_modes() {
-  # Worker sections already define the role; keep the backend CLI in sync.
-  prefill_args["--disaggregation-mode"]="prefill"
-  decode_args["--disaggregation-mode"]="decode"
+  if [[ "${prefill_config["num-nodes"]:-0}" -gt 0 ]]; then
+    prefill_args["--disaggregation-mode"]="prefill"
+    decode_args["--disaggregation-mode"]="decode"
+  else
+    decode_args["--disaggregation-mode"]="agg"
+  fi
 }
 
 _populate_nodelist() {
@@ -493,12 +583,27 @@ _compute_worker_allocation_vllm() {
   local decode_world_size=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
   local prefill_nodes_per_worker=${prefill_config["nodes-per-worker"]}
   local decode_nodes_per_worker=${decode_config["nodes-per-worker"]}
+  local prefill_dp="$(_role_data_parallel_size prefill)"
+  local decode_dp="$(_role_data_parallel_size decode)"
 
-  prefill_config["gpus-per-worker"]=$(( prefill_world_size / prefill_nodes_per_worker ))
-  decode_config["gpus-per-worker"]=$(( decode_world_size / decode_nodes_per_worker ))
+  if _is_vllm && [[ "$prefill_nodes_per_worker" -gt 1 && "$prefill_dp" -gt 1 ]]; then
+    prefill_config["gpus-per-worker"]=$(( prefill_world_size * prefill_dp / prefill_nodes_per_worker ))
+  else
+    prefill_config["gpus-per-worker"]=$(( prefill_world_size / prefill_nodes_per_worker ))
+  fi
+  if _is_vllm && [[ "$decode_nodes_per_worker" -gt 1 && "$decode_dp" -gt 1 ]]; then
+    decode_config["gpus-per-worker"]=$(( decode_world_size * decode_dp / decode_nodes_per_worker ))
+  else
+    decode_config["gpus-per-worker"]=$(( decode_world_size / decode_nodes_per_worker ))
+  fi
 
   if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
+    exit 1
+  fi
+  if [[ ${prefill_config["gpus-per-worker"]} -gt $num_gpus ]] \
+    || [[ ${decode_config["gpus-per-worker"]} -gt $num_gpus ]]; then
+    log "ERROR: Worker GPU footprint exceeds the ${num_gpus} GPU(s) available on this node"
     exit 1
   fi
 
@@ -679,11 +784,19 @@ _count_initialized_decode() {
 }
 
 _expected_ready_prefill() {
-  echo "$(_total_workers_prefill)"
+  if _role_uses_vllm_multinode_dp prefill; then
+    echo $(( prefill_config["num-nodes"] * prefill_config["workers-per-node"] ))
+  else
+    echo "$(_total_workers_prefill)"
+  fi
 }
 
 _expected_ready_decode() {
-  echo "$(_total_workers_decode)"
+  if _role_uses_vllm_multinode_dp decode; then
+    echo $(( decode_config["num-nodes"] * decode_config["workers-per-node"] ))
+  else
+    echo "$(_total_workers_decode)"
+  fi
 }
 _gpu_list_for_worker() {
   local per_worker=$1
@@ -1174,7 +1287,8 @@ PY
 
 _wait_for_role_leader() {
   local role="$1"
-  if ! _is_vllm || ! _role_is_multinode "$role" || _role_is_group_leader "$role"; then
+  if ! _is_vllm || ! _role_is_multinode "$role" || _role_uses_vllm_multinode_dp "$role" \
+    || _role_is_group_leader "$role"; then
     return
   fi
 
@@ -1222,7 +1336,9 @@ function launch_decode()
   local -a worker_pids=()
   local -a launch_only_args=()
   side_channel_host="$(_current_node_ip)"
-  if _role_is_vllm_headless decode; then
+  if _role_uses_vllm_multinode_dp decode; then
+    launch_only_args+=("--data-parallel-hybrid-lb")
+  elif _role_is_vllm_headless decode; then
     launch_only_args+=("--headless")
   fi
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
@@ -1293,7 +1409,9 @@ function launch_prefill()
   local -a worker_pids=()
   local -a launch_only_args=()
   side_channel_host="$(_current_node_ip)"
-  if _role_is_vllm_headless prefill; then
+  if _role_uses_vllm_multinode_dp prefill; then
+    launch_only_args+=("--data-parallel-hybrid-lb")
+  elif _role_is_vllm_headless prefill; then
     launch_only_args+=("--headless")
   fi
 
@@ -1407,7 +1525,7 @@ _resolve_aiperf_server_metrics_urls() {
   IFS=','
   node_index=0
   for node in ${decode_config["node-list"]:-}; do
-    if [[ $((node_index % decode_nodes_per_worker)) -eq 0 ]]; then
+    if _role_uses_vllm_multinode_dp decode || [[ $((node_index % decode_nodes_per_worker)) -eq 0 ]]; then
       for i in $(seq 0 $(( decode_workers_per_node - 1 ))); do
         urls="${urls},http://${node}:$((base_system_port + i))/metrics"
       done
@@ -1417,7 +1535,7 @@ _resolve_aiperf_server_metrics_urls() {
 
   node_index=0
   for node in ${prefill_config["node-list"]:-}; do
-    if [[ $((node_index % prefill_nodes_per_worker)) -eq 0 ]]; then
+    if _role_uses_vllm_multinode_dp prefill || [[ $((node_index % prefill_nodes_per_worker)) -eq 0 ]]; then
       for i in $(seq 0 $(( prefill_workers_per_node - 1 ))); do
         urls="${urls},http://${node}:$((base_system_port + prefill_system_port_offset + i))/metrics"
       done
