@@ -293,21 +293,17 @@ class Registry(metaclass=Singleton):
         self.reward_function_entrypoints_map.pop(name, None)
 
     def add_entrypoint_reward_function(self, name: str, value: Any) -> None:
-        """Add a lazily loaded entry point reward function mapping."""
         if self.has_reward_function(name):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.reward_function_entrypoints_map[name] = value
 
     def has_reward_function(self, name: str) -> bool:
-        """Return whether a reward function is registered or available as a lazy entry point."""
         return name in self.reward_functions_map or name in self.reward_function_entrypoints_map
 
     def reward_function_names(self) -> list[str]:
-        """Return all registered reward function names, including unresolved entry points."""
         return sorted(set(self.reward_functions_map) | set(self.reward_function_entrypoints_map))
 
     def get_reward_function(self, name: str) -> RewardFunction:
-        """Resolve a reward function by name, loading entry point functions on first use."""
         if name in self.reward_functions_map:
             return self.reward_functions_map[name]
 
@@ -315,8 +311,7 @@ class Registry(metaclass=Singleton):
             raise KeyError(f"Reward function '{name}' not found. Available functions: {self.reward_function_names()}")
 
         ep = self.reward_function_entrypoints_map[name]
-        reward_function = ep.load()
-        reward_function = cast(RewardFunction, reward_function)
+        reward_function = cast(RewardFunction, ep.load())
 
         if not callable(reward_function):
             warnings.warn(
