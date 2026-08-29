@@ -165,7 +165,11 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
 
 
 def test_final_env_vars_populates_dynamo_nodelist(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    assert "scontrol show hostname $SLURM_JOB_NODELIST" in str(strategy.final_env_vars["DYNAMO_NODELIST"])
+    strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = "stale"
+
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == (
+        "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
+    )
 
 
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
@@ -607,9 +611,7 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     assert td.constraint_check(test_run, slurm_system)
 
 
-def test_constraint_allows_multinode_worker_using_group_capacity(
-    slurm_system: SlurmSystem, test_run: TestRun
-) -> None:
+def test_constraint_allows_multinode_worker_using_group_capacity(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     slurm_system.gpus_per_node = 4
     td = cast(AIDynamoTestDefinition, test_run.test)
     for worker in (td.cmd_args.dynamo.prefill_worker, td.cmd_args.dynamo.decode_worker):
@@ -642,6 +644,31 @@ def test_constraint_allows_vllm_multinode_dp_using_local_rank_capacity(
     assert td.constraint_check(test_run, slurm_system)
 
 
+def test_constraint_rejects_multinode_vllm_ray(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    worker = td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 8
+    worker.args.distributed_executor_backend = "ray"
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_multinode_sglang_dp_without_dp_attention(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    worker = td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 8
+    worker.args.data_parallel_size = 8
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
 def test_multinode_worker_rejects_unbalanced_world_size(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     worker = strategy.td.cmd_args.dynamo.decode_worker
     worker.num_nodes = 2
@@ -665,19 +692,19 @@ def test_multinode_vllm_dp_rejects_unbalanced_rank_placement(
         strategy._gen_script_args(strategy.td)
 
 
-def test_multinode_sglang_dp_uses_tensor_world_size(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+def test_multinode_sglang_dp_accepts_combined_list_extra_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     strategy.td.cmd_args.dynamo.backend = "sglang"
     worker = strategy.td.cmd_args.dynamo.decode_worker
     worker.num_nodes = 2
     worker.nodes_per_worker = 2
-    worker.extra_args = "--enable-dp-attention"
+    worker.extra_args = ["--trust-remote-code --enable-dp-attention"]
     worker.args.tensor_parallel_size = 8
     worker.args.data_parallel_size = 8
 
     strategy._gen_script_args(strategy.td)
 
 
-def test_multinode_sglang_native_dp_is_rejected(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+def test_multinode_sglang_dp_requires_dp_attention(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     strategy.td.cmd_args.dynamo.backend = "sglang"
     worker = strategy.td.cmd_args.dynamo.decode_worker
     worker.num_nodes = 2
