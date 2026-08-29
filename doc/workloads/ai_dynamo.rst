@@ -92,14 +92,15 @@ For vLLM TP/PP groups, CloudAI launches rank 0 as the Dynamo-facing process and 
 instead launches a full Dynamo vLLM process on every node and derives ``data-parallel-size-local``,
 ``data-parallel-start-rank``, the coordinator address, and the RPC port from the worker topology. SGLang receives
 ``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every participating node; its configured
-``data-parallel-size`` is forwarded as ``dp-size``.
+``data-parallel-size`` is forwarded as ``dp-size``. The launcher derives prefill and decode disaggregation modes
+from the configured roles, so worker commands do not need role flags.
 
-``tensor-parallel-size * pipeline-parallel-size`` must be divisible by ``nodes-per-worker``, and the resulting
-per-node GPU footprint must fit on each node. For vLLM multinode data parallelism, ``data-parallel-size`` must be
-divisible by ``nodes-per-worker``; each DP rank's TP/PP group must fit within one node. Ray-backed Dynamo vLLM groups
-are not currently supported. Generic SGLang multinode data parallelism requires ``--enable-dp-attention`` so its
-configured TP world can be distributed across the worker's nodes. The Slurm launcher explicitly selects etcd
-discovery and the NATS event plane.
+For TP/PP-spanning workers, ``tensor-parallel-size * pipeline-parallel-size`` must be divisible by
+``nodes-per-worker``. For vLLM multinode data parallelism, ``data-parallel-size`` must instead be divisible by
+``nodes-per-worker``, and each DP rank's TP/PP group must fit within one node. SGLang multinode data parallelism
+requires ``--enable-dp-attention``. The resulting per-node GPU footprint must fit on each node. Ray-backed Dynamo
+vLLM groups are not currently supported. The Slurm launcher explicitly selects etcd discovery and the NATS event
+plane.
 
 No separate WideEP mode is required. Multinode data-parallel orchestration is inferred from
 ``nodes-per-worker > 1`` and ``data-parallel-size > 1``. Backend expert-parallel parameters such as vLLM's
@@ -455,8 +456,8 @@ Shared-Node Disaggregated Runs
 For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and
 ``decode_worker.num-nodes`` to run both roles on the same allocated node(s). For example, ``num_nodes = 1`` with
 ``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on
-the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's
-``tensor-parallel-size * pipeline-parallel-size``. The combined role GPU count must fit on one node.
+the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's per-node GPU
+footprint, including local data-parallel ranks where applicable. The combined role GPU count must fit on one node.
 
 Example ``aiperf_report.csv``:
 
@@ -483,9 +484,11 @@ The following backends are available via the ``conf/experimental/ai_dynamo/test/
 
 - **vLLM** (``vllm.toml``) — use with ``test_scenario/vllm_slurm.toml``
 - **vLLM multinode worker** — use ``test_scenario/vllm_multinode_worker_slurm.toml``
+- **vLLM WideEP** — use ``test_scenario/vllm_wideep_slurm.toml``
 - **vLLM with LMCache config propagation** — use self-contained scenario ``test_scenario/vllm_lmcache.toml``
 - **sglang** (``sglang.toml``) — use with ``test_scenario/sglang_slurm.toml``
 - **SGLang multinode worker** — use ``test_scenario/sglang_multinode_worker_slurm.toml``
+- **SGLang WideEP** — use ``test_scenario/sglang_wideep_slurm.toml``
 
 Both backends use ``aiperf`` as the default benchmark tool and support disaggregated prefill/decode.
 
