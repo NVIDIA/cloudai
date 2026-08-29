@@ -16,6 +16,7 @@
 
 import csv
 import logging
+import shlex
 from pathlib import Path
 from typing import Literal, Optional, cast
 
@@ -176,6 +177,12 @@ class WorkerConfig(BaseModel):
             missing_fields.append("worker-initialized-regex")
         if missing_fields:
             raise ValueError(f"{', '.join(missing_fields)} must be set when num-nodes is non-zero")
+
+    def has_extra_arg(self, option: str) -> bool:
+        """Return whether an option is present in the worker's backend arguments."""
+        if isinstance(self.extra_args, str):
+            return option in shlex.split(self.extra_args)
+        return option in (self.extra_args or [])
 
     @model_validator(mode="after")
     def validate_worker_topology(self) -> "WorkerConfig":
@@ -681,31 +688,37 @@ class AIDynamoTestDefinition(TestDefinition):
             num_nodes = int(worker.num_nodes)
             nodes_per_worker = int(worker.nodes_per_worker or 1)
             world_size = tp * pp
-            data_parallel_size = worker.args.data_parallel_size
+            data_parallel_size = int(worker.args.data_parallel_size or 1)
+            is_vllm_multinode_dp = (
+                tr.test.cmd_args.dynamo.backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
+            )
+            is_sglang_multinode_dp = (
+                tr.test.cmd_args.dynamo.backend == "sglang" and nodes_per_worker > 1 and data_parallel_size > 1
+            )
 
             if num_nodes == 0 and worker.nodes_per_worker is None:
                 role_footprints[role] = 0
                 continue
+            if is_sglang_multinode_dp and not worker.has_extra_arg("--enable-dp-attention"):
+                logging.info("constraint_check failed: multinode SGLang DP requires --enable-dp-attention")
+                return False
             if (
                 nodes_per_worker < 1
                 or num_nodes < 1
                 or num_nodes % nodes_per_worker != 0
                 or world_size < 1
-                or world_size % nodes_per_worker != 0
+                or (is_vllm_multinode_dp and data_parallel_size % nodes_per_worker != 0)
+                or (not is_vllm_multinode_dp and world_size % nodes_per_worker != 0)
                 or (nodes_per_worker > 1 and worker.multiple_workers_per_node)
             ):
                 logging.info("constraint_check failed for invalid %s worker topology", role)
                 return False
 
-            if (
-                nodes_per_worker > 1
-                and tr.test.cmd_args.dynamo.backend in {"vllm", "sglang"}
-                and data_parallel_size not in {None, 1}
-            ):
-                logging.info("constraint_check failed: multinode %s data parallelism is not supported", role)
-                return False
-
-            local_footprint = world_size // nodes_per_worker
+            local_footprint = (
+                world_size * (data_parallel_size // nodes_per_worker)
+                if is_vllm_multinode_dp
+                else world_size // nodes_per_worker
+            )
             if (
                 gpus_per_node > 0
                 and self.constraints.tp_times_pp_le_gpus_per_node
