@@ -60,10 +60,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
-        env_vars.setdefault(
-            "DYNAMO_NODELIST",
-            "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')",
-        )
+        env_vars["DYNAMO_NODELIST"] = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
         if self.td.cmd_args.hicache is not None:
             env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
@@ -198,9 +195,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         world_size = tp * pp
         data_parallel_size = int(dp or 1)
-        is_vllm_multinode_dp = self.td.cmd_args.dynamo.backend == "vllm" and data_parallel_size > 1
-        is_sglang_multinode_dp = self.td.cmd_args.dynamo.backend == "sglang" and data_parallel_size > 1
-        if is_sglang_multinode_dp and not worker.has_extra_arg("--enable-dp-attention"):
+        backend = self.td.cmd_args.dynamo.backend
+        is_vllm_multinode_dp = backend == "vllm" and data_parallel_size > 1
+        if backend == "sglang" and data_parallel_size > 1 and not worker.has_extra_arg("--enable-dp-attention"):
             raise ValueError(f"Multinode SGLang data parallelism for the {role} worker requires --enable-dp-attention")
         if is_vllm_multinode_dp and data_parallel_size % nodes_per_worker != 0:
             raise ValueError(
@@ -221,16 +218,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError(
                 f"{role} worker needs {local_world_size} GPU(s) per node, but the system has {gpus_per_node}"
             )
-        if (
-            self.td.cmd_args.dynamo.backend == "vllm"
-            and worker.args.distributed_executor_backend not in {None, "mp"}
-        ):
+        if self.td.cmd_args.dynamo.backend == "vllm" and worker.args.distributed_executor_backend not in {None, "mp"}:
             raise ValueError("Multinode Dynamo vLLM currently supports only the mp distributed executor backend")
 
     def _validate_multinode_workers(self) -> None:
         dynamo = self.td.cmd_args.dynamo
-        if dynamo.prefill_worker:
-            self._validate_multinode_worker("prefill", dynamo.prefill_worker)
+        self._validate_multinode_worker("prefill", dynamo.prefill_worker)
         self._validate_multinode_worker("decode", dynamo.decode_worker)
 
     def _render_aiperf_args(self, args: dict[str, Any]) -> str:

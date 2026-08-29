@@ -220,7 +220,15 @@ _role_has_extra_arg() {
   local role="$1"
   local option="$2"
   local -n role_config="${role}_config"
-  [[ " ${role_config["extra-args"]:-} " == *" ${option} "* ]]
+  local arg
+  local -a extra_args
+  read -ra extra_args <<< "${role_config["extra-args"]:-}"
+  for arg in "${extra_args[@]}"; do
+    if [[ "$arg" == "$option" || "$arg" == "$option="* ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 _role_uses_vllm_multinode_dp() {
@@ -262,7 +270,8 @@ _validate_worker_topology() {
     if _is_sglang_dsr1; then
       continue
     fi
-    if _is_sglang && [[ "$dp" -gt 1 ]] && ! _role_has_extra_arg "$role" "--enable-dp-attention"; then
+    if _is_sglang && _role_is_multinode "$role" && [[ "$dp" -gt 1 ]] \
+      && ! _role_has_extra_arg "$role" "--enable-dp-attention"; then
       log "ERROR: ${role} multinode SGLang data parallelism requires --enable-dp-attention"
       exit 1
     fi
@@ -328,17 +337,6 @@ _apply_multinode_role_args() {
     fi
   elif _is_sglang; then
     _normalize_sglang_data_parallel_size "$role"
-    if [[ "${role_args["--ep-size"]:-1}" -gt 1 \
-      && "${role_args["--moe-a2a-backend"]:-}" == "deepep" \
-      && "${dynamo_args["model"]}" == "deepseek-ai/DeepSeek-R1" \
-      && -z "${role_args["--deepep-config"]:-}" ]]; then
-      local deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
-      if [[ -f "$deepep_path" ]]; then
-        role_args["--deepep-config"]="$deepep_path"
-      else
-        log "WARN: deepep-config not found: ${deepep_path}"
-      fi
-    fi
     role_args["--dist-init-addr"]="${leader_ip}:${rendezvous_port}"
     role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
     role_args["--node-rank"]="$node_rank"
@@ -571,6 +569,21 @@ _compute_worker_allocation_sglang_dsr1() {
   decode_config["workers-per-node"]=1
 }
 
+_role_gpu_footprint() {
+  local role="$1"
+  local -n role_config="${role}_config"
+  local -n role_args="${role}_args"
+  local data_parallel_size
+  local world_size=$(( role_args["--tensor-parallel-size"] * role_args["--pipeline-parallel-size"] ))
+  data_parallel_size="$(_role_data_parallel_size "$role")"
+
+  if _role_uses_vllm_multinode_dp "$role"; then
+    echo $(( world_size * data_parallel_size / role_config["nodes-per-worker"] ))
+  else
+    echo $(( world_size / role_config["nodes-per-worker"] ))
+  fi
+}
+
 _compute_worker_allocation_vllm() {
   local num_gpus="$(_gpus_per_node)"
 
@@ -579,23 +592,10 @@ _compute_worker_allocation_vllm() {
     exit 1
   fi
 
-  local prefill_world_size=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
-  local decode_world_size=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
   local prefill_nodes_per_worker=${prefill_config["nodes-per-worker"]}
   local decode_nodes_per_worker=${decode_config["nodes-per-worker"]}
-  local prefill_dp="$(_role_data_parallel_size prefill)"
-  local decode_dp="$(_role_data_parallel_size decode)"
-
-  if _is_vllm && [[ "$prefill_nodes_per_worker" -gt 1 && "$prefill_dp" -gt 1 ]]; then
-    prefill_config["gpus-per-worker"]=$(( prefill_world_size * prefill_dp / prefill_nodes_per_worker ))
-  else
-    prefill_config["gpus-per-worker"]=$(( prefill_world_size / prefill_nodes_per_worker ))
-  fi
-  if _is_vllm && [[ "$decode_nodes_per_worker" -gt 1 && "$decode_dp" -gt 1 ]]; then
-    decode_config["gpus-per-worker"]=$(( decode_world_size * decode_dp / decode_nodes_per_worker ))
-  else
-    decode_config["gpus-per-worker"]=$(( decode_world_size / decode_nodes_per_worker ))
-  fi
+  prefill_config["gpus-per-worker"]="$(_role_gpu_footprint prefill)"
+  decode_config["gpus-per-worker"]="$(_role_gpu_footprint decode)"
 
   if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
@@ -767,14 +767,6 @@ exit_on_error() {
   fi
 }
 
-_total_workers_prefill() {
-  echo $(( (prefill_config["num-nodes"] / prefill_config["nodes-per-worker"]) * prefill_config["workers-per-node"] ))
-}
-
-_total_workers_decode() {
-  echo $(( (decode_config["num-nodes"] / decode_config["nodes-per-worker"]) * decode_config["workers-per-node"] ))
-}
-
 _count_initialized_prefill() {
   grep -i -l -E "${prefill_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
 }
@@ -783,21 +775,17 @@ _count_initialized_decode() {
   grep -i -l -E "${decode_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
 }
 
-_expected_ready_prefill() {
-  if _role_uses_vllm_multinode_dp prefill; then
-    echo $(( prefill_config["num-nodes"] * prefill_config["workers-per-node"] ))
+_expected_ready_workers() {
+  local role="$1"
+  local -n role_config="${role}_config"
+
+  if _role_uses_vllm_multinode_dp "$role"; then
+    echo $(( role_config["num-nodes"] * role_config["workers-per-node"] ))
   else
-    echo "$(_total_workers_prefill)"
+    echo $(( (role_config["num-nodes"] / role_config["nodes-per-worker"]) * role_config["workers-per-node"] ))
   fi
 }
 
-_expected_ready_decode() {
-  if _role_uses_vllm_multinode_dp decode; then
-    echo $(( decode_config["num-nodes"] * decode_config["workers-per-node"] ))
-  else
-    echo "$(_total_workers_decode)"
-  fi
-}
 _gpu_list_for_worker() {
   local per_worker=$1
   local idx=$2
@@ -1292,9 +1280,10 @@ _wait_for_role_leader() {
     return
   fi
 
-  local leader_host
+  local leader_host leader_ip
   leader_host="$(_role_group_leader "$role")"
-  _wait_for_tcp "$leader_host" "${dynamo_args["${role}-port"]}" "${DYNAMO_MULTINODE_START_TIMEOUT:-1800}" || {
+  leader_ip="$(_resolve_host_ip "$leader_host")"
+  _wait_for_tcp "$leader_ip" "${dynamo_args["${role}-port"]}" "${DYNAMO_MULTINODE_START_TIMEOUT:-1800}" || {
     mark_failed "${role} worker timed out waiting for multinode leader ${leader_host}"
     return 1
   }
@@ -1335,6 +1324,8 @@ function launch_decode()
   local side_channel_host
   local -a worker_pids=()
   local -a launch_only_args=()
+  local -a extra_args=()
+  read -ra extra_args <<< "${decode_config["extra-args"]:-}"
   side_channel_host="$(_current_node_ip)"
   if _role_uses_vllm_multinode_dp decode; then
     launch_only_args+=("--data-parallel-hybrid-lb")
@@ -1365,7 +1356,7 @@ function launch_decode()
     done
 
     log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
-    log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
+    log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${extra_args[*]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       DYN_SYSTEM_PORT=$system_port \
       VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
@@ -1376,7 +1367,7 @@ function launch_decode()
       ${decode_config["cmd"]} \
       "${args_arr[@]}" \
       "${launch_only_args[@]}" \
-      ${decode_config["extra-args"]} > $log_file 2>&1 &
+      "${extra_args[@]}" > $log_file 2>&1 &
     worker_pids+=("$!")
   done
   _monitor_worker_processes decode "${worker_pids[@]}"
@@ -1408,6 +1399,8 @@ function launch_prefill()
   local side_channel_host
   local -a worker_pids=()
   local -a launch_only_args=()
+  local -a extra_args=()
+  read -ra extra_args <<< "${prefill_config["extra-args"]:-}"
   side_channel_host="$(_current_node_ip)"
   if _role_uses_vllm_multinode_dp prefill; then
     launch_only_args+=("--data-parallel-hybrid-lb")
@@ -1450,7 +1443,7 @@ function launch_prefill()
     done
 
     log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
-    log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
+    log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${extra_args[*]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       DYN_SYSTEM_PORT=$system_port \
       VLLM_NIXL_SIDE_CHANNEL_HOST="$side_channel_host" \
@@ -1461,7 +1454,7 @@ function launch_prefill()
       ${prefill_config["cmd"]} \
       "${args_arr[@]}" \
       "${launch_only_args[@]}" \
-      ${prefill_config["extra-args"]} > $log_file 2>&1 &
+      "${extra_args[@]}" > $log_file 2>&1 &
     worker_pids+=("$!")
   done
   _monitor_worker_processes prefill "${worker_pids[@]}"
@@ -1469,8 +1462,8 @@ function launch_prefill()
 
 function wait_for_dynamo_frontend()
 {
-  local want_prefill=$(_expected_ready_prefill)
-  local want_decode=$(_expected_ready_decode)
+  local want_prefill=$(_expected_ready_workers prefill)
+  local want_decode=$(_expected_ready_workers decode)
 
   while :; do
     local have_prefill=$(_count_initialized_prefill)
@@ -1816,12 +1809,7 @@ function main()
     wait_for_etcd
   fi
 
-  # Workers launch BEFORE the ingress: launch_ingress blocks in
-  # wait_for_router, and the router only becomes ready once a worker
-  # registers — on a combined frontend+worker node the old order serialized
-  # the whole ROUTER_START_TIMEOUT (120 s of failing readiness curls) in
-  # front of every worker start. Workers only need etcd/nats (waited above)
-  # and the lmcache config from setup_lmcache; they never talk to the router.
+  # Router readiness depends on worker registration, so launch workers before ingress.
   if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
     log_node_role "$(_current_node_name)" "decode"

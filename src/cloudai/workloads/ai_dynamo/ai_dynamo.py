@@ -48,7 +48,6 @@ AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
-DYNAMO_VERSION = "1.3.1"
 DYNAMO_COMMIT = "a49702e4432e7fa43cbc88175bddb31604340f19"
 
 
@@ -180,9 +179,10 @@ class WorkerConfig(BaseModel):
 
     def has_extra_arg(self, option: str) -> bool:
         """Return whether an option is present in the worker's backend arguments."""
-        if isinstance(self.extra_args, str):
-            return option in shlex.split(self.extra_args)
-        return option in (self.extra_args or [])
+        values = [self.extra_args] if isinstance(self.extra_args, str) else self.extra_args or []
+        return any(
+            token == option or token.startswith(f"{option}=") for value in values for token in shlex.split(value)
+        )
 
     @model_validator(mode="after")
     def validate_worker_topology(self) -> "WorkerConfig":
@@ -689,18 +689,26 @@ class AIDynamoTestDefinition(TestDefinition):
             nodes_per_worker = int(worker.nodes_per_worker or 1)
             world_size = tp * pp
             data_parallel_size = int(worker.args.data_parallel_size or 1)
-            is_vllm_multinode_dp = (
-                tr.test.cmd_args.dynamo.backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
-            )
-            is_sglang_multinode_dp = (
-                tr.test.cmd_args.dynamo.backend == "sglang" and nodes_per_worker > 1 and data_parallel_size > 1
-            )
+            backend = tr.test.cmd_args.dynamo.backend
+            is_vllm_multinode_dp = backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
 
             if num_nodes == 0 and worker.nodes_per_worker is None:
                 role_footprints[role] = 0
                 continue
-            if is_sglang_multinode_dp and not worker.has_extra_arg("--enable-dp-attention"):
+            if (
+                backend == "sglang"
+                and nodes_per_worker > 1
+                and data_parallel_size > 1
+                and not worker.has_extra_arg("--enable-dp-attention")
+            ):
                 logging.info("constraint_check failed: multinode SGLang DP requires --enable-dp-attention")
+                return False
+            if (
+                backend == "vllm"
+                and nodes_per_worker > 1
+                and worker.args.distributed_executor_backend not in {None, "mp"}
+            ):
+                logging.info("constraint_check failed: multinode vLLM requires the mp executor")
                 return False
             if (
                 nodes_per_worker < 1
@@ -719,11 +727,7 @@ class AIDynamoTestDefinition(TestDefinition):
                 if is_vllm_multinode_dp
                 else world_size // nodes_per_worker
             )
-            if (
-                gpus_per_node > 0
-                and self.constraints.tp_times_pp_le_gpus_per_node
-                and local_footprint > gpus_per_node
-            ):
+            if gpus_per_node > 0 and self.constraints.tp_times_pp_le_gpus_per_node and local_footprint > gpus_per_node:
                 logging.info("constraint_check failed for %s worker GPU capacity", role)
                 return False
             role_footprints[role] = local_footprint
