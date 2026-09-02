@@ -106,6 +106,12 @@ No separate WideEP mode is required. Multinode data-parallel orchestration is in
 ``nodes-per-worker > 1`` and ``data-parallel-size > 1``. Backend expert-parallel parameters such as vLLM's
 ``--enable-expert-parallel`` or SGLang's ``ep-size`` and ``--enable-dp-attention`` remain explicit backend
 configuration.
+CloudAI uses the allocated Slurm node names for multinode rendezvous. The cluster must make those names consistently
+resolvable and mutually reachable from every allocated node and workload container. Multi-homed systems should also
+configure backend network selection, such as ``GLOO_SOCKET_IFNAME`` and ``NCCL_SOCKET_IFNAME``, at the system level.
+Explicit backend rendezvous addresses take precedence over addresses derived from the Slurm node names.
+Clusters that cannot provide this hostname contract must supply backend-native per-node address overrides, such as
+``SGLANG_HOST_IP`` or ``VLLM_NIXL_SIDE_CHANNEL_HOST``, together with explicit worker rendezvous arguments.
 
 Dedicated examples are available in ``test_scenario/vllm_multinode_worker_slurm.toml`` and
 ``test_scenario/sglang_multinode_worker_slurm.toml``. The existing ``vllm_slurm.toml`` and ``sglang_slurm.toml``
