@@ -176,6 +176,7 @@ class WorkerConfig(BaseModel):
             missing_fields.append("worker-initialized-regex")
         if missing_fields:
             raise ValueError(f"{', '.join(missing_fields)} must be set when num-nodes is non-zero")
+        return self
 
     def has_extra_arg(self, option: str) -> bool:
         """Return whether an option is present in the worker's backend arguments."""
@@ -634,7 +635,16 @@ class AIDynamoTestDefinition(TestDefinition):
             logging.info(f"Workload {workload} not found in workload map")
             return False
 
-        return self._was_workload_report_produced(output_path, workload, workload_config)
+        if not self._was_workload_report_produced(output_path, workload, workload_config):
+            return False
+
+        if isinstance(workload_config, AIPerf):
+            request_count = parse_aiperf_request_count(output_path / workload_config.report_name)
+            if request_count is None or request_count <= 0:
+                logging.info(f"AIPerf report has no successful requests: {output_path / workload_config.report_name}")
+                return False
+
+        return True
 
     def _were_workloads_successful(self, output_path: Path) -> bool:
         workload_map = self.get_workload_map()
@@ -786,6 +796,21 @@ def _parse_count_value(value: str | int | float | None) -> float | None:
         return float(value.strip())
     except ValueError:
         return None
+
+
+def parse_aiperf_request_count(report_path: Path) -> float | None:
+    """Return the number of successful requests recorded by AIPerf."""
+    if not report_path.exists():
+        return None
+
+    try:
+        with report_path.open(newline="", encoding="utf-8") as csv_file:
+            for row in csv.reader(csv_file):
+                if len(row) >= 2 and row[0].strip() == "Request Count":
+                    return _parse_count_value(row[1])
+    except (OSError, csv.Error):
+        return None
+    return None
 
 
 def parse_aiperf_accuracy(output_path: Path) -> float | None:

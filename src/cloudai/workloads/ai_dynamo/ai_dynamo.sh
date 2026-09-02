@@ -107,47 +107,6 @@ _gpus_per_node() {
   [[ "$n" -gt 0 ]] && echo "$n" || echo "1"
 }
 
-_resolve_host_ip() {
-  local host="$1"
-  local ip=""
-  local current_host="$(_current_node_name)"
-  local preferred_iface="${GLOO_SOCKET_IFNAME:-${NCCL_SOCKET_IFNAME:-}}"
-  preferred_iface="${preferred_iface%%,*}"
-  preferred_iface="${preferred_iface#=}"
-
-  # Local hostname resolution can prefer a management address while peers see
-  # the fabric address. Use the configured collective interface for self.
-  if [[ "$host" == "$current_host" && -n "$preferred_iface" && "$preferred_iface" != ^* ]]; then
-    ip="$(ip -o -4 addr show dev "$preferred_iface" scope global 2>/dev/null | awk 'NR == 1 { split($4, a, "/"); print a[1] }')"
-  fi
-
-  # For peers with multiple addresses, prefer the one routed through the same
-  # interface so every rank selects the same rendezvous network.
-  if [[ -z "$ip" && -n "$preferred_iface" && "$preferred_iface" != ^* ]]; then
-    local candidate
-    while read -r candidate; do
-      if ip -4 route get "$candidate" 2>/dev/null | awk -v iface="$preferred_iface" \
-        '$0 ~ ("dev " iface "([[:space:]]|$)") { found = 1 } END { exit !found }'; then
-        ip="$candidate"
-        break
-      fi
-    done < <(getent ahosts "$host" | awk '$2 == "STREAM" && !seen[$1]++ { print $1 }')
-  fi
-
-  if [[ -z "$ip" ]]; then
-    ip="$(getent ahosts "$host" | awk '$2 == "STREAM" { print $1; exit }')"
-  fi
-  if [[ -z "$ip" ]]; then
-    log "ERROR: Could not resolve IP for host $host"
-    exit 1
-  fi
-  echo "$ip"
-}
-
-_current_node_ip() {
-  _resolve_host_ip "$(_current_node_name)"
-}
-
 _normalize_worker_topology() {
   local role
   for role in prefill decode; do
@@ -299,13 +258,12 @@ _apply_multinode_role_args() {
     return
   fi
 
-  local node_rank leader_host leader_ip rendezvous_port
+  local node_rank leader_host rendezvous_port
   node_rank="$(_role_group_rank "$role")"
   if [[ "$node_rank" -lt 0 ]]; then
     return
   fi
   leader_host="$(_role_group_leader "$role")"
-  leader_ip="$(_resolve_host_ip "$leader_host")"
   rendezvous_port="${dynamo_args["${role}-port"]}"
 
   role_config["group-rank"]="$node_rank"
@@ -323,8 +281,8 @@ _apply_multinode_role_args() {
       local_dp_size=$(( dp / role_config["nodes-per-worker"] ))
       role_args["--data-parallel-size-local"]="$local_dp_size"
       role_args["--data-parallel-start-rank"]=$(( node_rank * local_dp_size ))
-      role_args["--data-parallel-address"]="$leader_ip"
-      role_args["--data-parallel-rpc-port"]="$rendezvous_port"
+      role_args["--data-parallel-address"]="${role_args["--data-parallel-address"]:-$leader_host}"
+      role_args["--data-parallel-rpc-port"]="${role_args["--data-parallel-rpc-port"]:-$rendezvous_port}"
       unset 'role_args["--nnodes"]'
       unset 'role_args["--node-rank"]'
       unset 'role_args["--master-addr"]'
@@ -332,12 +290,12 @@ _apply_multinode_role_args() {
     else
       role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
       role_args["--node-rank"]="$node_rank"
-      role_args["--master-addr"]="$leader_ip"
-      role_args["--master-port"]="$rendezvous_port"
+      role_args["--master-addr"]="${role_args["--master-addr"]:-$leader_host}"
+      role_args["--master-port"]="${role_args["--master-port"]:-$rendezvous_port}"
     fi
   elif _is_sglang; then
     _normalize_sglang_data_parallel_size "$role"
-    role_args["--dist-init-addr"]="${leader_ip}:${rendezvous_port}"
+    role_args["--dist-init-addr"]="${role_args["--dist-init-addr"]:-${leader_host}:${rendezvous_port}}"
     role_args["--nnodes"]="${role_config["nodes-per-worker"]}"
     role_args["--node-rank"]="$node_rank"
   fi
@@ -354,10 +312,11 @@ _apply_sglang_dsr1_section_args() {
   local prefill_nodes="${prefill_config["num-nodes"]}"
   if [[ "$prefill_nodes" -gt 0 ]]; then
     local prefill_master_host="$(_first_in_csv "${prefill_config["node-list"]}")"
-    local prefill_master_ip="$(_resolve_host_ip "${prefill_master_host}")"
     local prefill_rank="$(_csv_index_of "${prefill_config["node-list"]}" "$self")"
     local prefill_total_gpus=$(( gpn * prefill_nodes ))
-    prefill_args["--dist-init-addr"]="${prefill_master_ip}:${dynamo_args["prefill-port"]}"
+    if [[ -z "${prefill_args["--dist-init-addr"]:-}" ]]; then
+      prefill_args["--dist-init-addr"]="${prefill_master_host}:${dynamo_args["prefill-port"]}"
+    fi
     prefill_args["--nnodes"]="${prefill_nodes}"
     prefill_args["--node-rank"]="$([[ "$prefill_rank" -ge 0 ]] && echo "$prefill_rank" || echo 0)"
     prefill_args["--tp-size"]="${prefill_args["--tp-size"]:-${prefill_total_gpus}}"
@@ -367,10 +326,11 @@ _apply_sglang_dsr1_section_args() {
   # decode group
   local decode_nodes="${decode_config["num-nodes"]}"
   local decode_master_host="$(_first_in_csv "${decode_config["node-list"]}")"
-  local decode_master_ip="$(_resolve_host_ip "${decode_master_host}")"
   local decode_rank="$(_csv_index_of "${decode_config["node-list"]}" "$self")"
   local decode_total_gpus=$(( gpn * decode_nodes ))
-  decode_args["--dist-init-addr"]="${decode_master_ip}:${dynamo_args["decode-port"]}"
+  if [[ -z "${decode_args["--dist-init-addr"]:-}" ]]; then
+    decode_args["--dist-init-addr"]="${decode_master_host}:${dynamo_args["decode-port"]}"
+  fi
   decode_args["--nnodes"]="${decode_nodes}"
   decode_args["--node-rank"]="$([[ "$decode_rank" -ge 0 ]] && echo "$decode_rank" || echo 0)"
   decode_args["--tp-size"]="${decode_args["--tp-size"]:-${decode_total_gpus}}"
@@ -853,8 +813,9 @@ _init_runtime_env() {
     export HF_HOME="${HUGGINGFACE_HOME}"
     hf cache scan || echo "HF cache scan failed"
   fi
-  export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
-  export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
+  local frontend_host="${dynamo_args["frontend-node"]}"
+  export NATS_SERVER="${NATS_SERVER:-nats://${frontend_host}:${dynamo_args["nats-port"]}}"
+  export ETCD_ENDPOINTS="${ETCD_ENDPOINTS:-http://${frontend_host}:${dynamo_args["etcd-port"]}}"
   export DYN_DISCOVERY_BACKEND="${DYN_DISCOVERY_BACKEND:-etcd}"
   # Dynamo 1.3.1 defaults to ZMQ. Keep CloudAI's existing NATS service
   # contract explicit while allowing users to opt into another event plane.
@@ -1090,10 +1051,11 @@ function mark_failed()
 
 function launch_etcd()
 {
-  log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}"
+  local advertise_url="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
+  log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls ${advertise_url}"
   ${dynamo_args["etcd-cmd"]} \
     --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
-    --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
+    --advertise-client-urls "${advertise_url}" \
     > ${RESULTS_DIR}/etcd.log 2>&1
 }
 
@@ -1280,10 +1242,12 @@ _wait_for_role_leader() {
     return
   fi
 
-  local leader_host leader_ip
+  local -n role_args="${role}_args"
+  local leader_host leader_address leader_port
   leader_host="$(_role_group_leader "$role")"
-  leader_ip="$(_resolve_host_ip "$leader_host")"
-  _wait_for_tcp "$leader_ip" "${dynamo_args["${role}-port"]}" "${DYNAMO_MULTINODE_START_TIMEOUT:-1800}" || {
+  leader_address="${role_args["--master-addr"]:-$leader_host}"
+  leader_port="${role_args["--master-port"]:-${dynamo_args["${role}-port"]}}"
+  _wait_for_tcp "$leader_address" "$leader_port" "${DYNAMO_MULTINODE_START_TIMEOUT:-1800}" || {
     mark_failed "${role} worker timed out waiting for multinode leader ${leader_host}"
     return 1
   }
@@ -1326,7 +1290,7 @@ function launch_decode()
   local -a launch_only_args=()
   local -a extra_args=()
   read -ra extra_args <<< "${decode_config["extra-args"]:-}"
-  side_channel_host="$(_current_node_ip)"
+  side_channel_host="${VLLM_NIXL_SIDE_CHANNEL_HOST:-$(_current_node_name)}"
   if _role_uses_vllm_multinode_dp decode; then
     launch_only_args+=("--data-parallel-hybrid-lb")
   elif _role_is_vllm_headless decode; then
@@ -1352,7 +1316,7 @@ function launch_decode()
     # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
     local -a args_arr=()
     for key in "${!decode_args[@]}"; do
-      args_arr+=($key "${decode_args[$key]}")
+      args_arr+=("$key" "${decode_args[$key]}")
     done
 
     log "Launching decode worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
@@ -1401,7 +1365,7 @@ function launch_prefill()
   local -a launch_only_args=()
   local -a extra_args=()
   read -ra extra_args <<< "${prefill_config["extra-args"]:-}"
-  side_channel_host="$(_current_node_ip)"
+  side_channel_host="${VLLM_NIXL_SIDE_CHANNEL_HOST:-$(_current_node_name)}"
   if _role_uses_vllm_multinode_dp prefill; then
     launch_only_args+=("--data-parallel-hybrid-lb")
   elif _role_is_vllm_headless prefill; then
@@ -1439,7 +1403,7 @@ function launch_prefill()
     # multi-word values (e.g. --cmd "genai-perf profile") through word splitting.
     local -a args_arr=()
     for key in "${!prefill_args[@]}"; do
-      args_arr+=($key "${prefill_args[$key]}")
+      args_arr+=("$key" "${prefill_args[$key]}")
     done
 
     log "Launching prefill worker $i on GPUs $gpu_list (NIXL host: $side_channel_host, NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
@@ -1621,14 +1585,14 @@ function render_lmcache_config()
   _require_cmd python3
 
   local frontend_node="${dynamo_args["frontend-node"]}"
-  local frontend_ip="$(_resolve_host_ip "$frontend_node")"
+  local frontend_address="$frontend_node"
   local storage_cache_dir="$(lmcache_storage_cache_dir)"
   mkdir -p "$storage_cache_dir"
   chmod 755 "$storage_cache_dir"
 
   local rendered_config="${LMCACHE_CONFIG_FILE}.tmp.${SLURM_NODEID:-0}"
   if ! FRONTEND_NODE="$frontend_node" \
-    FRONTEND_IP="$frontend_ip" \
+    FRONTEND_IP="$frontend_address" \
     RESULTS_DIR="$RESULTS_DIR" \
     STORAGE_CACHE_DIR="$storage_cache_dir" \
     python3 - "$LMCACHE_CONFIG_FILE" "$rendered_config" <<'PY'
