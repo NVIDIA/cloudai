@@ -27,7 +27,7 @@ import toml
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -44,6 +44,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "NVIDIA_DRIVER_CAPABILITIES",
         }
     )
+    HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".toml", ".yaml"})
 
     def _container_mounts(self) -> list[str]:
         # This workload submits its own sbatch job and passes mounts via `-cm`.
@@ -207,8 +208,39 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
+        details = trd.model_dump()
+        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            toml.dump(trd.model_dump(), f)
+            toml.dump(details, f)
+
+    def cleanup_job_artifacts(self) -> None:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        token = tdef.cmd_args.hf_token
+        if not token or token == HF_TOKEN_REDACTION or not self.test_run.output_path.exists():
+            return
+
+        token_bytes = token.encode()
+        redaction_bytes = HF_TOKEN_REDACTION.encode()
+        cleanup_failures: list[Path] = []
+        for path in self.test_run.output_path.rglob("*"):
+            if path.is_symlink() or not path.is_file():
+                continue
+            if path.suffix.lower() not in self.HF_TOKEN_ARTIFACT_SUFFIXES:
+                continue
+
+            try:
+                contents = path.read_bytes()
+                if token_bytes not in contents:
+                    continue
+
+                path.write_bytes(contents.replace(token_bytes, redaction_bytes))
+                logging.debug("Redacted Hugging Face token from job artifact: %s", path)
+            except OSError:
+                cleanup_failures.append(path)
+                logging.warning("Failed to redact Hugging Face token from job artifact: %s", path, exc_info=True)
+
+        if cleanup_failures:
+            raise RuntimeError(f"Failed to redact Hugging Face token from {len(cleanup_failures)} job artifact(s).")
 
     def _write_command_to_file(self, command: str, output_path: Path) -> None:
         log_file = output_path / "cloudai_generated_command.sh"

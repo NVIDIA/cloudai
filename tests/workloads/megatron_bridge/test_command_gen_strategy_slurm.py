@@ -13,11 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
 from pathlib import Path
 from typing import Any, Callable, Iterable, cast
 
 import pytest
+import toml
 
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
@@ -26,6 +28,7 @@ from cloudai.workloads.megatron_bridge import (
     MegatronBridgeSlurmCommandGenStrategy,
     MegatronBridgeTestDefinition,
 )
+from cloudai.workloads.megatron_bridge.megatron_bridge import HF_TOKEN_REDACTION
 
 WRAPPER_SCRIPT_NAME = "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
 
@@ -145,11 +148,23 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         with pytest.raises(Exception, match=r"hf_token"):
             MegatronBridgeCmdArgs.model_validate({"model_family_name": "qwen3", "model_recipe_name": "30b_a3b"})
 
-    def test_hf_token_may_be_taken_from_env(self, hf_token_env: str) -> None:
-        cmd_args = MegatronBridgeCmdArgs.model_validate(
-            {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
-        )
+    def test_hf_token_may_be_taken_from_env(self, hf_token_env: str, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING):
+            cmd_args = MegatronBridgeCmdArgs.model_validate(
+                {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
+            )
+
         assert cmd_args.hf_token == hf_token_env
+        assert "HF_TOKEN environment variable" not in caplog.text
+
+    @pytest.mark.usefixtures("no_hf_token_env")
+    def test_hf_token_in_cmd_args_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING):
+            MegatronBridgeCmdArgs.model_validate(
+                {"hf_token": "dummy_token", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
+            )
+
+        assert "HF_TOKEN environment variable" in caplog.text
 
     @pytest.mark.parametrize(
         ("field_name", "value", "match"),
@@ -366,6 +381,42 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert cmd in content
         assert content.startswith("bash ")
         assert "cloudai_megatron_bridge_submit_and_parse_jobid.sh" in content
+
+    def test_store_test_run_redacts_hf_token_without_mutating_model(
+        self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        cmd_gen.store_test_run()
+
+        test_run_path = test_run.output_path / "test-run.toml"
+        details = toml.load(test_run_path)
+        assert details["test_definition"]["cmd_args"]["hf_token"] == HF_TOKEN_REDACTION
+        assert "dummy_token" not in test_run_path.read_text()
+        assert test_run.test.cmd_args.hf_token == "dummy_token"
+
+    def test_cleanup_job_artifacts_redacts_hf_token(
+        self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        output_path = test_run.output_path
+        nested_path = output_path / "experiments" / "run" / "configs"
+        nested_path.mkdir(parents=True)
+        vulnerable_files = [
+            output_path / "cloudai_megatron_bridge_launcher.log",
+            output_path / WRAPPER_SCRIPT_NAME,
+            nested_path / "run_config.yaml",
+            nested_path / "run_executor.yaml",
+            nested_path / "sbatch_job.out",
+        ]
+        for path in vulnerable_files:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("before dummy_token after")
+        safe_file = nested_path / "unrelated.bin"
+        safe_file.write_bytes(b"dummy_token")
+
+        cmd_gen.cleanup_job_artifacts()
+
+        for path in vulnerable_files:
+            assert path.read_text() == f"before {HF_TOKEN_REDACTION} after"
+        assert safe_file.read_bytes() == b"dummy_token"
 
     @pytest.mark.parametrize(
         "use_recipes, expected_in_wrapper",
