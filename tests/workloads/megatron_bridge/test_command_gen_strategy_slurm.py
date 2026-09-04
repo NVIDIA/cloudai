@@ -223,6 +223,40 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "logger.tensorboard_dir=/nemo_run/custom_tb" in wrapper_content
         assert "logger.tensorboard_dir=/nemo_run/tb_logs" not in wrapper_content
 
+    @pytest.mark.parametrize(
+        ("argument_parser_source", "extra_cmd_args", "expected_packager"),
+        (
+            ('parser.add_argument("--packager")', {}, "none"),
+            ('parser.add_argument("--packager")', {"--packager": "git"}, "git"),
+            ('parser.add_argument("--other-option")', {}, None),
+        ),
+    )
+    def test_packager_default_is_only_added_when_supported(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+        argument_parser_source: str,
+        extra_cmd_args: dict[str, str],
+        expected_packager: str | None,
+    ) -> None:
+        tr = make_test_run(output_subdir=f"out_packager_{expected_packager}")
+        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        repo_path = tdef.megatron_bridge_repo.installed_path
+        assert repo_path is not None
+        parser_path = repo_path / "scripts" / "performance" / "argument_parser.py"
+        parser_path.parent.mkdir(parents=True)
+        parser_path.write_text(argument_parser_source)
+        tdef.extra_cmd_args.update(extra_cmd_args)
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+
+        wrapper_content = self._wrapper_content(cmd_gen)
+
+        if expected_packager is None:
+            assert "--packager=" not in wrapper_content
+        else:
+            assert f"--packager={expected_packager}" in wrapper_content
+        assert tdef.extra_cmd_args == extra_cmd_args
+
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
@@ -411,12 +445,29 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             path.write_text("before dummy_token after")
         safe_file = nested_path / "unrelated.bin"
         safe_file.write_bytes(b"dummy_token")
+        code_path = output_path / "experiments" / "run" / "run_123" / "code"
+        code_path.mkdir(parents=True)
+        (code_path / "cloudai.py").write_text("packaged source")
 
         cmd_gen.cleanup_job_artifacts()
 
         for path in vulnerable_files:
             assert path.read_text() == f"before {HF_TOKEN_REDACTION} after"
         assert safe_file.read_bytes() == b"dummy_token"
+        assert not code_path.exists()
+
+    def test_cleanup_job_artifacts_removes_code_without_token(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
+    ) -> None:
+        test_run = make_test_run(cmd_args_overrides={"hf_token": HF_TOKEN_REDACTION})
+        code_path = test_run.output_path / "experiments" / "run" / "run_123" / "code"
+        code_path.mkdir(parents=True)
+        (code_path / "cloudai.py").write_text("packaged source")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, test_run)
+
+        cmd_gen.cleanup_job_artifacts()
+
+        assert not code_path.exists()
 
     @pytest.mark.parametrize(
         "use_recipes, expected_in_wrapper",
