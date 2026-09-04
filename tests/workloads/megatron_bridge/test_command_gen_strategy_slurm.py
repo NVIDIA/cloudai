@@ -423,6 +423,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         nested_path.mkdir(parents=True)
         vulnerable_files = [
             output_path / "cloudai_megatron_bridge_launcher.log",
+            output_path / "cloudai_megatron_bridge_wrapper.stderr",
             output_path / WRAPPER_SCRIPT_NAME,
             nested_path / "run_config.yaml",
             nested_path / "run_executor.yaml",
