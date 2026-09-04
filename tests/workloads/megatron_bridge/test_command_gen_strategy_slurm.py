@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import os
 from pathlib import Path
 from typing import Any, Callable, Iterable, cast
@@ -148,23 +147,12 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         with pytest.raises(Exception, match=r"hf_token"):
             MegatronBridgeCmdArgs.model_validate({"model_family_name": "qwen3", "model_recipe_name": "30b_a3b"})
 
-    def test_hf_token_may_be_taken_from_env(self, hf_token_env: str, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            cmd_args = MegatronBridgeCmdArgs.model_validate(
-                {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
-            )
+    def test_hf_token_may_be_taken_from_env(self, hf_token_env: str) -> None:
+        cmd_args = MegatronBridgeCmdArgs.model_validate(
+            {"hf_token": "", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
+        )
 
         assert cmd_args.hf_token == hf_token_env
-        assert "HF_TOKEN environment variable" not in caplog.text
-
-    @pytest.mark.usefixtures("no_hf_token_env")
-    def test_hf_token_in_cmd_args_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            MegatronBridgeCmdArgs.model_validate(
-                {"hf_token": "dummy_token", "model_family_name": "qwen3", "model_recipe_name": "30b_a3b"}
-            )
-
-        assert "HF_TOKEN environment variable" in caplog.text
 
     @pytest.mark.parametrize(
         ("field_name", "value", "match"),

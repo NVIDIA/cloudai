@@ -166,14 +166,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
-        token = (v or "").strip()
-        if token and token != HF_TOKEN_REDACTION:
-            logging.warning(
-                "Providing a Hugging Face token through cmd_args.hf_token may expose it in the input TOML. "
-                "Use the HF_TOKEN environment variable instead. The cmd_args.hf_token option remains supported "
-                "for backwards compatibility."
-            )
-        token = token or os.environ.get("HF_TOKEN", "").strip()
+        token = (v or "").strip() or os.environ.get("HF_TOKEN", "").strip()
         if not token:
             raise ValueError(
                 "cmd_args.hf_token is required. Please set HF_TOKEN environment variable (recommended) or "
