@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from ._uv import resolve_uv_bin
+import uv
+
 from .base import Installable, InstallStatusResult
 from .git_repo import GitRepo
 
@@ -116,7 +117,7 @@ class PythonExecutable(Installable):
         project_dir = repo_path / self.project_subpath if self.project_subpath else repo_path
         python_version = self._resolve_python_version(repo_path)
         try:
-            uv_bin = resolve_uv_bin()
+            uv_bin = uv.find_uv_bin()
         except OSError as e:
             return InstallStatusResult(False, f"Cannot create virtual environment: {e}")
 

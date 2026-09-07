@@ -24,7 +24,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
-from ._uv import resolve_uv_bin
+import uv
+
 from .base import Installable, InstallStatusResult
 
 if TYPE_CHECKING:
@@ -72,22 +73,22 @@ class PythonEnvironment(Installable):
             return installed
 
         try:
-            uv = resolve_uv_bin()
+            uv_bin = uv.find_uv_bin()
         except OSError as e:
             return InstallStatusResult(False, f"Cannot install Python environment: {e}")
 
-        res = self._ensure_python_version(uv)
+        res = self._ensure_python_version(uv_bin)
         if not res.success:
             return res
 
         venv_path = installer.system.install_path / self.venv_name
-        res = self._create_venv(uv, venv_path)
+        res = self._create_venv(uv_bin, venv_path)
         if not res.success:
             self._cleanup_venv(venv_path)
             self.venv_path = None
             return res
 
-        res = self._install_requirements(uv, installer)
+        res = self._install_requirements(uv_bin, installer)
         if not res.success:
             self._cleanup_venv(venv_path)
             self.venv_path = None

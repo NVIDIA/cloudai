@@ -45,7 +45,7 @@ def test_python_environment_install_uses_uv(installer: BaseInstaller) -> None:
 
     with (
         patch(
-            "cloudai._core.installables.python_environment.resolve_uv_bin",
+            "cloudai._core.installables.python_environment.uv.find_uv_bin",
             return_value="/cloudai/bin/uv",
         ) as resolve_uv,
         patch("subprocess.run") as run,
@@ -79,7 +79,7 @@ def test_python_environment_reports_uv_resolution_failure(installer: BaseInstall
     env = PythonEnvironment(name="aiconfigurator", python_version="3.10")
 
     with patch(
-        "cloudai._core.installables.python_environment.resolve_uv_bin",
+        "cloudai._core.installables.python_environment.uv.find_uv_bin",
         side_effect=OSError("uv is unavailable"),
     ):
         res = env.install(installer)

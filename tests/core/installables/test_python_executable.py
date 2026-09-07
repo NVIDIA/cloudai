@@ -95,7 +95,7 @@ def test_venv_created(installer: BaseInstaller, git: GitRepo):
     py = PythonExecutable(git)
     venv_path = installer.system.install_path / py.venv_name
     with (
-        patch("cloudai._core.installables.python_executable.resolve_uv_bin", return_value="/cloudai/bin/uv"),
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
         patch.object(PythonExecutable, "_install_dependencies", return_value=InstallStatusResult(True)),
         patch("subprocess.run") as mock_run,
     ):
@@ -128,7 +128,7 @@ def test_error_creating_venv(
 
     dependencies_result = InstallStatusResult(False, "err") if reqs_install_failure else InstallStatusResult(True)
     with (
-        patch("cloudai._core.installables.python_executable.resolve_uv_bin", return_value="/cloudai/bin/uv"),
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
         patch.object(PythonExecutable, "_install_dependencies", return_value=dependencies_result),
         patch("subprocess.run", side_effect=mock_run),
     ):
@@ -204,7 +204,7 @@ def test_all_good_flow(installer: BaseInstaller, git: GitRepo):
     pyproject_file.write_text("[tool.poetry]\nname = 'dummy_project'")
 
     with (
-        patch("cloudai._core.installables.python_executable.resolve_uv_bin", return_value="/cloudai/bin/uv"),
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
         patch("subprocess.run") as mock_run,
     ):
         mock_run.return_value = CompletedProcess(args=[], returncode=0, stdout=f"{git.commit}\n", stderr="")
