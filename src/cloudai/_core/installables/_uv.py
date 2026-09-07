@@ -19,11 +19,4 @@ import uv
 
 def resolve_uv_bin() -> str:
     """Return the uv executable shipped with the current CloudAI installation."""
-    try:
-        uv_bin = uv.find_uv_bin()
-    except Exception as e:
-        raise RuntimeError("Cannot locate the uv executable shipped with CloudAI.") from e
-
-    if not uv_bin:
-        raise RuntimeError("Cannot locate the uv executable shipped with CloudAI.")
-    return str(uv_bin)
+    return uv.find_uv_bin()

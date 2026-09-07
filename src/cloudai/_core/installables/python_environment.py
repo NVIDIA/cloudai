@@ -73,7 +73,7 @@ class PythonEnvironment(Installable):
 
         try:
             uv = resolve_uv_bin()
-        except RuntimeError as e:
+        except OSError as e:
             return InstallStatusResult(False, f"Cannot install Python environment: {e}")
 
         res = self._ensure_python_version(uv)

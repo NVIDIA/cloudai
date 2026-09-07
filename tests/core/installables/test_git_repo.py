@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Iterator
@@ -77,10 +75,10 @@ def test_git_repo_name(url: str, expected: str):
 
 
 def test_python_version_is_optional_and_round_trips() -> None:
-    legacy = GitRepo.model_validate({"url": "./repo", "commit": "main"})
+    default = GitRepo.model_validate({"url": "./repo", "commit": "main"})
     pinned = GitRepo.model_validate({"url": "./repo", "commit": "main", "python_version": "3.11.9"})
 
-    assert legacy.python_version is None
+    assert default.python_version is None
     assert pinned.python_version == "3.11.9"
     assert pinned.model_dump()["python_version"] == "3.11.9"
 
@@ -138,7 +136,7 @@ python_version = "3.11.9"
     assert model.tdef_model_dump(by_alias=True)["git_repos"][0]["python_version"] == "3.11.9"
 
 
-def test_legacy_git_repo_toml_without_python_version_remains_valid() -> None:
+def test_git_repo_toml_without_python_version_remains_valid() -> None:
     data = toml.loads(
         """
 [[git_repos]]
@@ -344,47 +342,6 @@ def test_repo_exists_with_wrong_commit(installer: BaseInstaller, git: GitRepo):
         res = git.install(installer)
     assert not res.success
     assert res.message == "wrong commit"
-
-
-def test_concurrent_python_variants_clone_shared_repo_once(installer: BaseInstaller) -> None:
-    py311 = GitRepo(url="./shared_repo", commit="commit_hash", python_version="3.11.9")
-    py314 = GitRepo(url="./shared_repo", commit="commit_hash", python_version="3.14.0")
-    first_clone_started = threading.Event()
-    second_clone_started = threading.Event()
-    release_clone = threading.Event()
-    calls_lock = threading.Lock()
-    clone_calls = 0
-
-    def clone_repository(item: GitRepo, installer: BaseInstaller, path: Path) -> InstallStatusResult:
-        nonlocal clone_calls
-        with calls_lock:
-            clone_calls += 1
-            call_number = clone_calls
-        if call_number == 1:
-            first_clone_started.set()
-        else:
-            second_clone_started.set()
-        assert release_clone.wait(timeout=2)
-        path.mkdir(parents=True, exist_ok=True)
-        return InstallStatusResult(True)
-
-    with (
-        patch.object(GitRepo, "_clone_repository", autospec=True, side_effect=clone_repository),
-        patch.object(GitRepo, "_checkout_commit", return_value=InstallStatusResult(True)),
-        patch.object(GitRepo, "_verify_commit", return_value=InstallStatusResult(True)),
-        patch.object(GitRepo, "ensure_submodules_state", return_value=(True, "")),
-        ThreadPoolExecutor(max_workers=2) as executor,
-    ):
-        first = executor.submit(py311.install, installer)
-        assert first_clone_started.wait(timeout=2)
-        second = executor.submit(py314.install, installer)
-        assert not second_clone_started.wait(timeout=0.1), "second clone was not serialized by repository path"
-        release_clone.set()
-        results = [first.result(timeout=2), second.result(timeout=2)]
-
-    assert all(result.success for result in results)
-    assert clone_calls == 1
-    assert py311.installed_path == py314.installed_path == installer.system.install_path / py311.repo_name
 
 
 def test_repo_cloned(installer: BaseInstaller, git: GitRepo):

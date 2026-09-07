@@ -111,7 +111,6 @@ jobs:
           set -eEx
           set -o pipefail
 
-          .smoke-venv/bin/python -c "from pathlib import Path; from uv import find_uv_bin; assert Path(find_uv_bin()).is_file()"
           .smoke-venv/bin/cloudai --help
 
           # this checks that all TOMLs are valid, Test Scenarios are checked _only_ the tests in the specified directory

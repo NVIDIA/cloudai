@@ -74,13 +74,9 @@ Test TOML example (Aggregated/IFB mode):
 Running
 -------
 
-CloudAI installs AIConfigurator into a managed Python environment on first use.
-It uses the uv executable bundled with CloudAI, so ``uv`` does not need to be
-installed separately or available on ``PATH``.
-
 .. code-block:: bash
 
-   cloudai run --system-config conf/common/system/standalone_system.toml \
+   uv run cloudai run --system-config conf/common/system/standalone_system.toml \
       --tests-dir conf/experimental/aiconfigurator/test \
       --test-scenario conf/experimental/aiconfigurator/test_scenario/aiconfigurator_disagg.toml
 

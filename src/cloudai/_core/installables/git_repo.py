@@ -17,10 +17,8 @@
 import logging
 import shutil
 import subprocess
-import threading
-from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -28,21 +26,6 @@ from .base import Installable, InstallStatusResult
 
 if TYPE_CHECKING:
     from ..base_installer import BaseInstaller
-
-
-_REPO_LOCKS: dict[Path, threading.Lock] = {}
-_REPO_LOCKS_GUARD = threading.Lock()
-
-
-@contextmanager
-def _repo_lock(repo_path: Path) -> Iterator[None]:
-    """Serialize operations on a checkout shared by multiple installables."""
-    key = repo_path.resolve()
-    with _REPO_LOCKS_GUARD:
-        lock = _REPO_LOCKS.setdefault(key, threading.Lock())
-
-    with lock:
-        yield
 
 
 class GitRepo(Installable, BaseModel):
@@ -125,10 +108,6 @@ class GitRepo(Installable, BaseModel):
 
     def install(self, installer: "BaseInstaller") -> InstallStatusResult:
         repo_path = installer.system.install_path / self.repo_name
-        with _repo_lock(repo_path):
-            return self._install(installer, repo_path)
-
-    def _install(self, installer: "BaseInstaller", repo_path: Path) -> InstallStatusResult:
         if repo_path.exists():
             verify_res = self._verify_commit(self.commit, repo_path)
             if not verify_res.success:
@@ -151,10 +130,6 @@ class GitRepo(Installable, BaseModel):
     def uninstall(self, installer: "BaseInstaller") -> InstallStatusResult:
         logging.debug(f"Uninstalling git repository at {self.installed_path=}")
         repo_path = self.installed_path if self.installed_path else installer.system.install_path / self.repo_name
-        with _repo_lock(repo_path):
-            return self._uninstall(repo_path)
-
-    def _uninstall(self, repo_path: Path) -> InstallStatusResult:
         if not repo_path.exists():
             return InstallStatusResult(True, f"Repository {self.url} is not cloned.")
 

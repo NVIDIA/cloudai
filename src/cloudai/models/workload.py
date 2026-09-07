@@ -75,11 +75,19 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
-@dataclass(eq=False)
+@dataclass
 class PredictorConfig(PythonExecutable):
     """Predictor configuration."""
 
     bin_name: Optional[str] = None
+
+    def __hash__(self) -> int:
+        """
+        Hash the PredictorConfig.
+
+        It is based on git repo on purpose to avoid re-downloading the same repo for multiple scripts.
+        """
+        return self.git_repo.__hash__()
 
 
 class TrainingReportConfig(BaseModel):
