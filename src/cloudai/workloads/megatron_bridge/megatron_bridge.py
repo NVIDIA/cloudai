@@ -17,6 +17,7 @@
 import logging
 import os
 import re
+from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
@@ -581,11 +582,11 @@ class MegatronBridgeTestDefinition(TestDefinition):
         - At the point of failure the script asks for reference golden values, that we don't have
         - Then the script will perform convergence test between provided golden and actual golden - we don't need it
         """
-        log_path = tr.output_path / "cloudai_megatron_bridge_launcher.log"
-        if not log_path.is_file():
+        log_path = find_mbridge_log(tr.output_path)
+        if log_path is None:
             return JobStatusResult(
                 is_successful=False,
-                error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
+                error_message=f"Megatron-Bridge training log not found in {tr.output_path}.",
             )
 
         log_data = log_path.read_text(encoding="utf-8", errors="ignore")
@@ -594,6 +595,15 @@ class MegatronBridgeTestDefinition(TestDefinition):
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         return JobStatusResult(is_successful=True)
+
+
+def find_mbridge_log(output_path: Path) -> Path | None:
+    training_logs = sorted(output_path.glob("experiments/**/log*.out"))
+    if training_logs:
+        return training_logs[-1]
+
+    launcher_log = output_path / "cloudai_megatron_bridge_launcher.log"
+    return launcher_log if launcher_log.is_file() else None
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
