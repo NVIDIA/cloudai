@@ -53,16 +53,14 @@ def slurm_runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> Slur
 
 def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     tr = slurm_runner.test_scenario.test_runs[0]
-    slurm_runner.system.submit_job = Mock(
-        side_effect=JobIdRetrievalError(
-            test_name=str(tr.name),
-            command="sbatch script.sh",
-            stdout="",
-            stderr="sbatch: error: Batch job submission failed: Requested node configuration is not available",
-            message="Failed to retrieve job ID.",
-        )
+    error = JobIdRetrievalError(
+        test_name=str(tr.name),
+        command="sbatch script.sh",
+        stdout="",
+        stderr="sbatch: error: Batch job submission failed: Requested node configuration is not available",
+        message="Failed to retrieve job ID.",
     )
-    with pytest.raises(JobIdRetrievalError) as excinfo:
+    with patch.object(SlurmSystem, "submit_job", side_effect=error), pytest.raises(JobIdRetrievalError) as excinfo:
         slurm_runner._submit_test(tr)
     assert "Failed to retrieve job ID." in str(excinfo.value)
     assert "sbatch: error: Batch job submission failed: Requested node configuration is not available" in str(

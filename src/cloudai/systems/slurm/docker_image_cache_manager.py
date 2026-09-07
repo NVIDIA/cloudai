@@ -20,6 +20,7 @@ import logging
 import os
 import shlex
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -92,14 +93,15 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
-    def _job_name(self) -> str:
+    def _job_name(self, docker_image_url: str) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        image_hash = sha256(docker_image_url.encode()).hexdigest()[:8]
         if self.system.account:
-            return f"{self.system.account}-CloudAI_install_docker_image.{timestamp}"
-        return f"CloudAI_install_docker_image_{timestamp}"
+            return f"{self.system.account}-CloudAI_install_docker_image.{image_hash}.{timestamp}"
+        return f"CloudAI_install_docker_image_{image_hash}_{timestamp}"
 
     def _write_import_script(self, docker_image_url: str, docker_image_path: Path) -> tuple[Path, Path]:
-        job_name = self._job_name()
+        job_name = self._job_name(docker_image_url)
         script_path = self.system.install_path / f".{job_name}.sh"
         stdout_path = self.system.install_path / f".{job_name}.out"
         stderr_path = self.system.install_path / f".{job_name}.err"

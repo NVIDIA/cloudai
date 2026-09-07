@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
@@ -57,6 +58,8 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
 
     def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
         content = script_path.read_text(encoding="utf-8")
+        image_hash = sha256(b"docker.io/hello-world").hexdigest()[:8]
+        assert image_hash in script_path.name
         assert "#SBATCH --partition=" + slurm_system.default_partition in content
         assert "#SBATCH -N1" in content
         assert "#SBATCH --ntasks=1" in content

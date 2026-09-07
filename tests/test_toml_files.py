@@ -59,7 +59,7 @@ ALL_SYSTEMS = get_all_systems()
 @pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
 @patch("kubernetes.config.load_kube_config")
 @patch("pathlib.Path.exists", return_value=True)
-def test_systems(mock_load_kube_config, system_file: Path):
+def test_systems(_mock_exists, mock_load_kube_config, system_file: Path):
     """
     Validate the syntax of a system configuration file.
 
