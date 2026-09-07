@@ -99,7 +99,7 @@ def test_venv_created(installer: BaseInstaller, git: GitRepo):
         patch.object(PythonExecutable, "_install_dependencies", return_value=InstallStatusResult(True)),
         patch("subprocess.run") as mock_run,
     ):
-        mock_run.return_value = CompletedProcess(args=[], returncode=0)
+        mock_run.side_effect = lambda *args, **kwargs: venv_path.mkdir() or CompletedProcess(args=[], returncode=0)
         res = py._create_venv(installer)
     assert res.success
     mock_run.assert_called_once_with(
@@ -108,6 +108,36 @@ def test_venv_created(installer: BaseInstaller, git: GitRepo):
         capture_output=True,
         text=True,
     )
+    assert (venv_path / ".cloudai-python-version").read_text().strip() == "3.11.9"
+
+
+def test_existing_pinned_venv_without_version_marker_is_recreated(installer: BaseInstaller, git: GitRepo):
+    repo_path = installer.system.install_path / git.repo_name
+    repo_path.mkdir()
+    (repo_path / ".python-version").write_text("3.11.9\n")
+    git.installed_path = repo_path
+    py = PythonExecutable(git)
+    venv_path = installer.system.install_path / py.venv_name
+    venv_path.mkdir()
+    stale_file = venv_path / "stale"
+    stale_file.touch()
+
+    assert not py.is_installed(installer).success
+
+    def create_venv(*args, **kwargs):
+        assert not stale_file.exists()
+        venv_path.mkdir()
+        return CompletedProcess(args=[], returncode=0)
+
+    with (
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
+        patch.object(PythonExecutable, "_install_dependencies", return_value=InstallStatusResult(True)),
+        patch("subprocess.run", side_effect=create_venv),
+    ):
+        res = py._create_venv(installer)
+
+    assert res.success
+    assert (venv_path / ".cloudai-python-version").read_text().strip() == "3.11.9"
 
 
 @pytest.mark.parametrize("failure_on_venv_creation,reqs_install_failure", [(True, False), (False, True)])
@@ -143,6 +173,7 @@ def test_error_creating_venv(
 
 
 def test_venv_already_exists(installer: BaseInstaller, git: GitRepo):
+    git.installed_path = installer.system.install_path / git.repo_name
     py = PythonExecutable(git)
     venv_path = installer.system.install_path / py.venv_name
     venv_path.mkdir()

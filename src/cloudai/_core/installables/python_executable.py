@@ -32,6 +32,9 @@ if TYPE_CHECKING:
     from ..base_installer import BaseInstaller
 
 
+_PYTHON_VERSION_MARKER = ".cloudai-python-version"
+
+
 @dataclass
 class PythonExecutable(Installable):
     """Python executable object."""
@@ -97,6 +100,11 @@ class PythonExecutable(Installable):
         venv_path = self.venv_path if self.venv_path else installer.system.install_path / self.venv_name
         if not venv_path.exists():
             return InstallStatusResult(False, f"Virtual environment not created for {self.git_repo.url}")
+
+        python_version = self._resolve_python_version(repo_path)
+        if not self._python_version_matches(venv_path, python_version):
+            return InstallStatusResult(False, f"Virtual environment uses a different Python than {python_version}")
+
         self.venv_path = venv_path
 
         return InstallStatusResult(True, "Python executable installed")
@@ -108,20 +116,24 @@ class PythonExecutable(Installable):
 
     def _create_venv(self, installer: "BaseInstaller") -> InstallStatusResult:
         venv_path = installer.system.install_path / self.venv_name
+        project_dir = typing.cast(Path, self.git_repo.installed_path)
+        python_version = self._resolve_python_version(project_dir)
         logging.debug(f"Creating virtual environment in {venv_path}")
-        if venv_path.exists():
+        if venv_path.exists() and self._python_version_matches(venv_path, python_version):
             msg = f"Virtual environment already exists at {venv_path}."
             logging.debug(msg)
             return InstallStatusResult(True, msg)
 
-        project_dir = typing.cast(Path, self.git_repo.installed_path)
-        python_version = self._resolve_python_version(project_dir)
         if self.project_subpath:
             project_dir /= self.project_subpath
         try:
             uv_bin = uv.find_uv_bin()
         except OSError as e:
             return InstallStatusResult(False, f"Cannot create virtual environment: {e}")
+
+        if venv_path.exists():
+            logging.info(f"Recreating virtual environment at {venv_path} for Python {python_version}")
+            shutil.rmtree(venv_path)
 
         cmd = [uv_bin, "venv", "--python", python_version, "--seed", str(venv_path)]
         logging.debug(f"Creating venv using cmd: {' '.join(cmd)}")
@@ -139,6 +151,9 @@ class PythonExecutable(Installable):
             if venv_path.exists():
                 shutil.rmtree(venv_path)
             return res
+
+        if python_version != sys.executable:
+            (venv_path / _PYTHON_VERSION_MARKER).write_text(f"{python_version}\n", encoding="utf-8")
 
         self.venv_path = installer.system.install_path / self.venv_name
 
@@ -165,6 +180,13 @@ class PythonExecutable(Installable):
             current = current.parent
 
         return sys.executable
+
+    @staticmethod
+    def _python_version_matches(venv_path: Path, python_version: str) -> bool:
+        if python_version == sys.executable:
+            return True
+        marker = venv_path / _PYTHON_VERSION_MARKER
+        return marker.is_file() and marker.read_text(encoding="utf-8").strip() == python_version
 
     def _install_dependencies(self, installer: "BaseInstaller") -> InstallStatusResult:
         venv_path = installer.system.install_path / self.venv_name
