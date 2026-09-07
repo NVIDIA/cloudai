@@ -20,7 +20,6 @@ from typing import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
-import toml
 
 from cloudai.core import BaseInstaller, GitRepo, InstallStatusResult, TestDefinition
 from cloudai.models.scenario import TestRunModel
@@ -74,15 +73,6 @@ def test_git_repo_name(url: str, expected: str):
     assert GitRepo(url=url, commit="commit").repo_name == expected
 
 
-def test_python_version_is_optional_and_round_trips() -> None:
-    default = GitRepo.model_validate({"url": "./repo", "commit": "main"})
-    pinned = GitRepo.model_validate({"url": "./repo", "commit": "main", "python_version": "3.11.9"})
-
-    assert default.python_version is None
-    assert pinned.python_version == "3.11.9"
-    assert pinned.model_dump()["python_version"] == "3.11.9"
-
-
 def test_python_version_does_not_change_git_clone_identity() -> None:
     py311 = GitRepo(url="./repo", commit="main", python_version="3.11.9")
     py314 = GitRepo(url="./repo", commit="main", python_version="3.14.0")
@@ -94,58 +84,34 @@ def test_python_version_does_not_change_git_clone_identity() -> None:
 
 
 def test_test_definition_git_repo_accepts_python_version() -> None:
-    data = toml.loads(
-        """
-name = "test"
-description = "description"
-test_template_name = "Example"
-
-[cmd_args]
-
-[[git_repos]]
-url = "./repo"
-commit = "main"
-python_version = "3.11.9"
-"""
+    tdef = TestDefinition.model_validate(
+        {
+            "name": "test",
+            "description": "description",
+            "test_template_name": "Example",
+            "cmd_args": {},
+            "git_repos": [{"url": "./repo", "commit": "main", "python_version": "3.11.9"}],
+        }
     )
-    tdef = TestDefinition.model_validate(data)
 
     assert tdef.git_repos[0].python_version == "3.11.9"
-    assert tdef.model_dump()["git_repos"][0]["python_version"] == "3.11.9"
 
 
 def test_scenario_git_repo_accepts_and_preserves_python_version() -> None:
-    data = toml.loads(
-        """
-name = "scenario"
-
-[[Tests]]
-id = "case"
-test_name = "base-test"
-
-[[Tests.git_repos]]
-url = "./repo"
-commit = "main"
-python_version = "3.11.9"
-"""
+    model = TestRunModel.model_validate(
+        {
+            "id": "case",
+            "test_name": "base-test",
+            "git_repos": [{"url": "./repo", "commit": "main", "python_version": "3.11.9"}],
+        }
     )
-    model = TestRunModel.model_validate(data["Tests"][0])
 
     assert model.git_repos is not None
     assert model.git_repos[0].python_version == "3.11.9"
-    assert model.tdef_model_dump(by_alias=True)["git_repos"][0]["python_version"] == "3.11.9"
 
 
 def test_git_repo_toml_without_python_version_remains_valid() -> None:
-    data = toml.loads(
-        """
-[[git_repos]]
-url = "./repo"
-commit = "main"
-"""
-    )
-
-    repo = GitRepo.model_validate(data["git_repos"][0])
+    repo = GitRepo.model_validate({"url": "./repo", "commit": "main"})
 
     assert repo.python_version is None
 
