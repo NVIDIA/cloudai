@@ -20,7 +20,7 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .megatron_bridge import extract_mbridge_metrics
+from .megatron_bridge import extract_mbridge_metrics, find_mbridge_log
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
@@ -29,8 +29,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
     def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
-        return log if log.is_file() else None
+        return find_mbridge_log(self.test_run.output_path)
 
     @property
     def results_file(self) -> Path:
@@ -52,7 +51,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
         if not log_file:
             logging.error(
-                "No Megatron-Bridge launcher log file found in: %s",
+                "No Megatron-Bridge training log file found in: %s",
                 self.test_run.output_path,
             )
             return
@@ -107,7 +106,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
         if not log_file:
             logging.error(
-                "No Megatron-Bridge launcher log file found in: %s",
+                "No Megatron-Bridge training log file found in: %s",
                 self.test_run.output_path,
             )
             return METRIC_ERROR
