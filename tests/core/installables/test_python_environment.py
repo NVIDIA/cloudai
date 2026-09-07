@@ -43,23 +43,30 @@ def test_python_environment_identity_uses_stable_configuration() -> None:
 def test_python_environment_install_uses_uv(installer: BaseInstaller) -> None:
     env = PythonEnvironment(name="aiconfigurator", python_version="3.10", requirements=["aiconfigurator~=0.5.0"])
 
-    with patch("shutil.which", return_value="/usr/bin/uv"), patch("subprocess.run") as run:
+    with (
+        patch(
+            "cloudai._core.installables.python_environment.resolve_uv_bin",
+            return_value="/cloudai/bin/uv",
+        ) as resolve_uv,
+        patch("subprocess.run") as run,
+    ):
         run.return_value = CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
         res = env.install(installer)
 
     assert res.success
+    resolve_uv.assert_called_once_with()
     assert env.venv_path == installer.system.install_path / env.venv_name
-    assert run.call_args_list[0].args[0] == ["/usr/bin/uv", "python", "install", "3.10"]
+    assert run.call_args_list[0].args[0] == ["/cloudai/bin/uv", "python", "install", "3.10"]
     assert run.call_args_list[1].args[0] == [
-        "/usr/bin/uv",
+        "/cloudai/bin/uv",
         "venv",
         "--python",
         "3.10",
         str(installer.system.install_path / env.venv_name),
     ]
     assert run.call_args_list[2].args[0] == [
-        "/usr/bin/uv",
+        "/cloudai/bin/uv",
         "pip",
         "install",
         "--python",
@@ -68,14 +75,26 @@ def test_python_environment_install_uses_uv(installer: BaseInstaller) -> None:
     ]
 
 
-def test_python_environment_install_requires_uv(installer: BaseInstaller) -> None:
+def test_python_environment_reports_bundled_uv_resolution_failure(installer: BaseInstaller) -> None:
     env = PythonEnvironment(name="aiconfigurator", python_version="3.10")
 
-    with patch("shutil.which", return_value=None):
+    with patch(
+        "cloudai._core.installables.python_environment.resolve_uv_bin",
+        side_effect=RuntimeError("bundled uv is unavailable"),
+    ):
         res = env.install(installer)
 
     assert not res.success
-    assert res.message == "Cannot install Python environment: 'uv' is not available."
+    assert res.message == "Cannot install Python environment: bundled uv is unavailable"
+
+
+def test_packaged_uv_resolver_uses_public_uv_api() -> None:
+    from cloudai._core.installables._uv import resolve_uv_bin
+
+    with patch("cloudai._core.installables._uv.uv.find_uv_bin", return_value="/cloudai/bin/uv") as find_uv_bin:
+        assert resolve_uv_bin() == "/cloudai/bin/uv"
+
+    find_uv_bin.assert_called_once_with()
 
 
 def test_python_environment_is_installed_checks_python_executable(installer: BaseInstaller) -> None:

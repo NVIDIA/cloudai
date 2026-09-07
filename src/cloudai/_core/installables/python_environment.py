@@ -24,6 +24,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from ._uv import resolve_uv_bin
 from .base import Installable, InstallStatusResult
 
 if TYPE_CHECKING:
@@ -70,9 +71,10 @@ class PythonEnvironment(Installable):
         if installed.success:
             return installed
 
-        uv = shutil.which("uv")
-        if uv is None:
-            return InstallStatusResult(False, "Cannot install Python environment: 'uv' is not available.")
+        try:
+            uv = resolve_uv_bin()
+        except RuntimeError as e:
+            return InstallStatusResult(False, f"Cannot install Python environment: {e}")
 
         res = self._ensure_python_version(uv)
         if not res.success:

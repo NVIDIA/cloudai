@@ -4,6 +4,65 @@ Installation Requirements
 CloudAI workloads can define multiple installables as prerequisites. The installable can be a container image, git repository, HF model, etc.
 
 
+Python Executables from Git Repositories
+----------------------------------------
+
+Some workloads wrap a git repository in a ``PythonExecutable`` and install the
+repository in a dedicated virtual environment. Such an environment can use a
+different Python interpreter from the one running CloudAI. Set ``python_version``
+on the repository to select that interpreter explicitly.
+
+In a test definition:
+
+.. code-block:: toml
+
+    [[git_repos]]
+    url = "https://github.com/NVIDIA-NeMo/Run.git"
+    commit = "v0.10.0"
+    python_version = "3.11.9"
+
+In a test embedded in a scenario:
+
+.. code-block:: toml
+
+    [[Tests.git_repos]]
+    url = "https://github.com/NVIDIA-NeMo/Run.git"
+    commit = "v0.10.0"
+    python_version = "3.11.9"
+
+CloudAI selects the interpreter for a ``PythonExecutable`` in this order:
+
+1. The repository's explicit ``python_version`` value.
+2. The nearest ``.python-version`` file, searching from the executable's
+   project subdirectory towards the repository root. The search never leaves
+   the repository.
+3. The interpreter running CloudAI (``sys.executable``), which preserves the
+   behavior of repositories without a Python version setting.
+
+Other version declarations, including ``.python-versions``, ``.tool-versions``,
+``runtime.txt``, global uv configuration, and ``requires-python`` in
+``pyproject.toml``, are not used for this selection.
+
+CloudAI ships the uv Python package and uses its bundled executable to create
+these virtual environments; a separately installed ``uv`` command is not
+required. If the selected interpreter is unavailable locally, uv can download
+it during the first installation, so that installation requires network access
+and can take longer than subsequent runs. See `uv Python version management`_
+for details.
+
+The ``python_version`` field does not by itself make a generic ``GitRepo``
+executable. Repositories used only as mounts are still cloned and mounted; the
+field is consumed only by workloads that wrap the repository in a
+``PythonExecutable``.
+
+After upgrading CloudAI, an existing virtual environment that uses a repository
+``.python-version`` pin might be recreated once. CloudAI records the effective
+interpreter request for future checks and rebuilds a pinned legacy environment
+when that record is missing or no longer matches.
+
+.. _uv Python version management: https://docs.astral.sh/uv/concepts/python-versions/
+
+
 Setting Up Access to the Private NGC Registry
 ---------------------------------------------
 
