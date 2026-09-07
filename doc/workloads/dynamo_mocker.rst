@@ -12,7 +12,8 @@ Prerequisites
 -------------
 
 CloudAI automatically installs ``ai-dynamo``, ``aiperf``, and ``genai-perf`` into a managed Python virtual
-environment on first run — no manual pip install is needed.
+environment on first run — no manual pip install is needed. CloudAI uses its bundled uv executable for this,
+so ``uv`` does not need to be installed separately or available on ``PATH``.
 
 The one prerequisite is ``nats-server``. On many clusters ``nats-server`` is pre-installed by administrators
 and is already on ``PATH``. Check if it is already available:
@@ -71,7 +72,7 @@ Run Using Standalone
 
 .. code-block:: bash
 
-   uv run cloudai run \
+   cloudai run \
      --system-config conf/experimental/dynamo_mocker/system/standalone_system.toml \
      --tests-dir conf/experimental/dynamo_mocker/test \
      --test-scenario conf/experimental/dynamo_mocker/test_scenario/dynamo_mocker.toml

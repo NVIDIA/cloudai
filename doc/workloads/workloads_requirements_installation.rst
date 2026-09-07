@@ -43,12 +43,13 @@ Other version declarations, including ``.python-versions``, ``.tool-versions``,
 ``runtime.txt``, global uv configuration, and ``requires-python`` in
 ``pyproject.toml``, are not used for this selection.
 
-CloudAI ships the uv Python package and uses its bundled executable to create
-these virtual environments; a separately installed ``uv`` command is not
-required. If the selected interpreter is unavailable locally, uv can download
-it during the first installation, so that installation requires network access
-and can take longer than subsequent runs. See `uv Python version management`_
-for details.
+CloudAI uses the uv executable bundled with its Python package for both
+``PythonExecutable`` and ``PythonEnvironment`` installables. Neither installable
+requires a separately installed ``uv`` command or ``uv`` on ``PATH``. If the
+selected interpreter is unavailable locally, the bundled uv can download it
+during the first installation, so that installation requires network access and
+can take longer than subsequent runs. See `uv Python version management`_ for
+details.
 
 The ``python_version`` field does not by itself make a generic ``GitRepo``
 executable. Repositories used only as mounts are still cloned and mounted; the
