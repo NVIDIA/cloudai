@@ -23,7 +23,6 @@ import shutil
 import subprocess
 import time
 from copy import copy
-from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -320,35 +319,6 @@ class SlurmSystem(System):
         missing_options = [option for option in self._REQUIRED_SRUN_OPTIONS if option not in result.stdout]
         if missing_options:
             raise EnvironmentError(f"Required srun options missing: {', '.join(missing_options)}")
-
-    def _deprecated_import_docker_image(self, docker_image_url: str, docker_image_path: Path) -> None:
-        """Import a Docker image into the shared Enroot cache through Slurm."""
-        job_name = "CloudAI_install_docker_image"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        job_name = f"{self.account}-{job_name}.{timestamp}" if self.account else f"{job_name}_{timestamp}"
-
-        command = f"srun --export=ALL --partition={self.default_partition}"
-        if self.account:
-            command += f" --account={self.account}"
-        if self.supports_gpu_directives:
-            command += " --gres=gpu:1"
-        if self.extra_srun_args:
-            command += f" {self.extra_srun_args}"
-        command += (
-            f" -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
-        )
-
-        logging.debug("Importing Docker image: %s", command)
-        try:
-            result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Failed to import Docker image {docker_image_url}: {exc.stderr}") from exc
-
-        if "Disk quota exceeded" in result.stderr or "Write error" in result.stderr:
-            raise RuntimeError(
-                f"Failed to cache Docker image {docker_image_url}: {result.stderr}. "
-                "Please check whether the target disk is full or unusable."
-            )
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
