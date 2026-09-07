@@ -117,6 +117,7 @@ def test_error_creating_venv(
     failure_on_venv_creation: bool,
     reqs_install_failure: bool,
 ):
+    git.installed_path = installer.system.install_path / git.repo_name
     py = PythonExecutable(git)
     venv_path = installer.system.install_path / py.venv_name
 

@@ -18,6 +18,7 @@ import logging
 import shutil
 import subprocess
 import sys
+import typing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -113,9 +114,10 @@ class PythonExecutable(Installable):
             logging.debug(msg)
             return InstallStatusResult(True, msg)
 
-        repo_path = self.git_repo.installed_path or installer.system.install_path / self.git_repo.repo_name
-        project_dir = repo_path / self.project_subpath if self.project_subpath else repo_path
-        python_version = self._resolve_python_version(repo_path)
+        project_dir = typing.cast(Path, self.git_repo.installed_path)
+        python_version = self._resolve_python_version(project_dir)
+        if self.project_subpath:
+            project_dir /= self.project_subpath
         try:
             uv_bin = uv.find_uv_bin()
         except OSError as e:
