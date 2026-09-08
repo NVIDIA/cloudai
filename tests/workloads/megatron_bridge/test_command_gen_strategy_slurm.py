@@ -499,3 +499,28 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "-vp None" in wrapper_content
+
+    @pytest.mark.parametrize("backend", ["hybridep", "deepep", "ncclep", "None"])
+    def test_moe_flex_dispatcher_backend_emitted(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+        backend: str,
+    ) -> None:
+        tr = make_test_run(
+            cmd_args_overrides={"moe_flex_dispatcher_backend": backend},
+            output_subdir=f"out_flex_{backend}",
+        )
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert f"--moe_flex_dispatcher_backend {backend}" in wrapper_content
+
+    def test_moe_flex_dispatcher_backend_not_emitted_when_unset(
+        self,
+        configured_slurm_system: SlurmSystem,
+        make_test_run: Callable[..., TestRun],
+    ) -> None:
+        tr = make_test_run(output_subdir="out_flex_unset")
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        assert "--moe_flex_dispatcher_backend" not in wrapper_content

@@ -619,6 +619,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Misc
         if "moe_a2a_overlap" in fields_set:
             add_field("moe_a2a_overlap", "--moe_a2a_overlap", bool(args.moe_a2a_overlap))
+        add_field(
+            "moe_flex_dispatcher_backend",
+            "--moe_flex_dispatcher_backend",
+            args.moe_flex_dispatcher_backend,
+        )
         add_field("max_steps", "-ms", args.max_steps)
         add_field("recompute_num_layers", "-rl", args.recompute_num_layers)
         add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
