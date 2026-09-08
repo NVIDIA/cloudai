@@ -43,6 +43,8 @@ class ReportItem:
     description: str
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
+    is_successful: Optional[bool] = None
+    error_message: str = ""
 
     @classmethod
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
@@ -53,6 +55,9 @@ class ReportItem:
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
             if metadata := load_system_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
+            status = tr.test.was_run_successful(tr)
+            ri.is_successful = status.is_successful
+            ri.error_message = status.error_message
             report_items.append(ri)
 
         return report_items

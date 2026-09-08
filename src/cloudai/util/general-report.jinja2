@@ -1,10 +1,18 @@
 {% extends "base-report.jinja2" %}
 
+{% block extra_head %}
+<style>
+    .status-passed { color: var(--nv-green-strong); font-weight: 600; }
+    .status-failed { color: #c0392b; font-weight: 600; }
+</style>
+{% endblock %}
+
 {% block content %}
 <table>
     <tr>
         <th>Test</th>
         <th>Description</th>
+        <th>Status</th>
         <th>Results</th>
         <th>Nodes</th>
     </tr>
@@ -12,6 +20,13 @@
     <tr>
         <td>{{ item.name }}</td>
         <td>{{ item.description }}</td>
+        {% if item.is_successful is none %}
+            <td>Unknown</td>
+        {% elif item.is_successful %}
+            <td class="status-passed">PASSED</td>
+        {% else %}
+            <td class="status-failed">FAILED{% if item.error_message %}<br>{{ item.error_message }}{% endif %}</td>
+        {% endif %}
         {% if item.logs_path %}
             <td><a href="{{ item.logs_path }}">logs</a></td>
         {% else %}
