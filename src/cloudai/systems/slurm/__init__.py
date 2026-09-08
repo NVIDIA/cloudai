@@ -21,10 +21,11 @@ from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata, SlurmSystemMetadata
 from .slurm_node import SlurmNode, SlurmNodeState
 from .slurm_runner import SlurmRunner
-from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
+from .slurm_system import SlurmAPIConfig, SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
 
 __all__ = [
     "SingleSbatchRunner",
+    "SlurmAPIConfig",
     "SlurmCommandGenStrategy",
     "SlurmGroup",
     "SlurmInstaller",
