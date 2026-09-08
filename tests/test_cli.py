@@ -37,6 +37,14 @@ def test_version():
     assert "CloudAI, version" in result.output
 
 
+def test_list_reward_functions_verbose():
+    runner = CliRunner()
+    result = runner.invoke(main, ["list", "reward-functions", "--verbose"])
+
+    assert result.exit_code == 0
+    assert "Available reward functions:" in result.output
+
+
 def test_tests_dir_is_optional(tmp_path: Path):
     system_cfg, scenario_cfg = tmp_path / "system.toml", tmp_path / "scenario.toml"
     system_cfg.touch()

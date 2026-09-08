@@ -25,6 +25,14 @@ def register_entrypoint_agents():
         Registry().add_entrypoint_agent(ep.name, ep)
 
 
+def register_entrypoint_reward_functions():
+    from cloudai.core import Registry
+
+    eps = entry_points(group="cloudai.reward_functions")
+    for ep in eps:
+        Registry().add_entrypoint_reward_function(ep.name, ep)
+
+
 def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
     from cloudai.configurator.grid_search import GridSearchAgent
@@ -377,3 +385,4 @@ def register_all():
     Registry().add_reward_function("ai_dynamo_log_scale", ai_dynamo_log_scale_reward)
 
     register_entrypoint_agents()
+    register_entrypoint_reward_functions()
