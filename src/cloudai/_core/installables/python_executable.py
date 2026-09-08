@@ -132,7 +132,6 @@ class PythonExecutable(Installable):
             return InstallStatusResult(False, f"Cannot create virtual environment: {e}")
 
         if venv_path.exists():
-            logging.info(f"Recreating virtual environment at {venv_path} for Python {python_version}")
             shutil.rmtree(venv_path)
 
         cmd = [uv_bin, "venv", "--python", python_version, "--seed", str(venv_path)]
