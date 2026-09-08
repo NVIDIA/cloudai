@@ -71,6 +71,16 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
     (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
 
+## Coding-agent support
+
+Using a coding agent is optional and does not change the contribution requirements above. Shared repository guidance
+lives in `AGENTS.md`, which is the canonical instruction file for Codex and Cursor. Claude Code imports the same guidance
+through `CLAUDE.md`.
+
+Reusable workflows live in `.agents/skills/<skill-name>/SKILL.md`. Claude Code accesses that same canonical skill tree
+through `.claude/skills`; do not maintain tool-specific copies. Review all generated changes and record the commands and
+results used to validate them in the pull request.
+
 ### Pull Request (PR) Creation
 - Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
 - Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
