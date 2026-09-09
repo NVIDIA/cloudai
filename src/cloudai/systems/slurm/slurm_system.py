@@ -171,7 +171,7 @@ class SlurmSystem(System):
         "--container-image",
         "--container-mounts",
     )
-    _REST_API_VERSION: ClassVar[str] = "v0.0.43"
+    _REST_API_VERSION: ClassVar[str] = "v0.0.38"
     _REST_TIMEOUT_SECONDS: ClassVar[int] = 30
     _TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
         {
@@ -294,10 +294,8 @@ class SlurmSystem(System):
         return args[index + 1], index + 2
 
     @staticmethod
-    def _gpu_tres(value: str, *, from_gres: bool) -> str:
-        if from_gres:
-            return ",".join(item if item.startswith("gres/") else f"gres/{item}" for item in value.split(","))
-        return f"gres/gpu:{value}"
+    def _gpu_gres(value: str, *, from_gres: bool) -> str:
+        return value if from_gres else f"gpu:{value}"
 
     @staticmethod
     def _set_directive(job: dict[str, object], field: str, value: object, option: str) -> None:
@@ -322,11 +320,11 @@ class SlurmSystem(System):
             if option in self._DIRECTIVE_FIELDS:
                 self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
             elif option == "--nodes":
-                self._set_directive(job, "nodes", str(value), option)
+                self._set_directive(job, "nodes", [int(item) for item in str(value).split("-", 1)], option)
             elif option == "--nodelist":
-                self._set_directive(job, "required_nodes", str(value).split(","), option)
+                self._set_directive(job, "nodelist", str(value), option)
             elif option == "--exclude":
-                self._set_directive(job, "excluded_nodes", str(value).split(","), option)
+                self._set_directive(job, "exclude_nodes", str(value), option)
             elif option == "--ntasks":
                 self._set_directive(job, "tasks", int(value), option)
             elif option == "--ntasks-per-node":
@@ -335,10 +333,10 @@ class SlurmSystem(System):
                 minutes = (
                     int(value) if str(value).isdigit() else math.ceil(parse_time_limit(str(value)).total_seconds() / 60)
                 )
-                self._set_directive(job, "time_limit", {"set": True, "number": minutes}, option)
+                self._set_directive(job, "time_limit", minutes, option)
             elif option in {"--gres", "--gpus-per-node"}:
-                tres = self._gpu_tres(str(value), from_gres=option == "--gres")
-                self._set_directive(job, "tres_per_node", tres, option)
+                gres = self._gpu_gres(str(value), from_gres=option == "--gres")
+                self._set_directive(job, "gres", gres, option)
             elif option in {"--chdir", "-D"}:
                 self._set_directive(job, "current_working_directory", value, option)
             else:
@@ -356,7 +354,7 @@ class SlurmSystem(System):
             self._apply_sbatch_args(job, args)
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
-        job["environment"] = [f"PATH={os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin')}"]
+        job["environment"] = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}
         return job
 
     def _submit_sbatch_rest(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
@@ -451,7 +449,7 @@ class SlurmSystem(System):
         return_code = cls._rest_number(exit_code.get("return_code"))
         signal_value = exit_code.get("signal")
         if isinstance(signal_value, dict):
-            signal_value = signal_value.get("id", signal_value)
+            signal_value = signal_value.get("id", signal_value.get("signal_id", signal_value))
         signal = cls._rest_number(signal_value)
         return f"{return_code}:{signal}"
 
@@ -729,7 +727,7 @@ class SlurmSystem(System):
                 raise EnvironmentError("Required binary 'git' is not installed.")
             try:
                 self._rest_request("GET", "slurm", "ping/")
-                self._rest_request("GET", "slurmdb", "ping/")
+                self._rest_request("GET", "slurmdb", "jobs/?start_time=now&skip_steps=true")
             except RuntimeError as exc:
                 raise EnvironmentError(f"Failed to access the Slurm REST API: {exc}") from exc
             return

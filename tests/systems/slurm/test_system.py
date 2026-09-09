@@ -62,7 +62,7 @@ def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monke
 
     request.assert_called_once_with(
         "GET",
-        "https://slurm.example.com/slurm/v0.0.43/ping/",
+        "https://slurm.example.com/slurm/v0.0.38/ping/",
         headers={"X-SLURM-USER-NAME": "cloudai", "X-SLURM-USER-TOKEN": "secret"},
         json=None,
         timeout=30,
@@ -81,6 +81,7 @@ def test_submit_job_through_slurm_api(rest_slurm_system: SlurmSystem, tmp_path: 
 #SBATCH --reservation=nightly
 #SBATCH --distribution=block
 #SBATCH -N 2
+#SBATCH --nodelist=node[01-02]
 #SBATCH --exclude=node03,node04
 #SBATCH --gpus-per-node=8
 #SBATCH --gres=gpu:8
@@ -106,13 +107,14 @@ srun --container-image=image.sqsh benchmark
         "account": "cloudai",
         "reservation": "nightly",
         "distribution": "block",
-        "nodes": "2",
-        "excluded_nodes": ["node03", "node04"],
-        "tres_per_node": "gres/gpu:8",
+        "nodes": [2],
+        "nodelist": "node[01-02]",
+        "exclude_nodes": "node03,node04",
+        "gres": "gpu:8",
         "tasks_per_node": 8,
-        "time_limit": {"set": True, "number": 21},
+        "time_limit": 21,
         "current_working_directory": str(tmp_path),
-        "environment": [f"PATH={os.environ['PATH']}"],
+        "environment": {"PATH": os.environ["PATH"]},
     }
 
 
@@ -140,21 +142,16 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
             {
                 "job_id": 42,
                 "name": "rest-test",
-                "state": {"current": ["COMPLETED"]},
-                "exit_code": {"return_code": {"number": 0}, "signal": {"id": {"number": 0}}},
-                "time": {"start": {"number": 100}, "end": {"number": 120}, "elapsed": {"number": 20}},
+                "state": {"current": "COMPLETED"},
+                "exit_code": {"return_code": 0, "signal": {"signal_id": 0}},
+                "time": {"start": 100, "end": 120, "elapsed": 20},
                 "nodes": "node[01-02]",
-                "submit_line": "sbatch job.sbatch",
                 "steps": [
                     {
                         "step": {"id": "batch", "name": "batch"},
-                        "state": ["COMPLETED"],
-                        "exit_code": {"return_code": {"number": 0}, "signal": {"id": {"number": 0}}},
-                        "time": {
-                            "start": {"number": 100},
-                            "end": {"number": 120},
-                            "elapsed": {"number": 20},
-                        },
+                        "state": "COMPLETED",
+                        "exit_code": {"return_code": 0, "signal": {"signal_id": 0}},
+                        "time": {"start": 100, "end": 120, "elapsed": 20},
                     }
                 ],
             }
@@ -179,8 +176,8 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
 def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
     nodes_response = {
         "nodes": [
-            {"name": "node01", "partitions": ["main"], "state": ["IDLE", "DRAIN"], "gres": "gpu:8"},
-            {"name": "node02", "partitions": ["main", "backup"], "state": ["ALLOCATED"]},
+            {"name": "node01", "partitions": ["main"], "state": "IDLE+DRAIN", "gres": "gpu:8"},
+            {"name": "node02", "partitions": ["main", "backup"], "state": "ALLOCATED"},
         ]
     }
     jobs_response = {
@@ -188,7 +185,7 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
             {
                 "job_id": 42,
                 "partition": "main",
-                "job_state": ["RUNNING"],
+                "job_state": "RUNNING",
                 "nodes": "node02",
                 "user_name": "cloudai",
             }
@@ -222,7 +219,7 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
     assert rest_request.call_args_list[-3:] == [
         call("DELETE", "slurm", "job/42"),
         call("GET", "slurm", "ping/"),
-        call("GET", "slurmdb", "ping/"),
+        call("GET", "slurmdb", "jobs/?start_time=now&skip_steps=true"),
     ]
 
 
