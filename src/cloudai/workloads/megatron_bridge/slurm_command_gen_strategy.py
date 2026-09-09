@@ -236,7 +236,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         token = tdef.cmd_args.hf_token
         if token and token != HF_TOKEN_REDACTION:
             token_bytes = token.encode()
-            redaction_bytes = HF_TOKEN_REDACTION.encode()
+            redaction_bytes = b"X" * len(token_bytes)
             for path in output_path.rglob("*"):
                 if path.is_symlink() or not path.is_file():
                     continue
@@ -244,12 +244,23 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     continue
 
                 try:
-                    contents = path.read_bytes()
-                    if token_bytes not in contents:
-                        continue
-
-                    path.write_bytes(contents.replace(token_bytes, redaction_bytes))
-                    logging.debug("Redacted Hugging Face token from job artifact: %s", path)
+                    redacted = False
+                    with path.open("r+b") as f:
+                        tail = b""
+                        while chunk := f.read(1024 * 1024):
+                            contents = tail + chunk
+                            read_end = f.tell()
+                            start = 0
+                            while (match := contents.find(token_bytes, start)) != -1:
+                                f.seek(read_end - len(contents) + match)
+                                f.write(redaction_bytes)
+                                start = match + len(token_bytes)
+                                redacted = True
+                            f.seek(read_end)
+                            # Retain unprocessed bytes that could start a token across chunks.
+                            tail = contents[max(start, len(contents) - len(token_bytes) + 1) :]
+                    if redacted:
+                        logging.debug("Redacted Hugging Face token from job artifact: %s", path)
                 except OSError:
                     cleanup_failures.append(path)
                     logging.warning("Failed to redact Hugging Face token from job artifact: %s", path, exc_info=True)

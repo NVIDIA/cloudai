@@ -441,7 +441,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen.cleanup_job_artifacts()
 
         for path in vulnerable_files:
-            assert path.read_text() == f"before {HF_TOKEN_REDACTION} after"
+            assert path.read_text() == f"before {'X' * len('dummy_token')} after"
         assert safe_file.read_bytes() == b"dummy_token"
         assert not code_path.exists()
 
