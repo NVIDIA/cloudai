@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,21 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_all_gather"
-description = "all_gather"
-test_template_name = "NcclTest"
+name = "megatron_bridge_qwen_30b"
 
-[cmd_args]
-"docker_image_url" = "nvcr.io#nvidia/pytorch:25.06-py3"
-"subtest_name" = "all_gather_perf_mpi"
-"ngpus" = "1"
-"minbytes" = "128"
-"maxbytes" = "4G"
-"iters" = "100"
-"warmup_iters" = "50"
+[[Tests]]
+id = "megatron_bridge_qwen_30b"
+test_name = "megatron_bridge_qwen_30b"
+num_nodes = "2"
 
-[extra_cmd_args]
-"--stepfactor" = "2"
+  [[Tests.git_repos]]
+  url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
+  commit = "r0.4.0"
+  mount_as = "/opt/Megatron-Bridge"
+  init_submodules = true
 
-[extra_env_vars]
-"NCCL_TESTS_SPLIT_MASK" = "0x7"
+  [Tests.cmd_args]
+  nemorun_version = "v0.9.0"
+
+  [Tests.extra_env_vars]
+  PYTHONPATH = "/opt/Megatron-Bridge/3rdparty/Megatron-LM:${PYTHONPATH}"

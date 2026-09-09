@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import shlex
+import shutil
 import stat
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -29,7 +30,7 @@ from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util import format_time_limit, parse_time_limit
 
-from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -46,6 +47,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "NVIDIA_DRIVER_CAPABILITIES",
         }
     )
+    HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".stderr", ".toml", ".yaml"})
 
     def _container_mounts(self) -> list[str]:
         # This workload submits its own sbatch job and passes mounts via `-cm`.
@@ -310,8 +312,64 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
+        details = trd.model_dump()
+        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            toml.dump(trd.model_dump(), f)
+            toml.dump(details, f)
+
+    def cleanup_job_artifacts(self) -> None:  # noqa: C901
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        output_path = self.test_run.output_path
+        if not output_path.exists():
+            return
+
+        cleanup_failures: list[Path] = []
+        experiments_path = output_path / "experiments"
+        if experiments_path.is_dir():
+            for code_path in list(experiments_path.rglob("code")):
+                if code_path.is_symlink() or not code_path.is_dir():
+                    continue
+                try:
+                    shutil.rmtree(code_path)
+                    logging.debug("Removed packaged code directory from job artifacts: %s", code_path)
+                except OSError:
+                    cleanup_failures.append(code_path)
+                    logging.warning("Failed to remove packaged code directory: %s", code_path, exc_info=True)
+
+        token = tdef.cmd_args.hf_token
+        if token and token != HF_TOKEN_REDACTION:
+            token_bytes = token.encode()
+            redaction_bytes = b"X" * len(token_bytes)
+            for path in output_path.rglob("*"):
+                if path.is_symlink() or not path.is_file():
+                    continue
+                if path.suffix.lower() not in self.HF_TOKEN_ARTIFACT_SUFFIXES:
+                    continue
+
+                try:
+                    redacted = False
+                    with path.open("r+b") as f:
+                        tail = b""
+                        while chunk := f.read(1024 * 1024):
+                            contents = tail + chunk
+                            read_end = f.tell()
+                            start = 0
+                            while (match := contents.find(token_bytes, start)) != -1:
+                                f.seek(read_end - len(contents) + match)
+                                f.write(redaction_bytes)
+                                start = match + len(token_bytes)
+                                redacted = True
+                            f.seek(read_end)
+                            # Retain unprocessed bytes that could start a token across chunks.
+                            tail = contents[max(start, len(contents) - len(token_bytes) + 1) :]
+                    if redacted:
+                        logging.debug("Redacted Hugging Face token from job artifact: %s", path)
+                except OSError:
+                    cleanup_failures.append(path)
+                    logging.warning("Failed to redact Hugging Face token from job artifact: %s", path, exc_info=True)
+
+        if cleanup_failures:
+            raise RuntimeError(f"Failed to clean {len(cleanup_failures)} job artifact(s).")
 
     def _write_command_to_file(self, command: str, output_path: Path) -> None:
         log_file = output_path / "cloudai_generated_command.sh"
@@ -571,6 +629,22 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         overrides.update(extra_cmd_args)
         return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
 
+    @staticmethod
+    def _with_default_packager(repo_path: Path, extra_cmd_args: dict[str, str]) -> dict[str, str]:
+        """Disable source packaging when the installed Megatron-Bridge version supports the option."""
+        overrides = extra_cmd_args.copy()
+        argument_parser_path = repo_path / "scripts" / "performance" / "argument_parser.py"
+        try:
+            argument_parser_source = argument_parser_path.read_text()
+        except OSError:
+            logging.debug("Unable to inspect Megatron-Bridge argument parser at %s", argument_parser_path)
+        else:
+            # r0.3.0 forwards unknown setup_experiment.py arguments to run_script.py, where Hydra rejects them.
+            # Only inject this default when the installed Megatron-Bridge parser advertises native support.
+            if '"--packager"' in argument_parser_source or "'--packager'" in argument_parser_source:
+                overrides.setdefault("--packager", "none")
+        return overrides
+
     def _build_launcher_parts(  # noqa: C901
         self,
         args: MegatronBridgeCmdArgs,
@@ -740,6 +814,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Misc
         if "moe_a2a_overlap" in fields_set:
             add_field("moe_a2a_overlap", "--moe_a2a_overlap", bool(args.moe_a2a_overlap))
+        add_field(
+            "moe_flex_dispatcher_backend",
+            "--moe_flex_dispatcher_backend",
+            args.moe_flex_dispatcher_backend,
+        )
         add_field("max_steps", "-ms", args.max_steps)
         add_field("recompute_num_layers", "-rl", args.recompute_num_layers)
         add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
@@ -798,6 +877,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append("--list_config_variants")
 
         # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
-        parts.extend(self._add_extra_cmd_args(tdef.extra_cmd_args))
+        extra_cmd_args = self._with_default_packager(repo_path, tdef.extra_cmd_args)
+        parts.extend(self._add_extra_cmd_args(extra_cmd_args))
 
         return parts
