@@ -27,7 +27,7 @@ import toml
 from cloudai.core import TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.util import parse_time_limit
+from cloudai.util import format_time_limit, parse_time_limit
 
 from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
@@ -270,14 +270,15 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         original_num_nodes = allocation_run.num_nodes
         original_nodes = allocation_run.nodes
         original_exclude_nodes = allocation_run.exclude_nodes
+        allocation_strategy = self._get_cmd_gen_strategy(allocation_run)
 
         try:
             allocation_run.num_nodes = self._max_post_hook_nodes(post_test.test_runs)
             allocation_run.nodes = self._aggregate_post_hook_nodes(post_test.test_runs)
             allocation_run.exclude_nodes = self._aggregate_post_hook_exclude_nodes(post_test.test_runs)
-            return strategy._append_resource_directives(
+            return allocation_strategy._append_resource_directives(
                 sbatch_lines,
-                self._longest_post_hook_time_limit(post_test.test_runs),
+                self._post_hook_time_limit(post_test.test_runs),
             )
         finally:
             allocation_run.num_nodes = original_num_nodes
@@ -297,11 +298,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return list(dict.fromkeys(node for tr in test_runs for node in tr.exclude_nodes))
 
     @staticmethod
-    def _longest_post_hook_time_limit(test_runs: list[TestRun]) -> Optional[str]:
+    def _post_hook_time_limit(test_runs: list[TestRun]) -> Optional[str]:
         time_limits = [tr.time_limit for tr in test_runs if tr.time_limit]
         if not time_limits:
             return None
-        return max(time_limits, key=parse_time_limit)
+        total_time_limit = parse_time_limit(time_limits[0])
+        for time_limit in time_limits[1:]:
+            total_time_limit += parse_time_limit(time_limit)
+        return format_time_limit(total_time_limit)
 
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()

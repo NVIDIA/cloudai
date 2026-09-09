@@ -373,9 +373,17 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         post_hook_content = (tr.output_path / "post_hook_sbatch_script.sh").read_text()
 
         assert "#SBATCH -N 3" in post_hook_content
-        assert "#SBATCH --time=00:10:00" in post_hook_content
+        assert "#SBATCH --time=00:15:00" in post_hook_content
         assert "/post_test/post_one/stdout.txt" in post_hook_content
         assert "/post_test/post_two/stdout.txt" in post_hook_content
+        post_one_srun = next(
+            line for line in post_hook_content.splitlines() if "/post_test/post_one/stdout.txt" in line
+        )
+        post_two_srun = next(
+            line for line in post_hook_content.splitlines() if "/post_test/post_two/stdout.txt" in line
+        )
+        assert " -N1 " in post_one_srun
+        assert " -N3 " in post_two_srun
 
     def test_post_hook_exports_hostfile_for_explicit_nodes(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
