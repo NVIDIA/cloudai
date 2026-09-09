@@ -143,6 +143,13 @@ class MegatronBridgeCmdArgs(CmdArgs):
 
     # Perf/tuning
     moe_a2a_overlap: Optional[Union[bool, List[bool]]] = Field(default=None)
+    moe_flex_dispatcher_backend: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description=(
+            "MoE flex dispatcher backend: deepep, hybridep, ncclep, or the literal string 'None' to "
+            "request the alltoall dispatcher. Omit the field entirely to keep the recipe's backend."
+        ),
+    )
     max_steps: Optional[int] = Field(default=10)
     recompute_num_layers: Optional[Union[int, List[int]]] = Field(default=None)
     activation_offload_layers: Optional[Union[int, List[int]]] = Field(default=None)
