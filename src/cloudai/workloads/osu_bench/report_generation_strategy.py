@@ -21,7 +21,7 @@ import re
 from enum import Enum
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
@@ -140,6 +140,8 @@ def extract_osu_bench_data(stdout_file: Path) -> pd.DataFrame:
 class OSUBenchReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for OSU Bench."""
 
+    metrics: ClassVar[list[str]] = ["default", "avg_lat"]
+
     @property
     def results_file(self) -> Path:
         return self.test_run.output_path / "stdout.txt"
@@ -149,15 +151,18 @@ class OSUBenchReportGenerationStrategy(ReportGenerationStrategy):
         return not df.empty
 
     def get_metric(self, metric: str) -> MetricValue:
+        if metric not in self.metrics:
+            return METRIC_ERROR
+
         df = extract_osu_bench_data(self.results_file)
-        if df.empty or metric != "default" or "avg_lat" not in df.columns:
+        if df.empty or "avg_lat" not in df.columns:
             return METRIC_ERROR
 
         return float(lazy.np.mean(df["avg_lat"]))
 
     def generate_report(self) -> None:
-        if not self.can_handle_directory():
+        df = extract_osu_bench_data(self.results_file)
+        if df.empty:
             return
 
-        df = extract_osu_bench_data(self.results_file)
         df.to_csv(self.test_run.output_path / "osu_bench.csv", index=False)
