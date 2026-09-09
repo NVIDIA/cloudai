@@ -71,6 +71,13 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
     (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
 
+### Pull Request (PR) Creation
+- Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
+- Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
+- Use bullet points in the summary to clearly outline your contributions. In the test plan section, detail the experiments and commands run, attaching stdout of your command to demonstrate the effectiveness of your code and to help other contributors understand how to validate and run your code.
+- Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
+- Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
+
 ## Coding-agent support
 
 Using a coding agent is optional and does not change the contribution requirements above. Shared repository guidance
@@ -80,12 +87,5 @@ through `CLAUDE.md`.
 Reusable workflows live in `.agents/skills/<skill-name>/SKILL.md`. Claude Code accesses that same canonical skill tree
 through `.claude/skills`; do not maintain tool-specific copies. Review all generated changes and record the commands and
 results used to validate them in the pull request.
-
-### Pull Request (PR) Creation
-- Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
-- Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
-- Use bullet points in the summary to clearly outline your contributions. In the test plan section, detail the experiments and commands run, attaching stdout of your command to demonstrate the effectiveness of your code and to help other contributors understand how to validate and run your code.
-- Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
-- Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
 
 Thanks in advance for your patience as we review your contributions; we do appreciate them!
