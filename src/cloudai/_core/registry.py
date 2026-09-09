@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, List, Set, Tuple, Type
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, List, Set, Tuple, Type, cast
 
 if TYPE_CHECKING:
     from ..configurator.base_agent import BaseAgent
@@ -59,6 +59,7 @@ class Registry(metaclass=Singleton):
     scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
     report_configs: ClassVar[dict[str, ReportConfig]] = {}
     reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
+    reward_function_entrypoints_map: ClassVar[dict[str, Any]] = {}
     command_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[CommandGenStrategy]]] = {}
     json_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[JsonGenStrategy]]] = {}
     grading_strategies_map: ClassVar[dict[Tuple[Type[System], Type[TestDefinition]], Type[GradingStrategy]]] = {}
@@ -283,19 +284,45 @@ class Registry(metaclass=Singleton):
         return sorted(self.scenario_reports.items(), key=lambda kv: report_order(kv[0]))
 
     def add_reward_function(self, name: str, value: RewardFunction) -> None:
-        if name in self.reward_functions_map:
+        if self.has_reward_function(name):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.update_reward_function(name, value)
 
     def update_reward_function(self, name: str, value: RewardFunction) -> None:
         self.reward_functions_map[name] = value
+        self.reward_function_entrypoints_map.pop(name, None)
+
+    def add_entrypoint_reward_function(self, name: str, value: Any) -> None:
+        if self.has_reward_function(name):
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.reward_function_entrypoints_map[name] = value
+
+    def has_reward_function(self, name: str) -> bool:
+        return name in self.reward_functions_map or name in self.reward_function_entrypoints_map
+
+    def reward_function_names(self) -> list[str]:
+        return sorted(set(self.reward_functions_map) | set(self.reward_function_entrypoints_map))
 
     def get_reward_function(self, name: str) -> RewardFunction:
-        if name not in self.reward_functions_map:
-            raise KeyError(
-                f"Reward function '{name}' not found. Available functions: {list(self.reward_functions_map.keys())}"
+        if name in self.reward_functions_map:
+            return self.reward_functions_map[name]
+
+        if name not in self.reward_function_entrypoints_map:
+            raise KeyError(f"Reward function '{name}' not found. Available functions: {self.reward_function_names()}")
+
+        ep = self.reward_function_entrypoints_map[name]
+        reward_function = cast(RewardFunction, ep.load())
+
+        if not callable(reward_function):
+            warnings.warn(
+                f"Skipping entrypoint: {name} -> {ep.value} object={reward_function} (not callable)", stacklevel=2
             )
-        return self.reward_functions_map[name]
+            raise TypeError(
+                f"Entry point reward function '{name}' resolved to {reward_function}, which is not callable."
+            )
+
+        self.update_reward_function(name, reward_function)
+        return reward_function
 
     def add_command_gen_strategy(
         self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
