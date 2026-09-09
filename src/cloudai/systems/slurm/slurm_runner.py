@@ -15,14 +15,12 @@
 # limitations under the License.
 
 import logging
-import re
 from pathlib import Path
 from typing import cast
 
 import toml
 
-from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai.util import CommandShell
+from cloudai.core import BaseJob, BaseRunner, System, TestRun, TestScenario
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_job import SlurmJob
@@ -31,17 +29,11 @@ from .slurm_system import SlurmSystem
 
 
 class SlurmRunner(BaseRunner):
-    """
-    Implementation of the Runner for a system using Slurm.
-
-    Attributes
-        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
-    """
+    """Implementation of the Runner for a system using Slurm."""
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         super().__init__(mode, system, test_scenario, output_path)
         self.system = cast(SlurmSystem, system)
-        self.cmd_shell = CommandShell()
         self.pinned_nodes: dict[str, list[str]] = {}
 
     def submit_test(self, tr: TestRun) -> None:
@@ -50,33 +42,13 @@ class SlurmRunner(BaseRunner):
             logging.info("Forcing test case '%s' to use pinned nodes: %s", tr.name, ",".join(tr.nodes))
         super().submit_test(tr)
 
-    def get_job_id(self, stdout: str, stderr: str) -> int | None:
-        match = re.search(r"Submitted batch job (\d+)", stdout)
-        if match:
-            return int(match.group(1))
-
-        match = re.search(r"submitted with Job ID (\d+)", stdout)  # NemoLauncher specific
-        if match:
-            return int(match.group(1))
-
-        return None
-
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
         exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
-            stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = self.get_job_id(stdout, stderr)
-            if job_id is None:
-                raise JobIdRetrievalError(
-                    test_name=str(tr.name),
-                    command=exec_cmd,
-                    stdout=stdout,
-                    stderr=stderr,
-                    message="Failed to retrieve job ID.",
-                )
+            job_id = self.system.submit_job(exec_cmd, str(tr.name))
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 

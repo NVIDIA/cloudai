@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -24,18 +23,7 @@ from cloudai.core import JobIdRetrievalError, TestRun, TestScenario
 from cloudai.systems.lsf.lsf_runner import LSFRunner
 from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmJob, SlurmRunner, SlurmSystem
-from cloudai.util import CommandShell
 from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
-
-
-class MockCommandShell(CommandShell):
-    def execute(self, command):
-        mock_popen = Mock(spec=subprocess.Popen)
-        mock_popen.communicate.return_value = (
-            "",
-            "sbatch: error: Batch job submission failed: Requested node configuration is not available",
-        )
-        return mock_popen
 
 
 @pytest.fixture
@@ -58,16 +46,21 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
 
 @pytest.fixture
 def slurm_runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> SlurmRunner:
-    runner = SlurmRunner(
+    return SlurmRunner(
         mode="run", system=slurm_system, test_scenario=test_scenario, output_path=slurm_system.output_path
     )
-    runner.cmd_shell = MockCommandShell()
-    return runner
 
 
 def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     tr = slurm_runner.test_scenario.test_runs[0]
-    with pytest.raises(JobIdRetrievalError) as excinfo:
+    error = JobIdRetrievalError(
+        test_name=str(tr.name),
+        command="sbatch script.sh",
+        stdout="",
+        stderr="sbatch: error: Batch job submission failed: Requested node configuration is not available",
+        message="Failed to retrieve job ID.",
+    )
+    with patch.object(SlurmSystem, "submit_job", side_effect=error), pytest.raises(JobIdRetrievalError) as excinfo:
         slurm_runner._submit_test(tr)
     assert "Failed to retrieve job ID." in str(excinfo.value)
     assert "sbatch: error: Batch job submission failed: Requested node configuration is not available" in str(
@@ -83,8 +76,8 @@ def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
         ("", "sbatch: error: Batch job submission failed:...", None),
     ],
 )
-def test_slurm_get_job_id(slurm_runner: SlurmRunner, stdout: str, stderr: str, expected_job_id: int | None):
-    res = slurm_runner.get_job_id(stdout, stderr)
+def test_slurm_get_job_id(stdout: str, stderr: str, expected_job_id: int | None):
+    res = SlurmSystem._parse_submitted_job_id(stdout)
     assert res == expected_job_id
 
 

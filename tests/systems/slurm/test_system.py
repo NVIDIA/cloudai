@@ -22,7 +22,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai.core import BaseJob, TestRun
+from cloudai.core import BaseJob, JobIdRetrievalError, TestRun
 from cloudai.models.scenario import ReportConfig
 from cloudai.systems.slurm import (
     SlurmCommandGenStrategy,
@@ -33,6 +33,26 @@ from cloudai.systems.slurm import (
 )
 from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+
+
+@patch("cloudai.systems.slurm.slurm_system.CommandShell.execute")
+def test_submit_job_returns_parsed_job_id(mock_execute: Mock, slurm_system: SlurmSystem):
+    process = Mock()
+    process.communicate.return_value = ("Submitted batch job 123", "")
+    mock_execute.return_value = process
+
+    assert slurm_system.submit_job("sbatch script.sh", "test") == 123
+    mock_execute.assert_called_once_with("sbatch script.sh")
+
+
+@patch("cloudai.systems.slurm.slurm_system.CommandShell.execute")
+def test_submit_job_raises_semantic_error(mock_execute: Mock, slurm_system: SlurmSystem):
+    process = Mock()
+    process.communicate.return_value = ("", "submission failed")
+    mock_execute.return_value = process
+
+    with pytest.raises(JobIdRetrievalError, match="Failed to retrieve job ID"):
+        slurm_system.submit_job("sbatch script.sh", "test")
 
 
 @pytest.mark.parametrize(

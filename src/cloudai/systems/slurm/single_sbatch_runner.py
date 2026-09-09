@@ -23,8 +23,8 @@ from typing import Generator, Optional, cast
 
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams
-from cloudai.core import BaseJob, JobIdRetrievalError, Registry, System, TestRun, TestScenario
-from cloudai.util import CommandShell, format_time_limit, parse_time_limit
+from cloudai.core import BaseJob, Registry, System, TestRun, TestScenario
+from cloudai.util import format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
@@ -37,7 +37,6 @@ class SingleSbatchRunner(SlurmRunner):
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         super().__init__(mode, system, test_scenario, output_path)
-        self.cmd_shell = CommandShell()
         self.system = cast(SlurmSystem, system)
         self.job_name = "cloudai-single-sbatch"
 
@@ -249,17 +248,8 @@ class SingleSbatchRunner(SlurmRunner):
 
         job_id = 0
         if self.mode == "run":
-            exec_cmd = f"sbatch {self.scenario_root / 'cloudai_sbatch_script.sh'}"
-            stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = self.get_job_id(stdout, stderr)
-            if job_id is None:
-                raise JobIdRetrievalError(
-                    test_name=tr.name,
-                    command=exec_cmd,
-                    stdout=stdout,
-                    stderr=stderr,
-                    message="Failed to retrieve job ID.",
-                )
+            script_path = self.scenario_root / "cloudai_sbatch_script.sh"
+            job_id = self.system.submit_sbatch(script_path, tr.name)
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 

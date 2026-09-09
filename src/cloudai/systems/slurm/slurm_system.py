@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
+import shutil
+import subprocess
 import time
 from copy import copy
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from cloudai.core import BaseJob, File, Installable, System
+from cloudai.core import BaseJob, File, Installable, JobIdRetrievalError, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
@@ -97,6 +100,12 @@ class SlurmPartition(BaseModel):
 class SlurmSystem(System):
     """Represents a Slurm system."""
 
+    def submit_sbatch(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
+        """Submit an sbatch script without exposing the CLI transport to callers."""
+        wait_arg = " --wait" if wait else ""
+        command = f"sbatch{wait_arg} {shlex.quote(str(script_path))}"
+        return self.submit_job(command, operation_name)
+
     default_partition: str
     partitions: List[SlurmPartition]
     account: Optional[str] = None
@@ -119,6 +128,23 @@ class SlurmSystem(System):
     reports: Optional[dict[str, ReportConfig]] = None
 
     group_allocated: set[SlurmNode] = Field(default_factory=set, exclude=True)
+
+    _REQUIRED_BINARIES: ClassVar[tuple[str, ...]] = (
+        "git",
+        "sbatch",
+        "sinfo",
+        "squeue",
+        "srun",
+        "scancel",
+        "sacct",
+    )
+    _REQUIRED_SRUN_OPTIONS: ClassVar[tuple[str, ...]] = (
+        "--mpi",
+        "--gpus-per-node",
+        "--ntasks-per-node",
+        "--container-image",
+        "--container-mounts",
+    )
 
     @field_validator("reports", mode="before")
     @classmethod
@@ -255,6 +281,44 @@ class SlurmSystem(System):
             *(pattern for pattern in self.extra_transient_status_errors if pattern.strip()),
         ]
         return any(p in stderr for p in patterns)
+
+    @staticmethod
+    def _parse_submitted_job_id(stdout: str) -> int | None:
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if match:
+            return int(match.group(1))
+
+        # Some launchers submit Slurm jobs themselves and use this output format.
+        match = re.search(r"submitted with Job ID (\d+)", stdout)
+        return int(match.group(1)) if match else None
+
+    def submit_job(self, submission_command: str, test_name: str) -> int:
+        """Submit a generated Slurm workload and return its job ID."""
+        stdout, stderr = self.cmd_shell.execute(submission_command).communicate()
+        job_id = self._parse_submitted_job_id(stdout)
+        if job_id is None:
+            raise JobIdRetrievalError(
+                test_name=test_name,
+                command=submission_command,
+                stdout=stdout,
+                stderr=stderr,
+                message="Failed to retrieve job ID.",
+            )
+        return job_id
+
+    def validate_install_environment(self) -> None:
+        """Validate that the configured Slurm environment can run CloudAI workloads."""
+        for binary in self._REQUIRED_BINARIES:
+            if shutil.which(binary) is None:
+                raise EnvironmentError(f"Required binary '{binary}' is not installed.")
+
+        try:
+            result = subprocess.run(["srun", "--help"], text=True, capture_output=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise EnvironmentError(f"Failed to execute 'srun --help': {exc}") from exc
+        missing_options = [option for option in self._REQUIRED_SRUN_OPTIONS if option not in result.stdout]
+        if missing_options:
+            raise EnvironmentError(f"Required srun options missing: {', '.join(missing_options)}")
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
