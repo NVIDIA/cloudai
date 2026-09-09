@@ -107,7 +107,7 @@ srun --container-image=image.sqsh benchmark
         "account": "cloudai",
         "reservation": "nightly",
         "distribution": "block",
-        "nodes": [2],
+        "nodes": [2, 2],
         "nodelist": "node[01-02]",
         "exclude_nodes": "node03,node04",
         "gres": "gpu:8",
@@ -219,7 +219,7 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
     assert rest_request.call_args_list[-3:] == [
         call("DELETE", "slurm", "job/42"),
         call("GET", "slurm", "ping/"),
-        call("GET", "slurmdb", "jobs/?start_time=now&skip_steps=true"),
+        call("GET", "slurmdb", "clusters/"),
     ]
 
 
