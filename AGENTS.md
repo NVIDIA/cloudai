@@ -2,7 +2,6 @@
 
 ## Project context
 
-- Keep changes within the CLI-only product scope unless explicitly asked to expand it.
 - Many contributors use NVIDIA infrastructure, but ordinary development and config checks must work without internal
   access. Keep public examples reusable; never commit credentials, private artifacts, or internal hostnames.
 
