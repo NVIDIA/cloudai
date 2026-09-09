@@ -78,14 +78,4 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
 - Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
 - Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
 
-## Coding-agent support
-
-Using a coding agent is optional and does not change the contribution requirements above. Shared repository guidance
-lives in `AGENTS.md`, which is the canonical instruction file for Codex and Cursor. Claude Code imports the same guidance
-through `CLAUDE.md`.
-
-Reusable workflows live in `.agents/skills/<skill-name>/SKILL.md`. Claude Code accesses that same canonical skill tree
-through `.claude/skills`; do not maintain tool-specific copies. Review all generated changes and record the commands and
-results used to validate them in the pull request.
-
 Thanks in advance for your patience as we review your contributions; we do appreciate them!
