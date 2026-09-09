@@ -259,13 +259,17 @@ class SlurmSystem(System):
                     timeout=self._REST_TIMEOUT_SECONDS,
                     verify=self.slurm_api.verify_certs,
                 )
-                response.raise_for_status()
-                data = response.json()
+                try:
+                    data = response.json()
+                except ValueError:
+                    response.raise_for_status()
+                    raise
                 if not isinstance(data, dict):
                     raise RuntimeError(f"Slurm API returned a non-object response from {url}.")
                 if errors := data.get("errors"):
                     details = "; ".join(self._rest_message(error) for error in errors)
                     raise RuntimeError(f"Slurm API request failed: {details}")
+                response.raise_for_status()
                 for warning in data.get("warnings", []):
                     logging.warning("Slurm API warning: %s", self._rest_message(warning))
                 return data
@@ -320,7 +324,10 @@ class SlurmSystem(System):
             if option in self._DIRECTIVE_FIELDS:
                 self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
             elif option == "--nodes":
-                self._set_directive(job, "nodes", [int(item) for item in str(value).split("-", 1)], option)
+                node_counts = [int(item) for item in str(value).split("-", 1)]
+                if len(node_counts) == 1:
+                    node_counts.append(node_counts[0])
+                self._set_directive(job, "nodes", node_counts, option)
             elif option == "--nodelist":
                 self._set_directive(job, "nodelist", str(value), option)
             elif option == "--exclude":
@@ -727,7 +734,7 @@ class SlurmSystem(System):
                 raise EnvironmentError("Required binary 'git' is not installed.")
             try:
                 self._rest_request("GET", "slurm", "ping/")
-                self._rest_request("GET", "slurmdb", "jobs/?start_time=now&skip_steps=true")
+                self._rest_request("GET", "slurmdb", "clusters/")
             except RuntimeError as exc:
                 raise EnvironmentError(f"Failed to access the Slurm REST API: {exc}") from exc
             return
@@ -1143,6 +1150,9 @@ class SlurmSystem(System):
         Args:
             job_id (int): The ID of the job to cancel.
         """
+        if job_id == 0:
+            return
+
         if self.uses_slurm_api:
             self._rest_request("DELETE", "slurm", f"job/{job_id}")
             return
@@ -1310,6 +1320,9 @@ class SlurmSystem(System):
         return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]
 
     def complete_job(self, job: SlurmJob) -> list[str]:
+        if job.id == 0:
+            return []
+
         if self.uses_slurm_api:
             assert isinstance(job.id, int)
             rest_job = self._rest_accounting_job(job.id)
