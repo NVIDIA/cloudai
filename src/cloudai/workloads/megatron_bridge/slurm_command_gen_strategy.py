@@ -24,8 +24,10 @@ from typing import Any, Optional, cast
 
 import toml
 
+from cloudai.core import TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.util import parse_time_limit
 
 from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
@@ -231,7 +233,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         if self.system.account:
             sbatch_lines.append(f"#SBATCH --account={self.system.account}")
-        first_strategy._append_resource_directives(sbatch_lines, first_tr.time_limit)
+        hostfile = self._append_post_hook_resource_directives(first_strategy, post_test, sbatch_lines)
+        if hostfile is not None:
+            sbatch_lines.append(f"export SLURM_HOSTFILE={hostfile}")
         sbatch_lines.extend(
             [
                 "",
@@ -255,6 +259,49 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         sbatch_path.write_text("\n".join(sbatch_lines))
         sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
         return sbatch_path
+
+    def _append_post_hook_resource_directives(
+        self,
+        strategy: SlurmCommandGenStrategy,
+        post_test: TestScenario,
+        sbatch_lines: list[str],
+    ) -> Optional[Path]:
+        allocation_run = strategy.test_run
+        original_num_nodes = allocation_run.num_nodes
+        original_nodes = allocation_run.nodes
+        original_exclude_nodes = allocation_run.exclude_nodes
+
+        try:
+            allocation_run.num_nodes = self._max_post_hook_nodes(post_test.test_runs)
+            allocation_run.nodes = self._aggregate_post_hook_nodes(post_test.test_runs)
+            allocation_run.exclude_nodes = self._aggregate_post_hook_exclude_nodes(post_test.test_runs)
+            return strategy._append_resource_directives(
+                sbatch_lines,
+                self._longest_post_hook_time_limit(post_test.test_runs),
+            )
+        finally:
+            allocation_run.num_nodes = original_num_nodes
+            allocation_run.nodes = original_nodes
+            allocation_run.exclude_nodes = original_exclude_nodes
+
+    @staticmethod
+    def _max_post_hook_nodes(test_runs: list[TestRun]) -> int:
+        return max(max(tr.num_nodes) if isinstance(tr.num_nodes, list) else tr.num_nodes for tr in test_runs)
+
+    @staticmethod
+    def _aggregate_post_hook_nodes(test_runs: list[TestRun]) -> list[str]:
+        return list(dict.fromkeys(node for tr in test_runs for node in tr.nodes))
+
+    @staticmethod
+    def _aggregate_post_hook_exclude_nodes(test_runs: list[TestRun]) -> list[str]:
+        return list(dict.fromkeys(node for tr in test_runs for node in tr.exclude_nodes))
+
+    @staticmethod
+    def _longest_post_hook_time_limit(test_runs: list[TestRun]) -> Optional[str]:
+        time_limits = [tr.time_limit for tr in test_runs if tr.time_limit]
+        if not time_limits:
+            return None
+        return max(time_limits, key=parse_time_limit)
 
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
@@ -432,6 +479,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         post_hook_lines: list[str] = ['  echo "Submitted batch job ${JOB_ID}"']
         if post_hook_sbatch_path is not None:
             post_hook_lines = [
+                '  echo "Submitted batch job ${JOB_ID}"',
                 f'  POST_HOOK_SBATCH="{post_hook_sbatch_path.absolute()}"',
                 '  POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID} "$POST_HOOK_SBATCH" 2>&1)',
                 '  POST_HOOK_JOB_ID=$(echo "$POST_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
@@ -440,7 +488,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "    exit 1",
                 "  fi",
                 '  echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"',
-                '  echo "Submitted batch job ${POST_HOOK_JOB_ID}"',
             ]
 
         script_lines = [

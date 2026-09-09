@@ -334,7 +334,76 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert "srun " in post_hook_content
         assert "POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID}" in wrapper_content
         assert 'echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"' in wrapper_content
-        assert 'echo "Submitted batch job ${POST_HOOK_JOB_ID}"' in wrapper_content
+        assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
+        assert 'echo "Submitted batch job ${POST_HOOK_JOB_ID}"' not in wrapper_content
+
+    def test_post_hook_uses_largest_allocation(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        tr = make_test_run(output_subdir="out_post_hook_resources")
+        first_post = TestRun(
+            test=NCCLTestDefinition(
+                name="post_one",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="post_one",
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "unused_one",
+            time_limit="00:05:00",
+        )
+        second_post = TestRun(
+            test=NCCLTestDefinition(
+                name="post_two",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="post_two",
+            num_nodes=3,
+            nodes=[],
+            output_path=tmp_path / "unused_two",
+            time_limit="00:10:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[first_post, second_post])
+
+        self._wrapper_content(MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr))
+        post_hook_content = (tr.output_path / "post_hook_sbatch_script.sh").read_text()
+
+        assert "#SBATCH -N 3" in post_hook_content
+        assert "#SBATCH --time=00:10:00" in post_hook_content
+        assert "/post_test/post_one/stdout.txt" in post_hook_content
+        assert "/post_test/post_two/stdout.txt" in post_hook_content
+
+    def test_post_hook_exports_hostfile_for_explicit_nodes(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        configured_slurm_system.ntasks_per_node = 2
+        tr = make_test_run(output_subdir="out_post_hook_hostfile")
+        post_run = TestRun(
+            test=NCCLTestDefinition(
+                name="nccl_post",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="nccl_post",
+            num_nodes=1,
+            nodes=["node2", "node1"],
+            output_path=tmp_path / "unused",
+            time_limit="00:05:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[post_run])
+
+        self._wrapper_content(MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr))
+        post_hook_content = (tr.output_path / "post_hook_sbatch_script.sh").read_text()
+        hostfile_path = tr.output_path / "post_test" / "nccl_post" / "hostfile.txt"
+
+        assert "#SBATCH --nodelist=node1,node2" in post_hook_content
+        assert f"export SLURM_HOSTFILE={hostfile_path.absolute()}" in post_hook_content
+        assert hostfile_path.read_text().splitlines() == ["node1", "node1", "node2", "node2"]
 
     def test_wrapper_installs_wandb_before_launcher(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
