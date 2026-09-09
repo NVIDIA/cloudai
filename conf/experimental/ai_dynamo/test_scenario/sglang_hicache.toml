@@ -28,7 +28,7 @@ extra_container_mounts = ["/run/udev:/run/udev"]
 dse_excluded_args = ["cmd_args.aiperf_phases"]
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io/nvidia/ai-dynamo/sglang-runtime:1.1.1"
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/sglang-runtime:1.3.1"
   workloads = "aiperf.sh"
 
     [Tests.cmd_args.hicache.plugin.posix]
@@ -52,7 +52,6 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
         page-size = 64
         tensor-parallel-size = 1
         pipeline-parallel-size = 1
-        disaggregation-mode = "prefill"
         disaggregation-bootstrap-port = 12345
         disaggregation-transfer-backend = "nixl"
         host = "0.0.0.0"
@@ -74,7 +73,6 @@ dse_excluded_args = ["cmd_args.aiperf_phases"]
         page-size = 64
         tensor-parallel-size = 1
         pipeline-parallel-size = 1
-        disaggregation-mode = "decode"
         disaggregation-bootstrap-port = 12345
         disaggregation-transfer-backend = "nixl"
         host = "0.0.0.0"

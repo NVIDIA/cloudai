@@ -21,7 +21,7 @@ extra_container_mounts = ["/run/udev:/run/udev"]
 dse_excluded_args = ["cmd_args.aiperf_phases"]
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.3.1"
 workloads = "aiperf.sh"
 
   [cmd_args.dynamo]
@@ -31,7 +31,7 @@ workloads = "aiperf.sh"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
-    cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+    cmd = 'python3 -m dynamo.vllm'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
     extra-args = "--no-enable-expert-parallel"
 
@@ -75,6 +75,7 @@ workloads = "aiperf.sh"
     concurrency = 2
 
   [cmd_args.aiperf]
+  setup-cmd = "python -m pip install --break-system-packages --ignore-installed blinker==1.9.0 && python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
   health-check-between-phases = true
   continue-on-phase-failure = false
     [cmd_args.aiperf.args]
@@ -125,5 +126,4 @@ UCX_LOG_LEVEL = "warn"
 HF_HUB_OFFLINE = "0"
 TRANSFORMERS_OFFLINE = "0"
 HF_DATASETS_OFFLINE = "0"
-DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
 UCX_TLS = "all"

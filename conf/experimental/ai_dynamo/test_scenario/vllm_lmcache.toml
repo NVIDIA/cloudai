@@ -30,7 +30,7 @@ dse_excluded_args = [
 ]
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.3.1"
   # storage_cache_dir = "/lustre/.../install/tmp"
   workloads = "aiperf.sh"
 
@@ -61,7 +61,7 @@ dse_excluded_args = [
 
       [Tests.cmd_args.dynamo.prefill_worker]
       num-nodes = 1
-      cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+      cmd = 'python3 -m dynamo.vllm'
       worker-initialized-regex = 'VllmWorker.*has.been.initialized'
       extra-args = "--no-enable-expert-parallel"
 

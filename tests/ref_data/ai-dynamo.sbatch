@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-
+export DYNAMO_NODELIST=$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\n' ',' | sed 's/,$//')
 srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
 srun --export=ALL --mpi=none -N2 --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp bash /cloudai_install/slurm-metadata.sh runtime
@@ -78,7 +78,7 @@ srun \
   --user $USER \
   --install-dir /cloudai_install \
   --results-dir /cloudai_run_results \
-  --dynamo-repo /cloudai_install/dynamo__f7e468c7e8ff0d1426db987564e60572167e8464 \
+  --dynamo-repo /cloudai_install/dynamo__a49702e4432e7fa43cbc88175bddb31604340f19 \
   --hf-home /cloudai_install/huggingface \
   --workloads aiperf.sh \
   --failure-marker /cloudai_run_results/failure-marker.txt \
@@ -97,7 +97,7 @@ srun \
   --dynamo-nats-port "4222" \
   --dynamo-dcgm-exporter-enabled "True" \
   --dynamo-dcgm-exporter-port "9501" \
-  --prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
+  --prefill-cmd "python3 -m dynamo.vllm" \
   --prefill-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --prefill-multiple-workers-per-node "False" \
   --prefill-num-nodes "1" \
