@@ -7,8 +7,7 @@ description: Create, adapt, review, or troubleshoot CloudAI system, test, and te
 
 ## Sources and placement
 
-- Adapt the closest config under `conf/**/system/`, `conf/**/test/`, or `conf/**/test_scenario/`. Place new examples in the
-  matching common, experimental, or release subtree.
+- Adapt the closest existing config and place new examples in the matching common, experimental, or release subtree.
 - Confirm fields against the registered system class in `src/cloudai/systems/` or the workload's `TestDefinition` and
   `CmdArgs` models. Check template names in `src/cloudai/registration.py`.
 - For scenario fields and overrides, use `src/cloudai/models/scenario.py` and `src/cloudai/test_scenario_parser.py`.
@@ -28,9 +27,5 @@ description: Create, adapt, review, or troubleshoot CloudAI system, test, and te
 
 ## Validation
 
-- Validate system or test TOMLs with `uv run --locked cloudai verify-configs <config-path>`.
-- For scenarios using `test_name`, run
-  `uv run --locked cloudai verify-configs --tests-dir <matching-test-directory> <scenario-path>`.
-  Path-based or inline-only scenarios can use `verify-configs <scenario-path>` without `--tests-dir`.
+- Path-based and inline-only scenarios do not require `--tests-dir` for validation.
 - Check formatting with `uv run --locked --extra dev taplo fmt --check <changed-tomls>`.
-- Config validation and a local `cloudai dry-run` do not establish scheduler or hardware correctness.
