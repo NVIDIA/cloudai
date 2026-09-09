@@ -24,6 +24,8 @@ from pydantic import Field, ValidationInfo, field_validator
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
+HF_TOKEN_REDACTION = "<REDACTED>"
+
 
 class MegatronBridgeCmdArgs(CmdArgs):
     """Megatron-Bridge launcher arguments (translated into `setup_experiment.py` flags)."""
