@@ -92,6 +92,7 @@ def test_python_version_falls_back_to_cloudai_interpreter(tmp_path: Path):
 def test_venv_created(installer: BaseInstaller, git: GitRepo):
     git.python_version = "3.11.9"
     git.installed_path = installer.system.install_path / git.repo_name
+    git.installed_path.mkdir()
     py = PythonExecutable(git)
     venv_path = installer.system.install_path / py.venv_name
     with (
@@ -148,6 +149,7 @@ def test_error_creating_venv(
     reqs_install_failure: bool,
 ):
     git.installed_path = installer.system.install_path / git.repo_name
+    git.installed_path.mkdir()
     py = PythonExecutable(git)
     venv_path = installer.system.install_path / py.venv_name
 

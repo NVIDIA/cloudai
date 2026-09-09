@@ -124,8 +124,10 @@ class PythonExecutable(Installable):
             logging.debug(msg)
             return InstallStatusResult(True, msg)
 
-        if self.project_subpath:
-            project_dir /= self.project_subpath
+        project_dir = project_dir / self.project_subpath if self.project_subpath else project_dir
+        if not project_dir.is_dir():
+            return InstallStatusResult(False, f"Python project directory does not exist: {project_dir}")
+
         try:
             uv_bin = uv.find_uv_bin()
         except OSError as e:
