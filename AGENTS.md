@@ -22,16 +22,16 @@
 - Import public core APIs through `cloudai.core`, respect import-linter boundaries, and use existing lazy-import
   mechanisms for heavy modules. Follow established workload structure and registration patterns.
 - Follow `CONTRIBUTING.md`, including SPDX headers and mirrored tests for new Python modules.
-- Load relevant skills from the canonical `.agents/skills/` directory. Preserve unrelated user changes.
+- Preserve unrelated user changes.
 
 ## Verification
 
 - Start with focused tests: `uv run --locked --extra dev pytest <test-paths>`.
 - Run `uv run --locked --extra dev pre-commit run --files <changed-files>` and review formatter edits.
-- Hardware-dependent validation may require specific infrastructure. State its prerequisites, what was tested, and any
-  remote, scheduler, or hardware validation left unverified.
 
 ## Git and external actions
 
 - Do not commit, push, open or modify pull requests, or run remote jobs unless the user explicitly requests that action.
+- Create PRs as drafts (`gh pr create --draft`). Leave marking PRs ready for review to humans unless the user explicitly
+  asks you to create a ready-for-review PR or mark an existing PR ready.
 - Follow the DCO sign-off and PR requirements in `CONTRIBUTING.md` and use `.github/PULL_REQUEST_TEMPLATE.md`.
