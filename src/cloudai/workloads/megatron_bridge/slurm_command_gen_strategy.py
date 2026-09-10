@@ -17,9 +17,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import shlex
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 from typing import Any, Optional, cast
 
@@ -52,6 +54,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def gen_exec_command(self) -> str:
+        existing_script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
+        if existing_script:
+            return f"sbatch {shlex.quote(str(existing_script))}"
+
         tdef: MegatronBridgeTestDefinition = cast(MegatronBridgeTestDefinition, self.test_run.test)
         args: MegatronBridgeCmdArgs = tdef.cmd_args
 
@@ -75,31 +81,60 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
-        pre_hook_sbatch_path: Optional[Path] = None
-        base_slurm_params: str = ""
-        capture_nodelist: bool = False
-        if self.test_run.pre_test:
-            pre_hook_sbatch_path = self._gen_pre_hook_sbatch()
-            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py, include_slurm_params=False)
-            base_slurm_params = ";".join(self._collect_additional_slurm_params())
-            _, node_list = self.get_cached_nodes_spec()
-            capture_nodelist = not node_list
-        else:
-            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
+        patcher_path = self._write_dryrun_patcher(launcher_py)
+        parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, patcher_path)
+        if "-d" not in parts:
+            parts.append("-d")
+        launcher_cmd = " ".join(parts)
+        log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
+        env = os.environ.copy()
+        for key in self.CONTAINER_RUNTIME_ENV_VARS:
+            if key in self.final_env_vars:
+                env[key] = str(self.final_env_vars[key])
+        with log_path.open("w") as log:
+            result = subprocess.run(
+                launcher_cmd,
+                shell=True,
+                executable="/bin/bash",
+                env=env,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        if result.returncode:
+            raise RuntimeError(f"Megatron-Bridge dry-run failed. See {log_path}.")
 
-        launcher_python = str((venv_path / "bin" / "python").absolute())
-        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
-            " ".join(parts),
-            launcher_python,
-            args.wandb_version,
-            args.numpy_version,
-            pre_hook_sbatch_path=pre_hook_sbatch_path,
-            base_slurm_params=base_slurm_params,
-            capture_nodelist=capture_nodelist,
-        )
+        script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
+        if script is None:
+            raise RuntimeError(f"Megatron-Bridge dry-run did not generate an sbatch script. See {log_path}.")
 
+        full_cmd = f"sbatch {shlex.quote(str(script))}"
         self._write_command_to_file(full_cmd, self.test_run.output_path)
         return full_cmd
+
+    def _write_dryrun_patcher(self, launcher_py: Path) -> Path:
+        patcher_path = self.test_run.output_path / "cloudai_megatron_bridge_dryrun.py"
+        patcher_path.write_text(
+            "\n".join(
+                [
+                    "import runpy",
+                    "import sys",
+                    "from pathlib import Path",
+                    "from nemo_run.run.experiment import Experiment",
+                    "",
+                    "original_dryrun = Experiment.dryrun",
+                    "",
+                    "def keep_dryrun_artifacts(self, log=True, exist_ok=False, delete_exp_dir=True):",
+                    "    return original_dryrun(self, log=log, exist_ok=exist_ok, delete_exp_dir=False)",
+                    "",
+                    "Experiment.dryrun = keep_dryrun_artifacts",
+                    f"launcher = Path({str(launcher_py)!r})",
+                    "sys.path.insert(0, str(launcher.parent))",
+                    'runpy.run_path(str(launcher), run_name="__main__")',
+                    "",
+                ]
+            )
+        )
+        return patcher_path
 
     def _collect_additional_slurm_params(self) -> list[str]:
         """Return the additional_slurm_params list (without dependency)."""
