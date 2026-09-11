@@ -44,6 +44,8 @@ class DimensionDefinition:
     key: str
     label: str
     value_type: Any
+    unit: str = ""
+    is_x: bool = False
 
     def validate(self, value: Any) -> MetricValue:
         """Validate one configured or observed dimension value."""
@@ -97,7 +99,7 @@ class MetricCatalog:
         return {key: cls.get_dimension(key).validate(value) for key, value in values.items()}
 
 
-SIZE_BYTES = DimensionDefinition("size_bytes", "Size", Annotated[int, Field(strict=True, ge=0)])
+SIZE_BYTES = DimensionDefinition("size_bytes", "Size", Annotated[int, Field(strict=True, ge=0)], unit="B", is_x=True)
 BATCH_SIZE = DimensionDefinition("batch_size", "Batch size", Annotated[int, Field(strict=True, gt=0)])
 OPERATION = DimensionDefinition("operation", "Operation", Annotated[str, Field(strict=True, min_length=1)])
 PLACEMENT = DimensionDefinition("placement", "Placement", Literal["in_place", "out_of_place"])
