@@ -29,6 +29,7 @@ dependencies = [
   "websockets~=16.0",
   "rich~=14.3",
   "requests~=2.33",
+  "tenacity~=9.1",
   "click~=8.3",
   "huggingface-hub~=1.4",
   "numpy>=2.4.6; python_version >= '3.14'",

@@ -281,6 +281,7 @@ dependencies = [
     { name = "requests" },
     { name = "rich" },
     { name = "tbparse" },
+    { name = "tenacity" },
     { name = "toml" },
     { name = "websockets" },
 ]
@@ -361,6 +362,7 @@ requires-dist = [
     { name = "sphinxext-opengraph", marker = "extra == 'docs'", specifier = "~=0.13" },
     { name = "taplo", marker = "extra == 'dev'", specifier = "~=0.9.3" },
     { name = "tbparse", specifier = "~=0.0.9" },
+    { name = "tenacity", specifier = "~=9.1" },
     { name = "toml", specifier = "~=0.10.2" },
     { name = "vulture", marker = "extra == 'dev'", specifier = "==2.14" },
     { name = "websockets", specifier = "~=16.0" },
@@ -2445,6 +2447,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/97/0b/553a13cb39f8ccad888c2d9b07e04cb1a60011e1073771fd6b5d904b61c4/tbparse-0.0.9.tar.gz", hash = "sha256:528e7da6929148b612a517adb5fbdee709224cb7e2420489a9b6b174f2f808bc", size = 21362, upload-time = "2024-08-16T04:37:50.185Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/17/7a/56818acfbf03ef6eae4c3e0a7091ab6ffd8c3b44af93f2982297c07b50f2/tbparse-0.0.9-py3-none-any.whl", hash = "sha256:51a001728bc539a1efed9f03450b1e0151ad14011c8c52f156cf55dc1fbaa884", size = 19595, upload-time = "2024-08-16T04:37:48.546Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a", size = 49413, upload-time = "2026-02-07T10:45:33.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
 ]
 
 [[package]]
