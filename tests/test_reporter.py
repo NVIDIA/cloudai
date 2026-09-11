@@ -336,6 +336,80 @@ class TestSlurmReportItem:
         [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
         assert report_item.nodes == slurm_metadata.slurm.node_list
 
+    def test_records_passing_status(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from cloudai.core import JobStatusResult
+
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
+        monkeypatch.setattr(type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(True, ""))
+
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.is_successful is True
+        assert report_item.error_message == ""
+
+    def test_records_failing_status_and_message(
+        self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cloudai.core import JobStatusResult
+
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
+        monkeypatch.setattr(
+            type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(False, "command failed")
+        )
+
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.is_successful is False
+        assert report_item.error_message == "command failed"
+
+
+def test_scenario_report_shows_pass_fail_status(
+    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for the bug where the saved HTML report never recorded pass/fail,
+    only the terminal summary did."""
+    from cloudai.core import JobStatusResult
+
+    monkeypatch.setattr(
+        type(benchmark_tr.test), "was_run_successful", lambda self, tr: JobStatusResult(False, "command failed")
+    )
+
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="test-scenario", test_runs=[benchmark_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+    reporter.generate()
+
+    report_html = (slurm_system.output_path / "test-scenario.html").read_text()
+    assert "FAILED" in report_html
+    assert "command failed" in report_html
+
 
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
