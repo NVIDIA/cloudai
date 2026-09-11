@@ -31,6 +31,21 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
 
+Unified experiment output
+-------------------------
+
+Ordinary Slurm scenarios write ``experiment.json`` in the scenario results directory when execution finishes or fails.
+The file contains experiment metadata, test cases, submitted runs, statuses, timing, and canonical metrics from
+``TestDefinition.metric_observations()``. NCCL and NIXLBench provide these metrics; other workloads have empty metric lists.
+Test-level metrics are arithmetic means of successful iterations at matching metric and dimension points. Per-run
+measurements retain their original values, and missing measurements are not treated as zero.
+
+Experiment timing covers scenario execution, including gaps between jobs. Run timestamps without timezone information
+are null. Metric extraction and output-write failures produce warnings without changing execution behavior. The file is
+replaced atomically and is independent of reporter configuration. Dry runs, DSE, and single-sbatch execution do not produce
+this artifact.
+
+
 .. _general-flow:
 
 General Flow
