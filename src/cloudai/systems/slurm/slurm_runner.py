@@ -21,7 +21,8 @@ from typing import cast
 
 import toml
 
-from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
+from cloudai.unified_output import ExperimentOutput
 from cloudai.util import CommandShell
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -43,6 +44,34 @@ class SlurmRunner(BaseRunner):
         self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
         self.pinned_nodes: dict[str, list[str]] = {}
+        self._experiment: ExperimentOutput | None = None
+
+    def run(self) -> None:
+        if self.mode != "run" or any(tr.is_dse_job or tr.step > 0 for tr in self.test_scenario.test_runs):
+            super().run()
+            return
+
+        try:
+            self._experiment = ExperimentOutput(self.test_scenario, self.scenario_root)
+        except Exception as exc:
+            logging.warning("Cannot initialize unified experiment output: %s", exc)
+        completed = False
+        try:
+            super().run()
+            completed = True
+        finally:
+            if self._experiment is not None:
+                self._experiment.finish(self.system, self.jobs, completed)
+                self._experiment = None
+
+    def get_job_status(self, job: BaseJob) -> JobStatusResult:
+        result = super().get_job_status(job)
+        if self._experiment is not None:
+            try:
+                self._experiment.capture(self.system, job, result)
+            except Exception as exc:
+                logging.warning("Cannot capture unified output for job %s: %s", job.id, exc)
+        return result
 
     def submit_test(self, tr: TestRun) -> None:
         if tr.pin_nodes and tr.name in self.pinned_nodes:
