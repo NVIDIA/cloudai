@@ -341,6 +341,7 @@ def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
                 assert new_tr.test.extra_env_vars[key[len("extra_env_vars.") :]] == value
             elif key == "NUM_NODES":
                 assert new_tr.num_nodes == value
+                assert "NUM_NODES" not in cmd_args
             else:
                 assert cmd_args[key] == value
 
