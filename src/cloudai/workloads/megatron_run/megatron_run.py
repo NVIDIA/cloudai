@@ -39,6 +39,10 @@ class MegatronRunCmdArgs(CmdArgs):
 
     docker_image_url: str = Field()
     run_script: Path = Field()
+    command_prefix: str = Field(
+        default="",
+        description="Optional command prefix inserted before the MegatronRun python command.",
+    )
 
     global_batch_size: Optional[int] = 16
     hidden_size: Optional[int] = 4096
@@ -86,7 +90,7 @@ class MegatronRunCmdArgs(CmdArgs):
             "recompute_activations"
         }
         extra_keys = set(self.model_extra or {})
-        args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
+        args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script", "command_prefix"})
         result: dict[str, Any] = {}
         for k, v in args.items():
             flag = f"--{k.replace('_', '-')}"
