@@ -20,7 +20,7 @@ from typing import Any, Callable, Iterable, cast
 import pytest
 import toml
 
-from cloudai.core import GitRepo, TestRun
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
@@ -28,6 +28,7 @@ from cloudai.workloads.megatron_bridge import (
     MegatronBridgeTestDefinition,
 )
 from cloudai.workloads.megatron_bridge.megatron_bridge import HF_TOKEN_REDACTION
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 WRAPPER_SCRIPT_NAME = "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
 
@@ -337,6 +338,117 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
         assert 'exit "${LAUNCH_RC}"' not in wrapper_content
         assert "Submitted batch job[ ]+[0-9]+" in wrapper_content
+
+    def test_post_hook_runs_as_dependent_job(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        tr = make_test_run(output_subdir="out_post_hook")
+        hook_tdef = NCCLTestDefinition(
+            name="nccl_post",
+            description="post",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            extra_env_vars={"HOOK_VAR": "1"},
+        )
+        post_run = TestRun(
+            test=hook_tdef,
+            name="nccl_post",
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "unused",
+            time_limit="00:05:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[post_run])
+
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
+        wrapper_content = self._wrapper_content(cmd_gen)
+        post_hook_script = tr.output_path / "post_hook_sbatch_script.sh"
+
+        assert post_hook_script.exists()
+        post_hook_content = post_hook_script.read_text()
+        assert "#SBATCH --time=00:05:00" in post_hook_content
+        assert "/post_test/nccl_post/stdout.txt" in post_hook_content
+        assert "srun " in post_hook_content
+        assert "POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID}" in wrapper_content
+        assert 'echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"' in wrapper_content
+        assert 'echo "Submitted batch job ${JOB_ID}"' in wrapper_content
+        assert 'echo "Submitted batch job ${POST_HOOK_JOB_ID}"' not in wrapper_content
+
+    def test_post_hook_uses_largest_allocation(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        tr = make_test_run(output_subdir="out_post_hook_resources")
+        first_post = TestRun(
+            test=NCCLTestDefinition(
+                name="post_one",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="post_one",
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "unused_one",
+            time_limit="00:05:00",
+        )
+        second_post = TestRun(
+            test=NCCLTestDefinition(
+                name="post_two",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="post_two",
+            num_nodes=3,
+            nodes=[],
+            output_path=tmp_path / "unused_two",
+            time_limit="00:10:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[first_post, second_post])
+
+        self._wrapper_content(MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr))
+        post_hook_content = (tr.output_path / "post_hook_sbatch_script.sh").read_text()
+
+        assert "#SBATCH -N 3" in post_hook_content
+        assert "#SBATCH --time=00:15:00" in post_hook_content
+        assert "/post_test/post_one/stdout.txt" in post_hook_content
+        assert "/post_test/post_two/stdout.txt" in post_hook_content
+        post_one_srun = next(
+            line for line in post_hook_content.splitlines() if "/post_test/post_one/stdout.txt" in line
+        )
+        post_two_srun = next(
+            line for line in post_hook_content.splitlines() if "/post_test/post_two/stdout.txt" in line
+        )
+        assert " -N1 " in post_one_srun
+        assert " -N3 " in post_two_srun
+
+    def test_post_hook_exports_hostfile_for_explicit_nodes(
+        self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
+    ) -> None:
+        configured_slurm_system.ntasks_per_node = 2
+        tr = make_test_run(output_subdir="out_post_hook_hostfile")
+        post_run = TestRun(
+            test=NCCLTestDefinition(
+                name="nccl_post",
+                description="post",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            name="nccl_post",
+            num_nodes=1,
+            nodes=["node2", "node1"],
+            output_path=tmp_path / "unused",
+            time_limit="00:05:00",
+        )
+        tr.post_test = TestScenario(name="post", test_runs=[post_run])
+
+        self._wrapper_content(MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr))
+        post_hook_content = (tr.output_path / "post_hook_sbatch_script.sh").read_text()
+        hostfile_path = tr.output_path / "post_test" / "nccl_post" / "hostfile.txt"
+
+        assert "#SBATCH --nodelist=node1,node2" in post_hook_content
+        assert f"export SLURM_HOSTFILE={hostfile_path.absolute()}" in post_hook_content
+        assert hostfile_path.read_text().splitlines() == ["node1", "node1", "node2", "node2"]
 
     def test_wrapper_installs_wandb_before_launcher(
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]

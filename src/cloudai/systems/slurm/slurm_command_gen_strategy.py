@@ -83,7 +83,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         repo_mounts = []
         for repo in tdef.git_repos:
-            path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
+            path = (
+                repo.installed_path.absolute()
+                if repo.installed_path
+                else (self.system.install_path / repo.repo_name).absolute()
+            )
             repo_mounts.append(f"{path}:{repo.container_mount}")
 
         mounts = [
