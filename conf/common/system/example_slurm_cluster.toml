@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,3 +60,12 @@ NCCL_IB_QPS_PER_CONNECTION = "4"
 # Device Visibility Configuration
 MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
 CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+
+# Uncomment to use Slurm REST API instead of local Slurm CLI tools.
+# [slurm_api]
+# url = "https://slurm-api.example.com"
+# verify_certs = true
+#
+#   [slurm_api.headers]
+#   X-SLURM-USER-NAME = "${SLURM_USER}"
+#   X-SLURM-USER-TOKEN = "${SLURM_JWT}"

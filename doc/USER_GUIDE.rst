@@ -79,6 +79,27 @@ Field Descriptions
      - Specifies whether CloudAI should cache remote Docker images locally during installation. If set to ``true``, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to ``false``, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
    * - **global_env_vars**
      - Lists all global environment variables that will be applied globally whenever tests are run.
+   * - **[optional] slurm_api**
+     - Uses Slurm REST API instead of local Slurm CLI tools. Set ``url`` and optional ``verify_certs`` and ``headers``.
+       Header values may reference environment variables using ``${NAME}``.
+
+Slurm REST API
+~~~~~~~~~~~~~~
+
+CloudAI uses the Slurm 22.05 REST API v0.0.38 when ``slurm_api`` is configured. Both the ``slurm`` and ``slurmdb``
+endpoints must be enabled by the service.
+
+.. code-block:: toml
+
+   [slurm_api]
+   url = "https://slurm-api.example.com"
+   verify_certs = true
+
+     [slurm_api.headers]
+     X-SLURM-USER-NAME = "${SLURM_USER}"
+     X-SLURM-USER-TOKEN = "${SLURM_JWT}"
+
+Workloads that invoke their own Slurm launcher instead of producing an sbatch script are not supported in REST mode.
 
 RunAI Scheduler
 ---------------

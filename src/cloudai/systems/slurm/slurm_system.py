@@ -35,6 +35,7 @@ from cloudai.util import CommandShell
 from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmStepMetadata
 from .slurm_node import SlurmNode, SlurmNodeState
+from .slurm_rest_client import SlurmAPIConfig, SlurmRestClient
 
 
 class DataRepositoryConfig(BaseModel):
@@ -102,6 +103,11 @@ class SlurmSystem(System):
 
     def submit_sbatch(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
         """Submit an sbatch script without exposing the CLI transport to callers."""
+        if self.uses_slurm_api:
+            return self._rest_client.submit_sbatch(
+                script_path, operation_name, wait=wait, monitor_interval=self.monitor_interval
+            )
+
         wait_arg = " --wait" if wait else ""
         command = f"sbatch{wait_arg} {shlex.quote(str(script_path))}"
         return self.submit_job(command, operation_name)
@@ -123,6 +129,7 @@ class SlurmSystem(System):
     status_retry_pause_seconds: int = Field(default=10, ge=0)
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
+    slurm_api: Optional[SlurmAPIConfig] = None
 
     data_repository: Optional[DataRepositoryConfig] = None
     reports: Optional[dict[str, ReportConfig]] = None
@@ -159,6 +166,93 @@ class SlurmSystem(System):
         return value
 
     @property
+    def uses_slurm_api(self) -> bool:
+        """Whether Slurm communication uses slurmrestd instead of local CLI tools."""
+        return self.slurm_api is not None
+
+    @property
+    def _rest_client(self) -> SlurmRestClient:
+        """Build a client from REST config, or fail if REST mode is disabled."""
+        if self.slurm_api is None:
+            raise RuntimeError("Slurm REST API is not configured.")
+        return SlurmRestClient(self.slurm_api, self.status_retry_pause_seconds)
+
+    @staticmethod
+    def _job_id(job: BaseJob) -> int:
+        """Return numeric Slurm ID; e.g. `SlurmJob(..., id=42)` returns `42`."""
+        if not isinstance(job.id, int):
+            raise TypeError(f"Slurm job ID must be an integer, got {type(job.id).__name__}.")
+        return job.id
+
+    def _rest_node_state(self, node: dict[str, Any]) -> SlurmNodeState:
+        """Choose significant state from REST state flags; e.g. `IDLE+DRAIN` resolves to `DRAINED`."""
+        raw_states = node.get("state", node.get("job_state"))
+        if isinstance(raw_states, dict):
+            raw_states = raw_states.get("current", [])
+        if isinstance(raw_states, list):
+            state_names = [str(state) for state in raw_states]
+        elif raw_states is None:
+            state_names = []
+        else:
+            state_names = [state for state in re.split(r"[,+]", str(raw_states)) if state]
+
+        states = [self.convert_state_to_enum(state.upper().rstrip("+")) for state in state_names]
+        ordinary_states = {
+            SlurmNodeState.ALLOCATED,
+            SlurmNodeState.ALLOCATED_COMPLETING,
+            SlurmNodeState.COMPLETING,
+            SlurmNodeState.IDLE,
+            SlurmNodeState.MIXED_ALLOCATION,
+        }
+        fallback = states[0] if states else SlurmNodeState.UNKNOWN_STATE
+        return next((state for state in states if state not in ordinary_states), fallback)
+
+    def _nodes_from_rest(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for node in self._rest_client.cluster_nodes():
+            if not node.get("name"):
+                continue
+
+            partitions = node.get("partitions")
+            if isinstance(partitions, dict):
+                partitions = partitions.get("current", [])
+            if isinstance(partitions, list):
+                partition_names = [str(partition) for partition in partitions]
+            elif partitions is None:
+                partition_names = []
+            else:
+                partition_names = [partition for partition in re.split(r"[,+]", str(partitions)) if partition]
+
+            state = self._rest_node_state(node)
+            nodes.extend(
+                SlurmNode(name=str(node["name"]), partition=partition, state=state) for partition in partition_names
+            )
+        return nodes
+
+    def _allocated_nodes_from_rest(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for job in self._rest_client.queue_jobs():
+            raw_states = job.get("state", job.get("job_state"))
+            if isinstance(raw_states, dict):
+                raw_states = raw_states.get("current", [])
+            if isinstance(raw_states, list):
+                states = {str(state).upper().rstrip("+") for state in raw_states}
+            elif raw_states is None:
+                states = set()
+            else:
+                states = {state.upper().rstrip("+") for state in re.split(r"[,+]", str(raw_states)) if state}
+            if not {"RUNNING", "PENDING"}.intersection(states):
+                continue
+
+            partition = str(job.get("partition", ""))
+            user = str(job.get("user_name", job.get("user", "N/A")))
+            nodes.extend(
+                SlurmNode(name=name, partition=partition, state=SlurmNodeState.ALLOCATED, user=user)
+                for name in parse_node_list(str(job.get("nodes", "")))
+            )
+        return nodes
+
+    @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
         groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
         for part in self.partitions:
@@ -184,6 +278,15 @@ class SlurmSystem(System):
     @property
     def supports_gpu_directives(self) -> bool:
         if self.supports_gpu_directives_cache is not None:
+            return self.supports_gpu_directives_cache
+
+        if self.uses_slurm_api:
+            try:
+                self.supports_gpu_directives_cache = self._rest_client.has_gpus()
+            except RuntimeError as exc:
+                logging.warning("Error checking GPU support: %s", exc)
+                self.supports_gpu_directives_cache = True
+                return True
             return self.supports_gpu_directives_cache
 
         stdout, stderr = self.fetch_command_output("scontrol show config")
@@ -218,6 +321,9 @@ class SlurmSystem(System):
         self.update_nodes_state_and_user(self.group_allocated)
 
     def nodes_from_sinfo(self) -> list[SlurmNode]:
+        if self.uses_slurm_api:
+            return self._nodes_from_rest()
+
         sinfo_output, _ = self.fetch_command_output("sinfo --noheader -o '%P|%t|%u|%N'")
         nodes: list[SlurmNode] = []
         for line in sinfo_output.split("\n"):
@@ -237,6 +343,9 @@ class SlurmSystem(System):
         return nodes
 
     def nodes_from_squeue(self) -> list[SlurmNode]:
+        if self.uses_slurm_api:
+            return self._allocated_nodes_from_rest()
+
         squeue_output, _ = self.fetch_command_output("squeue --states=running,pending --noheader -o '%P|%T|%N|%u'")
         nodes: list[SlurmNode] = []
         for line in squeue_output.split("\n"):
@@ -294,6 +403,29 @@ class SlurmSystem(System):
 
     def submit_job(self, submission_command: str, test_name: str) -> int:
         """Submit a generated Slurm workload and return its job ID."""
+        if self.uses_slurm_api:
+            args = shlex.split(submission_command)
+            if not args or Path(args[0]).name != "sbatch":
+                raise JobIdRetrievalError(
+                    test_name=test_name,
+                    command=submission_command,
+                    stdout="",
+                    stderr="Slurm REST mode only supports submission of an sbatch script.",
+                    message="Failed to submit job through Slurm REST API.",
+                )
+
+            wait = "--wait" in args[1:-1]
+            unsupported = [arg for arg in args[1:-1] if arg != "--wait"]
+            if unsupported or len(args) < 2:
+                raise JobIdRetrievalError(
+                    test_name=test_name,
+                    command=submission_command,
+                    stdout="",
+                    stderr=f"Unsupported sbatch command arguments: {' '.join(unsupported)}",
+                    message="Failed to submit job through Slurm REST API.",
+                )
+            return self.submit_sbatch(Path(args[-1]), test_name, wait=wait)
+
         stdout, stderr = self.cmd_shell.execute(submission_command).communicate()
         job_id = self._parse_submitted_job_id(stdout)
         if job_id is None:
@@ -308,6 +440,13 @@ class SlurmSystem(System):
 
     def validate_install_environment(self) -> None:
         """Validate that the configured Slurm environment can run CloudAI workloads."""
+        if self.uses_slurm_api:
+            try:
+                self._rest_client.validate()
+            except RuntimeError as exc:
+                raise EnvironmentError(f"Failed to access the Slurm REST API: {exc}") from exc
+            return
+
         for binary in self._REQUIRED_BINARIES:
             if shutil.which(binary) is None:
                 raise EnvironmentError(f"Required binary '{binary}' is not installed.")
@@ -338,6 +477,9 @@ class SlurmSystem(System):
             RuntimeError: If an error occurs that prevents determination of the job's running status, or if the status
                         cannot be determined after the specified number of retries.
         """
+        if self.uses_slurm_api:
+            return "RUNNING" in self._rest_client.job_states(self._job_id(job), retry_threshold)
+
         retry_count = 0
         command = f"sacct -j {job.id} --format=State --noheader"
 
@@ -388,6 +530,9 @@ class SlurmSystem(System):
         Raises:
             RuntimeError: If unable to determine job status after retries, or if a non-retryable error is encountered.
         """
+        if self.uses_slurm_api:
+            return self._rest_client.is_job_completed(self._job_id(job), retry_threshold)
+
         retry_count = 0
         command = f"sacct -j {job.id} --format=State --noheader"
 
@@ -424,6 +569,9 @@ class SlurmSystem(System):
         return False
 
     def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
+        if self.uses_slurm_api:
+            return self._rest_client.get_job_status(self._job_id(job), retry_threshold)
+
         retry_count = 0
         command = (
             f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
@@ -457,8 +605,7 @@ class SlurmSystem(System):
         Args:
             job (BaseJob): The job to be terminated.
         """
-        assert isinstance(job.id, int)
-        self.scancel(job.id)
+        self.scancel(self._job_id(job))
 
     @classmethod
     def format_node_list(cls, node_names: List[str]) -> str:
@@ -706,6 +853,12 @@ class SlurmSystem(System):
         Args:
             job_id (int): The ID of the job to cancel.
         """
+        if job_id == 0:
+            return
+
+        if self.uses_slurm_api:
+            self._rest_client.cancel(job_id)
+            return
         self.cmd_shell.execute(f"scancel {job_id}")
 
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
@@ -870,8 +1023,14 @@ class SlurmSystem(System):
         return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]
 
     def complete_job(self, job: SlurmJob) -> list[str]:
-        out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")
-        spec = out.splitlines()[0] if out.splitlines() else out
+        if job.id == 0:
+            return []
+
+        if self.uses_slurm_api:
+            spec = self._rest_client.get_job_nodes(self._job_id(job))
+        else:
+            out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")
+            spec = out.splitlines()[0] if out.splitlines() else out
         nodelist = sorted(set(parse_node_list(spec.strip().replace("|", ""))))
         to_unlock = [node for node in self.group_allocated if node.name in nodelist]
         self.group_allocated.difference_update(to_unlock)
