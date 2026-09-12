@@ -47,14 +47,6 @@ class SlurmAPIConfig(pydantic.BaseModel):
     headers: dict[str, str] = pydantic.Field(default_factory=dict)
     verify_certs: bool = True
 
-    @pydantic.field_validator("url")
-    @classmethod
-    def _validate_url(cls, value: str) -> str:
-        value = value.strip().rstrip("/")
-        if not value:
-            raise ValueError("slurm_api.url must be non-blank")
-        return value
-
 
 class SlurmRestClient:
     """Translate CloudAI Slurm operations to slurmrestd v0.0.38 requests."""
@@ -113,7 +105,7 @@ class SlurmRestClient:
         return str(item.get("error") or item.get("description") or item)
 
     def _request_once(self, method: str, service: str, path: str, payload: dict[str, object] | None) -> dict[str, Any]:
-        url = f"{self._config.url}/{service}/{self._API_VERSION}/{path.lstrip('/')}"
+        url = f"{self._config.url.rstrip('/')}/{service}/{self._API_VERSION}/{path.lstrip('/')}"
         response = requests.request(
             method,
             url,
@@ -234,7 +226,7 @@ class SlurmRestClient:
             else:
                 raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
-    def _job_description(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
+    def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
         for line in script.splitlines():
@@ -260,7 +252,7 @@ class SlurmRestClient:
                 "POST",
                 "slurm",
                 "job/submit",
-                payload={"script": script, "job": self._job_description(script, script_path)},
+                payload={"script": script, "job": self._make_job(script, script_path)},
             )
         except (OSError, RuntimeError, ValueError) as exc:
             raise cloudai.core.JobIdRetrievalError(
