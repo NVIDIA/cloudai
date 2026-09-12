@@ -202,7 +202,6 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
     rest_slurm_system.supports_gpu_directives_cache = None
     with (
         patch.object(SlurmRestClient, "_request", side_effect=request) as rest_request,
-        patch("cloudai.systems.slurm.slurm_system.shutil.which", return_value="/usr/bin/git"),
     ):
         assert rest_slurm_system.supports_gpu_directives is True
         assert [(node.name, node.partition, node.state) for node in rest_slurm_system.nodes_from_sinfo()] == [

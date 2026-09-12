@@ -412,8 +412,6 @@ class SlurmSystem(System):
     def validate_install_environment(self) -> None:
         """Validate that the configured Slurm environment can run CloudAI workloads."""
         if self.uses_slurm_api:
-            if shutil.which("git") is None:
-                raise EnvironmentError("Required binary 'git' is not installed.")
             try:
                 self._rest_client.validate()
             except RuntimeError as exc:
@@ -543,7 +541,7 @@ class SlurmSystem(System):
 
     def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
         if self.uses_slurm_api:
-            rest_job = self._rest_client.accounting_job(self._job_id(job), retry_threshold)
+            rest_job = self._rest_client.get_job(self._job_id(job), retry_threshold)
             return self._rest_client.step_metadata(rest_job) if rest_job else []
 
         retry_count = 0
@@ -1001,7 +999,7 @@ class SlurmSystem(System):
             return []
 
         if self.uses_slurm_api:
-            rest_job = self._rest_client.accounting_job(self._job_id(job))
+            rest_job = self._rest_client.get_job(self._job_id(job))
             spec = str(rest_job.get("nodes", "")) if rest_job else ""
         else:
             out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")

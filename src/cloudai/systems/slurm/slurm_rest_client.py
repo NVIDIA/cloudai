@@ -342,21 +342,19 @@ class SlurmRestClient:
         return [record for record in records if isinstance(record, dict)]
 
     def cluster_nodes(self) -> list[dict[str, Any]]:
-        """Return node records from slurmctld."""
         return self._records(self._request("GET", "slurm", "nodes/"), "nodes")
 
     def queue_jobs(self) -> list[dict[str, Any]]:
-        """Return current job records from slurmctld."""
         return self._records(self._request("GET", "slurm", "jobs/"), "jobs")
 
-    def accounting_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
+    def get_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
         """Return one job from slurmdbd, retrying while accounting catches up."""
         data = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
         return next((job for job in self._records(data, "jobs") if self._number(job.get("job_id")) == job_id), None)
 
     def job_states(self, job_id: int, retry_threshold: int = 3) -> list[str]:
         """Return job and step states from slurmdbd."""
-        job = self.accounting_job(job_id, retry_threshold)
+        job = self.get_job(job_id, retry_threshold)
         if job is None:
             return []
         states = self.states(job)
