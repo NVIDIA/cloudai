@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import getopt
 import logging
 import math
 import os
@@ -82,6 +83,25 @@ class SlurmRestClient:
         "--reservation": "reservation",
         "--distribution": "distribution",
     }
+    _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
+    _LONG_DIRECTIVES: ClassVar[list[str]] = [
+        "job-name=",
+        "output=",
+        "error=",
+        "partition=",
+        "account=",
+        "reservation=",
+        "distribution=",
+        "nodes=",
+        "nodelist=",
+        "exclude=",
+        "ntasks=",
+        "ntasks-per-node=",
+        "time=",
+        "gres=",
+        "gpus-per-node=",
+        "chdir=",
+    ]
 
     def __init__(self, config: SlurmAPIConfig, retry_pause_seconds: int) -> None:
         self._config = config
@@ -154,17 +174,16 @@ class SlurmRestClient:
         except (requests.RequestException, ValueError, RuntimeError) as exc:
             raise RuntimeError(f"Slurm API request failed after {retry_threshold} attempt(s): {exc}") from exc
 
-    @staticmethod
-    def _directive_value(args: list[str], index: int, option: str) -> tuple[str, int]:
-        """Read one SBATCH value and next index; e.g. `(["--time", "10"], 0, "--time")` returns `("10", 2)`."""
-        token = args[index]
-        if "=" in token:
-            return token.split("=", 1)[1], index + 1
-        if option == "--nodes" and token.startswith("-N") and token != "-N":
-            return token[2:], index + 1
-        if index + 1 >= len(args):
-            raise ValueError(f"SBATCH directive '{option}' requires a value.")
-        return args[index + 1], index + 2
+    @classmethod
+    def _parse_sbatch_line(cls, line: str) -> list[tuple[str, str]]:
+        """Parse one SBATCH line; e.g. `--nodes 2 --time=10` becomes two directives."""
+        try:
+            directives, values = getopt.gnu_getopt(shlex.split(line), cls._SHORT_DIRECTIVES, cls._LONG_DIRECTIVES)
+        except getopt.GetoptError as exc:
+            raise ValueError(f"Invalid SBATCH directive: {exc}.") from exc
+        if values:
+            raise ValueError(f"Unexpected SBATCH value(s): {' '.join(values)}.")
+        return directives
 
     @staticmethod
     def _gpu_gres(value: str, *, from_gres: bool) -> str:
@@ -182,49 +201,37 @@ class SlurmRestClient:
             )
         job[field] = value
 
-    def _apply_sbatch_args(self, job: dict[str, object], args: list[str]) -> None:  # noqa: C901
-        """Map tokenized SBATCH directives into v0.0.38 fields; e.g. `["-N", "2"]` sets `nodes=[2, 2]`."""
-        index = 0
-        while index < len(args):
-            token = args[index]
-            option = token.split("=", 1)[0]
-            if token.startswith("-N"):
-                option = "--nodes"
-            elif option == "-n":
-                option = "--ntasks"
-            elif option == "-D":
-                option = "--chdir"
-            value, index = self._directive_value(args, index, option)
+    def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:  # noqa: C901
+        """Map one SBATCH directive to its v0.0.38 job field; e.g. `--nodes=2` sets `nodes=[2, 2]`."""
+        option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
 
-            if option in self._DIRECTIVE_FIELDS:
-                self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
-            elif option == "--nodes":
-                node_counts = [int(item) for item in str(value).split("-", 1)]
-                if len(node_counts) == 1:
-                    node_counts.append(node_counts[0])
-                self._set_directive(job, "nodes", node_counts, option)
-            elif option == "--nodelist":
-                self._set_directive(job, "nodelist", str(value), option)
-            elif option == "--exclude":
-                self._set_directive(job, "exclude_nodes", str(value), option)
-            elif option == "--ntasks":
-                self._set_directive(job, "tasks", int(value), option)
-            elif option == "--ntasks-per-node":
-                self._set_directive(job, "tasks_per_node", int(value), option)
-            elif option == "--time":
-                minutes = (
-                    int(value)
-                    if str(value).isdigit()
-                    else math.ceil(cloudai.util.parse_time_limit(str(value)).total_seconds() / 60)
-                )
-                self._set_directive(job, "time_limit", minutes, option)
-            elif option in {"--gres", "--gpus-per-node"}:
-                gres = self._gpu_gres(str(value), from_gres=option == "--gres")
-                self._set_directive(job, "gres", gres, option)
-            elif option == "--chdir":
-                self._set_directive(job, "current_working_directory", value, option)
-            else:
-                raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
+        if option in self._DIRECTIVE_FIELDS:
+            self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
+        elif option == "--nodes":
+            node_counts = [int(item) for item in value.split("-", 1)]
+            if len(node_counts) == 1:
+                node_counts.append(node_counts[0])
+            self._set_directive(job, "nodes", node_counts, option)
+        elif option == "--nodelist":
+            self._set_directive(job, "nodelist", value, option)
+        elif option == "--exclude":
+            self._set_directive(job, "exclude_nodes", value, option)
+        elif option == "--ntasks":
+            self._set_directive(job, "tasks", int(value), option)
+        elif option == "--ntasks-per-node":
+            self._set_directive(job, "tasks_per_node", int(value), option)
+        elif option == "--time":
+            minutes = (
+                int(value) if value.isdigit() else math.ceil(cloudai.util.parse_time_limit(value).total_seconds() / 60)
+            )
+            self._set_directive(job, "time_limit", minutes, option)
+        elif option in {"--gres", "--gpus-per-node"}:
+            gres = self._gpu_gres(value, from_gres=option == "--gres")
+            self._set_directive(job, "gres", gres, option)
+        elif option == "--chdir":
+            self._set_directive(job, "current_working_directory", value, option)
+        else:
+            raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
     def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
@@ -235,8 +242,8 @@ class SlurmRestClient:
                 continue
             if not stripped.startswith("#SBATCH"):
                 break
-            args = shlex.split(stripped.removeprefix("#SBATCH").strip())
-            self._apply_sbatch_args(job, args)
+            for option, value in self._parse_sbatch_line(stripped.removeprefix("#SBATCH").strip()):
+                self._apply_sbatch_directive(job, option, value)
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
         job["environment"] = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}
