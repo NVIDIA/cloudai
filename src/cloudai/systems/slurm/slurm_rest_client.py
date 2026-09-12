@@ -277,92 +277,65 @@ class SlurmRestClient:
                 time.sleep(monitor_interval)
         return job_id
 
-    @staticmethod
-    def values(value: object) -> list[str]:
-        """Normalize Slurm scalar/list wrappers; e.g. `{"current": "IDLE+DRAIN"}` becomes `["IDLE", "DRAIN"]`."""
-        if isinstance(value, dict):
-            value = value.get("current", [])
-        if isinstance(value, list):
-            return [str(item) for item in value]
-        if value is None:
-            return []
-        return [item for item in re.split(r"[,+]", str(value)) if item]
-
-    @classmethod
-    def states(cls, record: dict[str, Any]) -> list[str]:
-        """Extract normalized states; e.g. `{"job_state": "running+"}` becomes `["RUNNING"]`."""
-        value = record.get("state", record.get("job_state"))
-        return [state.upper().rstrip("+") for state in cls.values(value)]
-
-    @staticmethod
-    def _number(value: object) -> int:
-        """Decode Slurm number wrappers; e.g. `{"set": true, "number": 12}` becomes `12`."""
-        if isinstance(value, dict):
-            if value.get("set") is False:
-                return 0
-            value = value.get("number", 0)
-        if not isinstance(value, (str, int, float)):
-            return 0
-        try:
-            return int(value or 0)
-        except (TypeError, ValueError):
-            return 0
-
-    @classmethod
-    def _time(cls, value: object) -> str:
-        """Normalize Slurm time values; e.g. epoch `100` becomes a UTC ISO-8601 timestamp."""
-        if isinstance(value, str) and not value.isdigit():
-            return value
-        timestamp = cls._number(value)
-        if not timestamp:
-            return ""
-        return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    @classmethod
-    def _exit_code(cls, record: dict[str, Any]) -> str:
-        """Normalize composite exit status; e.g. return code `1` plus signal `9` becomes `"1:9"`."""
-        exit_code = record.get("exit_code")
-        if isinstance(exit_code, str):
-            return exit_code
-        if not isinstance(exit_code, dict):
-            return "0:0"
-        return_code = cls._number(exit_code.get("return_code"))
-        signal_value = exit_code.get("signal")
-        if isinstance(signal_value, dict):
-            signal_value = signal_value.get("id", signal_value.get("signal_id", signal_value))
-        signal = cls._number(signal_value)
-        return f"{return_code}:{signal}"
-
-    @staticmethod
-    def _records(data: dict[str, Any], field: str) -> list[dict[str, Any]]:
-        """Read object records; e.g. `jobs` returns dictionary entries from `data["jobs"]`."""
-        records = data.get(field, [])
-        if not isinstance(records, list):
-            raise RuntimeError(f"Slurm API returned an invalid {field} response.")
-        return [record for record in records if isinstance(record, dict)]
-
     def cluster_nodes(self) -> list[dict[str, Any]]:
-        return self._records(self._request("GET", "slurm", "nodes/"), "nodes")
+        nodes = self._request("GET", "slurm", "nodes/").get("nodes", [])
+        if not isinstance(nodes, list):
+            raise RuntimeError("Slurm API returned an invalid nodes response.")
+        return [node for node in nodes if isinstance(node, dict)]
+
+    def has_gpus(self) -> bool:
+        return any(
+            "gpu" in str(node.get(field, "")).lower() for node in self.cluster_nodes() for field in ("gres", "tres")
+        )
 
     def queue_jobs(self) -> list[dict[str, Any]]:
-        return self._records(self._request("GET", "slurm", "jobs/"), "jobs")
+        jobs = self._request("GET", "slurm", "jobs/").get("jobs", [])
+        if not isinstance(jobs, list):
+            raise RuntimeError("Slurm API returned an invalid jobs response.")
+        return [job for job in jobs if isinstance(job, dict)]
 
-    def get_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
-        """Return one job from slurmdbd, retrying while accounting catches up."""
-        data = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
-        return next((job for job in self._records(data, "jobs") if self._number(job.get("job_id")) == job_id), None)
+    def _get_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
+        jobs = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold).get("jobs", [])
+        if not isinstance(jobs, list):
+            raise RuntimeError("Slurm API returned an invalid jobs response.")
+
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            response_job_id = job.get("job_id")
+            if isinstance(response_job_id, dict):
+                if response_job_id.get("set") is False:
+                    continue
+                response_job_id = response_job_id.get("number", 0)
+            if not isinstance(response_job_id, (str, int, float)):
+                continue
+            try:
+                if int(response_job_id) == job_id:
+                    return job
+            except (TypeError, ValueError):
+                continue
+        return None
 
     def job_states(self, job_id: int, retry_threshold: int = 3) -> list[str]:
         """Return job and step states from slurmdbd."""
-        job = self.get_job(job_id, retry_threshold)
+        job = self._get_job(job_id, retry_threshold)
         if job is None:
             return []
-        states = self.states(job)
+
         steps = job.get("steps", [])
-        if isinstance(steps, list):
-            for step in steps:
-                if isinstance(step, dict):
-                    states.extend(self.states(step))
+        records = [job, *(step for step in steps if isinstance(step, dict))] if isinstance(steps, list) else [job]
+        states: list[str] = []
+        for record in records:
+            raw_states = record.get("state", record.get("job_state"))
+            if isinstance(raw_states, dict):
+                raw_states = raw_states.get("current", [])
+            if isinstance(raw_states, list):
+                record_states = raw_states
+            elif raw_states is None:
+                record_states = []
+            else:
+                record_states = re.split(r"[,+]", str(raw_states))
+            states.extend(str(state).upper().rstrip("+") for state in record_states if state)
         return states
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
@@ -372,31 +345,100 @@ class SlurmRestClient:
             return False
         return any(state in self._TERMINAL_JOB_STATES for state in states)
 
-    @classmethod
-    def step_metadata(cls, job: dict[str, Any]) -> list[SlurmStepMetadata]:
-        """Convert one accounting job and its steps to CloudAI metadata records."""
-        job_id = cls._number(job.get("job_id"))
+    @staticmethod
+    def _make_step_metadata(job_id: int, record: dict[str, Any], *, is_job: bool) -> SlurmStepMetadata:  # noqa: C901
+        step = record.get("step", {}) if isinstance(record.get("step"), dict) else {}
+        times = record.get("time", {}) if isinstance(record.get("time"), dict) else {}
+
+        raw_states = record.get("state", record.get("job_state"))
+        if isinstance(raw_states, dict):
+            raw_states = raw_states.get("current", [])
+        if isinstance(raw_states, list):
+            states = [str(state).upper().rstrip("+") for state in raw_states if state]
+        elif raw_states is None:
+            states = []
+        else:
+            states = [state.upper().rstrip("+") for state in re.split(r"[,+]", str(raw_states)) if state]
+
+        exit_code = record.get("exit_code")
+        if isinstance(exit_code, str):
+            formatted_exit_code = exit_code
+        elif isinstance(exit_code, dict):
+            return_code = exit_code.get("return_code", 0)
+            if isinstance(return_code, dict):
+                return_code = return_code.get("number", 0) if return_code.get("set") is not False else 0
+            signal = exit_code.get("signal", 0)
+            if isinstance(signal, dict):
+                signal = signal.get("id", signal.get("signal_id", signal.get("number", 0)))
+            try:
+                parsed_return_code = int(return_code) if isinstance(return_code, (str, int, float)) else 0
+                parsed_signal = int(signal) if isinstance(signal, (str, int, float)) else 0
+                formatted_exit_code = f"{parsed_return_code}:{parsed_signal}"
+            except (TypeError, ValueError):
+                formatted_exit_code = "0:0"
+        else:
+            formatted_exit_code = "0:0"
+
+        formatted_times: list[str] = []
+        for field in ("start", "end"):
+            raw_time = times.get(field)
+            if isinstance(raw_time, str) and not raw_time.isdigit():
+                formatted_times.append(raw_time)
+                continue
+            if isinstance(raw_time, dict):
+                raw_time = raw_time.get("number", 0) if raw_time.get("set") is not False else 0
+            try:
+                timestamp = int(raw_time) if isinstance(raw_time, (str, int, float)) else 0
+            except (TypeError, ValueError):
+                timestamp = 0
+            formatted_times.append(
+                datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                if timestamp
+                else ""
+            )
+
+        elapsed = times.get("elapsed", 0)
+        if isinstance(elapsed, dict):
+            elapsed = elapsed.get("number", 0) if elapsed.get("set") is not False else 0
+        try:
+            elapsed_seconds = int(elapsed) if isinstance(elapsed, (str, int, float)) else 0
+        except (TypeError, ValueError):
+            elapsed_seconds = 0
+
+        return SlurmStepMetadata(
+            job_id=job_id,
+            step_id="" if is_job else str(step.get("id", "")),
+            name=str(record.get("name", step.get("name", ""))),
+            state=states[0] if states else "",
+            exit_code=formatted_exit_code,
+            start_time=formatted_times[0],
+            end_time=formatted_times[1],
+            elapsed_time_sec=elapsed_seconds,
+            submit_line=str(record.get("submit_line", "")),
+        )
+
+    def get_job_status(self, job_id: int, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
+        job = self._get_job(job_id, retry_threshold)
+        if job is None:
+            return []
+
+        response_job_id = job.get("job_id")
+        if isinstance(response_job_id, dict):
+            response_job_id = response_job_id.get("number", 0) if response_job_id.get("set") is not False else 0
+        try:
+            metadata_job_id = int(response_job_id) if isinstance(response_job_id, (str, int, float)) else 0
+        except (TypeError, ValueError):
+            metadata_job_id = 0
+
         steps = job.get("steps", [])
         records = [job, *(step for step in steps if isinstance(step, dict))] if isinstance(steps, list) else [job]
-        metadata: list[SlurmStepMetadata] = []
-        for index, record in enumerate(records):
-            step = record.get("step", {}) if isinstance(record.get("step"), dict) else {}
-            times = record.get("time", {}) if isinstance(record.get("time"), dict) else {}
-            states = cls.states(record)
-            metadata.append(
-                SlurmStepMetadata(
-                    job_id=job_id,
-                    step_id="" if index == 0 else str(step.get("id", "")),
-                    name=str(record.get("name", step.get("name", ""))),
-                    state=states[0] if states else "",
-                    exit_code=cls._exit_code(record),
-                    start_time=cls._time(times.get("start")),
-                    end_time=cls._time(times.get("end")),
-                    elapsed_time_sec=cls._number(times.get("elapsed")),
-                    submit_line=str(record.get("submit_line", "")),
-                )
-            )
-        return metadata
+        return [
+            self._make_step_metadata(metadata_job_id, record, is_job=index == 0) for index, record in enumerate(records)
+        ]
+
+    def get_job_nodes(self, job_id: int) -> str:
+        job = self._get_job(job_id)
+        return str(job.get("nodes", "")) if job else ""
 
     def cancel(self, job_id: int) -> None:
         """Cancel a Slurm job through slurmctld."""

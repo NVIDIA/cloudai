@@ -186,7 +186,17 @@ class SlurmSystem(System):
 
     def _rest_node_state(self, node: dict[str, Any]) -> SlurmNodeState:
         """Choose significant state from REST state flags; e.g. `IDLE+DRAIN` resolves to `DRAINED`."""
-        states = [self.convert_state_to_enum(state) for state in self._rest_client.states(node)]
+        raw_states = node.get("state", node.get("job_state"))
+        if isinstance(raw_states, dict):
+            raw_states = raw_states.get("current", [])
+        if isinstance(raw_states, list):
+            state_names = [str(state) for state in raw_states]
+        elif raw_states is None:
+            state_names = []
+        else:
+            state_names = [state for state in re.split(r"[,+]", str(raw_states)) if state]
+
+        states = [self.convert_state_to_enum(state.upper().rstrip("+")) for state in state_names]
         ordinary_states = {
             SlurmNodeState.ALLOCATED,
             SlurmNodeState.ALLOCATED_COMPLETING,
@@ -196,6 +206,51 @@ class SlurmSystem(System):
         }
         fallback = states[0] if states else SlurmNodeState.UNKNOWN_STATE
         return next((state for state in states if state not in ordinary_states), fallback)
+
+    def _nodes_from_rest(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for node in self._rest_client.cluster_nodes():
+            if not node.get("name"):
+                continue
+
+            partitions = node.get("partitions")
+            if isinstance(partitions, dict):
+                partitions = partitions.get("current", [])
+            if isinstance(partitions, list):
+                partition_names = [str(partition) for partition in partitions]
+            elif partitions is None:
+                partition_names = []
+            else:
+                partition_names = [partition for partition in re.split(r"[,+]", str(partitions)) if partition]
+
+            state = self._rest_node_state(node)
+            nodes.extend(
+                SlurmNode(name=str(node["name"]), partition=partition, state=state) for partition in partition_names
+            )
+        return nodes
+
+    def _allocated_nodes_from_rest(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for job in self._rest_client.queue_jobs():
+            raw_states = job.get("state", job.get("job_state"))
+            if isinstance(raw_states, dict):
+                raw_states = raw_states.get("current", [])
+            if isinstance(raw_states, list):
+                states = {str(state).upper().rstrip("+") for state in raw_states}
+            elif raw_states is None:
+                states = set()
+            else:
+                states = {state.upper().rstrip("+") for state in re.split(r"[,+]", str(raw_states)) if state}
+            if not {"RUNNING", "PENDING"}.intersection(states):
+                continue
+
+            partition = str(job.get("partition", ""))
+            user = str(job.get("user_name", job.get("user", "N/A")))
+            nodes.extend(
+                SlurmNode(name=name, partition=partition, state=SlurmNodeState.ALLOCATED, user=user)
+                for name in parse_node_list(str(job.get("nodes", "")))
+            )
+        return nodes
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
@@ -227,15 +282,11 @@ class SlurmSystem(System):
 
         if self.uses_slurm_api:
             try:
-                nodes = self._rest_client.cluster_nodes()
+                self.supports_gpu_directives_cache = self._rest_client.has_gpus()
             except RuntimeError as exc:
                 logging.warning("Error checking GPU support: %s", exc)
                 self.supports_gpu_directives_cache = True
                 return True
-
-            self.supports_gpu_directives_cache = any(
-                "gpu" in str(node.get(field, "")).lower() for node in nodes for field in ("gres", "tres")
-            )
             return self.supports_gpu_directives_cache
 
         stdout, stderr = self.fetch_command_output("scontrol show config")
@@ -271,14 +322,7 @@ class SlurmSystem(System):
 
     def nodes_from_sinfo(self) -> list[SlurmNode]:
         if self.uses_slurm_api:
-            nodes: list[SlurmNode] = []
-            for node in self._rest_client.cluster_nodes():
-                if not node.get("name"):
-                    continue
-                state = self._rest_node_state(node)
-                for partition in self._rest_client.values(node.get("partitions")):
-                    nodes.append(SlurmNode(name=str(node["name"]), partition=partition, state=state))
-            return nodes
+            return self._nodes_from_rest()
 
         sinfo_output, _ = self.fetch_command_output("sinfo --noheader -o '%P|%t|%u|%N'")
         nodes: list[SlurmNode] = []
@@ -300,22 +344,7 @@ class SlurmSystem(System):
 
     def nodes_from_squeue(self) -> list[SlurmNode]:
         if self.uses_slurm_api:
-            nodes: list[SlurmNode] = []
-            for job in self._rest_client.queue_jobs():
-                if not {"RUNNING", "PENDING"}.intersection(self._rest_client.states(job)):
-                    continue
-                partition = str(job.get("partition", ""))
-                user = str(job.get("user_name", job.get("user", "N/A")))
-                for node_name in parse_node_list(str(job.get("nodes", ""))):
-                    nodes.append(
-                        SlurmNode(
-                            name=node_name,
-                            partition=partition,
-                            state=SlurmNodeState.ALLOCATED,
-                            user=user,
-                        )
-                    )
-            return nodes
+            return self._allocated_nodes_from_rest()
 
         squeue_output, _ = self.fetch_command_output("squeue --states=running,pending --noheader -o '%P|%T|%N|%u'")
         nodes: list[SlurmNode] = []
@@ -541,8 +570,7 @@ class SlurmSystem(System):
 
     def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
         if self.uses_slurm_api:
-            rest_job = self._rest_client.get_job(self._job_id(job), retry_threshold)
-            return self._rest_client.step_metadata(rest_job) if rest_job else []
+            return self._rest_client.get_job_status(self._job_id(job), retry_threshold)
 
         retry_count = 0
         command = (
@@ -999,8 +1027,7 @@ class SlurmSystem(System):
             return []
 
         if self.uses_slurm_api:
-            rest_job = self._rest_client.get_job(self._job_id(job))
-            spec = str(rest_job.get("nodes", "")) if rest_job else ""
+            spec = self._rest_client.get_job_nodes(self._job_id(job))
         else:
             out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")
             spec = out.splitlines()[0] if out.splitlines() else out
