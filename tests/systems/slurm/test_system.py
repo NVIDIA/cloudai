@@ -56,14 +56,14 @@ def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monke
     monkeypatch.setenv("SLURM_USER", "cloudai")
     monkeypatch.setenv("SLURM_JWT", "secret")
     response = Mock()
-    response.json.return_value = {"pings": [], "errors": [], "warnings": []}
+    response.json.return_value = {"nodes": [], "errors": [], "warnings": []}
 
     with patch("cloudai.systems.slurm.slurm_rest_client.requests.request", return_value=response) as request:
-        rest_slurm_system._rest_client.request("GET", "slurm", "ping/")
+        rest_slurm_system._rest_client.cluster_nodes()
 
     request.assert_called_once_with(
         "GET",
-        "https://slurm.example.com/slurm/v0.0.38/ping/",
+        "https://slurm.example.com/slurm/v0.0.38/nodes/",
         headers={"X-SLURM-USER-NAME": "cloudai", "X-SLURM-USER-TOKEN": "secret"},
         json=None,
         timeout=30,
@@ -94,7 +94,7 @@ srun --container-image=image.sqsh benchmark
     script_path = tmp_path / "job.sbatch"
     script_path.write_text(script)
 
-    with patch.object(SlurmRestClient, "request", return_value={"job_id": 123}) as request:
+    with patch.object(SlurmRestClient, "_request", return_value={"job_id": 123}) as request:
         job_id = rest_slurm_system.submit_job(f"sbatch {script_path}", "rest-test")
 
     assert job_id == 123
@@ -124,7 +124,7 @@ def test_slurm_api_rejects_unsupported_sbatch_directive(rest_slurm_system: Slurm
     script_path.write_text("#!/bin/bash\n#SBATCH --qos=high\nsrun true\n")
 
     with (
-        patch.object(SlurmRestClient, "request") as request,
+        patch.object(SlurmRestClient, "_request") as request,
         pytest.raises(JobIdRetrievalError, match="Failed to submit job through Slurm REST API"),
     ):
         rest_slurm_system.submit_sbatch(script_path, "rest-test")
@@ -160,7 +160,7 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
     }
     job = SlurmJob(test_run=Mock(), id=42)
 
-    with patch.object(SlurmRestClient, "request", return_value=response):
+    with patch.object(SlurmRestClient, "_request", return_value=response):
         assert rest_slurm_system.is_job_running(job) is False
         assert rest_slurm_system.is_job_completed(job) is True
         assert rest_slurm_system.complete_job(job) == ["node01", "node02"]
@@ -202,7 +202,7 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
 
     rest_slurm_system.supports_gpu_directives_cache = None
     with (
-        patch.object(SlurmRestClient, "request", side_effect=request) as rest_request,
+        patch.object(SlurmRestClient, "_request", side_effect=request) as rest_request,
         patch("cloudai.systems.slurm.slurm_system.shutil.which", return_value="/usr/bin/git"),
     ):
         assert rest_slurm_system.supports_gpu_directives is True
