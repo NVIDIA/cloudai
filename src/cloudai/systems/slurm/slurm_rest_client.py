@@ -82,6 +82,9 @@ class SlurmRestClient:
         "-A": "account",
         "--reservation": "reservation",
         "--distribution": "distribution",
+        "--nodelist": "nodelist",
+        "--exclude": "exclude_nodes",
+        "--chdir": "current_working_directory",
     }
     _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
     _LONG_DIRECTIVES: ClassVar[list[str]] = [
@@ -186,11 +189,6 @@ class SlurmRestClient:
         return directives
 
     @staticmethod
-    def _gpu_gres(value: str, *, from_gres: bool) -> str:
-        """Normalize GPU requests; e.g. `--gpus-per-node=8` becomes REST GRES `gpu:8`."""
-        return value if from_gres else f"gpu:{value}"
-
-    @staticmethod
     def _set_directive(job: dict[str, object], field: str, value: object, option: str) -> None:
         """Merge directives mapped to one REST field; e.g. `--gres=gpu:8` and `--gpus-per-node=8` must agree."""
         existing = job.get(field)
@@ -201,7 +199,7 @@ class SlurmRestClient:
             )
         job[field] = value
 
-    def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:  # noqa: C901
+    def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:
         """Map one SBATCH directive to its v0.0.38 job field; e.g. `--nodes=2` sets `nodes=[2, 2]`."""
         option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
 
@@ -212,10 +210,6 @@ class SlurmRestClient:
             if len(node_counts) == 1:
                 node_counts.append(node_counts[0])
             self._set_directive(job, "nodes", node_counts, option)
-        elif option == "--nodelist":
-            self._set_directive(job, "nodelist", value, option)
-        elif option == "--exclude":
-            self._set_directive(job, "exclude_nodes", value, option)
         elif option == "--ntasks":
             self._set_directive(job, "tasks", int(value), option)
         elif option == "--ntasks-per-node":
@@ -226,10 +220,8 @@ class SlurmRestClient:
             )
             self._set_directive(job, "time_limit", minutes, option)
         elif option in {"--gres", "--gpus-per-node"}:
-            gres = self._gpu_gres(value, from_gres=option == "--gres")
+            gres = value if option == "--gres" else f"gpu:{value}"
             self._set_directive(job, "gres", gres, option)
-        elif option == "--chdir":
-            self._set_directive(job, "current_working_directory", value, option)
         else:
             raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
