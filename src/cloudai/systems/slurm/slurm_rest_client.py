@@ -16,38 +16,38 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import math
 import os
+import pathlib
 import re
 import shlex
 import time
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, ClassVar
 
+import pydantic
 import requests
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from tenacity import Retrying, before_sleep_log, retry_if_exception_type, stop_after_attempt, wait_fixed
+import tenacity
 
-from cloudai.core import JobIdRetrievalError
-from cloudai.util import parse_time_limit
+import cloudai.core
+import cloudai.util
 
 from .slurm_metadata import SlurmStepMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class SlurmAPIConfig(BaseModel):
+class SlurmAPIConfig(pydantic.BaseModel):
     """Connection details for a Slurm REST API endpoint."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid")
 
     url: str
-    headers: dict[str, str] = Field(default_factory=dict)
+    headers: dict[str, str] = pydantic.Field(default_factory=dict)
     verify_certs: bool = True
 
-    @field_validator("url")
+    @pydantic.field_validator("url")
     @classmethod
     def _validate_url(cls, value: str) -> str:
         value = value.strip().rstrip("/")
@@ -59,9 +59,9 @@ class SlurmAPIConfig(BaseModel):
 class SlurmRestClient:
     """Translate CloudAI Slurm operations to slurmrestd v0.0.38 requests."""
 
-    API_VERSION: ClassVar[str] = "v0.0.38"
-    REQUEST_TIMEOUT_SECONDS: ClassVar[int] = 30
-    TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
+    _API_VERSION: ClassVar[str] = "v0.0.38"
+    _REQUEST_TIMEOUT_SECONDS: ClassVar[int] = 30
+    _TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
         {
             "BOOT_FAIL",
             "CANCELLED",
@@ -76,7 +76,7 @@ class SlurmRestClient:
             "TIMEOUT",
         }
     )
-    DIRECTIVE_FIELDS: ClassVar[dict[str, str]] = {
+    _DIRECTIVE_FIELDS: ClassVar[dict[str, str]] = {
         "--job-name": "name",
         "-J": "name",
         "--output": "standard_output",
@@ -92,13 +92,13 @@ class SlurmRestClient:
     }
 
     def __init__(self, config: SlurmAPIConfig, retry_pause_seconds: int) -> None:
-        self.config = config
-        self.retry_pause_seconds = retry_pause_seconds
+        self._config = config
+        self._retry_pause_seconds = retry_pause_seconds
 
     def _headers(self) -> dict[str, str]:
         """Expand environment variables in configured headers."""
         headers: dict[str, str] = {}
-        for name, value in self.config.headers.items():
+        for name, value in self._config.headers.items():
             expanded = os.path.expandvars(value)
             if re.search(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})", expanded):
                 raise EnvironmentError(f"Environment variable referenced by Slurm API header '{name}' is not set.")
@@ -113,15 +113,14 @@ class SlurmRestClient:
         return str(item.get("error") or item.get("description") or item)
 
     def _request_once(self, method: str, service: str, path: str, payload: dict[str, object] | None) -> dict[str, Any]:
-        """Send and validate one request; retry policy is applied by `request`."""
-        url = f"{self.config.url}/{service}/{self.API_VERSION}/{path.lstrip('/')}"
+        url = f"{self._config.url}/{service}/{self._API_VERSION}/{path.lstrip('/')}"
         response = requests.request(
             method,
             url,
             headers=self._headers(),
             json=payload,
-            timeout=self.REQUEST_TIMEOUT_SECONDS,
-            verify=self.config.verify_certs,
+            timeout=self._REQUEST_TIMEOUT_SECONDS,
+            verify=self._config.verify_certs,
         )
         try:
             data = response.json()
@@ -138,7 +137,7 @@ class SlurmRestClient:
             logger.warning("Slurm API warning: %s", self._message(warning))
         return data
 
-    def request(
+    def _request(
         self,
         method: str,
         service: str,
@@ -151,11 +150,11 @@ class SlurmRestClient:
         if retry_threshold < 1:
             raise ValueError("retry_threshold must be at least 1")
 
-        retrying = Retrying(
-            stop=stop_after_attempt(retry_threshold),
-            wait=wait_fixed(self.retry_pause_seconds),
-            retry=retry_if_exception_type((requests.RequestException, ValueError, RuntimeError)),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
+        retrying = tenacity.Retrying(
+            stop=tenacity.stop_after_attempt(retry_threshold),
+            wait=tenacity.wait_fixed(self._retry_pause_seconds),
+            retry=tenacity.retry_if_exception_type((requests.RequestException, ValueError, RuntimeError)),
+            before_sleep=tenacity.before_sleep_log(logger, logging.WARNING),
             reraise=True,
         )
         try:
@@ -182,10 +181,13 @@ class SlurmRestClient:
 
     @staticmethod
     def _set_directive(job: dict[str, object], field: str, value: object, option: str) -> None:
-        """Set one REST field, rejecting conflicting aliases; e.g. `--gres` and `--gpus-per-node` must agree."""
+        """Merge directives mapped to one REST field; e.g. `--gres=gpu:8` and `--gpus-per-node=8` must agree."""
         existing = job.get(field)
         if existing is not None and existing != value:
-            raise ValueError(f"Conflicting SBATCH directives for '{option}'.")
+            raise ValueError(
+                f"Conflicting SBATCH directives for '{option}': REST field '{field}' "
+                f"is already {existing!r}, got {value!r}."
+            )
         job[field] = value
 
     def _apply_sbatch_args(self, job: dict[str, object], args: list[str]) -> None:  # noqa: C901
@@ -202,8 +204,8 @@ class SlurmRestClient:
                 option = "--chdir"
             value, index = self._directive_value(args, index, option)
 
-            if option in self.DIRECTIVE_FIELDS:
-                self._set_directive(job, self.DIRECTIVE_FIELDS[option], value, option)
+            if option in self._DIRECTIVE_FIELDS:
+                self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
             elif option == "--nodes":
                 node_counts = [int(item) for item in str(value).split("-", 1)]
                 if len(node_counts) == 1:
@@ -219,7 +221,9 @@ class SlurmRestClient:
                 self._set_directive(job, "tasks_per_node", int(value), option)
             elif option == "--time":
                 minutes = (
-                    int(value) if str(value).isdigit() else math.ceil(parse_time_limit(str(value)).total_seconds() / 60)
+                    int(value)
+                    if str(value).isdigit()
+                    else math.ceil(cloudai.util.parse_time_limit(str(value)).total_seconds() / 60)
                 )
                 self._set_directive(job, "time_limit", minutes, option)
             elif option in {"--gres", "--gpus-per-node"}:
@@ -230,7 +234,7 @@ class SlurmRestClient:
             else:
                 raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
-    def _job_description(self, script: str, script_path: Path) -> dict[str, object]:
+    def _job_description(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
         for line in script.splitlines():
@@ -247,21 +251,21 @@ class SlurmRestClient:
         return job
 
     def submit_sbatch(
-        self, script_path: Path, operation_name: str, *, wait: bool = False, monitor_interval: int = 1
+        self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: int = 1
     ) -> int:
         """Submit an SBATCH file and optionally wait for a terminal accounting state."""
         try:
             script = script_path.read_text(encoding="utf-8")
-            data = self.request(
+            data = self._request(
                 "POST",
                 "slurm",
                 "job/submit",
                 payload={"script": script, "job": self._job_description(script, script_path)},
             )
         except (OSError, RuntimeError, ValueError) as exc:
-            raise JobIdRetrievalError(
+            raise cloudai.core.JobIdRetrievalError(
                 test_name=operation_name,
-                command=f"POST /slurm/{self.API_VERSION}/job/submit",
+                command=f"POST /slurm/{self._API_VERSION}/job/submit",
                 stdout="",
                 stderr=str(exc),
                 message="Failed to submit job through Slurm REST API.",
@@ -269,9 +273,9 @@ class SlurmRestClient:
 
         job_id = data.get("job_id")
         if not isinstance(job_id, int):
-            raise JobIdRetrievalError(
+            raise cloudai.core.JobIdRetrievalError(
                 test_name=operation_name,
-                command=f"POST /slurm/{self.API_VERSION}/job/submit",
+                command=f"POST /slurm/{self._API_VERSION}/job/submit",
                 stdout=str(data),
                 stderr="",
                 message="Failed to retrieve job ID.",
@@ -321,7 +325,7 @@ class SlurmRestClient:
         timestamp = cls._number(value)
         if not timestamp:
             return ""
-        return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @classmethod
     def _exit_code(cls, record: dict[str, Any]) -> str:
@@ -348,15 +352,15 @@ class SlurmRestClient:
 
     def cluster_nodes(self) -> list[dict[str, Any]]:
         """Return node records from slurmctld."""
-        return self._records(self.request("GET", "slurm", "nodes/"), "nodes")
+        return self._records(self._request("GET", "slurm", "nodes/"), "nodes")
 
     def queue_jobs(self) -> list[dict[str, Any]]:
         """Return current job records from slurmctld."""
-        return self._records(self.request("GET", "slurm", "jobs/"), "jobs")
+        return self._records(self._request("GET", "slurm", "jobs/"), "jobs")
 
     def accounting_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
         """Return one job from slurmdbd, retrying while accounting catches up."""
-        data = self.request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
+        data = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
         return next((job for job in self._records(data, "jobs") if self._number(job.get("job_id")) == job_id), None)
 
     def job_states(self, job_id: int, retry_threshold: int = 3) -> list[str]:
@@ -377,7 +381,7 @@ class SlurmRestClient:
         states = self.job_states(job_id, retry_threshold)
         if "RUNNING" in states:
             return False
-        return any(state in self.TERMINAL_JOB_STATES for state in states)
+        return any(state in self._TERMINAL_JOB_STATES for state in states)
 
     @classmethod
     def step_metadata(cls, job: dict[str, Any]) -> list[SlurmStepMetadata]:
@@ -407,9 +411,9 @@ class SlurmRestClient:
 
     def cancel(self, job_id: int) -> None:
         """Cancel a Slurm job through slurmctld."""
-        self.request("DELETE", "slurm", f"job/{job_id}")
+        self._request("DELETE", "slurm", f"job/{job_id}")
 
     def validate(self) -> None:
         """Verify access to slurmctld and slurmdbd endpoints used by CloudAI."""
-        self.request("GET", "slurm", "ping/")
-        self.request("GET", "slurmdb", "clusters/")
+        self._request("GET", "slurm", "ping/")
+        self._request("GET", "slurmdb", "clusters/")
