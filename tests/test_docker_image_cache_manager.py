@@ -16,7 +16,7 @@
 
 from hashlib import sha256
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -45,9 +45,15 @@ def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
     assert result.docker_image_path is None
 
 
-@pytest.mark.parametrize("account,supports_gpu", [(None, False), ("test-account", True)])
+@pytest.mark.parametrize(
+    "account,supports_gpu,cleanup_error", [(None, False, False), ("test-account", True, False), (None, False, True)]
+)
 def test_cache_docker_image_submits_one_node_sbatch_job(
-    slurm_system: SlurmSystem, account: str | None, supports_gpu: bool
+    slurm_system: SlurmSystem,
+    monkeypatch: pytest.MonkeyPatch,
+    account: str | None,
+    supports_gpu: bool,
+    cleanup_error: bool,
 ):
     slurm_system.cache_docker_images_locally = True
     slurm_system.account = account
@@ -55,6 +61,8 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
     slurm_system.extra_srun_args = "--reservation test-reservation"
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
     image_path = slurm_system.install_path / "image.sqsh"
+    if cleanup_error:
+        monkeypatch.setattr(Path, "unlink", Mock(side_effect=PermissionError("cleanup failed")))
 
     def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
         content = script_path.read_text(encoding="utf-8")
@@ -71,6 +79,8 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
             assert "#SBATCH --gres=gpu:1" in content
         assert operation_name == "Docker image import"
         assert wait is True
+        script_path.with_suffix(".out").touch()
+        script_path.with_suffix(".err").touch()
         image_path.touch()
         return 123
 
@@ -79,6 +89,9 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
 
     assert result.success
     assert result.docker_image_path == image_path
+    assert image_path.is_file()
+    expected_suffixes = {".sh", ".out", ".err", ".sqsh"} if cleanup_error else {".sqsh"}
+    assert {path.suffix for path in slurm_system.install_path.iterdir()} == expected_suffixes
     submit_sbatch.assert_called_once()
 
 
@@ -99,6 +112,32 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
 
     assert not result.success
     assert "Failed to import Docker image" in result.message
+
+
+@pytest.mark.parametrize(
+    "stderr,expected_message",
+    [
+        ("Disk quota exceeded", "disk-related issue"),
+        ("Write error", "disk-related issue"),
+        ("import failed", "Error: import failed"),
+        ("", "image was not created"),
+    ],
+)
+def test_cache_docker_image_reports_missing_image(slurm_system: SlurmSystem, stderr: str, expected_message: str):
+    slurm_system.supports_gpu_directives_cache = False
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+
+    def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
+        script_path.with_suffix(".out").touch()
+        script_path.with_suffix(".err").write_text(stderr, encoding="utf-8")
+        return 123
+
+    with patch.object(SlurmSystem, "submit_sbatch", side_effect=submit):
+        result = DockerImageCacheManager(slurm_system).cache_docker_image("docker.io/hello-world", "image.sqsh")
+
+    assert not result.success
+    assert expected_message in result.message
+    assert {path.suffix for path in slurm_system.install_path.iterdir()} == {".sh", ".out", ".err"}
 
 
 def test_uninstall_cached_image(slurm_system: SlurmSystem):
