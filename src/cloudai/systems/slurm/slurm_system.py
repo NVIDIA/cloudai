@@ -34,7 +34,7 @@ from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmStepMetadata
-from .slurm_node import SlurmNode, SlurmNodeState
+from .slurm_node import SlurmNode, SlurmNodeState, parse_node_list
 from .slurm_rest_client import SlurmAPIConfig, SlurmRestClient
 
 
@@ -43,42 +43,6 @@ class DataRepositoryConfig(BaseModel):
 
     endpoint: str
     verify_certs: bool = True
-
-
-def parse_node_list(node_list: str) -> List[str]:
-    """
-    Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
-
-    Args:
-        node_list (str): A list of node names, possibly including ranges.
-
-    Returns:
-        List[str]: A flat list of expanded node names with preserved zeroes.
-    """
-    node_list = node_list.strip()
-    nodes = []
-    if not node_list:
-        return []
-
-    components = re.split(r",\s*(?![^[]*\])", node_list)
-    for component in components:
-        if "[" not in component:
-            nodes.append(component)
-        else:
-            header, node_number = component.split("[")
-            node_number = node_number.replace("]", "")
-            ranges = node_number.split(",")
-            for r in ranges:
-                if "-" in r:
-                    start_node, end_node = r.split("-")
-                    number_of_digits = len(end_node)
-                    nodes.extend(
-                        [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
-                    )
-                else:
-                    nodes.append(f"{header}{r}")
-
-    return nodes
 
 
 class SlurmGroup(BaseModel):
@@ -184,74 +148,6 @@ class SlurmSystem(System):
             raise TypeError(f"Slurm job ID must be an integer, got {type(job.id).__name__}.")
         return job.id
 
-    def _rest_node_state(self, node: dict[str, Any]) -> SlurmNodeState:
-        """Choose significant state from REST state flags; e.g. `IDLE+DRAIN` resolves to `DRAINED`."""
-        raw_states = node.get("state", node.get("job_state"))
-        if isinstance(raw_states, dict):
-            raw_states = raw_states.get("current", [])
-        if isinstance(raw_states, list):
-            state_names = [str(state) for state in raw_states]
-        elif raw_states is None:
-            state_names = []
-        else:
-            state_names = [state for state in re.split(r"[,+]", str(raw_states)) if state]
-
-        states = [self.convert_state_to_enum(state.upper().rstrip("+")) for state in state_names]
-        ordinary_states = {
-            SlurmNodeState.ALLOCATED,
-            SlurmNodeState.ALLOCATED_COMPLETING,
-            SlurmNodeState.COMPLETING,
-            SlurmNodeState.IDLE,
-            SlurmNodeState.MIXED_ALLOCATION,
-        }
-        fallback = states[0] if states else SlurmNodeState.UNKNOWN_STATE
-        return next((state for state in states if state not in ordinary_states), fallback)
-
-    def _nodes_from_rest(self) -> list[SlurmNode]:
-        nodes: list[SlurmNode] = []
-        for node in self._rest_client.cluster_nodes():
-            if not node.get("name"):
-                continue
-
-            partitions = node.get("partitions")
-            if isinstance(partitions, dict):
-                partitions = partitions.get("current", [])
-            if isinstance(partitions, list):
-                partition_names = [str(partition) for partition in partitions]
-            elif partitions is None:
-                partition_names = []
-            else:
-                partition_names = [partition for partition in re.split(r"[,+]", str(partitions)) if partition]
-
-            state = self._rest_node_state(node)
-            nodes.extend(
-                SlurmNode(name=str(node["name"]), partition=partition, state=state) for partition in partition_names
-            )
-        return nodes
-
-    def _allocated_nodes_from_rest(self) -> list[SlurmNode]:
-        nodes: list[SlurmNode] = []
-        for job in self._rest_client.queue_jobs():
-            raw_states = job.get("state", job.get("job_state"))
-            if isinstance(raw_states, dict):
-                raw_states = raw_states.get("current", [])
-            if isinstance(raw_states, list):
-                states = {str(state).upper().rstrip("+") for state in raw_states}
-            elif raw_states is None:
-                states = set()
-            else:
-                states = {state.upper().rstrip("+") for state in re.split(r"[,+]", str(raw_states)) if state}
-            if not {"RUNNING", "PENDING"}.intersection(states):
-                continue
-
-            partition = str(job.get("partition", ""))
-            user = str(job.get("user_name", job.get("user", "N/A")))
-            nodes.extend(
-                SlurmNode(name=name, partition=partition, state=SlurmNodeState.ALLOCATED, user=user)
-                for name in parse_node_list(str(job.get("nodes", "")))
-            )
-        return nodes
-
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
         groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
@@ -322,7 +218,7 @@ class SlurmSystem(System):
 
     def nodes_from_sinfo(self) -> list[SlurmNode]:
         if self.uses_slurm_api:
-            return self._nodes_from_rest()
+            return self._rest_client.get_nodes()
 
         sinfo_output, _ = self.fetch_command_output("sinfo --noheader -o '%P|%t|%u|%N'")
         nodes: list[SlurmNode] = []
@@ -344,7 +240,7 @@ class SlurmSystem(System):
 
     def nodes_from_squeue(self) -> list[SlurmNode]:
         if self.uses_slurm_api:
-            return self._allocated_nodes_from_rest()
+            return self._rest_client.get_allocated_nodes()
 
         squeue_output, _ = self.fetch_command_output("squeue --states=running,pending --noheader -o '%P|%T|%N|%u'")
         nodes: list[SlurmNode] = []

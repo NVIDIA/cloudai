@@ -25,7 +25,7 @@ import pathlib
 import re
 import shlex
 import time
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import pydantic
 import requests
@@ -35,6 +35,7 @@ import cloudai.core
 import cloudai.util
 
 from .slurm_metadata import SlurmStepMetadata
+from .slurm_node import SlurmNode, SlurmNodeState, parse_node_list
 
 logger = logging.getLogger(__name__)
 
@@ -277,40 +278,95 @@ class SlurmRestClient:
                 time.sleep(monitor_interval)
         return job_id
 
-    def cluster_nodes(self) -> list[dict[str, Any]]:
-        nodes = self._request("GET", "slurm", "nodes/").get("nodes", [])
+    def _cluster_nodes(self) -> list[dict[str, Any]]:
+        nodes = self._request("GET", "slurm", "nodes/").get("nodes")
         if not isinstance(nodes, list):
             raise RuntimeError("Slurm API returned an invalid nodes response.")
-        return [node for node in nodes if isinstance(node, dict)]
+        return cast(list[dict[str, Any]], nodes)
+
+    @staticmethod
+    def _node_state(state: str, state_flags: list[str]) -> SlurmNodeState:
+        """Combine the v0.0.38 node state and flags; e.g. `idle` plus `DRAIN` means `DRAINED`."""
+        state = state.upper()
+        flags = {flag.upper() for flag in state_flags}
+
+        if "NOT_RESPONDING" in flags:
+            return SlurmNodeState.NOT_RESPONDING
+        if "DRAIN" in flags:
+            if state in {"ALLOCATED", "MIXED"} or "COMPLETING" in flags:
+                return SlurmNodeState.DRAINING
+            return SlurmNodeState.DRAINED
+        if "FAIL" in flags:
+            return SlurmNodeState.FAILING if state == "ALLOCATED" or "COMPLETING" in flags else SlurmNodeState.FAIL
+
+        flag_states = {
+            "INVALID_REG": SlurmNodeState.INVALID_REGISTRATION,
+            "MAINTENANCE": SlurmNodeState.MAINTENANCE,
+            "POWER_DOWN": SlurmNodeState.PENDING_POWER_DOWN_STATE,
+            "POWER_UP": SlurmNodeState.BEING_POWERED_UP_OR_CONFIGURED,
+            "POWERED_DOWN": SlurmNodeState.POWERED_DOWN_STATE,
+            "POWERING_DOWN": SlurmNodeState.POWERING_DOWN_STATE,
+            "POWERING_UP": SlurmNodeState.POWERING_UP_STATE,
+            "REBOOT_REQUESTED": SlurmNodeState.REBOOT_REQUESTED,
+            "REBOOT_ISSUED": SlurmNodeState.REBOOT_ISSUED_STATE,
+            "PERFCTRS": SlurmNodeState.USING_NETWORK_PERFORMANCE_COUNTERS,
+            "PLANNED": SlurmNodeState.PLANNED_STATE,
+            "RESERVED": SlurmNodeState.RESERVED,
+        }
+        for flag in state_flags:
+            if node_state := flag_states.get(flag.upper()):
+                return node_state
+
+        if "COMPLETING" in flags:
+            return SlurmNodeState.ALLOCATED_COMPLETING if state == "ALLOCATED" else SlurmNodeState.COMPLETING
+
+        try:
+            return SlurmNodeState(state)
+        except ValueError:
+            return SlurmNodeState.UNKNOWN_STATE
+
+    def get_nodes(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for node in self._cluster_nodes():
+            state = self._node_state(node["state"], node["state_flags"])
+            nodes.extend(
+                SlurmNode(name=node["name"], partition=partition, state=state) for partition in node["partitions"]
+            )
+        return nodes
 
     def has_gpus(self) -> bool:
         return any(
-            "gpu" in str(node.get(field, "")).lower() for node in self.cluster_nodes() for field in ("gres", "tres")
+            "gpu" in str(node.get(field, "")).lower() for node in self._cluster_nodes() for field in ("gres", "tres")
         )
 
-    def queue_jobs(self) -> list[dict[str, Any]]:
-        jobs = self._request("GET", "slurm", "jobs/").get("jobs", [])
+    def _queue_jobs(self) -> list[dict[str, Any]]:
+        jobs = self._request("GET", "slurm", "jobs/").get("jobs")
         if not isinstance(jobs, list):
             raise RuntimeError("Slurm API returned an invalid jobs response.")
-        return [job for job in jobs if isinstance(job, dict)]
+        return cast(list[dict[str, Any]], jobs)
+
+    def get_allocated_nodes(self) -> list[SlurmNode]:
+        nodes: list[SlurmNode] = []
+        for job in self._queue_jobs():
+            if job["job_state"].upper().rstrip("+") not in {"RUNNING", "PENDING"}:
+                continue
+
+            nodes.extend(
+                SlurmNode(
+                    name=name,
+                    partition=job["partition"] or "",
+                    state=SlurmNodeState.ALLOCATED,
+                    user=job["user_name"] or "N/A",
+                )
+                for name in parse_node_list(job["nodes"] or "")
+            )
+        return nodes
 
     def _get_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
-        jobs = self._request("GET", "slurm", f"job/{job_id}", retry_threshold=retry_threshold).get("jobs", [])
+        jobs = self._request("GET", "slurm", f"job/{job_id}", retry_threshold=retry_threshold).get("jobs")
         if not isinstance(jobs, list):
             raise RuntimeError("Slurm API returned an invalid jobs response.")
-
-        for job in jobs:
-            if not isinstance(job, dict):
-                continue
-            response_job_id = job.get("job_id")
-            if not isinstance(response_job_id, (str, int, float)):
-                continue
-            try:
-                if int(response_job_id) == job_id:
-                    return job
-            except (TypeError, ValueError):
-                continue
-        return None
+        return cast(dict[str, Any], jobs[0]) if jobs else None
 
     def get_job_state(self, job_id: int, retry_threshold: int = 3) -> str:
         """Return current job state from slurmctld."""
@@ -318,8 +374,7 @@ class SlurmRestClient:
         if job is None:
             return ""
 
-        state = job.get("job_state")
-        return str(state).upper().rstrip("+") if state else ""
+        return job["job_state"].upper().rstrip("+")
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
         """Return whether slurmctld reports a terminal job state."""
@@ -330,25 +385,17 @@ class SlurmRestClient:
         if job is None:
             return []
 
-        response_job_id = job.get("job_id")
-        try:
-            metadata_job_id = int(response_job_id) if isinstance(response_job_id, (str, int, float)) else 0
-        except (TypeError, ValueError):
-            metadata_job_id = 0
-
-        raw_exit_code = job.get("exit_code")
+        raw_exit_code = job["exit_code"]
         return_code = 0
         signal = 0
-        if isinstance(raw_exit_code, int) and 0 <= raw_exit_code <= 0xFFFF:
+        if 0 <= raw_exit_code <= 0xFFFF:
             if os.WIFEXITED(raw_exit_code):
                 return_code = os.WEXITSTATUS(raw_exit_code)
             elif os.WIFSIGNALED(raw_exit_code):
                 signal = os.WTERMSIG(raw_exit_code)
 
-        raw_start_time = job.get("start_time")
-        raw_end_time = job.get("end_time")
-        start_timestamp = int(raw_start_time) if isinstance(raw_start_time, (str, int, float)) else 0
-        end_timestamp = int(raw_end_time) if isinstance(raw_end_time, (str, int, float)) else 0
+        start_timestamp = job["start_time"]
+        end_timestamp = job["end_time"]
         start_time = (
             datetime.datetime.fromtimestamp(start_timestamp, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if start_timestamp
@@ -363,21 +410,23 @@ class SlurmRestClient:
 
         return [
             SlurmStepMetadata(
-                job_id=metadata_job_id,
+                job_id=job["job_id"],
                 step_id="",
-                name=str(job.get("name", "")),
-                state=str(job.get("job_state", "")).upper().rstrip("+"),
+                name=job["name"],
+                state=job["job_state"].upper().rstrip("+"),
                 exit_code=f"{return_code}:{signal}",
                 start_time=start_time,
                 end_time=end_time,
                 elapsed_time_sec=elapsed_seconds,
-                submit_line=str(job.get("command", "")),
+                submit_line=job.get("command") or "",
             )
         ]
 
     def get_job_nodes(self, job_id: int) -> str:
         job = self._get_job(job_id)
-        return str(job.get("nodes", "")) if job else ""
+        if job is None:
+            return ""
+        return job.get("nodes") or ""
 
     def cancel(self, job_id: int) -> None:
         """Cancel a Slurm job through slurmctld."""
