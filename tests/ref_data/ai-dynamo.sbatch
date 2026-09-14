@@ -104,6 +104,7 @@ srun \
   --prefill-args-model "model" \
   --prefill-args-pipeline-parallel-size "1" \
   --prefill-args-tensor-parallel-size "1" \
+  --prefill-args-disaggregation-mode "prefill" \
   --decode-cmd "python3 -m dynamo.vllm" \
   --decode-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --decode-multiple-workers-per-node "False" \
@@ -111,6 +112,7 @@ srun \
   --decode-args-model "model" \
   --decode-args-pipeline-parallel-size "1" \
   --decode-args-tensor-parallel-size "1" \
+  --decode-args-disaggregation-mode "decode" \
   --genai_perf-name "genai_perf" \
   --genai_perf-cmd "genai-perf profile" \
   --genai_perf-script "/cloudai_install/genai_perf.sh" \

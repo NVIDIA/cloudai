@@ -395,24 +395,6 @@ _parse_cli_pairs() {
   done
 }
 
-_worker_cmd_has_legacy_role_selector() {
-  local cmd="${1:-}"
-  [[ "$cmd" =~ (^|[[:space:]])--(is-prefill-worker|is-decode-worker)([=[:space:]]|$) ]]
-}
-
-_set_worker_disaggregation_modes() {
-  if [[ "${prefill_config["num-nodes"]:-0}" -gt 0 ]]; then
-    if ! _worker_cmd_has_legacy_role_selector "${prefill_config["cmd"]:-}"; then
-      prefill_args["--disaggregation-mode"]="prefill"
-    fi
-    if ! _worker_cmd_has_legacy_role_selector "${decode_config["cmd"]:-}"; then
-      decode_args["--disaggregation-mode"]="decode"
-    fi
-  elif ! _worker_cmd_has_legacy_role_selector "${decode_config["cmd"]:-}"; then
-    decode_args["--disaggregation-mode"]="agg"
-  fi
-}
-
 _populate_nodelist() {
   local num_nodes="$1"
   local exclude_nodelist="$2"
@@ -651,7 +633,6 @@ _dump_args() {
 function parse_args()
 {
   _parse_cli_pairs "$@"
-  _set_worker_disaggregation_modes
   _normalize_worker_topology
   _set_nodelists
   _validate_worker_topology

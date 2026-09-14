@@ -139,6 +139,19 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
     return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
 
 
+def test_legacy_vllm_prefill_selector_is_not_combined_with_disaggregation_mode(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.prefill_worker.cmd = "python3 -m dynamo.vllm --is-prefill-worker"
+
+    args = strategy._gen_script_args(td)
+
+    assert '--prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker"' in args
+    assert not any(arg.startswith("--prefill-args-disaggregation-mode ") for arg in args)
+    assert '--decode-args-disaggregation-mode "decode"' in args
+
+
 def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
@@ -150,6 +163,7 @@ def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     assert '--prefill-num-nodes "0"' in args
     assert not any(arg.startswith("--prefill-cmd ") for arg in args)
     assert not any(arg.startswith("--prefill-worker-initialized-regex ") for arg in args)
+    assert '--decode-args-disaggregation-mode "agg"' in args
 
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
