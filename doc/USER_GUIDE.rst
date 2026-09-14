@@ -86,8 +86,8 @@ Field Descriptions
 Slurm REST API
 ~~~~~~~~~~~~~~
 
-CloudAI uses the Slurm 22.05 REST API v0.0.38 when ``slurm_api`` is configured. Both the ``slurm`` and ``slurmdb``
-endpoints must be enabled by the service.
+CloudAI uses the Slurm 22.05 REST API v0.0.38 when ``slurm_api`` is configured. The ``slurm`` endpoint backed by
+``slurmctld`` must be enabled by the service; ``slurmdbd`` is not required.
 
 .. code-block:: toml
 
