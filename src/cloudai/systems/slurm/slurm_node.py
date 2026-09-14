@@ -16,12 +16,21 @@
 
 import re
 from enum import Enum
+from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
 
-def parse_node_list(node_list: str) -> list[str]:
-    """Expand a Slurm node list such as `node[01-03]` into individual names."""
+def parse_node_list(node_list: str) -> List[str]:
+    """
+    Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
+
+    Args:
+        node_list (str): A list of node names, possibly including ranges.
+
+    Returns:
+        List[str]: A flat list of expanded node names with preserved zeroes.
+    """
     node_list = node_list.strip()
     nodes = []
     if not node_list:
@@ -31,19 +40,19 @@ def parse_node_list(node_list: str) -> list[str]:
     for component in components:
         if "[" not in component:
             nodes.append(component)
-            continue
-
-        header, node_number = component.split("[")
-        for node_range in node_number.rstrip("]").split(","):
-            if "-" not in node_range:
-                nodes.append(f"{header}{node_range}")
-                continue
-
-            start_node, end_node = node_range.split("-")
-            width = len(end_node)
-            nodes.extend(
-                f"{header}{node_number:0{width}d}" for node_number in range(int(start_node), int(end_node) + 1)
-            )
+        else:
+            header, node_number = component.split("[")
+            node_number = node_number.replace("]", "")
+            ranges = node_number.split(",")
+            for r in ranges:
+                if "-" in r:
+                    start_node, end_node = r.split("-")
+                    number_of_digits = len(end_node)
+                    nodes.extend(
+                        [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
+                    )
+                else:
+                    nodes.append(f"{header}{r}")
 
     return nodes
 
