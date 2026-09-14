@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-import subprocess
 from pathlib import Path
 
 from cloudai.core import BaseInstaller, DockerImage, Installable, InstallStatusResult
@@ -26,15 +25,6 @@ from .slurm_system import SlurmSystem
 
 class SlurmInstaller(BaseInstaller):
     """Installer for Slurm systems."""
-
-    PREREQUISITES = ("git", "sbatch", "sinfo", "squeue", "srun", "scancel", "sacct")
-    REQUIRED_SRUN_OPTIONS = (
-        "--mpi",
-        "--gpus-per-node",
-        "--ntasks-per-node",
-        "--container-image",
-        "--container-mounts",
-    )
 
     def __init__(self, system: SlurmSystem):
         super().__init__(system)
@@ -47,33 +37,10 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, base_prerequisites_result.message)
 
         try:
-            self._check_required_binaries()
-            self._check_srun_options()
+            self.system.validate_install_environment()
             return InstallStatusResult(True)
         except EnvironmentError as e:
             return InstallStatusResult(False, str(e))
-
-    def _check_required_binaries(self) -> None:
-        for binary in self.PREREQUISITES:
-            if not self._is_binary_installed(binary):
-                raise EnvironmentError(f"Required binary '{binary}' is not installed.")
-
-    def _check_srun_options(self) -> None:
-        """
-        Check for the presence of specific srun options.
-
-        Calls `srun --help` and verifying the options. Raises an exception if any required options are missing.
-        """
-        try:
-            result = subprocess.run(["srun", "--help"], text=True, capture_output=True, check=True)
-            help_output = result.stdout
-        except subprocess.CalledProcessError as e:
-            raise EnvironmentError(f"Failed to execute 'srun --help': {e}") from e
-
-        missing_options = [option for option in self.REQUIRED_SRUN_OPTIONS if option not in help_output]
-        if missing_options:
-            missing_options_str = ", ".join(missing_options)
-            raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
     def install_one(self, item: Installable) -> InstallStatusResult:
         logging.debug(f"Attempt to install {item}")
