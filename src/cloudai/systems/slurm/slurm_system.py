@@ -478,7 +478,7 @@ class SlurmSystem(System):
                         cannot be determined after the specified number of retries.
         """
         if self.uses_slurm_api:
-            return "RUNNING" in self._rest_client.job_states(self._job_id(job), retry_threshold)
+            return self._rest_client.get_job_state(self._job_id(job), retry_threshold) == "RUNNING"
 
         retry_count = 0
         command = f"sacct -j {job.id} --format=State --noheader"
