@@ -18,7 +18,11 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
+
+if TYPE_CHECKING:
+    from cloudai.models.output import Run
+    from cloudai.output import ExperimentOutput
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
@@ -69,6 +73,36 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
+        self.experiment_output: ExperimentOutput | None = None
+
+    def create_experiment_output(self) -> "ExperimentOutput | None":
+        """Initialize from the original scenario; collector creation is not implemented yet."""
+        return None
+
+    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
+        """Normalize one logical execution; result is absent at submission."""
+        raise NotImplementedError
+
+    def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
+        """Return logical executions represented by a scheduler job."""
+        return [job.test_run]
+
+    def update_run_output(self, job: BaseJob, result: JobStatusResult | None = None) -> None:
+        """Capture logical runs before iteration or DSE state advances, then publish a snapshot."""
+        if self.mode == "run" and self.experiment_output is not None:
+            for tr in self.completed_test_runs(job):
+                self.experiment_output.update_run(str(tr.name), self.get_run_output(job, tr, result))
+            self.write_output()
+
+    def write_output(self) -> None:
+        """Publish a progress snapshot when a collector is attached."""
+        if self.mode == "run" and self.experiment_output is not None:
+            self.experiment_output.write()
+
+    def finish_output(self) -> None:
+        """Finalize the whole experiment; aggregate status and timing remain placeholders."""
+        if self.mode == "run" and self.experiment_output is not None:
+            self.experiment_output.finish(status="unknown", finish=None)
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -110,6 +144,7 @@ class BaseRunner(ABC):
             job = self._submit_test(tr)
             self.jobs.append(job)
             self.testrun_to_job_map[tr] = job
+            self.update_run_output(job)
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
@@ -251,6 +286,7 @@ class BaseRunner(ABC):
                 else:
                     if self.test_scenario.job_status_check:
                         job_status_result = self.get_job_status(job)
+                        self.update_run_output(job, job_status_result)
                         if job_status_result.is_successful:
                             successful_jobs_count += 1
                             self.handle_job_completion(job)
@@ -264,6 +300,7 @@ class BaseRunner(ABC):
                             raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
                         job_status_result = self.get_job_status(job)
+                        self.update_run_output(job, job_status_result)
                         if not job_status_result.is_successful:
                             error_message = (
                                 f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"

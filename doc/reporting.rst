@@ -31,6 +31,37 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
 
+Experiment output skeleton
+--------------------------
+
+``cloudai.models.output`` declares the full and short experiment models.
+``cloudai.output.ExperimentOutput`` declares the collector interface; its operations raise
+``NotImplementedError``. Runner call sites are guarded by an optional collector. Its creation hook returns ``None``,
+so execution does not generate either JSON file.
+
+The interface defines these boundaries for implementation:
+
+- One collector belongs to the whole experiment, including ordinary iterations, DSE trials, or single-sbatch tests.
+  Scenario orchestration owns its lifetime; runners supply logical run updates before mutable test state advances.
+- ``BaseRunner`` calls ``update_run_output()`` after submission and workload validation, before advancing an iteration.
+  Slurm and standalone declare normalization stubs. Single-sbatch calls the same hook from its separate execution loop,
+  expanding the allocation into logical runs through ``completed_test_runs()``.
+- The CLI scenario boundary calls creation, initial snapshot, and finalization hooks. DSE reuses the attached collector
+  across trials; individual runner invocations do not finalize it. Final status and timing are still placeholders.
+- Slurm CLI/REST metadata normalization stays in the Slurm backend. Standalone supplies process status and UTC timing.
+  Canonical measurements come from ``TestDefinition.metric_observations()``.
+- Per-run measurements remain intact. Summary aggregation groups successful repeats at matching metric and dimension
+  points within the same configuration; DSE summaries use the selected configuration.
+- ``snapshot()`` derives short and full views from the same experiment state. ``write()`` publishes
+  ``experiment-summary.json`` and ``experiment.json`` at the scenario root, with atomic replacement per file.
+  Unknown timestamps remain null; extraction and write failures warn without changing benchmark behavior.
+- Snapshot writing is separate from finalization so ongoing progress can use the same interface.
+  ``finish()`` belongs to the completion/failure boundary of the whole experiment, including all DSE trials.
+
+The runnable Slurm implementation, its tests, and the UTC accounting change are available at Git tag
+``ipod/unified-output-v1`` (``f655642e``).
+
+
 .. _general-flow:
 
 General Flow
