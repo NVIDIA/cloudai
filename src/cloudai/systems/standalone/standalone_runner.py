@@ -16,11 +16,15 @@
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from cloudai.core import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
+
+if TYPE_CHECKING:
+    from cloudai.models.output import Run
 
 
 class StandaloneRunner(BaseRunner):
@@ -34,6 +38,10 @@ class StandaloneRunner(BaseRunner):
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
+
+    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
+        """Normalize PID, process outcome, UTC timing, and canonical metrics; process tracking is pending."""
+        raise NotImplementedError
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")

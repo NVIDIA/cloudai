@@ -36,12 +36,18 @@ Experiment output skeleton
 
 ``cloudai.models.output`` declares the full and short experiment models.
 ``cloudai.output.ExperimentOutput`` declares the collector interface; its operations raise
-``NotImplementedError``. No runner is connected to it, and execution does not generate either JSON file.
+``NotImplementedError``. Runner call sites are guarded by an optional collector. Its creation hook returns ``None``,
+so execution does not generate either JSON file.
 
 The interface defines these boundaries for implementation:
 
 - One collector belongs to the whole experiment, including ordinary iterations, DSE trials, or single-sbatch tests.
   Scenario orchestration owns its lifetime; runners supply logical run updates before mutable test state advances.
+- ``BaseRunner`` calls ``update_run_output()`` after submission and workload validation, before advancing an iteration.
+  Slurm and standalone declare normalization stubs. Single-sbatch calls the same hook from its separate execution loop,
+  expanding the allocation into logical runs through ``completed_test_runs()``.
+- The CLI scenario boundary calls creation, initial snapshot, and finalization hooks. DSE reuses the attached collector
+  across trials; individual runner invocations do not finalize it. Final status and timing are still placeholders.
 - Slurm CLI/REST metadata normalization stays in the Slurm backend. Standalone supplies process status and UTC timing.
   Canonical measurements come from ``TestDefinition.metric_observations()``.
 - Per-run measurements remain intact. Summary aggregation groups successful repeats at matching metric and dimension

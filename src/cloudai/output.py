@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Experiment output interface skeleton; no runner integration or persistence yet."""
+"""Experiment output interface skeleton; runner hooks are inactive until collector creation is implemented."""
 
 from datetime import datetime
 from pathlib import Path
