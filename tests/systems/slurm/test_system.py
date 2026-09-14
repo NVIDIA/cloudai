@@ -59,7 +59,7 @@ def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monke
     response.json.return_value = {"nodes": [], "errors": [], "warnings": []}
 
     with patch("cloudai.systems.slurm.slurm_rest_client.requests.request", return_value=response) as request:
-        rest_slurm_system._rest_client.cluster_nodes()
+        rest_slurm_system._rest_client.get_nodes()
 
     request.assert_called_once_with(
         "GET",
@@ -167,8 +167,19 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
 def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
     nodes_response = {
         "nodes": [
-            {"name": "node01", "partitions": ["main"], "state": "IDLE+DRAIN", "gres": "gpu:8"},
-            {"name": "node02", "partitions": ["main", "backup"], "state": "ALLOCATED"},
+            {
+                "name": "node01",
+                "partitions": ["main"],
+                "state": "idle",
+                "state_flags": ["DRAIN"],
+                "gres": "gpu:8",
+            },
+            {
+                "name": "node02",
+                "partitions": ["main", "backup"],
+                "state": "allocated",
+                "state_flags": [],
+            },
         ]
     }
     jobs_response = {
