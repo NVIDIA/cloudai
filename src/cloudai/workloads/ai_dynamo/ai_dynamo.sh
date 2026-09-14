@@ -107,6 +107,17 @@ _gpus_per_node() {
   [[ "$n" -gt 0 ]] && echo "$n" || echo "1"
 }
 
+_resolve_host_ip() {
+  local host="$1"
+  local ip
+  ip="$(getent ahosts "$host" | awk '$2 == "STREAM" { print $1; exit }')"
+  if [[ -z "$ip" ]]; then
+    log "ERROR: Could not resolve IP for host $host" >&2
+    return 1
+  fi
+  echo "$ip"
+}
+
 _normalize_worker_topology() {
   local role
   for role in prefill decode; do
@@ -1570,14 +1581,17 @@ function render_lmcache_config()
   _require_cmd python3
 
   local frontend_node="${dynamo_args["frontend-node"]}"
-  local frontend_address="$frontend_node"
+  local frontend_ip=""
+  if grep -Fq "{frontend_ip}" "$LMCACHE_CONFIG_FILE"; then
+    frontend_ip="$(_resolve_host_ip "$frontend_node")" || exit 1
+  fi
   local storage_cache_dir="$(lmcache_storage_cache_dir)"
   mkdir -p "$storage_cache_dir"
   chmod 755 "$storage_cache_dir"
 
   local rendered_config="${LMCACHE_CONFIG_FILE}.tmp.${SLURM_NODEID:-0}"
   if ! FRONTEND_NODE="$frontend_node" \
-    FRONTEND_IP="$frontend_address" \
+    FRONTEND_IP="$frontend_ip" \
     RESULTS_DIR="$RESULTS_DIR" \
     STORAGE_CACHE_DIR="$storage_cache_dir" \
     python3 - "$LMCACHE_CONFIG_FILE" "$rendered_config" <<'PY'
