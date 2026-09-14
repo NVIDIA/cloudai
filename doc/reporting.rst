@@ -8,6 +8,7 @@ This chapter describes the reporting system in CloudAI. In this chapter, we will
 - :ref:`Enabling, Disabling and Configuring Reports <enabling-disabling-and-configuring-reports>`
 - :ref:`Reporting Registration <reporting-registration>`
 - :ref:`Reporting Configuration Implementation <reporting-configuration-implementation>`
+- :ref:`Uploading Results to Object Storage <uploading-results-to-object-storage>`
 - :doc:`Reports <reports>`
 
 .. toctree::
@@ -146,3 +147,83 @@ And it can be used in a test scenario as follows:
 
    [reports]
    custom = { enable = true, greeting = "Hello, world!" }
+
+.. _uploading-results-to-object-storage:
+
+Uploading Results to Object Storage
+------------------------------------
+
+The ``results_upload`` scenario report publishes the scenario results directory to an
+S3-compatible bucket. It is disabled by default, because shipping results off-box should
+be a deliberate choice.
+
+It is registered last, after ``tarball``, so it always observes the complete results
+directory including every other report's output.
+
+Install the optional dependency first:
+
+.. code-block:: bash
+
+   pip install 'cloudai[s3]'
+
+Then enable it in a test scenario:
+
+.. code-block:: toml
+
+   [reports]
+   results_upload = { enable = true, bucket = "my-bucket", prefix = "cloudai/runs", upload_tarball = true }
+
+Or, for Slurm systems, once per cluster in the system config:
+
+.. code-block:: toml
+
+   [reports]
+   results_upload = { enable = true, bucket = "my-bucket" }
+
+Configuration options:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Default
+     - Description
+   * - ``bucket``
+     - ``$CLOUDAI_S3_BUCKET``
+     - Destination bucket. Required; the upload is skipped with a warning if unset.
+   * - ``prefix``
+     - ``$CLOUDAI_S3_PREFIX``
+     - Key prefix. Objects are written under ``<prefix>/<results_dir_name>/``.
+   * - ``endpoint_url``
+     - ``$CLOUDAI_S3_ENDPOINT_URL``
+     - Custom endpoint, for MinIO or other S3-compatible stores.
+   * - ``region``
+     - unset
+     - AWS region. When unset, boto3 resolves it (e.g. ``AWS_DEFAULT_REGION``).
+   * - ``upload_tree``
+     - ``true``
+     - Upload each file individually, preserving relative paths.
+   * - ``upload_tarball``
+     - ``false``
+     - Also upload a ``.tgz`` of the whole directory, creating it if absent.
+   * - ``exclude``
+     - ``[]``
+     - Glob patterns matched against paths relative to the results directory.
+
+Destination fields fall back to the environment variable shown above when not set in
+TOML, so a cluster-wide default can come from the environment while an individual
+scenario can still override it.
+
+**Credentials are never read from CloudAI configuration.** They are resolved by boto3's
+standard chain: ``AWS_ACCESS_KEY_ID``/``AWS_SECRET_ACCESS_KEY``, ``~/.aws/credentials``,
+or an instance/IAM role.
+
+Because reports run inside a ``try``/``except``, an upload failure logs a warning and
+leaves the run's exit status unchanged.
+
+To upload a results directory from an earlier run, re-run the reports against it:
+
+.. code-block:: bash
+
+   cloudai generate-report --system-config <system.toml> --tests-dir <tests/> \
+     --test-scenario <scenario.toml> --result-dir results/<scenario>_<timestamp>
