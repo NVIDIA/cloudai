@@ -561,11 +561,6 @@ _compute_worker_allocation_vllm() {
     log "ERROR: Invalid TP/PP configuration"
     exit 1
   fi
-  if [[ ${prefill_config["gpus-per-worker"]} -gt $num_gpus ]] \
-    || [[ ${decode_config["gpus-per-worker"]} -gt $num_gpus ]]; then
-    log "ERROR: Worker GPU footprint exceeds the ${num_gpus} GPU(s) available on this node"
-    exit 1
-  fi
 
   decode_config["gpu-offset"]=0
   prefill_config["gpu-offset"]=0
