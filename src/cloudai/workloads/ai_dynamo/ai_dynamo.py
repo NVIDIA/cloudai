@@ -48,7 +48,6 @@ AIPERF_ACCURACY_RESULTS_CSV = "accuracy_results.csv"
 LMCACHE_CONFIG_FILE_NAME = "lmcache-config.yaml"
 LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
-DYNAMO_COMMIT = "a49702e4432e7fa43cbc88175bddb31604340f19"
 
 
 class Args(BaseModel):
@@ -459,7 +458,7 @@ class AIDynamoCmdArgs(CmdArgs):
     model_config = ConfigDict(extra="forbid")
 
     dynamo_version: str = Field(
-        default=DYNAMO_COMMIT,
+        default="f7e468c7e8ff0d1426db987564e60572167e8464",
         description="AI Dynamo Git commit, tag, or branch.",
     )
     docker_image_url: str
