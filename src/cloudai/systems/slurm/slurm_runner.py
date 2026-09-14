@@ -17,17 +17,20 @@
 import logging
 import re
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import toml
 
-from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from .slurm_system import SlurmSystem
+
+if TYPE_CHECKING:
+    from cloudai.models.output import Run
 
 
 class SlurmRunner(BaseRunner):
@@ -92,8 +95,9 @@ class SlurmRunner(BaseRunner):
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
         cmd_gen.store_test_run()
 
-    def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
-        return [cast(SlurmJob, job).test_run]
+    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
+        """Normalize CLI/REST metadata and canonical metrics without assuming per-test allocation timing."""
+        raise NotImplementedError
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")

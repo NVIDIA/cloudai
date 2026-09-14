@@ -191,6 +191,7 @@ class SingleSbatchRunner(SlurmRunner):
         tr = self.test_scenario.test_runs[0]
         job = self._submit_test(tr)
         self.jobs.append(job)
+        self.update_run_output(job)
 
         if self.shutting_down:
             self.system.kill(job)
@@ -208,6 +209,7 @@ class SingleSbatchRunner(SlurmRunner):
         self.handle_dse()
 
         self.on_job_completion(job)
+        self.update_run_output(job)
 
     def handle_dse(self):
         registry = Registry()
