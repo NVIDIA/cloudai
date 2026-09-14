@@ -159,6 +159,11 @@ class DockerImageCacheManager:
 
         stderr = stderr_path.read_text(encoding="utf-8") if stderr_path.is_file() else ""
         if docker_image_path.is_file():
+            for artifact in (script_path, script_path.with_suffix(".out"), stderr_path):
+                try:
+                    artifact.unlink(missing_ok=True)
+                except OSError as error:
+                    logging.warning(f"Failed to remove Docker image import artifact {artifact}: {error}")
             message = f"Docker image cached successfully at {docker_image_path}."
             logging.debug(message)
             return DockerImageCacheResult(True, docker_image_path.absolute(), message)

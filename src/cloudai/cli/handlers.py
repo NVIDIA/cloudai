@@ -104,9 +104,7 @@ def prepare_installation(
 ) -> tuple[list[Installable], BaseInstaller]:
     installables: list[Installable] = []
     if scenario:
-        for test in scenario.test_runs:
-            logging.debug(f"{test.test.name} has {len(test.test.installables)} installables.")
-            installables.extend(test.test.installables)
+        installables.extend(_scenario_installables(scenario))
     else:
         for test in tests:
             logging.debug(f"{test.name} has {len(test.installables)} installables.")
@@ -119,6 +117,17 @@ def prepare_installation(
     installer = installer_class(system)
 
     return installables, installer
+
+
+def _scenario_installables(scenario: TestScenario) -> list[Installable]:
+    installables: list[Installable] = []
+    for test_run in scenario.test_runs:
+        logging.debug(f"{test_run.test.name} has {len(test_run.test.installables)} installables.")
+        installables.extend(test_run.test.installables)
+        for hook in (test_run.pre_test, test_run.post_test):
+            if hook is not None:
+                installables.extend(_scenario_installables(hook))
+    return installables
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
@@ -614,7 +623,7 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     return files
 
 
-def handle_list_registered_items(item_type: str, verbose: bool) -> int:
+def handle_list_registered_items(item_type: str, verbose: bool) -> int:  # noqa: C901
     registry = Registry()
     if item_type.lower() == "reports":
         print("Available scenario reports:")
@@ -630,6 +639,17 @@ def handle_list_registered_items(item_type: str, verbose: bool) -> int:
             string = f'{idx}. "{name}" class={agent.__name__}'
             if verbose:
                 string += f"{agent.__doc__}"
+            print(string)
+    elif item_type.lower() == "reward-functions":
+        print("Available reward functions:")
+        for idx, name in enumerate(registry.reward_function_names(), start=1):
+            reward_function = registry.get_reward_function(name)
+            callable_name = getattr(reward_function, "__name__", type(reward_function).__name__)
+            string = f'{idx}. "{name}" function={callable_name}'
+            if verbose:
+                documentation = getattr(reward_function, "__doc__", None)
+                if documentation:
+                    string += f" {documentation}"
             print(string)
 
     return 0

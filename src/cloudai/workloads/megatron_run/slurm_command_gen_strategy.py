@@ -36,6 +36,7 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test)
 
         command = [
+            *([tdef.cmd_args.command_prefix] if tdef.cmd_args.command_prefix else []),
             "python",
             str((tdef.cmd_args.run_script).absolute()),
             *[f"{k} {v}" for k, v in tdef.cmd_args_dict.items()],
