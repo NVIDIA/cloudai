@@ -39,6 +39,7 @@ from .ai_dynamo import (
 )
 
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
+LEGACY_WORKER_ROLE_SELECTORS = frozenset({"--is-prefill-worker", "--is-decode-worker"})
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -158,6 +159,24 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if (nested_args := getattr(base_model, "args", None)) is not None:
             result.extend(self._get_toml_args(nested_args, prefix + "args-"))
 
+        return result
+
+    @staticmethod
+    def _uses_legacy_role_selector(worker: WorkerConfig) -> bool:
+        cmd_tokens = shlex.split(worker.cmd or "")
+        return any(token.partition("=")[0] in LEGACY_WORKER_ROLE_SELECTORS for token in cmd_tokens) or any(
+            worker.has_extra_arg(selector) for selector in LEGACY_WORKER_ROLE_SELECTORS
+        )
+
+    def _get_worker_script_args(self, role: str, worker: WorkerConfig, mode: str | None) -> List[str]:
+        prefix = f"--{role}-"
+        result = self._get_nested_toml_args(worker, prefix, exclude=["nodes"])
+        if mode is None or self._uses_legacy_role_selector(worker):
+            return result
+
+        mode_arg = f"{prefix}args-disaggregation-mode"
+        result = [arg for arg in result if not arg.startswith(f"{mode_arg} ")]
+        result.append(f'{mode_arg} "{mode}"')
         return result
 
     def _prepare_lmcache_config(self):
@@ -496,13 +515,18 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.append('--dynamo-dcgm-exporter-enabled "True"')
             args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')
 
-        if td.cmd_args.dynamo.prefill_worker:
-            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-", exclude=["nodes"]))
-            if td.cmd_args.dynamo.prefill_worker.nodes:
-                args.append(f"--prefill-node-list {shlex.quote(td.cmd_args.dynamo.prefill_worker.nodes)}")
-        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
-        if td.cmd_args.dynamo.decode_worker.nodes:
-            args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
+        prefill_worker = td.cmd_args.dynamo.prefill_worker
+        if prefill_worker:
+            prefill_mode = "prefill" if prefill_worker.is_enabled else None
+            args.extend(self._get_worker_script_args("prefill", prefill_worker, prefill_mode))
+            if prefill_worker.nodes:
+                args.append(f"--prefill-node-list {shlex.quote(prefill_worker.nodes)}")
+
+        decode_worker = td.cmd_args.dynamo.decode_worker
+        decode_mode = "decode" if prefill_worker.is_enabled else "agg"
+        args.extend(self._get_worker_script_args("decode", decode_worker, decode_mode))
+        if decode_worker.nodes:
+            args.append(f"--decode-node-list {shlex.quote(decode_worker.nodes)}")
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
