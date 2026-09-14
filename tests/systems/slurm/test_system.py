@@ -673,8 +673,30 @@ name = "p"
     assert actual_order == expected_order
 
 
-@pytest.mark.parametrize("stdout,stderr, expected", [("", "error", None)])
-def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
+@pytest.mark.parametrize(
+    "stdout,stderr,expected",
+    [
+        ("", "error", None),
+        (
+            "1|job|COMPLETED|0:0|2026-09-14T14:41:02Z|2026-09-14T14:42:41Z|99|sbatch job.sh|\n",
+            "",
+            [
+                SlurmStepMetadata(
+                    job_id=1,
+                    step_id="",
+                    name="job",
+                    state="COMPLETED",
+                    exit_code="0:0",
+                    start_time="2026-09-14T14:41:02Z",
+                    end_time="2026-09-14T14:42:41Z",
+                    elapsed_time_sec=99,
+                    submit_line="sbatch job.sh",
+                )
+            ],
+        ),
+    ],
+)
+def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: list[SlurmStepMetadata] | None):
     job = BaseJob(test_run=Mock(), id=1)
     pp = Mock()
     pp.communicate = Mock(return_value=(stdout, stderr))
@@ -685,6 +707,11 @@ def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, exp
             slurm_system.get_job_status(job)
     else:
         assert slurm_system.get_job_status(job) == expected
+    slurm_system.cmd_shell.execute.assert_called_once_with(
+        "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
+        "sacct -j 1 --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
+        "--delimiter='|' -p --noheader"
+    )
 
 
 sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
