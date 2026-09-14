@@ -362,7 +362,6 @@ class SlurmSystem(System):
     def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
         retry_count = 0
         command = (
-            "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
             f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
             "--delimiter='|' -p --noheader"
         )
