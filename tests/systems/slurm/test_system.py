@@ -142,34 +142,25 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
             {
                 "job_id": 42,
                 "name": "rest-test",
-                "state": {"current": "COMPLETED"},
-                "exit_code": {"return_code": 0, "signal": {"signal_id": 0}},
-                "time": {"start": 100, "end": 120, "elapsed": 20},
+                "job_state": "FAILED",
+                "exit_code": 256,
+                "start_time": 100,
+                "end_time": 120,
                 "nodes": "node[01-02]",
-                "steps": [
-                    {
-                        "step": {"id": "batch", "name": "batch"},
-                        "state": "COMPLETED",
-                        "exit_code": {"return_code": 0, "signal": {"signal_id": 0}},
-                        "time": {"start": 100, "end": 120, "elapsed": 20},
-                    }
-                ],
             }
         ]
     }
     job = SlurmJob(test_run=Mock(), id=42)
 
-    with patch.object(SlurmRestClient, "_request", return_value=response):
+    with patch.object(SlurmRestClient, "_request", return_value=response) as request:
         assert rest_slurm_system.is_job_running(job) is False
         assert rest_slurm_system.is_job_completed(job) is True
         assert rest_slurm_system.complete_job(job) == ["node01", "node02"]
         metadata = rest_slurm_system.get_job_status(job)
 
-    assert [(item.step_id, item.name, item.state) for item in metadata] == [
-        ("", "rest-test", "COMPLETED"),
-        ("batch", "batch", "COMPLETED"),
-    ]
-    assert metadata[0].exit_code == "0:0"
+    assert request.call_args_list == [call("GET", "slurm", "job/42", retry_threshold=3)] * 4
+    assert [(item.step_id, item.name, item.state) for item in metadata] == [("", "rest-test", "FAILED")]
+    assert metadata[0].exit_code == "1:0"
     assert metadata[0].elapsed_time_sec == 20
 
 
@@ -215,10 +206,9 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
         rest_slurm_system.scancel(42)
         rest_slurm_system.validate_install_environment()
 
-    assert rest_request.call_args_list[-3:] == [
+    assert rest_request.call_args_list[-2:] == [
         call("DELETE", "slurm", "job/42"),
         call("GET", "slurm", "ping/"),
-        call("GET", "slurmdb", "clusters/"),
     ]
 
 
