@@ -178,12 +178,23 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert mounts == expected
 
 
-def test_final_env_vars_populates_dynamo_nodelist(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = "stale"
+@pytest.mark.parametrize("provided_value", [None, ""])
+def test_final_env_vars_defaults_empty_dynamo_nodelist(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+    provided_value: str | None,
+) -> None:
+    if provided_value is not None:
+        strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = provided_value
 
     assert strategy.final_env_vars["DYNAMO_NODELIST"] == (
         "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
     )
+
+
+def test_final_env_vars_preserves_user_dynamo_nodelist(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = "node-0,node-1"
+
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == "node-0,node-1"
 
 
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
