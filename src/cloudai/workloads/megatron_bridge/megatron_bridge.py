@@ -24,6 +24,8 @@ from pydantic import Field, ValidationInfo, field_validator
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
+HF_TOKEN_REDACTION = "<REDACTED>"
+
 
 class MegatronBridgeCmdArgs(CmdArgs):
     """Megatron-Bridge launcher arguments (translated into `setup_experiment.py` flags)."""
@@ -143,6 +145,13 @@ class MegatronBridgeCmdArgs(CmdArgs):
 
     # Perf/tuning
     moe_a2a_overlap: Optional[Union[bool, List[bool]]] = Field(default=None)
+    moe_flex_dispatcher_backend: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description=(
+            "MoE flex dispatcher backend: deepep, hybridep, ncclep, or the literal string 'None' to "
+            "request the alltoall dispatcher. Omit the field entirely to keep the recipe's backend."
+        ),
+    )
     max_steps: Optional[int] = Field(default=10)
     recompute_num_layers: Optional[Union[int, List[int]]] = Field(default=None)
     activation_offload_layers: Optional[Union[int, List[int]]] = Field(default=None)
@@ -550,6 +559,32 @@ class MegatronBridgeTestDefinition(TestDefinition):
                     sorted(valid_pp_vp_combinations),
                 )
 
+        # Constraint 19: Virtual pipelining requires a real pipeline (pp > 1)
+        # vp of None or 1 means virtual pipelining is off, one chunk per rank is not an interleaved schedule
+        effective_vp = vp if (vp is not None and vp > 1) else None
+        constraint19 = not (effective_vp is not None and pp <= 1)
+        if not constraint19:
+            logging.error(
+                "Constraint 19 failed: vp > 1 requires pp > 1. pp=%s vp=%s. "
+                "Either use pp >= 2 or disable virtual pipelining with vp=1.",
+                pp,
+                vp,
+            )
+
+        # Constraint 20: EP all-to-all overlap with pp > 1 requires a virtual pipeline size
+        # Only applies when overlap is explicitly requested; a recipe may enable it independently, but
+        # assuming so would reject the many MoE configs that never use it
+        is_moe = epv is not None and epv > 1
+        constraint20 = not (a2a_overlap and is_moe and pp > 1 and effective_vp is None)
+        if not constraint20:
+            logging.error(
+                "Constraint 20 failed: moe_a2a_overlap with pp > 1 requires vp >= 2. ep=%s pp=%s vp=%s. "
+                "Either set vp to at least 2, use pp=1, or disable moe_a2a_overlap.",
+                epv,
+                pp,
+                vp,
+            )
+
         return bool(
             constraint1
             and constraint2
@@ -569,6 +604,8 @@ class MegatronBridgeTestDefinition(TestDefinition):
             and constraint16
             and constraint17
             and constraint18
+            and constraint19
+            and constraint20
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

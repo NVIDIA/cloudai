@@ -46,12 +46,31 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
                 if self.tdef.cmd_args.runtime_type == "ASIO"
                 else ETCD_PROCESS_START_DELAY_SECONDS
             )
-            commands = [
-                *[" ".join(cmd) + f" &\nsleep {process_start_delay}" for cmd in nixl_commands[:-1]],
-                " ".join(nixl_commands[-1]),
-            ]
+            commands = ["nixl_pids=()"]
+            for cmd in nixl_commands[:-1]:
+                commands.extend(
+                    [
+                        " ".join(cmd) + " &",
+                        'nixl_pids+=("$!")',
+                        f"sleep {process_start_delay}",
+                    ]
+                )
+
+            commands.extend(
+                [
+                    " ".join(nixl_commands[-1]),
+                    "nixl_rc=$?",
+                    'for nixl_pid in "${nixl_pids[@]}"; do',
+                    '  wait "$nixl_pid"',
+                    "  wait_rc=$?",
+                    '  if [ "$nixl_rc" -eq 0 ] && [ "$wait_rc" -ne 0 ]; then',
+                    "    nixl_rc=$wait_rc",
+                    "  fi",
+                    "done",
+                ]
+            )
             if not self.tdef.uses_etcd:
-                return "\n".join(commands)
+                return "\n".join([*commands, '(exit "$nixl_rc")'])
 
             etcd_command: list[str] = self.gen_etcd_srun_command(self.tdef.cmd_args.etcd_path)
         finally:
@@ -63,6 +82,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
             *commands,
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
+            '(exit "$nixl_rc")',
         ]
         return "\n".join(commands)
 

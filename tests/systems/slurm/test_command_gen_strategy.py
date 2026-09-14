@@ -276,6 +276,15 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
     assert mounts[4] == f"{repo2.installed_path}:{repo2.container_mount}"
 
 
+def test_default_container_mounts_with_uninstalled_git_repo(strategy_fixture: SlurmCommandGenStrategy):
+    repo = GitRepo(url="./git_repo", commit="commit", mount_as="/git/repo")
+    strategy_fixture.test_run.test.git_repos = [repo]
+
+    mounts = strategy_fixture.container_mounts()
+
+    assert mounts[3] == f"{(strategy_fixture.system.install_path / repo.repo_name).absolute()}:{repo.container_mount}"
+
+
 def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy):
     expected_command = (
         f"srun --export=ALL --mpi={strategy_fixture.system.mpi} -N{strategy_fixture.test_run.num_nodes} "

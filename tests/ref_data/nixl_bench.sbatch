@@ -22,11 +22,22 @@ timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; 
    echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";
    exit 1
  }
+nixl_pids=()
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist=$(scontrol show hostname $SLURM_JOB_NODELIST | sed -n '1p') --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints=http://$NIXL_ETCD_ENDPOINTS --backend=UCX" &
+nixl_pids+=("$!")
 sleep 15
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --nodelist=$(scontrol show hostname $SLURM_JOB_NODELIST | sed -n '2p') --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints=http://$NIXL_ETCD_ENDPOINTS --backend=UCX"
+nixl_rc=$?
+for nixl_pid in "${nixl_pids[@]}"; do
+  wait "$nixl_pid"
+  wait_rc=$?
+  if [ "$nixl_rc" -eq 0 ] && [ "$wait_rc" -ne 0 ]; then
+    nixl_rc=$wait_rc
+  fi
+done
 kill -TERM $etcd_pid
  timeout 60 bash -c "while kill -0 $etcd_pid 2>/dev/null; do sleep 1; done" || {
    echo "Failed to kill ETCD (pid=$etcd_pid) within 60 seconds";
    exit 1
  }
+(exit "$nixl_rc")

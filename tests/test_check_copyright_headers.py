@@ -128,6 +128,11 @@ def collect_years_same_file(path: Path) -> list[int]:
         parts = lines[1].split("\t")
         commit_status = parts[0]
 
+        # A copied file starts its own history; record its creation year without following the source.
+        if len(commit_status) == 4 and commit_status[0] == "C" and len(parts) == 3 and parts[2] == current_path:
+            years.add(year)
+            break
+
         # Follow only exact rename hops for the currently tracked path.
         if len(commit_status) == 4 and commit_status[0] == "R" and len(parts) == 3:
             percentage = int(commit_status[1:])

@@ -26,6 +26,7 @@ from pydantic import Field
 
 from cloudai.cli.handlers import (
     handle_dse_job,
+    prepare_installation,
     validate_domain_randomization_active,
     verify_system_configs,
     verify_test_configs,
@@ -35,6 +36,7 @@ from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
+    GitRepo,
     Parser,
     Registry,
     RewardOverrides,
@@ -45,6 +47,7 @@ from cloudai.core import (
     TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
+from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -164,6 +167,64 @@ def test_dse_run_uses_agent_config(
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
     assert recorded.random_seed == expected["random_seed"]
+
+
+def test_prepare_installation_includes_hook_installables(slurm_system: SlurmSystem) -> None:
+    parent_repo = GitRepo(url="./parent", commit="main")
+    pre_repo = GitRepo(url="./pre", commit="main")
+    post_repo = GitRepo(url="./post", commit="main")
+    parent_run = TestRun(
+        name="parent",
+        test=TestDefinition(
+            name="parent",
+            description="parent",
+            test_template_name="template",
+            cmd_args=CmdArgs(),
+            git_repos=[parent_repo],
+        ),
+        num_nodes=1,
+        nodes=[],
+        pre_test=TestScenario(
+            name="pre",
+            test_runs=[
+                TestRun(
+                    name="pre",
+                    test=TestDefinition(
+                        name="pre",
+                        description="pre",
+                        test_template_name="template",
+                        cmd_args=CmdArgs(),
+                        git_repos=[pre_repo],
+                    ),
+                    num_nodes=1,
+                    nodes=[],
+                )
+            ],
+        ),
+        post_test=TestScenario(
+            name="post",
+            test_runs=[
+                TestRun(
+                    name="post",
+                    test=TestDefinition(
+                        name="post",
+                        description="post",
+                        test_template_name="template",
+                        cmd_args=CmdArgs(),
+                        git_repos=[post_repo],
+                    ),
+                    num_nodes=1,
+                    nodes=[],
+                )
+            ],
+        ),
+    )
+
+    installables, _ = prepare_installation(slurm_system, [], TestScenario(name="scenario", test_runs=[parent_run]))
+
+    assert parent_repo in installables
+    assert pre_repo in installables
+    assert post_repo in installables
 
 
 def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixture):
