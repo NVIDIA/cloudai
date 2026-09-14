@@ -61,7 +61,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
-        env_vars["DYNAMO_NODELIST"] = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
+        if not env_vars.get("DYNAMO_NODELIST"):
+            env_vars["DYNAMO_NODELIST"] = (
+                "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
+            )
         if self.td.cmd_args.hicache is not None:
             env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
