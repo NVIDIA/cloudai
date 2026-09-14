@@ -78,7 +78,7 @@ srun \
   --user $USER \
   --install-dir /cloudai_install \
   --results-dir /cloudai_run_results \
-  --dynamo-repo /cloudai_install/dynamo__a49702e4432e7fa43cbc88175bddb31604340f19 \
+  --dynamo-repo /cloudai_install/dynamo__f7e468c7e8ff0d1426db987564e60572167e8464 \
   --hf-home /cloudai_install/huggingface \
   --workloads aiperf.sh \
   --failure-marker /cloudai_run_results/failure-marker.txt \
