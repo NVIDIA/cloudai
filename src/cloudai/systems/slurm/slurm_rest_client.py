@@ -83,8 +83,8 @@ class SlurmRestClient:
         "-A": "account",
         "--reservation": "reservation",
         "--distribution": "distribution",
-        "--nodelist": "nodelist",
-        "--exclude": "exclude_nodes",
+        "--nodelist": "required_nodes",
+        "--exclude": "excluded_nodes",
         "--chdir": "current_working_directory",
     }
     _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
