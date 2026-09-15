@@ -15,11 +15,13 @@ description: Install or update a CloudAI checkout on a remote cluster for Slurm 
   changes. Exclude local environments, caches, bytecode and Git metadata.
   Git-based deployment is also fine when it represents the intended code.
 - Use [scripts/deploy.py](scripts/deploy.py) for repeatable deployment mechanics;
-  its `--help` describes file selection and remote maintenance commands.
+  its `--help` describes file selection and command preview.
   It requires permitted remote access, not an SSH-policy workaround. If agent
   SSH is blocked, have the user run the deployment command or use an approved
   remote workspace/runner.
 - Do not update an installation while running or queued work still uses it.
+- Reconcile remote edits before syncing. The helper overwrites selected files
+  but does not delete remote files; remove obsolete source files explicitly.
 
 ## Cluster configuration
 
@@ -38,10 +40,11 @@ description: Install or update a CloudAI checkout on a remote cluster for Slurm 
 ## Cleanup
 
 - During remote work, check for deployments unused for more than 21 days.
-  Record observed use with the helper's `mark-used` command. Missing history
-  or unrecorded manual use is uncertainty, not proof of inactivity.
+  Touch `.cloudai-last-used` in the deployment when using it; the helper does
+  this after installation. Missing markers or unrecorded manual use are not
+  proof of inactivity.
 - Ask before removing each candidate, after checking running and queued jobs.
   Never remove `~/cloudai`, active or queued-job deployments, or shared configs
-  and artifacts. The helper only suggests candidates; it does not delete them.
-- If cleanup is declined, use `protect` to place `.cloudai-keep` in that
+  and artifacts.
+- If cleanup is declined, place `.cloudai-keep` in that
   deployment and exclude it from future cleanup suggestions.
