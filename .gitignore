@@ -92,4 +92,13 @@ install/
 results/
 .*
 !.pre-commit-config.yaml
+!.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.agents/skills/**/__pycache__/
+.agents/skills/**/*.py[cod]
+!.claude/
+.claude/*
+!.claude/skills
 .cloudai.toml
