@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-
+export DYNAMO_NODELIST=$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\n' ',' | sed 's/,$//')
 srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
 srun --export=ALL --mpi=none -N2 --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/huggingface:/cloudai_install/huggingface,/tmp:/tmp bash /cloudai_install/slurm-metadata.sh runtime
@@ -97,13 +97,14 @@ srun \
   --dynamo-nats-port "4222" \
   --dynamo-dcgm-exporter-enabled "True" \
   --dynamo-dcgm-exporter-port "9501" \
-  --prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
+  --prefill-cmd "python3 -m dynamo.vllm" \
   --prefill-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --prefill-multiple-workers-per-node "False" \
   --prefill-num-nodes "1" \
   --prefill-args-model "model" \
   --prefill-args-pipeline-parallel-size "1" \
   --prefill-args-tensor-parallel-size "1" \
+  --prefill-args-disaggregation-mode "prefill" \
   --decode-cmd "python3 -m dynamo.vllm" \
   --decode-worker-initialized-regex "VllmWorker.*has.been.initialized" \
   --decode-multiple-workers-per-node "False" \
@@ -111,6 +112,7 @@ srun \
   --decode-args-model "model" \
   --decode-args-pipeline-parallel-size "1" \
   --decode-args-tensor-parallel-size "1" \
+  --decode-args-disaggregation-mode "decode" \
   --genai_perf-name "genai_perf" \
   --genai_perf-cmd "genai-perf profile" \
   --genai_perf-script "/cloudai_install/genai_perf.sh" \

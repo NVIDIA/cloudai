@@ -31,7 +31,7 @@ from cloudai.workloads.ai_dynamo import (
     WorkerBaseArgs,
     WorkerConfig,
 )
-from cloudai.workloads.ai_dynamo.ai_dynamo import parse_aiperf_accuracy
+from cloudai.workloads.ai_dynamo.ai_dynamo import parse_aiperf_accuracy, parse_aiperf_request_count
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
 
@@ -81,7 +81,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             workloads="genai_perf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -112,7 +112,7 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
             workloads="aiperf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -137,7 +137,7 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             workloads="aiperf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -164,7 +164,7 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             workloads="genai_perf.sh",
             dynamo=AIDynamoArgs(
                 prefill_worker=WorkerConfig(
-                    cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                    cmd="python3 -m dynamo.vllm",
                     worker_initialized_regex="VllmWorker.*has.been.initialized",
                     args=WorkerBaseArgs(),
                 ),
@@ -264,6 +264,17 @@ def test_was_run_successful_with_split_aiperf_accuracy(
     assert result.is_successful is True
 
 
+def test_was_run_successful_rejects_aiperf_report_with_only_errors(ai_dynamo_aiperf_tr: TestRun) -> None:
+    test_def = ai_dynamo_aiperf_tr.test
+    (ai_dynamo_aiperf_tr.output_path / "aiperf_report.csv").write_text(
+        "Metric,Value\nError Request Count,4.00\nTotal Error Input Sequence Length (tokens),1200.00\n"
+    )
+
+    result = test_def.was_run_successful(ai_dynamo_aiperf_tr)
+
+    assert result.is_successful is False
+
+
 def test_was_run_successful_with_genai_perf_and_split_aiperf_accuracy(
     ai_dynamo_genai_perf_with_split_accuracy_tr: TestRun,
 ) -> None:
@@ -295,6 +306,13 @@ def test_parse_aiperf_accuracy_from_artifact_dir(tmp_path: Path) -> None:
     (artifact_dir / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content(), encoding="utf-8")
 
     assert parse_aiperf_accuracy(tmp_path) == 0.35
+
+
+def test_parse_aiperf_request_count(tmp_path: Path) -> None:
+    report = tmp_path / "aiperf_report.csv"
+    report.write_text(get_aiperf_csv_content(), encoding="utf-8")
+
+    assert parse_aiperf_request_count(report) == 50
 
 
 def test_parse_aiperf_accuracy_from_split_accuracy_artifact_dir(tmp_path: Path) -> None:
