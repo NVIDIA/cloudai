@@ -14,11 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import datetime
 import logging
 import pathlib
-import statistics
 import tempfile
 
 from cloudai.models import output as output_models
@@ -63,9 +61,6 @@ class ExperimentOutput:
         for test in full.tests:
             for run in test.runs:
                 self._update_timing(run)
-            if test.metrics or test.dse is not None or any(run.step not in (None, 0) for run in test.runs):
-                continue
-            test.metrics = self._aggregate_metrics(test.runs)
         return full
 
     def write(self) -> None:
@@ -108,29 +103,3 @@ class ExperimentOutput:
             end = datetime.datetime.now(datetime.timezone.utc)
         if record.start is not None and end is not None:
             record.duration = max((end - record.start).total_seconds(), 0.0)
-
-    @staticmethod
-    def _aggregate_metrics(runs: list[output_models.Run]) -> list[output_models.Metric]:
-        groups: dict[tuple[str, str, tuple[tuple[str, str, str], ...]], list[output_models.Metric]] = (
-            collections.defaultdict(list)
-        )
-        for run in runs:
-            if run.status != "completed":
-                continue
-            for metric in run.metrics:
-                point = tuple(
-                    sorted((dimension.name, dimension.value, dimension.unit) for dimension in metric.dimensions)
-                )
-                groups[(metric.name, metric.unit, point)].append(metric)
-
-        metrics: list[output_models.Metric] = []
-        for group in groups.values():
-            metric = group[0].model_copy(deep=True)
-            values = [item.value for item in group]
-            if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
-                metric.value = statistics.fmean(float(value) for value in values)
-            elif not all(type(value) is type(metric.value) and value == metric.value for value in values):
-                logging.warning("Cannot aggregate conflicting values for metric %s", metric.name)
-                continue
-            metrics.append(metric)
-        return metrics
