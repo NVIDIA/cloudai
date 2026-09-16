@@ -16,13 +16,13 @@
 
 import argparse
 import hashlib
+import pathlib
 import shlex
 import socket
 import subprocess
-from pathlib import Path
 
 
-def run(command: list[str], dry_run: bool, cwd: Path) -> None:
+def run(command: list[str], dry_run: bool, cwd: pathlib.Path) -> None:
     print(shlex.join(command), flush=True)
     if not dry_run:
         subprocess.run(command, cwd=cwd, check=True)
@@ -31,13 +31,13 @@ def run(command: list[str], dry_run: bool, cwd: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("host")
-    parser.add_argument("--checkout", type=Path, default=Path.cwd())
+    parser.add_argument("--checkout", type=pathlib.Path, default=pathlib.Path.cwd())
     parser.add_argument("--include", action="append", default=[])
     parser.add_argument("--extra", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    root = Path(
+    root = pathlib.Path(
         subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=args.checkout,
@@ -45,14 +45,15 @@ def main() -> None:
         ).strip()
     ).resolve()
     worktrees = subprocess.check_output(["git", "worktree", "list", "--porcelain", "-z"], cwd=root, text=True)
-    main_checkout = Path(worktrees.split("\0")[0].removeprefix("worktree ")).resolve()
+    main_checkout = pathlib.Path(worktrees.split("\0")[0].removeprefix("worktree ")).resolve()
     checkout_id = hashlib.sha256(f"{socket.gethostname()}\0{root}".encode()).hexdigest()[:16]
     directory = "cloudai" if root == main_checkout else f"cloudai-worktrees/{checkout_id}"
 
     paths = ["src", "conf", "pyproject.toml", "uv.lock", "README.md", "LICENSE.md", "pdm_build.py"]
     paths = [path for path in paths if (root / path).exists()] + args.include
-    run(["ssh", "--", args.host, f'mkdir -p "$HOME/{directory}"'], args.dry_run, root)
-    transfer = ["rsync", "-aR"]
+    ssh = ["ssh", "-T", "-o", "RemoteCommand=none"]
+    run([*ssh, "--", args.host, f'mkdir -p "$HOME/{directory}"'], args.dry_run, root)
+    transfer = ["rsync", "-aR", "-e", shlex.join(ssh)]
     for pattern in (
         ".git",
         ".venv",
@@ -79,7 +80,7 @@ def main() -> None:
         shlex.join(install),
         "touch .cloudai-last-used",
     ]
-    run(["ssh", "--", args.host, " && ".join(commands)], args.dry_run, root)
+    run([*ssh, "--", args.host, " && ".join(commands)], args.dry_run, root)
 
 
 if __name__ == "__main__":
