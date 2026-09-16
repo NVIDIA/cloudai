@@ -73,10 +73,9 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
-        self.experiment_output: ExperimentOutput | None = None
+        self.experiment_output: ExperimentOutput | None = self.create_experiment_output()
 
     def create_experiment_output(self) -> "ExperimentOutput | None":
-        """Initialize from the original scenario; collector creation is not implemented yet."""
         return None
 
     def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
@@ -95,12 +94,10 @@ class BaseRunner(ABC):
             self.write_output()
 
     def write_output(self) -> None:
-        """Publish a progress snapshot when a collector is attached."""
         if self.mode == "run" and self.experiment_output is not None:
             self.experiment_output.write()
 
     def finish_output(self) -> None:
-        """Finalize the whole experiment; aggregate status and timing remain placeholders."""
         if self.mode == "run" and self.experiment_output is not None:
             self.experiment_output.finish(status="unknown", finish=None)
 

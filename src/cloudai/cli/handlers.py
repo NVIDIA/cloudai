@@ -352,7 +352,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     register_signal_handlers(runner.cancel_on_signal)
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
-    runner.runner.experiment_output = runner.runner.create_experiment_output()
     try:
         runner.runner.write_output()
         has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)

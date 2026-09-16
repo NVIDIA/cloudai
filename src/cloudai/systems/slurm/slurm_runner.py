@@ -96,7 +96,6 @@ class SlurmRunner(BaseRunner):
         cmd_gen.store_test_run()
 
     def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
-        """Normalize CLI/REST metadata and canonical metrics without assuming per-test allocation timing."""
         raise NotImplementedError
 
     def on_job_completion(self, job: BaseJob) -> None:
