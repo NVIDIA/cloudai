@@ -38,8 +38,10 @@ class ExperimentOutput:
         for index, current in enumerate(test.runs):
             if current.path == run.path:
                 test.runs[index] = recorded
+                self._update_test_status(test)
                 return
         test.runs.append(recorded)
+        self._update_test_status(test)
 
     def update_test(self, test: output_models.Test) -> None:
         """Update a test while retaining its previously recorded runs."""
@@ -87,8 +89,24 @@ class ExperimentOutput:
     def finish(self, status: output_models.Status, finish: datetime.datetime | None) -> None:
         self.experiment.status = status
         self.experiment.finish = finish
+        if status == "completed":
+            for test in self.experiment.tests:
+                if test.status not in ("failed", "cancelled"):
+                    test.status = "completed"
         self._update_timing(self.experiment)
         self.write()
+
+    @staticmethod
+    def _update_test_status(test: output_models.Test) -> None:
+        statuses = {run.status for run in test.runs}
+        if "failed" in statuses:
+            test.status = "failed"
+        elif "cancelled" in statuses:
+            test.status = "cancelled"
+        elif "running" in statuses:
+            test.status = "running"
+        elif statuses == {"completed"}:
+            test.status = "completed"
 
     @staticmethod
     def _update_timing(record: output_models.Experiment | output_models.Run) -> None:

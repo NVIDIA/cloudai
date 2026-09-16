@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -97,9 +98,10 @@ class BaseRunner(ABC):
         if self.mode == "run" and self.experiment_output is not None:
             self.experiment_output.write()
 
-    def finish_output(self) -> None:
+    def finish_output(self, successful: bool) -> None:
         if self.mode == "run" and self.experiment_output is not None:
-            self.experiment_output.finish(status="unknown", finish=None)
+            status = "completed" if successful else "failed"
+            self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
