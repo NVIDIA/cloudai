@@ -15,72 +15,49 @@
 # limitations under the License.
 
 import argparse
-import hashlib
-import pathlib
 import shlex
-import socket
 import subprocess
-
-
-def run(command: list[str], dry_run: bool, cwd: pathlib.Path) -> None:
-    print(shlex.join(command), flush=True)
-    if not dry_run:
-        subprocess.run(command, cwd=cwd, check=True)
+import sys
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("host")
-    parser.add_argument("--checkout", type=pathlib.Path, default=pathlib.Path.cwd())
-    parser.add_argument("--include", action="append", default=[])
-    parser.add_argument("--extra", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
+    actions = parser.add_subparsers(dest="action", required=True)
+    run = actions.add_parser("run", add_help=False)
+    run.add_argument("command")
+    copy = actions.add_parser("copy", add_help=False)
+    copy.add_argument("destination")
+    copy.add_argument("sources", nargs="+")
     args = parser.parse_args()
 
-    root = pathlib.Path(
-        subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=args.checkout,
-            text=True,
-        ).strip()
-    ).resolve()
-    worktrees = subprocess.check_output(["git", "worktree", "list", "--porcelain", "-z"], cwd=root, text=True)
-    main_checkout = pathlib.Path(worktrees.split("\0")[0].removeprefix("worktree ")).resolve()
-    checkout_id = hashlib.sha256(f"{socket.gethostname()}\0{root}".encode()).hexdigest()[:16]
-    directory = "cloudai" if root == main_checkout else f"cloudai-worktrees/{checkout_id}"
+    ssh = ["ssh", "-T", "-o", "RemoteCommand=none", "-o", "BatchMode=yes"]
+    if args.action == "run":
+        command = [*ssh, "--", args.host, args.command]
+    else:
+        command = ["rsync", "-a", "-e", shlex.join(ssh)]
+        for pattern in (
+            ".git",
+            ".venv",
+            "venv",
+            "env",
+            ".env",
+            ".cloudai.toml",
+            ".cloudai-*",
+            ".DS_Store",
+            ".*cache*",
+            "__pycache__",
+            "*.py[cod]",
+            "*.egg-info",
+        ):
+            command.extend(["--exclude", pattern])
+        destination = shlex.quote(args.destination.removeprefix("~/"))
+        command.extend(["--", *args.sources, f"{args.host}:{destination}"])
 
-    paths = ["src", "conf", "pyproject.toml", "uv.lock", "README.md", "LICENSE.md", "pdm_build.py"]
-    paths = [path for path in paths if (root / path).exists()] + args.include
-    ssh = ["ssh", "-T", "-o", "RemoteCommand=none"]
-    run([*ssh, "--", args.host, f'mkdir -p "$HOME/{directory}"'], args.dry_run, root)
-    transfer = ["rsync", "-aR", "-e", shlex.join(ssh)]
-    for pattern in (
-        ".git",
-        ".venv",
-        "venv",
-        "env",
-        ".env",
-        ".DS_Store",
-        ".*cache*",
-        "__pycache__",
-        "*.py[cod]",
-        "*.egg-info",
-    ):
-        transfer.extend(["--exclude", pattern])
-    run([*transfer, "--", *paths, f"{args.host}:~/{directory}/"], args.dry_run, root)
-
-    install = ["uv", "sync", "--locked"]
-    for extra in args.extra:
-        install.extend(["--extra", extra])
-    commands = [
-        f'cd "$HOME/{directory}"',
-        'export PATH="$HOME/.local/bin:$PATH"',
-        "unset VIRTUAL_ENV",
-        'export UV_PROJECT_ENVIRONMENT="$PWD/.venv"',
-        shlex.join(install),
-        "touch .cloudai-last-used",
-    ]
-    run([*ssh, "--", args.host, " && ".join(commands)], args.dry_run, root)
+    print(shlex.join(command), file=sys.stderr, flush=True)
+    if not args.dry_run:
+        raise SystemExit(subprocess.call(command))
 
 
 if __name__ == "__main__":
