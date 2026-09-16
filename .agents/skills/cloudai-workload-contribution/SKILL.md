@@ -32,9 +32,9 @@ This skill is a set of guidelines when working on workloads implementation
 ## Testing guidelines
 
 - Don't produce too many unit-tests covering a small feature. More tests != better
-- Prefer maintaining end-to-end tests (tests/test_acceptance.py). However, it must be only one or two such tests per
-  workload (they should be really different in shape)
-- Existing workload TOML configs from `conf/` must stay supported. One may extend them with new features. One test case
-  in a scenario supporting a new workload feature is enough
+- Prefer maintaining end-to-end tests (tests/test_acceptance.py). Cover distinct behavior and compatibility risks;
+  avoid redundant cases rather than limiting the number of tests
+- Existing workload TOML configs from `conf/` must stay supported. One may extend them with new features; add scenario
+  test cases for the new behavior and affected compatibility paths
 - If a workload may result in diverse execution shapes (number of processes and their orchestration), then prepare that
   many test cases (not scenarios)

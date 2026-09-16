@@ -30,9 +30,13 @@ description: Run, monitor, stop, and retrieve a CloudAI experiment (test scenari
 - Silence alone is not a stall, and queued jobs are not wasting an allocation.
   Stop confirmed stuck work after its stall timeout, using repeated evidence of
   missing expected progress in an active allocation. Ask if the evidence is ambiguous.
-- Before stopping, recheck process identity and job ownership. Gracefully terminate
-  only this run's controller and stop further submissions; then `scancel` its remaining
-  exact allocation IDs, including queued jobs. Verify termination and allocation release.
+- Before stopping, recheck process identity and job ownership. Send SIGTERM to this
+  run's controller and allow a bounded grace period for finalization. If it does not exit,
+  keeps submitting jobs, or leaves DSE workers running, recheck ownership and send SIGKILL
+  to the surviving controller/workers belonging to this run. Once submissions have stopped,
+  refresh this run's job IDs and `scancel` its remaining exact allocation IDs, including
+  queued jobs. Killing local processes does not release Slurm allocations.
+  Verify termination and allocation release.
   For standalone runs, stop only this run's process tree. Never use user-wide cancellation
   or broad process-name matching. Preserve logs explaining why the run was stopped.
 
