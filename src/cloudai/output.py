@@ -25,7 +25,7 @@ from cloudai.models import output as output_models
 
 
 class ExperimentOutput:
-    """Collect experiment results and publish full and short snapshots."""
+    """Collect experiment results and publish snapshots."""
 
     def __init__(self, experiment: output_models.Experiment, output_path: pathlib.Path) -> None:
         self.experiment = experiment.model_copy(deep=True)
@@ -56,8 +56,8 @@ class ExperimentOutput:
                 return
         self.experiment.tests.append(recorded)
 
-    def snapshot(self) -> tuple[output_models.ExperimentShort, output_models.Experiment]:
-        """Return independent short and full views without finalizing the experiment."""
+    def snapshot(self) -> output_models.Experiment:
+        """Return an independent snapshot without finalizing the experiment."""
         full = self.experiment.model_copy(deep=True)
         self._update_timing(full)
         for test in full.tests:
@@ -66,31 +66,24 @@ class ExperimentOutput:
             if test.metrics or test.dse is not None or any(run.step not in (None, 0) for run in test.runs):
                 continue
             test.metrics = self._aggregate_metrics(test.runs)
-        short = output_models.ExperimentShort.model_validate(full.model_dump())
-        return short, full
+        return full
 
     def write(self) -> None:
-        """Atomically replace each output file, warning on failure."""
-        pending: list[tuple[pathlib.Path, pathlib.Path]] = []
+        """Atomically replace experiment.json, warning on failure."""
+        temporary_path: pathlib.Path | None = None
         try:
-            short, full = self.snapshot()
-            contents = [
-                ("experiment.json", full.model_dump_json(indent=2)),
-                ("experiment-summary.json", short.model_dump_json(indent=2)),
-            ]
+            content = self.snapshot().model_dump_json(indent=2)
             self.output_path.mkdir(parents=True, exist_ok=True)
-            for filename, content in contents:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", dir=self.output_path, prefix=f".{filename}.", delete=False
-                ) as temporary:
-                    pending.append((pathlib.Path(temporary.name), self.output_path / filename))
-                    temporary.write(content + "\n")
-            for temporary_path, destination in pending:
-                temporary_path.replace(destination)
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self.output_path, prefix=".experiment.json.", delete=False
+            ) as temporary:
+                temporary_path = pathlib.Path(temporary.name)
+                temporary.write(content + "\n")
+            temporary_path.replace(self.output_path / "experiment.json")
         except Exception as exc:
             logging.warning("Cannot write experiment output: %s", exc)
         finally:
-            for temporary_path, _ in pending:
+            if temporary_path is not None:
                 try:
                     temporary_path.unlink(missing_ok=True)
                 except OSError as exc:
