@@ -7,7 +7,7 @@
   - Blend into existing code
   - No asserts in production code
   - Prefer absolute imports (`import x`).
-    Use `import y from x` when `x.y` is too long.
+    Use `from x import y` when qualified names are too long.
     Use relative imports when existing code uses it.
 
 - Backwards compatibility is very important. CloudAI may be integrated into other tools. Users maintain their own
