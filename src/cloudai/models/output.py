@@ -62,8 +62,8 @@ class DSE(BaseModel):
     best_step: int | None = None
 
 
-class TestShort(BaseModel):
-    """Test identity, status, and summary metrics."""
+class Test(BaseModel):
+    """A test case with all logical executions and optional DSE metadata."""
 
     id: str
     name: str
@@ -71,16 +71,13 @@ class TestShort(BaseModel):
     status: Status = "pending"
     path: str
     metrics: list[Metric] = Field(default_factory=list)
-
-
-class Test(TestShort):
-    """A test case with all logical executions and optional DSE metadata."""
-
     runs: list[Run] = Field(default_factory=list)
     dse: DSE | None = None
 
 
-class _ExperimentMetadata(BaseModel):
+class Experiment(BaseModel):
+    """Full snapshot spanning the entire scenario, including all DSE trials."""
+
     id: str
     name: str
     description: str | None = None
@@ -89,15 +86,4 @@ class _ExperimentMetadata(BaseModel):
     start: datetime | None = None
     finish: datetime | None = None
     duration: FiniteFloat | None = None
-
-
-class ExperimentShort(_ExperimentMetadata):
-    """Catalog snapshot without individual runs or DSE details."""
-
-    tests: list[TestShort] = Field(default_factory=list)
-
-
-class Experiment(_ExperimentMetadata):
-    """Full snapshot spanning the entire scenario, including all DSE trials."""
-
     tests: list[Test] = Field(default_factory=list)
