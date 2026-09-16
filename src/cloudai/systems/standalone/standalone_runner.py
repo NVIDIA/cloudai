@@ -40,7 +40,6 @@ class StandaloneRunner(BaseRunner):
         self.cmd_shell = CommandShell()
 
     def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
-        """Normalize PID, process outcome, UTC timing, and canonical metrics; process tracking is pending."""
         raise NotImplementedError
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:

@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Backend-independent experiment output models based on API Schema v0.2."""
-
 from datetime import datetime
 from typing import Literal
 
@@ -83,8 +81,6 @@ class Test(TestShort):
 
 
 class _ExperimentMetadata(BaseModel):
-    """Metadata shared by full and short experiment snapshots."""
-
     id: str
     name: str
     description: str | None = None
