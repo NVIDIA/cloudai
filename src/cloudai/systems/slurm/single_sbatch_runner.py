@@ -89,11 +89,15 @@ class SingleSbatchRunner(SlurmRunner):
     def extract_sbatch_nodes_spec(self) -> tuple[int, list[str]]:
         max_nodes = 1
         all_node_lists: list[str] = []
+        all_exclude_nodes: list[str] = []
         for tr in self.all_trs:
             max_nodes = max(max_nodes, tr.nnodes)
             all_node_lists.extend(tr.nodes)
+            all_exclude_nodes.extend(tr.exclude_nodes)
 
-        _, node_list = self.system.get_nodes_by_spec(max_nodes, all_node_lists)
+        _, node_list = self.system.get_nodes_by_spec(
+            max_nodes, all_node_lists, exclude_nodes=list(dict.fromkeys(all_exclude_nodes)) or None
+        )
         if node_list:
             if max_nodes <= len(node_list):
                 max_nodes = len(node_list)
@@ -116,7 +120,7 @@ class SingleSbatchRunner(SlurmRunner):
     def get_single_tr_block(self, tr: TestRun) -> str:
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
         srun_cmd = cmd_gen.gen_srun_command()
-        nnodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        nnodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes, exclude_nodes=tr.exclude_nodes or None)
         node_arg = f"--nodelist={','.join(node_list)}" if node_list else f"-N{nnodes}"
         extra_args = (
             f"{node_arg} --output={tr.output_path.absolute()}/stdout.txt --error={tr.output_path.absolute()}/stderr.txt"
