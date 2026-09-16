@@ -13,15 +13,10 @@ description: Install or update a CloudAI checkout on a remote cluster for Slurm 
   Identify the checkout, not its branch.
 - Transfer only files needed for installation and the task, including local
   changes. Exclude local environments, caches, bytecode and Git metadata.
-  Git-based deployment is also fine when it represents the intended code.
-- Use [scripts/deploy.py](scripts/deploy.py) for repeatable deployment mechanics;
-  its `--help` describes file selection and command preview.
-  It requires permitted remote access, not an SSH-policy workaround. If agent
-  SSH is blocked, have the user run the deployment command or use an approved
-  remote workspace/runner.
+  Git-based deployment is also fine.
+- Use [scripts/deploy.py](scripts/deploy.py) for deployment.
 - Do not update an installation while running or queued work still uses it.
-- Reconcile remote edits before syncing. The helper overwrites selected files
-  but does not delete remote files; remove obsolete source files explicitly.
+- The script overwrites selected files but does not delete remote files; remove obsolete source files explicitly.
 
 ## Cluster configuration
 

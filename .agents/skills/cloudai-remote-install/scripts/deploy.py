@@ -29,12 +29,12 @@ def run(command: list[str], dry_run: bool, cwd: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sync a CloudAI checkout to a cluster and install it with uv.")
-    parser.add_argument("host", help="SSH-config alias; remote uv must be on PATH or in ~/.local/bin")
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("host")
     parser.add_argument("--checkout", type=Path, default=Path.cwd())
-    parser.add_argument("--include", action="append", default=[], help="Additional checkout-relative path; repeatable")
-    parser.add_argument("--extra", action="append", default=[], help="CloudAI dependency extra; repeatable")
-    parser.add_argument("--dry-run", action="store_true", help="Print commands without connecting to the cluster")
+    parser.add_argument("--include", action="append", default=[])
+    parser.add_argument("--extra", action="append", default=[])
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     root = Path(

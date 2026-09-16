@@ -4,13 +4,11 @@ __pycache__/
 *$py.class
 
 # Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/
 downloads/
 eggs/
-.eggs/
 lib/
 lib64/
 parts/
@@ -19,7 +17,6 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 doc/_build
 
@@ -33,22 +30,14 @@ doc/_build
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
 # IPython
 profile_default/
 ipython_config.py
-
-# pyenv
-.python-version
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow
 __pypackages__/
 
 # Environments
-.env
-.venv
 env/
 venv/
 ENV/
@@ -56,18 +45,7 @@ env.bak/
 venv.bak/
 
 # mypy
-.mypy_cache/
-.dmypy.json
 dmypy.json
-
-# pytype static type analyzer
-.pytype/
-
-# pycharm
-.idea/
-
-# VSCode
-.vscode/
 
 # Editors and IDEs
 *.swp
@@ -78,11 +56,6 @@ dmypy.json
 *.sublime-workspace
 
 # OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
 ehthumbs.db
 Thumbs.db
 
@@ -95,10 +68,6 @@ results/
 !.agents/
 .agents/*
 !.agents/skills/
-!.agents/skills/**
-.agents/skills/**/__pycache__/
-.agents/skills/**/*.py[cod]
 !.claude/
 .claude/*
 !.claude/skills
-.cloudai.toml
