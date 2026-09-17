@@ -110,9 +110,6 @@ class BaseRunner(ABC):
             run = self.get_run_output(job, tr, result)
             if run is not None:
                 self.experiment_output.update_run(str(tr.name), run)
-        self.write_output()
-
-    def write_output(self) -> None:
         self.experiment_output.write()
 
     def finish_output(self, successful: bool) -> None:

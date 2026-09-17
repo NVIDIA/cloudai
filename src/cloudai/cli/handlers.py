@@ -355,7 +355,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     successful = False
     try:
-        runner.runner.write_output()
+        runner.runner.experiment_output.write()
         has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
         if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
             successful = handle_non_dse_job(runner, args)
