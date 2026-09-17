@@ -38,6 +38,7 @@ class GitRepo(Installable, BaseModel):
     init_submodules: bool = False
     installed_path: Optional[Path] = None
     mount_as: Optional[str] = None
+    python_version: Optional[str] = None
 
     def __repr__(self) -> str:
         return f"GitRepo(url={self.url}, commit={self.commit})"
