@@ -58,7 +58,7 @@ from ._core.test_scenario import (
     TestRun,
     TestScenario,
 )
-from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
+from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides, TrialStatus
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.env_params import (
     CategoricalEncoding,
@@ -138,6 +138,7 @@ __all__ = [
     "TestScenarioParser",
     "TestScenarioParsingError",
     "UploadStats",
+    "TrialStatus",
     "case_name",
     "format_validation_error",
 ]

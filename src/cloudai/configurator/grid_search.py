@@ -71,7 +71,7 @@ class GridSearchAgent(BaseAgent):
         keys = list(self.action_space.keys())
         return [dict(zip(keys, combination, strict=True)) for combination in self.action_combinations]
 
-    def select_action(self, observation: list[float] | None = None) -> Tuple[int, Dict[str, Any]]:
+    def select_action(self, observation: list[float] | None = None) -> Tuple[int, Dict[str, Any]] | None:
         """
         Select the next action from the grid.
 
@@ -82,6 +82,8 @@ class GridSearchAgent(BaseAgent):
             values.
         """
         del observation
+        if self.index >= len(self.action_combinations):
+            return None
         action = dict(zip(self.action_space.keys(), self.action_combinations[self.index], strict=True))
         self.index += 1
         step = self.index

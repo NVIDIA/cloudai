@@ -16,11 +16,19 @@
 
 import logging
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .base_gym import BaseGym
+
+
+class TrialStatus(str, Enum):
+    """Outcome of evaluating one agent proposal."""
+
+    SUCCESS = "success"
+    CONSTRAINT_REJECTED = "constraint_rejected"
 
 
 class RewardOverrides(BaseModel):
@@ -119,6 +127,15 @@ class BaseAgent(ABC):
         """
         pass
 
+    def discard_action(self, _feedback: Dict[str, Any]) -> None:
+        """
+        Finalize a constraint-rejected proposal without updating the objective policy.
+
+        Stateless agents need no action here. Stateful agents should override this
+        method to close any pending optimizer trial as rejected.
+        """
+        return None
+
     def run(self) -> int:
         """
         Orchestrate this agent's exploration over ``self.env``.
@@ -145,28 +162,56 @@ class BaseAgent(ABC):
             int: Process-style return code (``0`` success, non-zero recoverable failure).
         """
         observation, _ = self.env.reset()
-        for _ in range(self.max_steps):
+        executed_steps = 0
+        while executed_steps < self.max_steps:
             result = self.select_action(observation=observation)
             if result is None:
                 break
-            step, action = result
-            logging.info("Running step %s (of %s) with action %s", step, self.max_steps, action)
-            prev_observation = observation
-            observation, reward, done, *_ = self.env.step(action)
-            self.update_policy(
-                {
-                    "trial_index": step,
-                    "value": reward,
-                    "observation": observation,
-                    "prev_observation": prev_observation,
-                    "action": action,
-                    "done": done,
-                }
-            )
+            trial_index, action = result
             logging.info(
-                "Step %s: Observation: %s, Reward: %.4f",
-                step,
+                "Evaluating proposal %s for execution step %s (of %s) with action %s",
+                trial_index,
+                executed_steps + 1,
+                self.max_steps,
+                action,
+            )
+            prev_observation = observation
+            step_observation, reward, done, info = self.env.step(action)
+            status = TrialStatus(info.get("trial_status", TrialStatus.SUCCESS))
+
+            if status is TrialStatus.CONSTRAINT_REJECTED:
+                self.discard_action(
+                    {
+                        "trial_index": trial_index,
+                        "execution_step": executed_steps,
+                        "status": status,
+                        "value": None,
+                        "observation": None,
+                        "prev_observation": prev_observation,
+                        "action": action,
+                        "done": done,
+                    }
+                )
+                logging.info("Proposal %s was rejected by the constraint check", trial_index)
+                continue
+
+            observation = step_observation
+            feedback = {
+                "trial_index": trial_index,
+                "execution_step": executed_steps + 1,
+                "status": status,
+                "value": reward,
+                "observation": observation,
+                "prev_observation": prev_observation,
+                "action": action,
+                "done": done,
+            }
+            self.update_policy(feedback)
+            logging.info(
+                "Execution step %s: Observation: %s, Reward: %.4f",
+                executed_steps + 1,
                 [round(obs, 4) for obs in observation],
                 reward,
             )
+            executed_steps += 1
         return 0

@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario, TrialStatus
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -179,7 +179,9 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
-    _, action = agent.select_action()
+    result = agent.select_action()
+    assert result is not None
+    _, action = result
     env.test_run.step = 41
     env.step(action)
 
@@ -219,7 +221,10 @@ def test_constraint_failure(
 
     assert obs == [-1.0]
     assert reward == expected_reward
-    assert done is True
+    assert done is False
+    assert info["trial_status"] is TrialStatus.CONSTRAINT_REJECTED
+    assert env.test_run.step == 0
+    runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
 
 
@@ -676,7 +681,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
 
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
 
-    # Step 2 fails the constraint; steps 1 and 3 survive. get_observation is only
+    # The second proposal fails the constraint; execution steps 1 and 2 survive. get_observation is only
     # reached on the surviving steps, so it yields exactly two values.
     fake_obs = iter([{"default": 100.0}, {"default": 25.0}])
     with (
@@ -699,7 +704,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
         if metadata_path.exists()
         else []
     )
-    assert traj_steps == metadata_steps == [1, 3]
+    assert traj_steps == metadata_steps == [1, 2]
 
 
 def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(tmp_path: Path) -> None:
