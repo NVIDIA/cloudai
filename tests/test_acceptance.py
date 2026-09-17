@@ -28,6 +28,7 @@ import toml
 from cloudai.cli import setup_logging
 from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
+from cloudai.models.output import Experiment
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -169,6 +170,22 @@ class TestInDryRun:
 
         for details_toml in details_tomls:
             TestRunDetails.model_validate(toml.load(details_toml))
+
+    def test_experiment_output_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path, scenario = do_dry_run
+        results_output = next(path for path in tmp_path.iterdir() if path.is_dir())
+        experiment = Experiment.model_validate_json((results_output / "experiment.json").read_text())
+
+        assert experiment.id == results_output.name
+        assert experiment.name == toml.load(scenario["path"])["name"]
+        assert experiment.status == "completed"
+        assert experiment.path == str(results_output.absolute())
+        assert experiment.start is not None
+        assert experiment.finish is not None
+        assert experiment.duration is not None
+        assert len(experiment.tests) == scenario["expected_dirs_number"]
+        assert all(test.status == "completed" for test in experiment.tests)
+        assert all(not test.runs for test in experiment.tests)
 
 
 @pytest.fixture
