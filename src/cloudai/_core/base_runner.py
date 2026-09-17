@@ -14,11 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List
+
+from cloudai.models import output as output_models
+from cloudai.output import ExperimentOutput
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
@@ -69,6 +73,48 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
+        output_path = self.scenario_root.absolute()
+        experiment = output_models.Experiment(
+            id=output_path.name,
+            name=self.test_scenario.name,
+            status="running",
+            path=str(output_path),
+            start=datetime.datetime.now(datetime.timezone.utc),
+            tests=[
+                output_models.Test(
+                    id=str(tr.name),
+                    name=tr.test.name,
+                    description=tr.test.description,
+                    path=str(output_path / str(tr.name)),
+                )
+                for tr in self.test_scenario.test_runs
+            ],
+        )
+        self.experiment_output = ExperimentOutput(experiment, output_path)
+
+    def get_run_output(
+        self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
+    ) -> output_models.Run | None:
+        """Normalize one logical execution; result is absent at submission."""
+        return None
+
+    def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
+        """Return logical executions represented by a scheduler job."""
+        return [job.test_run]
+
+    def update_run_output(self, job: BaseJob, result: JobStatusResult | None = None) -> None:
+        """Capture logical runs before iteration or DSE state advances, then publish a snapshot."""
+        if self.mode != "run":
+            return
+        for tr in self.completed_test_runs(job):
+            run = self.get_run_output(job, tr, result)
+            if run is not None:
+                self.experiment_output.update_run(str(tr.name), run)
+        self.experiment_output.write()
+
+    def finish_output(self, successful: bool) -> None:
+        status = "completed" if successful else "failed"
+        self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -110,6 +156,7 @@ class BaseRunner(ABC):
             job = self._submit_test(tr)
             self.jobs.append(job)
             self.testrun_to_job_map[tr] = job
+            self.update_run_output(job)
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
@@ -251,6 +298,7 @@ class BaseRunner(ABC):
                 else:
                     if self.test_scenario.job_status_check:
                         job_status_result = self.get_job_status(job)
+                        self.update_run_output(job, job_status_result)
                         if job_status_result.is_successful:
                             successful_jobs_count += 1
                             self.handle_job_completion(job)
@@ -264,6 +312,7 @@ class BaseRunner(ABC):
                             raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
                         job_status_result = self.get_job_status(job)
+                        self.update_run_output(job, job_status_result)
                         if not job_status_result.is_successful:
                             error_message = (
                                 f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"

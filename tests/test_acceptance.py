@@ -28,6 +28,7 @@ import toml
 from cloudai.cli import setup_logging
 from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
+from cloudai.models.output import Experiment
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -88,11 +89,27 @@ from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmRayStartArgs, VllmTestDefinition
 
 SLURM_TEST_SCENARIOS = [
-    {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
+    {
+        "path": Path("conf/common/test_scenario/sleep.toml"),
+        "expected_dirs_number": 4,
+        "log_file": "sleep_debug.log",
+        "tests": [
+            ("Tests.sleep1", "sleep", "sleep test"),
+            ("Tests.sleep5", "sleep", "sleep test"),
+            ("Tests.sleep5_2", "sleep", "sleep test"),
+            ("Tests.sleep20", "sleep", "sleep test"),
+        ],
+    },
     {
         "path": Path("conf/common/test_scenario/ucc_test.toml"),
         "expected_dirs_number": 4,
         "log_file": "ucc_test_debug.log",
+        "tests": [
+            ("Tests.alltoall", "ucc_base_test", "UCC alltoall"),
+            ("Tests.allgather", "ucc_base_test", "UCC allgather"),
+            ("Tests.allreduce", "ucc_base_test", "UCC allreduce"),
+            ("Tests.reduce_scatter", "ucc_base_test", "UCC reduce_scatter"),
+        ],
     },
 ]
 
@@ -169,6 +186,35 @@ class TestInDryRun:
 
         for details_toml in details_tomls:
             TestRunDetails.model_validate(toml.load(details_toml))
+
+    def test_experiment_output_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path, scenario = do_dry_run
+        results_output = next(path for path in tmp_path.iterdir() if path.is_dir())
+        experiment = Experiment.model_validate_json((results_output / "experiment.json").read_text())
+
+        assert experiment.model_dump() == {
+            "id": results_output.name,
+            "name": toml.load(scenario["path"])["name"],
+            "description": None,
+            "status": "completed",
+            "path": str(results_output.absolute()),
+            "start": experiment.start,
+            "finish": experiment.finish,
+            "duration": experiment.duration,
+            "tests": [
+                {
+                    "id": test_id,
+                    "name": name,
+                    "description": description,
+                    "status": "completed",
+                    "path": str(results_output.absolute() / test_id),
+                    "metrics": [],
+                    "runs": [],
+                    "dse": None,
+                }
+                for test_id, name, description in scenario["tests"]
+            ],
+        }
 
 
 @pytest.fixture
