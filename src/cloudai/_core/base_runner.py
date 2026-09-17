@@ -73,11 +73,6 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
-        self.experiment_output = self.create_experiment_output()
-
-    def create_experiment_output(self) -> ExperimentOutput | None:
-        if self.mode != "run":
-            return None
         output_path = self.scenario_root.absolute()
         experiment = output_models.Experiment(
             id=output_path.name,
@@ -95,7 +90,7 @@ class BaseRunner(ABC):
                 for tr in self.test_scenario.test_runs
             ],
         )
-        return ExperimentOutput(experiment, output_path)
+        self.experiment_output = ExperimentOutput(experiment, output_path)
 
     def get_run_output(
         self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
@@ -109,21 +104,20 @@ class BaseRunner(ABC):
 
     def update_run_output(self, job: BaseJob, result: JobStatusResult | None = None) -> None:
         """Capture logical runs before iteration or DSE state advances, then publish a snapshot."""
-        if self.mode == "run" and self.experiment_output is not None:
-            for tr in self.completed_test_runs(job):
-                run = self.get_run_output(job, tr, result)
-                if run is not None:
-                    self.experiment_output.update_run(str(tr.name), run)
-            self.write_output()
+        if self.mode != "run":
+            return
+        for tr in self.completed_test_runs(job):
+            run = self.get_run_output(job, tr, result)
+            if run is not None:
+                self.experiment_output.update_run(str(tr.name), run)
+        self.write_output()
 
     def write_output(self) -> None:
-        if self.mode == "run" and self.experiment_output is not None:
-            self.experiment_output.write()
+        self.experiment_output.write()
 
     def finish_output(self, successful: bool) -> None:
-        if self.mode == "run" and self.experiment_output is not None:
-            status = "completed" if successful else "failed"
-            self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
+        status = "completed" if successful else "failed"
+        self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
