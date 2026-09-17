@@ -15,8 +15,7 @@
 # limitations under the License.
 
 import datetime
-import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from cloudai.core import BaseJob
 
@@ -25,6 +24,5 @@ from cloudai.core import BaseJob
 class StandaloneJob(BaseJob):
     """A job class for standalone execution."""
 
-    process: subprocess.Popen[str] | None = field(default=None, repr=False)
     start: datetime.datetime | None = None
     finish: datetime.datetime | None = None
