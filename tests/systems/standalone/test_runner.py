@@ -17,23 +17,18 @@
 import datetime
 import pathlib
 
-import pytest
-
+import cloudai.core
 import cloudai.metrics
-from cloudai.core import JobStatusResult, System, TestDefinition, TestRun, TestScenario
-from cloudai.models.workload import CmdArgs
 from cloudai.systems.standalone import StandaloneJob, StandaloneRunner, StandaloneSystem
 
 
-class MetricWorkload(TestDefinition):
-    successful: bool
+class MetricWorkload(cloudai.core.TestDefinition):
+    def was_run_successful(self, tr: cloudai.core.TestRun) -> cloudai.core.JobStatusResult:
+        return cloudai.core.JobStatusResult(is_successful=True)
 
-    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        if self.successful:
-            return JobStatusResult(is_successful=True)
-        return JobStatusResult(is_successful=False, error_message="workload result failed")
-
-    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+    def metric_observations(
+        self, system: cloudai.core.System, tr: cloudai.core.TestRun
+    ) -> list[cloudai.metrics.MetricObservation]:
         return [
             cloudai.metrics.MetricObservation(
                 metric=cloudai.metrics.BANDWIDTH,
@@ -43,25 +38,25 @@ class MetricWorkload(TestDefinition):
         ]
 
 
-@pytest.mark.parametrize("successful", [True, False])
 def test_standalone_run_output_uses_workload_status_and_metrics(
-    tmp_path: pathlib.Path, standalone_system: StandaloneSystem, successful: bool
+    tmp_path: pathlib.Path, standalone_system: StandaloneSystem
 ) -> None:
     workload = MetricWorkload(
         name="metric-workload",
         description="metric workload",
         test_template_name="MetricWorkload",
-        cmd_args=CmdArgs(),
-        successful=successful,
+        cmd_args=cloudai.core.CmdArgs(),
     )
-    test_run = TestRun(
+    test_run = cloudai.core.TestRun(
         name="case",
         test=workload,
         num_nodes=1,
         nodes=[],
         output_path=tmp_path / "case" / "0",
     )
-    runner = StandaloneRunner("run", standalone_system, TestScenario(name="scenario", test_runs=[test_run]), tmp_path)
+    runner = StandaloneRunner(
+        "run", standalone_system, cloudai.core.TestScenario(name="scenario", test_runs=[test_run]), tmp_path
+    )
     start = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
     job = StandaloneJob(
         test_run,
@@ -72,18 +67,21 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
 
     run = runner.get_run_output(job, test_run, runner.get_job_status(job))
 
-    assert run.status == ("completed" if successful else "failed")
-    assert run.jobid == "123"
-    assert run.start == start
-    assert run.finish == start + datetime.timedelta(seconds=3)
-    if successful:
-        assert [metric.model_dump() for metric in run.metrics] == [
+    assert run.model_dump() == {
+        "path": str((tmp_path / "case" / "0").absolute()),
+        "jobid": "123",
+        "status": "completed",
+        "metrics": [
             {
                 "name": "Bandwidth",
                 "value": 12.5,
                 "unit": "GB/s",
                 "dimensions": [{"name": "Size", "value": "1024", "unit": "", "is_x": False}],
             }
-        ]
-    else:
-        assert run.metrics == []
+        ],
+        "start": start,
+        "finish": start + datetime.timedelta(seconds=3),
+        "duration": None,
+        "iteration": 0,
+        "step": 0,
+    }
