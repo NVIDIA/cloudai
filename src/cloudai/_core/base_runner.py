@@ -19,11 +19,10 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List
+from typing import Dict, List
 
-if TYPE_CHECKING:
-    from cloudai.models.output import Run
-    from cloudai.output import ExperimentOutput
+from cloudai.models import output as output_models
+from cloudai.output import ExperimentOutput
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
@@ -74,14 +73,35 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
-        self.experiment_output: ExperimentOutput | None = self.create_experiment_output()
+        self.experiment_output = self.create_experiment_output()
 
-    def create_experiment_output(self) -> "ExperimentOutput | None":
-        return None
+    def create_experiment_output(self) -> ExperimentOutput | None:
+        if self.mode != "run":
+            return None
+        output_path = self.scenario_root.absolute()
+        experiment = output_models.Experiment(
+            id=output_path.name,
+            name=self.test_scenario.name,
+            status="running",
+            path=str(output_path),
+            start=datetime.datetime.now(datetime.timezone.utc),
+            tests=[
+                output_models.Test(
+                    id=str(tr.name),
+                    name=tr.test.name,
+                    description=tr.test.description,
+                    path=str(output_path / str(tr.name)),
+                )
+                for tr in self.test_scenario.test_runs
+            ],
+        )
+        return ExperimentOutput(experiment, output_path)
 
-    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> "Run":
+    def get_run_output(
+        self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
+    ) -> output_models.Run | None:
         """Normalize one logical execution; result is absent at submission."""
-        raise NotImplementedError
+        return None
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
         """Return logical executions represented by a scheduler job."""
@@ -91,7 +111,9 @@ class BaseRunner(ABC):
         """Capture logical runs before iteration or DSE state advances, then publish a snapshot."""
         if self.mode == "run" and self.experiment_output is not None:
             for tr in self.completed_test_runs(job):
-                self.experiment_output.update_run(str(tr.name), self.get_run_output(job, tr, result))
+                run = self.get_run_output(job, tr, result)
+                if run is not None:
+                    self.experiment_output.update_run(str(tr.name), run)
             self.write_output()
 
     def write_output(self) -> None:

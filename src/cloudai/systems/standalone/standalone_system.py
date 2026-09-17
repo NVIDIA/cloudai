@@ -19,8 +19,6 @@ import logging
 from cloudai.core import BaseJob, System
 from cloudai.util import CommandShell
 
-from .standalone_job import StandaloneJob
-
 
 class StandaloneSystem(System):
     """
@@ -51,9 +49,6 @@ class StandaloneSystem(System):
         Returns:
             bool: True if the job is running, False otherwise.
         """
-        if isinstance(job, StandaloneJob) and job.process is not None:
-            return job.process.poll() is None
-
         command = f"ps -p {job.id}"
         logging.debug(f"Checking job status with command: {command}")
         stdout = self.cmd_shell.execute(command).communicate()[0]
