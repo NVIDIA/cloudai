@@ -21,7 +21,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cloudai.core import BaseInstaller, GitRepo, InstallStatusResult
+from cloudai.core import BaseInstaller, GitRepo, InstallStatusResult, TestDefinition
+from cloudai.models.scenario import TestRunModel
 
 
 @pytest.fixture
@@ -70,6 +71,49 @@ def git(
 )
 def test_git_repo_name(url: str, expected: str):
     assert GitRepo(url=url, commit="commit").repo_name == expected
+
+
+def test_python_version_does_not_change_git_clone_identity() -> None:
+    py311 = GitRepo(url="./repo", commit="main", python_version="3.11.9")
+    py314 = GitRepo(url="./repo", commit="main", python_version="3.14.0")
+
+    assert py311 == py314
+    assert hash(py311) == hash(py314)
+    assert py311.repo_name == py314.repo_name
+    assert py311.container_mount == py314.container_mount
+
+
+def test_test_definition_git_repo_accepts_python_version() -> None:
+    tdef = TestDefinition.model_validate(
+        {
+            "name": "test",
+            "description": "description",
+            "test_template_name": "Example",
+            "cmd_args": {},
+            "git_repos": [{"url": "./repo", "commit": "main", "python_version": "3.11.9"}],
+        }
+    )
+
+    assert tdef.git_repos[0].python_version == "3.11.9"
+
+
+def test_scenario_git_repo_accepts_and_preserves_python_version() -> None:
+    model = TestRunModel.model_validate(
+        {
+            "id": "case",
+            "test_name": "base-test",
+            "git_repos": [{"url": "./repo", "commit": "main", "python_version": "3.11.9"}],
+        }
+    )
+
+    assert model.git_repos is not None
+    assert model.git_repos[0].python_version == "3.11.9"
+
+
+def test_git_repo_toml_without_python_version_remains_valid() -> None:
+    repo = GitRepo.model_validate({"url": "./repo", "commit": "main"})
+
+    assert repo.python_version is None
 
 
 @pytest.mark.parametrize("init_submodules", [True, False])
