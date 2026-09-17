@@ -43,6 +43,7 @@ from cloudai.configurator.env_params import (
     EnvParam,
     EnvParams,
     EnvParamSpec,
+    LogEncoding,
     ObsLeafDescriptor,
 )
 from cloudai.core import TestRun
@@ -431,3 +432,65 @@ def test_custom_encoding_plugs_into_env_param() -> None:
 
     assert knob.observation_descriptor() == ObsLeafDescriptor(kind="box", dim=1)
     assert knob.encode(20) == [20.0]
+
+
+def test_log_encoding_describes_a_two_wide_box() -> None:
+    """[is_zero, log10] is a continuous leaf, unlike the categorical index."""
+    descriptor = LogEncoding().observation_descriptor([0.0, 0.001, 0.01])
+
+    assert descriptor.kind == "box"
+    assert descriptor.dim == 2
+
+
+def test_log_encoding_carries_magnitude_not_position() -> None:
+    """The point of the encoding: a policy can generalize across decades."""
+    encoding = LogEncoding()
+    candidates = [0.0, 0.001, 0.01]
+
+    assert encoding.encode(0.001, candidates) == [0.0, -3.0]
+    assert encoding.encode(0.01, candidates) == [0.0, -2.0]
+
+
+def test_log_encoding_puts_an_exact_zero_on_the_indicator() -> None:
+    """log10(0) is undefined, and "none at all" is a different regime, not a small value.
+
+    Leaving the log slot at 0.0 keeps a zero draw from becoming an extreme outlier that
+    would dominate the observation's scale.
+    """
+    assert LogEncoding().encode(0.0, [0.0, 0.001]) == [1.0, 0.0]
+
+
+def test_log_encoding_treats_negatives_as_zero() -> None:
+    """Not expected from a rate, but the log must stay defined rather than raise."""
+    assert LogEncoding().encode(-1.0, [-1.0, 0.001]) == [1.0, 0.0]
+
+
+def test_log_encoding_ignores_the_candidate_list() -> None:
+    """Encoded from the value alone, so an unlisted value still encodes sensibly."""
+    encoding = LogEncoding()
+
+    assert encoding.encode(0.1, [0.0, 0.001]) == [0.0, -1.0]
+
+
+def test_env_param_spec_selects_the_log_encoding_by_name() -> None:
+    spec = EnvParamSpec.model_validate({"encoding": {"type": "log"}})
+
+    assert isinstance(spec.encoding, LogEncoding)
+
+
+def test_env_param_spec_still_defaults_to_categorical() -> None:
+    assert isinstance(EnvParamSpec().encoding, CategoricalEncoding)
+
+
+def test_env_param_spec_rejects_an_unknown_encoding_name() -> None:
+    """A typo must name the valid options, not silently fall back to the default."""
+    with pytest.raises(ValidationError):
+        EnvParamSpec.model_validate({"encoding": {"type": "logarithmic"}})
+
+
+def test_env_param_with_log_encoding_encodes_through_the_param() -> None:
+    """EnvParam delegates to its encoding, so the whole path works end to end."""
+    param = EnvParam(candidates=[0.0, 0.001, 0.01], encoding=LogEncoding())
+
+    assert param.observation_descriptor().dim == 2
+    assert param.encode(0.01) == [0.0, -2.0]
