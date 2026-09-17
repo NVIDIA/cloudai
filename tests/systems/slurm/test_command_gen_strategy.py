@@ -403,6 +403,15 @@ def test_no_exclude_directive_when_exclude_nodes_unset(strategy_fixture: SlurmCo
     assert not any("--exclude" in line for line in content)
 
 
+def test_enable_vboost_cmd_excludes_configured_nodes(strategy_fixture: SlurmCommandGenStrategy) -> None:
+    strategy_fixture.test_run.nodes = ["n0", "n1"]
+    strategy_fixture.test_run.exclude_nodes = ["n0"]
+
+    cmd = strategy_fixture._enable_vboost_cmd()
+
+    assert "--ntasks=1" in cmd
+
+
 def test_nodelist_over_num_nodes(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
     testrun_fixture.nodes = ["nodeA", "nodeB", "nodeC"]
     testrun_fixture.num_nodes = 5
