@@ -58,10 +58,48 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     experiment_output.finish("failed", start + datetime.timedelta(seconds=5))
 
     stored = output_models.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
-    assert stored.status == "failed"
-    assert stored.duration == 5
-    assert stored.tests[0].status == "failed"
-    assert [(run.jobid, run.status, run.duration) for run in stored.tests[0].runs] == [
-        ("101", "completed", 2),
-        ("102", "failed", 2),
-    ]
+    assert stored.model_dump() == {
+        "id": "experiment",
+        "name": "scenario",
+        "description": None,
+        "status": "failed",
+        "path": str(tmp_path),
+        "start": start,
+        "finish": start + datetime.timedelta(seconds=5),
+        "duration": 5,
+        "tests": [
+            {
+                "id": "case",
+                "name": "workload",
+                "description": None,
+                "status": "failed",
+                "path": str(tmp_path / "case"),
+                "metrics": [],
+                "runs": [
+                    {
+                        "path": str(tmp_path / "case" / "0"),
+                        "jobid": "101",
+                        "status": "completed",
+                        "metrics": [],
+                        "start": start,
+                        "finish": start + datetime.timedelta(seconds=2),
+                        "duration": 2,
+                        "iteration": 0,
+                        "step": 0,
+                    },
+                    {
+                        "path": str(tmp_path / "case" / "1"),
+                        "jobid": "102",
+                        "status": "failed",
+                        "metrics": [],
+                        "start": start + datetime.timedelta(seconds=2),
+                        "finish": start + datetime.timedelta(seconds=4),
+                        "duration": 2,
+                        "iteration": 1,
+                        "step": 0,
+                    },
+                ],
+                "dse": None,
+            }
+        ],
+    }
