@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import JobIdRetrievalError
+from cloudai.core import JobFailureError, JobIdRetrievalError
 from cloudai.systems.slurm.docker_image_cache_manager import DockerImageCacheManager
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -112,6 +112,26 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
 
     assert not result.success
     assert "Failed to import Docker image" in result.message
+
+
+def test_cache_docker_image_reports_failed_job_with_partial_image(slurm_system: SlurmSystem):
+    slurm_system.cache_docker_images_locally = True
+    slurm_system.supports_gpu_directives_cache = False
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+
+    def fail_after_creating_image(*_args, **_kwargs):
+        (slurm_system.install_path / "image.sqsh").touch()
+        raise JobFailureError(
+            test_name="Docker image import",
+            message="Slurm job 123 failed.",
+            details="import failed",
+        )
+
+    with patch.object(SlurmSystem, "submit_sbatch", side_effect=fail_after_creating_image):
+        result = DockerImageCacheManager(slurm_system).cache_docker_image("docker.io/hello-world", "image.sqsh")
+
+    assert not result.success
+    assert "Slurm job 123 failed" in result.message
 
 
 @pytest.mark.parametrize(

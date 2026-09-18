@@ -28,7 +28,7 @@ from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from cloudai.core import BaseJob, File, Installable, JobIdRetrievalError, System
+from cloudai.core import BaseJob, File, Installable, JobFailureError, JobIdRetrievalError, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
@@ -104,7 +104,7 @@ class SlurmSystem(System):
         """Submit an sbatch script without exposing the CLI transport to callers."""
         wait_arg = " --wait" if wait else ""
         command = f"sbatch{wait_arg} {shlex.quote(str(script_path))}"
-        return self.submit_job(command, operation_name)
+        return self.submit_job(command, operation_name, check_return_code=wait)
 
     default_partition: str
     partitions: List[SlurmPartition]
@@ -292,9 +292,10 @@ class SlurmSystem(System):
         match = re.search(r"submitted with Job ID (\d+)", stdout)
         return int(match.group(1)) if match else None
 
-    def submit_job(self, submission_command: str, test_name: str) -> int:
+    def submit_job(self, submission_command: str, test_name: str, *, check_return_code: bool = False) -> int:
         """Submit a generated Slurm workload and return its job ID."""
-        stdout, stderr = self.cmd_shell.execute(submission_command).communicate()
+        process = self.cmd_shell.execute(submission_command)
+        stdout, stderr = process.communicate()
         job_id = self._parse_submitted_job_id(stdout)
         if job_id is None:
             raise JobIdRetrievalError(
@@ -303,6 +304,12 @@ class SlurmSystem(System):
                 stdout=stdout,
                 stderr=stderr,
                 message="Failed to retrieve job ID.",
+            )
+        if check_return_code and process.returncode != 0:
+            raise JobFailureError(
+                test_name=test_name,
+                message=f"Slurm job {job_id} failed.",
+                details=stderr,
             )
         return job_id
 

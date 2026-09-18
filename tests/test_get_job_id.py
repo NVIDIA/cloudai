@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import JobIdRetrievalError, TestRun, TestScenario
+from cloudai.core import JobFailureError, JobIdRetrievalError, TestRun, TestScenario
 from cloudai.systems.lsf.lsf_runner import LSFRunner
 from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmJob, SlurmRunner, SlurmSystem
@@ -97,6 +97,17 @@ def test_slurm_submission_runtime_error_cleans_job_artifacts(slurm_runner: Slurm
 def test_slurm_get_job_id(stdout: str, stderr: str, expected_job_id: int | None):
     res = SlurmSystem._parse_submitted_job_id(stdout)
     assert res == expected_job_id
+
+
+def test_submit_sbatch_wait_propagates_job_failure(slurm_system: SlurmSystem, tmp_path: Path):
+    process = Mock(returncode=1)
+    process.communicate.return_value = ("Submitted batch job 123", "job failed")
+    slurm_system.cmd_shell.execute = Mock(return_value=process)
+
+    with pytest.raises(JobFailureError, match="Slurm job 123 failed"):
+        slurm_system.submit_sbatch(tmp_path / "job.sh", "Docker image import", wait=True)
+
+    slurm_system.cmd_shell.execute.assert_called_once_with(f"sbatch --wait {tmp_path / 'job.sh'}")
 
 
 def test_slurm_runner_on_job_completion_calls_cleanup(slurm_runner: SlurmRunner):

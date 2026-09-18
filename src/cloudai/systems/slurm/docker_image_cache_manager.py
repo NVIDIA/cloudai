@@ -24,7 +24,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from cloudai.core import JobIdRetrievalError
+from cloudai.core import JobFailureError, JobIdRetrievalError
 
 if TYPE_CHECKING:
     from cloudai.systems.slurm import SlurmSystem
@@ -152,7 +152,7 @@ class DockerImageCacheManager:
         script_path, stderr_path = self._write_import_script(docker_image_url, docker_image_path)
         try:
             self.system.submit_sbatch(script_path, "Docker image import", wait=True)
-        except JobIdRetrievalError as error:
+        except (JobFailureError, JobIdRetrievalError) as error:
             message = f"Failed to import Docker image {docker_image_url}: {error}"
             logging.error(message)
             return DockerImageCacheResult(False, message=message)
