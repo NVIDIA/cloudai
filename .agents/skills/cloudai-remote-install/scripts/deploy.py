@@ -56,8 +56,8 @@ def main() -> None:
             "__pycache__",
             "*.py[cod]",
             "*.egg-info",
-            "results/",
-            "install/",
+            "/results/",
+            "/install/",
         ):
             command.extend(["--exclude", pattern])
         destination = shlex.quote(args.destination.removeprefix("~/"))

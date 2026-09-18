@@ -17,11 +17,9 @@ description: Install or update a CloudAI checkout on a remote cluster for Slurm 
   Git-based deployment is also fine.
 - Use [scripts/deploy.py](scripts/deploy.py) for all remote commands and transfers,
   not direct SSH. It only provides transport; perform the checks and setup described here.
-  Invoke with Python: `deploy.py HOST run 'COMMAND'`, `deploy.py HOST copy DEST SOURCE...`
-  or `deploy.py HOST fetch SOURCE DEST` (downloads without upload exclusions).
-  Optional `--dry-run` goes between HOST and the action.
-- Create the remote destination with `mkdir -p` through `run` before copying.
-  Quote remote paths such as `'~/cloudai-worktrees/<checkout-id>/'` to prevent local tilde expansion.
+  Invoke with Python as `deploy.py HOST [--dry-run] ACTION ...`:
+  `run 'COMMAND'`, `copy '~/cloudai-worktrees/<checkout-id>/' SOURCE...`, or `fetch 'SOURCE' DEST`.
+  Downloads have no upload exclusions.
 - Reuse remote uv, or install it if missing. Use it to install CloudAI and manage
   the deployment's own environment; do not reuse another checkout's virtualenv.
 - Do not update an installation while running or queued work still uses it.

@@ -8,5 +8,4 @@ description: Create, adapt, review, or troubleshoot CloudAI system, test, and te
 - CloudAI is a public repo thus configs must contain no internal references
 - `conf/experimental` is the place to put configs
 - prefer test-in-scenario. Use `path`-based references in scenario when a single test TOML may serve different scenarios
-- Validate changed configs with [verify-configs](../../../README.md#verify-configs), including scenario references
-  with the appropriate `--tests-dir`. TOML parsing alone is not enough.
+- Validate changed configs with [verify-configs](../../../README.md#verify-configs).

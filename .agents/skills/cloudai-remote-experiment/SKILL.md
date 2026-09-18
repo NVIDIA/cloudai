@@ -8,24 +8,21 @@ description: Run, monitor, stop, and retrieve a CloudAI experiment (test scenari
 - Use [cloudai-remote-install](../cloudai-remote-install/SKILL.md) first. Identify
   this checkout's remote installation and system config; do not use another checkout's deployment.
   Use its wrapper for all remote commands and transfers, not direct SSH.
-  Prefer shell commands through the wrapper over custom launchers/retrievers.
 - Run the CloudAI controller as a detached daemon that survives disconnects,
   with stdin closed and output redirected. Keep separate per-run controller/debug
   logs in remote home, not Lustre. Record the actual controller PID, start time,
   deployment, selected configs, exact results directory and eventual exit status.
 - Establish expected progress and a workload-specific stall timeout before launching.
   Include legitimate silent phases such as initialization; ask if expectations are unclear.
-- For standalone, confirm the execution host and resource budget; login nodes are not implicit compute targets.
-  Check that required environment settings reach workload subprocesses.
+- Do not run compute-heavy standalone workloads on login nodes without explicit user approval.
 - Do not change partition, resources or workload to bypass queue waits without user approval.
 
 ## Monitor and stop
 
 - Stay responsible for monitoring until the run finishes or is explicitly handed back.
-  Use background monitoring when available; default to three-minute checks, honoring user cadence
-  but never polling more than once per minute. Stay quiet when unchanged and stop monitoring when done.
-  Check the recorded process with `ps` and read bounded log increments; back off when unchanged.
-  Sample only a few known artifacts for progress.
+  Use background monitoring when available; stay quiet when unchanged and stop monitoring when done.
+  Check the recorded process with `ps` and read bounded log increments no more than
+  once per minute; back off when unchanged. Sample only a few known artifacts for progress.
   No recursive scans, whole-log rereads or continuous result syncing on shared storage.
 - Never use `squeue --me` or equivalent user-wide queue queries. Let CloudAI poll
   Slurm; do not add scheduler polling loops. If diagnosis requires scheduler state,
@@ -54,7 +51,6 @@ description: Run, monitor, stop, and retrieve a CloudAI experiment (test scenari
 - Derive the cluster nickname from the selected config and SSH target, not blindly
   from the config name: `<cluster>-for-testing` still belongs under `<cluster>`.
   Ask if ambiguous.
-- Create the local parent directory, then use `deploy.py HOST fetch REMOTE_RUN_DIR LOCAL_PARENT/`.
-  Omit the source's trailing slash to preserve the run directory.
+- Retrieve with `deploy.py HOST fetch 'REMOTE_RUN_DIR' 'results/<cluster-nickname>/'`.
   Copy this run's output, not the shared results tree; preserve remote files.
   Report the outcome and local results path, including any incomplete retrieval.
