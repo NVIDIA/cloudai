@@ -902,6 +902,11 @@ def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, exp
             slurm_system.get_job_status(job)
     else:
         assert slurm_system.get_job_status(job) == expected
+    slurm_system.cmd_shell.execute.assert_called_with(
+        "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
+        "sacct -j 1 --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
+        "--delimiter='|' -p --noheader"
+    )
 
 
 sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,

@@ -19,6 +19,7 @@ import logging
 import pathlib
 import tempfile
 
+import cloudai.metrics
 import cloudai.models.output
 
 
@@ -27,6 +28,19 @@ def elapsed_seconds(start: datetime.datetime | None, finish: datetime.datetime |
     if start is None or finish is None:
         return None
     return max((finish - start).total_seconds(), 0.0)
+
+
+def metric_output(observation: cloudai.metrics.MetricObservation) -> cloudai.models.output.Metric:
+    """Convert a canonical observation to an output metric."""
+    return cloudai.models.output.Metric(
+        name=observation.metric.display_name,
+        value=observation.value,
+        unit=observation.metric.unit,
+        dimensions=[
+            cloudai.models.output.Dimension(name=cloudai.metrics.dimension_label(key), value=str(value))
+            for key, value in sorted(observation.dimensions.items())
+        ],
+    )
 
 
 class ExperimentOutput:
@@ -97,16 +111,25 @@ class ExperimentOutput:
                     logging.warning("Cannot remove temporary experiment output %s: %s", temporary_path, exc)
 
     def finish(self, status: cloudai.models.output.Status, finish: datetime.datetime | None) -> None:
-        self.experiment.status = status
-        self.experiment.finish = finish
-        self.experiment.duration = elapsed_seconds(self.experiment.start, finish)
         for test in self.experiment.tests:
+            for run in test.runs:
+                if run.status in ("pending", "running"):
+                    run.status = "unknown"
+            self._update_test_status(test)
             if test.dse is None:
                 test.metrics = self._single_run_metrics(test)
         if status == "completed":
-            for test in self.experiment.tests:
-                if test.status not in ("failed", "cancelled"):
-                    test.status = "completed"
+            statuses = {test.status for test in self.experiment.tests}
+            for outcome in ("failed", "cancelled", "unknown"):
+                if outcome in statuses:
+                    status = outcome
+                    break
+        for test in self.experiment.tests:
+            if test.status in ("pending", "running"):
+                test.status = "completed" if status == "completed" else "unknown"
+        self.experiment.status = status
+        self.experiment.finish = finish
+        self.experiment.duration = elapsed_seconds(self.experiment.start, finish)
         self.write()
 
     @staticmethod
@@ -128,5 +151,9 @@ class ExperimentOutput:
             test.status = "cancelled"
         elif "running" in statuses:
             test.status = "running"
+        elif "pending" in statuses:
+            test.status = "pending"
+        elif "unknown" in statuses:
+            test.status = "unknown"
         elif statuses == {"completed"}:
             test.status = "completed"

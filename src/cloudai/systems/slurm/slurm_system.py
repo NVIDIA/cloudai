@@ -481,6 +481,7 @@ class SlurmSystem(System):
 
         retry_count = 0
         command = (
+            "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
             f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
             "--delimiter='|' -p --noheader"
         )

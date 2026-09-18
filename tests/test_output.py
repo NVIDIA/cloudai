@@ -17,11 +17,16 @@
 import datetime
 import pathlib
 
+import pytest
+
 import cloudai.models.output
 import cloudai.output
 
 
-def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
+def test_experiment_output_preserves_runs_and_finalizes_failure(
+    tmp_path: pathlib.Path, status: cloudai.models.output.Status
+) -> None:
     start = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
     experiment = cloudai.models.output.Experiment(
         id="experiment",
@@ -30,7 +35,10 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
         status="running",
         path=str(tmp_path),
         start=start,
-        tests=[cloudai.models.output.Test(id="case", name="workload", path=str(tmp_path / "case"))],
+        tests=[
+            cloudai.models.output.Test(id=case, name="workload", path=str(tmp_path / case))
+            for case in ("case", "interrupted", "not-started")
+        ],
     )
     experiment_output = cloudai.output.ExperimentOutput(experiment, tmp_path)
     first_run = cloudai.models.output.Run(
@@ -46,7 +54,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     second_run = cloudai.models.output.Run(
         path=str(tmp_path / "case" / "1"),
         jobid="102",
-        status="running",
+        status="pending",
         start=start + datetime.timedelta(seconds=2),
         iteration=1,
         step=0,
@@ -54,11 +62,16 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
 
     experiment_output.update_run("case", first_run)
     experiment_output.update_run("case", second_run)
+    assert experiment_output.snapshot().tests[0].status == "pending"
     second_run.status = "failed"
     second_run.finish = start + datetime.timedelta(seconds=4)
     second_run.duration = 2
     experiment_output.update_run("case", second_run)
-    experiment_output.finish("failed", start + datetime.timedelta(seconds=5))
+    experiment_output.update_run(
+        "interrupted",
+        cloudai.models.output.Run(path=str(tmp_path / "interrupted" / "0"), jobid="103", status="pending"),
+    )
+    experiment_output.finish(status, start + datetime.timedelta(seconds=5))
 
     stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
     assert stored.model_dump() == {
@@ -66,7 +79,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
         "name": "scenario",
         "system_name": "test-system",
         "description": None,
-        "status": "failed",
+        "status": "cancelled" if status == "cancelled" else "failed",
         "path": str(tmp_path),
         "start": start,
         "finish": start + datetime.timedelta(seconds=5),
@@ -104,6 +117,38 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
                     },
                 ],
                 "dse": None,
-            }
+            },
+            {
+                "id": "interrupted",
+                "name": "workload",
+                "description": None,
+                "status": "unknown",
+                "path": str(tmp_path / "interrupted"),
+                "metrics": [],
+                "runs": [
+                    {
+                        "path": str(tmp_path / "interrupted" / "0"),
+                        "jobid": "103",
+                        "status": "unknown",
+                        "metrics": [],
+                        "start": None,
+                        "finish": None,
+                        "duration": None,
+                        "iteration": None,
+                        "step": None,
+                    }
+                ],
+                "dse": None,
+            },
+            {
+                "id": "not-started",
+                "name": "workload",
+                "description": None,
+                "status": "unknown",
+                "path": str(tmp_path / "not-started"),
+                "metrics": [],
+                "runs": [],
+                "dse": None,
+            },
         ],
     }
