@@ -67,12 +67,30 @@ def slurm_runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> Slur
 
 def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     tr = slurm_runner.test_scenario.test_runs[0]
+    cmd_gen = slurm_runner.get_cmd_gen_strategy(slurm_runner.system, tr)
+    cmd_gen.cleanup_job_artifacts = Mock()
+    slurm_runner.get_cmd_gen_strategy = Mock(return_value=cmd_gen)
+
     with pytest.raises(JobIdRetrievalError) as excinfo:
         slurm_runner._submit_test(tr)
+
     assert "Failed to retrieve job ID." in str(excinfo.value)
     assert "sbatch: error: Batch job submission failed: Requested node configuration is not available" in str(
         excinfo.value
     )
+    cmd_gen.cleanup_job_artifacts.assert_called_once_with()
+
+
+def test_slurm_submission_runtime_error_cleans_job_artifacts(slurm_runner: SlurmRunner):
+    tr = slurm_runner.test_scenario.test_runs[0]
+    cmd_gen = Mock()
+    cmd_gen.gen_exec_command.side_effect = RuntimeError("command generation failed")
+    slurm_runner.get_cmd_gen_strategy = Mock(return_value=cmd_gen)
+
+    with pytest.raises(RuntimeError, match="command generation failed"):
+        slurm_runner._submit_test(tr)
+
+    cmd_gen.cleanup_job_artifacts.assert_called_once_with()
 
 
 @pytest.mark.parametrize(

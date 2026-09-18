@@ -63,22 +63,30 @@ class SlurmRunner(BaseRunner):
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
-        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
-        logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
-        job_id = 0
-        if self.mode == "run":
-            stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = self.get_job_id(stdout, stderr)
-            if job_id is None:
-                raise JobIdRetrievalError(
-                    test_name=str(tr.name),
-                    command=exec_cmd,
-                    stdout=stdout,
-                    stderr=stderr,
-                    message="Failed to retrieve job ID.",
-                )
-        logging.info(f"Submitted slurm job: {job_id}")
-        return SlurmJob(tr, id=job_id)
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        try:
+            exec_cmd = cmd_gen.gen_exec_command()
+            logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
+            job_id = 0
+            if self.mode == "run":
+                stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
+                job_id = self.get_job_id(stdout, stderr)
+                if job_id is None:
+                    raise JobIdRetrievalError(
+                        test_name=str(tr.name),
+                        command=exec_cmd,
+                        stdout=stdout,
+                        stderr=stderr,
+                        message="Failed to retrieve job ID.",
+                    )
+            logging.info(f"Submitted slurm job: {job_id}")
+            return SlurmJob(tr, id=job_id)
+        except Exception:
+            try:
+                cmd_gen.cleanup_job_artifacts()
+            except Exception:
+                logging.warning(f"Cleanup failed for test run at {tr.output_path}", exc_info=True)
+            raise
 
     def on_job_submit(self, tr: TestRun) -> None:
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)

@@ -66,7 +66,7 @@ Runtime Coordination
 --------------------
 
 NIXLBench uses ETCD by default. CloudAI starts ETCD from the benchmark image when
-``etcd_image_url`` is omitted, or from the configured image otherwise.
+``etcd_image_url`` is omitted, or from the configured image.
 
 To use NIXLBench's direct two-process ASIO runtime instead, set:
 

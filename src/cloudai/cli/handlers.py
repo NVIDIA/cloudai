@@ -104,9 +104,7 @@ def prepare_installation(
 ) -> tuple[list[Installable], BaseInstaller]:
     installables: list[Installable] = []
     if scenario:
-        for test in scenario.test_runs:
-            logging.debug(f"{test.test.name} has {len(test.test.installables)} installables.")
-            installables.extend(test.test.installables)
+        installables.extend(_scenario_installables(scenario))
     else:
         for test in tests:
             logging.debug(f"{test.name} has {len(test.installables)} installables.")
@@ -119,6 +117,17 @@ def prepare_installation(
     installer = installer_class(system)
 
     return installables, installer
+
+
+def _scenario_installables(scenario: TestScenario) -> list[Installable]:
+    installables: list[Installable] = []
+    for test_run in scenario.test_runs:
+        logging.debug(f"{test_run.test.name} has {len(test_run.test.installables)} installables.")
+        installables.extend(test_run.test.installables)
+        for hook in (test_run.pre_test, test_run.post_test):
+            if hook is not None:
+                installables.extend(_scenario_installables(hook))
+    return installables
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:

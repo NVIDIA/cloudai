@@ -18,16 +18,19 @@ from __future__ import annotations
 
 import logging
 import shlex
+import shutil
 import stat
 from pathlib import Path
 from typing import Any, Optional, cast
 
 import toml
 
+from cloudai.core import TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.util import format_time_limit, parse_time_limit
 
-from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -44,6 +47,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "NVIDIA_DRIVER_CAPABILITIES",
         }
     )
+    HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".stderr", ".toml", ".yaml"})
 
     def _container_mounts(self) -> list[str]:
         # This workload submits its own sbatch job and passes mounts via `-cm`.
@@ -86,12 +90,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
 
         launcher_python = str((venv_path / "bin" / "python").absolute())
+        post_hook_sbatch_path = self._gen_post_hook_sbatch() if self.test_run.post_test else None
         full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
             " ".join(parts),
             launcher_python,
             args.wandb_version,
             args.numpy_version,
             pre_hook_sbatch_path=pre_hook_sbatch_path,
+            post_hook_sbatch_path=post_hook_sbatch_path,
             base_slurm_params=base_slurm_params,
             capture_nodelist=capture_nodelist,
         )
@@ -204,11 +210,166 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
         return sbatch_path
 
+    def _gen_post_hook_sbatch(self) -> Path:
+        """Generate a standalone sbatch script running post-hook tests."""
+        post_test = self.test_run.post_test
+        if post_test is None:
+            raise RuntimeError("post_test sbatch requested but post_test is not configured.")
+        if not post_test.test_runs:
+            raise RuntimeError("post_test is configured but contains no test runs.")
+
+        post_hook_output = self.test_run.output_path / "post_hook"
+        post_hook_output.mkdir(parents=True, exist_ok=True)
+
+        first_tr = post_test.test_runs[0]
+        first_strategy = self._get_cmd_gen_strategy(first_tr)
+        self._set_hook_output_path(first_tr, self.test_run.output_path / "post_test")
+        first_tr.output_path.mkdir(parents=True, exist_ok=True)
+
+        sbatch_lines = [
+            "#!/bin/bash",
+            f"#SBATCH --job-name=post_hook_{self.job_name()}",
+            f"#SBATCH --output={post_hook_output.absolute() / 'stdout.txt'}",
+            f"#SBATCH --error={post_hook_output.absolute() / 'stderr.txt'}",
+            f"#SBATCH --partition={self.system.default_partition}",
+        ]
+        if self.system.account:
+            sbatch_lines.append(f"#SBATCH --account={self.system.account}")
+        hostfile = self._append_post_hook_resource_directives(first_strategy, post_test, sbatch_lines)
+        if hostfile is not None:
+            sbatch_lines.append(f"export SLURM_HOSTFILE={hostfile}")
+        sbatch_lines.extend(
+            [
+                "",
+                "export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)",
+                "",
+            ]
+        )
+
+        for tr in post_test.test_runs:
+            strategy = first_strategy if tr is first_tr else self._get_cmd_gen_strategy(tr)
+            if tr is not first_tr:
+                self._set_hook_output_path(tr, self.test_run.output_path / "post_test")
+                tr.output_path.mkdir(parents=True, exist_ok=True)
+            srun_command = strategy.gen_srun_command()
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={tr.output_path / 'stdout.txt'} --error={tr.output_path / 'stderr.txt'} ", 1
+            )
+            sbatch_lines.append(srun_command_with_output)
+
+        sbatch_path = self.test_run.output_path / "post_hook_sbatch_script.sh"
+        sbatch_path.write_text("\n".join(sbatch_lines))
+        sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
+        return sbatch_path
+
+    def _append_post_hook_resource_directives(
+        self,
+        strategy: SlurmCommandGenStrategy,
+        post_test: TestScenario,
+        sbatch_lines: list[str],
+    ) -> Optional[Path]:
+        allocation_run = strategy.test_run
+        original_num_nodes = allocation_run.num_nodes
+        original_nodes = allocation_run.nodes
+        original_exclude_nodes = allocation_run.exclude_nodes
+        allocation_strategy = self._get_cmd_gen_strategy(allocation_run)
+
+        try:
+            allocation_run.num_nodes = self._max_post_hook_nodes(post_test.test_runs)
+            allocation_run.nodes = self._aggregate_post_hook_nodes(post_test.test_runs)
+            allocation_run.exclude_nodes = self._aggregate_post_hook_exclude_nodes(post_test.test_runs)
+            return allocation_strategy._append_resource_directives(
+                sbatch_lines,
+                self._post_hook_time_limit(post_test.test_runs),
+            )
+        finally:
+            allocation_run.num_nodes = original_num_nodes
+            allocation_run.nodes = original_nodes
+            allocation_run.exclude_nodes = original_exclude_nodes
+
+    @staticmethod
+    def _max_post_hook_nodes(test_runs: list[TestRun]) -> int:
+        return max(max(tr.num_nodes) if isinstance(tr.num_nodes, list) else tr.num_nodes for tr in test_runs)
+
+    @staticmethod
+    def _aggregate_post_hook_nodes(test_runs: list[TestRun]) -> list[str]:
+        return list(dict.fromkeys(node for tr in test_runs for node in tr.nodes))
+
+    @staticmethod
+    def _aggregate_post_hook_exclude_nodes(test_runs: list[TestRun]) -> list[str]:
+        return list(dict.fromkeys(node for tr in test_runs for node in tr.exclude_nodes))
+
+    @staticmethod
+    def _post_hook_time_limit(test_runs: list[TestRun]) -> Optional[str]:
+        time_limits = [tr.time_limit for tr in test_runs if tr.time_limit]
+        if not time_limits:
+            return None
+        total_time_limit = parse_time_limit(time_limits[0])
+        for time_limit in time_limits[1:]:
+            total_time_limit += parse_time_limit(time_limit)
+        return format_time_limit(total_time_limit)
+
     def store_test_run(self) -> None:
         test_cmd = self.gen_exec_command()
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
+        details = trd.model_dump()
+        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            toml.dump(trd.model_dump(), f)
+            toml.dump(details, f)
+
+    def cleanup_job_artifacts(self) -> None:  # noqa: C901
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        output_path = self.test_run.output_path
+        if not output_path.exists():
+            return
+
+        cleanup_failures: list[Path] = []
+        experiments_path = output_path / "experiments"
+        if experiments_path.is_dir():
+            for code_path in list(experiments_path.rglob("code")):
+                if code_path.is_symlink() or not code_path.is_dir():
+                    continue
+                try:
+                    shutil.rmtree(code_path)
+                    logging.debug("Removed packaged code directory from job artifacts: %s", code_path)
+                except OSError:
+                    cleanup_failures.append(code_path)
+                    logging.warning("Failed to remove packaged code directory: %s", code_path, exc_info=True)
+
+        token = tdef.cmd_args.hf_token
+        if token and token != HF_TOKEN_REDACTION:
+            token_bytes = token.encode()
+            redaction_bytes = b"X" * len(token_bytes)
+            for path in output_path.rglob("*"):
+                if path.is_symlink() or not path.is_file():
+                    continue
+                if path.suffix.lower() not in self.HF_TOKEN_ARTIFACT_SUFFIXES:
+                    continue
+
+                try:
+                    redacted = False
+                    with path.open("r+b") as f:
+                        tail = b""
+                        while chunk := f.read(1024 * 1024):
+                            contents = tail + chunk
+                            read_end = f.tell()
+                            start = 0
+                            while (match := contents.find(token_bytes, start)) != -1:
+                                f.seek(read_end - len(contents) + match)
+                                f.write(redaction_bytes)
+                                start = match + len(token_bytes)
+                                redacted = True
+                            f.seek(read_end)
+                            # Retain unprocessed bytes that could start a token across chunks.
+                            tail = contents[max(start, len(contents) - len(token_bytes) + 1) :]
+                    if redacted:
+                        logging.debug("Redacted Hugging Face token from job artifact: %s", path)
+                except OSError:
+                    cleanup_failures.append(path)
+                    logging.warning("Failed to redact Hugging Face token from job artifact: %s", path, exc_info=True)
+
+        if cleanup_failures:
+            raise RuntimeError(f"Failed to clean {len(cleanup_failures)} job artifact(s).")
 
     def _write_command_to_file(self, command: str, output_path: Path) -> None:
         log_file = output_path / "cloudai_generated_command.sh"
@@ -305,6 +466,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         wandb_version: str,
         numpy_version: str,
         pre_hook_sbatch_path: Optional[Path] = None,
+        post_hook_sbatch_path: Optional[Path] = None,
         base_slurm_params: str = "",
         capture_nodelist: bool = False,
     ) -> str:
@@ -316,6 +478,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         If pre_hook_sbatch_path is provided, the pre-hook sbatch is submitted first and its job ID is used as
         a Slurm dependency (afterok) for the main training job, so training only starts if the pre-hook passed.
+
+        If post_hook_sbatch_path is provided, the post-hook sbatch is submitted with an afterany dependency on
+        the main training job, and CloudAI tracks the post-hook job ID.
         """
         output_dir = self.test_run.output_path.absolute()
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -373,6 +538,20 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             launch_line = f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?'
 
+        post_hook_lines: list[str] = ['  echo "Submitted batch job ${JOB_ID}"']
+        if post_hook_sbatch_path is not None:
+            post_hook_lines = [
+                '  echo "Submitted batch job ${JOB_ID}"',
+                f'  POST_HOOK_SBATCH="{post_hook_sbatch_path.absolute()}"',
+                '  POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID} "$POST_HOOK_SBATCH" 2>&1)',
+                '  POST_HOOK_JOB_ID=$(echo "$POST_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
+                '  if [ -z "$POST_HOOK_JOB_ID" ]; then',
+                '    echo "Failed to submit post-hook job: $POST_HOOK_OUTPUT" >&2',
+                "    exit 1",
+                "  fi",
+                '  echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"',
+            ]
+
         script_lines = [
             "#!/usr/bin/env bash",
             "set -o pipefail",
@@ -413,7 +592,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
             '    tail -n 40 "$LOG" >&2 || true',
             "  fi",
-            '  echo "Submitted batch job ${JOB_ID}"',
+            *post_hook_lines,
             "else",
             '  echo "Failed to retrieve job ID." >&2',
             '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
@@ -449,6 +628,22 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         }
         overrides.update(extra_cmd_args)
         return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
+
+    @staticmethod
+    def _with_default_packager(repo_path: Path, extra_cmd_args: dict[str, str]) -> dict[str, str]:
+        """Disable source packaging when the installed Megatron-Bridge version supports the option."""
+        overrides = extra_cmd_args.copy()
+        argument_parser_path = repo_path / "scripts" / "performance" / "argument_parser.py"
+        try:
+            argument_parser_source = argument_parser_path.read_text()
+        except OSError:
+            logging.debug("Unable to inspect Megatron-Bridge argument parser at %s", argument_parser_path)
+        else:
+            # r0.3.0 forwards unknown setup_experiment.py arguments to run_script.py, where Hydra rejects them.
+            # Only inject this default when the installed Megatron-Bridge parser advertises native support.
+            if '"--packager"' in argument_parser_source or "'--packager'" in argument_parser_source:
+                overrides.setdefault("--packager", "none")
+        return overrides
 
     def _build_launcher_parts(  # noqa: C901
         self,
@@ -619,6 +814,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Misc
         if "moe_a2a_overlap" in fields_set:
             add_field("moe_a2a_overlap", "--moe_a2a_overlap", bool(args.moe_a2a_overlap))
+        add_field(
+            "moe_flex_dispatcher_backend",
+            "--moe_flex_dispatcher_backend",
+            args.moe_flex_dispatcher_backend,
+        )
         add_field("max_steps", "-ms", args.max_steps)
         add_field("recompute_num_layers", "-rl", args.recompute_num_layers)
         add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
@@ -677,6 +877,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append("--list_config_variants")
 
         # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
-        parts.extend(self._add_extra_cmd_args(tdef.extra_cmd_args))
+        extra_cmd_args = self._with_default_packager(repo_path, tdef.extra_cmd_args)
+        parts.extend(self._add_extra_cmd_args(extra_cmd_args))
 
         return parts
