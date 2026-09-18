@@ -100,8 +100,8 @@ class SlurmSystem(System):
 
     group_allocated: set[SlurmNode] = Field(default_factory=set, exclude=True)
 
-    _REQUIRED_BINARIES: ClassVar[tuple[str, ...]] = (
-        "git",
+    _REQUIRED_LOCAL_BINARIES: ClassVar[tuple[str, ...]] = ("git",)
+    _REQUIRED_SLURM_CLI_BINARIES: ClassVar[tuple[str, ...]] = (
         "sbatch",
         "sinfo",
         "squeue",
@@ -343,6 +343,10 @@ class SlurmSystem(System):
 
     def validate_install_environment(self) -> None:
         """Validate that the configured Slurm environment can run CloudAI workloads."""
+        for binary in self._REQUIRED_LOCAL_BINARIES:
+            if shutil.which(binary) is None:
+                raise EnvironmentError(f"Required binary '{binary}' is not installed.")
+
         if self.uses_slurm_api:
             try:
                 self._rest_client.validate()
@@ -350,7 +354,7 @@ class SlurmSystem(System):
                 raise EnvironmentError(f"Failed to access the Slurm REST API: {exc}") from exc
             return
 
-        for binary in self._REQUIRED_BINARIES:
+        for binary in self._REQUIRED_SLURM_CLI_BINARIES:
             if shutil.which(binary) is None:
                 raise EnvironmentError(f"Required binary '{binary}' is not installed.")
 

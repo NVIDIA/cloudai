@@ -239,7 +239,9 @@ class SlurmRestClient:
                 self._apply_sbatch_directive(job, option, value)
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
-        job["environment"] = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}
+        environment = dict(os.environ)
+        environment.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+        job["environment"] = environment
         return job
 
     def submit_sbatch(
