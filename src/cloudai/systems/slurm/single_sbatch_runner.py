@@ -24,6 +24,7 @@ from typing import Generator, Optional, cast
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams
 from cloudai.core import BaseJob, JobIdRetrievalError, JobStatusResult, Registry, System, TestRun, TestScenario
+from cloudai.models import output as output_models
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -206,10 +207,9 @@ class SingleSbatchRunner(SlurmRunner):
         finally:
             self.jobs.remove(job)
 
-        self.handle_dse()
-
         self.on_job_completion(job)
-        self.update_run_output(job)
+        self.update_run_output(job, JobStatusResult(is_successful=is_completed))
+        self.handle_dse()
 
     def handle_dse(self):
         registry = Registry()
@@ -222,31 +222,67 @@ class SingleSbatchRunner(SlurmRunner):
             agent_config = agent_class.get_config_class()(**agent_config_data)
             gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
 
-            for idx, combination in enumerate(tr.all_combinations, start=1):
-                sampled_env_params = gym.params.sample(idx) if gym.params is not None else {}
-                next_tr = tr.apply_params_set(combination, env_params=sampled_env_params)
-                next_tr.step = idx
-                next_tr.output_path = self.get_job_output_path(next_tr)
+            try:
+                for idx, combination in enumerate(tr.all_combinations, start=1):
+                    sampled_env_params = gym.params.sample(idx) if gym.params is not None else {}
+                    next_tr = tr.apply_params_set(combination, env_params=sampled_env_params)
+                    next_tr.step = idx
+                    next_tr.output_path = self.get_job_output_path(next_tr)
 
-                if not next_tr.test.constraint_check(next_tr, self.system):
-                    continue
+                    if not next_tr.test.constraint_check(next_tr, self.system):
+                        continue
 
-                gym.test_run = next_tr
-                observation = gym.get_observation()
-                reward = gym.compute_reward(observation)
-                gym.trajectory.append(
-                    step=idx,
-                    action=combination,
-                    reward=reward,
-                    observation=observation,
-                    env_params=sampled_env_params,
-                )
+                    gym.test_run = next_tr
+                    observation = gym.get_observation()
+                    reward = gym.compute_reward(observation)
+                    gym.trajectory.append(
+                        step=idx,
+                        action=combination,
+                        reward=reward,
+                        observation=observation,
+                        env_params=sampled_env_params,
+                    )
+            finally:
+                gym.update_output()
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
         return list(self.all_trs)
 
-    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> None:
-        return None
+    def get_run_output(
+        self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
+    ) -> output_models.Run | None:
+        run_job = copy.copy(cast(SlurmJob, job))
+        allocation_metadata = run_job.metadata
+        run_job.metadata = None
+        output_arg = f"--output={tr.output_path.absolute()}/stdout.txt"
+        steps = (
+            [step for step in allocation_metadata.job_steps if output_arg in step.submit_line.split()]
+            if allocation_metadata is not None
+            else []
+        )
+        if result is not None:
+            if not steps and not (tr.output_path / "stdout.txt").exists():
+                result = None
+            else:
+                try:
+                    result = tr.test.was_run_successful(tr)
+                except Exception as exc:
+                    logging.warning("Cannot determine output status for %s: %s", tr.output_path, exc)
+                    return None
+        run = super().get_run_output(run_job, tr, result)
+        if run is None:
+            return None
+        if run.status == "failed" and any(step.state.startswith("CANCELLED") for step in steps):
+            run.status = "cancelled"
+        starts = [self._output_timestamp(step.start_time) for step in steps]
+        finishes = [self._output_timestamp(step.end_time) for step in steps]
+        if starts and all(start is not None for start in starts):
+            run.start = min(start for start in starts if start is not None)
+        if finishes and all(finish is not None for finish in finishes):
+            run.finish = max(finish for finish in finishes if finish is not None)
+        if len(steps) == 1:
+            run.duration = steps[0].elapsed_time_sec
+        return run
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
