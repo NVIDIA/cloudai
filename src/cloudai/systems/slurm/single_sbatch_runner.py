@@ -23,7 +23,7 @@ from typing import Generator, Optional, cast
 
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams
-from cloudai.core import BaseJob, JobIdRetrievalError, Registry, System, TestRun, TestScenario
+from cloudai.core import BaseJob, JobIdRetrievalError, JobStatusResult, Registry, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -244,6 +244,9 @@ class SingleSbatchRunner(SlurmRunner):
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
         return list(self.all_trs)
+
+    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> None:
+        return None
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:

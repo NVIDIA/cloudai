@@ -19,7 +19,21 @@ import logging
 import pathlib
 import tempfile
 
+import cloudai.metrics
 from cloudai.models import output as output_models
+
+
+def metric_output(observation: cloudai.metrics.MetricObservation) -> output_models.Metric:
+    """Convert a canonical observation to an output metric."""
+    return output_models.Metric(
+        name=observation.metric.display_name,
+        value=observation.value,
+        unit=observation.metric.unit,
+        dimensions=[
+            output_models.Dimension(name=cloudai.metrics.dimension_label(key), value=str(value))
+            for key, value in sorted(observation.dimensions.items())
+        ],
+    )
 
 
 class ExperimentOutput:
@@ -87,14 +101,35 @@ class ExperimentOutput:
                     logging.warning("Cannot remove temporary experiment output %s: %s", temporary_path, exc)
 
     def finish(self, status: output_models.Status, finish: datetime.datetime | None) -> None:
+        for test in self.experiment.tests:
+            for run in test.runs:
+                if run.status in ("pending", "running"):
+                    run.status = "unknown"
+            self._update_test_status(test)
+            self._update_test_metrics(test)
+        if status == "completed":
+            statuses = {test.status for test in self.experiment.tests}
+            for outcome in ("failed", "cancelled", "unknown"):
+                if outcome in statuses:
+                    status = outcome
+                    break
+        for test in self.experiment.tests:
+            if test.status in ("pending", "running"):
+                test.status = "completed" if status == "completed" else "unknown"
         self.experiment.status = status
         self.experiment.finish = finish
-        if status == "completed":
-            for test in self.experiment.tests:
-                if test.status not in ("failed", "cancelled"):
-                    test.status = "completed"
         self._update_timing(self.experiment)
         self.write()
+
+    @staticmethod
+    def _update_test_metrics(test: output_models.Test) -> None:
+        if test.dse is not None:
+            return
+        test.metrics = []
+        if len(test.runs) == 1:
+            run = test.runs[0]
+            if run.status == "completed" and run.step in (None, 0):
+                test.metrics = [metric.model_copy(deep=True) for metric in run.metrics]
 
     @staticmethod
     def _update_test_status(test: output_models.Test) -> None:
@@ -105,6 +140,10 @@ class ExperimentOutput:
             test.status = "cancelled"
         elif "running" in statuses:
             test.status = "running"
+        elif "pending" in statuses:
+            test.status = "pending"
+        elif "unknown" in statuses:
+            test.status = "unknown"
         elif statuses == {"completed"}:
             test.status = "completed"
 
