@@ -16,10 +16,12 @@
 
 import copy
 import logging
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+from cloudai.models import output as output_models
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -188,6 +190,39 @@ class CloudAIGymEnv(BaseGym):
         )
 
         return list(observation.values()), reward, False, info
+
+    def update_output(self) -> None:
+        try:
+            output = self.runner.experiment_output
+            tr = self.original_test_run
+            test = next(test for test in output.snapshot().tests if test.id == tr.name)
+            completed_runs = {
+                run.step: run
+                for run in test.runs
+                if run.status == "completed" and run.iteration == tr.current_iteration
+            }
+            candidates = [
+                row
+                for row in self.trajectory.dataframe.to_dict(orient="records")
+                if row["step"] in completed_runs
+                and math.isfinite(row["reward"])
+                and all(
+                    math.isfinite(row[f"observation.{metric}"])
+                    and row[f"observation.{metric}"] != self.rewards.metric_failure
+                    for metric in tr.test.agent_metrics
+                )
+            ]
+            best = max(candidates, key=lambda row: row["reward"], default=None)
+            test.dse = output_models.DSE(
+                space=tr.param_space,
+                best_step=int(best["step"]) if best is not None else None,
+                best_config={key: best[f"action.{key}"] for key in tr.param_space} if best is not None else None,
+            )
+            test.metrics = completed_runs[best["step"]].metrics if best is not None else []
+            output.update_test(test)
+            output.write()
+        except Exception as exc:
+            logging.warning("Cannot update DSE output for %s: %s", self.original_test_run.name, exc)
 
     def render(self, mode: str = "human"):
         """
