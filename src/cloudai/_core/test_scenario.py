@@ -217,6 +217,10 @@ class TestRun:
         for key, value in full_action.items():
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
+            elif key == "NUM_NODES":
+                # Handled below via new_tr.num_nodes; cmd_args has no such field, and CmdArgs'
+                # extra="allow" would otherwise let this create a phantom attribute on it.
+                continue
             else:
                 attrs = key.split(".")
                 obj = tdef.cmd_args
