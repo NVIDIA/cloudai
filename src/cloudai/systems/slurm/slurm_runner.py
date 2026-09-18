@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import logging
 import re
 from pathlib import Path
@@ -21,7 +22,9 @@ from typing import cast
 
 import toml
 
-from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+import cloudai.output
+from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
+from cloudai.models import output as output_models
 from cloudai.util import CommandShell
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
@@ -43,6 +46,44 @@ class SlurmRunner(BaseRunner):
         self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
         self.pinned_nodes: dict[str, list[str]] = {}
+
+    def get_run_output(
+        self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
+    ) -> output_models.Run | None:
+        metadata = cast(SlurmJob, job).metadata
+        status: output_models.Status = "pending"
+        metrics: list[output_models.Metric] = []
+        if result is not None:
+            status = "completed" if result.is_successful else "failed"
+            if job.terminated_by_dependency or (metadata is not None and metadata.state.startswith("CANCELLED")):
+                status = "cancelled"
+            if status == "completed":
+                try:
+                    metrics = [
+                        cloudai.output.metric_output(observation)
+                        for observation in tr.test.metric_observations(self.system, tr)
+                    ]
+                except Exception as exc:
+                    logging.warning("Cannot extract output metrics for Slurm job %s: %s", job.id, exc)
+        return output_models.Run(
+            path=str(tr.output_path.absolute()),
+            jobid=str(job.id),
+            status=status,
+            metrics=metrics,
+            start=self._output_timestamp(metadata.start_time) if metadata is not None else None,
+            finish=self._output_timestamp(metadata.end_time) if metadata is not None else None,
+            duration=metadata.elapsed_time_sec if metadata is not None else None,
+            iteration=tr.current_iteration,
+            step=tr.step,
+        )
+
+    @staticmethod
+    def _output_timestamp(value: str) -> datetime.datetime | None:
+        try:
+            timestamp = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return timestamp if timestamp.utcoffset() is not None else None
 
     def submit_test(self, tr: TestRun) -> None:
         if tr.pin_nodes and tr.name in self.pinned_nodes:
@@ -147,7 +188,11 @@ class SlurmRunner(BaseRunner):
     def store_job_metadata(self, job: SlurmJob):
         system = cast(SlurmSystem, self.system)
         steps_metadata = [self._mock_job_metadata()] if self.mode == "dry-run" else system.get_job_status(job)
+        if not steps_metadata:
+            logging.warning("No Slurm accounting metadata available for job %s", job.id)
+            return
         slurm_job_file, job_meta = self._get_job_metadata(job, steps_metadata)
+        job.metadata = job_meta
 
         logging.debug(f"Storing job metadata for job {job.id} to {slurm_job_file}")
         with slurm_job_file.open("w") as job_file:

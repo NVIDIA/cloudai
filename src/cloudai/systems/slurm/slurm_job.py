@@ -18,9 +18,12 @@ from dataclasses import dataclass, field
 
 from cloudai.core import BaseJob
 
+from .slurm_metadata import SlurmJobMetadata
+
 
 @dataclass
 class SlurmJob(BaseJob):
     """A job class for execution on a Slurm system."""
 
     nodes: list[str] = field(default_factory=list, init=False)
+    metadata: SlurmJobMetadata | None = field(default=None, init=False)
