@@ -113,7 +113,9 @@ class BaseRunner(ABC):
         self.experiment_output.write()
 
     def finish_output(self, successful: bool) -> None:
-        status = "completed" if successful else "failed"
+        status: cloudai.models.output.Status = "completed" if successful else "failed"
+        if self.shutting_down and not any(test.status == "failed" for test in self.experiment_output.experiment.tests):
+            status = "cancelled"
         self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):

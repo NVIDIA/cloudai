@@ -17,6 +17,7 @@
 import argparse
 import copy
 import logging
+import math
 import signal
 import traceback
 from contextlib import contextmanager
@@ -27,6 +28,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
+import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
@@ -130,6 +132,38 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
+def _update_dse_output(env: CloudAIGymEnv) -> None:
+    try:
+        output = env.runner.experiment_output
+        tr = env.original_test_run
+        test = next(test for test in output.snapshot().tests if test.id == tr.name)
+        completed_runs = {
+            run.step: run for run in test.runs if run.status == "completed" and run.iteration == tr.current_iteration
+        }
+        candidates = [
+            row
+            for row in env.trajectory.dataframe.to_dict(orient="records")
+            if row["step"] in completed_runs
+            and math.isfinite(row["reward"])
+            and all(
+                math.isfinite(row[f"observation.{metric}"])
+                and row[f"observation.{metric}"] != env.rewards.metric_failure
+                for metric in tr.test.agent_metrics
+            )
+        ]
+        best = max(candidates, key=lambda row: row["reward"], default=None)
+        test.dse = cloudai.models.output.DSE(
+            space=tr.param_space,
+            best_step=int(best["step"]) if best is not None else None,
+            best_config={key: best[f"action.{key}"] for key in tr.param_space} if best is not None else None,
+        )
+        test.metrics = completed_runs[best["step"]].metrics if best is not None else []
+        output.update_test(test)
+        output.write()
+    except Exception as exc:
+        logging.warning("Cannot update DSE output for %s: %s", env.original_test_run.name, exc)
+
+
 def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
@@ -173,7 +207,11 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
 
-            err |= agent.run()
+            _update_dse_output(env)
+            try:
+                err |= agent.run()
+            finally:
+                _update_dse_output(env)
     except Exception as exc:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")

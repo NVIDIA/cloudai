@@ -19,8 +19,8 @@ import logging
 from pathlib import Path
 from typing import cast
 
-import cloudai.metrics
 import cloudai.models.output
+import cloudai.output
 from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
@@ -52,7 +52,7 @@ class StandaloneRunner(BaseRunner):
             if result.is_successful:
                 try:
                     observations = tr.test.metric_observations(self.system, tr)
-                    metrics = [self._metric_output(observation) for observation in observations]
+                    metrics = [cloudai.output.metric_output(observation) for observation in observations]
                 except Exception as exc:
                     logging.warning("Cannot extract output metrics for standalone job %s: %s", job.id, exc)
         return cloudai.models.output.Run(
@@ -69,22 +69,6 @@ class StandaloneRunner(BaseRunner):
     def on_job_completion(self, job: BaseJob) -> None:
         standalone_job = cast(StandaloneJob, job)
         standalone_job.finish = datetime.datetime.now(datetime.timezone.utc)
-
-    @staticmethod
-    def _metric_output(observation: cloudai.metrics.MetricObservation) -> cloudai.models.output.Metric:
-        dimensions = [
-            cloudai.models.output.Dimension(
-                name=cloudai.metrics.dimension_label(key),
-                value=str(value),
-            )
-            for key, value in sorted(observation.dimensions.items())
-        ]
-        return cloudai.models.output.Metric(
-            name=observation.metric.display_name,
-            value=observation.value,
-            unit=observation.metric.unit,
-            dimensions=dimensions,
-        )
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")
