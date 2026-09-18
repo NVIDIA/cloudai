@@ -30,11 +30,17 @@ def main() -> None:
     copy = actions.add_parser("copy", add_help=False)
     copy.add_argument("destination")
     copy.add_argument("sources", nargs="+")
+    fetch = actions.add_parser("fetch", add_help=False)
+    fetch.add_argument("source")
+    fetch.add_argument("destination")
     args = parser.parse_args()
 
     ssh = ["ssh", "-T", "-o", "RemoteCommand=none", "-o", "BatchMode=yes"]
     if args.action == "run":
         command = [*ssh, "--", args.host, args.command]
+    elif args.action == "fetch":
+        source = shlex.quote(args.source.removeprefix("~/"))
+        command = ["rsync", "-a", "-e", shlex.join(ssh), "--", f"{args.host}:{source}", args.destination]
     else:
         command = ["rsync", "-a", "-e", shlex.join(ssh)]
         for pattern in (
@@ -50,6 +56,8 @@ def main() -> None:
             "__pycache__",
             "*.py[cod]",
             "*.egg-info",
+            "results/",
+            "install/",
         ):
             command.extend(["--exclude", pattern])
         destination = shlex.quote(args.destination.removeprefix("~/"))
