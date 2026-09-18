@@ -25,7 +25,7 @@
         {% elif item.is_successful %}
             <td class="status-passed">PASSED</td>
         {% else %}
-            <td class="status-failed">FAILED{% if item.error_message %}<br>{{ item.error_message }}{% endif %}</td>
+            <td class="status-failed">FAILED{% if item.error_message %}<br>{{ item.error_message | truncate(500, true, '…', 0) | e }}{% endif %}</td>
         {% endif %}
         {% if item.logs_path %}
             <td><a href="{{ item.logs_path }}">logs</a></td>

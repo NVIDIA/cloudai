@@ -411,6 +411,32 @@ def test_scenario_report_shows_pass_fail_status(
     assert "command failed" in report_html
 
 
+def test_scenario_report_escapes_error_message(
+    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Error messages are attacker/tool-controlled output and must be escaped before
+    being embedded in the saved HTML report."""
+    from cloudai.core import JobStatusResult
+
+    monkeypatch.setattr(
+        type(benchmark_tr.test),
+        "was_run_successful",
+        lambda self, tr: JobStatusResult(False, "<script>alert(1)</script>"),
+    )
+
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="test-scenario", test_runs=[benchmark_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+    reporter.generate()
+
+    report_html = (slurm_system.output_path / "test-scenario.html").read_text()
+    assert "<script>alert(1)</script>" not in report_html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in report_html
+
+
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
