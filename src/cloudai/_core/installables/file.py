@@ -62,10 +62,12 @@ class File(Installable):
 
     def is_installed(self, installer: "BaseInstaller") -> InstallStatusResult:
         installed_path = installer.system.install_path / self.src.name
-        if installed_path.exists() and installed_path.read_text() == self.src.read_text():
-            self.installed_path = installed_path
-            return InstallStatusResult(True)
-        return InstallStatusResult(False, f"File {installed_path} does not exist")
+        if not installed_path.exists():
+            return InstallStatusResult(False, f"File {installed_path} does not exist")
+        if installed_path.read_bytes() != self.src.read_bytes():
+            return InstallStatusResult(False, f"File {installed_path} differs from {self.src}")
+        self.installed_path = installed_path
+        return InstallStatusResult(True)
 
     def mark_as_installed(self, installer: "BaseInstaller") -> InstallStatusResult:
         self.installed_path = installer.system.install_path / self.src.name
