@@ -58,3 +58,21 @@ def test_is_installed_checks_content(installer: BaseInstaller, f: File):
 
     res = f.is_installed(installer)
     assert not res.success
+    assert res.message == f"File {f.installed_path} differs from {f.src}"
+
+
+def test_is_installed_missing_file(installer: BaseInstaller, f: File):
+    res = f.is_installed(installer)
+    assert not res.success
+    assert res.message == f"File {installer.system.install_path / f.src.name} does not exist"
+
+
+def test_is_installed_binary_file(installer: BaseInstaller, tmp_path: Path):
+    src = tmp_path / "file.bin"
+    src.write_bytes(b"\xff\xfe\x00 not valid UTF-8")
+    f = File(src)
+    f.install(installer)
+
+    res = f.is_installed(installer)
+    assert res.success
+    assert f.installed_path == installer.system.install_path / src.name
