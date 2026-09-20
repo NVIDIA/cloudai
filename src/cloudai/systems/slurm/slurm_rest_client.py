@@ -173,10 +173,7 @@ class SlurmRestClient:
             before_sleep=tenacity.before_sleep_log(logger, logging.WARNING),
             reraise=True,
         )
-        try:
-            return retrying(self._request_once, method, service, path, payload)
-        except (requests.RequestException, ValueError, RuntimeError) as exc:
-            raise RuntimeError(f"Slurm API request failed after {retry_threshold} attempt(s): {exc}") from exc
+        return retrying(self._request_once, method, service, path, payload)
 
     @classmethod
     def _parse_sbatch_line(cls, line: str) -> list[tuple[str, str]]:

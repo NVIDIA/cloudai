@@ -179,7 +179,7 @@ class SlurmSystem(System):
         if self.uses_slurm_api:
             try:
                 self.supports_gpu_directives_cache = self._rest_client.has_gpus()
-            except RuntimeError as exc:
+            except Exception as exc:
                 logging.warning("Error checking GPU support: %s", exc)
                 self.supports_gpu_directives_cache = True
                 return True
@@ -350,7 +350,7 @@ class SlurmSystem(System):
         if self.uses_slurm_api:
             try:
                 self._rest_client.validate()
-            except RuntimeError as exc:
+            except Exception as exc:
                 raise EnvironmentError(f"Failed to access the Slurm REST API: {exc}") from exc
             return
 
