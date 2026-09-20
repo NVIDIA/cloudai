@@ -34,11 +34,10 @@ To list all available reports, users can use ``cloudai list-reports``. Use verbo
 Unified experiment output
 -------------------------
 
-CloudAI writes ``experiment.json`` in each scenario's results directory. Scripts and other tools can read this file
-without parsing logs or HTML reports.
+CloudAI writes ``experiment.json`` in each scenario's results directory.
 
 The file contains scenario details, test cases, status, timing, and result paths. Standalone execution also records each
-run's process ID, status, iteration, timing, and workload metrics. Repeated runs keep their own measurements.
+run's process ID, status, iteration, timing, and workload metrics.
 
 CloudAI updates the file when standalone runs start and finish, then finalizes it when scenario execution succeeds or
 fails. Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. Dry runs also produce scenario and
