@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import cast
 
 import cloudai.metrics
+import cloudai.models.output
 from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
-from cloudai.models import output as output_models
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
@@ -39,10 +39,12 @@ class StandaloneRunner(BaseRunner):
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
-    def get_run_output(self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None) -> output_models.Run:
+    def get_run_output(
+        self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
+    ) -> cloudai.models.output.Run:
         standalone_job = cast(StandaloneJob, job)
-        status: output_models.Status = "running"
-        metrics: list[output_models.Metric] = []
+        status: cloudai.models.output.Status = "running"
+        metrics: list[cloudai.models.output.Metric] = []
         if result is not None:
             status = "completed" if result.is_successful else "failed"
             if job.terminated_by_dependency:
@@ -53,7 +55,7 @@ class StandaloneRunner(BaseRunner):
                     metrics = [self._metric_output(observation) for observation in observations]
                 except Exception as exc:
                     logging.warning("Cannot extract output metrics for standalone job %s: %s", job.id, exc)
-        return output_models.Run(
+        return cloudai.models.output.Run(
             path=str(tr.output_path.absolute()),
             jobid=str(job.id),
             status=status,
@@ -69,15 +71,15 @@ class StandaloneRunner(BaseRunner):
         standalone_job.finish = datetime.datetime.now(datetime.timezone.utc)
 
     @staticmethod
-    def _metric_output(observation: cloudai.metrics.MetricObservation) -> output_models.Metric:
+    def _metric_output(observation: cloudai.metrics.MetricObservation) -> cloudai.models.output.Metric:
         dimensions = [
-            output_models.Dimension(
+            cloudai.models.output.Dimension(
                 name=cloudai.metrics.dimension_label(key),
                 value=str(value),
             )
             for key, value in sorted(observation.dimensions.items())
         ]
-        return output_models.Metric(
+        return cloudai.models.output.Metric(
             name=observation.metric.display_name,
             value=observation.value,
             unit=observation.metric.unit,

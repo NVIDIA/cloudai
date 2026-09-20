@@ -25,10 +25,10 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
+import cloudai.models.output
 from cloudai.cli import setup_logging
 from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
-from cloudai.models.output import Experiment
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -190,7 +190,9 @@ class TestInDryRun:
     def test_experiment_output_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
         tmp_path, scenario = do_dry_run
         results_output = next(path for path in tmp_path.iterdir() if path.is_dir())
-        experiment = Experiment.model_validate_json((results_output / "experiment.json").read_text())
+        experiment = cloudai.models.output.Experiment.model_validate_json(
+            (results_output / "experiment.json").read_text()
+        )
 
         assert experiment.model_dump() == {
             "id": results_output.name,

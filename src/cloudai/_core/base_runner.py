@@ -21,8 +21,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List
 
-from cloudai.models import output as output_models
-from cloudai.output import ExperimentOutput
+import cloudai.models.output
+import cloudai.output
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
@@ -74,14 +74,14 @@ class BaseRunner(ABC):
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
         output_path = self.scenario_root.absolute()
-        experiment = output_models.Experiment(
+        experiment = cloudai.models.output.Experiment(
             id=output_path.name,
             name=self.test_scenario.name,
             status="running",
             path=str(output_path),
             start=datetime.datetime.now(datetime.timezone.utc),
             tests=[
-                output_models.Test(
+                cloudai.models.output.Test(
                     id=str(tr.name),
                     name=tr.test.name,
                     description=tr.test.description,
@@ -90,11 +90,11 @@ class BaseRunner(ABC):
                 for tr in self.test_scenario.test_runs
             ],
         )
-        self.experiment_output = ExperimentOutput(experiment, output_path)
+        self.experiment_output = cloudai.output.ExperimentOutput(experiment, output_path)
 
     def get_run_output(
         self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
-    ) -> output_models.Run | None:
+    ) -> cloudai.models.output.Run | None:
         """Normalize one logical execution; result is absent at submission."""
         return None
 

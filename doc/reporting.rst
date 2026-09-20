@@ -34,16 +34,18 @@ To list all available reports, users can use ``cloudai list-reports``. Use verbo
 Unified experiment output
 -------------------------
 
-Ordinary Slurm scenarios write ``experiment.json`` in the scenario results directory when execution finishes or fails.
-The file contains experiment metadata, test cases, submitted runs, statuses, timing, and canonical metrics from
-``TestDefinition.metric_observations()``. NCCL and NIXLBench provide these metrics; other workloads have empty metric lists.
-Test-level metrics are arithmetic means of successful iterations at matching metric and dimension points. Per-run
-measurements retain their original values, and missing measurements are not treated as zero.
+CloudAI writes ``experiment.json`` in each scenario's results directory. Scripts and other tools can read this file
+without parsing logs or HTML reports.
 
-Experiment timing covers scenario execution, including gaps between jobs. Run timestamps without timezone information
-are null. Metric extraction and output-write failures produce warnings without changing execution behavior. The file is
-replaced atomically and is independent of reporter configuration. Dry runs, DSE, and single-sbatch execution do not produce
-this artifact.
+The file contains scenario details, test cases, status, timing, and result paths. Standalone execution also records each
+run's process ID, status, iteration, timing, and workload metrics. Repeated runs keep their own measurements.
+
+CloudAI updates the file when standalone runs start and finish, then finalizes it when scenario execution succeeds or
+fails. Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. Dry runs also produce scenario and
+test-case details without launching workloads.
+
+Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings. Each file update replaces
+the previous snapshot atomically. Metric extraction or write errors produce warnings without affecting execution.
 
 
 .. _general-flow:

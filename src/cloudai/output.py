@@ -19,17 +19,17 @@ import logging
 import pathlib
 import tempfile
 
-from cloudai.models import output as output_models
+import cloudai.models.output
 
 
 class ExperimentOutput:
     """Collect experiment results and publish snapshots."""
 
-    def __init__(self, experiment: output_models.Experiment, output_path: pathlib.Path) -> None:
+    def __init__(self, experiment: cloudai.models.output.Experiment, output_path: pathlib.Path) -> None:
         self.experiment = experiment.model_copy(deep=True)
         self.output_path = output_path
 
-    def update_run(self, test_id: str, run: output_models.Run) -> None:
+    def update_run(self, test_id: str, run: cloudai.models.output.Run) -> None:
         """Store the latest state of a run, identified by test and output path."""
         test = next((test for test in self.experiment.tests if test.id == test_id), None)
         if test is None:
@@ -43,7 +43,7 @@ class ExperimentOutput:
         test.runs.append(recorded)
         self._update_test_status(test)
 
-    def update_test(self, test: output_models.Test) -> None:
+    def update_test(self, test: cloudai.models.output.Test) -> None:
         """Update a test while retaining its previously recorded runs."""
         recorded = test.model_copy(deep=True)
         for index, current in enumerate(self.experiment.tests):
@@ -56,7 +56,7 @@ class ExperimentOutput:
                 return
         self.experiment.tests.append(recorded)
 
-    def snapshot(self) -> output_models.Experiment:
+    def snapshot(self) -> cloudai.models.output.Experiment:
         """Return an independent snapshot without finalizing the experiment."""
         full = self.experiment.model_copy(deep=True)
         self._update_timing(full)
@@ -86,7 +86,7 @@ class ExperimentOutput:
                 except OSError as exc:
                     logging.warning("Cannot remove temporary experiment output %s: %s", temporary_path, exc)
 
-    def finish(self, status: output_models.Status, finish: datetime.datetime | None) -> None:
+    def finish(self, status: cloudai.models.output.Status, finish: datetime.datetime | None) -> None:
         self.experiment.status = status
         self.experiment.finish = finish
         if status == "completed":
@@ -97,7 +97,7 @@ class ExperimentOutput:
         self.write()
 
     @staticmethod
-    def _update_test_status(test: output_models.Test) -> None:
+    def _update_test_status(test: cloudai.models.output.Test) -> None:
         statuses = {run.status for run in test.runs}
         if "failed" in statuses:
             test.status = "failed"
@@ -109,7 +109,7 @@ class ExperimentOutput:
             test.status = "completed"
 
     @staticmethod
-    def _update_timing(record: output_models.Experiment | output_models.Run) -> None:
+    def _update_timing(record: cloudai.models.output.Experiment | cloudai.models.output.Run) -> None:
         for field in ("start", "finish"):
             value = getattr(record, field)
             if value is not None:

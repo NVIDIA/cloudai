@@ -17,22 +17,22 @@
 import datetime
 import pathlib
 
-from cloudai.models import output as output_models
-from cloudai.output import ExperimentOutput
+import cloudai.models.output
+import cloudai.output
 
 
 def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathlib.Path) -> None:
     start = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
-    experiment = output_models.Experiment(
+    experiment = cloudai.models.output.Experiment(
         id="experiment",
         name="scenario",
         status="running",
         path=str(tmp_path),
         start=start,
-        tests=[output_models.Test(id="case", name="workload", path=str(tmp_path / "case"))],
+        tests=[cloudai.models.output.Test(id="case", name="workload", path=str(tmp_path / "case"))],
     )
-    experiment_output = ExperimentOutput(experiment, tmp_path)
-    first_run = output_models.Run(
+    experiment_output = cloudai.output.ExperimentOutput(experiment, tmp_path)
+    first_run = cloudai.models.output.Run(
         path=str(tmp_path / "case" / "0"),
         jobid="101",
         status="completed",
@@ -41,7 +41,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
         iteration=0,
         step=0,
     )
-    second_run = output_models.Run(
+    second_run = cloudai.models.output.Run(
         path=str(tmp_path / "case" / "1"),
         jobid="102",
         status="running",
@@ -57,7 +57,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     experiment_output.update_run("case", second_run)
     experiment_output.finish("failed", start + datetime.timedelta(seconds=5))
 
-    stored = output_models.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
+    stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
     assert stored.model_dump() == {
         "id": "experiment",
         "name": "scenario",
