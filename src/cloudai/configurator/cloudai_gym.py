@@ -86,7 +86,7 @@ class CloudAIGymEnv(BaseGym):
         try:
             tr = self.original_test_run
             output = self.runner.experiment_output
-            output.update_dse(str(tr.name), tr.current_iteration, tr.param_space, self._ranked_dse_candidates())
+            output.update_dse(str(tr.name), tr.param_space, self._ranked_dse_candidates())
             output.write()
         except Exception as exc:
             logging.warning("Cannot update DSE output for %s: %s", self.original_test_run.name, exc)
