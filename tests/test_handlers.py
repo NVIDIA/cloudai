@@ -440,7 +440,6 @@ def test_dse_output_selects_completed_trial(
                     path=str(env.iteration_dir / str(step)),
                     jobid=str(step),
                     step=step,
-                    iteration=0,
                     status="failed" if step in failed_steps else "completed",
                     metrics=[cloudai.models.output.Metric(name="Bandwidth", value=12.5 * step, unit="GB/s")],
                 ),
@@ -452,17 +451,6 @@ def test_dse_output_selects_completed_trial(
                 observation={metric: last_observation if step == 2 else 1.0 for metric in dse_tr.test.agent_metrics},
                 env_params={},
             )
-        env.runner.experiment_output.update_run(
-            dse_tr.name,
-            cloudai.models.output.Run(
-                path=str(env.iteration_dir.parent / "1" / "2"),
-                jobid="other-iteration",
-                step=2,
-                iteration=1,
-                status="completed",
-                metrics=[cloudai.models.output.Metric(name="Bandwidth", value=100, unit="GB/s")],
-            ),
-        )
         if failed_steps:
             raise RuntimeError("trial failed")
         return 0
@@ -488,7 +476,7 @@ def test_dse_output_selects_completed_trial(
         if best_step is not None
         else []
     )
-    assert len(stored.tests[0].runs) == 3
+    assert len(stored.tests[0].runs) == 2
 
 
 def test_handle_dse_job_propagates_agent_run_nonzero_rc(

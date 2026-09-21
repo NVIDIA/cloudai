@@ -73,7 +73,6 @@ class ExperimentOutput:
     def update_dse(
         self,
         test_id: str,
-        iteration: int,
         space: dict[str, list[str | int | float]],
         candidates: list[tuple[int, dict[str, str | int | float]]],
     ) -> None:
@@ -81,9 +80,7 @@ class ExperimentOutput:
         test = next((test for test in self.experiment.tests if test.id == test_id), None)
         if test is None:
             raise KeyError(f"Unknown experiment test: {test_id}")
-        completed_runs = {
-            run.step: run for run in test.runs if run.status == "completed" and run.iteration == iteration
-        }
+        completed_runs = {run.step: run for run in test.runs if run.status == "completed"}
         for step, config in candidates:
             if step in completed_runs:
                 test.dse = cloudai.models.output.DSE(space=space, best_step=step, best_config=config)
