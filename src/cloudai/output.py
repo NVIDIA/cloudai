@@ -70,6 +70,28 @@ class ExperimentOutput:
                 return
         self.experiment.tests.append(recorded)
 
+    def update_dse(
+        self,
+        test_id: str,
+        iteration: int,
+        space: dict[str, list[str | int | float]],
+        candidates: list[tuple[int, dict[str, str | int | float]]],
+    ) -> None:
+        """Store the first ranked candidate with a successful run and its metrics."""
+        test = next((test for test in self.experiment.tests if test.id == test_id), None)
+        if test is None:
+            raise KeyError(f"Unknown experiment test: {test_id}")
+        completed_runs = {
+            run.step: run for run in test.runs if run.status == "completed" and run.iteration == iteration
+        }
+        for step, config in candidates:
+            if step in completed_runs:
+                test.dse = cloudai.models.output.DSE(space=space, best_step=step, best_config=config)
+                test.metrics = [metric.model_copy(deep=True) for metric in completed_runs[step].metrics]
+                return
+        test.dse = cloudai.models.output.DSE(space=space)
+        test.metrics = []
+
     def snapshot(self) -> cloudai.models.output.Experiment:
         """Return an independent snapshot without finalizing the experiment."""
         full = self.experiment.model_copy(deep=True)
