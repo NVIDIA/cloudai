@@ -16,6 +16,7 @@
 
 import copy
 import logging
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
@@ -61,6 +62,34 @@ class CloudAIGymEnv(BaseGym):
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
+
+    def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
+        """Return valid trial steps and configurations in descending reward order."""
+        tr = self.original_test_run
+        candidates = [
+            row
+            for row in self.trajectory.dataframe.to_dict(orient="records")
+            if math.isfinite(row["reward"])
+            and all(
+                math.isfinite(row[f"observation.{metric}"])
+                and row[f"observation.{metric}"] != self.rewards.metric_failure
+                for metric in tr.test.agent_metrics
+            )
+        ]
+        return [
+            (int(row["step"]), {key: row[f"action.{key}"] for key in tr.param_space})
+            for row in sorted(candidates, key=lambda row: row["reward"], reverse=True)
+        ]
+
+    def update_output(self) -> None:
+        """Publish the DSE recommendation without interrupting execution on output errors."""
+        try:
+            tr = self.original_test_run
+            output = self.runner.experiment_output
+            output.update_dse(str(tr.name), tr.current_iteration, tr.param_space, self._ranked_dse_candidates())
+            output.write()
+        except Exception as exc:
+            logging.warning("Cannot update DSE output for %s: %s", self.original_test_run.name, exc)
 
     @property
     def upcoming_trial(self) -> int:

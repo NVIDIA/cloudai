@@ -399,19 +399,40 @@ def test_handle_dse_job_invokes_agent_run(
     assert CustomRunStubAgent.run_calls == 1
 
 
-@pytest.mark.parametrize("failed_steps", [[], [2], [1, 2]])
+@pytest.mark.parametrize(
+    "failed_steps,last_reward,last_observation,best_step",
+    [
+        ([], 2.0, 2.0, 2),
+        ([2], 2.0, 2.0, 1),
+        ([1, 2], 2.0, 2.0, None),
+        ([], float("inf"), 2.0, 1),
+        ([], 2.0, float("nan"), 1),
+        ([], 2.0, -1.0, 1),
+        ([], 1.0, 2.0, 1),
+    ],
+)
 def test_dse_output_selects_completed_trial(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
     monkeypatch: pytest.MonkeyPatch,
     failed_steps: list[int],
+    last_reward: float,
+    last_observation: float,
+    best_step: int | None,
 ) -> None:
     dse_tr.test.agent = custom_run_agent_name
     runner = Runner("dry-run", slurm_system, TestScenario(name="scenario", test_runs=[dse_tr]))
 
     def run(agent: CustomRunStubAgent) -> int:
         env = cast(CloudAIGymEnv, agent.env)
+        test = env.runner.experiment_output.snapshot().tests[0]
+        assert test.dse is not None
+        assert test.dse.model_dump() == {
+            "space": {"extra_env_vars.VAR1": ["value1", "value2"]},
+            "best_step": None,
+            "best_config": None,
+        }
         for step, value in enumerate(["value1", "value2"], start=1):
             env.runner.experiment_output.update_run(
                 dse_tr.name,
@@ -427,10 +448,21 @@ def test_dse_output_selects_completed_trial(
             env.trajectory.append(
                 step=step,
                 action={"extra_env_vars.VAR1": value},
-                reward=step,
-                observation={metric: float(step) for metric in dse_tr.test.agent_metrics},
+                reward=last_reward if step == 2 else 1.0,
+                observation={metric: last_observation if step == 2 else 1.0 for metric in dse_tr.test.agent_metrics},
                 env_params={},
             )
+        env.runner.experiment_output.update_run(
+            dse_tr.name,
+            cloudai.models.output.Run(
+                path=str(env.iteration_dir.parent / "1" / "2"),
+                jobid="other-iteration",
+                step=2,
+                iteration=1,
+                status="completed",
+                metrics=[cloudai.models.output.Metric(name="Bandwidth", value=100, unit="GB/s")],
+            ),
+        )
         if failed_steps:
             raise RuntimeError("trial failed")
         return 0
@@ -445,7 +477,6 @@ def test_dse_output_selects_completed_trial(
     stored = cloudai.models.output.Experiment.model_validate_json(
         (runner.runner.scenario_root / "experiment.json").read_text()
     )
-    best_step = next((step for step in [2, 1] if step not in failed_steps), None)
     assert stored.tests[0].dse is not None
     assert stored.tests[0].dse.model_dump() == {
         "space": {"extra_env_vars.VAR1": ["value1", "value2"]},
@@ -457,7 +488,7 @@ def test_dse_output_selects_completed_trial(
         if best_step is not None
         else []
     )
-    assert len(stored.tests[0].runs) == 2
+    assert len(stored.tests[0].runs) == 3
 
 
 def test_handle_dse_job_propagates_agent_run_nonzero_rc(
