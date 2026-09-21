@@ -18,8 +18,16 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 
 from cloudai.util.object_store import ObjectStore, S3ObjectStore, UploadStats, join_key
+
+
+def _client_error(status: int, code: str = "") -> ClientError:
+    return ClientError(
+        {"Error": {"Code": code or str(status)}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        "HeadObject",
+    )
 
 
 @pytest.fixture
@@ -139,10 +147,51 @@ def test_s3_object_store_upload_file_and_client_reuse(tmp_path: Path) -> None:
 def test_s3_object_store_exists() -> None:
     with patch("cloudai.util.object_store.lazy") as mock_lazy:
         client = MagicMock()
+        client.exceptions.ClientError = ClientError
         mock_lazy.boto3.client.return_value = client
 
         store = S3ObjectStore(bucket="my-bucket")
         assert store.exists("present") is True
 
-        client.head_object.side_effect = RuntimeError("404")
+        client.head_object.side_effect = _client_error(404)
         assert store.exists("missing") is False
+
+
+def test_s3_object_store_exists_reraises_non_404_errors() -> None:
+    with patch("cloudai.util.object_store.lazy") as mock_lazy:
+        client = MagicMock()
+        client.exceptions.ClientError = ClientError
+        client.head_object.side_effect = _client_error(403)
+        mock_lazy.boto3.client.return_value = client
+
+        store = S3ObjectStore(bucket="my-bucket")
+        with pytest.raises(ClientError):
+            store.exists("forbidden")
+
+
+def test_s3_object_store_bucket_exists() -> None:
+    with patch("cloudai.util.object_store.lazy") as mock_lazy:
+        client = MagicMock()
+        client.exceptions.ClientError = ClientError
+        mock_lazy.boto3.client.return_value = client
+
+        store = S3ObjectStore(bucket="my-bucket")
+        assert store.bucket_exists() is True
+
+        client.head_bucket.side_effect = _client_error(404)
+        assert store.bucket_exists() is False
+
+        client.head_bucket.side_effect = _client_error(403)
+        assert store.bucket_exists() is False
+
+
+def test_s3_object_store_bucket_exists_reraises_other_errors() -> None:
+    with patch("cloudai.util.object_store.lazy") as mock_lazy:
+        client = MagicMock()
+        client.exceptions.ClientError = ClientError
+        client.head_bucket.side_effect = _client_error(500)
+        mock_lazy.boto3.client.return_value = client
+
+        store = S3ObjectStore(bucket="my-bucket")
+        with pytest.raises(ClientError):
+            store.bucket_exists()

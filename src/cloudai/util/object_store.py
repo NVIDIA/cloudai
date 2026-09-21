@@ -138,6 +138,20 @@ class S3ObjectStore(ObjectStore):
     def exists(self, key: str) -> bool:
         try:
             self.client.head_object(Bucket=self.bucket, Key=key)
-        except Exception:
-            return False
+        except self.client.exceptions.ClientError as e:
+            if e.response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 404:
+                return False
+            raise
+        return True
+
+    def bucket_exists(self) -> bool:
+        """Return whether the configured bucket exists and is accessible."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket)
+        except self.client.exceptions.ClientError as e:
+            status = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            if status in (404, 403):
+                logging.debug(f"Bucket '{self.bucket}' is not accessible: {e}")
+                return False
+            raise
         return True

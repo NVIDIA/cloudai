@@ -352,6 +352,12 @@ class ResultsUploadReporter(Reporter):
             return
 
         store = S3ObjectStore(bucket=config.bucket, endpoint_url=config.endpoint_url, region=config.region)
+        if not store.bucket_exists():
+            logging.warning(
+                f"Bucket '{config.bucket}' does not exist or is not accessible, skipping results upload."
+            )
+            return
+
         key_prefix = join_key(config.prefix, self.results_root.name)
 
         if config.upload_tree:

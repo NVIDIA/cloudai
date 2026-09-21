@@ -635,6 +635,15 @@ class TestResultsUploadReporter:
 
             mock_store_cls.assert_not_called()
 
+    def test_bucket_not_accessible_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.bucket_exists.return_value = False
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket").generate()
+
+            store.upload_directory.assert_not_called()
+
     def test_upload_tree_disabled(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
             store = mock_store_cls.return_value
