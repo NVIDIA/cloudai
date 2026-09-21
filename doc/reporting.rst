@@ -193,7 +193,7 @@ Configuration options:
      - Destination bucket. Required; the upload is skipped with a warning if unset.
    * - ``prefix``
      - ``$CLOUDAI_S3_PREFIX``
-     - Key prefix. Objects are written under ``<prefix>/<results_dir_name>/``.
+     - Key prefix. Objects are written under ``<prefix>/<system_name>/<results_dir_name>/``.
    * - ``endpoint_url``
      - ``$CLOUDAI_S3_ENDPOINT_URL``
      - Custom endpoint, for MinIO or other S3-compatible stores.

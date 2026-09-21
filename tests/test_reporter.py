@@ -621,7 +621,9 @@ class TestResultsUploadReporter:
             self.reporter(slurm_system, results_dir, bucket="my-bucket", prefix="cloudai").generate()
 
             mock_store_cls.assert_called_once_with(bucket="my-bucket", endpoint_url=None, region=None)
-            store.upload_directory.assert_called_once_with(results_dir, "cloudai/nccl-test_2025-04-16_14-27-45")
+            store.upload_directory.assert_called_once_with(
+                results_dir, "cloudai/test_system/nccl-test_2025-04-16_14-27-45"
+            )
 
     def test_no_bucket_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
@@ -664,7 +666,7 @@ class TestResultsUploadReporter:
 
             assert tarball_path.exists(), "TarballReporter only tarballs on failure, so it must be created here"
             store.upload_file.assert_called_once_with(
-                tarball_path, "nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
+                tarball_path, "test_system/nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
             )
 
     def test_existing_tarball_is_reused(self, slurm_system: SlurmSystem, results_dir: Path) -> None:

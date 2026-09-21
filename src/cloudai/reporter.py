@@ -358,7 +358,7 @@ class ResultsUploadReporter(Reporter):
             )
             return
 
-        key_prefix = join_key(config.prefix, self.results_root.name)
+        key_prefix = join_key(config.prefix, self.system.name, self.results_root.name)
 
         if config.upload_tree:
             stats = store.upload_directory(self.results_root, key_prefix)
