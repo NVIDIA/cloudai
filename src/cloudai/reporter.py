@@ -329,7 +329,6 @@ class ResultsUploadConfig(ReportConfig):
     region: Optional[str] = None
     upload_tree: bool = True
     upload_tarball: bool = False
-    exclude: list[str] = Field(default_factory=list)
 
 
 class ResultsUploadReporter(Reporter):
@@ -356,7 +355,7 @@ class ResultsUploadReporter(Reporter):
         key_prefix = join_key(config.prefix, self.results_root.name)
 
         if config.upload_tree:
-            stats = store.upload_directory(self.results_root, key_prefix, config.exclude)
+            stats = store.upload_directory(self.results_root, key_prefix)
             logging.info(
                 f"Uploaded {stats.files_uploaded} file(s), {stats.bytes_uploaded} byte(s) to {store.uri(key_prefix)}"
             )

@@ -621,7 +621,7 @@ class TestResultsUploadReporter:
             self.reporter(slurm_system, results_dir, bucket="my-bucket", prefix="cloudai").generate()
 
             mock_store_cls.assert_called_once_with(bucket="my-bucket", endpoint_url=None, region=None)
-            store.upload_directory.assert_called_once_with(results_dir, "cloudai/nccl-test_2025-04-16_14-27-45", [])
+            store.upload_directory.assert_called_once_with(results_dir, "cloudai/nccl-test_2025-04-16_14-27-45")
 
     def test_no_bucket_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
