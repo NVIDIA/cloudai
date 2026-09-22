@@ -78,12 +78,14 @@ class StandaloneRunner(BaseRunner):
         logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         start = None
+        process = None
         if self.mode == "run":
             start = datetime.datetime.now(datetime.timezone.utc)
-            pid = self.cmd_shell.execute(exec_cmd).pid
+            process = self.cmd_shell.execute(exec_cmd)
+            pid = process.pid
             job_id = pid
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.name), command=exec_cmd, stdout="", stderr="", message="Failed to retrieve job ID."
                 )
-        return StandaloneJob(tr, id=job_id, start=start)
+        return StandaloneJob(tr, id=job_id, start=start, process=process)

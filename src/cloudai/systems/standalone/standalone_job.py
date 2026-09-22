@@ -15,7 +15,8 @@
 # limitations under the License.
 
 import datetime
-from dataclasses import dataclass
+import subprocess
+from dataclasses import dataclass, field
 
 from cloudai.core import BaseJob
 
@@ -26,3 +27,5 @@ class StandaloneJob(BaseJob):
 
     start: datetime.datetime | None = None
     finish: datetime.datetime | None = None
+    process: subprocess.Popen | None = field(default=None, compare=False)
+    """``None`` when this process did not launch the job; completion falls back to a probe."""
