@@ -312,7 +312,10 @@ def test_parse_aiperf_request_count(tmp_path: Path) -> None:
     report = tmp_path / "aiperf_report.csv"
     report.write_text(get_aiperf_csv_content(), encoding="utf-8")
 
-    assert parse_aiperf_request_count(report) == 50
+    request_count = parse_aiperf_request_count(report)
+
+    assert request_count == 50
+    assert isinstance(request_count, int)
 
 
 def test_parse_aiperf_accuracy_from_split_accuracy_artifact_dir(tmp_path: Path) -> None:
