@@ -38,7 +38,7 @@ class KubernetesSystem(System):
     kube_config_path: Path
     default_namespace: str
     scheduler: str = "kubernetes"
-    monitor_interval: int = 1
+    monitor_interval: float = 1.0
     gpus_per_node: int = 1
     use_host_network: bool | None = None
     _core_v1: Optional[k8s.client.CoreV1Api] = None

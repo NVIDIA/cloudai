@@ -28,7 +28,7 @@ class StandaloneSystem(System):
     """
 
     scheduler: str = "standalone"
-    monitor_interval: int = 1
+    monitor_interval: float = 1.0
     cmd_shell: CommandShell = CommandShell()
 
     def update(self) -> None:

@@ -59,7 +59,7 @@ class LSFSystem(System):
     scheduler: str = "lsf"
     project_name: Optional[str] = None
     default_queue: Optional[str] = None
-    monitor_interval: int = 60
+    monitor_interval: float = 60.0
     app: Optional[str] = None
     os_version: Optional[str] = None
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
