@@ -102,9 +102,9 @@ class StatusReporter(Reporter):
         self.print_summary()
 
     def generate_scenario_report(self) -> None:
-        template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(
-            self.template_file
-        )
+        template = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(self.template_file_path), autoescape=True
+        ).get_template(self.template_file)
 
         report_items = ReportItem.from_test_runs(self.trs, self.results_root)
         report = template.render(name=self.test_scenario.name, report_items=report_items)
@@ -254,7 +254,7 @@ class DSEReporter(Reporter):
 
         self.report_best_dse_config()
 
-        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir))
+        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir), autoescape=True)
         template = jinja_env.get_template("dse-report.jinja2")
 
         report = template.render(name=self.test_scenario.name, dse_cases=dse_cases)
