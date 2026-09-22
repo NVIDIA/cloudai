@@ -65,30 +65,59 @@ def standalone_job(standalone_system, mock_test):
     return StandaloneJob(mock_test, id=12345)
 
 
-@pytest.mark.parametrize(
-    "ps_output, expected_result",
-    [
-        ("12345\n", True),  # Job is running, PID is in ps output
-        ("", False),  # Job is not running, ps output is empty
-    ],
-)
-@patch("cloudai.util.CommandShell.execute")
-def test_is_job_running(mock_execute, standalone_system, standalone_job, ps_output, expected_result):
-    """
-    Test if a job is running using a mocked CommandShell.
+@pytest.mark.parametrize("returncode, expected_result", [(None, True), (0, False), (1, False)])
+def test_is_job_running_polls_the_process_handle(standalone_system, mock_test, returncode, expected_result):
+    """Completion is read from the handle we own, not discovered by running `ps`.
 
-    Args:
-        mock_execute (MagicMock): Mocked CommandShell execute method.
-        standalone_system (StandaloneSystem): Instance of the system under test.
-        standalone_job (StandaloneJob): Job instance to check.
-        ps_output (str): Mocked output of the ps command.
-        expected_result (bool): Expected result for the job running status.
+    Replaces a test that mocked ``CommandShell.execute`` and asserted the pid appeared in
+    mocked ``ps`` stdout. That assertion described the old implementation -- it could only
+    pass while completion was detected by shelling out -- so it could not survive this
+    change. ``Popen.poll()`` returns ``None`` while the child runs and its exit status once
+    it has finished.
     """
-    mock_process = MagicMock()
-    mock_process.communicate.return_value = (ps_output, "")
-    mock_execute.return_value = mock_process
+    process = MagicMock()
+    process.poll.return_value = returncode
+    job = StandaloneJob(mock_test, id=12345, process=process)
 
-    assert standalone_system.is_job_running(standalone_job) == expected_result
+    assert standalone_system.is_job_running(job) is expected_result
+    process.poll.assert_called()
+
+
+def test_is_job_running_spawns_no_subprocess(standalone_system, mock_test):
+    """The point of the change: a completion check must not cost a process.
+
+    The old path spawned a shell and a ``ps`` on every monitor tick. With the poll interval
+    driven down for a fast backend, that cost more than the job being waited for.
+    """
+    process = MagicMock()
+    process.poll.return_value = None
+    job = StandaloneJob(mock_test, id=12345, process=process)
+
+    with patch("cloudai.util.CommandShell.execute") as mock_execute:
+        assert standalone_system.is_job_running(job) is True
+
+    mock_execute.assert_not_called()
+
+
+@pytest.mark.parametrize("alive, expected_result", [(True, True), (False, False)])
+def test_is_job_running_falls_back_to_a_signal_probe(standalone_system, mock_test, alive, expected_result):
+    """A job with no handle was not launched by this process; probe instead of giving up."""
+    job = StandaloneJob(mock_test, id=12345, process=None)
+
+    def fake_kill(pid: int, sig: int) -> None:
+        assert sig == 0, "probe must not deliver a signal"
+        if not alive:
+            raise ProcessLookupError
+
+    with patch("os.kill", side_effect=fake_kill):
+        assert standalone_system.is_job_running(job) is expected_result
+
+
+def test_is_job_running_handles_a_non_numeric_id(standalone_system, mock_test):
+    """Dry-run and reconstructed jobs can carry an id that is not a pid."""
+    job = StandaloneJob(mock_test, id="not-a-pid", process=None)
+
+    assert standalone_system.is_job_running(job) is False
 
 
 @patch("cloudai.util.CommandShell.execute")
