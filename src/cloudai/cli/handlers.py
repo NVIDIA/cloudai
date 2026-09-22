@@ -14,11 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import functools
 import typing
 import warnings
 
+import cloudai.cli.cli
+import cloudai.core
 import cloudai.handlers
+import cloudai.test_parser
+import cloudai.toml_utils
 
 _P = typing.ParamSpec("_P")
 _R = typing.TypeVar("_R")
@@ -32,27 +37,35 @@ def _deprecated(function: typing.Callable[_P, _R]) -> typing.Callable[_P, _R]:
             DeprecationWarning,
             stacklevel=2,
         )
-        return getattr(cloudai.handlers, function.__name__)(*args, **kwargs)
+        return function(*args, **kwargs)
 
     return wrapper
 
 
-handle_install_and_uninstall = _deprecated(cloudai.handlers.handle_install_and_uninstall)
+handle_install_and_uninstall = _deprecated(cloudai.cli.cli.handle_install_and_uninstall)
 prepare_installation = _deprecated(cloudai.handlers.prepare_installation)
-handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
 generate_reports = _deprecated(cloudai.handlers.generate_reports)
-handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)
-register_signal_handlers = _deprecated(cloudai.handlers.register_signal_handlers)
-handle_dry_run_and_run = _deprecated(cloudai.handlers.handle_dry_run_and_run)
-handle_generate_report = _deprecated(cloudai.handlers.handle_generate_report)
-expand_file_list = _deprecated(cloudai.handlers.expand_file_list)
-verify_system_configs = _deprecated(cloudai.handlers.verify_system_configs)
-verify_test_configs = _deprecated(cloudai.handlers.verify_test_configs)
-verify_test_scenarios = _deprecated(cloudai.handlers.verify_test_scenarios)
-handle_verify_all_configs = _deprecated(cloudai.handlers.handle_verify_all_configs)
-load_tomls_by_type = _deprecated(cloudai.handlers.load_tomls_by_type)
-handle_list_registered_items = _deprecated(cloudai.handlers.handle_list_registered_items)
+register_signal_handlers = _deprecated(cloudai.cli.cli.register_signal_handlers)
+handle_dry_run_and_run = _deprecated(cloudai.cli.cli.handle_dry_run_and_run)
+handle_generate_report = _deprecated(cloudai.cli.cli.handle_generate_report)
+expand_file_list = _deprecated(cloudai.cli.cli.expand_file_list)
+verify_system_configs = _deprecated(cloudai.cli.cli.verify_system_configs)
+verify_test_configs = _deprecated(cloudai.cli.cli.verify_test_configs)
+verify_test_scenarios = _deprecated(cloudai.cli.cli.verify_test_scenarios)
+handle_verify_all_configs = _deprecated(cloudai.cli.cli.handle_verify_all_configs)
+load_tomls_by_type = _deprecated(cloudai.cli.cli.load_tomls_by_type)
+handle_list_registered_items = _deprecated(cloudai.cli.cli.handle_list_registered_items)
 validate_domain_randomization_active = _deprecated(cloudai.handlers.validate_domain_randomization_active)
-load_test_toml_file = _deprecated(cloudai.handlers.load_test_toml_file)
-format_toml_decode_error = _deprecated(cloudai.handlers.format_toml_decode_error)
+load_test_toml_file = _deprecated(cloudai.test_parser.load_test_toml_file)
+format_toml_decode_error = _deprecated(cloudai.toml_utils.format_toml_decode_error)
 prepare_output_dir = _deprecated(cloudai.handlers.prepare_output_dir)
+
+
+@_deprecated
+def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int:
+    return cloudai.handlers.handle_dse_job(runner, args.mode)
+
+
+@_deprecated
+def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> bool:
+    return cloudai.handlers.handle_non_dse_job(runner)

@@ -14,31 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
+import datetime
+import json
 import logging
-import signal
+import subprocess
+import sys
+import tempfile
+import threading
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
-from unittest.mock import Mock
+from typing import Optional
 
 import toml
-import yaml
 
+import cloudai.models.output
+import cloudai.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
+    ConfigPaths,
     Installable,
-    InstallStatusResult,
     MissingTestError,
     Parser,
     Registry,
     Runner,
     System,
-    TestParser,
+    SystemConfigParsingError,
+    TestConfigParsingError,
     TestScenario,
     TestScenarioParsingError,
 )
@@ -46,57 +51,7 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
-from cloudai.test_parser import load_test_toml_file
-from cloudai.toml_utils import format_toml_decode_error
 from cloudai.util import prepare_output_dir
-
-
-def _log_installation_dirs(prefix: str, system: System) -> None:
-    logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
-
-
-def handle_install_and_uninstall(args: argparse.Namespace) -> int:
-    """
-    Manage the installation or uninstallation process for CloudAI.
-
-    Based on user-specified mode, utilizing the Installer class.
-
-    Args:
-        args (argparse.Namespace): The parsed command-line arguments.
-    """
-    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
-    system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
-
-    system.update()
-    logging.info(f"System Name: {system.name}")
-    logging.info(f"Scheduler: {system.scheduler}")
-
-    installables, installer = prepare_installation(system, tests, scenario)
-
-    rc = 0
-    if args.mode == "install":
-        all_installed = installer.is_installed(installables)
-        if all_installed:
-            _log_installation_dirs("CloudAI is already installed into", system)
-        else:
-            logging.info("Not all components are ready")
-            result = installer.install(installables)
-            if result.success:
-                _log_installation_dirs("CloudAI is successfully installed into", system)
-            else:
-                logging.error(result.message)
-                rc = 1
-
-    elif args.mode == "uninstall":
-        logging.info("Uninstalling test templates.")
-        result = installer.uninstall(installables)
-        if result.success:
-            logging.info("Uninstallation successful.")
-        else:
-            logging.error(result.message)
-            rc = 1
-
-    return rc
 
 
 def prepare_installation(
@@ -130,7 +85,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
+def handle_dse_job(runner: Runner, mode: str) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -182,7 +137,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
 
-    if args.mode == "run":
+    if mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
         generate_reports(
             runner.runner.system,
@@ -243,425 +198,274 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> bool:
+def handle_non_dse_job(runner: Runner) -> bool:
     successful = runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
 
 
-def register_signal_handlers(signal_handler: Callable) -> None:
-    """Register signal handlers for handling termination-related signals."""
-    signals = [
-        signal.SIGINT,
-        signal.SIGTERM,
-        signal.SIGHUP,
-        signal.SIGQUIT,
-    ]
-    for sig in signals:
-        signal.signal(sig, signal_handler)
-
-
-def _setup_system_and_scenario(
-    args: argparse.Namespace,
-) -> tuple[System, TestScenario, list[TestDefinition]] | None:
-    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
+def load_scenario(
+    scenario: Path, system: Path, *, tests_dir: Path | None = None, hook_dir: Path | None = None
+) -> tuple[System, list[TestDefinition], TestScenario]:
+    """Parse an experiment without installation, scheduler queries, or process exits."""
     try:
-        system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
-    except MissingTestError as e:
-        logging.error(e.message)
-        return None
+        system.stat()
+    except OSError as exc:
+        raise SystemConfigParsingError(str(exc)) from exc
+    parser = Parser(system, hook_dir or HOOK_ROOT, exit_on_error=False)
+    parsed_system, tests, parsed_scenario = parser.parse(tests_dir, scenario)
+    if parsed_scenario is None:
+        raise TestScenarioParsingError("A test scenario is required.")
+    return parsed_system, tests, parsed_scenario
 
-    assert test_scenario is not None
 
-    if args.output_dir:
-        system.output_path = args.output_dir.absolute()
+def validate_experiment(system: System, scenario: TestScenario, single_sbatch: bool = False) -> None:
+    """Check execution constraints shared by validation and execution."""
+    validate_domain_randomization_active(scenario)
+    if single_sbatch:
+        if not isinstance(system, SlurmSystem):
+            raise TestScenarioParsingError("Single sbatch is only supported for Slurm systems.")
+        return
+    dse_runs = [tr for tr in scenario.test_runs if tr.is_dse_job]
+    if dse_runs and len(dse_runs) != len(scenario.test_runs):
+        raise TestScenarioParsingError("Mixing DSE and non-DSE jobs is not allowed.")
+    for tr in dse_runs:
+        if tr.dependencies:
+            raise TestScenarioParsingError("Dependencies are not supported for DSE jobs.")
+        registry = Registry()
+        if not registry.has_agent(tr.test.agent):
+            raise TestScenarioParsingError(f"No agent available for type: {tr.test.agent}.")
+        registry.get_agent(tr.test.agent).get_config_class()(**(tr.test.agent_config or {}))
 
-    if not prepare_output_dir(system.output_path):
-        return None
 
-    if args.mode == "dry-run":
+def create_experiment_runner(
+    system: System,
+    scenario: TestScenario,
+    *,
+    dry_run: bool = False,
+    single_sbatch: bool = False,
+    result_dir: Path | None = None,
+) -> Runner:
+    """Create a runner without changing the registered defaults."""
+    validate_experiment(system, scenario, single_sbatch)
+    if prepare_output_dir(system.output_path) is None:
+        raise OSError(f"Cannot prepare output directory: {system.output_path}")
+    if dry_run:
         system.monitor_interval = 1
-    system.update()
-
-    return system, test_scenario, tests
-
-
-def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
-    if not args.single_sbatch:
-        return True
-
-    if not isinstance(system, SlurmSystem):
-        logging.error("Single sbatch is only supported for Slurm systems.")
-        return False
-
-    Registry().update_runner("slurm", SingleSbatchRunner)
-    return True
+    return Runner(
+        "dry-run" if dry_run else "run",
+        system,
+        scenario,
+        runner_class=SingleSbatchRunner if single_sbatch else None,
+        output_path=result_dir,
+    )
 
 
-def _check_installation(
-    args: argparse.Namespace, system: System, tests: list[TestDefinition], test_scenario: TestScenario
-) -> InstallStatusResult:
-    logging.info("Checking if workloads components are installed.")
-    installables, installer = prepare_installation(system, tests, test_scenario)
-
-    if args.enable_cache_without_check:
-        result = installer.mark_as_installed(installables)
-    else:
-        result = installer.is_installed(installables)
-
-    return result
-
-
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
-    setup_result = _setup_system_and_scenario(args)
-    if setup_result is None:
-        return 1
-    system, test_scenario, tests = setup_result
-
-    try:
-        validate_domain_randomization_active(test_scenario)
-    except TestScenarioParsingError as e:
-        logging.error(str(e))
-        return 1
-
-    if not _handle_single_sbatch(args, system):
-        return 1
-
-    logging.info(f"System Name: {system.name}")
-    logging.info(f"Scheduler: {system.scheduler}")
-    logging.info(f"Test Scenario Name: {test_scenario.name}")
-
-    result = _check_installation(args, system, tests, test_scenario)
-    if args.mode == "run" and not result.success:
-        logging.info("Not all workloads components are installed. Installing...")
-        installables, installer = prepare_installation(system, tests, test_scenario)
-
-        result = installer.install(installables)
-        if result.success:
-            _log_installation_dirs("CloudAI is successfully installed into", system)
-        else:
-            logging.error("Failed to install workloads components.")
-            logging.error(result.message)
-            return 1
-    elif args.mode == "dry-run":
-        # simulate installation for dry-run
-        installables, installer = prepare_installation(system, tests, test_scenario)
-        result = installer.mark_as_installed(installables)
-        if not result.success:
-            logging.warning("Failed to mark workloads components as installed for dry-run.")
-
-    logging.info(test_scenario.pretty_print())
-
-    runner = Runner(args.mode, system, test_scenario)
-    register_signal_handlers(runner.cancel_on_signal)
-    logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
-
+def execute_experiment(runner: Runner, tests: list[TestDefinition], enable_cache_without_check: bool = False) -> int:
+    """Install prerequisites, execute the scenario, and finalize its output."""
+    system = runner.runner.system
+    scenario = runner.runner.test_scenario
     successful = False
     try:
         runner.runner.experiment_output.write()
-        has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-        if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
-            successful = handle_non_dse_job(runner, args)
+        system.update()
+        logging.info("System Name: %s", system.name)
+        logging.info("Scheduler: %s", system.scheduler)
+        logging.info("Test Scenario Name: %s", scenario.name)
+        installables, installer = prepare_installation(system, tests, scenario)
+        if enable_cache_without_check or runner.runner.mode == "dry-run":
+            result = installer.mark_as_installed(installables)
+        else:
+            result = installer.is_installed(installables)
+        if runner.runner.mode == "run" and not result.success:
+            logging.info("Not all workload components are installed. Installing...")
+            result = installer.install(installables)
+            if not result.success:
+                raise RuntimeError(f"Failed to install workload components: {result.message}")
+        elif runner.runner.mode == "dry-run" and not result.success:
+            logging.warning("Failed to mark workload components as installed for dry-run.")
+        logging.info(scenario.pretty_print())
+        if isinstance(runner.runner, SingleSbatchRunner) or not any(tr.is_dse_job for tr in scenario.test_runs):
+            successful = handle_non_dse_job(runner)
             return 0
-
-        if all(tr.is_dse_job for tr in test_scenario.test_runs):
-            result = handle_dse_job(runner, args)
-            successful = result == 0
-            return result
-
-        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-        return 1
+        result_code = handle_dse_job(runner, runner.runner.mode)
+        successful = result_code == 0
+        return result_code
     finally:
         runner.runner.finish_output(successful)
 
 
-def handle_generate_report(args: argparse.Namespace) -> int:
-    """
-    Generate a report based on the existing configuration and test results.
-
-    Args:
-        args (argparse.Namespace): The parsed command-line arguments.
-    """
-    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
-    system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
-    assert test_scenario is not None
-
-    generate_reports(system, test_scenario, args.result_dir)
-
-    logging.debug("Report generation completed.")
-
-    return 0
-
-
-def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]:
-    if not root.exists():
-        logging.error(f"{root} does not exist.")
-        return (1, [])
-
-    test_tomls = [root]
-    if root.is_dir():
-        test_tomls = list(root.glob(glob))
-        if not test_tomls:
-            logging.error(f"No TOMLs found in {root}")
-            return (1, [])
-
-    return (0, test_tomls)
-
-
 @contextmanager
-def _ensure_kube_config_exists(system_toml_path: Path, content: str):
+def _configuration_files(system: str | Path, scenario: str | Path | None = None):
+    with tempfile.TemporaryDirectory(prefix="cloudai-config-") as temporary:
+        system_path = system.expanduser().resolve() if isinstance(system, Path) else Path(temporary) / "system.toml"
+        if isinstance(system, str):
+            system_path.write_text(system, encoding="utf-8")
+        scenario_path = Path(temporary) / "scenario.toml"
+        if isinstance(scenario, Path):
+            scenario_path = scenario.expanduser().resolve()
+        elif isinstance(scenario, str):
+            try:
+                data = toml.loads(scenario)
+            except toml.TomlDecodeError as exc:
+                raise TestScenarioParsingError(str(exc)) from exc
+            tests = data.get("Tests", [])
+            if isinstance(tests, list):
+                for test in tests:
+                    path = test.get("path") if isinstance(test, dict) else None
+                    if isinstance(path, str) and not Path(path).is_absolute():
+                        raise TestScenarioParsingError(
+                            "Relative test paths require a scenario file; pass a Path or use absolute test paths."
+                        )
+            scenario_path.write_text(scenario, encoding="utf-8")
+        yield system_path, scenario_path
+
+
+def run_experiment(
+    scenario: str | Path,
+    system: str | Path,
+    wait: bool = True,
+    *,
+    tests_dir: Path | None = None,
+    hook_dir: Path | None = None,
+    output_dir: Path | None = None,
+    dry_run: bool = False,
+    single_sbatch: bool = False,
+    enable_cache_without_check: bool = False,
+) -> cloudai.models.output.Experiment:
+    """Run an experiment synchronously or hand it to an independent worker."""
+    with _configuration_files(system, scenario) as (system_path, scenario_path):
+        parsed_system, tests, parsed_scenario = load_scenario(
+            scenario_path, system_path, tests_dir=tests_dir, hook_dir=hook_dir
+        )
+        validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+        parsed_system.output_path = (output_dir or parsed_system.output_path).expanduser().resolve()
+        if prepare_output_dir(parsed_system.output_path) is None:
+            raise OSError(f"Cannot prepare output directory: {parsed_system.output_path}")
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        result_dir = Path(
+            tempfile.mkdtemp(prefix=f"{parsed_scenario.name}_{timestamp}_", dir=parsed_system.output_path)
+        ).resolve()
+        if isinstance(system, str):
+            system_path = result_dir / "system.toml"
+            system_path.write_text(system, encoding="utf-8")
+        if isinstance(scenario, str):
+            scenario_path = result_dir / "scenario.toml"
+            scenario_path.write_text(scenario, encoding="utf-8")
+        parsed_scenario.config_paths = ConfigPaths(
+            system_path=system_path,
+            test_scenario_path=scenario_path,
+            tests_dir_path=tests_dir.resolve() if tests_dir is not None else None,
+        )
+        runner = create_experiment_runner(
+            parsed_system, parsed_scenario, dry_run=dry_run, single_sbatch=single_sbatch, result_dir=result_dir
+        )
+        output = runner.runner.experiment_output
+        if wait:
+            execute_experiment(runner, tests, enable_cache_without_check)
+            return output.snapshot()
+        output.experiment.status = "pending"
+        output.experiment.start = None
+        output.write()
+        initial = get_experiment(result_dir)
+        request = {
+            "system": str(system_path),
+            "scenario": str(scenario_path),
+            "tests_dir": str(tests_dir.resolve()) if tests_dir is not None else None,
+            "hook_dir": str((hook_dir or HOOK_ROOT).resolve()),
+            "output_dir": str(parsed_system.output_path.resolve()),
+            "dry_run": dry_run,
+            "single_sbatch": single_sbatch,
+            "enable_cache_without_check": enable_cache_without_check,
+        }
+        request_path = result_dir / "request.json"
+        try:
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            command = [
+                sys.executable,
+                "-c",
+                "import logging, pathlib, sys; import cloudai.handlers; "
+                "logging.basicConfig(level=logging.INFO); "
+                "cloudai.handlers.run_background(pathlib.Path(sys.argv[1]))",
+                str(request_path),
+            ]
+            with (result_dir / "controller.log").open("a", encoding="utf-8") as log:
+                process = subprocess.Popen(
+                    command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True
+                )
+            threading.Thread(target=process.wait, daemon=True).start()
+        except Exception:
+            runner.runner.finish_output(False)
+            raise
+        return initial
+
+
+def run_background(request_path: Path) -> None:
+    """Execute a persisted request in its worker process."""
     try:
-        config_dict = toml.loads(content)
-    except toml.TomlDecodeError as e:
-        logging.error(format_toml_decode_error(system_toml_path, e, "system config"))
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        system, tests, scenario = load_scenario(
+            Path(request["scenario"]),
+            Path(request["system"]),
+            tests_dir=Path(request["tests_dir"]) if request["tests_dir"] else None,
+            hook_dir=Path(request["hook_dir"]),
+        )
+        system.output_path = Path(request["output_dir"])
+        runner = create_experiment_runner(
+            system,
+            scenario,
+            dry_run=request["dry_run"],
+            single_sbatch=request["single_sbatch"],
+            result_dir=request_path.parent,
+        )
+        execute_experiment(runner, tests, request["enable_cache_without_check"])
+    except BaseException:
+        logging.exception("Background experiment failed")
+        experiment = get_experiment(request_path.parent)
+        if experiment.status in ("pending", "running"):
+            cloudai.output.ExperimentOutput(experiment, request_path.parent).finish(
+                "failed", datetime.datetime.now(datetime.timezone.utc)
+            )
         raise
 
-    kube_config_path_str = config_dict.get("kube_config_path")
-    kube_config_path = Path(kube_config_path_str) if kube_config_path_str else Path.home() / ".kube" / "config"
 
-    created_file = False
-    created_dir = False
+def get_experiment(exp: str | Path) -> cloudai.models.output.Experiment:
+    """Read a saved experiment from its result directory or JSON file."""
+    path = Path(exp).expanduser()
+    if path.is_dir():
+        path /= "experiment.json"
+    return cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
 
-    if not kube_config_path.exists():
-        logging.warning(f"Kube config file '{kube_config_path}' not found. Creating a dummy one.")
-        if not kube_config_path.parent.exists():
-            kube_config_path.parent.mkdir(parents=True, exist_ok=True)
-            created_dir = True
 
-        dummy_config = {
-            "apiVersion": "v1",
-            "kind": "Config",
-            "preferences": {},
-            "clusters": [{"name": "dummy-cluster", "cluster": {"server": "https://dummy-server"}}],
-            "users": [{"name": "dummy-user", "user": {"token": "dummy-token"}}],
-            "contexts": [{"name": "dummy-context", "context": {"cluster": "dummy-cluster", "user": "dummy-user"}}],
-            "current-context": "dummy-context",
-        }
-        kube_config_path.write_text(yaml.dump(dummy_config))
-        created_file = True
-    else:
-        logging.debug(f"Kube config '{kube_config_path}' already exists. Skipping creation.")
+def list_experiments(system: str | Path) -> list[tuple[str, Path]]:
+    """Discover experiments beneath the configured results directory."""
+    with _configuration_files(system) as (system_path, _):
+        output_dir = Parser.parse_system(system_path).output_path.expanduser().resolve()
+    if not output_dir.exists():
+        return []
+    if not output_dir.is_dir():
+        raise NotADirectoryError(output_dir)
+    return [(get_experiment(path).id, path.parent) for path in sorted(output_dir.glob("*/experiment.json"))]
 
+
+def validate_scenario(
+    scenario: str | Path,
+    system: str | Path,
+    *,
+    tests_dir: Path | None = None,
+    hook_dir: Path | None = None,
+    single_sbatch: bool = False,
+) -> tuple[bool, dict[str, str]]:
+    """Validate configuration and execution constraints without running workloads."""
     try:
-        yield kube_config_path
-    finally:
-        if created_file:
-            try:
-                kube_config_path.unlink()
-                logging.debug(f"Deleted temporary kube config: {kube_config_path}")
-            except Exception as e:
-                logging.warning(f"Failed to remove temporary kube config '{kube_config_path}': {e}")
-        if created_dir:
-            try:
-                kube_config_path.parent.rmdir()
-                logging.debug(f"Deleted kube config directory: {kube_config_path.parent}")
-            except OSError:
-                pass
-
-
-def verify_system_configs(system_tomls: List[Path]) -> int:
-    nfailed = 0
-
-    for system_toml in system_tomls:
-        logging.debug(f"Verifying System: {system_toml}...")
-        content = system_toml.read_text()
-
-        if 'scheduler = "kubernetes"' in content:
-            try:
-                with _ensure_kube_config_exists(system_toml, content):
-                    Parser.parse_system(system_toml)
-            except Exception as e:
-                logging.error(f"Failed to verify system config {system_toml}: {e}")
-                logging.debug("", exc_info=True)
-                nfailed += 1
-        else:
-            try:
-                Parser.parse_system(system_toml)
-            except Exception as e:
-                logging.error(f"Failed to verify system config {system_toml}: {e}")
-                logging.debug("", exc_info=True)
-                nfailed += 1
-
-    if nfailed:
-        logging.error(f"{nfailed} out of {len(system_tomls)} system configurations have issues.")
-    else:
-        logging.info(f"Checked systems: {len(system_tomls)}, all passed")
-
-    return nfailed
-
-
-def verify_test_configs(test_tomls: List[Path]) -> int:
-    nfailed = 0
-    tp = TestParser([], None)  # type: ignore
-    for test_toml in test_tomls:
-        logging.debug(f"Verifying Test: {test_toml}...")
-        try:
-            with test_toml.open() as fh:
-                tp.current_file = test_toml
-                tp.load_test_definition(load_test_toml_file(fh, test_toml))
-        except Exception as e:
-            logging.error(f"Failed to verify Test: {test_toml}: {e}")
-            logging.debug("", exc_info=True)
-            nfailed += 1
-
-    if nfailed:
-        logging.error(f"{nfailed} out of {len(test_tomls)} test configurations have issues.")
-    else:
-        logging.info(f"Checked tests: {len(test_tomls)}, all passed")
-
-    return nfailed
-
-
-def verify_test_scenarios(
-    scenario_tomls: List[Path], test_tomls: list[Path], hook_tomls: List[Path], hook_test_tomls: list[Path]
-) -> int:
-    system = Mock(spec=System, sol={})
-    nfailed = 0
-    for scenario_file in scenario_tomls:
-        logging.debug(f"Verifying Test Scenario: {scenario_file}...")
-        try:
-            tests = Parser.parse_tests(test_tomls, system)
-            hook_tests = Parser.parse_tests(hook_test_tomls, system)
-            hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
-            validate_domain_randomization_active(scenario)
-        except Exception as e:
-            logging.error(f"Failed to verify Test Scenario: {scenario_file}: {e}")
-            logging.debug("", exc_info=True)
-            nfailed += 1
-
-    if nfailed:
-        logging.error(f"{nfailed} out of {len(scenario_tomls)} test scenarios have issues.")
-    else:
-        logging.info(f"Checked scenarios: {len(scenario_tomls)}, all passed")
-
-    return nfailed
-
-
-def handle_verify_all_configs(args: argparse.Namespace) -> int:
-    root: Path = args.configs_dir
-    err, tomls = expand_file_list(root, glob="**/*.toml")
-    if err:
-        return err
-
-    err, hook_tomls = expand_file_list(HOOK_ROOT, glob="**/*.toml")
-    tomls += hook_tomls
-    logging.info(f"Found {len(hook_tomls)} hook TOMLs (always verified)")
-
-    files = load_tomls_by_type(tomls)
-
-    test_tomls = files["test"]
-    if args.tests_dir:
-        test_tomls = list(args.tests_dir.glob("*.toml"))
-    elif files["scenario"]:
-        logging.warning(
-            "Test configuration directory not provided, using all found test TOMLs in the specified directory."
-        )
-
-    nfailed = 0
-    total_checked = 0
-
-    if files["system"]:
-        nfailed += verify_system_configs(files["system"])
-        total_checked += len(files["system"])
-    if test_tomls:
-        nfailed += verify_test_configs(test_tomls)
-        total_checked += len(test_tomls)
-    if files["scenario"]:
-        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
-        total_checked += len(files["scenario"])
-    if files["unknown"]:
-        for unknown_file in files["unknown"]:
-            logging.error(
-                f"Unknown configuration file '{unknown_file}': could not classify as system, test, scenario, or hook."
+        with _configuration_files(system, scenario) as (system_path, scenario_path):
+            parsed_system, _, parsed_scenario = load_scenario(
+                scenario_path, system_path, tests_dir=tests_dir, hook_dir=hook_dir
             )
-        nfailed += len(files["unknown"])
-        total_checked += len(files["unknown"])
-
-    if nfailed:
-        logging.error(f"{nfailed} out of {total_checked} configuration files have issues.")
-    else:
-        logging.info(f"Checked {total_checked} configuration files, all passed")
-
-    return nfailed
-
-
-def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
-    files: dict[str, List[Path]] = {
-        "system": [],
-        "test": [],
-        "scenario": [],
-        "hook_test": [],
-        "hook": [],
-        "unknown": [],
-    }
-    for toml_file in tomls:
-        content = toml_file.read_text()
-
-        is_in_hook_root = False
-        try:
-            toml_file.relative_to(HOOK_ROOT)
-            is_in_hook_root = True
-        except ValueError:
-            pass
-
-        if is_in_hook_root:
-            if "test" in toml_file.parts:
-                files["hook_test"].append(toml_file)
-            else:
-                files["hook"].append(toml_file)
-            continue
-
-        try:
-            toml_content = toml.loads(content)
-        except toml.TomlDecodeError:
-            files["unknown"].append(toml_file)
-            continue
-
-        if not isinstance(toml_content, dict):
-            files["unknown"].append(toml_file)
-            continue
-
-        if "scheduler" in toml_content:
-            files["system"].append(toml_file)
-        elif "test_template_name =" in content and "[[Tests]]" not in content:
-            files["test"].append(toml_file)
-        elif "[[Tests]]" in content:
-            files["scenario"].append(toml_file)
-        else:
-            files["unknown"].append(toml_file)
-
-    return files
-
-
-def handle_list_registered_items(item_type: str, verbose: bool) -> int:  # noqa: C901
-    registry = Registry()
-    if item_type.lower() == "reports":
-        print("Available scenario reports:")
-        for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
-            string = f'{idx}. "{name}" {report.__name__}'
-            if verbose:
-                string += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
-            print(string)
-    elif item_type.lower() == "agents":
-        print("Available agents:")
-        for idx, name in enumerate(registry.agent_names(), start=1):
-            agent = registry.get_agent(name)
-            string = f'{idx}. "{name}" class={agent.__name__}'
-            if verbose:
-                string += f"{agent.__doc__}"
-            print(string)
-    elif item_type.lower() == "reward-functions":
-        print("Available reward functions:")
-        for idx, name in enumerate(registry.reward_function_names(), start=1):
-            reward_function = registry.get_reward_function(name)
-            callable_name = getattr(reward_function, "__name__", type(reward_function).__name__)
-            string = f'{idx}. "{name}" function={callable_name}'
-            if verbose:
-                documentation = getattr(reward_function, "__doc__", None)
-                if documentation:
-                    string += f" {documentation}"
-            print(string)
-
-    return 0
+            validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+    except SystemConfigParsingError as exc:
+        return False, {"system": str(exc.__cause__ or exc)}
+    except (TestConfigParsingError, TestScenarioParsingError, MissingTestError, ValueError, OSError) as exc:
+        return False, {"scenario": str(exc)}
+    return True, {}
