@@ -315,7 +315,7 @@ _apply_multinode_role_args() {
 _apply_sglang_dsr1_section_args() {
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
-  local deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
+  local default_deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
   _normalize_sglang_data_parallel_size prefill
   _normalize_sglang_data_parallel_size decode
 
@@ -347,9 +347,12 @@ _apply_sglang_dsr1_section_args() {
   decode_args["--tp-size"]="${decode_args["--tp-size"]:-${decode_total_gpus}}"
   decode_args["--dp-size"]="${decode_args["--dp-size"]:-${decode_total_gpus}}"
 
-  [[ -f "$deepep_path" ]] || log "WARN: deepep-config not found: ${deepep_path}"
-  prefill_args["--deepep-config"]="${deepep_path}"
-  decode_args["--deepep-config"]="${deepep_path}"
+  prefill_args["--deepep-config"]="${prefill_args["--deepep-config"]:-$default_deepep_path}"
+  decode_args["--deepep-config"]="${decode_args["--deepep-config"]:-$default_deepep_path}"
+  [[ -f "${prefill_args["--deepep-config"]}" ]] \
+    || log "WARN: prefill deepep-config not found: ${prefill_args["--deepep-config"]}"
+  [[ -f "${decode_args["--deepep-config"]}" ]] \
+    || log "WARN: decode deepep-config not found: ${decode_args["--deepep-config"]}"
 
   unset 'prefill_args["--model"]'
   unset 'decode_args["--model"]'
