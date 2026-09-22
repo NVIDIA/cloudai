@@ -1,0 +1,20 @@
+general:
+  exclude:
+    - "\\.git.*"
+    - "__pycache__"
+    - "\\.egg-info"
+    - "\\.(ya?ml|md|txt|jinja2|sh|log|ipynb|rst|json)$"
+    - "tests/ref_data/*"
+    - "results/*"
+    - "doc/_build/*"
+    - "uv.lock"
+    # Jenkins pipeline definitions carry no license header by convention.
+    # The checker fails on any file it has no rule for, so this must be an
+    # explicit exclusion rather than simply absent from the include list.
+    - "Jenkinsfile$"
+
+apache-2.0:
+  validate-spdx-license: true
+  include:
+    - ".*\\.(py|toml)$"
+    - "Makefile"

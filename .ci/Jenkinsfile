@@ -1,0 +1,46 @@
+#!/usr/bin/groovy
+
+// load pipeline functions
+// Requires pipeline-github-lib plugin to load library from github
+@Library('github.com/Mellanox/ci-demo@stable_hpcx')
+// Blossom's helper, used to report commit status back to the pull request.
+@Library('blossom-github-lib@master')
+
+import ipp.blossom.*
+
+def matrix = new com.mellanox.cicd.Matrix()
+
+def githubHelper = null
+def pipelineOverviewUrl = ""
+
+// Injected by the Blossom workflow for PR-triggered runs; absent when a
+// maintainer starts the job by hand, so every use is guarded.
+if (params.githubData) {
+    withCredentials([usernamePassword(credentialsId: 'svcnbu-swx-cloudai-github-token',
+                                      passwordVariable: 'GIT_PASSWORD',
+                                      usernameVariable: 'GIT_USERNAME')]) {
+        githubHelper = GithubHelper.getInstance("${GIT_PASSWORD}", params.githubData)
+    }
+    pipelineOverviewUrl = "${env.BUILD_URL}/pipeline-overview/"
+    githubHelper.updateCommitStatus(pipelineOverviewUrl, "CI started",
+                                    GitHubCommitState.PENDING, env.JOB_BASE_NAME)
+    currentBuild.description = githubHelper.getBuildDescription()
+}
+
+try {
+    matrix.main()
+} catch (Exception ex) {
+    currentBuild.result = 'FAILURE'
+    println ex
+    throw ex
+} finally {
+    if (params.githubData) {
+        githubHelper.updateCommitStatus(
+            pipelineOverviewUrl,
+            "CI completed",
+            currentBuild.resultIsBetterOrEqualTo('SUCCESS') ? GitHubCommitState.SUCCESS
+                                                            : GitHubCommitState.FAILURE,
+            env.JOB_BASE_NAME
+        )
+    }
+}

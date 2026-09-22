@@ -1,0 +1,153 @@
+# CloudAI PR CI matrix (ci-demo).
+#
+# The per-PR half of the HPCINFRA-4786 split. Derived from the release-scan
+# pipeline, which is de facto mostly
+# CI: header check, secret scan, Coverity and coverage are all per-commit
+# checks and are carried over here more or less verbatim.
+#
+# Two stages are deliberately NOT carried over:
+#
+#   Blackduck - the Blossom workflow that triggers this job already runs a
+#     Blackduck scan in its own Vulnerability-scan stage before Jenkins starts,
+#     so a second one per PR is redundant. The release job's copy also rolls
+#     results up under a vX.Y.beta PROJECT_VERSION, which has no meaning for a
+#     pull request.
+#   Antivirus - gated on CLOUDAI_SHA matching a vX.Y.* release tag and scans
+#     the published GitHub tarball. It exits 0 on anything that is not a
+#     release, so on a PR it would only ever be a no-op.
+#
+# Unlike the release job, this pipeline lives in the repository it tests, so
+# pipeline-scm has already checked the pull request out into ${WORKSPACE}.
+# There is no clone step and no CLOUDAI_SHA - the merge ref arrives as sha1.
+#
+# Named by the conf_file build parameter in .ci/proj_jjb.yaml.
+---
+job: cloudai-ci
+
+failFast: false
+timeout_minutes: 60
+
+kubernetes:
+  cloud: il-ipp-blossom-prod
+  namespace: hpcx
+  nodeSelector: 'kubernetes.io/arch=amd64'
+  # Container resources are set per image (requests/limits on each
+  # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
+
+runs_on_dockers:
+  # Same toolbox images and tags the release pipeline pins, with its
+  # requests/limits carried over unchanged.
+  - url: 'harbor.mellanox.com/toolbox/header_check:0.0.65'
+    name: 'header_check'
+    tag: '0.0.65'
+    arch: 'x86_64'
+    requests: '{memory: 128Mi, cpu: 100m}'
+    limits: '{memory: 512Mi, cpu: 1000m}'
+  - url: 'harbor.mellanox.com/toolbox/secret_scan:0.0.31'
+    name: 'secret_scan'
+    tag: '0.0.31'
+    arch: 'x86_64'
+    requests: '{memory: 128Mi, cpu: 500m}'
+    limits: '{memory: 512Mi, cpu: 3000m}'
+  - url: 'harbor.mellanox.com/hpcx/x86_64/coverity_2023:until_2028'
+    name: 'coverity_scan'
+    tag: 'base'
+    arch: 'x86_64'
+    requests: '{memory: 1Gi, cpu: 1000m}'
+    limits: '{memory: 4Gi, cpu: 4000m}'
+  - url: 'ghcr.io/astral-sh/uv:debian'
+    name: 'uv'
+    tag: 'debian'
+    arch: 'x86_64'
+    requests: '{memory: 1Gi, cpu: 1000m}'
+    limits: '{memory: 4Gi, cpu: 3000m}'
+
+steps:
+  - name: Check copyrights
+    containerSelector: '{name:"header_check"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      # --since limits the check to files touched in the current calendar
+      # year. Without it (e.g. --path on the repo root) the tool walks every
+      # file and demands the current year in its copyright line, which forces
+      # a 150+ file rebump every January even for files nobody touched. The
+      # policy we owe is "files modified this year must declare this year" -
+      # which is exactly what --since enforces. Files untouched this year
+      # keep whatever years their header already lists.
+      /opt/nvidia/header_check.py \
+        --config ${WORKSPACE}/.ci/header-check.yml \
+        --since "$(date +%Y)-01-01" \
+        --git-repo ${WORKSPACE} \
+        2>&1 | tee ${WORKSPACE}/header_check.log
+
+    archiveArtifacts: 'header_check.log'
+
+  - name: Secret scan
+    containerSelector: '{name:"secret_scan"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      /opt/nvidia/secret_scan.py \
+        --path . \
+        --git-repo ${WORKSPACE} \
+        2>&1 | tee ${WORKSPACE}/secret_scan.log
+
+    archiveArtifacts: 'secret_scan.log'
+
+  - name: Coverity scan
+    containerSelector: '{name:"coverity_scan"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      # The release job emits to ${WORKSPACE}/coverity-scan because there the
+      # sources sit in a ${WORKSPACE}/CLOUDAI subdirectory. Here the sources
+      # ARE ${WORKSPACE}, so the emit directory is kept outside the scanned
+      # tree to stop cov-capture walking its own output.
+      cov_dir=/tmp/coverity-scan
+
+      cov-capture --project-dir ${WORKSPACE} --dir ${cov_dir}
+      cov-analyze --dir ${cov_dir} --all-security --aggressiveness-level high
+      # Reports, does not gate. Failing on findings needs a Coverity stream to
+      # diff against, otherwise every pre-existing defect blocks every PR;
+      # HPCINFRA-4786 scopes the failing behaviour to the release pipeline.
+      cov-format-errors --dir ${cov_dir} --text-output-style oneline \
+        2>&1 | tee ${WORKSPACE}/coverity.log
+
+    archiveArtifacts: 'coverity.log'
+
+  - name: Coverage
+    containerSelector: '{name:"uv"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      cd ${WORKSPACE}
+      uv sync --locked --extra dev
+      # Run all tests except the ones that fail when running as root
+      uv run python -m pytest --cov -k "not test_not_writable and not test_parent_wo_access"
+      # Run the root-sensitive tests separately (expected to fail as root, so invert exit code)
+      expect_pytest_failure() {
+        test_name="$1"
+
+        if uv run python -m pytest --cov --cov-append -k "${test_name}"; then
+          echo "Expected failure did not occur for ${test_name}"
+          exit 1
+        else
+          rc=$?
+          if [ "${rc}" -ne 1 ]; then
+            echo "Unexpected pytest exit code for ${test_name}: ${rc}"
+            exit "${rc}"
+          fi
+          echo "EXPECTED FAILURE (${test_name}, running as root) - PASSED"
+        fi
+      }
+
+      expect_pytest_failure "test_parent_wo_access"
+      expect_pytest_failure "test_not_writable"
+      uv run coverage report 2>&1 | tee ${WORKSPACE}/coverage.log
+
+    archiveArtifacts: 'coverage.log'
