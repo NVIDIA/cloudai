@@ -31,6 +31,13 @@ This chapter targets developers who want to contribute to the project's core.
        runners --> _core
        systems --> _core
 
+Handler imports
+---------------
+
+Shared orchestration lives in ``cloudai.handlers``. The CLI calls this module directly.
+Existing imports from ``cloudai.cli.handlers`` continue to work and emit ``DeprecationWarning`` when called.
+These handlers are internal implementation details; avoid calling them directly from integrations.
+
 Core Modules
 ------------
 
