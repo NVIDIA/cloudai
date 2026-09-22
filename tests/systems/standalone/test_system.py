@@ -144,3 +144,22 @@ def test_kill_job_normalizes_numeric_pid(mock_execute, standalone_system, mock_t
     standalone_system.kill(job)
 
     mock_execute.assert_called_once_with("kill -9 12345")
+
+
+@pytest.mark.parametrize("interval", [0.005, 0.5, 1, 60])
+def test_monitor_interval_accepts_sub_second_values(tmp_path: Path, interval: float) -> None:
+    """A poll interval shorter than a second must be expressible.
+
+    The completion poll sleeps for ``monitor_interval`` between checks, so the field sets a
+    floor on how long a finished job goes unnoticed. That floor was one second while the
+    field was typed ``int``, which is far coarser than a fast backend needs: a standalone
+    job backed by an in-process surrogate finishes in tens of milliseconds, so a one-second
+    poll dominated its wall clock entirely.
+
+    Integer values keep working, so existing system TOMLs are unaffected.
+    """
+    system = StandaloneSystem(
+        name="test", install_path=tmp_path / "install", output_path=tmp_path / "output", monitor_interval=interval
+    )
+
+    assert system.monitor_interval == pytest.approx(interval)
