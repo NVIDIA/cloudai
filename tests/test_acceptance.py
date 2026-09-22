@@ -27,8 +27,8 @@ import toml
 
 import cloudai.models.output
 from cloudai.cli import setup_logging
+from cloudai.cli.cli import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
-from cloudai.handlers import handle_dry_run_and_run
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (

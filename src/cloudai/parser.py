@@ -42,16 +42,18 @@ HOOK_ROOT = Path("conf/hook")
 class Parser:
     """Main parser for parsing all types of configurations."""
 
-    def __init__(self, system_config_path: Path, hook_root: Path = HOOK_ROOT) -> None:
+    def __init__(self, system_config_path: Path, hook_root: Path = HOOK_ROOT, *, exit_on_error: bool = True) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
             hook_root (Path): Directory containing hook scenarios and tests.
+            exit_on_error (bool): Exit on parsing errors instead of raising them.
         """
         logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
+        self.exit_on_error = exit_on_error
         self.hook_root = hook_root
         self.hook_test_root = hook_root / "test"
         self._system: Optional[System] = None
@@ -64,6 +66,8 @@ class Parser:
         try:
             self._system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
+            if not self.exit_on_error:
+                raise
             exit(1)  # exit right away to keep error message readable for users
         return self._system
 
@@ -82,27 +86,31 @@ class Parser:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
                 test template objects, and the main test scenario object if provided.
         """
+        try:
+            return self._parse(test_path, test_scenario_path)
+        except (SystemConfigParsingError, TestConfigParsingError, TestScenarioParsingError):
+            if not self.exit_on_error:
+                raise
+            raise SystemExit(1) from None
+
+    def _parse(
+        self, test_path: Path | None, test_scenario_path: Path | None
+    ) -> tuple[System, list[TestDefinition], TestScenario | None]:
         tests: list[TestDefinition] = []
         if test_path:
             if not test_path.exists():
                 raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-            try:
-                tests = self.parse_tests(list(test_path.glob("*.toml")), self.system)
-            except TestConfigParsingError:
-                exit(1)  # exit right away to keep error message readable for users
+            tests = self.parse_tests(list(test_path.glob("*.toml")), self.system)
 
         if not self.hook_root.exists():
             logging.debug(f"Hook root path '{self.hook_root}' does not exist.")
 
-        try:
-            hook_tests = (
-                self.parse_tests(list(self.hook_test_root.glob("*.toml")), self.system)
-                if self.hook_test_root.exists()
-                else []
-            )
-        except TestConfigParsingError:
-            exit(1)  # exit right away to keep error message readable for users
+        hook_tests = (
+            self.parse_tests(list(self.hook_test_root.glob("*.toml")), self.system)
+            if self.hook_test_root.exists()
+            else []
+        )
 
         if not test_scenario_path:
             all_tests = list({test.name: test for test in tests + hook_tests}.values())
@@ -111,19 +119,13 @@ class Parser:
         test_mapping = {t.name: t for t in tests}
         hook_test_scenario_mapping = {}
         if self.hook_root.exists() and list(self.hook_root.glob("*.toml")):
-            try:
-                hook_test_scenario_mapping = self.parse_hooks(
-                    list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
-                )
-            except TestScenarioParsingError:
-                exit(1)  # exit right away to keep error message readable for users
-
-        try:
-            test_scenario = self.parse_test_scenario(
-                test_scenario_path, self.system, test_mapping, hook_test_scenario_mapping
+            hook_test_scenario_mapping = self.parse_hooks(
+                list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
             )
-        except TestScenarioParsingError:
-            exit(1)  # exit right away to keep error message readable for users
+
+        test_scenario = self.parse_test_scenario(
+            test_scenario_path, self.system, test_mapping, hook_test_scenario_mapping
+        )
 
         test_scenario.config_paths = ConfigPaths(
             system_path=self.system_config_path.resolve(),

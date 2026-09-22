@@ -25,6 +25,7 @@ from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import (
     JobFailureError,
     JobIdRetrievalError,
+    JobSubmissionError,
     MissingTestError,
     SystemConfigParsingError,
     TestConfigParsingError,
@@ -102,6 +103,7 @@ __all__ = [
     "JobFailureError",
     "JobIdRetrievalError",
     "JobStatusResult",
+    "JobSubmissionError",
     "JsonGenStrategy",
     "MetricErrorSentinel",
     "MetricValue",
