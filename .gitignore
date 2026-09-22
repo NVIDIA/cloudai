@@ -65,6 +65,7 @@ install/
 results/
 .*
 !.pre-commit-config.yaml
+!.ci/
 !.agents/
 .agents/*
 !.agents/skills/

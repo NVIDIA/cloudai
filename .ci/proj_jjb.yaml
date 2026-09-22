@@ -1,0 +1,96 @@
+# Jenkins Job Builder definition for the CloudAI PR CI pipeline.
+#
+# Applied to the Blossom Jenkins instance that hosts the CloudAI folder.
+# Do NOT edit the resulting job through the Jenkins web UI.
+# Changes will be overwritten on the next jenkins-jobs update according to this file.
+#
+# Resulting job: CloudAI / cloudai-ci
+# Pipeline body: .ci/Jenkinsfile + .ci/job_matrix.yaml (ci-demo).
+#
+# The CloudAI folder itself is declared alongside the existing cloudai-release
+# job, so it is deliberately not redeclared here - doing so would overwrite that
+# folder's description on every update from this side.
+
+- job-template:
+    name: "{jjb_proj}"
+    project-type: pipeline
+    folder: "{jjb_folder}"
+    concurrent: true
+    properties:
+        - github:
+            url: "{jjb_github_url}"
+        - build-discarder:
+            days-to-keep: 14
+            num-to-keep: 100
+        - inject:
+            keep-system-variables: true
+            properties-content: |
+              jjb_proj={jjb_proj}
+    description: |
+        <h1><font color="blue">Do NOT edit this job through the Web GUI !</font></h1>
+        <h3>Source of truth: <a href="https://github.com/NVIDIA/cloudai/blob/main/.ci/proj_jjb.yaml">cloudai/.ci/proj_jjb.yaml</a>. Edit there and re-run <code>jenkins-jobs update</code>.</h3>
+    parameters:
+        - string:
+            name: "sha1"
+            default: "{jjb_branch}"
+            description: "Commit of CloudAI to be checked. Set automatically for PR-triggered runs."
+        - string:
+            name: "githubData"
+            default: ""
+            description: "[blossom] Raw webhook payload; set automatically on PR-triggered runs. Leave empty for a manual run - the pipeline then skips reporting commit status. Paste a captured payload only to replay a build onto a specific PR."
+        - string:
+            name: "conf_file"
+            default: ".ci/job_matrix.yaml"
+            description: "[tools] CI Demo job matrix"
+        - string:
+            name: "script"
+            default: ".ci/Jenkinsfile"
+            description: "[tools] CI Demo Jenkinsfile to initialise job"
+    triggers:
+        - generic-webhook-trigger:
+            # Also the right-hand side of the CI_SERVER GitHub secret:
+            # <jenkins-url>@cloudai-ci. These tokens are matched across the
+            # whole instance rather than per folder, so two jobs sharing one
+            # would both fire - keep it unique.
+            token: "{jjb_proj}"
+            print-contributors: true
+            print-posted-content: true
+            silent-response: false
+            cause: "Blossom PR trigger"
+            post-content-params:
+                - type: JSONPath
+                  key: githubData
+                  value: $
+                # Build the pull request merged into its base branch rather
+                # than the fork head in isolation, so CI tests the merge result.
+                - type: JSONPath
+                  key: sha1
+                  value: '$.concat("refs/pull/", $.issue.number, "/merge")'
+    pipeline-scm:
+        scm:
+            - git:
+                url: "{jjb_git}"
+                credentials-id: "{jjb_gh_cred_id}"
+                # PR refs so sha1 can be a merge ref delivered by the webhook,
+                # or origin/pr/<n> for a manual run.
+                refspec: '+refs/heads/*:refs/remotes/origin/* +refs/pull/*:refs/remotes/origin/pr/*'
+                branches: ['$sha1']
+                browser: githubweb
+                browser-url: "{jjb_github_url}"
+                wipe-workspace: true
+        script-path: "$script"
+
+- project:
+    name: cloudai-ci
+    jjb_proj: 'cloudai-ci'
+    jjb_folder: 'CloudAI'
+    jjb_branch: 'main'
+    # Unlike cloudai-release, this pipeline lives in the repository it tests,
+    # so the SCM clone URL and the GitHub project URL are the same repo.
+    jjb_git: 'git@github.com:NVIDIA/cloudai.git'
+    jjb_github_url: 'https://github.com/NVIDIA/cloudai/'
+    # Same instance-scoped service-account credential that cloudai-release and
+    # the other jobs on this instance already use.
+    jjb_gh_cred_id: 'svcnbu-swx-hpcx_ssh_with_key'
+    jobs:
+        - "{jjb_proj}"
