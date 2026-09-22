@@ -171,14 +171,23 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             worker.has_extra_arg(selector) for selector in LEGACY_WORKER_ROLE_SELECTORS
         )
 
+    @staticmethod
+    def _uses_explicit_disaggregation_mode(worker: WorkerConfig) -> bool:
+        cmd_tokens = shlex.split(worker.cmd or "")
+        return any(token.partition("=")[0] == "--disaggregation-mode" for token in cmd_tokens) or worker.has_extra_arg(
+            "--disaggregation-mode"
+        )
+
     def _get_worker_script_args(self, role: str, worker: WorkerConfig, mode: str | None) -> List[str]:
         prefix = f"--{role}-"
         result = self._get_nested_toml_args(worker, prefix, exclude=["nodes"])
-        if mode is None or self._uses_legacy_role_selector(worker):
+        mode_arg = f"{prefix}args-disaggregation-mode"
+        has_explicit_mode = self._uses_explicit_disaggregation_mode(worker) or any(
+            arg.startswith(f"{mode_arg} ") for arg in result
+        )
+        if mode is None or self._uses_legacy_role_selector(worker) or has_explicit_mode:
             return result
 
-        mode_arg = f"{prefix}args-disaggregation-mode"
-        result = [arg for arg in result if not arg.startswith(f"{mode_arg} ")]
         result.append(f'{mode_arg} "{mode}"')
         return result
 
