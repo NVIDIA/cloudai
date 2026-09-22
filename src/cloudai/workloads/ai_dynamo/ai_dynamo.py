@@ -797,7 +797,7 @@ def _parse_count_value(value: str | int | float | None) -> float | None:
         return None
 
 
-def parse_aiperf_request_count(report_path: Path) -> float | None:
+def parse_aiperf_request_count(report_path: Path) -> int | None:
     """Return the number of successful requests recorded by AIPerf."""
     if not report_path.exists():
         return None
@@ -806,7 +806,10 @@ def parse_aiperf_request_count(report_path: Path) -> float | None:
         with report_path.open(newline="", encoding="utf-8") as csv_file:
             for row in csv.reader(csv_file):
                 if len(row) >= 2 and row[0].strip() == "Request Count":
-                    return _parse_count_value(row[1])
+                    request_count = _parse_count_value(row[1])
+                    if request_count is None or not request_count.is_integer():
+                        return None
+                    return int(request_count)
     except (OSError, csv.Error):
         return None
     return None
