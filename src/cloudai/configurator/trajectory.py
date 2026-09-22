@@ -49,6 +49,16 @@ class Trajectory:
         self._dataframe = lazy.pd.DataFrame() if dataframe is None else _copy_dataframe(dataframe)
         self._validate_dataframe()
         self._dataframe = self._dataframe.astype(object)
+        # Rows are authoritative; the DataFrame is rebuilt on demand. Appending by
+        # concatenating a one-row frame copies every accumulated row (O(N^2) over a run),
+        # and ``find`` scanning with ``iterrows`` is O(N) per call, so a cached lookup index
+        # is kept alongside. Both are invisible when a trial costs seconds and dominate
+        # once trials are cheap.
+        self._rows: list[dict[str, Any]] = (
+            [dict(record) for _, record in self._dataframe.iterrows()] if len(self._dataframe) else []
+        )
+        self._find_index: dict[tuple[str, ...], dict[tuple, list[int]]] = {}
+        self._frame_dirty = False
         logging.debug(
             "Initializing Trajectory: entries=%s, columns=%s.",
             len(self),
@@ -57,11 +67,12 @@ class Trajectory:
 
     def __len__(self) -> int:
         """Return the number of trajectory rows."""
-        return len(self._dataframe)
+        return len(self._rows)
 
     @property
     def dataframe(self) -> pd.DataFrame:
         """Return a copy of the trajectory DataFrame for analysis."""
+        self._materialize()
         return _copy_dataframe(self._dataframe)
 
     @property
@@ -85,10 +96,8 @@ class Trajectory:
     ) -> pd.Series:
         """Flatten, persist, and store one trajectory row."""
         self._validate_step(step)
-        if len(self) and step <= self._dataframe.iloc[-1]["step"]:
-            raise ValueError(
-                f"trajectory steps must increase: last step is {self._dataframe.iloc[-1]['step']}, got {step}"
-            )
+        if self._rows and step <= self._rows[-1]["step"]:
+            raise ValueError(f"trajectory steps must increase: last step is {self._rows[-1]['step']}, got {step}")
 
         record: dict[str, object] = {"step": step}
         domains = {"action": action, "reward": reward, "observation": observation, **values}
@@ -99,7 +108,7 @@ class Trajectory:
                 record[field] = deepcopy(field_value)
 
         fields = tuple(record)
-        expected_fields = tuple(self._dataframe.columns)
+        expected_fields = tuple(self._rows[0]) if self._rows else tuple(self._dataframe.columns)
         if expected_fields and fields != expected_fields:
             raise ValueError(f"trajectory record fields changed: expected {expected_fields}, got {fields}")
 
@@ -124,8 +133,11 @@ class Trajectory:
         if row_metadata is not None:
             _append_csv_row(row_metadata, self.metadata_path)
 
-        row_frame = row.to_frame().T.astype(object)
-        self._dataframe = lazy.pd.concat([self._dataframe, row_frame], ignore_index=True).astype(object)
+        self._rows.append(record)
+        position = len(self._rows) - 1
+        for fields, index in self._find_index.items():
+            index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
+        self._frame_dirty = True
         logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
         return _copy_series(row)
 
@@ -138,15 +150,47 @@ class Trajectory:
                     raise ValueError(f"trajectory values produce duplicate column: {field}")
                 criteria[field] = field_value
 
-        if any(field not in self._dataframe.columns for field in criteria):
+        if not self._rows:
+            return None
+        if any(field not in self._rows[0] for field in criteria):
             return None
 
-        for _, row in self._dataframe.iterrows():
-            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
-                logging.debug("Found matching trajectory row at step %s for %s.", row["step"], values)
-                return _copy_series(row)
-        logging.debug("No matching trajectory row found for %s.", values)
-        return None
+        # One index per distinct criteria field-set, built on first use. Callers query with a
+        # stable set of domains, so this is built once and maintained by ``append``.
+        fields = tuple(sorted(criteria))
+        index = self._find_index.get(fields)
+        if index is None:
+            index = {}
+            for position, record in enumerate(self._rows):
+                index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
+            self._find_index[fields] = index
+
+        # A bucket narrows the scan; it does not prove equality. Distinct values can share a
+        # key, so the exact predicate still decides, keeping the pre-index result.
+        bucket = index.get(tuple(_hashable_key(criteria[field]) for field in fields), ())
+        record = next(
+            (
+                candidate
+                for candidate in (self._rows[position] for position in bucket)
+                if all(_values_match_exact(candidate[field], criteria[field]) for field in fields)
+            ),
+            None,
+        )
+        if record is None:
+            logging.debug("No matching trajectory row found for %s.", values)
+            return None
+        logging.debug("Found matching trajectory row at step %s for %s.", record["step"], values)
+        return _copy_series(lazy.pd.Series(record, dtype=object))
+
+    def _materialize(self) -> None:
+        """Rebuild the DataFrame from the row buffer, once, when a caller asks for it."""
+        if not self._frame_dirty:
+            return
+        # dtype=object at construction, not astype afterwards: pandas infers a column dtype
+        # first, so a column holding both 1 and 2.5 would widen the int to 1.0 before the
+        # cast froze it.
+        self._dataframe = lazy.pd.DataFrame(self._rows, dtype=object)
+        self._frame_dirty = False
 
     def _validate_dataframe(self) -> None:
         if not self._dataframe.columns.is_unique:
@@ -223,6 +267,35 @@ def _copy_series(series: pd.Series) -> pd.Series:
     for index in range(len(series)):
         copied.iat[index] = deepcopy(series.iat[index])
     return copied
+
+
+def _hashable_key(value: Any) -> Any:
+    """
+    Return a hashable proxy that groups values :func:`_values_match_exact` would accept.
+
+    The one invariant: values the predicate accepts must never get different keys. A key
+    coarser than equality only widens a bucket, which the exact check then filters, but a
+    key finer than equality hides a matching row and nothing downstream can recover it.
+
+    So a shared key is not proof of a match, and callers must confirm a candidate with the
+    predicate rather than trust the key. The type name is part of the key, keeping ``1``,
+    ``1.0`` and ``True`` distinct, which the predicate also requires.
+    """
+    type_name = type(value).__name__
+    if isinstance(value, Mapping):
+        # Keys stay themselves, in a frozenset: the predicate compares mappings by key set
+        # and order-insensitively, and a frozenset matches both. Stringifying keys would put
+        # {1: "a"} and {True: "a"} in different buckets, though the predicate accepts them.
+        return (type_name, frozenset((k, _hashable_key(v)) for k, v in value.items()))
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return (type_name, tuple(_hashable_key(item) for item in value))
+    try:
+        hash(value)
+    except TypeError:
+        # One bucket per type, not repr: repr splits values the predicate accepts, such as
+        # the sets {1} and {1.0}, and a split is unrecoverable where a shared bucket is not.
+        return (type_name,)
+    return (type_name, value)
 
 
 def _values_match_exact(left: Any, right: Any) -> bool:

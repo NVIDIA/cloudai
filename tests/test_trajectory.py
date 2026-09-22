@@ -120,6 +120,49 @@ def test_find_returns_none_for_unknown_columns(tmp_path: Path) -> None:
     assert trajectory.find(env_params={"speed": 2}) is None
 
 
+def test_find_separates_values_that_share_an_index_key(tmp_path: Path) -> None:
+    """A nested mapping key of 1 and of "1" are different values and must not collide."""
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    integer_key = trajectory.append(step=1, action=[{1: "a"}], reward=1.0, observation={"metric": 1.0})
+    string_key = trajectory.append(step=2, action=[{"1": "a"}], reward=2.0, observation={"metric": 2.0})
+
+    integer_match = trajectory.find(action=[{1: "a"}])
+    string_match = trajectory.find(action=[{"1": "a"}])
+
+    assert integer_match is not None and string_match is not None
+    assert integer_match["step"] == integer_key["step"]
+    assert string_match["step"] == string_key["step"]
+
+
+@pytest.mark.parametrize(
+    "appended, queried",
+    [
+        pytest.param([{1: "a"}], [{True: "a"}], id="mapping-keys-that-compare-equal"),
+        pytest.param([{1}], [{1.0}], id="unhashable-members-that-compare-equal"),
+    ],
+)
+def test_find_still_matches_values_the_index_key_could_split(tmp_path: Path, appended: Any, queried: Any) -> None:
+    """A key finer than equality hides a row, and no later check can recover it."""
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    row = trajectory.append(step=1, action=appended, reward=1.0, observation={"metric": 1.0})
+
+    match = trajectory.find(action=queried)
+
+    assert match is not None
+    assert match["step"] == row["step"]
+
+
+def test_dataframe_keeps_an_int_in_a_column_that_also_holds_floats(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action={"x": 1}, reward=1, observation={"metric": 1.0})
+    trajectory.append(step=2, action={"x": 2}, reward=2.5, observation={"metric": 2.0})
+
+    rewards = trajectory.dataframe["reward"]
+
+    assert type(rewards.iloc[0]) is int
+    assert type(rewards.iloc[1]) is float
+
+
 @pytest.mark.parametrize("step", [0, True, 1.0])
 def test_trajectory_rejects_invalid_steps(tmp_path: Path, step: Any) -> None:
     trajectory = Trajectory(iteration_dir=tmp_path)
@@ -345,3 +388,105 @@ def test_trajectory_logs_lifecycle_and_lookup(tmp_path: Path, caplog: pytest.Log
 
     assert "Initializing Trajectory: entries=0, columns=[]." in caplog.messages
     assert "Appended trajectory row for step 1 (total rows: 1)." in caplog.messages
+
+
+def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
+    """The lookup index must select exactly the row a linear exact-match scan would.
+
+    ``find`` is backed by a hash index rather than a scan, so the index key has to carry
+    the same identity semantics as ``_values_match_exact`` -- exact type, then structure.
+    This asserts the two agree on every recorded row rather than on a handful of cases.
+    """
+    import random
+
+    from cloudai.configurator.trajectory import _values_match_exact
+
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    random.seed(0)
+    recorded = []
+    for step in range(1, 201):
+        action = {"x": random.randint(0, 9), "y": random.choice(["a", "b"])}
+        env = {"regime": random.choice([0.0, 0.5])}
+        trajectory.append(step=step, action=action, reward=step / 100, observation=[float(step)], env_params=env)
+        recorded.append((action, env))
+
+    frame = trajectory.dataframe
+
+    def scan(action: dict, env: dict) -> object | None:
+        criteria = {f"action.{k}": v for k, v in action.items()}
+        criteria.update({f"env_params.{k}": v for k, v in env.items()})
+        for _, row in frame.iterrows():
+            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
+                return row["step"]
+        return None
+
+    for action, env in recorded:
+        found = trajectory.find(action=action, env_params=env)
+        expected = scan(action, env)
+        assert expected is not None
+        assert found is not None
+        assert found["step"] == expected
+
+
+def test_find_still_misses_an_unrecorded_combination(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action={"x": 1}, reward=0.5, observation=[1.0], env_params={"regime": 0.0})
+
+    assert trajectory.find(action={"x": 2}, env_params={"regime": 0.0}) is None
+    assert trajectory.find(action={"x": 1}, env_params={"regime": 1.0}) is None
+
+
+def test_find_sees_rows_appended_after_its_index_was_built(tmp_path: Path) -> None:
+    """The index is built on first use, so later appends must keep it current."""
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action={"x": 1}, reward=0.5, observation=[1.0])
+
+    assert trajectory.find(action={"x": 1}) is not None
+    assert trajectory.find(action={"x": 2}) is None
+
+    trajectory.append(step=2, action={"x": 2}, reward=0.6, observation=[2.0])
+
+    found = trajectory.find(action={"x": 2})
+    assert found is not None
+    assert found["step"] == 2
+
+
+def test_find_returns_the_first_match_when_an_action_repeats(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    for step in (1, 2, 3):
+        trajectory.append(step=step, action={"x": 7}, reward=step / 10, observation=[float(step)])
+
+    found = trajectory.find(action={"x": 7})
+    assert found is not None
+    assert found["step"] == 1
+
+
+def test_lookup_cost_does_not_grow_with_trajectory_length(tmp_path: Path) -> None:
+    """Guards the O(N^2) regression: per-call cost must not scale with rows already stored.
+
+    Queries target the most recently appended rows. A linear scan short-circuits on the
+    first match, so querying the front of the trajectory stays cheap however long it grows
+    and would not detect the regression at all -- the cost only shows when the match is at
+    the far end. The threshold is deliberately loose: this asserts a change in complexity
+    class, not a timing budget.
+    """
+    import time
+
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    for step in range(1, 201):
+        trajectory.append(step=step, action={"x": step}, reward=0.1, observation=[1.0])
+
+    start = time.perf_counter()
+    for step in range(1, 201):
+        trajectory.find(action={"x": step})
+    small = time.perf_counter() - start
+
+    for step in range(201, 1601):
+        trajectory.append(step=step, action={"x": step}, reward=0.1, observation=[1.0])
+
+    start = time.perf_counter()
+    for step in range(1401, 1601):
+        trajectory.find(action={"x": step})
+    large = time.perf_counter() - start
+
+    assert large < small * 3, f"lookup cost grew with length: {small:.4f}s -> {large:.4f}s over an 8x longer trajectory"
