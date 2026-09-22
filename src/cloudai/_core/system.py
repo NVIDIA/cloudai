@@ -41,7 +41,7 @@ class System(ABC, BaseModel):
     output_path: Path
     hf_home_path: Path = Field(default_factory=lambda data: data["install_path"] / "huggingface")
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
-    monitor_interval: int = 1
+    monitor_interval: float = 1.0
     sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
 
     @field_validator("sol", mode="before")
