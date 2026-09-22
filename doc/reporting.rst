@@ -206,6 +206,9 @@ Configuration options:
    * - ``upload_tarball``
      - ``false``
      - Also upload a ``.tgz`` of the whole directory, creating it if absent.
+   * - ``upload_concurrency``
+     - ``8``
+     - Number of files uploaded concurrently when ``upload_tree`` is enabled.
 
 Destination fields fall back to the environment variable shown above when not set in
 TOML, so a cluster-wide default can come from the environment while an individual

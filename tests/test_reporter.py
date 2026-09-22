@@ -622,8 +622,18 @@ class TestResultsUploadReporter:
 
             mock_store_cls.assert_called_once_with(bucket="my-bucket", endpoint_url=None, region=None)
             store.upload_directory.assert_called_once_with(
-                results_dir, "cloudai/test_system/nccl-test_2025-04-16_14-27-45"
+                results_dir, "cloudai/test_system/nccl-test_2025-04-16_14-27-45", max_workers=8
             )
+
+    def test_upload_concurrency_is_configurable(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_concurrency=16).generate()
+
+            _, kwargs = store.upload_directory.call_args
+            assert kwargs["max_workers"] == 16
 
     def test_no_bucket_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:

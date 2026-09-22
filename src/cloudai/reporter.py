@@ -329,6 +329,7 @@ class ResultsUploadConfig(ReportConfig):
     region: Optional[str] = None
     upload_tree: bool = True
     upload_tarball: bool = False
+    upload_concurrency: int = 8
 
 
 class ResultsUploadReporter(Reporter):
@@ -361,7 +362,7 @@ class ResultsUploadReporter(Reporter):
         key_prefix = join_key(config.prefix, self.system.name, self.results_root.name)
 
         if config.upload_tree:
-            stats = store.upload_directory(self.results_root, key_prefix)
+            stats = store.upload_directory(self.results_root, key_prefix, max_workers=config.upload_concurrency)
             logging.info(
                 f"Uploaded {stats.files_uploaded} file(s), {stats.bytes_uploaded} byte(s) to {store.uri(key_prefix)}"
             )
