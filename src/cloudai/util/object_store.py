@@ -21,6 +21,7 @@ from __future__ import annotations
 import fnmatch
 import logging
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -61,7 +62,11 @@ class ObjectStore(ABC):
         ...
 
     def upload_directory(
-        self, local_dir: Path, key_prefix: str = "", exclude: Optional[list[str]] = None
+        self,
+        local_dir: Path,
+        key_prefix: str = "",
+        exclude: Optional[list[str]] = None,
+        max_workers: int = 8,
     ) -> UploadStats:
         """
         Upload every file under ``local_dir``, preserving relative paths.
@@ -71,6 +76,8 @@ class ObjectStore(ABC):
             key_prefix: Key prefix to place the tree under.
             exclude: Glob patterns matched against paths relative to ``local_dir``.
                 Matching files are skipped.
+            max_workers: Number of files to upload concurrently. Bounded by the actual
+                number of files, so small trees don't spin up idle threads.
 
         Returns:
             Stats describing what was uploaded. Individual file failures are collected
@@ -79,6 +86,7 @@ class ObjectStore(ABC):
         stats = UploadStats()
         exclude = exclude or []
 
+        to_upload: list[tuple[Path, str]] = []
         for path in sorted(local_dir.rglob("*")):
             if not path.is_file():
                 continue
@@ -88,19 +96,32 @@ class ObjectStore(ABC):
                 logging.debug(f"Skipping excluded file {relative}")
                 continue
 
-            key = join_key(key_prefix, relative.as_posix())
-            try:
-                size = path.stat().st_size
-                self.upload_file(path, key)
-            except Exception as e:
-                logging.debug(f"Failed to upload {path} to {self.uri(key)}: {e}", exc_info=True)
-                stats.failures.append((path, str(e)))
-                continue
+            to_upload.append((path, join_key(key_prefix, relative.as_posix())))
 
-            stats.files_uploaded += 1
-            stats.bytes_uploaded += size
+        if not to_upload:
+            return stats
+
+        workers = min(max_workers, len(to_upload))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(self._upload_one, path, key): (path, key) for path, key in to_upload}
+            for future in as_completed(futures):
+                path, key = futures[future]
+                try:
+                    size = future.result()
+                except Exception as e:
+                    logging.debug(f"Failed to upload {path} to {self.uri(key)}: {e}", exc_info=True)
+                    stats.failures.append((path, str(e)))
+                    continue
+
+                stats.files_uploaded += 1
+                stats.bytes_uploaded += size
 
         return stats
+
+    def _upload_one(self, path: Path, key: str) -> int:
+        size = path.stat().st_size
+        self.upload_file(path, key)
+        return size
 
 
 class S3ObjectStore(ObjectStore):

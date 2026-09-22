@@ -120,6 +120,30 @@ def test_upload_directory_skips_empty_dirs(tmp_path: Path) -> None:
     assert stats == UploadStats()
 
 
+def test_upload_directory_concurrent_stats_are_accurate(tmp_path: Path) -> None:
+    root = tmp_path / "many"
+    root.mkdir()
+    for i in range(40):
+        name = f"fail_{i}.txt" if i % 3 == 0 else f"ok_{i}.txt"
+        (root / name).write_text("x")
+
+    store = RecordingStore(fail_on="fail_")
+    stats = store.upload_directory(root, "runs", max_workers=8)
+
+    expected_failures = sum(1 for i in range(40) if i % 3 == 0)
+    assert stats.files_uploaded == 40 - expected_failures
+    assert len(stats.failures) == expected_failures
+    assert len(store.uploads) == 40 - expected_failures
+    assert stats.files_uploaded + len(stats.failures) == 40
+
+
+def test_upload_directory_max_workers_bounded_by_file_count(tree: Path) -> None:
+    store = RecordingStore()
+    stats = store.upload_directory(tree, "runs", max_workers=100)
+
+    assert stats.files_uploaded == 3
+
+
 def test_s3_object_store_uri() -> None:
     store = S3ObjectStore(bucket="my-bucket")
     assert store.uri("runs/report.html") == "s3://my-bucket/runs/report.html"
