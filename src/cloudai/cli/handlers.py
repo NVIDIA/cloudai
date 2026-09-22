@@ -37,22 +37,15 @@ def _deprecated(function: typing.Callable[_P, _R]) -> typing.Callable[_P, _R]:
     return wrapper
 
 
-_log_installation_dirs = _deprecated(cloudai.handlers._log_installation_dirs)
 handle_install_and_uninstall = _deprecated(cloudai.handlers.handle_install_and_uninstall)
 prepare_installation = _deprecated(cloudai.handlers.prepare_installation)
-_scenario_installables = _deprecated(cloudai.handlers._scenario_installables)
 handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
-_record_run_failure = _deprecated(cloudai.handlers._record_run_failure)
 generate_reports = _deprecated(cloudai.handlers.generate_reports)
 handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)
 register_signal_handlers = _deprecated(cloudai.handlers.register_signal_handlers)
-_setup_system_and_scenario = _deprecated(cloudai.handlers._setup_system_and_scenario)
-_handle_single_sbatch = _deprecated(cloudai.handlers._handle_single_sbatch)
-_check_installation = _deprecated(cloudai.handlers._check_installation)
 handle_dry_run_and_run = _deprecated(cloudai.handlers.handle_dry_run_and_run)
 handle_generate_report = _deprecated(cloudai.handlers.handle_generate_report)
 expand_file_list = _deprecated(cloudai.handlers.expand_file_list)
-_ensure_kube_config_exists = _deprecated(cloudai.handlers._ensure_kube_config_exists)
 verify_system_configs = _deprecated(cloudai.handlers.verify_system_configs)
 verify_test_configs = _deprecated(cloudai.handlers.verify_test_configs)
 verify_test_scenarios = _deprecated(cloudai.handlers.verify_test_scenarios)
