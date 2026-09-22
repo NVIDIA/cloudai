@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from enum import Enum
+from typing import List
 
 from pydantic import BaseModel, ConfigDict
+
+
+def parse_node_list(node_list: str) -> List[str]:
+    """
+    Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
+
+    Args:
+        node_list (str): A list of node names, possibly including ranges.
+
+    Returns:
+        List[str]: A flat list of expanded node names with preserved zeroes.
+    """
+    node_list = node_list.strip()
+    nodes = []
+    if not node_list:
+        return []
+
+    components = re.split(r",\s*(?![^[]*\])", node_list)
+    for component in components:
+        if "[" not in component:
+            nodes.append(component)
+        else:
+            header, node_number = component.split("[")
+            node_number = node_number.replace("]", "")
+            ranges = node_number.split(",")
+            for r in ranges:
+                if "-" in r:
+                    start_node, end_node = r.split("-")
+                    number_of_digits = len(end_node)
+                    nodes.extend(
+                        [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
+                    )
+                else:
+                    nodes.append(f"{header}{r}")
+
+    return nodes
 
 
 class SlurmNodeState(Enum):

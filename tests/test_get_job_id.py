@@ -14,28 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import JobIdRetrievalError, TestRun, TestScenario
+from cloudai.core import JobFailureError, JobIdRetrievalError, TestRun, TestScenario
 from cloudai.systems.lsf.lsf_runner import LSFRunner
 from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmJob, SlurmRunner, SlurmSystem
-from cloudai.util import CommandShell
 from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
-
-
-class MockCommandShell(CommandShell):
-    def execute(self, command):
-        mock_popen = Mock(spec=subprocess.Popen)
-        mock_popen.communicate.return_value = (
-            "",
-            "sbatch: error: Batch job submission failed: Requested node configuration is not available",
-        )
-        return mock_popen
 
 
 @pytest.fixture
@@ -58,20 +46,25 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
 
 @pytest.fixture
 def slurm_runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> SlurmRunner:
-    runner = SlurmRunner(
+    return SlurmRunner(
         mode="run", system=slurm_system, test_scenario=test_scenario, output_path=slurm_system.output_path
     )
-    runner.cmd_shell = MockCommandShell()
-    return runner
 
 
 def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     tr = slurm_runner.test_scenario.test_runs[0]
+    error = JobIdRetrievalError(
+        test_name=str(tr.name),
+        command="sbatch script.sh",
+        stdout="",
+        stderr="sbatch: error: Batch job submission failed: Requested node configuration is not available",
+        message="Failed to retrieve job ID.",
+    )
     cmd_gen = slurm_runner.get_cmd_gen_strategy(slurm_runner.system, tr)
     cmd_gen.cleanup_job_artifacts = Mock()
     slurm_runner.get_cmd_gen_strategy = Mock(return_value=cmd_gen)
 
-    with pytest.raises(JobIdRetrievalError) as excinfo:
+    with patch.object(SlurmSystem, "submit_job", side_effect=error), pytest.raises(JobIdRetrievalError) as excinfo:
         slurm_runner._submit_test(tr)
 
     assert "Failed to retrieve job ID." in str(excinfo.value)
@@ -101,9 +94,20 @@ def test_slurm_submission_runtime_error_cleans_job_artifacts(slurm_runner: Slurm
         ("", "sbatch: error: Batch job submission failed:...", None),
     ],
 )
-def test_slurm_get_job_id(slurm_runner: SlurmRunner, stdout: str, stderr: str, expected_job_id: int | None):
-    res = slurm_runner.get_job_id(stdout, stderr)
+def test_slurm_get_job_id(stdout: str, stderr: str, expected_job_id: int | None):
+    res = SlurmSystem._parse_submitted_job_id(stdout)
     assert res == expected_job_id
+
+
+def test_submit_sbatch_wait_propagates_job_failure(slurm_system: SlurmSystem, tmp_path: Path):
+    process = Mock(returncode=1)
+    process.communicate.return_value = ("Submitted batch job 123", "job failed")
+    slurm_system.cmd_shell.execute = Mock(return_value=process)
+
+    with pytest.raises(JobFailureError, match="Slurm job 123 failed"):
+        slurm_system.submit_sbatch(tmp_path / "job.sh", "Docker image import", wait=True)
+
+    slurm_system.cmd_shell.execute.assert_called_once_with(f"sbatch --wait {tmp_path / 'job.sh'}")
 
 
 def test_slurm_runner_on_job_completion_calls_cleanup(slurm_runner: SlurmRunner):
