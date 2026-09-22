@@ -24,14 +24,6 @@ import pandas as pd
 import pytest
 from pydantic import Field
 
-from cloudai.cli.handlers import (
-    handle_dse_job,
-    prepare_installation,
-    validate_domain_randomization_active,
-    verify_system_configs,
-    verify_test_configs,
-    verify_test_scenarios,
-)
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
@@ -46,6 +38,14 @@ from cloudai.core import (
     TestRun,
     TestScenario,
     TestScenarioParsingError,
+)
+from cloudai.handlers import (
+    handle_dse_job,
+    prepare_installation,
+    validate_domain_randomization_active,
+    verify_system_configs,
+    verify_test_configs,
+    verify_test_scenarios,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
