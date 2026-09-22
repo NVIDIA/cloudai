@@ -178,6 +178,22 @@ def test_explicit_sglang_aggregate_mode_is_preserved(strategy: AIDynamoSlurmComm
     assert '--decode-args-disaggregation-mode "agg"' not in args
 
 
+def test_sglang_dsr1_deepep_configs_are_forwarded(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang_dsr1"
+    td.cmd_args.dynamo.prefill_worker.args = WorkerBaseArgs.model_validate(
+        {"deepep-config": "/configs/prefill-deepep.json"}
+    )
+    td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate(
+        {"deepep-config": "/configs/decode-deepep.json"}
+    )
+
+    args = strategy._gen_script_args(td)
+
+    assert '--prefill-args-deepep-config "/configs/prefill-deepep.json"' in args
+    assert '--decode-args-deepep-config "/configs/decode-deepep.json"' in args
+
+
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
 
