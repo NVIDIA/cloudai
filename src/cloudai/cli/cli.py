@@ -21,7 +21,7 @@ from pathlib import Path
 
 import click
 
-from .handlers import (
+from cloudai.handlers import (
     handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
