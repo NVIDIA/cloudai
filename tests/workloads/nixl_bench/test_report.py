@@ -20,11 +20,13 @@ from pathlib import Path
 import pytest
 
 import cloudai.metrics
-from cloudai.core import TestRun, TestScenario
+from cloudai.core import METRIC_ERROR, TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReportConfig
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.common.nixl import extract_nixlbench_data
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchComparisonReport, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_bench.report_generation_strategy import NIXLBenchReportGenerationStrategy
 
 LEGACY_FORMAT = """
 Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)
@@ -170,3 +172,114 @@ class TestWasRunSuccessful:
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text(sample)
         assert nixl_tr.test.was_run_successful(nixl_tr).is_successful
+
+
+@pytest.fixture
+def independent_nixl_tr(nixl_tr: TestRun) -> TestRun:
+    task_path = nixl_tr.output_path / "nixlbench"
+    task_path.mkdir()
+    (task_path / "ntasks").write_text("2\n")
+    for task_id in range(2):
+        rows = [
+            f"4096 1 {1 + 2 * task_id} {10 + 20 * task_id} 0 0 0 0 0 0",
+            f"8192 4 {2 + 2 * task_id} {20 + 20 * task_id} 0 0 0 0 0 0",
+        ]
+        if task_id == 1:
+            rows.reverse()
+        (task_path / f"{task_id}.stdout").write_text(
+            "Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)\n" + "\n".join(rows) + "\n"
+        )
+        (task_path / f"{task_id}.status").write_text("0\n")
+        (task_path / f"{task_id}.hostname").write_text(f"node-{task_id}\n")
+    return nixl_tr
+
+
+def test_independent_tasks_reporting(independent_nixl_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    tr = independent_nixl_tr
+    report = NIXLBenchReportGenerationStrategy(slurm_system, tr)
+    assert tr.test.was_run_successful(tr).is_successful
+    assert report.can_handle_directory()
+    assert report.get_metric("latency") == pytest.approx(25)
+    assert report.get_metric("unknown") is METRIC_ERROR
+
+    # Native observations work before report generation and retain their existing semantics.
+    observations = tr.test.metric_observations(slurm_system, tr)
+    assert [item.value for item in observations if item.metric is cloudai.metrics.LATENCY] == [20, 30]
+    assert [item.value for item in observations if item.metric is cloudai.metrics.BANDWIDTH] == [2, 3]
+
+    report.generate_report()
+    df = lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
+    assert df.to_dict("list") == {
+        "block_size": [4096, 8192],
+        "batch_size": [1, 4],
+        "avg_lat": [20, 30],
+        "bw_gb_sec": [2, 3],
+        "bw_min_gb_sec": [1, 2],
+        "bw_sum_gb_sec": [4, 6],
+        "task_count": [2, 2],
+    }
+    raw = lazy.pd.read_csv(tr.output_path / "nixlbench_per_task.csv")
+    assert raw["task_id"].tolist() == [0, 0, 1, 1]
+    assert raw["hostname"].tolist() == ["node-0", "node-0", "node-1", "node-1"]
+    assert raw["bw_gb_sec"].tolist() == [1, 2, 4, 3]
+    html = (tr.output_path / "cloudai_nixlbench_bokeh_report.html").read_text()
+    for label in (
+        "Mean Per-Task Latency",
+        "Mean per-task bandwidth",
+        "Minimum per-task bandwidth",
+        "Sum of task bandwidths",
+        "Batch size 1",
+        "Batch size 4",
+    ):
+        assert label in html
+    assert tr.test.metric_observations(slurm_system, tr) == observations
+
+
+@pytest.mark.parametrize(
+    "filename,content,error",
+    [
+        ("ntasks", None, "ntasks"),
+        ("1.status", None, "1.status"),
+        ("1.status", "1", "exited with status 1"),
+        ("1.stdout", None, "data not found for task 1"),
+        ("1.stdout", "", "data not found for task 1"),
+        ("1.stdout", NEW_FORMAT, "different set of measurements"),
+    ],
+)
+def test_incomplete_independent_tasks_are_not_reported(
+    independent_nixl_tr: TestRun,
+    slurm_system: SlurmSystem,
+    filename: str,
+    content: str | None,
+    error: str,
+) -> None:
+    tr = independent_nixl_tr
+    path = tr.output_path / "nixlbench" / filename
+    if content is None:
+        path.unlink()
+    else:
+        path.write_text(content)
+    # Stale aggregate data and legacy stdout cannot hide an incomplete independent run.
+    (tr.output_path / "stdout.txt").write_text(NEW_FORMAT)
+    (tr.output_path / "nixlbench.csv").write_text("block_size,batch_size,avg_lat,bw_gb_sec\n4096,1,10,1\n")
+    status = tr.test.was_run_successful(tr)
+    assert not status.is_successful
+    assert error in status.error_message
+    report = NIXLBenchReportGenerationStrategy(slurm_system, tr)
+    assert not report.can_handle_directory()
+    assert report.get_metric("latency") is METRIC_ERROR
+    assert tr.test.metric_observations(slurm_system, tr) == []
+    report.generate_report()
+    assert not (tr.output_path / "cloudai_nixlbench_bokeh_report.html").exists()
+
+
+@pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
+def test_single_output_report_is_unchanged(nixl_tr: TestRun, slurm_system: SlurmSystem, sample: str) -> None:
+    (nixl_tr.output_path / "stdout.txt").write_text(sample)
+    expected = extract_nixlbench_data(nixl_tr.output_path / "stdout.txt")
+    report = NIXLBenchReportGenerationStrategy(slurm_system, nixl_tr)
+    report.generate_report()
+    actual = lazy.pd.read_csv(nixl_tr.output_path / "nixlbench.csv")
+    lazy.pd.testing.assert_frame_equal(actual, expected)
+    assert not (nixl_tr.output_path / "nixlbench_per_task.csv").exists()
+    assert report.get_metric("latency") == pytest.approx(expected["avg_lat"].mean())
