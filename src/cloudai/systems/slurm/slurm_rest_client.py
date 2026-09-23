@@ -242,7 +242,7 @@ class SlurmRestClient:
         return job
 
     def submit_sbatch(
-        self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: int = 1
+        self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: float = 1.0
     ) -> int:
         """Submit an SBATCH file and optionally wait for a terminal job state."""
         try:
