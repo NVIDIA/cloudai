@@ -239,10 +239,11 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
-    runner.run()
+def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> bool:
+    successful = runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
+    return successful
 
 
 def register_signal_handlers(signal_handler: Callable) -> None:
@@ -352,16 +353,23 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     register_signal_handlers(runner.cancel_on_signal)
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
-    has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
-        handle_non_dse_job(runner, args)
-        return 0
+    successful = False
+    try:
+        runner.runner.experiment_output.write()
+        has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
+        if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
+            successful = handle_non_dse_job(runner, args)
+            return 0
 
-    if all(tr.is_dse_job for tr in test_scenario.test_runs):
-        return handle_dse_job(runner, args)
+        if all(tr.is_dse_job for tr in test_scenario.test_runs):
+            result = handle_dse_job(runner, args)
+            successful = result == 0
+            return result
 
-    logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-    return 1
+        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+        return 1
+    finally:
+        runner.runner.finish_output(successful)
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
