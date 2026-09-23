@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+import subprocess
+from dataclasses import dataclass, field
+from typing import Optional
 
 from cloudai.core import BaseJob
 
@@ -23,4 +25,9 @@ from cloudai.core import BaseJob
 class StandaloneJob(BaseJob):
     """A job class for standalone execution."""
 
-    pass
+    process: Optional[subprocess.Popen] = field(default=None, compare=False)
+    """Handle for the launched process, used to poll completion without spawning a checker.
+
+    ``None`` when the job was not launched by this process -- a dry run, or a job
+    reconstructed from prior state -- in which case completion falls back to a signal probe.
+    """

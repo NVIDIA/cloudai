@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 
 from cloudai.core import BaseJob, System
 from cloudai.util import CommandShell
@@ -49,15 +50,25 @@ class StandaloneSystem(System):
         Returns:
             bool: True if the job is running, False otherwise.
         """
-        command = f"ps -p {job.id}"
-        logging.debug(f"Checking job status with command: {command}")
-        stdout = self.cmd_shell.execute(command).communicate()[0]
+        # Poll the handle when we own it. Shelling out to `ps` spawns two processes per
+        # check and the check runs on every monitor tick, so on a fast backend it cost more
+        # than the job being waited for. Polling also reaps the child, so a finished process
+        # cannot linger as a zombie and keep reading as running.
+        process = getattr(job, "process", None)
+        if process is not None:
+            is_running = process.poll() is None
+            logging.debug(f"Job {job.id} running status: {is_running}")
+            return is_running
 
-        # Check if the job's PID is in the ps output
-        is_running = str(job.id) in stdout
-        logging.debug(f"Job {job.id} running status: {is_running}")
-
-        return is_running
+        # No handle: the job was not launched by this process. Probe with signal 0, which
+        # checks for the pid without delivering anything.
+        try:
+            os.kill(int(job.id), 0)
+        except (ProcessLookupError, PermissionError, TypeError, ValueError):
+            logging.debug(f"Job {job.id} running status: False")
+            return False
+        logging.debug(f"Job {job.id} running status: True")
+        return True
 
     def is_job_completed(self, job: BaseJob) -> bool:
         """
