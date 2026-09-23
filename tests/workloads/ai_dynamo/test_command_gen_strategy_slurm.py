@@ -51,6 +51,19 @@ def test_worker_config_allows_omitting_launch_fields_when_num_nodes_is_zero() ->
     assert worker.worker_initialized_regex is None
 
 
+def test_worker_config_skips_topology_validation_when_num_nodes_is_zero() -> None:
+    worker = WorkerConfig.model_validate(
+        {
+            "num-nodes": 0,
+            "nodes-per-worker": 2,
+            "multiple-workers-per-node": True,
+        }
+    )
+
+    assert worker.num_nodes == 0
+    assert worker.nodes_per_worker == 2
+
+
 @pytest.mark.parametrize("num_nodes", [1, [0, 1]])
 def test_worker_config_requires_launch_fields_when_any_num_nodes_is_nonzero(num_nodes: int | list[int]) -> None:
     with pytest.raises(ValueError, match="cmd, worker-initialized-regex must be set when num-nodes is non-zero"):
@@ -156,11 +169,12 @@ def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0, nodes_per_worker=2)
 
     args = strategy._gen_script_args(td)
 
     assert '--prefill-num-nodes "0"' in args
+    assert '--prefill-nodes-per-worker "2"' in args
     assert not any(arg.startswith("--prefill-cmd ") for arg in args)
     assert not any(arg.startswith("--prefill-worker-initialized-regex ") for arg in args)
     assert '--decode-args-disaggregation-mode "agg"' in args
@@ -660,6 +674,23 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     test_run.num_nodes = 2
     test_run.nodes = ["n0", "n1"]
     test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_ignores_disabled_worker_topology(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig.model_validate(
+        {
+            "num-nodes": 0,
+            "nodes-per-worker": 2,
+            "multiple-workers-per-node": True,
+            "args": {
+                "tensor-parallel-size": 16,
+                "distributed-executor-backend": "ray",
+            },
+        }
+    )
 
     assert td.constraint_check(test_run, slurm_system)
 
