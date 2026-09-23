@@ -17,13 +17,14 @@
 import argparse
 import copy
 from pathlib import Path
-from typing import Any, ClassVar, Iterator, Optional
+from typing import Any, ClassVar, Iterator, Optional, cast
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
+import cloudai.models.output
 from cloudai.cli.handlers import (
     handle_dse_job,
     prepare_installation,
@@ -32,6 +33,7 @@ from cloudai.cli.handlers import (
     verify_test_configs,
     verify_test_scenarios,
 )
+from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
@@ -395,6 +397,86 @@ def test_handle_dse_job_invokes_agent_run(
 
     assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
     assert CustomRunStubAgent.run_calls == 1
+
+
+@pytest.mark.parametrize(
+    "failed_steps,last_reward,last_observation,best_step",
+    [
+        ([], 2.0, 2.0, 2),
+        ([2], 2.0, 2.0, 1),
+        ([1, 2], 2.0, 2.0, None),
+        ([], float("inf"), 2.0, 1),
+        ([], 2.0, float("nan"), 1),
+        ([], 2.0, -1.0, 1),
+        ([], 1.0, 2.0, 1),
+    ],
+)
+def test_dse_output_selects_completed_trial(
+    slurm_system: SlurmSystem,
+    dse_tr: TestRun,
+    custom_run_agent_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+    failed_steps: list[int],
+    last_reward: float,
+    last_observation: float,
+    best_step: int | None,
+) -> None:
+    dse_tr.test.agent = custom_run_agent_name
+    runner = Runner("dry-run", slurm_system, TestScenario(name="scenario", test_runs=[dse_tr]))
+
+    def run(agent: CustomRunStubAgent) -> int:
+        env = cast(CloudAIGymEnv, agent.env)
+        test = env.runner.experiment_output.snapshot().tests[0]
+        assert test.dse is not None
+        assert test.dse.model_dump() == {
+            "space": {"extra_env_vars.VAR1": ["value1", "value2"]},
+            "best_step": None,
+            "best_config": None,
+        }
+        for step, value in enumerate(["value1", "value2"], start=1):
+            env.runner.experiment_output.update_run(
+                dse_tr.name,
+                cloudai.models.output.Run(
+                    path=str(env.iteration_dir / str(step)),
+                    jobid=str(step),
+                    step=step,
+                    status="failed" if step in failed_steps else "completed",
+                    metrics=[cloudai.models.output.Metric(name="Bandwidth", value=12.5 * step, unit="GB/s")],
+                ),
+            )
+            env.trajectory.append(
+                step=step,
+                action={"extra_env_vars.VAR1": value},
+                reward=last_reward if step == 2 else 1.0,
+                observation={metric: last_observation if step == 2 else 1.0 for metric in dse_tr.test.agent_metrics},
+                env_params={},
+            )
+        if failed_steps:
+            raise RuntimeError("trial failed")
+        return 0
+
+    monkeypatch.setattr(CustomRunStubAgent, "run", run)
+    if failed_steps:
+        with pytest.raises(RuntimeError, match="trial failed"):
+            handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+    else:
+        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+
+    stored = cloudai.models.output.Experiment.model_validate_json(
+        (runner.runner.scenario_root / "experiment.json").read_text()
+    )
+    assert stored.tests[0].dse is not None
+    assert stored.tests[0].dse.model_dump() == {
+        "space": {"extra_env_vars.VAR1": ["value1", "value2"]},
+        "best_step": best_step,
+        "best_config": {"extra_env_vars.VAR1": f"value{best_step}"} if best_step is not None else None,
+    }
+    assert [metric.model_dump() for metric in stored.tests[0].metrics] == (
+        [{"name": "Bandwidth", "value": 12.5 * best_step, "unit": "GB/s", "dimensions": []}]
+        if best_step is not None
+        else []
+    )
+    assert len(stored.tests[0].runs) == 2
 
 
 def test_handle_dse_job_propagates_agent_run_nonzero_rc(

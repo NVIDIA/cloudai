@@ -19,7 +19,21 @@ import logging
 import pathlib
 import tempfile
 
+import cloudai.metrics
 import cloudai.models.output
+
+
+def metric_output(observation: cloudai.metrics.MetricObservation) -> cloudai.models.output.Metric:
+    """Convert a canonical observation to an output metric."""
+    return cloudai.models.output.Metric(
+        name=observation.metric.display_name,
+        value=observation.value,
+        unit=observation.metric.unit,
+        dimensions=[
+            cloudai.models.output.Dimension(name=cloudai.metrics.dimension_label(key), value=str(value))
+            for key, value in sorted(observation.dimensions.items())
+        ],
+    )
 
 
 class ExperimentOutput:
@@ -56,6 +70,25 @@ class ExperimentOutput:
                 return
         self.experiment.tests.append(recorded)
 
+    def update_dse(
+        self,
+        test_id: str,
+        space: dict[str, list[str | int | float]],
+        candidates: list[tuple[int, dict[str, str | int | float]]],
+    ) -> None:
+        """Store the first ranked candidate with a successful run and its metrics."""
+        test = next((test for test in self.experiment.tests if test.id == test_id), None)
+        if test is None:
+            raise KeyError(f"Unknown experiment test: {test_id}")
+        completed_runs = {run.step: run for run in test.runs if run.status == "completed"}
+        for step, config in candidates:
+            if step in completed_runs:
+                test.dse = cloudai.models.output.DSE(space=space, best_step=step, best_config=config)
+                test.metrics = [metric.model_copy(deep=True) for metric in completed_runs[step].metrics]
+                return
+        test.dse = cloudai.models.output.DSE(space=space)
+        test.metrics = []
+
     def snapshot(self) -> cloudai.models.output.Experiment:
         """Return an independent snapshot without finalizing the experiment."""
         full = self.experiment.model_copy(deep=True)
@@ -87,14 +120,35 @@ class ExperimentOutput:
                     logging.warning("Cannot remove temporary experiment output %s: %s", temporary_path, exc)
 
     def finish(self, status: cloudai.models.output.Status, finish: datetime.datetime | None) -> None:
+        for test in self.experiment.tests:
+            for run in test.runs:
+                if run.status in ("pending", "running"):
+                    run.status = "unknown"
+            self._update_test_status(test)
+            self._update_test_metrics(test)
+        if status == "completed":
+            statuses = {test.status for test in self.experiment.tests}
+            for outcome in ("failed", "cancelled", "unknown"):
+                if outcome in statuses:
+                    status = outcome
+                    break
+        for test in self.experiment.tests:
+            if test.status in ("pending", "running"):
+                test.status = "completed" if status == "completed" else "unknown"
         self.experiment.status = status
         self.experiment.finish = finish
-        if status == "completed":
-            for test in self.experiment.tests:
-                if test.status not in ("failed", "cancelled"):
-                    test.status = "completed"
         self._update_timing(self.experiment)
         self.write()
+
+    @staticmethod
+    def _update_test_metrics(test: cloudai.models.output.Test) -> None:
+        if test.dse is not None:
+            return
+        test.metrics = []
+        if len(test.runs) == 1:
+            run = test.runs[0]
+            if run.status == "completed" and run.step in (None, 0):
+                test.metrics = [metric.model_copy(deep=True) for metric in run.metrics]
 
     @staticmethod
     def _update_test_status(test: cloudai.models.output.Test) -> None:
@@ -105,6 +159,10 @@ class ExperimentOutput:
             test.status = "cancelled"
         elif "running" in statuses:
             test.status = "running"
+        elif "pending" in statuses:
+            test.status = "pending"
+        elif "unknown" in statuses:
+            test.status = "unknown"
         elif statuses == {"completed"}:
             test.status = "completed"
 

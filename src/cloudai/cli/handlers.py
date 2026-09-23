@@ -173,7 +173,11 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
 
-            err |= agent.run()
+            env.update_output()
+            try:
+                err |= agent.run()
+            finally:
+                env.update_output()
     except Exception as exc:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")

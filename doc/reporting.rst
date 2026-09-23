@@ -36,15 +36,26 @@ Unified experiment output
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, test cases, status, timing, and result paths. Standalone execution also records each
-run's process ID, status, iteration, timing, and workload metrics.
+The file contains scenario details and test cases under ``tests``. Standalone and Slurm execution records appear in each
+test case's ``runs`` list. Each record represents an iteration or DSE step and includes its number, process or Slurm job
+ID, status, timing, result path, and workload metrics.
 
-CloudAI updates the file when standalone runs start and finish, then finalizes it when scenario execution succeeds or
-fails. Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. Dry runs also produce scenario and
-test-case details without launching workloads.
+Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A final status of ``unknown`` means the outcome
+could not be determined. Dry runs include scenario and test-case details without launching workloads.
 
-Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings. Each file update replaces
-the previous snapshot atomically. Metric extraction or write errors produce warnings without affecting execution.
+When a test case executes once successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
+metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
+in ``tests[].dse``. For example:
+
+.. code-block:: json
+
+   {
+     "space": {"extra_env_vars.NCCL_ALGO": ["Ring", "Tree"]},
+     "best_step": 2,
+     "best_config": {"extra_env_vars.NCCL_ALGO": "Tree"}
+   }
+
+Here, step 2 using ``Tree`` was selected. Its metrics appear in the test case's ``metrics`` list.
 
 
 .. _general-flow:
