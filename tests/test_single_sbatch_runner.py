@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import datetime
 import re
 from pathlib import Path
 from typing import Generator, Optional, cast
@@ -24,9 +25,13 @@ import pandas as pd
 import pytest
 import toml
 
+import cloudai.metrics
+import cloudai.models.output
+from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams, EnvParamSpec
-from cloudai.core import Registry, System, TestRun, TestScenario
+from cloudai.core import JobStatusResult, Registry, System, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
+from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
@@ -582,22 +587,108 @@ def test_run_cancels_job_when_shutdown_occurs_during_submission(sleep_tr: TestRu
     assert runner.jobs == []
 
 
-def test_run_removes_completed_job_from_tracking(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    tc = TestScenario(name="tc", test_runs=[sleep_tr])
+@pytest.mark.parametrize("status", ["completed", "failed", "cancelled", "unknown"])
+def test_run_removes_completed_job_from_tracking(sleep_tr: TestRun, slurm_system: SlurmSystem, status: str) -> None:
+    second_tr = copy.deepcopy(sleep_tr)
+    second_tr.name = "second"
+    tc = TestScenario(name="tc", test_runs=[sleep_tr, second_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    runs = list(runner.all_trs)
     job = SlurmJob(sleep_tr, id=123)
     runner._submit_test = Mock(return_value=job)
     runner.handle_dse = Mock()
-    runner.on_job_completion = Mock()
-
+    runner.on_job_completion = Mock(side_effect=runner.store_job_metadata)
+    allocation = SlurmStepMetadata(
+        job_id=123,
+        step_id="",
+        name="allocation",
+        state="CANCELLED",
+        exit_code="1:0",
+        start_time="2026-01-02T03:04:00Z",
+        end_time="2026-01-02T03:04:30Z",
+        elapsed_time_sec=30,
+        submit_line="sbatch run.sh",
+    )
+    steps = [allocation]
+    for tr, step, start, end in [(sleep_tr, "3", 1, 4), (second_tr, "4", 5, 9), (second_tr, "5", 7, 12)]:
+        if tr is second_tr and status == "unknown":
+            continue
+        steps.append(
+            allocation.model_copy(
+                update={
+                    "step_id": step,
+                    "submit_line": f"srun --output={tr.output_path.absolute()}/stdout.txt bash run.sh",
+                    "state": "CANCELLED" if tr is second_tr and status == "cancelled" else "FAILED",
+                    "start_time": f"2026-01-02T03:04:{start:02}Z",
+                    "end_time": f"2026-01-02T03:04:{end:02}Z",
+                    "elapsed_time_sec": end - start,
+                }
+            )
+        )
     with (
         patch.object(SlurmSystem, "is_job_completed", return_value=True),
+        patch.object(SlurmSystem, "get_job_status", return_value=steps),
         patch.object(SlurmSystem, "kill") as kill,
+        patch.object(
+            SleepTestDefinition,
+            "was_run_successful",
+            side_effect=lambda tr: JobStatusResult(
+                is_successful=tr.name == sleep_tr.name or status == "completed",
+            ),
+        ),
+        patch.object(
+            SleepTestDefinition,
+            "metric_observations",
+            side_effect=lambda system, tr: [
+                cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 5 if tr.name == sleep_tr.name else 10, {}),
+            ],
+        ),
     ):
         runner.run()
+        runner.finish_output(successful=True)
 
     kill.assert_not_called()
     assert runner.jobs == []
+    stored = cloudai.models.output.Experiment.model_validate_json(
+        (runner.scenario_root / "experiment.json").read_text()
+    )
+    assert stored.status == status
+    start = datetime.datetime(2026, 1, 2, 3, 4, tzinfo=datetime.timezone.utc)
+    expected = []
+    for index, tr in enumerate(runs):
+        run_status = "completed" if index == 0 else status
+        metrics = [{"name": "Bandwidth", "value": 5 * (index + 1), "unit": "GB/s", "dimensions": []}]
+        if run_status != "completed":
+            metrics = []
+        expected.append(
+            {
+                "id": tr.name,
+                "name": "sleep",
+                "description": "desc",
+                "status": run_status,
+                "path": str(runner.scenario_root / tr.name),
+                "metrics": metrics,
+                "dse": None,
+                "runs": [
+                    {
+                        "path": str(tr.output_path.absolute()),
+                        "jobid": "123",
+                        "status": run_status,
+                        "metrics": metrics,
+                        "start": start + datetime.timedelta(seconds=1 if index == 0 else 5)
+                        if run_status != "unknown"
+                        else None,
+                        "finish": start + datetime.timedelta(seconds=4 if index == 0 else 12)
+                        if run_status != "unknown"
+                        else None,
+                        "duration": (3 if index == 0 else 7) if run_status != "unknown" else None,
+                        "iteration": 0,
+                        "step": 0,
+                    }
+                ],
+            }
+        )
+    assert [test.model_dump() for test in stored.tests] == expected
 
 
 def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
@@ -624,7 +715,8 @@ def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem
     )
 
 
-def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
+@pytest.mark.parametrize("failed_step", [None, 2])
+def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem, failed_step: int | None) -> None:
     tc = TestScenario(name="tc", test_runs=[dse_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
     dse_tr.output_path = slurm_system.output_path / dse_tr.name
@@ -632,7 +724,40 @@ def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
 
     trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
     trajectory_path.unlink(missing_ok=True)
-    runner.handle_dse()
+    dse_tr.test.agent_reward_function = "identity"
+    for tr in runner.all_trs:
+        runner.experiment_output.update_run(
+            dse_tr.name,
+            cloudai.models.output.Run(
+                path=str(tr.output_path),
+                jobid="123",
+                iteration=0,
+                step=tr.step,
+                status="failed" if tr.step == failed_step else "completed",
+                metrics=[cloudai.models.output.Metric(name="Bandwidth", value=tr.step * 12.5, unit="GB/s")],
+            ),
+        )
+    with patch.object(
+        CloudAIGymEnv,
+        "get_observation",
+        side_effect=[{metric: float(step) for metric in dse_tr.test.agent_metrics} for step in (1, 2)],
+    ):
+        runner.handle_dse()
+    stored = cloudai.models.output.Experiment.model_validate_json(
+        (runner.scenario_root / "experiment.json").read_text()
+    )
+    test = stored.tests[0]
+    best_step = 1 if failed_step else 2
+    assert test.dse is not None
+    assert test.dse.model_dump() == {
+        "space": {"extra_env_vars.VAR1": ["value1", "value2"]},
+        "best_step": best_step,
+        "best_config": {"extra_env_vars.VAR1": f"value{best_step}"},
+    }
+    assert [metric.model_dump() for metric in test.metrics] == [
+        {"name": "Bandwidth", "value": best_step * 12.5, "unit": "GB/s", "dimensions": []},
+    ]
+    assert len(test.runs) == 2
 
     assert trajectory_path.exists()
     df = pd.read_csv(trajectory_path)
