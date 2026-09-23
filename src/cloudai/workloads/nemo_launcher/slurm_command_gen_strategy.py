@@ -37,7 +37,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self) -> str:
         self._prepare_environment()
 
-        _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        _, nodes = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
         self._set_node_config(nodes, self.test_run.nnodes)
 
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, self.test_run.test)

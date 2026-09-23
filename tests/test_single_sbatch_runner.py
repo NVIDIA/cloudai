@@ -187,6 +187,36 @@ class TestNodeSpec:
         assert f"-N{another_tr.num_nodes}" not in srun_cmd
         assert "--nodelist" in srun_cmd
 
+    def test_extract_sbatch_nodes_spec_excludes_configured_nodes(
+        self, sleep_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        another_tr = copy.deepcopy(sleep_tr)
+        sleep_tr.nodes = []
+        sleep_tr.num_nodes = 1
+        another_tr.nodes = ["node-[030-035]"]
+        another_tr.exclude_nodes = ["node-030"]
+        tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
+        runner = SingleSbatchRunner(
+            mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
+        )
+
+        _, node_list = runner.extract_sbatch_nodes_spec()
+
+        assert "node-030" not in node_list
+
+    def test_single_tr_block_excludes_configured_nodes(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        sleep_tr.nodes = ["node-[030-035]"]
+        sleep_tr.exclude_nodes = ["node-030"]
+        tc = TestScenario(name="tc", test_runs=[sleep_tr])
+        runner = SingleSbatchRunner(
+            mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
+        )
+
+        srun_cmd = runner.get_single_tr_block(sleep_tr)
+
+        assert "node-030" not in srun_cmd
+        assert "--nodelist=" in srun_cmd
+
 
 class TestTimeLimit:
     def test_simple(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
