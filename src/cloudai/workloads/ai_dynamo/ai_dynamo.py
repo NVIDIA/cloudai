@@ -187,6 +187,8 @@ class WorkerConfig(BaseModel):
     @model_validator(mode="after")
     def validate_worker_topology(self) -> "WorkerConfig":
         """Validate scalar worker topology while allowing DSE lists before unrolling."""
+        if not self.is_enabled:
+            return self
         if isinstance(self.num_nodes, list) or isinstance(self.nodes_per_worker, list):
             return self
 
@@ -683,7 +685,12 @@ class AIDynamoTestDefinition(TestDefinition):
         decode_tp = int(decode_worker.args.tensor_parallel_size)
         decode_pp = int(decode_worker.args.pipeline_parallel_size)
 
-        if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
+        if (
+            self.constraints.prefill_tp_le_decode_tp
+            and prefill_worker.is_enabled
+            and decode_worker.is_enabled
+            and prefill_tp > decode_tp
+        ):
             logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
             return False
         logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
@@ -694,6 +701,10 @@ class AIDynamoTestDefinition(TestDefinition):
             ("prefill", prefill_worker, prefill_tp, prefill_pp),
             ("decode", decode_worker, decode_tp, decode_pp),
         ):
+            if not worker.is_enabled:
+                role_footprints[role] = 0
+                continue
+
             num_nodes = int(worker.num_nodes)
             nodes_per_worker = int(worker.nodes_per_worker or 1)
             world_size = tp * pp
@@ -701,9 +712,6 @@ class AIDynamoTestDefinition(TestDefinition):
             backend = tr.test.cmd_args.dynamo.backend
             is_vllm_multinode_dp = backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
 
-            if num_nodes == 0 and worker.nodes_per_worker is None:
-                role_footprints[role] = 0
-                continue
             if (
                 backend == "sglang"
                 and nodes_per_worker > 1

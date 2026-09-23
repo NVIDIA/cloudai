@@ -209,7 +209,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / HICACHE_CONFIG_FILE_NAME).write_text(config)
 
     def _validate_multinode_worker(self, role: str, worker: WorkerConfig) -> None:
-        if worker.nodes_per_worker is None:
+        if not worker.is_enabled or worker.nodes_per_worker is None:
             return
         if not isinstance(worker.num_nodes, int) or not isinstance(worker.nodes_per_worker, int):
             raise ValueError(f"{role} worker topology must be scalar after DSE unrolling")
