@@ -279,6 +279,70 @@ def test_storage_backend_without_runtime(nixl_bench_tr: TestRun, slurm_system: S
     assert "until curl" not in command
 
 
+@pytest.mark.parametrize(
+    ("system_args", "test_args", "nodes"),
+    [
+        (None, "--ntasks=4 --ntasks-per-node=1", []),
+        ("-n 4 --ntasks-per-node 1", None, ["node-[033-036]"]),
+        ("--ntasks=8", "-n4 --ntasks-per-node=1", []),
+        (None, "--ntasks-per-node=1", ["node-[033-036]"]),
+    ],
+)
+def test_independent_storage_placement(
+    nixl_bench_tr: TestRun,
+    slurm_system: SlurmSystem,
+    system_args: str | None,
+    test_args: str | None,
+    nodes: list[str],
+) -> None:
+    nixl_bench_tr.num_nodes = 4
+    nixl_bench_tr.nodes = nodes
+    nixl_bench_tr.extra_srun_args = test_args
+    slurm_system.extra_srun_args = system_args
+    slurm_system.ntasks_per_node = 8
+    tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
+    nixl_bench_tr.test.cmd_args.backend = "POSIX"
+    tdef.cmd_args.etcd_endpoints = ""
+
+    command = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr).gen_srun_command()
+
+    assert command.startswith("srun -N4 --ntasks-per-node=1 ")
+    assert command.count("srun ") == 1
+    assert "--nodelist=$SLURM_JOB_MASTER_NODE" not in command
+    assert "--ntasks=1" not in command
+    assert "-N1" not in command
+    assert "sleep " not in command
+    assert "etcd" not in command
+    for args in (system_args, test_args):
+        if args:
+            assert args in command
+    if system_args and test_args:
+        assert command.index(system_args) < command.index(test_args)
+    assert (nixl_bench_tr.output_path / "nixlbench.sh").is_file()
+
+
+@pytest.mark.parametrize("runtime", ["null", "managed", "external", "ASIO"])
+def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, runtime: str) -> None:
+    tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
+    nixl_bench_tr.test.cmd_args.backend = "UCX" if runtime == "ASIO" else "POSIX"
+    nixl_bench_tr.num_nodes = 2 if runtime == "ASIO" else 4
+    nixl_bench_tr.extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
+    if runtime == "null":
+        tdef.cmd_args.etcd_endpoints = ""
+        nixl_bench_tr.extra_srun_args = "--cpu-bind=none"
+    elif runtime == "external":
+        tdef.cmd_args.etcd_endpoints = "http://etcd.example:2379"
+    elif runtime == "ASIO":
+        tdef.cmd_args.runtime_type = "ASIO"
+
+    command = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr).gen_srun_command()
+
+    assert "--ntasks=1 -N1" in command
+    assert not (nixl_bench_tr.output_path / "nixlbench.sh").exists()
+    if runtime == "managed":
+        assert "--ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd" in command
+
+
 def test_managed_etcd_lifecycle(nixl_bench_tr: TestRun, slurm_system: SlurmSystem) -> None:
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     nixl_bench_tr.test.cmd_args.backend = "UCX"

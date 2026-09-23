@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pydantic
 
@@ -30,6 +32,60 @@ from cloudai.workloads.common.nixl import (
     NIXLExtendedCmdArgs,
     extract_nixlbench_data,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+def read_nixlbench_results(output_path: Path) -> pd.DataFrame:
+    """Read legacy output or validate and collect every independent task's results."""
+    task_path = output_path / "nixlbench"
+    if not task_path.is_dir():
+        return extract_nixlbench_data(output_path / "stdout.txt")
+
+    try:
+        ntasks = int((task_path / "ntasks").read_text().strip())
+        if ntasks < 1:
+            raise ValueError("Expected a positive NIXLBench task count.")
+
+        frames = []
+        expected_measurements = None
+        for task_id in range(ntasks):
+            status = int((task_path / f"{task_id}.status").read_text().strip())
+            if status != 0:
+                raise ValueError(f"NIXLBench task {task_id} exited with status {status}.")
+            frame = extract_nixlbench_data(task_path / f"{task_id}.stdout").copy()
+            if frame.empty:
+                raise ValueError(f"NIXLBench data not found for task {task_id}.")
+            if not lazy.np.isfinite(frame[["avg_lat", "bw_gb_sec"]].to_numpy()).all():
+                raise ValueError(f"NIXLBench task {task_id} contains non-finite measurements.")
+
+            measurements = list(frame[["block_size", "batch_size"]].itertuples(index=False, name=None))
+            if len(set(measurements)) != len(measurements):
+                raise ValueError(f"NIXLBench task {task_id} contains duplicate measurements.")
+            if expected_measurements is not None and set(measurements) != expected_measurements:
+                raise ValueError(f"NIXLBench task {task_id} has a different set of measurements.")
+            expected_measurements = set(measurements)
+
+            frame["task_id"] = task_id
+            frame["hostname"] = (task_path / f"{task_id}.hostname").read_text().strip()
+            frames.append(frame)
+        return lazy.pd.concat(frames, ignore_index=True)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Invalid NIXLBench results in {task_path}: {exc}") from exc
+
+
+def aggregate_nixlbench_results(df: pd.DataFrame) -> pd.DataFrame:
+    """Summarize matching measurements, retaining mean bandwidth for legacy consumers."""
+    if "task_id" not in df.columns:
+        return df
+    return df.groupby(["block_size", "batch_size"], as_index=False).agg(
+        avg_lat=("avg_lat", "mean"),
+        bw_gb_sec=("bw_gb_sec", "mean"),
+        bw_min_gb_sec=("bw_gb_sec", "min"),
+        bw_sum_gb_sec=("bw_gb_sec", "sum"),
+        task_count=("task_id", "count"),
+    )
 
 
 class NIXLBenchCmdArgs(NIXLBaseCmdArgs, NIXLExtendedCmdArgs):
@@ -79,7 +135,10 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
         return cmd_args
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        df = extract_nixlbench_data(tr.output_path / "stdout.txt")
+        try:
+            df = read_nixlbench_results(tr.output_path)
+        except ValueError as exc:
+            return JobStatusResult(is_successful=False, error_message=str(exc))
         if df.empty:
             return JobStatusResult(is_successful=False, error_message=f"NIXLBench data not found in {tr.output_path}.")
 
@@ -88,7 +147,14 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
         del system
         csv_path = tr.output_path / "nixlbench.csv"
-        df = lazy.pd.read_csv(csv_path) if csv_path.is_file() else extract_nixlbench_data(tr.output_path / "stdout.txt")
+        try:
+            if (tr.output_path / "nixlbench").is_dir() or not csv_path.is_file():
+                df = aggregate_nixlbench_results(read_nixlbench_results(tr.output_path))
+            else:
+                df = lazy.pd.read_csv(csv_path)
+        except ValueError as exc:
+            logging.warning(str(exc))
+            return []
         observations: list[cloudai.metrics.MetricObservation] = []
         for row in df.itertuples(index=False):
             row = cast(Any, row)

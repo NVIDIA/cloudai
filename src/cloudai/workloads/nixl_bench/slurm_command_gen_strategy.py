@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from typing import cast
 
 from cloudai.workloads.common.nixl import NIXLCmdGenBase
@@ -37,6 +38,9 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         backend = str(self.tdef.cmd_args_dict.get("backend", "unset"))
         self._current_image_url = str(self.tdef.docker_image.installed_path)
         try:
+            if not self.tdef.uses_asio and not self.tdef.cmd_args.etcd_endpoints and self._has_explicit_placement():
+                return self._gen_independent_srun_command()
+
             nixl_commands = self.gen_nixlbench_srun_commands(self.gen_nixlbench_command(), backend)
             if self.tdef.cmd_args.runtime_type == "ASIO" and len(nixl_commands) != 2:
                 raise ValueError(f"ASIO runtime requires exactly two NIXLBench processes, got {len(nixl_commands)}.")
@@ -85,6 +89,46 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             '(exit "$nixl_rc")',
         ]
         return "\n".join(commands)
+
+    def _has_explicit_placement(self) -> bool:
+        """Keep legacy placement unless the user supplies a Slurm task/node layout."""
+        options = {"--nodes", "--ntasks", "--ntasks-per-node", "--nodelist"}
+        for extra_args in (self.system.extra_srun_args, self.test_run.extra_srun_args):
+            for arg in shlex.split(extra_args or ""):
+                if arg.partition("=")[0] in options or arg.startswith(("-N", "-n", "-w")):
+                    return True
+        return False
+
+    def _gen_independent_srun_command(self) -> str:
+        """Launch independent storage processes together, with task-local artifacts."""
+        output_dir = self.test_run.output_path.absolute()
+        (output_dir / "nixlbench").mkdir(exist_ok=True)
+        script_path = output_dir / "nixlbench.sh"
+        script_path.write_text(
+            "\n".join(
+                [
+                    "#!/bin/bash",
+                    "set -e",
+                    f"nixl_output={shlex.quote(str(output_dir / 'nixlbench'))}",
+                    'nixl_task="$SLURM_PROCID"',
+                    'trap \'echo "$?" > "$nixl_output/$nixl_task.status"\' EXIT',
+                    'exec > "$nixl_output/$nixl_task.stdout" 2> "$nixl_output/$nixl_task.stderr"',
+                    'hostname > "$nixl_output/$nixl_task.hostname"',
+                    'if [ "$nixl_task" -eq 0 ]; then',
+                    '    echo "$SLURM_NTASKS" > "$nixl_output/ntasks"',
+                    "fi",
+                    f"source {shlex.quote(str(output_dir / 'env_vars.sh'))}",
+                    " ".join(self.gen_nsys_command() + self.gen_nixlbench_command()),
+                    "",
+                ]
+            )
+        )
+        prefix = self.gen_srun_prefix(use_pretest_extras=True, with_num_nodes=False)
+        num_nodes, _ = self.get_cached_nodes_spec()
+        # Explicit -N also prevents srun inheriting the allocation's task count for named nodes.
+        # User options follow these defaults and take precedence.
+        prefix[1:1] = [f"-N{num_nodes}", "--ntasks-per-node=1"]
+        return " ".join([*prefix, "bash", shlex.quote(str(script_path))])
 
     def gen_nixlbench_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test)

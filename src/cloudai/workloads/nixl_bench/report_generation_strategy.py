@@ -18,12 +18,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.common.nixl import extract_nixlbench_data
+
+from .nixl_bench import aggregate_nixlbench_results, read_nixlbench_results
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
@@ -36,45 +40,74 @@ class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
         return self.test_run.output_path / "stdout.txt"
 
     def can_handle_directory(self) -> bool:
-        df = extract_nixlbench_data(self.results_file)
-        return not df.empty
+        return not self._read_results().empty
+
+    def _read_results(self) -> pd.DataFrame:
+        try:
+            return read_nixlbench_results(self.test_run.output_path)
+        except ValueError as exc:
+            logging.warning(str(exc))
+            return lazy.pd.DataFrame()
 
     def generate_report(self) -> None:
-        if not self.can_handle_directory():
+        df = self._read_results()
+        if df.empty:
             return
 
         self.generate_bokeh_report()
-        df = extract_nixlbench_data(self.results_file)
-        df.to_csv(self.test_run.output_path / "nixlbench.csv", index=False)
+        if "task_id" in df.columns:
+            df.to_csv(self.test_run.output_path / "nixlbench_per_task.csv", index=False)
+        aggregate_nixlbench_results(df).to_csv(self.test_run.output_path / "nixlbench.csv", index=False)
 
     def get_metric(self, metric: str) -> MetricValue:
         logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
-        df = extract_nixlbench_data(self.results_file)
+        df = aggregate_nixlbench_results(self._read_results())
         if df.empty or metric not in {"default", "latency"}:
             return METRIC_ERROR
 
         return float(lazy.np.mean(df["avg_lat"]))
 
     def generate_bokeh_report(self) -> None:
-        df = extract_nixlbench_data(self.results_file)
+        df = aggregate_nixlbench_results(self._read_results())
+        if df.empty:
+            return
+        independent_tasks = "task_count" in df.columns
 
         report_tool = BokehReportTool(self.test_run.output_path)
-        p = report_tool.add_log_x_linear_y_multi_line_plot(
-            title="NIXL Bench Latency",
-            df=df,
-            x_column="block_size",
-            y_columns=[("avg_lat", "blue")],
-            x_axis_label="Block Size (B)",
-            y_axis_label="Latency (us)",
-        )
-        p.width, p.height = 800, 500
-        p = report_tool.add_log_x_linear_y_multi_line_plot(
-            title="NIXL Bench Bandwidth",
-            df=df,
-            x_column="block_size",
-            y_columns=[("bw_gb_sec", "blue")],
-            x_axis_label="Block Size (B)",
-            y_axis_label="Bandwidth (GB/Sec)",
-        )
-        p.width, p.height = 800, 500
+        bandwidth_columns = [("bw_gb_sec", "blue")]
+        if independent_tasks:
+            df = df.rename(
+                columns={
+                    "bw_gb_sec": "Mean per-task bandwidth",
+                    "bw_min_gb_sec": "Minimum per-task bandwidth",
+                    "bw_sum_gb_sec": "Sum of task bandwidths",
+                }
+            )
+            bandwidth_columns = [
+                ("Mean per-task bandwidth", "blue"),
+                ("Minimum per-task bandwidth", "orange"),
+                ("Sum of task bandwidths", "green"),
+            ]
+        groups = df.groupby("batch_size") if independent_tasks else [(None, df)]
+        for batch_size, frame in groups:
+            suffix = f" — Batch size {batch_size}" if independent_tasks else ""
+            latency_title = "NIXL Bench Mean Per-Task Latency" if independent_tasks else "NIXL Bench Latency"
+            p = report_tool.add_log_x_linear_y_multi_line_plot(
+                title=latency_title + suffix,
+                df=frame,
+                x_column="block_size",
+                y_columns=[("avg_lat", "blue")],
+                x_axis_label="Block Size (B)",
+                y_axis_label="Latency (us)",
+            )
+            p.width, p.height = 800, 500
+            p = report_tool.add_log_x_linear_y_multi_line_plot(
+                title="NIXL Bench Bandwidth" + suffix,
+                df=frame,
+                x_column="block_size",
+                y_columns=bandwidth_columns,
+                x_axis_label="Block Size (B)",
+                y_axis_label="Bandwidth (GB/Sec)",
+            )
+            p.width, p.height = 800, 500
         report_tool.finalize_report(Path("cloudai_nixlbench_bokeh_report.html"))
