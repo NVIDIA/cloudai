@@ -110,14 +110,24 @@ steps:
       cov_dir=/tmp/coverity-scan
 
       cov-capture --project-dir ${WORKSPACE} --dir ${cov_dir}
-      cov-analyze --dir ${cov_dir} --all-security --aggressiveness-level high
-      # Reports, does not gate. Failing on findings needs a Coverity stream to
-      # diff against, otherwise every pre-existing defect blocks every PR;
-      # HPCINFRA-4786 scopes the failing behaviour to the release pipeline.
+      cov-analyze --dir ${cov_dir} --all-security --aggressiveness-level high \
+        2>&1 | tee ${WORKSPACE}/coverity-analyze.log
       cov-format-errors --dir ${cov_dir} --text-output-style oneline \
         2>&1 | tee ${WORKSPACE}/coverity.log
 
-    archiveArtifacts: 'coverity.log'
+      # Fail on any finding; the codebase reports zero, so anything here was
+      # introduced by the change under test. False positives are suppressed at
+      # the source with a coverity[<event>] annotation, not by loosening this.
+      # `|| true` keeps grep's no-match from tripping `set -e`; an absent
+      # summary means the log was unreadable, which must not read as zero.
+      summary=$(grep -oE 'Defect occurrences found[[:space:]]*:[[:space:]]*[0-9]+' \
+        ${WORKSPACE}/coverity-analyze.log || true)
+      [ -n "${summary}" ] || { echo "Coverity summary not found"; exit 1; }
+
+      defects=$(printf '%s\n' "${summary}" | grep -oE '[0-9]+' | tail -1)
+      [ "${defects}" -eq 0 ] || { echo "Coverity reported ${defects} defect(s)"; exit 1; }
+
+    archiveArtifacts: 'coverity.log,coverity-analyze.log'
 
   - name: Coverage
     containerSelector: '{name:"uv"}'

@@ -111,4 +111,5 @@ def test_python_environment_uninstall_removes_venv(installer: BaseInstaller) -> 
 
     assert res.success
     assert not venv_path.exists()
+    # coverity[check_after_deref] uninstall() clears venv_path; unseen by the analyser
     assert env.venv_path is None
