@@ -67,6 +67,12 @@ jobs:
           ref: ${{ fromJson(needs.Authorization.outputs.args).ref }}
           lfs: 'true'
 
+      # Detect's PIP detector invokes python, so pyenv reads .python-version and
+      # fails on a version the scanner image does not have. The release pipeline
+      # still scans Python dependencies with its own environment.
+      - name: Setup blackduck properties
+        run: echo detect.excluded.detector.types=PIP >> application.properties
+
       - name: Run blossom action
         uses: NVIDIA/blossom-action@main
         env:
