@@ -30,7 +30,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Protocol, Union, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
@@ -100,6 +100,47 @@ class CategoricalEncoding(BaseModel):
         return candidates.index(value)
 
 
+class LogEncoding(BaseModel):
+    """
+    Observe the drawn value as ``[is_zero, log10(value)]``, for knobs that span decades.
+
+    Use this when the candidates are ordinal and their *magnitude* is the signal, which a
+    categorical index throws away. A drop rate of ``{0.0, 0.001, 0.01}`` is monotone
+    severity: a policy told "index 2" cannot generalize from 0.001 to 0.01, whereas one
+    told "-2 on a log scale" can, and can extrapolate beyond the candidates it saw.
+
+    Two dimensions rather than one because ``log10(0)`` is undefined and an exact zero is
+    not merely a small value -- "no drops at all" is a qualitatively different regime. The
+    indicator carries that case and the log slot is left at ``0.0``, so a zero draw lands
+    on the flag instead of becoming an extreme outlier that dominates the input scale.
+
+    Continuous by construction, which also matters downstream: an RL connector stack that
+    normalizes observations (running mean/std) is built for continuous leaves, whereas the
+    same normalization applied to a one-hot categorical de-means it and gives a not-yet-drawn
+    category zero variance.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["log"] = "log"
+
+    def observation_descriptor(self, candidates: List[Any]) -> ObsLeafDescriptor:
+        del candidates  # Width is fixed at [is_zero, log10]; the candidate list does not set it.
+        return ObsLeafDescriptor(kind="box", dim=2)
+
+    def encode(self, value: Any, candidates: List[Any]) -> List[float]:
+        del candidates  # Encoded from the value's magnitude, not its position in the list.
+        magnitude = float(value)
+        if magnitude <= 0.0:
+            return [1.0, 0.0]
+        return [0.0, math.log10(magnitude)]
+
+
+# Discriminated on ``type`` so a TOML table selects the encoding by name and an unknown name is
+# rejected with the valid options rather than silently falling back to the default.
+EncodingSpec = Union[CategoricalEncoding, LogEncoding]
+
+
 class EnvParamSpec(BaseModel):
     """
     Annotation marking one cmd_args field as env-sampled.
@@ -119,9 +160,13 @@ class EnvParamSpec(BaseModel):
         default=None,
         description="Optional probability weights aligned with the cmd_args candidate list; uniform if omitted.",
     )
-    encoding: CategoricalEncoding = Field(
+    encoding: EncodingSpec = Field(
         default_factory=CategoricalEncoding,
-        description="How the drawn value is encoded as an observation leaf (categorical index into the candidates).",
+        discriminator="type",
+        description=(
+            "How the drawn value is encoded as an observation leaf. Defaults to a categorical index "
+            "into the candidates; use {type = 'log'} for an ordinal knob whose magnitude is the signal."
+        ),
     )
 
     @model_validator(mode="after")
