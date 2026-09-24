@@ -16,6 +16,7 @@
 
 import csv
 import logging
+import shlex
 from pathlib import Path
 from typing import Literal, Optional, cast
 
@@ -109,6 +110,11 @@ class WorkerBaseArgs(Args):
         serialization_alias="data-parallel-size",
         validation_alias=AliasChoices("data-parallel-size", "data_parallel_size"),
     )
+    distributed_executor_backend: Literal["mp", "ray"] | None = Field(
+        default=None,
+        serialization_alias="distributed-executor-backend",
+        validation_alias=AliasChoices("distributed-executor-backend", "distributed_executor_backend"),
+    )
 
 
 class WorkerConfig(BaseModel):
@@ -130,6 +136,15 @@ class WorkerConfig(BaseModel):
 
     num_nodes: int | list[int] = Field(
         default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+    )
+    nodes_per_worker: int | list[int] | None = Field(
+        default=None,
+        description=(
+            "Number of physical nodes in one logical Slurm backend worker. When omitted, it defaults to one node "
+            "per worker and preserves the legacy Slurm behavior."
+        ),
+        serialization_alias="nodes-per-worker",
+        validation_alias=AliasChoices("nodes-per-worker", "nodes_per_worker"),
     )
     nodes: str | None = Field(default=None)
 
@@ -160,7 +175,34 @@ class WorkerConfig(BaseModel):
             missing_fields.append("worker-initialized-regex")
         if missing_fields:
             raise ValueError(f"{', '.join(missing_fields)} must be set when num-nodes is non-zero")
+        return self
 
+    def has_extra_arg(self, option: str) -> bool:
+        """Return whether an option is present in the worker's backend arguments."""
+        values = [self.extra_args] if isinstance(self.extra_args, str) else self.extra_args or []
+        return any(
+            token == option or token.startswith(f"{option}=") for value in values for token in shlex.split(value)
+        )
+
+    @model_validator(mode="after")
+    def validate_worker_topology(self) -> "WorkerConfig":
+        """Validate scalar worker topology while allowing DSE lists before unrolling."""
+        if not self.is_enabled:
+            return self
+        if isinstance(self.num_nodes, list) or isinstance(self.nodes_per_worker, list):
+            return self
+
+        nodes_per_worker = self.nodes_per_worker
+        if nodes_per_worker is None:
+            return self
+        if nodes_per_worker < 1:
+            raise ValueError("nodes_per_worker must be at least 1")
+        if self.num_nodes < 1:
+            raise ValueError("num_nodes must be at least 1 when nodes_per_worker is set")
+        if self.num_nodes % nodes_per_worker != 0:
+            raise ValueError("num_nodes must be divisible by nodes_per_worker")
+        if nodes_per_worker > 1 and self.multiple_workers_per_node:
+            raise ValueError("multiple_workers_per_node is incompatible with nodes_per_worker > 1")
         return self
 
 
@@ -250,7 +292,7 @@ class AIDynamoArgs(BaseModel):
         worker_initialized_regex="VllmWorker.*has.been.initialized",
     )
     prefill_worker: WorkerConfig = WorkerConfig(
-        cmd="python3 -m dynamo.vllm --is-prefill-worker",
+        cmd="python3 -m dynamo.vllm",
         worker_initialized_regex="VllmWorker.*has.been.initialized",
     )
 
@@ -594,7 +636,16 @@ class AIDynamoTestDefinition(TestDefinition):
             logging.info(f"Workload {workload} not found in workload map")
             return False
 
-        return self._was_workload_report_produced(output_path, workload, workload_config)
+        if not self._was_workload_report_produced(output_path, workload, workload_config):
+            return False
+
+        if isinstance(workload_config, AIPerf):
+            request_count = parse_aiperf_request_count(output_path / workload_config.report_name)
+            if request_count is None or request_count <= 0:
+                logging.info(f"AIPerf report has no successful requests: {output_path / workload_config.report_name}")
+                return False
+
+        return True
 
     def _were_workloads_successful(self, output_path: Path) -> bool:
         workload_map = self.get_workload_map()
@@ -629,32 +680,87 @@ class AIDynamoTestDefinition(TestDefinition):
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
         decode_worker = tr.test.cmd_args.dynamo.decode_worker
 
-        prefill_tp = prefill_worker.args.tensor_parallel_size
-        prefill_pp = prefill_worker.args.pipeline_parallel_size
+        prefill_parallelism = (
+            (int(prefill_worker.args.tensor_parallel_size), int(prefill_worker.args.pipeline_parallel_size))
+            if prefill_worker.is_enabled
+            else None
+        )
+        decode_parallelism = (
+            (int(decode_worker.args.tensor_parallel_size), int(decode_worker.args.pipeline_parallel_size))
+            if decode_worker.is_enabled
+            else None
+        )
 
-        decode_tp = decode_worker.args.tensor_parallel_size
-        decode_pp = decode_worker.args.pipeline_parallel_size
-
-        if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
+        if (
+            self.constraints.prefill_tp_le_decode_tp
+            and prefill_parallelism is not None
+            and decode_parallelism is not None
+            and prefill_parallelism[0] > decode_parallelism[0]
+        ):
             logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
             return False
         logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
 
-        gpus_per_node = 0
-        slurm_system = cast(SlurmSystem, system)
-        if slurm_system and slurm_system.gpus_per_node:
-            gpus_per_node = slurm_system.gpus_per_node
-
-        if (
-            gpus_per_node > 0
-            and self.constraints.tp_times_pp_le_gpus_per_node
-            and (prefill_tp * prefill_pp > gpus_per_node or decode_tp * decode_pp > gpus_per_node)
+        gpus_per_node = int(getattr(cast(SlurmSystem, system), "gpus_per_node", 0) or 0)
+        role_footprints: dict[str, int] = {}
+        for role, worker, parallelism in (
+            ("prefill", prefill_worker, prefill_parallelism),
+            ("decode", decode_worker, decode_parallelism),
         ):
-            logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
-            return False
+            if parallelism is None:
+                role_footprints[role] = 0
+                continue
+
+            tp, pp = parallelism
+            num_nodes = int(worker.num_nodes)
+            nodes_per_worker = int(worker.nodes_per_worker or 1)
+            world_size = tp * pp
+            data_parallel_size = int(worker.args.data_parallel_size or 1)
+            backend = tr.test.cmd_args.dynamo.backend
+            is_vllm_multinode_dp = backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
+
+            if (
+                backend == "sglang"
+                and nodes_per_worker > 1
+                and data_parallel_size > 1
+                and not worker.has_extra_arg("--enable-dp-attention")
+            ):
+                logging.info("constraint_check failed: multinode SGLang DP requires --enable-dp-attention")
+                return False
+            if (
+                backend == "vllm"
+                and nodes_per_worker > 1
+                and worker.args.distributed_executor_backend not in {None, "mp"}
+            ):
+                logging.info("constraint_check failed: multinode vLLM requires the mp executor")
+                return False
+            if (
+                nodes_per_worker < 1
+                or num_nodes < 1
+                or num_nodes % nodes_per_worker != 0
+                or world_size < 1
+                or (is_vllm_multinode_dp and data_parallel_size % nodes_per_worker != 0)
+                or (not is_vllm_multinode_dp and world_size % nodes_per_worker != 0)
+                or (nodes_per_worker > 1 and worker.multiple_workers_per_node)
+            ):
+                logging.info("constraint_check failed for invalid %s worker topology", role)
+                return False
+
+            local_footprint = (
+                world_size * (data_parallel_size // nodes_per_worker)
+                if is_vllm_multinode_dp
+                else world_size // nodes_per_worker
+            )
+            if gpus_per_node > 0 and self.constraints.tp_times_pp_le_gpus_per_node and local_footprint > gpus_per_node:
+                logging.info("constraint_check failed for %s worker GPU capacity", role)
+                return False
+            role_footprints[role] = local_footprint
+
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
 
-        role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
+        role_total_nodes = sum(
+            int(worker.num_nodes) if worker.is_enabled else 0 for worker in (prefill_worker, decode_worker)
+        )
         prefill_nodes = set(prefill_worker.nodes.split(",")) if prefill_worker.nodes else set()
         decode_nodes = set(decode_worker.nodes.split(",")) if decode_worker.nodes else set()
         has_explicit_allocation = getattr(tr, "num_nodes_explicit", False) or bool(tr.nodes)
@@ -665,7 +771,7 @@ class AIDynamoTestDefinition(TestDefinition):
             shared_node_disagg
             and gpus_per_node > 0
             and self.constraints.tp_times_pp_le_gpus_per_node
-            and (prefill_tp * prefill_pp + decode_tp * decode_pp > gpus_per_node)
+            and (role_footprints["prefill"] + role_footprints["decode"] > gpus_per_node)
         ):
             logging.info("constraint_check failed for: shared_node_tp_pp_sum_le_gpus_per_node")
             return False
@@ -706,6 +812,24 @@ def _parse_count_value(value: str | int | float | None) -> float | None:
         return float(value.strip())
     except ValueError:
         return None
+
+
+def parse_aiperf_request_count(report_path: Path) -> int | None:
+    """Return the number of successful requests recorded by AIPerf."""
+    if not report_path.exists():
+        return None
+
+    try:
+        with report_path.open(newline="", encoding="utf-8") as csv_file:
+            for row in csv.reader(csv_file):
+                if len(row) >= 2 and row[0].strip() == "Request Count":
+                    request_count = _parse_count_value(row[1])
+                    if request_count is None or not request_count.is_integer():
+                        return None
+                    return int(request_count)
+    except (OSError, csv.Error):
+        return None
+    return None
 
 
 def parse_aiperf_accuracy(output_path: Path) -> float | None:

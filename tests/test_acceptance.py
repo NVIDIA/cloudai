@@ -535,7 +535,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             workspace_path="/workspace",
                             dcgm_exporter=DCGMExporter(enabled=True, port=9501),
                             prefill_worker=WorkerConfig(
-                                cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                                cmd="python3 -m dynamo.vllm",
                                 worker_initialized_regex="VllmWorker.*has.been.initialized",
                                 **{
                                     "num-nodes": 1,
