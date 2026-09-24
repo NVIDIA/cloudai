@@ -678,15 +678,19 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     assert td.constraint_check(test_run, slurm_system)
 
 
-def test_constraint_ignores_disabled_worker_topology(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+def test_constraint_ignores_disabled_worker_with_list_valued_topology(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.dynamo.prefill_worker = WorkerConfig.model_validate(
         {
-            "num-nodes": 0,
-            "nodes-per-worker": 2,
+            "num-nodes": [0, 0],
+            "nodes-per-worker": [2, 4],
             "multiple-workers-per-node": True,
             "args": {
-                "tensor-parallel-size": 16,
+                "tensor-parallel-size": [16, 32],
+                "pipeline-parallel-size": [1, 2],
+                "data-parallel-size": [2, 4],
                 "distributed-executor-backend": "ray",
             },
         }
