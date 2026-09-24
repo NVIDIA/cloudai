@@ -680,16 +680,22 @@ class AIDynamoTestDefinition(TestDefinition):
         prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
         decode_worker = tr.test.cmd_args.dynamo.decode_worker
 
-        prefill_tp = int(prefill_worker.args.tensor_parallel_size)
-        prefill_pp = int(prefill_worker.args.pipeline_parallel_size)
-        decode_tp = int(decode_worker.args.tensor_parallel_size)
-        decode_pp = int(decode_worker.args.pipeline_parallel_size)
+        prefill_parallelism = (
+            (int(prefill_worker.args.tensor_parallel_size), int(prefill_worker.args.pipeline_parallel_size))
+            if prefill_worker.is_enabled
+            else None
+        )
+        decode_parallelism = (
+            (int(decode_worker.args.tensor_parallel_size), int(decode_worker.args.pipeline_parallel_size))
+            if decode_worker.is_enabled
+            else None
+        )
 
         if (
             self.constraints.prefill_tp_le_decode_tp
-            and prefill_worker.is_enabled
-            and decode_worker.is_enabled
-            and prefill_tp > decode_tp
+            and prefill_parallelism is not None
+            and decode_parallelism is not None
+            and prefill_parallelism[0] > decode_parallelism[0]
         ):
             logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
             return False
@@ -697,14 +703,15 @@ class AIDynamoTestDefinition(TestDefinition):
 
         gpus_per_node = int(getattr(cast(SlurmSystem, system), "gpus_per_node", 0) or 0)
         role_footprints: dict[str, int] = {}
-        for role, worker, tp, pp in (
-            ("prefill", prefill_worker, prefill_tp, prefill_pp),
-            ("decode", decode_worker, decode_tp, decode_pp),
+        for role, worker, parallelism in (
+            ("prefill", prefill_worker, prefill_parallelism),
+            ("decode", decode_worker, decode_parallelism),
         ):
-            if not worker.is_enabled:
+            if parallelism is None:
                 role_footprints[role] = 0
                 continue
 
+            tp, pp = parallelism
             num_nodes = int(worker.num_nodes)
             nodes_per_worker = int(worker.nodes_per_worker or 1)
             world_size = tp * pp
@@ -751,7 +758,9 @@ class AIDynamoTestDefinition(TestDefinition):
 
         logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
 
-        role_total_nodes = int(prefill_worker.num_nodes) + int(decode_worker.num_nodes)
+        role_total_nodes = sum(
+            int(worker.num_nodes) if worker.is_enabled else 0 for worker in (prefill_worker, decode_worker)
+        )
         prefill_nodes = set(prefill_worker.nodes.split(",")) if prefill_worker.nodes else set()
         decode_nodes = set(decode_worker.nodes.split(",")) if decode_worker.nodes else set()
         has_explicit_allocation = getattr(tr, "num_nodes_explicit", False) or bool(tr.nodes)
