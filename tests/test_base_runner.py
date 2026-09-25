@@ -113,6 +113,21 @@ class TestGetJobStatus:
         assert res == runner.runner_job_status_result
 
 
+def test_run_raises_if_no_tests_are_runnable(runner: MyRunner):
+    test = runner.test_scenario.test_runs[0].test
+    tr_a = TestRun("A", test, 1, [])
+    tr_b = TestRun("B", test, 1, [])
+    tr_a.dependencies = {"start_post_comp": TestDependency(tr_b)}
+    tr_b.dependencies = {"start_post_comp": TestDependency(tr_a)}
+    runner.test_scenario.test_runs = [tr_a, tr_b]
+
+    with pytest.raises(ValueError) as exc_info:
+        runner.run()
+
+    assert "No runnable tests found in scenario 'Test Scenario'." in str(exc_info.value)
+    assert runner.submitted_trs == []
+
+
 class TestHandleDependencies:
     """
     Tests for BaseRunner.handle_dependencies method.

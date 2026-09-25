@@ -86,6 +86,12 @@ class BaseRunner(ABC):
 
         total_tests = len(self.test_scenario.test_runs)
         dependency_free_trs = self.find_dependency_free_tests()
+        if total_tests and not dependency_free_trs:
+            raise ValueError(
+                f"No runnable tests found in scenario '{self.test_scenario.name}'. At least one test must have no "
+                "'start_post_init' or 'start_post_comp' dependencies."
+            )
+
         for tr in dependency_free_trs:
             self.submit_test(tr)
 
