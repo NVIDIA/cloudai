@@ -77,6 +77,7 @@ class BaseRunner(ABC):
         experiment = cloudai.models.output.Experiment(
             id=output_path.name,
             name=self.test_scenario.name,
+            system_name=self.system.name,
             status="running",
             path=str(output_path),
             start=datetime.datetime.now(datetime.timezone.utc),

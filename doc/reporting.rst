@@ -36,8 +36,8 @@ Unified experiment output
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, test cases, status, timing, and result paths. Standalone execution also records each
-run's process ID, status, iteration, timing, and workload metrics.
+The file contains scenario details, the configured system name, test cases, status, timing, and result paths. Standalone
+execution also records each run's process ID, status, iteration, timing, and workload metrics.
 
 CloudAI updates the file when standalone runs start and finish, then finalizes it when scenario execution succeeds or
 fails. Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. Dry runs also produce scenario and

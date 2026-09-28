@@ -80,6 +80,7 @@ class Experiment(pydantic.BaseModel):
 
     id: str
     name: str
+    system_name: str
     description: str | None = None
     status: Status = "pending"
     path: str

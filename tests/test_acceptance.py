@@ -197,6 +197,7 @@ class TestInDryRun:
         assert experiment.model_dump() == {
             "id": results_output.name,
             "name": toml.load(scenario["path"])["name"],
+            "system_name": "example-cluster",
             "description": None,
             "status": "completed",
             "path": str(results_output.absolute()),

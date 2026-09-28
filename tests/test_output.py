@@ -26,6 +26,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     experiment = cloudai.models.output.Experiment(
         id="experiment",
         name="scenario",
+        system_name="test-system",
         status="running",
         path=str(tmp_path),
         start=start,
@@ -61,6 +62,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     assert stored.model_dump() == {
         "id": "experiment",
         "name": "scenario",
+        "system_name": "test-system",
         "description": None,
         "status": "failed",
         "path": str(tmp_path),
