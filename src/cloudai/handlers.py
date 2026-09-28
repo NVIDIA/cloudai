@@ -19,8 +19,11 @@ import datetime
 import logging
 import tempfile
 import traceback
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+import toml
 
 import cloudai.models.output
 import cloudai.output
@@ -28,6 +31,7 @@ from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
+    ConfigPaths,
     Installable,
     MissingTestError,
     Parser,
@@ -288,9 +292,35 @@ def execute_experiment(runner: Runner, tests: list[TestDefinition], enable_cache
         runner.runner.finish_output(successful)
 
 
+@contextmanager
+def _configuration_files(system: str | Path, scenario: str | Path | None = None):
+    with tempfile.TemporaryDirectory(prefix="cloudai-config-") as temporary:
+        system_path = system.expanduser().resolve() if isinstance(system, Path) else Path(temporary) / "system.toml"
+        if isinstance(system, str):
+            system_path.write_text(system, encoding="utf-8")
+        scenario_path = Path(temporary) / "scenario.toml"
+        if isinstance(scenario, Path):
+            scenario_path = scenario.expanduser().resolve()
+        elif isinstance(scenario, str):
+            try:
+                data = toml.loads(scenario)
+            except toml.TomlDecodeError as exc:
+                raise TestScenarioParsingError(str(exc)) from exc
+            tests = data.get("Tests", [])
+            if isinstance(tests, list):
+                for test in tests:
+                    path = test.get("path") if isinstance(test, dict) else None
+                    if isinstance(path, str) and not Path(path).is_absolute():
+                        raise TestScenarioParsingError(
+                            "Relative test paths require a scenario file; pass a Path or use absolute test paths."
+                        )
+            scenario_path.write_text(scenario, encoding="utf-8")
+        yield system_path, scenario_path
+
+
 def run_experiment(
-    scenario: Path,
-    system: Path,
+    scenario: str | Path,
+    system: str | Path,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
@@ -299,23 +329,36 @@ def run_experiment(
     single_sbatch: bool = False,
     enable_cache_without_check: bool = False,
 ) -> cloudai.models.output.Experiment:
-    """Run an experiment from configuration files and return its results."""
-    parsed_system, tests, parsed_scenario = load_scenario(
-        scenario.expanduser().resolve(), system.expanduser().resolve(), tests_dir=tests_dir, hook_dir=hook_dir
-    )
-    validate_experiment(parsed_system, parsed_scenario, single_sbatch)
-    parsed_system.output_path = (output_dir or parsed_system.output_path).expanduser().resolve()
-    if prepare_output_dir(parsed_system.output_path) is None:
-        raise OSError(f"Cannot prepare output directory: {parsed_system.output_path}")
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    result_dir = Path(
-        tempfile.mkdtemp(prefix=f"{parsed_scenario.name}_{timestamp}_", dir=parsed_system.output_path)
-    ).resolve()
-    runner = create_experiment_runner(
-        parsed_system, parsed_scenario, dry_run=dry_run, single_sbatch=single_sbatch, result_dir=result_dir
-    )
-    execute_experiment(runner, tests, enable_cache_without_check)
-    return runner.runner.experiment_output.snapshot()
+    """Run an experiment from configuration files or TOML text."""
+    with _configuration_files(system, scenario) as (system_path, scenario_path):
+        parsed_system, tests, parsed_scenario = load_scenario(
+            scenario_path, system_path, tests_dir=tests_dir, hook_dir=hook_dir
+        )
+        validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+        parsed_system.output_path = (output_dir or parsed_system.output_path).expanduser().resolve()
+        if prepare_output_dir(parsed_system.output_path) is None:
+            raise OSError(f"Cannot prepare output directory: {parsed_system.output_path}")
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        result_dir = Path(
+            tempfile.mkdtemp(prefix=f"{parsed_scenario.name}_{timestamp}_", dir=parsed_system.output_path)
+        ).resolve()
+        if isinstance(system, str):
+            system_path = result_dir / "system.toml"
+            system_path.write_text(system, encoding="utf-8")
+        if isinstance(scenario, str):
+            scenario_path = result_dir / "scenario.toml"
+            scenario_path.write_text(scenario, encoding="utf-8")
+        parsed_scenario.config_paths = ConfigPaths(
+            system_path=system_path,
+            test_scenario_path=scenario_path,
+            tests_dir_path=tests_dir.resolve() if tests_dir is not None else None,
+        )
+        runner = create_experiment_runner(
+            parsed_system, parsed_scenario, dry_run=dry_run, single_sbatch=single_sbatch, result_dir=result_dir
+        )
+        output = runner.runner.experiment_output
+        execute_experiment(runner, tests, enable_cache_without_check)
+        return output.snapshot()
 
 
 def get_experiment(exp: str | Path) -> cloudai.models.output.Experiment:
@@ -326,9 +369,10 @@ def get_experiment(exp: str | Path) -> cloudai.models.output.Experiment:
     return cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
 
 
-def list_experiments(system: Path) -> list[tuple[str, Path]]:
+def list_experiments(system: str | Path) -> list[tuple[str, Path]]:
     """Discover experiments beneath the configured results directory."""
-    output_dir = Parser.parse_system(system.expanduser()).output_path.expanduser().resolve()
+    with _configuration_files(system) as (system_path, _):
+        output_dir = Parser.parse_system(system_path).output_path.expanduser().resolve()
     if not output_dir.exists():
         return []
     if not output_dir.is_dir():
@@ -337,8 +381,8 @@ def list_experiments(system: Path) -> list[tuple[str, Path]]:
 
 
 def validate_scenario(
-    scenario: Path,
-    system: Path,
+    scenario: str | Path,
+    system: str | Path,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
@@ -346,10 +390,11 @@ def validate_scenario(
 ) -> tuple[bool, dict[str, str]]:
     """Validate configuration and execution constraints without running workloads."""
     try:
-        parsed_system, _, parsed_scenario = load_scenario(
-            scenario.expanduser().resolve(), system.expanduser().resolve(), tests_dir=tests_dir, hook_dir=hook_dir
-        )
-        validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+        with _configuration_files(system, scenario) as (system_path, scenario_path):
+            parsed_system, _, parsed_scenario = load_scenario(
+                scenario_path, system_path, tests_dir=tests_dir, hook_dir=hook_dir
+            )
+            validate_experiment(parsed_system, parsed_scenario, single_sbatch)
     except SystemConfigParsingError as exc:
         return False, {"system": str(exc.__cause__ or exc)}
     except (TestConfigParsingError, TestScenarioParsingError, MissingTestError, ValueError, OSError) as exc:

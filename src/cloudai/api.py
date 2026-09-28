@@ -21,8 +21,8 @@ import cloudai.models.output
 
 
 def run_experiment(
-    scenario: Path,
-    system: Path,
+    scenario: str | Path,
+    system: str | Path,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
@@ -34,9 +34,9 @@ def run_experiment(
     """
     Run a scenario and return its experiment snapshot.
 
-    Pass configuration files as Path. Relative test paths resolve relative to
-    the scenario file. Optional directories have the same meaning as in the CLI.
-    The call waits for execution to finish.
+    Pass TOML content as str or configuration files as Path. Relative test paths
+    require a scenario file. Optional directories have the same meaning as in
+    the CLI. The call waits for execution to finish.
 
     Configuration and setup errors raise exceptions. Workload failures are
     recorded in the returned experiment's status. This function does not invoke
@@ -54,11 +54,11 @@ def run_experiment(
     )
 
 
-def list_experiments(system: Path) -> list[tuple[str, Path]]:
+def list_experiments(system: str | Path) -> list[tuple[str, Path]]:
     """
     Return experiment IDs and local result directories under system.output_path.
 
-    Pass the system configuration file as Path. A missing results
+    Pass system TOML as str or a configuration file as Path. A missing results
     directory returns an empty list. Unreadable or invalid experiment files raise
     exceptions rather than returning an incomplete catalog.
     """
@@ -66,15 +66,15 @@ def list_experiments(system: Path) -> list[tuple[str, Path]]:
 
 
 def validate_scenario(
-    scenario: Path,
-    system: Path,
+    scenario: str | Path,
+    system: str | Path,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
     single_sbatch: bool = False,
 ) -> tuple[bool, dict[str, str]]:
     """
-    Validate configuration files without installing or running jobs.
+    Validate TOML content or config files without installing or running jobs.
 
     Return (True, {}) on success, otherwise (False, errors), with configuration
     names as keys and error messages as values. This checks configuration and
