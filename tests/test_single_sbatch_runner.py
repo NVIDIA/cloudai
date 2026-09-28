@@ -645,6 +645,10 @@ def test_run_removes_completed_job_from_tracking(sleep_tr: TestRun, slurm_system
         ),
     ):
         runner.run()
+        assert [run.duration for test in runner.experiment_output.experiment.tests for run in test.runs] == [
+            3,
+            None if status == "unknown" else 7,
+        ]
         runner.finish_output(successful=True)
 
     kill.assert_not_called()

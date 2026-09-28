@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Generator, Optional, cast
 
 import cloudai.models.output
+import cloudai.output
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams
 from cloudai.core import BaseJob, JobStatusResult, Registry, System, TestRun, TestScenario
@@ -279,7 +280,8 @@ class SingleSbatchRunner(SlurmRunner):
             run.start = min(start for start in starts if start is not None)
         if finishes and all(finish is not None for finish in finishes):
             run.finish = max(finish for finish in finishes if finish is not None)
-        if len(steps) == 1:
+        run.duration = cloudai.output.elapsed_seconds(run.start, run.finish)
+        if run.duration is None and len(steps) == 1:
             run.duration = steps[0].elapsed_time_sec
         return run
 
