@@ -16,8 +16,12 @@
 
 import copy
 import datetime
+import json
 import logging
+import subprocess
+import sys
 import tempfile
+import threading
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
@@ -321,6 +325,7 @@ def _configuration_files(system: str | Path, scenario: str | Path | None = None)
 def run_experiment(
     scenario: str | Path,
     system: str | Path,
+    wait: bool = True,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
@@ -329,7 +334,7 @@ def run_experiment(
     single_sbatch: bool = False,
     enable_cache_without_check: bool = False,
 ) -> cloudai.models.output.Experiment:
-    """Run an experiment from configuration files or TOML text."""
+    """Run an experiment synchronously or hand it to an independent worker."""
     with _configuration_files(system, scenario) as (system_path, scenario_path):
         parsed_system, tests, parsed_scenario = load_scenario(
             scenario_path, system_path, tests_dir=tests_dir, hook_dir=hook_dir
@@ -357,8 +362,72 @@ def run_experiment(
             parsed_system, parsed_scenario, dry_run=dry_run, single_sbatch=single_sbatch, result_dir=result_dir
         )
         output = runner.runner.experiment_output
-        execute_experiment(runner, tests, enable_cache_without_check)
-        return output.snapshot()
+        if wait:
+            execute_experiment(runner, tests, enable_cache_without_check)
+            return output.snapshot()
+        output.experiment.status = "pending"
+        output.experiment.start = None
+        output.write()
+        initial = get_experiment(result_dir)
+        request = {
+            "system": str(system_path),
+            "scenario": str(scenario_path),
+            "tests_dir": str(tests_dir.resolve()) if tests_dir is not None else None,
+            "hook_dir": str((hook_dir or HOOK_ROOT).resolve()),
+            "output_dir": str(parsed_system.output_path.resolve()),
+            "dry_run": dry_run,
+            "single_sbatch": single_sbatch,
+            "enable_cache_without_check": enable_cache_without_check,
+        }
+        request_path = result_dir / "request.json"
+        try:
+            request_path.write_text(json.dumps(request), encoding="utf-8")
+            command = [
+                sys.executable,
+                "-c",
+                "import logging, pathlib, sys; import cloudai.handlers; "
+                "logging.basicConfig(level=logging.INFO); "
+                "cloudai.handlers.run_background(pathlib.Path(sys.argv[1]))",
+                str(request_path),
+            ]
+            with (result_dir / "controller.log").open("a", encoding="utf-8") as log:
+                process = subprocess.Popen(
+                    command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True
+                )
+            threading.Thread(target=process.wait, daemon=True).start()
+        except Exception:
+            runner.runner.finish_output(False)
+            raise
+        return initial
+
+
+def run_background(request_path: Path) -> None:
+    """Execute a persisted request in its worker process."""
+    try:
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        system, tests, scenario = load_scenario(
+            Path(request["scenario"]),
+            Path(request["system"]),
+            tests_dir=Path(request["tests_dir"]) if request["tests_dir"] else None,
+            hook_dir=Path(request["hook_dir"]),
+        )
+        system.output_path = Path(request["output_dir"])
+        runner = create_experiment_runner(
+            system,
+            scenario,
+            dry_run=request["dry_run"],
+            single_sbatch=request["single_sbatch"],
+            result_dir=request_path.parent,
+        )
+        execute_experiment(runner, tests, request["enable_cache_without_check"])
+    except BaseException:
+        logging.exception("Background experiment failed")
+        experiment = get_experiment(request_path.parent)
+        if experiment.status in ("pending", "running"):
+            cloudai.output.ExperimentOutput(experiment, request_path.parent).finish(
+                "failed", datetime.datetime.now(datetime.timezone.utc)
+            )
+        raise
 
 
 def get_experiment(exp: str | Path) -> cloudai.models.output.Experiment:

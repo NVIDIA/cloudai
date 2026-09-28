@@ -63,11 +63,20 @@ def configs(standalone_system: StandaloneSystem) -> tuple[str, str]:
     return scenario, system
 
 
-@pytest.mark.parametrize("successful,as_text", [(True, False), (True, True), (False, True)])
+@pytest.mark.parametrize(
+    "wait,successful,as_text", [(True, True, False), (True, True, True), (True, False, True), (False, True, True)]
+)
 def test_experiment_api(
-    configs: tuple[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, successful: bool, as_text: bool
+    configs: tuple[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    wait: bool,
+    successful: bool,
+    as_text: bool,
 ):
     scenario, system = configs
+    process = Mock()
+    monkeypatch.setattr("cloudai.handlers.subprocess.Popen", process)
     monkeypatch.setattr(StandaloneSystem, "is_job_completed", lambda *_: True)
     monkeypatch.setattr(StandaloneSystem, "is_job_running", lambda *_: False)
     monkeypatch.setattr(
@@ -97,7 +106,17 @@ def test_experiment_api(
         system_input = tmp_path / "system.toml"
         scenario_input.write_text(scenario)
         system_input.write_text(system)
-    experiment = cloudai.api.run_experiment(scenario_input, system_input)
+    experiment = cloudai.api.run_experiment(scenario_input, system_input, wait=wait)
+    if not wait:
+        assert experiment.status == "pending"
+        assert experiment.start is None
+        assert cloudai.api.get_experiment(experiment.path) == experiment
+        request_path = Path(experiment.path) / "request.json"
+        assert process.call_args.args[0][-1] == str(request_path)
+        cloudai.handlers.run_background(request_path)
+        experiment = cloudai.api.get_experiment(experiment.path)
+    else:
+        process.assert_not_called()
     assert logging.getLogger().handlers == handlers
     assert signal.getsignal(signal.SIGINT) == sigint
     assert experiment.status == ("completed" if successful else "failed")
@@ -158,12 +177,14 @@ def test_validate_scenario(configs: tuple[str, str], tmp_path: Path):
         cloudai.api.get_experiment(tmp_path / "missing")
 
 
-@pytest.mark.parametrize("failure", ["setup", "submission"])
+@pytest.mark.parametrize("failure", ["setup", "spawn", "worker-parse", "submission"])
 def test_failed_experiment_is_saved(configs: tuple[str, str], monkeypatch: pytest.MonkeyPatch, failure: str):
     scenario, system = configs
     if failure == "setup":
         monkeypatch.setattr(StandaloneSystem, "update", Mock(side_effect=RuntimeError("setup failed")))
-    else:
+    elif failure == "spawn":
+        monkeypatch.setattr("cloudai.handlers.subprocess.Popen", Mock(side_effect=OSError("spawn failed")))
+    elif failure == "submission":
         monkeypatch.setattr(
             StandaloneRunner,
             "_submit_test",
@@ -173,8 +194,15 @@ def test_failed_experiment_is_saved(configs: tuple[str, str], monkeypatch: pytes
                 )
             ),
         )
-    with pytest.raises((RuntimeError, cloudai.core.JobSubmissionError)):
-        cloudai.api.run_experiment(scenario, system)
+    if failure == "worker-parse":
+        monkeypatch.setattr("cloudai.handlers.subprocess.Popen", Mock())
+        pending = cloudai.api.run_experiment(scenario, system, wait=False)
+        (Path(pending.path) / "scenario.toml").write_text("name = [")
+        with pytest.raises(cloudai.core.TestScenarioParsingError):
+            cloudai.handlers.run_background(Path(pending.path) / "request.json")
+    else:
+        with pytest.raises((RuntimeError, OSError, cloudai.core.JobSubmissionError)):
+            cloudai.api.run_experiment(scenario, system, wait=failure != "spawn")
     experiments = cloudai.api.list_experiments(system)
     assert len(experiments) == 1
     failed = cloudai.api.get_experiment(experiments[0][1])
