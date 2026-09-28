@@ -142,10 +142,6 @@ The native HTML report shows mean latency and minimum/mean/summed bandwidth, wit
 separate plots for each batch size. Comparison reports and metric observations use
 the mean per-task bandwidth and latency. Existing single-process reports are unchanged.
 
-Summed bandwidth represents concurrent throughput only when measurement intervals
-overlap. A single Slurm launch does not synchronize each point of an internal benchmark
-sweep; use a fixed block size and batch size per test when comparing concurrent load.
-
 API Documentation
 -----------------
 
