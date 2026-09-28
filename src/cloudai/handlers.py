@@ -130,7 +130,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner) -> int:
+def handle_dse_job(runner: Runner, *, report: bool = True) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -184,6 +184,7 @@ def handle_dse_job(runner: Runner) -> int:
 
     if runner.runner.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
+    if report and runner.runner.mode == "run":
         generate_reports(
             runner.runner.system,
             runner.runner.test_scenario,
@@ -243,9 +244,10 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner) -> bool:
+def handle_non_dse_job(runner: Runner, *, report: bool = True) -> bool:
     successful = runner.run()
-    generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+    if report:
+        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
 
@@ -289,7 +291,7 @@ def create_experiment_runner(
     return Runner(mode, system, scenario, runner_class=runner_class)
 
 
-def execute_experiment(
+def execute_experiment(  # noqa: C901
     runner: Runner,
     tests: list[TestDefinition],
     *,
@@ -303,6 +305,8 @@ def execute_experiment(
     scenario = runner.runner.test_scenario
     mode = runner.runner.mode
     successful = False
+    report_needed = False
+    report_error: Exception | None = None
     try:
         runner.runner.experiment_output.write()
         if on_start is not None:
@@ -333,14 +337,22 @@ def execute_experiment(
         logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
         has_dse = any(tr.is_dse_job for tr in scenario.test_runs)
         if isinstance(runner.runner, SingleSbatchRunner) or not has_dse:
-            successful = handle_non_dse_job(runner)
+            successful = handle_non_dse_job(runner, report=False)
+            report_needed = True
         elif all(tr.is_dse_job for tr in scenario.test_runs):
-            successful = handle_dse_job(runner) == 0
+            report_needed = mode == "run"
+            try:
+                successful = handle_dse_job(runner, report=False) == 0
+            except Exception as exc:
+                report_error = exc
+                raise
         else:
             logging.error("Mixing DSE and non-DSE jobs is not allowed.")
         return successful
     finally:
         runner.runner.finish_output(successful)
+        if report_needed:
+            generate_reports(system, scenario, runner.runner.scenario_root, error=report_error)
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
