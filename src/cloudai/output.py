@@ -22,6 +22,13 @@ import tempfile
 import cloudai.models.output
 
 
+def elapsed_seconds(start: datetime.datetime | None, finish: datetime.datetime | None) -> float | None:
+    """Return the nonnegative elapsed time between two timestamps."""
+    if start is None or finish is None:
+        return None
+    return max((finish - start).total_seconds(), 0.0)
+
+
 class ExperimentOutput:
     """Collect experiment results and publish snapshots."""
 
@@ -59,10 +66,13 @@ class ExperimentOutput:
     def snapshot(self) -> cloudai.models.output.Experiment:
         """Return an independent snapshot without finalizing the experiment."""
         full = self.experiment.model_copy(deep=True)
-        self._update_timing(full)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if full.status == "running":
+            full.duration = elapsed_seconds(full.start, now)
         for test in full.tests:
             for run in test.runs:
-                self._update_timing(run)
+                if run.status == "running":
+                    run.duration = elapsed_seconds(run.start, now)
         return full
 
     def write(self) -> None:
@@ -89,11 +99,11 @@ class ExperimentOutput:
     def finish(self, status: cloudai.models.output.Status, finish: datetime.datetime | None) -> None:
         self.experiment.status = status
         self.experiment.finish = finish
+        self.experiment.duration = elapsed_seconds(self.experiment.start, finish)
         if status == "completed":
             for test in self.experiment.tests:
                 if test.status not in ("failed", "cancelled"):
                     test.status = "completed"
-        self._update_timing(self.experiment)
         self.write()
 
     @staticmethod
@@ -107,17 +117,3 @@ class ExperimentOutput:
             test.status = "running"
         elif statuses == {"completed"}:
             test.status = "completed"
-
-    @staticmethod
-    def _update_timing(record: cloudai.models.output.Experiment | cloudai.models.output.Run) -> None:
-        for field in ("start", "finish"):
-            value = getattr(record, field)
-            if value is not None:
-                setattr(
-                    record, field, value.astimezone(datetime.timezone.utc) if value.utcoffset() is not None else None
-                )
-        end = record.finish
-        if end is None and record.status == "running":
-            end = datetime.datetime.now(datetime.timezone.utc)
-        if record.start is not None and end is not None:
-            record.duration = max((end - record.start).total_seconds(), 0.0)

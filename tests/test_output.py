@@ -39,6 +39,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
         status="completed",
         start=start,
         finish=start + datetime.timedelta(seconds=2),
+        duration=2,
         iteration=0,
         step=0,
     )
@@ -55,6 +56,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(tmp_path: pathli
     experiment_output.update_run("case", second_run)
     second_run.status = "failed"
     second_run.finish = start + datetime.timedelta(seconds=4)
+    second_run.duration = 2
     experiment_output.update_run("case", second_run)
     experiment_output.finish("failed", start + datetime.timedelta(seconds=5))
 

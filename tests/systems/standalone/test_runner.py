@@ -81,7 +81,7 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
         ],
         "start": start,
         "finish": start + datetime.timedelta(seconds=3),
-        "duration": None,
+        "duration": 3,
         "iteration": 0,
         "step": 0,
     }

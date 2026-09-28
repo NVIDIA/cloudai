@@ -21,6 +21,7 @@ from typing import cast
 
 import cloudai.metrics
 import cloudai.models.output
+import cloudai.output
 from cloudai.core import BaseJob, BaseRunner, JobIdRetrievalError, JobStatusResult, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
@@ -62,6 +63,7 @@ class StandaloneRunner(BaseRunner):
             metrics=metrics,
             start=standalone_job.start,
             finish=standalone_job.finish,
+            duration=cloudai.output.elapsed_seconds(standalone_job.start, standalone_job.finish),
             iteration=tr.current_iteration,
             step=tr.step,
         )
