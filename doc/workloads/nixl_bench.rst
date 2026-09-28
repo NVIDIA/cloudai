@@ -123,19 +123,8 @@ Managed/external ETCD and ASIO cannot be used with this mode. CloudAI launches o
 Slurm step across the requested nodes. Use ``extra_srun_args`` only when overriding
 the default task placement. System-level options precede test-level options.
 
-Each task executes in its own shell. To discover node-local devices or perform other
-setup, point ``path_to_benchmark`` at an executable wrapper inside the container:
-
-.. code-block:: bash
-
-   #!/bin/bash
-   set -e
-   source /opt/workload/setup.sh
-   exec /opt/workload/nixlbench "$@"
-
-The wrapper can use ``SLURM_PROCID`` and the local hostname. Provide it in the image
-or through ``extra_container_mounts``. Node-specific environment values and command
-expansions are evaluated in the task's shell. CloudAI does not discover backend devices.
+Each task executes in its own shell. Node-specific environment values and command
+expansions are evaluated there. CloudAI does not discover backend devices.
 
 Results and Reporting
 ~~~~~~~~~~~~~~~~~~~~~

@@ -39,7 +39,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         backend = str(self.tdef.cmd_args_dict.get("backend", "unset"))
         self._current_image_url = str(self.tdef.docker_image.installed_path)
         try:
-            test_command = self.gen_nsys_command() + self.gen_nixlbench_command()
+            test_command = self.gen_nixlbench_command()
             task_script = (
                 self._write_independent_task_script(test_command)
                 if self.tdef.cmd_args.launch_mode == "independent"

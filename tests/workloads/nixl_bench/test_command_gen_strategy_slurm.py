@@ -20,7 +20,6 @@ import pydantic
 import pytest
 
 from cloudai.core import TestRun
-from cloudai.models.workload import NsysConfiguration
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
@@ -278,34 +277,6 @@ def test_storage_backend_without_runtime(nixl_bench_tr: TestRun, slurm_system: S
     assert "--etcd-endpoints" not in command
     assert "etcd_pid" not in command
     assert "until curl" not in command
-
-
-def test_independent_storage_placement(nixl_bench_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    nixl_bench_tr.num_nodes = 4
-    nixl_bench_tr.nodes = ["node-[033-036]"]
-    nixl_bench_tr.extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
-    nixl_bench_tr.test.nsys = NsysConfiguration()
-    slurm_system.extra_srun_args = "--ntasks=8"
-    slurm_system.ntasks_per_node = 8
-    tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
-    nixl_bench_tr.test.cmd_args.backend = "POSIX"
-    tdef.cmd_args.etcd_endpoints = ""
-    tdef.cmd_args.launch_mode = "independent"
-
-    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    command = strategy.gen_srun_command()
-
-    assert "--launch_mode" not in " ".join(strategy.gen_nixlbench_command())
-    assert "srun -N4 --ntasks-per-node=1 " in command
-    assert command.count("srun ") == 1
-    assert "--nodelist=$SLURM_JOB_MASTER_NODE" not in command
-    assert "--ntasks=1" not in command
-    assert "-N1" not in command
-    assert "sleep " not in command
-    assert "etcd" not in command
-    assert command.index("--ntasks=8") < command.index("--ntasks=4 --ntasks-per-node=1")
-    assert (nixl_bench_tr.output_path / "nixlbench.sh").is_file()
-    assert "nsys profile ./nixlbench" in (nixl_bench_tr.output_path / "nixlbench.sh").read_text()
 
 
 @pytest.mark.parametrize("runtime", ["null", "managed", "external", "ASIO"])

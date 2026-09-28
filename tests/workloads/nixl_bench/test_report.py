@@ -168,10 +168,18 @@ class TestWasRunSuccessful:
         assert not nixl_tr.test.was_run_successful(nixl_tr).is_successful
 
     @pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
-    def test_was_run_successful(self, nixl_tr: TestRun, sample: str):
+    def test_was_run_successful(self, nixl_tr: TestRun, slurm_system: SlurmSystem, sample: str):
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text(sample)
         assert nixl_tr.test.was_run_successful(nixl_tr).is_successful
+
+        report = NIXLBenchReportGenerationStrategy(slurm_system, nixl_tr)
+        report.generate_report()
+        expected = extract_nixlbench_data(nixl_tr.output_path / "stdout.txt")
+        actual = lazy.pd.read_csv(nixl_tr.output_path / "nixlbench.csv")
+        lazy.pd.testing.assert_frame_equal(actual, expected)
+        assert not (nixl_tr.output_path / "nixlbench_per_task.csv").exists()
+        assert report.get_metric("latency") == pytest.approx(expected["avg_lat"].mean())
 
 
 @pytest.fixture
@@ -271,15 +279,3 @@ def test_incomplete_independent_tasks_are_not_reported(
     assert tr.test.metric_observations(slurm_system, tr) == []
     report.generate_report()
     assert not (tr.output_path / "cloudai_nixlbench_bokeh_report.html").exists()
-
-
-@pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
-def test_single_output_report_is_unchanged(nixl_tr: TestRun, slurm_system: SlurmSystem, sample: str) -> None:
-    (nixl_tr.output_path / "stdout.txt").write_text(sample)
-    expected = extract_nixlbench_data(nixl_tr.output_path / "stdout.txt")
-    report = NIXLBenchReportGenerationStrategy(slurm_system, nixl_tr)
-    report.generate_report()
-    actual = lazy.pd.read_csv(nixl_tr.output_path / "nixlbench.csv")
-    lazy.pd.testing.assert_frame_equal(actual, expected)
-    assert not (nixl_tr.output_path / "nixlbench_per_task.csv").exists()
-    assert report.get_metric("latency") == pytest.approx(expected["avg_lat"].mean())
