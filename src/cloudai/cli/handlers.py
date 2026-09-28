@@ -42,14 +42,12 @@ def _deprecated(function: typing.Callable[_P, _R]) -> typing.Callable[_P, _R]:
     return wrapper
 
 
-handle_install_and_uninstall = _deprecated(cloudai.handlers.handle_install_and_uninstall)
+handle_install_and_uninstall = _deprecated(cloudai.cli.cli.handle_install_and_uninstall)
 prepare_installation = _deprecated(cloudai.handlers.prepare_installation)
-handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
 generate_reports = _deprecated(cloudai.handlers.generate_reports)
-handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)
-register_signal_handlers = _deprecated(cloudai.handlers.register_signal_handlers)
-handle_dry_run_and_run = _deprecated(cloudai.handlers.handle_dry_run_and_run)
-handle_generate_report = _deprecated(cloudai.handlers.handle_generate_report)
+register_signal_handlers = _deprecated(cloudai.cli.cli.register_signal_handlers)
+handle_dry_run_and_run = _deprecated(cloudai.cli.cli.handle_dry_run_and_run)
+handle_generate_report = _deprecated(cloudai.cli.cli.handle_generate_report)
 expand_file_list = _deprecated(cloudai.cli.cli.expand_file_list)
 verify_system_configs = _deprecated(cloudai.cli.cli.verify_system_configs)
 verify_test_configs = _deprecated(cloudai.cli.cli.verify_test_configs)
@@ -61,3 +59,6 @@ validate_domain_randomization_active = _deprecated(cloudai.configurator.env_para
 load_test_toml_file = _deprecated(cloudai.test_parser.load_test_toml_file)
 format_toml_decode_error = _deprecated(cloudai.toml_utils.format_toml_decode_error)
 prepare_output_dir = _deprecated(cloudai.util.prepare_output_dir)
+
+handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
+handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)

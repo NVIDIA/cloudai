@@ -27,7 +27,7 @@ from pydantic import Field
 import cloudai.models.output
 from cloudai.cli.cli import verify_system_configs, verify_test_configs, verify_test_scenarios
 from cloudai.configurator import CloudAIGymEnv
-from cloudai.configurator.env_params import EnvParamSpec
+from cloudai.configurator.env_params import EnvParamSpec, validate_domain_randomization_active
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
@@ -44,7 +44,6 @@ from cloudai.core import (
 from cloudai.handlers import (
     handle_dse_job,
     prepare_installation,
-    validate_domain_randomization_active,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
