@@ -100,11 +100,24 @@ class ExperimentOutput:
         self.experiment.status = status
         self.experiment.finish = finish
         self.experiment.duration = elapsed_seconds(self.experiment.start, finish)
+        for test in self.experiment.tests:
+            if test.dse is None:
+                test.metrics = self._single_run_metrics(test)
         if status == "completed":
             for test in self.experiment.tests:
                 if test.status not in ("failed", "cancelled"):
                     test.status = "completed"
         self.write()
+
+    @staticmethod
+    def _single_run_metrics(test: cloudai.models.output.Test) -> list[cloudai.models.output.Metric]:
+        """Return metrics when one ordinary run completed successfully."""
+        if len(test.runs) != 1:
+            return []
+        run = test.runs[0]
+        if run.status != "completed" or run.step not in (None, 0):
+            return []
+        return [metric.model_copy(deep=True) for metric in run.metrics]
 
     @staticmethod
     def _update_test_status(test: cloudai.models.output.Test) -> None:

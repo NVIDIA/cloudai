@@ -43,8 +43,9 @@ CloudAI updates the file when standalone runs start and finish, then finalizes i
 fails. Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. Dry runs also produce scenario and
 test-case details without launching workloads.
 
-Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings. Each file update replaces
-the previous snapshot atomically. Metric extraction or write errors produce warnings without affecting execution.
+Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings. A completed ordinary
+test with one run also includes those metrics on the test case. Each file update replaces the previous snapshot
+atomically. Metric extraction or write errors produce warnings without affecting execution.
 
 
 .. _general-flow:

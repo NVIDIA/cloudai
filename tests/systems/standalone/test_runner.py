@@ -85,3 +85,6 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
         "iteration": 0,
         "step": 0,
     }
+    runner.experiment_output.update_run(test_run.name, run)
+    runner.experiment_output.finish("completed", job.finish)
+    assert runner.experiment_output.experiment.tests[0].metrics == run.metrics
