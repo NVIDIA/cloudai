@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import shlex
+from pathlib import Path
 from typing import cast
 
 from cloudai.workloads.common.nixl import NIXLCmdGenBase
@@ -38,10 +39,13 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         backend = str(self.tdef.cmd_args_dict.get("backend", "unset"))
         self._current_image_url = str(self.tdef.docker_image.installed_path)
         try:
-            if self.tdef.cmd_args.launch_mode == "independent":
-                return self._gen_independent_srun_command()
-
-            nixl_commands = self.gen_nixlbench_srun_commands(self.gen_nixlbench_command(), backend)
+            test_command = self.gen_nsys_command() + self.gen_nixlbench_command()
+            task_script = (
+                self._write_independent_task_script(test_command)
+                if self.tdef.cmd_args.launch_mode == "independent"
+                else None
+            )
+            nixl_commands = self.gen_nixlbench_srun_commands(test_command, backend, task_script=task_script)
             if self.tdef.cmd_args.runtime_type == "ASIO" and len(nixl_commands) != 2:
                 raise ValueError(f"ASIO runtime requires exactly two NIXLBench processes, got {len(nixl_commands)}.")
 
@@ -90,8 +94,8 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         ]
         return "\n".join(commands)
 
-    def _gen_independent_srun_command(self) -> str:
-        """Launch independent storage processes together, with task-local artifacts."""
+    def _write_independent_task_script(self, test_command: list[str]) -> Path:
+        """Write the node-local shell for independent task results."""
         output_dir = self.test_run.output_path.absolute()
         (output_dir / "nixlbench").mkdir(exist_ok=True)
         script_path = output_dir / "nixlbench.sh"
@@ -109,17 +113,12 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
                     '    echo "$SLURM_NTASKS" > "$nixl_output/ntasks"',
                     "fi",
                     f"source {shlex.quote(str(output_dir / 'env_vars.sh'))}",
-                    " ".join(self.gen_nsys_command() + self.gen_nixlbench_command()),
+                    " ".join(test_command),
                     "",
                 ]
             )
         )
-        prefix = self.gen_srun_prefix(use_pretest_extras=True, with_num_nodes=False)
-        num_nodes, _ = self.get_cached_nodes_spec()
-        # Explicit -N also prevents srun inheriting the allocation's task count for named nodes.
-        # User options follow these defaults and take precedence.
-        prefix[1:1] = [f"-N{num_nodes}", "--ntasks-per-node=1"]
-        return " ".join([*prefix, "bash", shlex.quote(str(script_path))])
+        return script_path
 
     def gen_nixlbench_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test)

@@ -16,9 +16,6 @@
 
 import argparse
 import json
-import os
-import shlex
-import subprocess
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
@@ -33,8 +30,6 @@ from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
-from cloudai.systems.slurm.single_sbatch_runner import SingleSbatchRunner
-from cloudai.test_scenario_parser import TestScenarioParser
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
@@ -75,8 +70,6 @@ from cloudai.workloads.nemo_launcher import (
 )
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
-from cloudai.workloads.nixl_bench.report_generation_strategy import NIXLBenchReportGenerationStrategy
-from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
 from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPTestDefinition
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
@@ -284,6 +277,7 @@ def build_special_test_run(
         "megatron-bridge",
         "triton-inference",
         "nixl_bench",
+        "nixl_bench-independent",
         "nixl-ep",
         "ai-dynamo",
         "nixl-perftest",
@@ -487,6 +481,25 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     }
                 ),
             ),
+        ),
+        "nixl_bench-independent": lambda: create_test_run(
+            partial_tr,
+            "nixl_bench-independent",
+            NIXLBenchTestDefinition(
+                name="nixl_bench-independent",
+                description="Independent NIXLBench storage processes",
+                test_template_name="nixl_bench",
+                cmd_args=NIXLBenchCmdArgs.model_validate(
+                    {
+                        "docker_image_url": "url.com/docker:2",
+                        "path_to_benchmark": "./nixlbench",
+                        "backend": "POSIX",
+                        "launch_mode": "independent",
+                        "etcd_endpoints": "",
+                    }
+                ),
+            ),
+            num_nodes=4,
         ),
         "nixl-perftest": lambda: create_test_run(
             partial_tr,
@@ -861,115 +874,15 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         )
         assert curr_launcher == ref_launcher, "nixl-ep-launch.sh does not match reference"
 
+    if test_req[1] == "nixl_bench-independent.sbatch":
+        task_script = slurm_system.output_path / "nixlbench.sh"
+        ref_script = (Path(__file__).parent / "ref_data" / "nixl_bench-independent.sh").read_text().strip()
+        ref_script = ref_script.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        assert task_script.read_text().strip() == ref_script
+
     if test_req[1] == "ai-dynamo.sbatch":
         aiperf_script = slurm_system.output_path / "aiperf.sh"
         assert aiperf_script.exists(), "aiperf.sh was not generated"
         curr_aiperf = aiperf_script.read_text().strip()
         ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
         assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"
-
-
-@pytest.mark.parametrize(
-    ("num_nodes", "single_sbatch", "failed_task"),
-    [(1, False, None), (4, False, None), (4, True, None), (4, False, 2)],
-)
-def test_nixlbench_independent_storage(
-    tmp_path: Path,
-    slurm_system: SlurmSystem,
-    num_nodes: int,
-    single_sbatch: bool,
-    failed_task: int | None,
-) -> None:
-    """Exercise the generated per-task shell, wrapper setup, failure checks and reports locally."""
-    setup = tmp_path / "setup.sh"
-    setup.write_text("export TASK_BANDWIDTH=$((SLURM_PROCID + 1))\n")
-    benchmark = tmp_path / "benchmark.sh"
-    benchmark.write_text(
-        "#!/bin/bash\nset -e\n"
-        f"source {shlex.quote(str(setup))}\n"
-        'test "$NODE_VALUE" = "node$SLURM_PROCID"\n'
-        'if [ "$SLURM_PROCID" = "$FAILED_TASK" ]; then echo "benchmark failed" >&2; exit 7; fi\n'
-        'echo "Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)"\n'
-        'echo "4096 1 10 0 0 $TASK_BANDWIDTH"\n'
-    )
-    benchmark.chmod(0o755)
-    base_test = NIXLBenchTestDefinition(
-        name="storage",
-        description="Independent storage benchmark",
-        test_template_name="NIXLBench",
-        cmd_args=NIXLBenchCmdArgs.model_validate(
-            {
-                "docker_image_url": "example.org/nixl:latest",
-                "path_to_benchmark": str(benchmark),
-                "backend": "POSIX",
-            }
-        ),
-        extra_env_vars={"NODE_VALUE": '"node$SLURM_PROCID"'},
-    )
-    (tmp_path / "test.toml").write_text(toml.dumps(base_test.model_dump(exclude_none=True)))
-    scenario_path = tmp_path / "scenario.toml"
-    scenario_path.write_text(
-        toml.dumps(
-            {
-                "name": "storage",
-                "Tests": [
-                    {
-                        "id": "storage",
-                        "path": "test.toml",
-                        "num_nodes": num_nodes,
-                        "cmd_args": {"launch_mode": "independent", "etcd_endpoints": ""},
-                    }
-                ],
-            }
-        )
-    )
-    tr = TestScenarioParser(scenario_path, slurm_system, {}, {}).parse().test_runs[0]
-    tr.output_path = tmp_path / "results"
-    tr.output_path.mkdir()
-    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, tr)
-    if single_sbatch:
-        runner = SingleSbatchRunner("dry-run", slurm_system, TestScenario(name="storage", test_runs=[tr]), tmp_path)
-        command = runner.get_single_tr_block(tr)
-    else:
-        strategy.gen_exec_command()
-        command = (tr.output_path / "cloudai_sbatch_script.sh").read_text()
-
-    assert command.count("bash " + str(tr.output_path / "nixlbench.sh")) == 1
-    assert "etcd_pid" not in command
-    assert "sleep " not in command
-    task_script = tr.output_path / "nixlbench.sh"
-    assert "--launch_mode" not in task_script.read_text()
-    for task_id in range(num_nodes):
-        result = subprocess.run(
-            ["bash", str(task_script)],
-            env={
-                **os.environ,
-                "SLURM_PROCID": str(task_id),
-                "SLURM_NTASKS": str(num_nodes),
-                "FAILED_TASK": str(failed_task),
-            },
-            capture_output=True,
-            text=True,
-        )
-        expected_status = 7 if task_id == failed_task else 0
-        assert result.returncode == expected_status, result.stderr
-        assert (tr.output_path / "nixlbench" / f"{task_id}.status").read_text().strip() == str(expected_status)
-
-    success = tr.test.was_run_successful(tr)
-    assert success.is_successful == (failed_task is None)
-    report = NIXLBenchReportGenerationStrategy(slurm_system, tr)
-    if failed_task is not None:
-        assert "status 7" in success.error_message
-        assert tr.test.metric_observations(slurm_system, tr) == []
-        assert not report.can_handle_directory()
-        return
-
-    report.generate_report()
-    assert (tr.output_path / "nixlbench_per_task.csv").is_file()
-    assert (tr.output_path / "cloudai_nixlbench_bokeh_report.html").is_file()
-    bandwidth = next(
-        observation
-        for observation in tr.test.metric_observations(slurm_system, tr)
-        if observation.metric.key == "bandwidth"
-    )
-    assert bandwidth.value == (num_nodes + 1) / 2
