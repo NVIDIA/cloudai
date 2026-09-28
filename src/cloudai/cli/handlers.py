@@ -144,8 +144,6 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         return 1
 
     err = 0
-    # Capture an unexpected error so reports still generate, then re-raise below.
-    run_error: Exception | None = None
     try:
         for tr in runner.runner.test_scenario.test_runs:
             test_run = copy.deepcopy(tr)
@@ -178,21 +176,9 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
                 err |= agent.run()
             finally:
                 env.update_output()
-    except Exception as exc:
-        run_error = exc
-        logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
-
-    if args.mode == "run":
-        runner.runner.test_scenario.test_runs = original_test_runs
-        generate_reports(
-            runner.runner.system,
-            runner.runner.test_scenario,
-            runner.runner.scenario_root,
-            error=run_error,
-        )
-
-    if run_error is not None:
-        raise run_error.with_traceback(run_error.__traceback__)
+    finally:
+        if args.mode == "run":
+            runner.runner.test_scenario.test_runs = original_test_runs
 
     logging.info("All jobs are complete.")
     return err
@@ -245,7 +231,6 @@ def generate_reports(
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> bool:
     successful = runner.run()
-    generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
 
@@ -313,7 +298,7 @@ def _check_installation(
     return result
 
 
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:  # noqa: C901
     setup_result = _setup_system_and_scenario(args)
     if setup_result is None:
         return 1
@@ -358,15 +343,24 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
     successful = False
+    report_needed = False
+    report_error: Exception | None = None
     try:
         runner.runner.experiment_output.write()
         has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
         if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
             successful = handle_non_dse_job(runner, args)
+            report_needed = True
             return 0
 
         if all(tr.is_dse_job for tr in test_scenario.test_runs):
-            result = handle_dse_job(runner, args)
+            report_needed = args.mode == "run"
+            try:
+                result = handle_dse_job(runner, args)
+            except Exception as exc:
+                report_error = exc
+                logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
+                raise
             successful = result == 0
             return result
 
@@ -374,6 +368,13 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         return 1
     finally:
         runner.runner.finish_output(successful)
+        if report_needed:
+            generate_reports(
+                runner.runner.system,
+                runner.runner.test_scenario,
+                runner.runner.scenario_root,
+                error=report_error,
+            )
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
