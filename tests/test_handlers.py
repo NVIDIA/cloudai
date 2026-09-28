@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional, cast
@@ -27,7 +26,7 @@ from pydantic import Field
 import cloudai.models.output
 from cloudai.cli.cli import verify_system_configs, verify_test_configs, verify_test_scenarios
 from cloudai.configurator import CloudAIGymEnv
-from cloudai.configurator.env_params import EnvParamSpec, validate_domain_randomization_active
+from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
@@ -44,6 +43,7 @@ from cloudai.core import (
 from cloudai.handlers import (
     handle_dse_job,
     prepare_installation,
+    validate_domain_randomization_active,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -112,7 +112,7 @@ def test_dse_run_does_not_support_dependencies(
     dse_tr.dependencies = {dep: TestDependency(test_run=dse_tr)}
     test_scenario: TestScenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner, "dry-run") == 1
     assert "Dependencies are not supported for DSE jobs, all cases run consecutively." in caplog.text
     assert "Please remove dependencies and re-run." in caplog.text
 
@@ -158,7 +158,7 @@ def test_dse_run_uses_agent_config(
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert handle_dse_job(runner, "dry-run") == 0
     assert len(StubAgent.received_configs) == 1
 
     recorded = StubAgent.received_configs[0]
@@ -253,7 +253,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
 
     # run test
     with caplog.at_level("INFO"):
-        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+        assert handle_dse_job(runner, "dry-run") == 0
 
     reporter = StatusReporter(
         inner_runner.system,
@@ -392,7 +392,7 @@ def test_handle_dse_job_invokes_agent_run(
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert handle_dse_job(runner, "dry-run") == 0
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -455,9 +455,9 @@ def test_dse_output_selects_completed_trial(
     monkeypatch.setattr(CustomRunStubAgent, "run", run)
     if failed_steps:
         with pytest.raises(RuntimeError, match="trial failed"):
-            handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+            handle_dse_job(runner, "dry-run")
     else:
-        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+        assert handle_dse_job(runner, "dry-run") == 0
 
     stored = cloudai.models.output.Experiment.model_validate_json(
         (runner.runner.scenario_root / "experiment.json").read_text()
@@ -487,7 +487,7 @@ def test_handle_dse_job_propagates_agent_run_nonzero_rc(
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner, "dry-run") == 1
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -509,7 +509,7 @@ def test_handle_dse_job_accumulates_nonzero_rc_and_continues(
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner, "dry-run") == 1
     assert CustomRunStubAgent.run_calls == 2
 
 
@@ -529,7 +529,7 @@ def test_handle_dse_job_propagates_agent_run_exception(
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner, "dry-run")
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -547,7 +547,7 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner, "dry-run")
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -565,7 +565,7 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     runner.runner.scenario_root = tmp_path
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="run"))
+        handle_dse_job(runner, "run")
 
     failure_report = tmp_path / "dse_failure.txt"
     assert failure_report.exists()

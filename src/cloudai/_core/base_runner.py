@@ -161,7 +161,7 @@ class BaseRunner(ABC):
             self.update_run_output(job)
         except JobSubmissionError as e:
             logging.error(e)
-            exit(1)
+            raise
 
     def on_job_submit(self, tr: TestRun) -> None:
         return
