@@ -37,7 +37,11 @@ def metric_output(observation: cloudai.metrics.MetricObservation) -> cloudai.mod
         value=observation.value,
         unit=observation.metric.unit,
         dimensions=[
-            cloudai.models.output.Dimension(name=cloudai.metrics.dimension_label(key), value=str(value))
+            cloudai.models.output.Dimension(
+                name=cloudai.metrics.dimension_label(key),
+                value=str(value),
+                is_x=key == cloudai.metrics.SIZE_BYTES.key,
+            )
             for key, value in sorted(observation.dimensions.items())
         ],
     )

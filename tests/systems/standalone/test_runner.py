@@ -76,7 +76,7 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
                 "name": "Bandwidth",
                 "value": 12.5,
                 "unit": "GB/s",
-                "dimensions": [{"name": "Size", "value": "1024", "unit": "", "is_x": False}],
+                "dimensions": [{"name": "Size", "value": "1024", "unit": "", "is_x": True}],
             }
         ],
         "start": start,

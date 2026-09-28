@@ -47,17 +47,21 @@ Metrics come from ``TestDefinition.metric_observations()``, independently of rep
 
 When a test case executes once successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
 metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
-in ``tests[].dse``. For example:
+in ``tests[].dse``.
 
-.. code-block:: json
+NCCL DSE example
+~~~~~~~~~~~~~~~~
 
-   {
-     "space": {"extra_env_vars.NCCL_ALGO": ["Ring", "Tree"]},
-     "best_step": 2,
-     "best_config": {"extra_env_vars.NCCL_ALGO": "Tree"}
-   }
+This example comes from a Slurm NCCL all-reduce run on one node with eight H100 GPUs. DSE tried ``Ring`` and ``Tree``
+in two steps. ``Ring`` (step 1) won using inverse latency as the reward, so its measurements appear in ``tests[].metrics``.
 
-Here, step 2 using ``Tree`` was selected. Its metrics appear in the test case's ``metrics`` list.
+Identifiers and paths are anonymized. To keep the example small, each metrics list includes only out-of-place latency
+and bus bandwidth for 1 MiB messages. Measurement values, timing, and DSE selection are unchanged.
+
+:download:`Download experiment.json <examples/nccl-dse/experiment.json>`.
+
+.. literalinclude:: examples/nccl-dse/experiment.json
+   :language: json
 
 Each file update replaces the previous snapshot atomically. Metric extraction or write errors produce warnings without
 affecting execution.

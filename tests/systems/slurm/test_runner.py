@@ -56,7 +56,11 @@ def test_slurm_run_output(
         end_time="2026-01-02T03:04:08Z",
         submit_line="sbatch run.sh",
     )
-    observation = cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 12.5, {"size_bytes": 1024})
+    observation = cloudai.metrics.MetricObservation(
+        cloudai.metrics.BANDWIDTH,
+        12.5,
+        {"size_bytes": 1024, "bandwidth_basis": "bus"},
+    )
     with (
         mock.patch.object(SlurmSystem, "get_job_status", return_value=[metadata]) as get_metadata,
         mock.patch.object(
@@ -96,7 +100,10 @@ def test_slurm_run_output(
                     "name": "Bandwidth",
                     "value": 12.5,
                     "unit": "GB/s",
-                    "dimensions": [{"name": "Size", "value": "1024", "unit": "", "is_x": False}],
+                    "dimensions": [
+                        {"name": "Bandwidth basis", "value": "bus", "unit": "", "is_x": False},
+                        {"name": "Size", "value": "1024", "unit": "", "is_x": True},
+                    ],
                 }
             ]
             if successful

@@ -76,7 +76,7 @@ class Test(pydantic.BaseModel):
 
 
 class Experiment(pydantic.BaseModel):
-    """Full snapshot spanning the entire scenario, including all DSE trials."""
+    """Full scenario snapshot; changes to this model tree may require updating doc/reporting.rst."""
 
     id: str
     name: str
