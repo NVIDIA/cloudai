@@ -917,7 +917,6 @@ def test_nixlbench_independent_storage(
                         "id": "storage",
                         "path": "test.toml",
                         "num_nodes": num_nodes,
-                        "extra_srun_args": f"--ntasks={num_nodes} --ntasks-per-node=1",
                         "cmd_args": {"launch_mode": "independent", "etcd_endpoints": ""},
                     }
                 ],

@@ -39,7 +39,6 @@ num_nodes = 4
 time_limit = "00:05:00"
 path = "../test/nixl-bench-posix.toml"
 description = "Independent NIXLBench POSIX processes, one per node, with 4 threads"
-extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
 
   [Tests.cmd_args]
   launch_mode = "independent"
@@ -54,7 +53,6 @@ num_nodes = 4
 time_limit = "00:05:00"
 path = "../test/nixl-bench-posix.toml"
 description = "Independent NIXLBench POSIX processes, one per node, with 8 threads"
-extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
 
   [Tests.cmd_args]
   launch_mode = "independent"

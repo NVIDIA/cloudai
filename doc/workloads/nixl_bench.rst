@@ -92,8 +92,8 @@ Independent Storage Processes
 -----------------------------
 
 To run independent storage benchmarks in one allocation, set
-``launch_mode = "independent"`` and ``etcd_endpoints = ""``. Use ``num_nodes`` and
-the existing ``extra_srun_args`` field to specify placement:
+``launch_mode = "independent"`` and ``etcd_endpoints = ""``. CloudAI launches one
+process per node by default; use ``num_nodes`` to choose the number of nodes:
 
 .. code-block:: toml
 
@@ -103,7 +103,6 @@ the existing ``extra_srun_args`` field to specify placement:
    id = "storage.4nodes"
    test_name = "my_storage_test"
    num_nodes = 4
-   extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
 
      [Tests.cmd_args]
      launch_mode = "independent"
@@ -112,8 +111,7 @@ the existing ``extra_srun_args`` field to specify placement:
 
 Here, ``my_storage_test`` is a NIXLBench test defining the storage backend, container
 image, benchmark path and workload arguments. CloudAI runs the 4-thread and 8-thread
-configurations as separate tests. For one initiator, use ``num_nodes = 1`` and
-``--ntasks=1 --ntasks-per-node=1``.
+configurations as separate tests.
 
 ``launch_mode`` selects CloudAI's launch strategy and is not passed to NIXLBench.
 Its default value, ``"default"``, preserves existing behavior, including when task
@@ -122,9 +120,8 @@ placement options are present. Placement options alone do not enable independent
 Independent mode requires ``etcd_endpoints = ""`` and the default
 ``runtime_type = "ETCD"`` setting, which together select NIXLBench's null runtime.
 Managed/external ETCD and ASIO cannot be used with this mode. CloudAI launches one
-Slurm step across the requested nodes, with no delays between individual process
-launches. System and test ``extra_srun_args`` control that step's placement, with
-test-level options following system-level options.
+Slurm step across the requested nodes. Use ``extra_srun_args`` only when overriding
+the default task placement. System-level options precede test-level options.
 
 Each task executes in its own shell. To discover node-local devices or perform other
 setup, point ``path_to_benchmark`` at an executable wrapper inside the container:

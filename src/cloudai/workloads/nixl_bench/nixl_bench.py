@@ -97,7 +97,8 @@ class NIXLBenchCmdArgs(NIXLBaseCmdArgs, NIXLExtendedCmdArgs):
         default="default",
         description=(
             "CloudAI launch mode: 'default' preserves existing orchestration; 'independent' launches "
-            "null-runtime tasks in one Slurm step using num_nodes and extra_srun_args. Not passed to NIXLBench."
+            "one null-runtime task per node in one Slurm step by default. Use num_nodes to select the node count "
+            "and extra_srun_args to override task placement. Not passed to NIXLBench."
         ),
     )
     etcd_endpoints: str = MANAGED_ETCD_ENDPOINTS
