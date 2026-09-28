@@ -75,7 +75,7 @@ class SlurmRunner(BaseRunner):
             timestamp = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
             return None
-        return timestamp if timestamp.utcoffset() is not None else None
+        return timestamp.astimezone(datetime.timezone.utc) if timestamp.utcoffset() is not None else None
 
     def submit_test(self, tr: TestRun) -> None:
         if tr.pin_nodes and tr.name in self.pinned_nodes:
