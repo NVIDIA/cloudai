@@ -33,6 +33,7 @@ class _SlurmStepMetadataBase(BaseModel):
     end_time: str
     elapsed_time_sec: int
     exit_code: str
+    cluster_name: str = ""
 
 
 class SlurmStepMetadata(_SlurmStepMetadataBase):
@@ -54,10 +55,15 @@ class SlurmStepMetadata(_SlurmStepMetadataBase):
     @classmethod
     def _from_sacct_single_line(cls, line: str, delimiter: str) -> SlurmStepMetadata | None:
         data = line.split(delimiter)
+        if data and not data[-1]:
+            data.pop()
         if len(data) < 8:
             return None
 
         job_id, step_id = data[0].split(".") if "." in data[0] else (data[0], "")
+        has_cluster_name = len(data) >= 9
+        cluster_name = data[7] if has_cluster_name else ""
+        submit_line = delimiter.join(data[8:] if has_cluster_name else data[7:])
 
         return cls(
             job_id=int(job_id),
@@ -68,7 +74,8 @@ class SlurmStepMetadata(_SlurmStepMetadataBase):
             start_time=data[4],
             end_time=data[5],
             elapsed_time_sec=int(data[6]),
-            submit_line=data[7],
+            cluster_name=cluster_name,
+            submit_line=submit_line,
         )
 
 

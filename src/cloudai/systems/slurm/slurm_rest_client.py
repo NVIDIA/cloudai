@@ -362,10 +362,15 @@ class SlurmRestClient:
         return nodes
 
     def _get_job(self, job_id: int, retry_threshold: int = 3) -> dict[str, Any] | None:
-        jobs = self._request("GET", "slurm", f"job/{job_id}", retry_threshold=retry_threshold).get("jobs")
+        response = self._request("GET", "slurm", f"job/{job_id}", retry_threshold=retry_threshold)
+        jobs = response.get("jobs")
         if not isinstance(jobs, list):
             raise RuntimeError("Slurm API returned an invalid jobs response.")
-        return cast(dict[str, Any], jobs[0]) if jobs else None
+        if not jobs:
+            return None
+        job = cast(dict[str, Any], jobs[0]).copy()
+        job["cluster_name"] = response.get("meta", {}).get("slurm", {}).get("cluster", "")
+        return job
 
     def get_job_state(self, job_id: int, retry_threshold: int = 3) -> str:
         """Return current job state from slurmctld."""
@@ -418,6 +423,7 @@ class SlurmRestClient:
                 end_time=end_time,
                 elapsed_time_sec=elapsed_seconds,
                 submit_line=job.get("command") or "",
+                cluster_name=job["cluster_name"],
             )
         ]
 

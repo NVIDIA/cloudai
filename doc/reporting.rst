@@ -36,9 +36,10 @@ Unified experiment output
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, the configured system name, and test cases under ``tests``. Standalone and Slurm
-execution records appear in each test case's ``runs`` list. Each record represents an iteration or DSE step and includes
-its number, process or Slurm job ID, status, timing, result path, and workload metrics.
+The file contains scenario details, the system name, and test cases under ``tests``. For Slurm runs, the system name is
+the cluster reported by Slurm. Standalone and Slurm execution records appear in each test case's ``runs`` list. Each
+record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
+and workload metrics.
 
 Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A final status of ``unknown`` means the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.

@@ -139,6 +139,7 @@ def test_slurm_api_rejects_non_sbatch_launcher(rest_slurm_system: SlurmSystem):
 
 def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
     response = {
+        "meta": {"slurm": {"cluster": "rest-cluster"}},
         "jobs": [
             {
                 "job_id": 42,
@@ -149,7 +150,7 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
                 "end_time": 120,
                 "nodes": "node[01-02]",
             }
-        ]
+        ],
     }
     job = SlurmJob(test_run=Mock(), id=42)
 
@@ -163,6 +164,7 @@ def test_slurm_api_job_lifecycle(rest_slurm_system: SlurmSystem):
     assert [(item.step_id, item.name, item.state) for item in metadata] == [("", "rest-test", "FAILED")]
     assert metadata[0].exit_code == "1:0"
     assert metadata[0].elapsed_time_sec == 20
+    assert metadata[0].cluster_name == "rest-cluster"
 
 
 def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
@@ -904,33 +906,40 @@ def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, exp
         assert slurm_system.get_job_status(job) == expected
     slurm_system.cmd_shell.execute.assert_called_with(
         "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
-        "sacct -j 1 --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
+        "sacct -j 1 --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,Cluster,SubmitLine "
         "--delimiter='|' -p --noheader"
     )
 
 
-sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
-2623913.batch,batch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
-2623913.extern,extern,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
-2623913.0,bash,COMPLETED,0:0,2025-05-09T01:35:24,2025-05-09T01:35:58,34,srun --export=ALL --mpi=pmix ...,
-2623913.1,bash,COMPLETED,0:0,2025-05-09T01:35:58,2025-05-09T01:36:16,18,srun --export=ALL --mpi=pmix ...,
-2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,srun -N2 ...,
-2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,srun -N2 ...,
+sacct_output = (
+    "2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,cluster,"
+    "sbatch sbatch_script.sh,\n"
+    """2623913.batch,batch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,cluster,,
+2623913.extern,extern,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,cluster,,
+2623913.0,bash,COMPLETED,0:0,2025-05-09T01:35:24,2025-05-09T01:35:58,34,cluster,srun --export=ALL --mpi=pmix ...,
+2623913.1,bash,COMPLETED,0:0,2025-05-09T01:35:58,2025-05-09T01:36:16,18,cluster,srun --export=ALL --mpi=pmix ...,
+2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,cluster,srun -N2 ...,
+2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,cluster,srun -N2 ...,
 """
-sacct_output2 = """2968718|job:run|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532|sbatch run_submission.sh|
-2968718.batch|batch|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532||
-2968718.extern|extern|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532||
-2968718.0|bash|COMPLETED|0:0|2025-06-16T07:40:54|2025-06-16T07:49:11|497|srun long cmd
+)
+sacct_output2 = (
+    "2968718|job:run|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532|cluster|"
+    "sbatch run_submission.sh|\n"
+    """2968718.batch|batch|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532|cluster||
+2968718.extern|extern|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532|cluster||
+2968718.0|bash|COMPLETED|0:0|2025-06-16T07:40:54|2025-06-16T07:49:11|497|cluster|srun long cmd
 with
   multiple
   lines |
 """
+)
 
 
 @pytest.mark.parametrize("sacct_output,delimiter,expected_nsteps", [(sacct_output, ",", 7), (sacct_output2, "|", 4)])
 def test_slurm_job_metadata_from_sacct_output(sacct_output: str, delimiter: str, expected_nsteps: int):
     job_metadata = SlurmStepMetadata.from_sacct_output(sacct_output, delimiter=delimiter)
     assert len(job_metadata) == expected_nsteps
+    assert {item.cluster_name for item in job_metadata} == {"cluster"}
 
 
 @pytest.mark.parametrize(

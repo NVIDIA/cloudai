@@ -55,6 +55,7 @@ def test_slurm_run_output(
         start_time="2026-01-02T03:04:05Z",
         end_time="2026-01-02T03:04:08Z",
         submit_line="sbatch run.sh",
+        cluster_name="actual-cluster",
     )
     observation = cloudai.metrics.MetricObservation(
         cloudai.metrics.BANDWIDTH,
@@ -87,6 +88,7 @@ def test_slurm_run_output(
     runner.finish_output(successful=True)
     experiment = runner.experiment_output.snapshot()
     assert experiment.status == status
+    assert experiment.system_name == "actual-cluster"
     test = experiment.tests[0]
     assert test.metrics == (test.runs[0].metrics if successful and step == 0 else [])
     start = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
