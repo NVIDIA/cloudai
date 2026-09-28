@@ -47,6 +47,26 @@ Optional keyword arguments:
 * ``enable_cache_without_check=True`` uses installed workload components without
   checking them first, as with the CLI option.
 
+Background execution
+--------------------
+
+Set ``wait=False`` to launch a separate worker process and return a pending
+experiment. The worker continues after the calling process exits. Read the latest
+saved snapshot using the returned path:
+
+.. code-block:: python
+
+   experiment = cloudai.api.run_experiment(scenario, system, wait=False, tests_dir=tests_dir)
+   # Later, including from another process:
+   experiment = cloudai.api.get_experiment(experiment.path)
+   print(experiment.status)
+
+The result directory contains ``experiment.json``, the worker's ``controller.log``,
+and its ``request.json``.
+Keep referenced config files available until the worker has read them. The worker
+loads the installed CloudAI package and plugins in a fresh Python process;
+registrations made only in the caller's memory are not transferred.
+
 Find and read results
 ---------------------
 
@@ -69,7 +89,9 @@ execution constraints without installing workloads, creating a results directory
 or querying cluster availability.
 
 ``run_experiment`` raises exceptions for invalid configuration and setup errors.
-Workload failures appear in the experiment and run statuses.
+Workload failures appear in the experiment and run statuses. For background runs,
+errors after launch are recorded as a failed experiment, with details in
+``controller.log``.
 
 Missing result files raise ``FileNotFoundError``. Invalid experiment JSON raises
 ``pydantic.ValidationError``. Listing also raises for unreadable or invalid result

@@ -23,6 +23,7 @@ import cloudai.models.output
 def run_experiment(
     scenario: str | Path,
     system: str | Path,
+    wait: bool = True,
     *,
     tests_dir: Path | None = None,
     hook_dir: Path | None = None,
@@ -36,7 +37,8 @@ def run_experiment(
 
     Pass TOML content as str or configuration files as Path. Relative test paths
     require a scenario file. Optional directories have the same meaning as in
-    the CLI. The call waits for execution to finish.
+    the CLI. With wait=False, a separate process executes the experiment and
+    returns an initial pending snapshot; use get_experiment to read later results.
 
     Configuration and setup errors raise exceptions. Workload failures are
     recorded in the returned experiment's status. This function does not invoke
@@ -45,6 +47,7 @@ def run_experiment(
     return cloudai.handlers.run_experiment(
         scenario,
         system,
+        wait,
         tests_dir=tests_dir,
         hook_dir=hook_dir,
         output_dir=output_dir,
