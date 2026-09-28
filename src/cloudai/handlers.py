@@ -14,25 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
+import datetime
 import logging
+import tempfile
 import traceback
 from pathlib import Path
 from typing import Optional
 
+import cloudai.models.output
+import cloudai.output
+from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    MissingTestError,
+    Parser,
     Registry,
     Runner,
     System,
+    SystemConfigParsingError,
+    TestConfigParsingError,
     TestScenario,
+    TestScenarioParsingError,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.parser import HOOK_ROOT
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
+from cloudai.util import prepare_output_dir
 
 
 def prepare_installation(
@@ -66,7 +77,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
+def handle_dse_job(runner: Runner, mode: str) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -118,7 +129,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
 
-    if args.mode == "run":
+    if mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
         generate_reports(
             runner.runner.system,
@@ -179,40 +190,168 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> bool:
+def handle_non_dse_job(runner: Runner) -> bool:
     successful = runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
 
 
-def handle_list_registered_items(item_type: str, verbose: bool) -> int:  # noqa: C901
-    registry = Registry()
-    if item_type.lower() == "reports":
-        print("Available scenario reports:")
-        for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
-            string = f'{idx}. "{name}" {report.__name__}'
-            if verbose:
-                string += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
-            print(string)
-    elif item_type.lower() == "agents":
-        print("Available agents:")
-        for idx, name in enumerate(registry.agent_names(), start=1):
-            agent = registry.get_agent(name)
-            string = f'{idx}. "{name}" class={agent.__name__}'
-            if verbose:
-                string += f"{agent.__doc__}"
-            print(string)
-    elif item_type.lower() == "reward-functions":
-        print("Available reward functions:")
-        for idx, name in enumerate(registry.reward_function_names(), start=1):
-            reward_function = registry.get_reward_function(name)
-            callable_name = getattr(reward_function, "__name__", type(reward_function).__name__)
-            string = f'{idx}. "{name}" function={callable_name}'
-            if verbose:
-                documentation = getattr(reward_function, "__doc__", None)
-                if documentation:
-                    string += f" {documentation}"
-            print(string)
+def load_scenario(
+    scenario: Path, system: Path, *, tests_dir: Path | None = None, hook_dir: Path | None = None
+) -> tuple[System, list[TestDefinition], TestScenario]:
+    """Parse an experiment without installation, scheduler queries, or process exits."""
+    try:
+        system.stat()
+    except OSError as exc:
+        raise SystemConfigParsingError(str(exc)) from exc
+    parser = Parser(system, hook_dir or HOOK_ROOT, exit_on_error=False)
+    parsed_system, tests, parsed_scenario = parser.parse(tests_dir, scenario)
+    if parsed_scenario is None:
+        raise TestScenarioParsingError("A test scenario is required.")
+    return parsed_system, tests, parsed_scenario
 
-    return 0
+
+def validate_experiment(system: System, scenario: TestScenario, single_sbatch: bool = False) -> None:
+    """Check execution constraints shared by validation and execution."""
+    validate_domain_randomization_active(scenario)
+    if single_sbatch:
+        if not isinstance(system, SlurmSystem):
+            raise TestScenarioParsingError("Single sbatch is only supported for Slurm systems.")
+        return
+    dse_runs = [tr for tr in scenario.test_runs if tr.is_dse_job]
+    if dse_runs and len(dse_runs) != len(scenario.test_runs):
+        raise TestScenarioParsingError("Mixing DSE and non-DSE jobs is not allowed.")
+    for tr in dse_runs:
+        if tr.dependencies:
+            raise TestScenarioParsingError("Dependencies are not supported for DSE jobs.")
+        registry = Registry()
+        if not registry.has_agent(tr.test.agent):
+            raise TestScenarioParsingError(f"No agent available for type: {tr.test.agent}.")
+        registry.get_agent(tr.test.agent).get_config_class()(**(tr.test.agent_config or {}))
+
+
+def create_experiment_runner(
+    system: System,
+    scenario: TestScenario,
+    *,
+    dry_run: bool = False,
+    single_sbatch: bool = False,
+    result_dir: Path | None = None,
+) -> Runner:
+    """Create a runner without changing the registered defaults."""
+    validate_experiment(system, scenario, single_sbatch)
+    if prepare_output_dir(system.output_path) is None:
+        raise OSError(f"Cannot prepare output directory: {system.output_path}")
+    if dry_run:
+        system.monitor_interval = 1
+    return Runner(
+        "dry-run" if dry_run else "run",
+        system,
+        scenario,
+        runner_class=SingleSbatchRunner if single_sbatch else None,
+        output_path=result_dir,
+    )
+
+
+def execute_experiment(runner: Runner, tests: list[TestDefinition], enable_cache_without_check: bool = False) -> int:
+    """Install prerequisites, execute the scenario, and finalize its output."""
+    system = runner.runner.system
+    scenario = runner.runner.test_scenario
+    successful = False
+    try:
+        runner.runner.experiment_output.write()
+        system.update()
+        logging.info("System Name: %s", system.name)
+        logging.info("Scheduler: %s", system.scheduler)
+        logging.info("Test Scenario Name: %s", scenario.name)
+        installables, installer = prepare_installation(system, tests, scenario)
+        if enable_cache_without_check or runner.runner.mode == "dry-run":
+            result = installer.mark_as_installed(installables)
+        else:
+            result = installer.is_installed(installables)
+        if runner.runner.mode == "run" and not result.success:
+            logging.info("Not all workload components are installed. Installing...")
+            result = installer.install(installables)
+            if not result.success:
+                raise RuntimeError(f"Failed to install workload components: {result.message}")
+        elif runner.runner.mode == "dry-run" and not result.success:
+            logging.warning("Failed to mark workload components as installed for dry-run.")
+        logging.info(scenario.pretty_print())
+        if isinstance(runner.runner, SingleSbatchRunner) or not any(tr.is_dse_job for tr in scenario.test_runs):
+            successful = handle_non_dse_job(runner)
+            return 0
+        result_code = handle_dse_job(runner, runner.runner.mode)
+        successful = result_code == 0
+        return result_code
+    finally:
+        runner.runner.finish_output(successful)
+
+
+def run_experiment(
+    scenario: Path,
+    system: Path,
+    *,
+    tests_dir: Path | None = None,
+    hook_dir: Path | None = None,
+    output_dir: Path | None = None,
+    dry_run: bool = False,
+    single_sbatch: bool = False,
+    enable_cache_without_check: bool = False,
+) -> cloudai.models.output.Experiment:
+    """Run an experiment from configuration files and return its results."""
+    parsed_system, tests, parsed_scenario = load_scenario(
+        scenario.expanduser().resolve(), system.expanduser().resolve(), tests_dir=tests_dir, hook_dir=hook_dir
+    )
+    validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+    parsed_system.output_path = (output_dir or parsed_system.output_path).expanduser().resolve()
+    if prepare_output_dir(parsed_system.output_path) is None:
+        raise OSError(f"Cannot prepare output directory: {parsed_system.output_path}")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    result_dir = Path(
+        tempfile.mkdtemp(prefix=f"{parsed_scenario.name}_{timestamp}_", dir=parsed_system.output_path)
+    ).resolve()
+    runner = create_experiment_runner(
+        parsed_system, parsed_scenario, dry_run=dry_run, single_sbatch=single_sbatch, result_dir=result_dir
+    )
+    execute_experiment(runner, tests, enable_cache_without_check)
+    return runner.runner.experiment_output.snapshot()
+
+
+def get_experiment(exp: str | Path) -> cloudai.models.output.Experiment:
+    """Read a saved experiment from its result directory or JSON file."""
+    path = Path(exp).expanduser()
+    if path.is_dir():
+        path /= "experiment.json"
+    return cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def list_experiments(system: Path) -> list[tuple[str, Path]]:
+    """Discover experiments beneath the configured results directory."""
+    output_dir = Parser.parse_system(system.expanduser()).output_path.expanduser().resolve()
+    if not output_dir.exists():
+        return []
+    if not output_dir.is_dir():
+        raise NotADirectoryError(output_dir)
+    return [(get_experiment(path).id, path.parent) for path in sorted(output_dir.glob("*/experiment.json"))]
+
+
+def validate_scenario(
+    scenario: Path,
+    system: Path,
+    *,
+    tests_dir: Path | None = None,
+    hook_dir: Path | None = None,
+    single_sbatch: bool = False,
+) -> tuple[bool, dict[str, str]]:
+    """Validate configuration and execution constraints without running workloads."""
+    try:
+        parsed_system, _, parsed_scenario = load_scenario(
+            scenario.expanduser().resolve(), system.expanduser().resolve(), tests_dir=tests_dir, hook_dir=hook_dir
+        )
+        validate_experiment(parsed_system, parsed_scenario, single_sbatch)
+    except SystemConfigParsingError as exc:
+        return False, {"system": str(exc.__cause__ or exc)}
+    except (TestConfigParsingError, TestScenarioParsingError, MissingTestError, ValueError, OSError) as exc:
+        return False, {"scenario": str(exc)}
+    return True, {}

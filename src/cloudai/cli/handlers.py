@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import functools
 import typing
 import warnings
 
 import cloudai.cli.cli
 import cloudai.configurator.env_params
+import cloudai.core
 import cloudai.handlers
 import cloudai.test_parser
 import cloudai.toml_utils
@@ -60,5 +62,12 @@ load_test_toml_file = _deprecated(cloudai.test_parser.load_test_toml_file)
 format_toml_decode_error = _deprecated(cloudai.toml_utils.format_toml_decode_error)
 prepare_output_dir = _deprecated(cloudai.util.prepare_output_dir)
 
-handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
-handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)
+
+@_deprecated
+def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int:
+    return cloudai.handlers.handle_dse_job(runner, args.mode)
+
+
+@_deprecated
+def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> bool:
+    return cloudai.handlers.handle_non_dse_job(runner)

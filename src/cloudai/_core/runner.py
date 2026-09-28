@@ -16,6 +16,7 @@
 
 import datetime
 import logging
+from pathlib import Path
 from types import FrameType
 from typing import Optional
 
@@ -44,11 +45,32 @@ class Runner:
         test_scenario (TestScenario): The test scenario to be executed.
     """
 
-    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
+    def __init__(
+        self,
+        mode: str,
+        system: System,
+        test_scenario: TestScenario,
+        *,
+        runner_class: type[BaseRunner] | None = None,
+        output_path: Path | None = None,
+    ):
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
-        self.runner = self.create_runner(mode, system, test_scenario)
+        if runner_class is None and output_path is None:
+            self.runner = self.create_runner(mode, system, test_scenario)
+        else:
+            self.runner = self.create_runner(
+                mode, system, test_scenario, runner_class=runner_class, output_path=output_path
+            )
 
-    def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
+    def create_runner(
+        self,
+        mode: str,
+        system: System,
+        test_scenario: TestScenario,
+        *,
+        runner_class: type[BaseRunner] | None = None,
+        output_path: Path | None = None,
+    ) -> BaseRunner:
         """
         Dynamically create a runner instance based on the system's scheduler type.
 
@@ -56,6 +78,8 @@ class Runner:
             mode (str): The operation mode ('dry-run', 'run').
             system (System): The system configuration.
             test_scenario (TestScenario): The test scenario to run.
+            runner_class: Runner override for this invocation.
+            output_path: Exact scenario result directory, when already allocated.
 
         Returns:
             BaseRunner: A runner instance suitable for the system.
@@ -69,13 +93,13 @@ class Runner:
             msg = f"No runner registered for scheduler: {scheduler_type}"
             logging.error(msg)
             raise NotImplementedError(msg)
-        runner_class = registry.runners_map[scheduler_type]
+        runner_class = runner_class or registry.runners_map[scheduler_type]
         logging.info(f"Creating {runner_class.__name__}")
 
         if not system.output_path.exists():
             system.output_path.mkdir()
         current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        results_root = system.output_path / f"{test_scenario.name}_{current_time}"
+        results_root = output_path or system.output_path / f"{test_scenario.name}_{current_time}"
 
         return runner_class(mode, system, test_scenario, results_root)
 
