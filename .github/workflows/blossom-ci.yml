@@ -70,7 +70,7 @@ jobs:
       # add blackduck properties https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631308372/Methods+for+Configuring+Analysis#Using-a-configuration-file
       - name: Setup blackduck properties
         run: |
-             echo detect.excluded.detector.types=PIP,POETRY,CONDA >> application.properties
+             echo detect.excluded.detector.types=PIP >> application.properties
 
       - name: Run blossom action
         uses: NVIDIA/blossom-action@main
