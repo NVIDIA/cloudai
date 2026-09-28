@@ -26,8 +26,12 @@ Pass configuration files as ``pathlib.Path`` objects:
    experiment = cloudai.api.run_experiment(scenario, system, tests_dir=tests_dir)
    print(experiment.status, experiment.path)
 
-Test ``path`` references resolve relative to the scenario file. Other relative
-paths keep their usual meaning relative to the working directory.
+A ``str`` argument for ``scenario`` or ``system`` means TOML content. Use ``Path``
+for a filename. Test ``path`` references resolve relative to a scenario file;
+when passing scenario text, use absolute test paths or inline test definitions.
+Other relative paths keep their usual meaning relative to the working directory.
+Configuration supplied as text is saved in the result directory as ``system.toml``
+and ``scenario.toml``.
 
 ``run_experiment`` installs workload prerequisites as needed and returns an
 ``Experiment`` model containing the saved results. Each invocation gets its own

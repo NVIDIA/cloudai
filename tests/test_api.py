@@ -36,41 +36,37 @@ from cloudai.workloads.sleep import SleepTestDefinition
 
 
 @pytest.fixture
-def configs(standalone_system: StandaloneSystem, tmp_path: Path) -> tuple[Path, Path]:
-    system = tmp_path / "system.toml"
-    system.write_text(
-        toml.dumps(
-            {
-                "name": standalone_system.name,
-                "scheduler": "standalone",
-                "install_path": str(standalone_system.install_path),
-                "output_path": str(standalone_system.output_path),
-                "monitor_interval": 0,
-            }
-        )
+def configs(standalone_system: StandaloneSystem) -> tuple[str, str]:
+    system = toml.dumps(
+        {
+            "name": standalone_system.name,
+            "scheduler": "standalone",
+            "install_path": str(standalone_system.install_path),
+            "output_path": str(standalone_system.output_path),
+            "monitor_interval": 0,
+        }
     )
-    scenario = tmp_path / "scenario.toml"
-    scenario.write_text(
-        toml.dumps(
-            {
-                "name": "api-test",
-                "Tests": [
-                    {
-                        "id": "sleep",
-                        "name": "sleep",
-                        "description": "API smoke test",
-                        "test_template_name": "Sleep",
-                        "cmd_args": {"seconds": 0},
-                    }
-                ],
-            }
-        )
+    scenario = toml.dumps(
+        {
+            "name": "api-test",
+            "Tests": [
+                {
+                    "id": "sleep",
+                    "name": "sleep",
+                    "description": "API smoke test",
+                    "test_template_name": "Sleep",
+                    "cmd_args": {"seconds": 0},
+                }
+            ],
+        }
     )
     return scenario, system
 
 
-@pytest.mark.parametrize("successful", [True, False])
-def test_experiment_api(configs: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, successful: bool):
+@pytest.mark.parametrize("successful,as_text", [(True, False), (True, True), (False, True)])
+def test_experiment_api(
+    configs: tuple[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch, successful: bool, as_text: bool
+):
     scenario, system = configs
     monkeypatch.setattr(StandaloneSystem, "is_job_completed", lambda *_: True)
     monkeypatch.setattr(StandaloneSystem, "is_job_running", lambda *_: False)
@@ -94,7 +90,14 @@ def test_experiment_api(configs: tuple[Path, Path], tmp_path: Path, monkeypatch:
     assert cloudai.api.list_experiments(system) == []
     assert cloudai.api.validate_scenario(scenario, system) == (True, {})
     assert not (tmp_path / "output").exists()
-    experiment = cloudai.api.run_experiment(scenario, system)
+    scenario_input: str | Path = scenario
+    system_input: str | Path = system
+    if not as_text:
+        scenario_input = tmp_path / "scenario.toml"
+        system_input = tmp_path / "system.toml"
+        scenario_input.write_text(scenario)
+        system_input.write_text(system)
+    experiment = cloudai.api.run_experiment(scenario_input, system_input)
     assert logging.getLogger().handlers == handlers
     assert signal.getsignal(signal.SIGINT) == sigint
     assert experiment.status == ("completed" if successful else "failed")
@@ -109,6 +112,9 @@ def test_experiment_api(configs: tuple[Path, Path], tmp_path: Path, monkeypatch:
     result_dir = Path(experiment.path)
     assert cloudai.api.get_experiment(result_dir / "experiment.json") == experiment
     assert cloudai.api.list_experiments(system) == [(experiment.id, result_dir)]
+    if as_text:
+        assert (result_dir / "system.toml").read_text() == system
+        assert (result_dir / "scenario.toml").read_text() == scenario
     again = cloudai.api.run_experiment(scenario, system)
     assert again.id != experiment.id
     assert len(cloudai.api.list_experiments(system)) == 2
@@ -119,29 +125,30 @@ def test_experiment_api(configs: tuple[Path, Path], tmp_path: Path, monkeypatch:
         cloudai.api.list_experiments(system)
 
 
-def test_validate_scenario(configs: tuple[Path, Path], tmp_path: Path):
+def test_validate_scenario(configs: tuple[str, str], tmp_path: Path):
     scenario, system = configs
-    template = toml.loads(scenario.read_text())["Tests"][0]
+    system_path = tmp_path / "system.toml"
+    system_path.write_text(system)
+    template = toml.loads(scenario)["Tests"][0]
     template.pop("id")
     (tmp_path / "sleep.toml").write_text(toml.dumps(template))
     relative = 'name = "relative"\n[[Tests]]\nid = "sleep"\npath = "sleep.toml"\n'
-    scenario.write_text(relative)
-    assert cloudai.api.validate_scenario(scenario, system) == (True, {})
+    scenario_path = tmp_path / "scenario.toml"
+    scenario_path.write_text(relative)
+    assert cloudai.api.validate_scenario(scenario_path, system_path) == (True, {})
+    valid, errors = cloudai.api.validate_scenario(relative, system)
+    assert not valid and "Relative test paths" in errors["scenario"]
     for invalid in ("name = [", 'name = "invalid"'):
-        scenario.write_text(invalid)
-        valid, errors = cloudai.api.validate_scenario(scenario, system)
+        valid, errors = cloudai.api.validate_scenario(invalid, system)
         assert not valid and errors["scenario"]
         with pytest.raises(cloudai.core.TestScenarioParsingError):
-            cloudai.api.run_experiment(scenario, system)
-    scenario.write_text(relative)
-    original = system.read_text()
-    system.write_text(original.replace('scheduler = "standalone"', 'scheduler = "bad"'))
-    valid, errors = cloudai.api.validate_scenario(scenario, system)
+            cloudai.api.run_experiment(invalid, system)
+    valid, errors = cloudai.api.validate_scenario(
+        scenario, system.replace('scheduler = "standalone"', 'scheduler = "bad"')
+    )
     assert not valid and "Unsupported system type" in errors["system"]
-    system.write_text(original.replace('name = "standalone"', "name = 42"))
-    valid, errors = cloudai.api.validate_scenario(scenario, system)
+    valid, errors = cloudai.api.validate_scenario(scenario, system.replace('name = "standalone"', "name = 42"))
     assert not valid and "name" in errors["system"]
-    system.write_text(original)
     valid, errors = cloudai.api.validate_scenario(scenario, tmp_path / "missing.toml")
     assert not valid and "missing.toml" in errors["system"]
     valid, errors = cloudai.api.validate_scenario(scenario, system, single_sbatch=True)
@@ -152,7 +159,7 @@ def test_validate_scenario(configs: tuple[Path, Path], tmp_path: Path):
 
 
 @pytest.mark.parametrize("failure", ["setup", "submission"])
-def test_failed_experiment_is_saved(configs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, failure: str):
+def test_failed_experiment_is_saved(configs: tuple[str, str], monkeypatch: pytest.MonkeyPatch, failure: str):
     scenario, system = configs
     if failure == "setup":
         monkeypatch.setattr(StandaloneSystem, "update", Mock(side_effect=RuntimeError("setup failed")))
