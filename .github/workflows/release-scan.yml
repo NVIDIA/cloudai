@@ -1,10 +1,10 @@
-# Triggers the CloudAI release scan when a GitHub release is published. Fires on
-# pre-releases too, so release candidates are scanned before anything ships.
+# Triggers the CloudAI release scan when a GitHub release is published.
+# published also fires for pre-releases, so release candidates are covered.
 name: Release scan
 
 on:
   release:
-    types: [published, prereleased]
+    types: [published]
 
 jobs:
   trigger:
@@ -21,7 +21,14 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -eu
-          curl --fail --silent --show-error \
+
+          # The URL carries the trigger token, so refuse to send it in clear.
+          case "${RELEASE_CI_SERVER}" in
+            https://*) ;;
+            *) echo "RELEASE_CI_SERVER must be an https URL" >&2; exit 1 ;;
+          esac
+
+          curl --fail --silent --show-error --proto '=https' \
             --connect-timeout 15 --max-time 60 \
             -X POST "${RELEASE_CI_SERVER}" \
             -H 'Content-Type: application/json' \
