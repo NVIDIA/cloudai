@@ -17,26 +17,35 @@
 import argparse
 import logging
 import logging.config
+import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 from unittest.mock import Mock
 
 import click
 import toml
 import yaml
 
+import cloudai.handlers
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
+    InstallStatusResult,
+    MissingTestError,
     Parser,
     Registry,
+    Runner,
     System,
+    TestDefinition,
     TestParser,
+    TestScenario,
+    TestScenarioParsingError,
 )
-from cloudai.handlers import handle_dry_run_and_run, handle_generate_report, handle_install_and_uninstall
 from cloudai.parser import HOOK_ROOT
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.test_parser import load_test_toml_file
 from cloudai.toml_utils import format_toml_decode_error
+from cloudai.util import prepare_output_dir
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -90,6 +99,84 @@ def setup_logging(log_file: str, log_level: str) -> None:
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)
+
+
+def _log_installation_dirs(prefix: str, system: System) -> None:
+    logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
+
+
+def handle_install_and_uninstall(args: argparse.Namespace) -> int:
+    """
+    Manage the installation or uninstallation process for CloudAI.
+
+    Based on user-specified mode, utilizing the Installer class.
+
+    Args:
+        args (argparse.Namespace): The parsed command-line arguments.
+    """
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
+    system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
+
+    system.update()
+    logging.info(f"System Name: {system.name}")
+    logging.info(f"Scheduler: {system.scheduler}")
+
+    installables, installer = cloudai.handlers.prepare_installation(system, tests, scenario)
+
+    rc = 0
+    if args.mode == "install":
+        all_installed = installer.is_installed(installables)
+        if all_installed:
+            _log_installation_dirs("CloudAI is already installed into", system)
+        else:
+            logging.info("Not all components are ready")
+            result = installer.install(installables)
+            if result.success:
+                _log_installation_dirs("CloudAI is successfully installed into", system)
+            else:
+                logging.error(result.message)
+                rc = 1
+
+    elif args.mode == "uninstall":
+        logging.info("Uninstalling test templates.")
+        result = installer.uninstall(installables)
+        if result.success:
+            logging.info("Uninstallation successful.")
+        else:
+            logging.error(result.message)
+            rc = 1
+
+    return rc
+
+
+def register_signal_handlers(signal_handler: Callable) -> None:
+    """Register signal handlers for handling termination-related signals."""
+    signals = [
+        signal.SIGINT,
+        signal.SIGTERM,
+        signal.SIGHUP,
+        signal.SIGQUIT,
+    ]
+    for sig in signals:
+        signal.signal(sig, signal_handler)
+
+
+def handle_generate_report(args: argparse.Namespace) -> int:
+    """
+    Generate a report based on the existing configuration and test results.
+
+    Args:
+        args (argparse.Namespace): The parsed command-line arguments.
+    """
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
+    system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    assert test_scenario is not None
+
+    cloudai.handlers.generate_reports(system, test_scenario, args.result_dir)
+
+    logging.debug("Report generation completed.")
+
+    return 0
 
 
 def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]:
@@ -363,6 +450,120 @@ def handle_list_registered_items(item_type: str, verbose: bool) -> int:  # noqa:
             print(string)
 
     return 0
+
+
+def _setup_system_and_scenario(
+    args: argparse.Namespace,
+) -> tuple[System, TestScenario, list[TestDefinition]] | None:
+    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
+    try:
+        system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    except MissingTestError as e:
+        logging.error(e.message)
+        return None
+
+    assert test_scenario is not None
+
+    if args.output_dir:
+        system.output_path = args.output_dir.absolute()
+
+    if not prepare_output_dir(system.output_path):
+        return None
+
+    if args.mode == "dry-run":
+        system.monitor_interval = 1
+    system.update()
+
+    return system, test_scenario, tests
+
+
+def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
+    if not args.single_sbatch:
+        return True
+
+    if not isinstance(system, SlurmSystem):
+        logging.error("Single sbatch is only supported for Slurm systems.")
+        return False
+
+    Registry().update_runner("slurm", SingleSbatchRunner)
+    return True
+
+
+def _check_installation(
+    args: argparse.Namespace, system: System, tests: list[TestDefinition], test_scenario: TestScenario
+) -> InstallStatusResult:
+    logging.info("Checking if workloads components are installed.")
+    installables, installer = cloudai.handlers.prepare_installation(system, tests, test_scenario)
+
+    if args.enable_cache_without_check:
+        result = installer.mark_as_installed(installables)
+    else:
+        result = installer.is_installed(installables)
+
+    return result
+
+
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+    setup_result = _setup_system_and_scenario(args)
+    if setup_result is None:
+        return 1
+    system, test_scenario, tests = setup_result
+
+    try:
+        validate_domain_randomization_active(test_scenario)
+    except TestScenarioParsingError as e:
+        logging.error(str(e))
+        return 1
+
+    if not _handle_single_sbatch(args, system):
+        return 1
+
+    logging.info(f"System Name: {system.name}")
+    logging.info(f"Scheduler: {system.scheduler}")
+    logging.info(f"Test Scenario Name: {test_scenario.name}")
+
+    result = _check_installation(args, system, tests, test_scenario)
+    if args.mode == "run" and not result.success:
+        logging.info("Not all workloads components are installed. Installing...")
+        installables, installer = cloudai.handlers.prepare_installation(system, tests, test_scenario)
+
+        result = installer.install(installables)
+        if result.success:
+            _log_installation_dirs("CloudAI is successfully installed into", system)
+        else:
+            logging.error("Failed to install workloads components.")
+            logging.error(result.message)
+            return 1
+    elif args.mode == "dry-run":
+        # simulate installation for dry-run
+        installables, installer = cloudai.handlers.prepare_installation(system, tests, test_scenario)
+        result = installer.mark_as_installed(installables)
+        if not result.success:
+            logging.warning("Failed to mark workloads components as installed for dry-run.")
+
+    logging.info(test_scenario.pretty_print())
+
+    runner = Runner(args.mode, system, test_scenario)
+    register_signal_handlers(runner.cancel_on_signal)
+    logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
+
+    successful = False
+    try:
+        runner.runner.experiment_output.write()
+        has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
+        if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
+            successful = cloudai.handlers.handle_non_dse_job(runner, args)
+            return 0
+
+        if all(tr.is_dse_job for tr in test_scenario.test_runs):
+            result = cloudai.handlers.handle_dse_job(runner, args)
+            successful = result == 0
+            return result
+
+        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+        return 1
+    finally:
+        runner.runner.finish_output(successful)
 
 
 def common_options(f):
