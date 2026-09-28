@@ -34,6 +34,7 @@ from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, T
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.systems.slurm.single_sbatch_runner import SingleSbatchRunner
+from cloudai.test_scenario_parser import TestScenarioParser
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
@@ -892,27 +893,39 @@ def test_nixlbench_independent_storage(
         'echo "4096 1 10 0 0 $TASK_BANDWIDTH"\n'
     )
     benchmark.chmod(0o755)
-    tr = TestRun(
+    base_test = NIXLBenchTestDefinition(
         name="storage",
-        num_nodes=num_nodes,
-        nodes=[],
-        extra_srun_args=f"--ntasks={num_nodes} --ntasks-per-node=1",
-        output_path=tmp_path / "results",
-        test=NIXLBenchTestDefinition(
-            name="storage",
-            description="Independent storage benchmark",
-            test_template_name="NIXLBench",
-            cmd_args=NIXLBenchCmdArgs.model_validate(
-                {
-                    "docker_image_url": "example.org/nixl:latest",
-                    "path_to_benchmark": str(benchmark),
-                    "backend": "POSIX",
-                    "etcd_endpoints": "",
-                }
-            ),
-            extra_env_vars={"NODE_VALUE": '"node$SLURM_PROCID"'},
+        description="Independent storage benchmark",
+        test_template_name="NIXLBench",
+        cmd_args=NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "example.org/nixl:latest",
+                "path_to_benchmark": str(benchmark),
+                "backend": "POSIX",
+            }
         ),
+        extra_env_vars={"NODE_VALUE": '"node$SLURM_PROCID"'},
     )
+    (tmp_path / "test.toml").write_text(toml.dumps(base_test.model_dump(exclude_none=True)))
+    scenario_path = tmp_path / "scenario.toml"
+    scenario_path.write_text(
+        toml.dumps(
+            {
+                "name": "storage",
+                "Tests": [
+                    {
+                        "id": "storage",
+                        "path": "test.toml",
+                        "num_nodes": num_nodes,
+                        "extra_srun_args": f"--ntasks={num_nodes} --ntasks-per-node=1",
+                        "cmd_args": {"launch_mode": "independent", "etcd_endpoints": ""},
+                    }
+                ],
+            }
+        )
+    )
+    tr = TestScenarioParser(scenario_path, slurm_system, {}, {}).parse().test_runs[0]
+    tr.output_path = tmp_path / "results"
     tr.output_path.mkdir()
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, tr)
     if single_sbatch:
@@ -926,6 +939,7 @@ def test_nixlbench_independent_storage(
     assert "etcd_pid" not in command
     assert "sleep " not in command
     task_script = tr.output_path / "nixlbench.sh"
+    assert "--launch_mode" not in task_script.read_text()
     for task_id in range(num_nodes):
         result = subprocess.run(
             ["bash", str(task_script)],

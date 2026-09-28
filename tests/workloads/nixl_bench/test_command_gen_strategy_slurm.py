@@ -282,6 +282,7 @@ def test_storage_backend_without_runtime(nixl_bench_tr: TestRun, slurm_system: S
 @pytest.mark.parametrize(
     ("system_args", "test_args", "nodes"),
     [
+        (None, None, []),
         (None, "--ntasks=4 --ntasks-per-node=1", []),
         ("-n 4 --ntasks-per-node 1", None, ["node-[033-036]"]),
         ("--ntasks=8", "-n4 --ntasks-per-node=1", []),
@@ -303,9 +304,12 @@ def test_independent_storage_placement(
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     nixl_bench_tr.test.cmd_args.backend = "POSIX"
     tdef.cmd_args.etcd_endpoints = ""
+    tdef.cmd_args.launch_mode = "independent"
 
-    command = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr).gen_srun_command()
+    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+    command = strategy.gen_srun_command()
 
+    assert "--launch_mode" not in " ".join(strategy.gen_nixlbench_command())
     assert command.startswith("srun -N4 --ntasks-per-node=1 ")
     assert command.count("srun ") == 1
     assert "--nodelist=$SLURM_JOB_MASTER_NODE" not in command
@@ -327,9 +331,9 @@ def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: S
     nixl_bench_tr.test.cmd_args.backend = "UCX" if runtime == "ASIO" else "POSIX"
     nixl_bench_tr.num_nodes = 2 if runtime == "ASIO" else 4
     nixl_bench_tr.extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
+    slurm_system.extra_srun_args = "--ntasks-per-node=1"
     if runtime == "null":
         tdef.cmd_args.etcd_endpoints = ""
-        nixl_bench_tr.extra_srun_args = "--cpu-bind=none"
     elif runtime == "external":
         tdef.cmd_args.etcd_endpoints = "http://etcd.example:2379"
     elif runtime == "ASIO":
@@ -341,6 +345,22 @@ def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: S
     assert not (nixl_bench_tr.output_path / "nixlbench.sh").exists()
     if runtime == "managed":
         assert "--ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd" in command
+
+
+@pytest.mark.parametrize(
+    "runtime_args",
+    [{}, {"etcd_endpoints": "http://etcd.example:2379"}, {"runtime_type": "ASIO", "etcd_endpoints": ""}],
+)
+def test_independent_launch_rejects_coordinated_runtime(runtime_args: dict[str, str]) -> None:
+    with pytest.raises(pydantic.ValidationError, match="launch_mode='independent' requires"):
+        NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "example.org/nixl:latest",
+                "path_to_benchmark": "nixlbench",
+                "launch_mode": "independent",
+                **runtime_args,
+            }
+        )
 
 
 def test_managed_etcd_lifecycle(nixl_bench_tr: TestRun, slurm_system: SlurmSystem) -> None:

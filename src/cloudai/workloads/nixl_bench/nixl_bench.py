@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pydantic
+from typing_extensions import Self
 
 import cloudai.metrics
 from cloudai.core import JobStatusResult, System, TestRun
@@ -92,10 +93,25 @@ class NIXLBenchCmdArgs(NIXLBaseCmdArgs, NIXLExtendedCmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
     path_to_benchmark: str
+    launch_mode: Literal["default", "independent"] = pydantic.Field(
+        default="default",
+        description=(
+            "CloudAI launch mode: 'default' preserves existing orchestration; 'independent' launches "
+            "null-runtime tasks in one Slurm step using num_nodes and extra_srun_args. Not passed to NIXLBench."
+        ),
+    )
     etcd_endpoints: str = MANAGED_ETCD_ENDPOINTS
     runtime_type: Literal["ETCD", "ASIO"] = "ETCD"
     asio_address: str = "$NIXL_ASIO_ADDRESS"
     asio_port: int = pydantic.Field(default=12345, ge=1, le=65535)
+
+    @pydantic.model_validator(mode="after")
+    def validate_launch_mode(self) -> Self:
+        if self.launch_mode == "independent" and (self.runtime_type != "ETCD" or self.etcd_endpoints):
+            raise ValueError(
+                "launch_mode='independent' requires etcd_endpoints='' and runtime_type='ETCD' (null runtime)."
+            )
+        return self
 
 
 class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
@@ -117,6 +133,7 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
             exclude={
                 "docker_image_url",
                 "path_to_benchmark",
+                "launch_mode",
                 "cmd_args",
                 "etcd_path",
                 "wait_etcd_for",

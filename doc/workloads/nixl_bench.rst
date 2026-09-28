@@ -91,8 +91,9 @@ This null-runtime mode is limited to storage backends and launches one NIXLBench
 Independent Storage Processes
 -----------------------------
 
-To run independent storage benchmarks in one allocation, set ``etcd_endpoints = ""``
-and specify the task placement through the existing ``extra_srun_args`` field:
+To run independent storage benchmarks in one allocation, set
+``launch_mode = "independent"`` and ``etcd_endpoints = ""``. Use ``num_nodes`` and
+the existing ``extra_srun_args`` field to specify placement:
 
 .. code-block:: toml
 
@@ -105,6 +106,7 @@ and specify the task placement through the existing ``extra_srun_args`` field:
    extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
 
      [Tests.cmd_args]
+     launch_mode = "independent"
      etcd_endpoints = ""
      num_threads = [4, 8]
 
@@ -113,12 +115,16 @@ image, benchmark path and workload arguments. CloudAI runs the 4-thread and 8-th
 configurations as separate tests. For one initiator, use ``num_nodes = 1`` and
 ``--ntasks=1 --ntasks-per-node=1``.
 
-Explicit ``--nodes``, ``--ntasks``, ``--ntasks-per-node`` or ``--nodelist`` options
-(including ``-N``, ``-n`` and ``-w``) in system or test ``extra_srun_args`` select this
-launch path for null-runtime tests. CloudAI launches one Slurm step across the
-requested nodes, with no delays between individual process launches. Test-level
-options follow system-level options. Without explicit placement, the single-process
-default is preserved. Managed/external ETCD and ASIO retain their existing orchestration.
+``launch_mode`` selects CloudAI's launch strategy and is not passed to NIXLBench.
+Its default value, ``"default"``, preserves existing behavior, including when task
+placement options are present. Placement options alone do not enable independent runs.
+
+Independent mode requires ``etcd_endpoints = ""`` and the default
+``runtime_type = "ETCD"`` setting, which together select NIXLBench's null runtime.
+Managed/external ETCD and ASIO cannot be used with this mode. CloudAI launches one
+Slurm step across the requested nodes, with no delays between individual process
+launches. System and test ``extra_srun_args`` control that step's placement, with
+test-level options following system-level options.
 
 Each task executes in its own shell. To discover node-local devices or perform other
 setup, point ``path_to_benchmark`` at an executable wrapper inside the container:
