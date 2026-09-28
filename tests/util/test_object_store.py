@@ -84,6 +84,22 @@ def test_upload_directory_preserves_relative_paths(tree: Path) -> None:
     assert stats.is_successful
 
 
+def test_upload_directory_records_duration(tree: Path) -> None:
+    with patch("cloudai.util.object_store.time.perf_counter", side_effect=[100.0, 102.5]):
+        stats = RecordingStore().upload_directory(tree, "runs")
+
+    assert stats.duration_seconds == 2.5
+
+
+def test_upload_directory_empty_dir_has_zero_duration(tmp_path: Path) -> None:
+    root = tmp_path / "empty"
+    root.mkdir()
+
+    stats = RecordingStore().upload_directory(root, "runs")
+
+    assert stats.duration_seconds == 0.0
+
+
 def test_upload_directory_without_prefix(tree: Path) -> None:
     store = RecordingStore()
     store.upload_directory(tree)

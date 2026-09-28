@@ -369,7 +369,8 @@ class ResultsUploadReporter(Reporter):
         if config.upload_tree:
             stats = store.upload_directory(self.results_root, key_prefix, max_workers=config.upload_concurrency)
             logging.info(
-                f"Uploaded {stats.files_uploaded} file(s), {stats.bytes_uploaded} byte(s) to {store.uri(key_prefix)}"
+                f"Uploaded {stats.files_uploaded} file(s), {stats.bytes_uploaded} byte(s) to {store.uri(key_prefix)} "
+                f"in {stats.duration_seconds:.2f}s"
             )
             if stats.failures:
                 logging.warning(

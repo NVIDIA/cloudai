@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -42,6 +43,7 @@ class UploadStats:
     files_uploaded: int = 0
     bytes_uploaded: int = 0
     failures: list[tuple[Path, str]] = field(default_factory=list)
+    duration_seconds: float = 0.0
 
     @property
     def is_successful(self) -> bool:
@@ -80,8 +82,10 @@ class ObjectStore(ABC):
                 number of files, so small trees don't spin up idle threads.
 
         Returns:
-            Stats describing what was uploaded. Individual file failures are collected
-            rather than raised, so a single bad file does not abort the whole upload.
+            Stats describing what was uploaded, including wall-clock time spent
+            uploading (excluding the directory walk). Individual file failures are
+            collected rather than raised, so a single bad file does not abort the
+            whole upload.
         """
         stats = UploadStats()
         exclude = exclude or []
@@ -101,6 +105,7 @@ class ObjectStore(ABC):
         if not to_upload:
             return stats
 
+        start = time.perf_counter()
         workers = min(max_workers, len(to_upload))
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {executor.submit(self._upload_one, path, key): (path, key) for path, key in to_upload}
@@ -115,6 +120,7 @@ class ObjectStore(ABC):
 
                 stats.files_uploaded += 1
                 stats.bytes_uploaded += size
+        stats.duration_seconds = time.perf_counter() - start
 
         return stats
 
