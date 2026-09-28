@@ -45,11 +45,12 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
         path=str(tmp_path / "case" / "0"),
         jobid="101",
         status="completed",
+        metrics=[cloudai.models.output.Metric(name="Bandwidth", value=12.5, unit="GB/s")],
         start=start,
         finish=start + datetime.timedelta(seconds=2),
         duration=2,
         iteration=0,
-        step=0,
+        step=1,
     )
     second_run = cloudai.models.output.Run(
         path=str(tmp_path / "case" / "1"),
@@ -57,7 +58,7 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
         status="pending",
         start=start + datetime.timedelta(seconds=2),
         iteration=1,
-        step=0,
+        step=2,
     )
 
     experiment_output.update_run("case", first_run)
@@ -67,6 +68,11 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
     second_run.finish = start + datetime.timedelta(seconds=4)
     second_run.duration = 2
     experiment_output.update_run("case", second_run)
+    experiment_output.update_dse(
+        "case",
+        {"algorithm": ["first", "second"]},
+        [(2, {"algorithm": "second"}), (1, {"algorithm": "first"})],
+    )
     experiment_output.update_run(
         "interrupted",
         cloudai.models.output.Run(path=str(tmp_path / "interrupted" / "0"), jobid="103", status="pending"),
@@ -91,18 +97,18 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
                 "description": None,
                 "status": "failed",
                 "path": str(tmp_path / "case"),
-                "metrics": [],
+                "metrics": [{"name": "Bandwidth", "value": 12.5, "unit": "GB/s", "dimensions": []}],
                 "runs": [
                     {
                         "path": str(tmp_path / "case" / "0"),
                         "jobid": "101",
                         "status": "completed",
-                        "metrics": [],
+                        "metrics": [{"name": "Bandwidth", "value": 12.5, "unit": "GB/s", "dimensions": []}],
                         "start": start,
                         "finish": start + datetime.timedelta(seconds=2),
                         "duration": 2,
                         "iteration": 0,
-                        "step": 0,
+                        "step": 1,
                     },
                     {
                         "path": str(tmp_path / "case" / "1"),
@@ -113,10 +119,14 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
                         "finish": start + datetime.timedelta(seconds=4),
                         "duration": 2,
                         "iteration": 1,
-                        "step": 0,
+                        "step": 2,
                     },
                 ],
-                "dse": None,
+                "dse": {
+                    "space": {"algorithm": ["first", "second"]},
+                    "best_config": {"algorithm": "first"},
+                    "best_step": 1,
+                },
             },
             {
                 "id": "interrupted",

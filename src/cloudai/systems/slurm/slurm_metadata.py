@@ -33,7 +33,6 @@ class _SlurmStepMetadataBase(BaseModel):
     end_time: str
     elapsed_time_sec: int
     exit_code: str
-    cluster_name: str = ""
 
 
 class SlurmStepMetadata(_SlurmStepMetadataBase):
@@ -43,6 +42,7 @@ class SlurmStepMetadata(_SlurmStepMetadataBase):
 
     step_id: str
     submit_line: str
+    cluster_name: str = Field(default="", exclude=True)
 
     @classmethod
     def from_sacct_output(cls, output: str, delimiter: str) -> list[SlurmStepMetadata]:

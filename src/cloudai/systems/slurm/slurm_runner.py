@@ -163,11 +163,11 @@ class SlurmRunner(BaseRunner):
         if not steps_metadata:
             logging.warning("No Slurm accounting metadata available for job %s", job.id)
             return
+        cluster_name = steps_metadata[0].cluster_name
         slurm_job_file, job_meta = self._get_job_metadata(job, steps_metadata)
-        job_meta.cluster_name = steps_metadata[0].cluster_name
         job.metadata = job_meta
-        if job_meta.cluster_name:
-            self.experiment_output.experiment.system_name = job_meta.cluster_name
+        if cluster_name:
+            self.experiment_output.experiment.system_name = cluster_name
 
         logging.debug(f"Storing job metadata for job {job.id} to {slurm_job_file}")
         with slurm_job_file.open("w") as job_file:
