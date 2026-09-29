@@ -239,10 +239,18 @@ class Test_Parser:
         assert "test-0" not in filtered_test_names
         assert "test-2" not in filtered_test_names
 
-    def test_parse_system(self, parser: Parser):
-        parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")
+    @pytest.mark.parametrize("install_path", ["absolute", "install", "../install_tmp"])
+    def test_parse_system(self, parser: Parser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, install_path: str):
+        system_data = toml.load("conf/common/system/example_slurm_cluster.toml")
+        system_data["install_path"] = str(tmp_path / "install") if install_path == "absolute" else install_path
+        parser.system_config_path = tmp_path / "system.toml"
+        parser.system_config_path.write_text(toml.dumps(system_data))
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+        monkeypatch.chdir(work_dir)
         system = cast(SlurmSystem, parser.parse_system(parser.system_config_path))
 
+        assert system.install_path == Path(system_data["install_path"]).absolute()
         assert len(system.partitions) == 2
         names = [partition.name for partition in system.partitions]
         assert "partition_1" in names
