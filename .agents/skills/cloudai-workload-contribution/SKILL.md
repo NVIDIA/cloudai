@@ -7,7 +7,7 @@ This skill is a set of guidelines when working on workloads implementation
 
 ## Implementation guidelines
 
-- User configs is a trusted data. Don't over-validate test definitions
+- User configs are trusted data. Don't over-validate test definitions
 - The workload implementation is intended to be pass-through, which means that CloudAI:
   - defines benchmark shape (processes, installables, etc.)
   - translates TOML test config into workload interface submission so that user can use the workload fully
