@@ -17,17 +17,64 @@
 import argparse
 import logging
 import logging.config
+import signal
 from pathlib import Path
+from typing import Callable
 
 import click
 
+import cloudai.core
+import cloudai.handlers
 from cloudai.handlers import (
-    handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
     handle_list_registered_items,
     handle_verify_all_configs,
 )
+
+
+def register_signal_handlers(signal_handler: Callable) -> None:
+    """Register the CLI's termination signals for a running experiment."""
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        signal.signal(sig, signal_handler)
+
+
+def _handle_dry_run_and_run(args: argparse.Namespace) -> int:
+    """Translate CLI options and experiment outcomes into a process exit code."""
+    try:
+        system, tests, scenario = cloudai.handlers.load_experiment(
+            args.test_scenario, args.system_config, tests_dir=args.tests_dir, hook_dir=args.hook_dir
+        )
+        runner = cloudai.handlers.create_experiment_runner(
+            system,
+            scenario,
+            mode=args.mode,
+            output_dir=args.output_dir,
+            single_sbatch=args.single_sbatch,
+        )
+    except (
+        cloudai.core.MissingTestError,
+        cloudai.core.SystemConfigParsingError,
+        cloudai.core.TestConfigParsingError,
+        cloudai.core.TestScenarioParsingError,
+        FileNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        logging.error(str(exc))
+        return 1
+
+    register_signal_handlers(runner.cancel_on_signal)
+    try:
+        successful = cloudai.handlers.execute_experiment(
+            runner, tests, enable_cache_without_check=args.enable_cache_without_check
+        )
+    except cloudai.handlers.InstallationError:
+        return 1
+
+    if args.single_sbatch or not any(tr.is_dse_job for tr in scenario.test_runs):
+        return 0
+    return 0 if successful else 1
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -195,7 +242,7 @@ def dry_run(
         enable_cache_without_check=enable_cache_without_check,
         single_sbatch=single_sbatch,
     )
-    exit(handle_dry_run_and_run(args))
+    exit(_handle_dry_run_and_run(args))
 
 
 @main.command()
@@ -227,7 +274,7 @@ def run(
         enable_cache_without_check=enable_cache_without_check,
         single_sbatch=single_sbatch,
     )
-    exit(handle_dry_run_and_run(args))
+    exit(_handle_dry_run_and_run(args))
 
 
 @main.command()
