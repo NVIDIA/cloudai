@@ -58,3 +58,18 @@ def list_experiments(system: pathlib.Path) -> list[tuple[str, pathlib.Path]]:
         experiment = cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
         experiments.append((experiment.id, path.parent))
     return experiments
+
+
+def get_experiment(exp_id: str | pathlib.Path, system: str | pathlib.Path) -> cloudai.models.output.Experiment:
+    """Load an experiment by ID or by its result directory or JSON path."""
+    if isinstance(exp_id, pathlib.Path):
+        path = exp_id.expanduser()
+        if path.suffix != ".json":
+            path /= "experiment.json"
+    else:
+        if exp_id in ("", ".", "..") or pathlib.Path(exp_id).name != exp_id:
+            raise ValueError(f"Invalid experiment ID: {exp_id!r}")
+        output_dir = Parser.parse_system(pathlib.Path(system).expanduser().resolve()).output_path.expanduser().resolve()
+        path = output_dir / exp_id / "experiment.json"
+
+    return cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
