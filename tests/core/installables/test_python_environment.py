@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
@@ -105,7 +106,7 @@ def test_python_environment_uninstall_removes_venv(installer: BaseInstaller) -> 
     env = PythonEnvironment(name="aiconfigurator", python_version="3.10")
     venv_path = installer.system.install_path / env.venv_name
     (venv_path / "bin").mkdir(parents=True)
-    env.venv_path = venv_path
+    env.venv_path = Path(venv_path)
 
     res = env.uninstall(installer)
 
