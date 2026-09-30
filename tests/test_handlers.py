@@ -16,6 +16,7 @@
 
 import argparse
 import copy
+import tarfile
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
@@ -24,7 +25,9 @@ import pandas as pd
 import pytest
 from pydantic import Field
 
+import cloudai.models.output
 from cloudai.cli.handlers import (
+    handle_dry_run_and_run,
     handle_dse_job,
     prepare_installation,
     validate_domain_randomization_active,
@@ -38,6 +41,8 @@ from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
     GitRepo,
+    InstallStatusResult,
+    JobStatusResult,
     Parser,
     Registry,
     RewardOverrides,
@@ -49,8 +54,9 @@ from cloudai.core import (
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.reporter import StatusReporter
+from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.standalone.standalone_system import StandaloneSystem
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -481,27 +487,70 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     assert CustomRunStubAgent.run_calls == 1
 
 
-def test_handle_dse_job_documents_failure_in_reports_before_raising(
+def test_failed_standalone_archive_contains_final_experiment(
+    standalone_system: StandaloneSystem,
+    base_tr: TestRun,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = TestScenario(name="test_scenario", test_runs=[base_tr])
+    monkeypatch.setattr("cloudai.cli.handlers._setup_system_and_scenario", lambda _: (standalone_system, scenario, []))
+    monkeypatch.setattr("cloudai.cli.handlers._check_installation", lambda *_: InstallStatusResult(True))
+    monkeypatch.setattr("cloudai.cli.handlers.register_signal_handlers", lambda _: None)
+    monkeypatch.setattr(Registry, "ordered_scenario_reports", lambda _: [("tarball", TarballReporter)])
+    monkeypatch.setattr(TestDefinition, "was_run_successful", lambda *_: JobStatusResult(False))
+
+    def failed_run(runner: Runner) -> bool:
+        (runner.runner.scenario_root / base_tr.name / "0").mkdir(parents=True)
+        return False
+
+    monkeypatch.setattr(Runner, "run", failed_run)
+    assert handle_dry_run_and_run(argparse.Namespace(mode="run", single_sbatch=False)) == 0
+
+    results_root = next(path for path in standalone_system.output_path.iterdir() if path.is_dir())
+    local = cloudai.models.output.Experiment.model_validate_json((results_root / "experiment.json").read_text())
+    with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
+        archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
+        assert archived_file is not None
+        archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
+
+    assert archived == local
+    assert archived.status == "failed"
+    assert archived.finish is not None
+
+
+def test_dse_failure_report_contains_final_experiment(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On a hard-fail, reports are still generated and the aborting error is documented, then re-raised."""
+    """On a hard-fail, final output and the aborting error are reported before re-raising."""
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
-    runner.runner.scenario_root = tmp_path
+    results_root = runner.runner.scenario_root
+    (results_root / dse_tr.name / "0" / "0").mkdir(parents=True)
+    monkeypatch.setattr("cloudai.cli.handlers._setup_system_and_scenario", lambda _: (slurm_system, test_scenario, []))
+    monkeypatch.setattr("cloudai.cli.handlers._check_installation", lambda *_: InstallStatusResult(True))
+    monkeypatch.setattr("cloudai.cli.handlers.register_signal_handlers", lambda _: None)
+    monkeypatch.setattr("cloudai.cli.handlers.Runner", lambda *_: runner)
+    monkeypatch.setattr(Registry, "ordered_scenario_reports", lambda _: [("tarball", TarballReporter)])
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="run"))
+        handle_dry_run_and_run(argparse.Namespace(mode="run", single_sbatch=False))
 
-    failure_report = tmp_path / "dse_failure.txt"
+    failure_report = results_root / "dse_failure.txt"
     assert failure_report.exists()
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+    with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
+        archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
+        assert archived_file is not None
+        archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
+    assert archived.status == "failed"
+    assert archived.finish is not None
 
 
 def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:
