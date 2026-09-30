@@ -79,13 +79,15 @@ class Runner:
 
         return runner_class(mode, system, test_scenario, results_root)
 
-    def run(self):
+    def run(self) -> bool:
         """Run the test scenario using the instantiated runner."""
         try:
             self.runner.run()
             logging.debug("All jobs finished successfully.")
+            return True
         except JobFailureError as exc:
             logging.debug(f"Runner failed JobFailure exception: {exc}", exc_info=True)
+            return False
 
     def cancel_on_signal(
         self,
