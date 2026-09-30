@@ -13,6 +13,7 @@ This document contains the following chapters:
 
    Tutorial
    USER_GUIDE
+   api
    reporting
    systems
    workloads/index
@@ -21,6 +22,7 @@ This document contains the following chapters:
 
 - :doc:`Tutorial`
 - :doc:`USER_GUIDE`
+- :doc:`api`
 - :doc:`reporting`
 - :doc:`systems`
 - :doc:`workloads/index`
