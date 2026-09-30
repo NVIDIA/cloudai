@@ -71,9 +71,10 @@
             - git:
                 url: "{jjb_git}"
                 credentials-id: "{jjb_gh_cred_id}"
-                # PR refs so sha1 can be a merge ref delivered by the webhook,
-                # or origin/pr/<n> for a manual run.
-                refspec: '+refs/heads/*:refs/remotes/origin/* +refs/pull/*:refs/remotes/origin/pr/*'
+                # Fetch whatever ref sha1 names, under that same name. Blossom
+                # sends refs/pull/<n>/merge, which a remapping refspec would
+                # rename to origin/pr/<n>/merge and then fail to resolve.
+                refspec: '+refs/heads/*:refs/remotes/origin/* +$sha1:refs/remotes/origin/$sha1'
                 branches: ['$sha1']
                 browser: githubweb
                 browser-url: "{jjb_github_url}"
