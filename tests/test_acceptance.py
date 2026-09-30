@@ -149,7 +149,7 @@ class TestInDryRun:
             mock_process.communicate.return_value = ("", "")
             mock_execute.return_value = mock_process
 
-            cloudai.cli.cli._handle_dry_run_and_run(args)
+            cloudai.cli.cli.handle_dry_run_and_run(args)
 
         return (tmp_path, scenario)
 

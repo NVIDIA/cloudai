@@ -14,17 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import functools
+import types
 import typing
 import warnings
 
+import cloudai.cli.cli
+import cloudai.core
 import cloudai.handlers
 
 _P = typing.ParamSpec("_P")
 _R = typing.TypeVar("_R")
 
 
-def _deprecated(function: typing.Callable[_P, _R]) -> typing.Callable[_P, _R]:
+def _deprecated(
+    function: typing.Callable[_P, _R], owner: types.ModuleType = cloudai.handlers
+) -> typing.Callable[_P, _R]:
     @functools.wraps(function)
     def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         warnings.warn(
@@ -32,18 +38,16 @@ def _deprecated(function: typing.Callable[_P, _R]) -> typing.Callable[_P, _R]:
             DeprecationWarning,
             stacklevel=2,
         )
-        return getattr(cloudai.handlers, function.__name__)(*args, **kwargs)
+        return getattr(owner, function.__name__)(*args, **kwargs)
 
     return wrapper
 
 
 handle_install_and_uninstall = _deprecated(cloudai.handlers.handle_install_and_uninstall)
 prepare_installation = _deprecated(cloudai.handlers.prepare_installation)
-handle_dse_job = _deprecated(cloudai.handlers.handle_dse_job)
 generate_reports = _deprecated(cloudai.handlers.generate_reports)
-handle_non_dse_job = _deprecated(cloudai.handlers.handle_non_dse_job)
-register_signal_handlers = _deprecated(cloudai.handlers.register_signal_handlers)
-handle_dry_run_and_run = _deprecated(cloudai.handlers.handle_dry_run_and_run)
+register_signal_handlers = _deprecated(cloudai.cli.cli.register_signal_handlers, cloudai.cli.cli)
+handle_dry_run_and_run = _deprecated(cloudai.cli.cli.handle_dry_run_and_run, cloudai.cli.cli)
 handle_generate_report = _deprecated(cloudai.handlers.handle_generate_report)
 expand_file_list = _deprecated(cloudai.handlers.expand_file_list)
 verify_system_configs = _deprecated(cloudai.handlers.verify_system_configs)
@@ -56,3 +60,23 @@ validate_domain_randomization_active = _deprecated(cloudai.handlers.validate_dom
 load_test_toml_file = _deprecated(cloudai.handlers.load_test_toml_file)
 format_toml_decode_error = _deprecated(cloudai.handlers.format_toml_decode_error)
 prepare_output_dir = _deprecated(cloudai.handlers.prepare_output_dir)
+
+
+def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int:
+    """Retain the former CLI call shape while using the runner's mode."""
+    warnings.warn(
+        "cloudai.cli.handlers.handle_dse_job is deprecated; do not call CLI handlers directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return cloudai.handlers.handle_dse_job(runner)
+
+
+def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> bool:
+    """Retain the former CLI call shape without passing unused arguments onward."""
+    warnings.warn(
+        "cloudai.cli.handlers.handle_non_dse_job is deprecated; do not call CLI handlers directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return cloudai.handlers.handle_non_dse_job(runner)
