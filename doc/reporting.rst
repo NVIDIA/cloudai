@@ -148,6 +148,61 @@ A test case can replace the targets for a metric inherited from the scenario or 
 The precedence is test case, then scenario, then system. NCCL and NIXL comparison v2 reports include measured, SOL,
 and percentage-of-SOL columns and draw a shared SOL curve when every compared run resolves the same targets.
 
+.. _llm-serving-metric-observations:
+
+LLM serving metric observations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+vLLM and SGLang expose structured measurements through ``TestDefinition.metric_observations(system, test_run)``.
+``cloudai.metrics.assess_test_run_metrics`` compares these observations with the run's configured SOL targets.
+
+.. list-table:: Serving metrics
+   :header-rows: 1
+
+   * - Metric key
+     - Unit
+     - Preferred direction
+   * - ``request_throughput``
+     - requests/s
+     - Higher
+   * - ``output_token_throughput``
+     - tokens/s
+     - Higher
+   * - ``ttft`` (time to first token)
+     - ms
+     - Lower
+   * - ``tpot`` (time per output token)
+     - ms
+     - Lower
+   * - ``accuracy``
+     - ratio (0–1)
+     - Higher
+
+All observations include ``backend`` (``vllm`` or ``sglang``) and ``model`` dimensions. Benchmark observations also
+include ``max_concurrency`` from the result file; TTFT and TPOT have a ``statistic`` dimension with ``mean``,
+``median``, or ``p99``. Accuracy comes from semantic evaluation when ``semantic_eval_cmd_args`` is configured and
+does not carry benchmark concurrency or latency statistics.
+
+Request and output-token throughput are emitted only when their respective ``request_throughput`` and
+``output_throughput`` fields are present. Missing or invalid benchmark results and results with no completed requests
+produce no benchmark observations. Non-finite measurements are omitted. Semantic accuracy can be emitted
+independently when an evaluation result is available.
+
+For example, a system or scenario can define these targets:
+
+.. code-block:: toml
+
+   [[sol.output_token_throughput]]
+   value = 5000.0 # tokens/s
+   match = { model = "Qwen/Qwen3-8B", max_concurrency = 16 }
+
+   [[sol.ttft]]
+   value = 100.0 # ms
+   match = { backend = "sglang", statistic = "p99" }
+
+These observations leave the existing scalar metric names and comparison reports unchanged. In particular, the
+legacy ``throughput`` metric uses output tokens/s for vLLM and requests/s for SGLang.
+
 .. _reporting-registration:
 
 Reporting Registration
