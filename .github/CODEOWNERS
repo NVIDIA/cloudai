@@ -1,1 +1,3 @@
 * @podkidyshev @srivatsankrishnan @rutayan-nv @jj10306
+/.ci/ @NVIDIA/nbu-swx-cloudai-devops
+/.github/workflows/blossom-ci.yml @NVIDIA/nbu-swx-cloudai-devops
