@@ -277,6 +277,7 @@ def build_special_test_run(
         "megatron-bridge",
         "triton-inference",
         "nixl_bench",
+        "nixl_bench-independent",
         "nixl-ep",
         "ai-dynamo",
         "nixl-perftest",
@@ -480,6 +481,25 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     }
                 ),
             ),
+        ),
+        "nixl_bench-independent": lambda: create_test_run(
+            partial_tr,
+            "nixl_bench-independent",
+            NIXLBenchTestDefinition(
+                name="nixl_bench-independent",
+                description="Independent NIXLBench storage processes",
+                test_template_name="nixl_bench",
+                cmd_args=NIXLBenchCmdArgs.model_validate(
+                    {
+                        "docker_image_url": "url.com/docker:2",
+                        "path_to_benchmark": "./nixlbench",
+                        "backend": "POSIX",
+                        "launch_mode": "independent",
+                        "etcd_endpoints": "",
+                    }
+                ),
+            ),
+            num_nodes=4,
         ),
         "nixl-perftest": lambda: create_test_run(
             partial_tr,
@@ -853,6 +873,12 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
             "__INSTALL_DIR__", str(slurm_system.install_path.absolute())
         )
         assert curr_launcher == ref_launcher, "nixl-ep-launch.sh does not match reference"
+
+    if test_req[1] == "nixl_bench-independent.sbatch":
+        task_script = slurm_system.output_path / "nixlbench.sh"
+        ref_script = (Path(__file__).parent / "ref_data" / "nixl_bench-independent.sh").read_text().strip()
+        ref_script = ref_script.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        assert task_script.read_text().strip() == ref_script
 
     if test_req[1] == "ai-dynamo.sbatch":
         aiperf_script = slurm_system.output_path / "aiperf.sh"

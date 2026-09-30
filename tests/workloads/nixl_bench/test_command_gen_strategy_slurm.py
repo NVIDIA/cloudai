@@ -279,6 +279,44 @@ def test_storage_backend_without_runtime(nixl_bench_tr: TestRun, slurm_system: S
     assert "until curl" not in command
 
 
+@pytest.mark.parametrize("runtime", ["null", "managed", "external", "ASIO"])
+def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, runtime: str) -> None:
+    tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
+    nixl_bench_tr.test.cmd_args.backend = "UCX" if runtime == "ASIO" else "POSIX"
+    nixl_bench_tr.num_nodes = 2 if runtime == "ASIO" else 4
+    nixl_bench_tr.extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
+    slurm_system.extra_srun_args = "--ntasks-per-node=1"
+    if runtime == "null":
+        tdef.cmd_args.etcd_endpoints = ""
+    elif runtime == "external":
+        tdef.cmd_args.etcd_endpoints = "http://etcd.example:2379"
+    elif runtime == "ASIO":
+        tdef.cmd_args.runtime_type = "ASIO"
+
+    command = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr).gen_srun_command()
+
+    assert "--ntasks=1 -N1" in command
+    assert not (nixl_bench_tr.output_path / "nixlbench.sh").exists()
+    if runtime == "managed":
+        assert "--ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd" in command
+
+
+@pytest.mark.parametrize(
+    "runtime_args",
+    [{}, {"etcd_endpoints": "http://etcd.example:2379"}, {"runtime_type": "ASIO", "etcd_endpoints": ""}],
+)
+def test_independent_launch_rejects_coordinated_runtime(runtime_args: dict[str, str]) -> None:
+    with pytest.raises(pydantic.ValidationError, match="launch_mode='independent' requires"):
+        NIXLBenchCmdArgs.model_validate(
+            {
+                "docker_image_url": "example.org/nixl:latest",
+                "path_to_benchmark": "nixlbench",
+                "launch_mode": "independent",
+                **runtime_args,
+            }
+        )
+
+
 def test_managed_etcd_lifecycle(nixl_bench_tr: TestRun, slurm_system: SlurmSystem) -> None:
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     nixl_bench_tr.test.cmd_args.backend = "UCX"
