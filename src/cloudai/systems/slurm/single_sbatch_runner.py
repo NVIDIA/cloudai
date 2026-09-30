@@ -208,6 +208,7 @@ class SingleSbatchRunner(SlurmRunner):
             self.jobs.remove(job)
 
         self.on_job_completion(job)
+        # A non-None result triggers final per-run inspection; each workload determines its own success.
         self.update_run_output(job, JobStatusResult(is_successful=is_completed))
         self.handle_dse()
 
