@@ -27,3 +27,8 @@ use a custom hook directory.
 from the system's configured output directory. Directories without
 ``experiment.json`` are skipped. A missing output directory gives an empty list;
 an invalid experiment file raises an error.
+
+``get_experiment(experiment_id, system)`` loads an ``Experiment`` from that
+system's output directory. Pass a ``Path`` to a result directory or its
+``experiment.json`` file to load it directly. A missing file raises
+``FileNotFoundError``.
