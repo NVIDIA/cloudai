@@ -19,10 +19,9 @@ import copy
 import logging
 import tempfile
 import traceback
-import warnings
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 from unittest.mock import Mock
 
 import toml
@@ -129,11 +128,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
-    return _run_dse_job(runner, args.mode)
-
-
-def _run_dse_job(runner: Runner, mode: str) -> int:
+def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -185,7 +180,7 @@ def _run_dse_job(runner: Runner, mode: str) -> int:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
 
-    if mode == "run":
+    if runner.runner.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
         generate_reports(
             runner.runner.system,
@@ -246,19 +241,11 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, args: argparse.Namespace | None = None) -> bool:
+def handle_non_dse_job(runner: Runner) -> bool:
     successful = runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
-
-
-def register_signal_handlers(signal_handler: Callable) -> None:
-    """Compatibility entry point for CLI signal registration."""
-    warnings.warn("Use cloudai.cli.cli.register_signal_handlers instead.", DeprecationWarning, stacklevel=2)
-    from cloudai.cli.cli import register_signal_handlers as cli_register_signal_handlers
-
-    cli_register_signal_handlers(signal_handler)
 
 
 class InstallationError(RuntimeError):
@@ -350,20 +337,12 @@ def execute_experiment(
         if isinstance(runner.runner, SingleSbatchRunner) or not has_dse:
             successful = handle_non_dse_job(runner)
         elif all(tr.is_dse_job for tr in scenario.test_runs):
-            successful = _run_dse_job(runner, mode) == 0
+            successful = handle_dse_job(runner) == 0
         else:
             logging.error("Mixing DSE and non-DSE jobs is not allowed.")
         return successful
     finally:
         runner.runner.finish_output(successful)
-
-
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
-    """Compatibility entry point for the CLI run commands."""
-    warnings.warn("Use cloudai.api.run_experiment instead.", DeprecationWarning, stacklevel=2)
-    from cloudai.cli.cli import _handle_dry_run_and_run
-
-    return _handle_dry_run_and_run(args)
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:

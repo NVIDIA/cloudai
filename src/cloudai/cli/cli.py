@@ -39,7 +39,7 @@ def register_signal_handlers(signal_handler: Callable) -> None:
         signal.signal(sig, signal_handler)
 
 
-def _handle_dry_run_and_run(args: argparse.Namespace) -> int:
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     """Translate CLI options and experiment outcomes into a process exit code."""
     try:
         system, tests, scenario = cloudai.handlers.load_experiment(
@@ -242,7 +242,7 @@ def dry_run(
         enable_cache_without_check=enable_cache_without_check,
         single_sbatch=single_sbatch,
     )
-    exit(_handle_dry_run_and_run(args))
+    exit(handle_dry_run_and_run(args))
 
 
 @main.command()
@@ -274,7 +274,7 @@ def run(
         enable_cache_without_check=enable_cache_without_check,
         single_sbatch=single_sbatch,
     )
-    exit(_handle_dry_run_and_run(args))
+    exit(handle_dry_run_and_run(args))
 
 
 @main.command()
