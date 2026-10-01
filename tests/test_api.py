@@ -79,7 +79,15 @@ def test_run_and_list_experiments(
     experiment = cloudai.api.run_experiment(scenario, system)
     assert experiment.status == "completed"
     assert experiment.tests[0].runs[0].status == "completed"
-    assert cloudai.api.list_experiments(system) == [(experiment.id, pathlib.Path(experiment.path))]
+    experiment_path = pathlib.Path(experiment.path)
+    assert experiment.id == experiment_path.name
+    unparsed_path = standalone_system.output_path / "zzz-unparsed"
+    unparsed_path.mkdir()
+    (unparsed_path / "experiment.json").write_text("not JSON")
+    assert cloudai.api.list_experiments(system) == [
+        (experiment.id, experiment_path),
+        (unparsed_path.name, unparsed_path.resolve()),
+    ]
     assert cloudai.api.get_experiment(experiment.id, str(system)) == experiment
     assert cloudai.api.get_experiment(pathlib.Path(experiment.path), system) == experiment
     assert cloudai.api.get_experiment(pathlib.Path(experiment.path) / "experiment.json", system) == experiment
