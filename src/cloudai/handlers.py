@@ -15,25 +15,24 @@
 # limitations under the License.
 
 import argparse
+import collections.abc
 import copy
 import logging
-import signal
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 from unittest.mock import Mock
 
 import toml
 import yaml
 
+import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
-    InstallStatusResult,
-    MissingTestError,
     Parser,
     Registry,
     Runner,
@@ -130,7 +129,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
+def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -182,7 +181,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
 
-    if args.mode == "run":
+    if runner.runner.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
         generate_reports(
             runner.runner.system,
@@ -243,135 +242,102 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> bool:
+def handle_non_dse_job(runner: Runner) -> bool:
     successful = runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
     return successful
 
 
-def register_signal_handlers(signal_handler: Callable) -> None:
-    """Register signal handlers for handling termination-related signals."""
-    signals = [
-        signal.SIGINT,
-        signal.SIGTERM,
-        signal.SIGHUP,
-        signal.SIGQUIT,
-    ]
-    for sig in signals:
-        signal.signal(sig, signal_handler)
+class InstallationError(RuntimeError):
+    """Workload prerequisites could not be installed."""
 
 
-def _setup_system_and_scenario(
-    args: argparse.Namespace,
-) -> tuple[System, TestScenario, list[TestDefinition]] | None:
-    parser = Parser(args.system_config, args.hook_dir or HOOK_ROOT)
-    try:
-        system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
-    except MissingTestError as e:
-        logging.error(e.message)
-        return None
+def load_experiment(
+    scenario_path: Path,
+    system_path: Path,
+    *,
+    tests_dir: Path | None = None,
+    hook_dir: Path | None = None,
+) -> tuple[System, list[TestDefinition], TestScenario]:
+    """Parse a scenario for programmatic execution without process exits."""
+    parser = Parser(system_path, hook_dir or HOOK_ROOT, exit_on_error=False)
+    system, tests, scenario = parser.parse(tests_dir, scenario_path)
+    if scenario is None:
+        raise TestScenarioParsingError("A test scenario is required.")
+    validate_domain_randomization_active(scenario)
+    return system, tests, scenario
 
-    assert test_scenario is not None
 
-    if args.output_dir:
-        system.output_path = args.output_dir.absolute()
-
+def create_experiment_runner(
+    system: System,
+    scenario: TestScenario,
+    *,
+    mode: str = "run",
+    single_sbatch: bool = False,
+) -> Runner:
+    """Prepare the system and create a runner for one experiment."""
+    if single_sbatch and not isinstance(system, SlurmSystem):
+        raise ValueError("Single sbatch is only supported for Slurm systems.")
     if not prepare_output_dir(system.output_path):
-        return None
-
-    if args.mode == "dry-run":
+        raise OSError(f"Cannot prepare output directory: {system.output_path}")
+    if mode == "dry-run":
         system.monitor_interval = 1
     system.update()
-
-    return system, test_scenario, tests
-
-
-def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
-    if not args.single_sbatch:
-        return True
-
-    if not isinstance(system, SlurmSystem):
-        logging.error("Single sbatch is only supported for Slurm systems.")
-        return False
-
-    Registry().update_runner("slurm", SingleSbatchRunner)
-    return True
+    runner_class = SingleSbatchRunner if single_sbatch else Registry().runners_map.get(system.scheduler.lower())
+    return Runner(mode, system, scenario, runner_class=runner_class)
 
 
-def _check_installation(
-    args: argparse.Namespace, system: System, tests: list[TestDefinition], test_scenario: TestScenario
-) -> InstallStatusResult:
-    logging.info("Checking if workloads components are installed.")
-    installables, installer = prepare_installation(system, tests, test_scenario)
-
-    if args.enable_cache_without_check:
-        result = installer.mark_as_installed(installables)
-    else:
-        result = installer.is_installed(installables)
-
-    return result
-
-
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
-    setup_result = _setup_system_and_scenario(args)
-    if setup_result is None:
-        return 1
-    system, test_scenario, tests = setup_result
-
-    try:
-        validate_domain_randomization_active(test_scenario)
-    except TestScenarioParsingError as e:
-        logging.error(str(e))
-        return 1
-
-    if not _handle_single_sbatch(args, system):
-        return 1
-
-    logging.info(f"System Name: {system.name}")
-    logging.info(f"Scheduler: {system.scheduler}")
-    logging.info(f"Test Scenario Name: {test_scenario.name}")
-
-    result = _check_installation(args, system, tests, test_scenario)
-    if args.mode == "run" and not result.success:
-        logging.info("Not all workloads components are installed. Installing...")
-        installables, installer = prepare_installation(system, tests, test_scenario)
-
-        result = installer.install(installables)
-        if result.success:
-            _log_installation_dirs("CloudAI is successfully installed into", system)
-        else:
-            logging.error("Failed to install workloads components.")
-            logging.error(result.message)
-            return 1
-    elif args.mode == "dry-run":
-        # simulate installation for dry-run
-        installables, installer = prepare_installation(system, tests, test_scenario)
-        result = installer.mark_as_installed(installables)
-        if not result.success:
-            logging.warning("Failed to mark workloads components as installed for dry-run.")
-
-    logging.info(test_scenario.pretty_print())
-
-    runner = Runner(args.mode, system, test_scenario)
-    register_signal_handlers(runner.cancel_on_signal)
-    logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
-
+def execute_experiment(
+    runner: Runner,
+    tests: list[TestDefinition],
+    *,
+    enable_cache_without_check: bool = False,
+    on_start: (
+        collections.abc.Callable[[cloudai.models.output.Experiment, collections.abc.Callable[[], None]], None] | None
+    ) = None,
+) -> bool:
+    """Install prerequisites, execute the scenario, and finalize its output."""
+    system = runner.runner.system
+    scenario = runner.runner.test_scenario
+    mode = runner.runner.mode
     successful = False
     try:
         runner.runner.experiment_output.write()
-        has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
-        if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
-            successful = handle_non_dse_job(runner, args)
-            return 0
+        if on_start is not None:
+            on_start(runner.runner.experiment_output.snapshot(), runner.runner.shutdown)
+        logging.info(f"System Name: {system.name}")
+        logging.info(f"Scheduler: {system.scheduler}")
+        logging.info(f"Test Scenario Name: {scenario.name}")
+        logging.info("Checking if workloads components are installed.")
+        installables, installer = prepare_installation(system, tests, scenario)
+        if enable_cache_without_check:
+            result = installer.mark_as_installed(installables)
+        else:
+            result = installer.is_installed(installables)
+        if mode == "run" and not result.success:
+            logging.info("Not all workloads components are installed. Installing...")
+            result = installer.install(installables)
+            if not result.success:
+                logging.error("Failed to install workloads components.")
+                logging.error(result.message)
+                raise InstallationError(result.message)
+            _log_installation_dirs("CloudAI is successfully installed into", system)
+        elif mode == "dry-run":
+            result = installer.mark_as_installed(installables)
+            if not result.success:
+                logging.warning("Failed to mark workloads components as installed for dry-run.")
 
-        if all(tr.is_dse_job for tr in test_scenario.test_runs):
-            result = handle_dse_job(runner, args)
-            successful = result == 0
-            return result
-
-        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-        return 1
+        logging.info(scenario.pretty_print())
+        logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
+        has_dse = any(tr.is_dse_job for tr in scenario.test_runs)
+        if isinstance(runner.runner, SingleSbatchRunner) or not has_dse:
+            successful = handle_non_dse_job(runner)
+        elif all(tr.is_dse_job for tr in scenario.test_runs):
+            successful = handle_dse_job(runner) == 0
+        else:
+            logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+        return successful
     finally:
         runner.runner.finish_output(successful)
 

@@ -17,17 +17,75 @@
 import argparse
 import logging
 import logging.config
+import signal
+import types
 from pathlib import Path
+from typing import Callable
 
 import click
 
+import cloudai.core
+import cloudai.handlers
 from cloudai.handlers import (
-    handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
     handle_list_registered_items,
     handle_verify_all_configs,
 )
+
+
+def register_signal_handlers(signal_handler: Callable) -> None:
+    """Register the CLI's termination signals for a running experiment."""
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        signal.signal(sig, signal_handler)
+
+
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+    """Translate CLI options and experiment outcomes into a process exit code."""
+    try:
+        system, tests, scenario = cloudai.handlers.load_experiment(
+            args.test_scenario, args.system_config, tests_dir=args.tests_dir, hook_dir=args.hook_dir
+        )
+        if args.output_dir is not None:
+            system.output_path = args.output_dir.absolute()
+        runner = cloudai.handlers.create_experiment_runner(
+            system,
+            scenario,
+            mode=args.mode,
+            single_sbatch=args.single_sbatch,
+        )
+    except (
+        cloudai.core.MissingTestError,
+        cloudai.core.SystemConfigParsingError,
+        cloudai.core.TestConfigParsingError,
+        cloudai.core.TestScenarioParsingError,
+        FileNotFoundError,
+        OSError,
+        ValueError,
+    ) as exc:
+        logging.error(str(exc))
+        return 1
+
+    def on_start(_experiment: object, cancel: Callable[[], None]) -> None:
+        def cancel_on_signal(signum: int, _frame: types.FrameType | None) -> None:
+            logging.info(f"Signal {signum} received, shutting down...")
+            cancel()
+
+        register_signal_handlers(cancel_on_signal)
+
+    try:
+        successful = cloudai.handlers.execute_experiment(
+            runner,
+            tests,
+            enable_cache_without_check=args.enable_cache_without_check,
+            on_start=on_start,
+        )
+    except cloudai.handlers.InstallationError:
+        return 1
+
+    if args.single_sbatch or not any(tr.is_dse_job for tr in scenario.test_runs):
+        return 0
+    return 0 if successful else 1
 
 
 def setup_logging(log_file: str, log_level: str) -> None:

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional
@@ -50,7 +49,7 @@ from cloudai.handlers import (
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter
-from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -97,6 +96,12 @@ def stub_agent_name() -> Iterator[str]:
         registry.update_agent(agent_name, old_agent)
 
 
+def test_runner_warns_about_legacy_create_runner_signature(slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
+    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    with pytest.warns(DeprecationWarning, match="will be removed in CloudAI 1.9.1"):
+        Runner(mode="dry-run", system=slurm_system, test_scenario=scenario)
+
+
 @pytest.mark.parametrize("dep", ["start_post_comp", "start_post_init", "end_post_comp"])
 def test_dse_run_does_not_support_dependencies(
     slurm_system: SlurmSystem, dse_tr: TestRun, dep: str, caplog: pytest.LogCaptureFixture
@@ -113,8 +118,8 @@ def test_dse_run_does_not_support_dependencies(
     """
     dse_tr.dependencies = {dep: TestDependency(test_run=dse_tr)}
     test_scenario: TestScenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
+    assert handle_dse_job(runner) == 1
     assert "Dependencies are not supported for DSE jobs, all cases run consecutively." in caplog.text
     assert "Please remove dependencies and re-run." in caplog.text
 
@@ -158,9 +163,9 @@ def test_dse_run_uses_agent_config(
     dse_tr.test.agent = stub_agent_name
     dse_tr.test.agent_config = agent_config
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert handle_dse_job(runner) == 0
     assert len(StubAgent.received_configs) == 1
 
     recorded = StubAgent.received_configs[0]
@@ -255,7 +260,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
 
     # run test
     with caplog.at_level("INFO"):
-        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+        assert handle_dse_job(runner) == 0
 
     reporter = StatusReporter(
         inner_runner.system,
@@ -393,11 +398,11 @@ def test_handle_dse_job_invokes_agent_run(
     """``handle_dse_job`` must delegate orchestration to ``agent.run()`` (polymorphism)."""
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
     update_output = MagicMock()
     monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert handle_dse_job(runner) == 0
     assert CustomRunStubAgent.run_calls == 1
     assert update_output.call_count == 2
 
@@ -411,9 +416,9 @@ def test_handle_dse_job_propagates_agent_run_nonzero_rc(
     CustomRunStubAgent.run_returns = 1
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner) == 1
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -433,9 +438,9 @@ def test_handle_dse_job_accumulates_nonzero_rc_and_continues(
     second_tr = copy.deepcopy(dse_tr)
     second_tr.name = "dse_second"
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner) == 1
     assert CustomRunStubAgent.run_calls == 2
 
 
@@ -453,12 +458,12 @@ def test_handle_dse_job_propagates_agent_run_exception(
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
     update_output = MagicMock()
     monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner)
     assert CustomRunStubAgent.run_calls == 1
     assert update_output.call_count == 2
 
@@ -474,10 +479,10 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     second_tr = copy.deepcopy(dse_tr)
     second_tr.name = "dse_second"
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner)
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -491,11 +496,11 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
     runner.runner.scenario_root = tmp_path
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="run"))
+        handle_dse_job(runner)
 
     failure_report = tmp_path / "dse_failure.txt"
     assert failure_report.exists()

@@ -16,6 +16,7 @@
 
 import datetime
 import logging
+import warnings
 from types import FrameType
 from typing import Optional
 
@@ -44,11 +45,34 @@ class Runner:
         test_scenario (TestScenario): The test scenario to be executed.
     """
 
-    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
+    def __init__(
+        self,
+        mode: str,
+        system: System,
+        test_scenario: TestScenario,
+        *,
+        runner_class: type[BaseRunner] | None = None,
+    ):
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
-        self.runner = self.create_runner(mode, system, test_scenario)
+        if runner_class is None:
+            warnings.warn(
+                "Runner.create_runner() compatibility with its former three-argument signature is deprecated and "
+                "will be removed in CloudAI 1.9.1.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.runner = self.create_runner(mode, system, test_scenario)
+        else:
+            self.runner = self.create_runner(mode, system, test_scenario, runner_class=runner_class)
 
-    def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
+    def create_runner(
+        self,
+        mode: str,
+        system: System,
+        test_scenario: TestScenario,
+        *,
+        runner_class: type[BaseRunner] | None = None,
+    ) -> BaseRunner:
         """
         Dynamically create a runner instance based on the system's scheduler type.
 
@@ -56,6 +80,7 @@ class Runner:
             mode (str): The operation mode ('dry-run', 'run').
             system (System): The system configuration.
             test_scenario (TestScenario): The test scenario to run.
+            runner_class (type[BaseRunner] | None): Override for this invocation.
 
         Returns:
             BaseRunner: A runner instance suitable for the system.
@@ -69,7 +94,7 @@ class Runner:
             msg = f"No runner registered for scheduler: {scheduler_type}"
             logging.error(msg)
             raise NotImplementedError(msg)
-        runner_class = registry.runners_map[scheduler_type]
+        runner_class = runner_class or registry.runners_map[scheduler_type]
         logging.info(f"Creating {runner_class.__name__}")
 
         if not system.output_path.exists():

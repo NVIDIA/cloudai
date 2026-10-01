@@ -25,10 +25,10 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
+import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
-from cloudai.handlers import handle_dry_run_and_run
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -149,7 +149,7 @@ class TestInDryRun:
             mock_process.communicate.return_value = ("", "")
             mock_execute.return_value = mock_process
 
-            handle_dry_run_and_run(args)
+            cloudai.cli.cli.handle_dry_run_and_run(args)
 
         return (tmp_path, scenario)
 
