@@ -23,17 +23,17 @@ import toml
 
 import cloudai.api
 import cloudai.core
+import cloudai.models.output
 from cloudai.systems.standalone import StandaloneSystem
 from cloudai.systems.standalone.standalone_job import StandaloneJob
 from cloudai.systems.standalone.standalone_runner import StandaloneRunner
 from cloudai.workloads.sleep import SleepTestDefinition
 
 
-def test_run_and_list_experiments(
-    standalone_system: StandaloneSystem, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    system = tmp_path / "system.toml"
-    system.write_text(
+@pytest.fixture
+def system_config(standalone_system: StandaloneSystem, tmp_path: pathlib.Path) -> pathlib.Path:
+    path = tmp_path / "system.toml"
+    path.write_text(
         toml.dumps(
             {
                 "name": standalone_system.name,
@@ -44,20 +44,33 @@ def test_run_and_list_experiments(
             }
         )
     )
-    scenario = tmp_path / "scenario.toml"
-    scenario_data = {
-        "name": "api-test",
-        "Tests": [
+    return path
+
+
+@pytest.fixture
+def scenario_config(tmp_path: pathlib.Path) -> pathlib.Path:
+    path = tmp_path / "scenario.toml"
+    path.write_text(
+        toml.dumps(
             {
-                "id": "sleep",
-                "name": "sleep",
-                "description": "API smoke test",
-                "test_template_name": "Sleep",
-                "cmd_args": {"seconds": 0},
+                "name": "api-test",
+                "Tests": [
+                    {
+                        "id": "sleep",
+                        "name": "sleep",
+                        "description": "API smoke test",
+                        "test_template_name": "Sleep",
+                        "cmd_args": {"seconds": 0},
+                    }
+                ],
             }
-        ],
-    }
-    scenario.write_text(toml.dumps(scenario_data))
+        )
+    )
+    return path
+
+
+@pytest.fixture
+def mock_standalone_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(StandaloneSystem, "is_job_completed", lambda *_: True)
     monkeypatch.setattr(StandaloneSystem, "is_job_running", lambda *_: False)
     monkeypatch.setattr(
@@ -71,39 +84,110 @@ def test_run_and_list_experiments(
         lambda *_: cloudai.core.JobStatusResult(True, "test outcome"),
     )
 
+
+@pytest.fixture
+def saved_experiment(
+    standalone_system: StandaloneSystem,
+) -> tuple[cloudai.models.output.Experiment, pathlib.Path]:
+    experiment_path = standalone_system.output_path / "experiment-1"
+    experiment_path.mkdir(parents=True)
+    experiment = cloudai.models.output.Experiment(
+        id=experiment_path.name,
+        name="experiment",
+        system_name=standalone_system.name,
+        status="completed",
+        path=str(experiment_path),
+    )
+    (experiment_path / "experiment.json").write_text(experiment.model_dump_json())
+    return experiment, experiment_path
+
+
+@pytest.mark.parametrize(("mode", "expected_runs"), [("run", 1), ("dry-run", 0)])
+@pytest.mark.usefixtures("mock_standalone_execution")
+def test_run_experiment(
+    mode: str,
+    expected_runs: int,
+    system_config: pathlib.Path,
+    scenario_config: pathlib.Path,
+) -> None:
     signal_handler = signal.getsignal(signal.SIGINT)
-    assert cloudai.api.list_experiments(system) == []
-    experiment = cloudai.api.run_experiment(scenario, system)
+
+    experiment = cloudai.api.run_experiment(scenario_config, system_config, mode=mode)
+
     assert experiment.status == "completed"
-    assert experiment.tests[0].runs[0].status == "completed"
-    experiment_path = pathlib.Path(experiment.path)
-    assert experiment.id == experiment_path.name
-    unparsed_path = standalone_system.output_path / "zzz-unparsed"
-    unparsed_path.mkdir()
-    (unparsed_path / "experiment.json").write_text("not JSON")
-    assert cloudai.api.list_experiments(system) == [
-        (experiment.id, experiment_path),
-        (unparsed_path.name, unparsed_path.resolve()),
-    ]
-    assert cloudai.api.get_experiment(experiment.id, str(system)) == experiment
-    assert cloudai.api.get_experiment(pathlib.Path(experiment.path), system) == experiment
-    with pytest.raises(ValueError, match="Invalid experiment ID"):
-        cloudai.api.get_experiment(pathlib.Path(experiment.path) / "experiment.json", system)
-    with pytest.raises(ValueError, match="Invalid experiment ID"):
-        cloudai.api.get_experiment("missing", system)
-    with pytest.raises(ValueError, match="Invalid experiment ID"):
-        cloudai.api.get_experiment("../other", system)
-    with pytest.raises(ValueError, match="Cannot read experiment"):
-        cloudai.api.get_experiment(unparsed_path, system)
+    assert len(experiment.tests[0].runs) == expected_runs
+    assert experiment.id == pathlib.Path(experiment.path).name
     assert signal.getsignal(signal.SIGINT) == signal_handler
 
-    scenario_data["name"] = "api-dry-run"
-    scenario.write_text(toml.dumps(scenario_data))
-    dry_run_experiment = cloudai.api.run_experiment(scenario, system, mode="dry-run")
-    assert dry_run_experiment.tests[0].runs == []
-    with pytest.raises(ValueError, match="Single sbatch is only supported for Slurm systems"):
-        cloudai.api.run_experiment(scenario, system, single_sbatch=True)
 
-    scenario.write_text('name = "invalid"\n')
+def test_run_experiment_rejects_single_sbatch_for_standalone(
+    system_config: pathlib.Path,
+    scenario_config: pathlib.Path,
+) -> None:
+    with pytest.raises(ValueError, match="Single sbatch is only supported for Slurm systems"):
+        cloudai.api.run_experiment(scenario_config, system_config, single_sbatch=True)
+
+
+def test_run_experiment_rejects_invalid_scenario(
+    system_config: pathlib.Path,
+    scenario_config: pathlib.Path,
+) -> None:
+    scenario_config.write_text('name = "invalid"\n')
+
     with pytest.raises(cloudai.core.TestScenarioParsingError):
-        cloudai.api.run_experiment(scenario, system)
+        cloudai.api.run_experiment(scenario_config, system_config)
+
+
+def test_list_experiments(system_config: pathlib.Path, standalone_system: StandaloneSystem) -> None:
+    assert cloudai.api.list_experiments(system_config) == []
+    experiment_paths = [standalone_system.output_path / name for name in ("experiment-1", "experiment-2")]
+    for path in experiment_paths:
+        path.mkdir(parents=True)
+        (path / "experiment.json").write_text("not parsed")
+    (standalone_system.output_path / "ignored").mkdir()
+
+    assert cloudai.api.list_experiments(system_config) == [(path.name, path.resolve()) for path in experiment_paths]
+
+
+@pytest.mark.parametrize("reference", ["id", "path"])
+def test_get_experiment(
+    reference: str,
+    system_config: pathlib.Path,
+    saved_experiment: tuple[cloudai.models.output.Experiment, pathlib.Path],
+) -> None:
+    experiment, experiment_path = saved_experiment
+    exp_id = experiment.id if reference == "id" else experiment_path
+
+    assert cloudai.api.get_experiment(exp_id, system_config) == experiment
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        ("json-path", "Invalid experiment ID"),
+        ("missing", "Invalid experiment ID"),
+        ("traversal", "Invalid experiment ID"),
+        ("malformed", "Cannot read experiment"),
+    ],
+)
+def test_get_experiment_rejects_invalid_input(
+    reference: str,
+    message: str,
+    system_config: pathlib.Path,
+    saved_experiment: tuple[cloudai.models.output.Experiment, pathlib.Path],
+) -> None:
+    _, experiment_path = saved_experiment
+    if reference == "json-path":
+        exp_id: str | pathlib.Path = experiment_path / "experiment.json"
+    elif reference == "missing":
+        exp_id = "missing"
+    elif reference == "traversal":
+        exp_id = "../other"
+    else:
+        malformed_path = experiment_path.parent / "malformed"
+        malformed_path.mkdir()
+        (malformed_path / "experiment.json").write_text("not JSON")
+        exp_id = malformed_path
+
+    with pytest.raises(ValueError, match=message):
+        cloudai.api.get_experiment(exp_id, system_config)
