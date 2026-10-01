@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections.abc
 import pathlib
 
 import pydantic
@@ -31,6 +32,7 @@ def run_experiment(
     single_sbatch: bool = False,
     tests_dir: pathlib.Path | None = None,
     hook_dir: pathlib.Path | None = None,
+    on_start: collections.abc.Callable[[cloudai.models.output.Experiment], None] | None = None,
 ) -> cloudai.models.output.Experiment:
     """
     Run a scenario synchronously and return its experiment snapshot.
@@ -50,7 +52,7 @@ def run_experiment(
         mode=mode,
         single_sbatch=single_sbatch,
     )
-    cloudai.handlers.execute_experiment(runner, tests)
+    cloudai.handlers.execute_experiment(runner, tests, on_start=on_start)
     return runner.runner.experiment_output.snapshot()
 
 
