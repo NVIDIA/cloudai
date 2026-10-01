@@ -18,6 +18,7 @@ import argparse
 import logging
 import logging.config
 import signal
+import types
 from pathlib import Path
 from typing import Callable
 
@@ -65,10 +66,19 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         logging.error(str(exc))
         return 1
 
-    register_signal_handlers(runner.cancel_on_signal)
+    def on_start(_experiment: object, cancel: Callable[[], None]) -> None:
+        def cancel_on_signal(signum: int, _frame: types.FrameType | None) -> None:
+            logging.info(f"Signal {signum} received, shutting down...")
+            cancel()
+
+        register_signal_handlers(cancel_on_signal)
+
     try:
         successful = cloudai.handlers.execute_experiment(
-            runner, tests, enable_cache_without_check=args.enable_cache_without_check
+            runner,
+            tests,
+            enable_cache_without_check=args.enable_cache_without_check,
+            on_start=on_start,
         )
     except cloudai.handlers.InstallationError:
         return 1
