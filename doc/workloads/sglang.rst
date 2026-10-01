@@ -65,10 +65,6 @@ Test-in-Scenario example
    docker_image_url = "lmsysorg/sglang:dev-cu13"
    model = "Qwen/Qwen3-8B"
 
-Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, can be set or
-overridden under ``[[Tests]]`` in a test scenario; see :ref:`test-in-scenario`.
-
-
 Local Models
 ------------
 Set ``cmd_args.model`` to an absolute, container-visible path to load an existing model directory instead of
