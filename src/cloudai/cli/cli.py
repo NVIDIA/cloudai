@@ -45,11 +45,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         system, tests, scenario = cloudai.handlers.load_experiment(
             args.test_scenario, args.system_config, tests_dir=args.tests_dir, hook_dir=args.hook_dir
         )
+        if args.output_dir is not None:
+            system.output_path = args.output_dir.absolute()
         runner = cloudai.handlers.create_experiment_runner(
             system,
             scenario,
             mode=args.mode,
-            output_dir=args.output_dir,
             single_sbatch=args.single_sbatch,
         )
     except (

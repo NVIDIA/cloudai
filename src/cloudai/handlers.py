@@ -272,14 +272,11 @@ def create_experiment_runner(
     scenario: TestScenario,
     *,
     mode: str = "run",
-    output_dir: Path | None = None,
     single_sbatch: bool = False,
 ) -> Runner:
     """Prepare the system and create a runner for one experiment."""
     if single_sbatch and not isinstance(system, SlurmSystem):
         raise ValueError("Single sbatch is only supported for Slurm systems.")
-    if output_dir is not None:
-        system.output_path = output_dir.absolute()
     if not prepare_output_dir(system.output_path):
         raise OSError(f"Cannot prepare output directory: {system.output_path}")
     if mode == "dry-run":
