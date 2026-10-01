@@ -317,11 +317,19 @@ class TestIncrementStep:
 class TestInScenario:
     @pytest.mark.parametrize("reference", ["path", "test_name"])
     def test_workload_specific_override(self, reference: str, slurm_system: SlurmSystem):
-        scenario_path = (
-            Path(__file__).resolve().parents[1]
-            / "conf/experimental/sglang/test_scenario/sglang-semantic-eval-override.toml"
+        scenario_path = Path(__file__).resolve().parents[1] / "conf/experimental/sglang/test_scenario/sglang.toml"
+        scenario_data = toml.loads(
+            """
+            name = "sglang-override"
+
+            [[Tests]]
+            id = "semantic-eval"
+            path = "../test/sglang.toml"
+
+              [Tests.semantic_eval_cmd_args]
+              cli = "--host {host} --port {port} --eval-name gsm8k --num-examples 20 --num-threads 128 --model {model}"
+            """
         )
-        scenario_data = toml.load(scenario_path)
         test_path = scenario_path.parent / scenario_data["Tests"][0]["path"]
         base_test = TestParser([test_path], slurm_system).parse_all()[0]
 
