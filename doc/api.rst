@@ -20,8 +20,10 @@ Pass configuration file paths as ``pathlib.Path`` objects:
 
 ``run_experiment`` waits for the scenario to finish and returns an ``Experiment``
 model with the same data saved in ``experiment.json``. Workload failures appear in
-its status. Configuration and setup errors raise exceptions. Pass ``hook_dir`` to
-use a custom hook directory.
+its status. Configuration and setup errors raise exceptions. Use
+``mode="dry-run"`` to generate commands without running workloads. Use
+``single_sbatch=True`` for a single Slurm allocation. Pass ``hook_dir`` to use a
+custom hook directory.
 
 ``list_experiments(system)`` returns ``(experiment_id, result_directory)`` pairs
 from the system's configured output directory. Directories without

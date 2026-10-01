@@ -27,6 +27,8 @@ def run_experiment(
     scenario: pathlib.Path,
     system: pathlib.Path,
     *,
+    mode: str = "run",
+    single_sbatch: bool = False,
     tests_dir: pathlib.Path | None = None,
     hook_dir: pathlib.Path | None = None,
 ) -> cloudai.models.output.Experiment:
@@ -42,7 +44,12 @@ def run_experiment(
         tests_dir=tests_dir,
         hook_dir=hook_dir,
     )
-    runner = cloudai.handlers.create_experiment_runner(parsed_system, parsed_scenario)
+    runner = cloudai.handlers.create_experiment_runner(
+        parsed_system,
+        parsed_scenario,
+        mode=mode,
+        single_sbatch=single_sbatch,
+    )
     cloudai.handlers.execute_experiment(runner, tests)
     return runner.runner.experiment_output.snapshot()
 
