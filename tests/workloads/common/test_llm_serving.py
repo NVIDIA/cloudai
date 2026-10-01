@@ -507,6 +507,7 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
     tr, _, _ = serving_observation_run
     observations = tr.test.metric_observations(slurm_system, tr)
 
+    assert len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations}) == 8
     assert {(o.metric.key, o.dimensions.get("statistic")): (o.value, o.metric.unit) for o in observations} == {
         ("request_throughput", None): (10.0, "requests/s"),
         ("output_token_throughput", None): (2400.0, "tokens/s"),
@@ -518,16 +519,16 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
         ("tpot", "p99"): (20.0, "ms"),
     }
     for observation in observations:
-        assert {k: v for k, v in observation.dimensions.items() if k != "statistic"} == {
-            "backend": tr.name,
-            "model": "test/model",
-            "max_concurrency": 16,
-        }
+        assert set(observation.dimensions) == ({"statistic"} if observation.metric.key in {"ttft", "tpot"} else set())
+
+    tr.test.cmd_args.model = "other/model"
+    tr.test.bench_cmd_args.max_concurrency = 32
+    assert tr.test.metric_observations(slurm_system, tr) == observations
 
     tr.metric_sol = cloudai.metrics.parse_sol_spec(
         {
-            "output_token_throughput": [{"value": 4800, "match": {"model": "test/model", "max_concurrency": 16}}],
-            "ttft": [{"value": 60}, {"value": 100, "match": {"backend": tr.name, "statistic": "p99"}}],
+            "output_token_throughput": [{"value": 4800}],
+            "ttft": [{"value": 60}, {"value": 100, "match": {"statistic": "p99"}}],
         }
     )
     assessments = cloudai.metrics.assess_test_run_metrics(slurm_system, tr)
@@ -575,7 +576,7 @@ def test_serving_metric_observations_nonfinite_values(slurm_system: SlurmSystem,
     observations = tr.test.metric_observations(slurm_system, tr)
 
     assert len(observations) == 6
-    assert all(o.dimensions["max_concurrency"] == 0 for o in observations)
+    assert all("max_concurrency" not in o.dimensions for o in observations)
     assert all(o.metric.key != "output_token_throughput" for o in observations)
     assert all((o.metric.key, o.dimensions.get("statistic")) != ("ttft", "mean") for o in observations)
 
@@ -593,12 +594,7 @@ def test_serving_metric_observations_accuracy(
     observations = tr.test.metric_observations(slurm_system, tr)
     accuracy = [o for o in observations if o.metric.key == "accuracy"]
 
+    assert len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations})
     assert accuracy == (
-        [
-            cloudai.metrics.MetricObservation(
-                cloudai.metrics.ACCURACY, 0.875, {"backend": tr.name, "model": "test/model"}
-            )
-        ]
-        if evaluation == "valid"
-        else []
+        [cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.875, {})] if evaluation == "valid" else []
     )
