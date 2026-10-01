@@ -31,8 +31,10 @@ if (params.githubData) {
         githubHelper = GithubHelper.getInstance("${GIT_PASSWORD}", params.githubData)
     }
     pipelineOverviewUrl = "${env.BUILD_URL}/pipeline-overview/"
+    // No context: the launcher reports on blossom-ci, the status the Blossom
+    // workflow leaves pending, so the PR shows the overall result there.
     githubHelper.updateCommitStatus(pipelineOverviewUrl, "CI started",
-                                    GitHubCommitState.PENDING, env.JOB_BASE_NAME)
+                                    GitHubCommitState.PENDING)
     currentBuild.description = githubHelper.getBuildDescription()
 }
 
@@ -67,8 +69,7 @@ try {
             pipelineOverviewUrl,
             "CI completed",
             currentBuild.resultIsBetterOrEqualTo('SUCCESS') ? GitHubCommitState.SUCCESS
-                                                            : GitHubCommitState.FAILURE,
-            env.JOB_BASE_NAME
+                                                            : GitHubCommitState.FAILURE
         )
     }
 }
