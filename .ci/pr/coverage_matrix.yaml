@@ -1,0 +1,62 @@
+# CloudAI PR pipeline - unit tests with coverage (ci-demo), run by the cloudai-pr-coverage job.
+#
+# pipeline-scm has already checked the pull request out into ${WORKSPACE};
+# the merge commit arrives as sha1.
+#
+# Named by the conf_file build parameter in .ci/proj_jjb.yaml.
+---
+job: cloudai-pr-coverage
+
+failFast: false
+timeout_minutes: 60
+
+kubernetes:
+  cloud: il-ipp-blossom-prod
+  namespace: hpcx
+  nodeSelector: 'kubernetes.io/arch=amd64'
+  # Container resources are set per image (requests/limits on each
+  # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
+
+runs_on_dockers:
+  # Same toolbox images and tags the release pipeline pins, with its
+  # requests/limits carried over unchanged.
+  - url: 'ghcr.io/astral-sh/uv:debian'
+    name: 'uv'
+    tag: 'debian'
+    arch: 'x86_64'
+    requests: '{memory: 1Gi, cpu: 1000m}'
+    limits: '{memory: 4Gi, cpu: 3000m}'
+
+steps:
+  - name: Coverage
+    containerSelector: '{name:"uv"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      cd ${WORKSPACE}
+      uv sync --locked --extra dev
+      # Run all tests except the ones that fail when running as root
+      uv run python -m pytest --cov -k "not test_not_writable and not test_parent_wo_access"
+      # Run the root-sensitive tests separately (expected to fail as root, so invert exit code)
+      expect_pytest_failure() {
+        test_name="$1"
+
+        if uv run python -m pytest --cov --cov-append -k "${test_name}"; then
+          echo "Expected failure did not occur for ${test_name}"
+          exit 1
+        else
+          rc=$?
+          if [ "${rc}" -ne 1 ]; then
+            echo "Unexpected pytest exit code for ${test_name}: ${rc}"
+            exit "${rc}"
+          fi
+          echo "EXPECTED FAILURE (${test_name}, running as root) - PASSED"
+        fi
+      }
+
+      expect_pytest_failure "test_parent_wo_access"
+      expect_pytest_failure "test_not_writable"
+      uv run coverage report 2>&1 | tee ${WORKSPACE}/coverage.log
+
+    archiveArtifacts: 'coverage.log'
