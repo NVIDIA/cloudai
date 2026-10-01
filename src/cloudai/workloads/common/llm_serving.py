@@ -245,32 +245,26 @@ class LLMServingBenchReport(BaseModel, ABC):
 
 def llm_serving_metric_observations(
     results: LLMServingBenchReport | None,
-    backend: str,
-    model: str,
     accuracy: float | None = None,
 ) -> list[cloudai.metrics.MetricObservation]:
-    """Collect finite serving measurements with shared units and dimensions."""
-    dimensions: dict[str, cloudai.metrics.MetricValue] = {"backend": backend, "model": model}
+    """Use statistics to distinguish latency results; scalar results have no dimensions."""
     observations: list[cloudai.metrics.MetricObservation] = []
     if accuracy is not None and math.isfinite(accuracy):
-        observations.append(cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, accuracy, dimensions))
+        observations.append(cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, accuracy, {}))
     if results is None or results.completed <= 0:
         return observations
 
-    dimensions = {**dimensions, "max_concurrency": results.max_concurrency}
     for metric, value in (
         (cloudai.metrics.REQUEST_THROUGHPUT, getattr(results, "request_throughput", None)),
         (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, getattr(results, "output_throughput", None)),
     ):
         if value is not None and math.isfinite(value):
-            observations.append(cloudai.metrics.MetricObservation(metric, value, dimensions))
+            observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
     for metric in (cloudai.metrics.TTFT, cloudai.metrics.TPOT):
         for statistic in ("mean", "median", "p99"):
             value = getattr(results, f"{statistic}_{metric.key}_ms")
             if math.isfinite(value):
-                observations.append(
-                    cloudai.metrics.MetricObservation(metric, value, {**dimensions, "statistic": statistic})
-                )
+                observations.append(cloudai.metrics.MetricObservation(metric, value, {"statistic": statistic}))
     return observations
 
 

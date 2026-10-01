@@ -105,8 +105,6 @@ BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Lite
 BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=True, min_length=1)])
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
-MODEL = DimensionDefinition("model", "Model", Annotated[str, Field(strict=True, min_length=1)])
-MAX_CONCURRENCY = DimensionDefinition("max_concurrency", "Max concurrency", Annotated[int, Field(strict=True, ge=0)])
 STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99"])
 
 BANDWIDTH = MetricDefinition(
@@ -163,8 +161,6 @@ MetricCatalog.register_dimensions(
     BACKEND,
     SOURCE_MEMORY,
     TARGET_MEMORY,
-    MODEL,
-    MAX_CONCURRENCY,
     STATISTIC,
 )
 

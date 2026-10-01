@@ -137,7 +137,7 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
             if self.semantic_eval_cmd_args is not None
             else None
         )
-        return llm_serving_metric_observations(results, "sglang", self.cmd_args.model, accuracy)
+        return llm_serving_metric_observations(results, accuracy)
 
 
 class SGLangBenchReport(LLMServingBenchReport):
