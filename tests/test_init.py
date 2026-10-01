@@ -17,7 +17,14 @@
 
 from cloudai.core import Registry
 from cloudai.report_generator.training import TrainingReporter
-from cloudai.reporter import DSEReporter, JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
+from cloudai.reporter import (
+    DSEReporter,
+    JUnitReporter,
+    PerTestReporter,
+    ResultsUploadReporter,
+    StatusReporter,
+    TarballReporter,
+)
 from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
 from cloudai.systems.runai import RunAISystem
@@ -287,6 +294,7 @@ def test_scenario_reports():
         "junit",
         "dse",
         "tarball",
+        "results_upload",
         "nixl_bench_summary",
         "nixl_ep_comparison",
         "nccl_comparison",
@@ -303,6 +311,7 @@ def test_scenario_reports():
         JUnitReporter,
         DSEReporter,
         TarballReporter,
+        ResultsUploadReporter,
         NIXLBenchComparisonReport,
         NixlEPComparisonReport,
         NcclComparisonReport,
@@ -323,6 +332,7 @@ def test_report_configs():
         "junit",
         "dse",
         "tarball",
+        "results_upload",
         "nixl_bench_summary",
         "nixl_ep_comparison",
         "nccl_comparison",
@@ -331,7 +341,7 @@ def test_report_configs():
         "vllm_comparison",
         "sglang_comparison",
     ]
-    disabled_configs = {"junit"}
+    disabled_configs = {"junit", "results_upload"}  # uploading off-box must be opt-in
     for name, rep_config in configs.items():
         expected_be_enabled = name not in disabled_configs
         assert rep_config.enable is expected_be_enabled, f"Report {name} has an unexpected default state"

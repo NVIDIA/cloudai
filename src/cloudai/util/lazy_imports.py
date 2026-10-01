@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     import bokeh.palettes as bokeh_pallettes
     import bokeh.plotting as bokeh_plotting
     import bokeh.transform as bokeh_transform
+    import boto3
     import gymnasium
     import kubernetes as k8s
     import numpy as np
@@ -48,6 +49,20 @@ class LazyImports:
         self._bokeh_transform: ModuleType | None = None
         self._bokeh_pallettes: ModuleType | None = None
         self._bokeh_embed: ModuleType | None = None
+        self._boto3: ModuleType | None = None
+
+    @property
+    def boto3(self) -> boto3:  # type: ignore[no-any-return]
+        """Lazy import of boto3 (optional ``cloudai[s3]`` extra)."""
+        if self._boto3 is None:
+            try:
+                import boto3
+            except ImportError as exc:
+                raise ImportError(
+                    "boto3 is required for S3 object storage. Install it with: pip install 'cloudai[s3]'"
+                ) from exc
+            self._boto3 = boto3
+        return cast("boto3", self._boto3)
 
     @property
     def np(self) -> np:  # type: ignore[no-any-return]

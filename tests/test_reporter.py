@@ -21,6 +21,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import toml
@@ -30,7 +31,16 @@ from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.reporter import DSEReporter, JUnitReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
+from cloudai.reporter import (
+    DSEReporter,
+    JUnitReporter,
+    PerTestReporter,
+    ReportItem,
+    ResultsUploadConfig,
+    ResultsUploadReporter,
+    StatusReporter,
+    TarballReporter,
+)
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -44,6 +54,7 @@ from cloudai.systems.slurm.slurm_metadata import (
 )
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
+from cloudai.util.object_store import UploadStats
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -440,9 +451,10 @@ def test_scenario_report_escapes_error_message(
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
-    assert reports[-3][0] == "status"
-    assert reports[-2][0] == "dse"
-    assert reports[-1][0] == "tarball"
+    assert reports[-4][0] == "status"
+    assert reports[-3][0] == "dse"
+    assert reports[-2][0] == "tarball"
+    assert reports[-1][0] == "results_upload"
 
 
 def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
@@ -680,3 +692,130 @@ def test_dse_reporter(
 
     assert (slurm_system.output_path / "single-dse-scenario-dse-report.html").exists()
     assert (slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml").exists()
+
+
+class TestResultsUploadReporter:
+    """Tests for uploading a results directory to object storage."""
+
+    @pytest.fixture
+    def results_dir(self, tmp_path: Path) -> Path:
+        results_dir = tmp_path / "nccl-test_2025-04-16_14-27-45"
+        (results_dir / "nccl" / "0").mkdir(parents=True)
+        (results_dir / "nccl" / "0" / "stdout.txt").write_text("out")
+        (results_dir / "report.html").write_text("<html></html>")
+        return results_dir
+
+    def reporter(self, slurm_system: SlurmSystem, results_dir: Path, **kwargs: Any) -> ResultsUploadReporter:
+        return ResultsUploadReporter(
+            slurm_system,
+            TestScenario(name="dummy", test_runs=[]),
+            results_dir,
+            ResultsUploadConfig(enable=True, **kwargs),
+        )
+
+    def test_uploads_tree(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats(files_uploaded=2, bytes_uploaded=16)
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", prefix="cloudai").generate()
+
+            mock_store_cls.assert_called_once_with(bucket="my-bucket", endpoint_url=None, region=None)
+            store.upload_directory.assert_called_once_with(
+                results_dir, "cloudai/test_system/nccl-test_2025-04-16_14-27-45", max_workers=8
+            )
+
+    def test_upload_concurrency_is_configurable(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_concurrency=16).generate()
+
+            _, kwargs = store.upload_directory.call_args
+            assert kwargs["max_workers"] == 16
+
+    def test_no_bucket_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            self.reporter(slurm_system, results_dir).generate()
+
+            mock_store_cls.assert_not_called()
+
+    def test_missing_results_dir_uploads_nothing(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            self.reporter(slurm_system, tmp_path / "nope", bucket="my-bucket").generate()
+
+            mock_store_cls.assert_not_called()
+
+    def test_bucket_not_accessible_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.bucket_exists.return_value = False
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket").generate()
+
+            store.upload_directory.assert_not_called()
+
+    def test_upload_tree_disabled(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_tree=False).generate()
+
+            store.upload_directory.assert_not_called()
+
+    def test_tarball_created_when_absent(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        tarball_path = Path(str(results_dir) + ".tgz")
+        assert not tarball_path.exists()
+
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_tarball=True).generate()
+
+            assert tarball_path.exists(), "TarballReporter only tarballs on failure, so it must be created here"
+            store.upload_file.assert_called_once_with(
+                tarball_path, "test_system/nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
+            )
+
+    def test_existing_tarball_is_reused(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        tarball_path = Path(str(results_dir) + ".tgz")
+        tarball_path.write_bytes(b"pre-existing")
+
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            mock_store_cls.return_value.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_tarball=True).generate()
+
+            assert tarball_path.read_bytes() == b"pre-existing"
+
+    def test_env_var_fallback(self, slurm_system: SlurmSystem, results_dir: Path, monkeypatch) -> None:
+        monkeypatch.setenv("CLOUDAI_S3_BUCKET", "env-bucket")
+        monkeypatch.setenv("CLOUDAI_S3_PREFIX", "env-prefix")
+        monkeypatch.setenv("CLOUDAI_S3_ENDPOINT_URL", "http://localhost:9000")
+
+        config = ResultsUploadConfig(enable=True)
+
+        assert config.bucket == "env-bucket"
+        assert config.prefix == "env-prefix"
+        assert config.endpoint_url == "http://localhost:9000"
+
+    def test_toml_overrides_env_var(self, monkeypatch) -> None:
+        monkeypatch.setenv("CLOUDAI_S3_BUCKET", "env-bucket")
+
+        assert ResultsUploadConfig(enable=True, bucket="toml-bucket").bucket == "toml-bucket"
+
+    def test_upload_failure_does_not_raise(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        with patch("cloudai.reporter.S3ObjectStore") as mock_store_cls:
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats(failures=[(results_dir / "report.html", "denied")])
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket").generate()
+
+
+def test_results_upload_runs_after_tarball() -> None:
+    order = [name for name, _ in Registry().ordered_scenario_reports()]
+
+    assert order.index("results_upload") > order.index("tarball")
+    assert order[-1] == "results_upload"
