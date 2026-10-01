@@ -34,9 +34,10 @@ Resulting jobs, in `CloudAI/PR`: the launcher `cloudai-pr` and one leaf job
 vulnerability scan, then triggers the launcher via the `CI_SERVER` secret
 (`<jenkins-url>@cloudai-pr`). The launcher resolves the PR merged into its base
 branch to one commit and starts every leaf job on it in parallel. Each leaf
-reports its own `cloudai-pr-<leaf>` commit status on the PR. The launcher
-reports the overall result on `blossom-ci`, the status the workflow leaves
-pending, which fails if any leaf fails.
+reports its own `cloudai-pr-<leaf>` commit status on the PR, which is where a
+failure shows. The launcher closes `blossom-ci`, the status the workflow leaves
+pending, and fails it only if dispatching breaks. A failed leaf can be re-run
+on its own in Jenkins (same parameters); its status then updates the PR.
 
 ### Stages
 

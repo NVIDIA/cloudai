@@ -49,14 +49,21 @@ try {
         }
     }
 
-    // A failing leaf does not stop its siblings; parallel rethrows once all
-    // of them finish, so this job fails if any leaf failed.
+    // Each leaf reports its own status, so a failed leaf only paints its
+    // branch red: blossom-ci fails only if dispatching breaks, and re-running
+    // just that leaf clears the PR. propagate: false keeps a missing leaf
+    // job fatal, unlike catching every error.
     parallel(leafJobs.collectEntries { branch, job ->
         [(branch): {
-            build job: job, parameters: [
+            def run = build job: job, propagate: false, parameters: [
                 string(name: 'sha1', value: sha1),
                 string(name: 'githubData', value: params.githubData),
             ]
+            if (run.result != 'SUCCESS') {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    error "${job} #${run.number} finished ${run.result}"
+                }
+            }
         }]
     })
 } catch (Exception ex) {
