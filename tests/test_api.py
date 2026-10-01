@@ -111,9 +111,26 @@ def test_run_experiment(
     scenario_config: pathlib.Path,
 ) -> None:
     signal_handler = signal.getsignal(signal.SIGINT)
+    started_experiments: list[cloudai.models.output.Experiment] = []
+    started_outputs: list[cloudai.models.output.Experiment] = []
 
-    experiment = cloudai.api.run_experiment(scenario_config, system_config, mode=mode)
+    def on_start(started: cloudai.models.output.Experiment) -> None:
+        started_experiments.append(started)
+        started_outputs.append(cloudai.api.get_experiment(started.id, system_config))
 
+    experiment = cloudai.api.run_experiment(
+        scenario_config,
+        system_config,
+        mode=mode,
+        on_start=on_start,
+    )
+
+    assert len(started_experiments) == 1
+    assert started_experiments[0].status == "running"
+    assert started_experiments[0].id == experiment.id
+    assert started_outputs[0].status == "running"
+    assert started_outputs[0].id == experiment.id
+    assert started_outputs[0].tests[0].runs == []
     assert experiment.status == "completed"
     assert len(experiment.tests[0].runs) == expected_runs
     assert experiment.id == pathlib.Path(experiment.path).name
