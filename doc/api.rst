@@ -29,6 +29,6 @@ from the system's configured output directory. Directories without
 experiment file contents are not parsed.
 
 ``get_experiment(experiment_id, system)`` loads an ``Experiment`` from that
-system's output directory. Pass a ``Path`` to a result directory or its
-``experiment.json`` file to load it directly. A missing file raises
-``FileNotFoundError``.
+system's output directory. Pass a ``Path`` to a result directory to load it
+directly. Invalid IDs and missing, unreadable, or malformed experiment files
+raise ``ValueError``.

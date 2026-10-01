@@ -16,9 +16,11 @@
 
 import pathlib
 
+import pydantic
+
+import cloudai.core
 import cloudai.handlers
 import cloudai.models.output
-from cloudai.core import Parser
 
 
 def run_experiment(
@@ -47,7 +49,7 @@ def run_experiment(
 
 def list_experiments(system: pathlib.Path) -> list[tuple[str, pathlib.Path]]:
     """List saved experiment IDs and result directories for a system."""
-    output_dir = Parser.parse_system(system.expanduser().resolve()).output_path.expanduser().resolve()
+    output_dir = cloudai.core.Parser.parse_system(system.expanduser().resolve()).output_path.expanduser().resolve()
     if not output_dir.exists():
         return []
     if not output_dir.is_dir():
@@ -61,15 +63,24 @@ def list_experiments(system: pathlib.Path) -> list[tuple[str, pathlib.Path]]:
 
 
 def get_experiment(exp_id: str | pathlib.Path, system: str | pathlib.Path) -> cloudai.models.output.Experiment:
-    """Load an experiment by ID or by its result directory or JSON path."""
-    if isinstance(exp_id, pathlib.Path):
-        path = exp_id.expanduser()
-        if path.suffix != ".json":
-            path /= "experiment.json"
-    else:
-        if exp_id in ("", ".", "..") or pathlib.Path(exp_id).name != exp_id:
-            raise ValueError(f"Invalid experiment ID: {exp_id!r}")
-        output_dir = Parser.parse_system(pathlib.Path(system).expanduser().resolve()).output_path.expanduser().resolve()
-        path = output_dir / exp_id / "experiment.json"
+    """Load an experiment by ID or result directory."""
+    parsed_system = cloudai.core.Parser.parse_system(pathlib.Path(system).expanduser().resolve())
+    system_output = parsed_system.output_path.expanduser().resolve()
 
-    return cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
+    experiment_path = system_output / exp_id if isinstance(exp_id, str) else exp_id
+    experiment_path = experiment_path.expanduser().resolve()
+    experiment_file = experiment_path / "experiment.json"
+    if experiment_path.parent != system_output or not experiment_path.is_dir() or not experiment_file.is_file():
+        raise ValueError(f"Invalid experiment ID: {experiment_path!r}")
+
+    try:
+        experiment_data = experiment_file.read_text(encoding="utf-8")
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Invalid experiment ID: {experiment_path!r}") from error
+
+    try:
+        exp = cloudai.models.output.Experiment.model_validate_json(experiment_data)
+    except pydantic.ValidationError as error:
+        raise ValueError(f"Cannot read experiment: {experiment_path!r}") from error
+
+    return exp

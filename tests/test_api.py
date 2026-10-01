@@ -90,11 +90,14 @@ def test_run_and_list_experiments(
     ]
     assert cloudai.api.get_experiment(experiment.id, str(system)) == experiment
     assert cloudai.api.get_experiment(pathlib.Path(experiment.path), system) == experiment
-    assert cloudai.api.get_experiment(pathlib.Path(experiment.path) / "experiment.json", system) == experiment
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError, match="Invalid experiment ID"):
+        cloudai.api.get_experiment(pathlib.Path(experiment.path) / "experiment.json", system)
+    with pytest.raises(ValueError, match="Invalid experiment ID"):
         cloudai.api.get_experiment("missing", system)
     with pytest.raises(ValueError, match="Invalid experiment ID"):
         cloudai.api.get_experiment("../other", system)
+    with pytest.raises(ValueError, match="Cannot read experiment"):
+        cloudai.api.get_experiment(unparsed_path, system)
     assert signal.getsignal(signal.SIGINT) == signal_handler
 
     scenario.write_text('name = "invalid"\n')
