@@ -11,7 +11,7 @@ general:
     # Jenkins pipeline definitions carry no license header by convention.
     # The checker fails on any file it has no rule for, so this must be an
     # explicit exclusion rather than simply absent from the include list.
-    - "Jenkinsfile$"
+    - "Jenkinsfile(\\..+)?$"
 
 apache-2.0:
   validate-spdx-license: true

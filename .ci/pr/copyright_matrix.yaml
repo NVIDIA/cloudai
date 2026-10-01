@@ -1,0 +1,50 @@
+# CloudAI PR pipeline - copyright header check (ci-demo), run by the cloudai-pr-copyright job.
+#
+# pipeline-scm has already checked the pull request out into ${WORKSPACE};
+# the merge commit arrives as sha1.
+#
+# Named by the conf_file build parameter in .ci/proj_jjb.yaml.
+---
+job: cloudai-pr-copyright
+
+failFast: false
+timeout_minutes: 60
+
+kubernetes:
+  cloud: il-ipp-blossom-prod
+  namespace: hpcx
+  nodeSelector: 'kubernetes.io/arch=amd64'
+  # Container resources are set per image (requests/limits on each
+  # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
+
+runs_on_dockers:
+  # Same toolbox images and tags the release pipeline pins, with its
+  # requests/limits carried over unchanged.
+  - url: 'harbor.mellanox.com/toolbox/header_check:0.0.65'
+    name: 'header_check'
+    tag: '0.0.65'
+    arch: 'x86_64'
+    requests: '{memory: 128Mi, cpu: 100m}'
+    limits: '{memory: 512Mi, cpu: 1000m}'
+
+steps:
+  - name: Check copyrights
+    containerSelector: '{name:"header_check"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      # --since limits the check to files touched in the current calendar
+      # year. Without it (e.g. --path on the repo root) the tool walks every
+      # file and demands the current year in its copyright line, which forces
+      # a 150+ file rebump every January even for files nobody touched. The
+      # policy we owe is "files modified this year must declare this year" -
+      # which is exactly what --since enforces. Files untouched this year
+      # keep whatever years their header already lists.
+      /opt/nvidia/header_check.py \
+        --config ${WORKSPACE}/.ci/header-check.yml \
+        --since "$(date +%Y)-01-01" \
+        --git-repo ${WORKSPACE} \
+        2>&1 | tee ${WORKSPACE}/header_check.log
+
+    archiveArtifacts: 'header_check.log'

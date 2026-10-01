@@ -1,0 +1,62 @@
+# CloudAI PR pipeline - Coverity scan (ci-demo), run by the cloudai-pr-coverity job.
+#
+# pipeline-scm has already checked the pull request out into ${WORKSPACE};
+# the merge commit arrives as sha1.
+#
+# Named by the conf_file build parameter in .ci/proj_jjb.yaml.
+---
+job: cloudai-pr-coverity
+
+failFast: false
+timeout_minutes: 60
+
+kubernetes:
+  cloud: il-ipp-blossom-prod
+  namespace: hpcx
+  nodeSelector: 'kubernetes.io/arch=amd64'
+  # Container resources are set per image (requests/limits on each
+  # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
+
+runs_on_dockers:
+  # Same toolbox images and tags the release pipeline pins, with its
+  # requests/limits carried over unchanged.
+  - url: 'harbor.mellanox.com/hpcx/x86_64/coverity_2023:until_2028'
+    name: 'coverity_scan'
+    tag: 'base'
+    arch: 'x86_64'
+    requests: '{memory: 1Gi, cpu: 1000m}'
+    limits: '{memory: 4Gi, cpu: 4000m}'
+
+steps:
+  - name: Coverity scan
+    containerSelector: '{name:"coverity_scan"}'
+    run: |
+      set -eEx
+      set -o pipefail
+
+      # The release job emits to ${WORKSPACE}/coverity-scan because there the
+      # sources sit in a ${WORKSPACE}/CLOUDAI subdirectory. Here the sources
+      # ARE ${WORKSPACE}, so the emit directory is kept outside the scanned
+      # tree to stop cov-capture walking its own output.
+      cov_dir=/tmp/coverity-scan
+
+      cov-capture --project-dir ${WORKSPACE} --dir ${cov_dir}
+      cov-analyze --dir ${cov_dir} --all-security --aggressiveness-level high \
+        2>&1 | tee ${WORKSPACE}/coverity-analyze.log
+      cov-format-errors --dir ${cov_dir} --text-output-style oneline \
+        2>&1 | tee ${WORKSPACE}/coverity.log
+
+      # Fail on any finding; the codebase reports zero, so anything here was
+      # introduced by the change under test. Resolve false positives in the
+      # code, not by loosening this - coverity[] annotations are not honoured
+      # for Python here.
+      # `|| true` keeps grep's no-match from tripping `set -e`; an absent
+      # summary means the log was unreadable, which must not read as zero.
+      summary=$(grep -oE 'Defect occurrences found[[:space:]]*:[[:space:]]*[0-9]+' \
+        ${WORKSPACE}/coverity-analyze.log || true)
+      [ -n "${summary}" ] || { echo "Coverity summary not found"; exit 1; }
+
+      defects=$(printf '%s\n' "${summary}" | grep -oE '[0-9]+' | tail -1)
+      [ "${defects}" -eq 0 ] || { echo "Coverity reported ${defects} defect(s)"; exit 1; }
+
+    archiveArtifacts: 'coverity.log,coverity-analyze.log'
