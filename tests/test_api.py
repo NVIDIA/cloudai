@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections.abc
 import datetime
 import pathlib
 import signal
@@ -102,10 +103,19 @@ def saved_experiment(
     return experiment, experiment_path
 
 
-@pytest.mark.parametrize(("mode", "expected_runs"), [("run", 1), ("dry-run", 0)])
+@pytest.mark.parametrize(
+    ("mode", "cancel_on_start", "expected_status", "expected_runs"),
+    [
+        ("run", False, "completed", 1),
+        ("dry-run", False, "completed", 0),
+        ("run", True, "cancelled", 0),
+    ],
+)
 @pytest.mark.usefixtures("mock_standalone_execution")
 def test_run_experiment(
     mode: str,
+    cancel_on_start: bool,
+    expected_status: str,
     expected_runs: int,
     system_config: pathlib.Path,
     scenario_config: pathlib.Path,
@@ -114,9 +124,14 @@ def test_run_experiment(
     started_experiments: list[cloudai.models.output.Experiment] = []
     started_outputs: list[cloudai.models.output.Experiment] = []
 
-    def on_start(started: cloudai.models.output.Experiment) -> None:
+    def on_start(
+        started: cloudai.models.output.Experiment,
+        cancel: collections.abc.Callable[[], None],
+    ) -> None:
         started_experiments.append(started)
         started_outputs.append(cloudai.api.get_experiment(started.id, system_config))
+        if cancel_on_start:
+            cancel()
 
     experiment = cloudai.api.run_experiment(
         scenario_config,
@@ -131,7 +146,7 @@ def test_run_experiment(
     assert started_outputs[0].status == "running"
     assert started_outputs[0].id == experiment.id
     assert started_outputs[0].tests[0].runs == []
-    assert experiment.status == "completed"
+    assert experiment.status == expected_status
     assert len(experiment.tests[0].runs) == expected_runs
     assert experiment.id == pathlib.Path(experiment.path).name
     assert signal.getsignal(signal.SIGINT) == signal_handler

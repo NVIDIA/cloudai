@@ -293,7 +293,9 @@ def execute_experiment(
     tests: list[TestDefinition],
     *,
     enable_cache_without_check: bool = False,
-    on_start: collections.abc.Callable[[cloudai.models.output.Experiment], None] | None = None,
+    on_start: (
+        collections.abc.Callable[[cloudai.models.output.Experiment, collections.abc.Callable[[], None]], None] | None
+    ) = None,
 ) -> bool:
     """Install prerequisites, execute the scenario, and finalize its output."""
     system = runner.runner.system
@@ -303,7 +305,7 @@ def execute_experiment(
     try:
         runner.runner.experiment_output.write()
         if on_start is not None:
-            on_start(runner.runner.experiment_output.snapshot())
+            on_start(runner.runner.experiment_output.snapshot(), runner.runner.shutdown)
         logging.info(f"System Name: {system.name}")
         logging.info(f"Scheduler: {system.scheduler}")
         logging.info(f"Test Scenario Name: {scenario.name}")
