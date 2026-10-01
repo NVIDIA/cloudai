@@ -16,7 +16,7 @@
 
 import datetime
 import logging
-from pathlib import Path
+import warnings
 from types import FrameType
 from typing import Optional
 
@@ -52,15 +52,18 @@ class Runner:
         test_scenario: TestScenario,
         *,
         runner_class: type[BaseRunner] | None = None,
-        output_path: Path | None = None,
     ):
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
-        if runner_class is None and output_path is None:
+        if runner_class is None:
+            warnings.warn(
+                "Runner.create_runner() compatibility with its former three-argument signature is deprecated and "
+                "will be removed in CloudAI 1.9.1.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             self.runner = self.create_runner(mode, system, test_scenario)
         else:
-            self.runner = self.create_runner(
-                mode, system, test_scenario, runner_class=runner_class, output_path=output_path
-            )
+            self.runner = self.create_runner(mode, system, test_scenario, runner_class=runner_class)
 
     def create_runner(
         self,
@@ -69,7 +72,6 @@ class Runner:
         test_scenario: TestScenario,
         *,
         runner_class: type[BaseRunner] | None = None,
-        output_path: Path | None = None,
     ) -> BaseRunner:
         """
         Dynamically create a runner instance based on the system's scheduler type.
@@ -79,7 +81,6 @@ class Runner:
             system (System): The system configuration.
             test_scenario (TestScenario): The test scenario to run.
             runner_class (type[BaseRunner] | None): Override for this invocation.
-            output_path (Path | None): Exact scenario result directory, if allocated.
 
         Returns:
             BaseRunner: A runner instance suitable for the system.
@@ -99,7 +100,7 @@ class Runner:
         if not system.output_path.exists():
             system.output_path.mkdir()
         current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        results_root = output_path or system.output_path / f"{test_scenario.name}_{current_time}"
+        results_root = system.output_path / f"{test_scenario.name}_{current_time}"
 
         return runner_class(mode, system, test_scenario, results_root)
 

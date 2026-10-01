@@ -34,7 +34,8 @@ def _deprecated(
     @functools.wraps(function)
     def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         warnings.warn(
-            f"cloudai.cli.handlers.{function.__name__} is deprecated; do not call CLI handlers directly.",
+            f"cloudai.cli.handlers.{function.__name__} is deprecated; do not call CLI handlers directly. "
+            "This compatibility shim will be removed in CloudAI 1.9.1.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -65,7 +66,8 @@ prepare_output_dir = _deprecated(cloudai.handlers.prepare_output_dir)
 def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int:
     """Retain the former CLI call shape while using the runner's mode."""
     warnings.warn(
-        "cloudai.cli.handlers.handle_dse_job is deprecated; do not call CLI handlers directly.",
+        "cloudai.cli.handlers.handle_dse_job is deprecated; do not call CLI handlers directly. "
+        "This compatibility shim will be removed in CloudAI 1.9.1.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -75,7 +77,8 @@ def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int
 def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> bool:
     """Retain the former CLI call shape without passing unused arguments onward."""
     warnings.warn(
-        "cloudai.cli.handlers.handle_non_dse_job is deprecated; do not call CLI handlers directly.",
+        "cloudai.cli.handlers.handle_non_dse_job is deprecated; do not call CLI handlers directly. "
+        "This compatibility shim will be removed in CloudAI 1.9.1.",
         DeprecationWarning,
         stacklevel=2,
     )

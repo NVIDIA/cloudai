@@ -40,7 +40,7 @@ def run_experiment(
         tests_dir=tests_dir,
         hook_dir=hook_dir,
     )
-    runner = cloudai.handlers.create_experiment_runner(parsed_system, parsed_scenario, unique_result_dir=True)
+    runner = cloudai.handlers.create_experiment_runner(parsed_system, parsed_scenario)
     cloudai.handlers.execute_experiment(runner, tests)
     return runner.runner.experiment_output.snapshot()
 
@@ -53,11 +53,11 @@ def list_experiments(system: pathlib.Path) -> list[tuple[str, pathlib.Path]]:
     if not output_dir.is_dir():
         raise NotADirectoryError(output_dir)
 
-    experiments = []
-    for path in sorted(output_dir.glob("*/experiment.json")):
-        experiment = cloudai.models.output.Experiment.model_validate_json(path.read_text(encoding="utf-8"))
-        experiments.append((experiment.id, path.parent))
-    return experiments
+    return [
+        (experiment_file.parent.name, experiment_file.parent)
+        for experiment_file in sorted(output_dir.glob("*/experiment.json"))
+        if experiment_file.is_file()
+    ]
 
 
 def get_experiment(exp_id: str | pathlib.Path, system: str | pathlib.Path) -> cloudai.models.output.Experiment:

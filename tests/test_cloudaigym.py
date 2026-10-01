@@ -28,7 +28,7 @@ from cloudai.configurator import (
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
 from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
     Data,
@@ -97,7 +97,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
         slurm_system.output_path / test_scenario.name / test_run.name / f"{test_run.current_iteration}"
     )
 
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
     return test_run, runner.runner
 
