@@ -278,5 +278,7 @@ It is possible to override some args or even fully define a workload inside a sc
 ``allreduce.in.scenario`` fully defines a workload; in this case ``test_name`` must not be set, while ``name``, ``description`` and ``test_template_name`` must be set.
 
 ``allreduce.override`` overrides only ``stepfactor`` arg from the test defined in the tests directory.
+Scenario entries can also override workload-specific fields, such as ``semantic_eval_cmd_args`` in an SGLang test.
+The selected workload validates these fields after they are merged with the referenced test.
 
 If a scenario contains only fully defined tests, ``--tests-dir`` arg is not required.
