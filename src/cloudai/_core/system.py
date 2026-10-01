@@ -44,6 +44,11 @@ class System(ABC, BaseModel):
     monitor_interval: int = 1
     sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
 
+    @field_validator("install_path")
+    @classmethod
+    def _absolute_install_path(cls, value: Path) -> Path:
+        return value.absolute()
+
     @field_validator("sol", mode="before")
     @classmethod
     def _parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
