@@ -23,7 +23,8 @@ from pathlib import Path
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from cloudai.core import JobStatusResult, TestRun
+import cloudai.metrics
+from cloudai.core import JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
     CustomBash,
@@ -31,6 +32,7 @@ from cloudai.workloads.common.llm_serving import (
     LLMServingBenchReport,
     LLMServingCmdArgs,
     LLMServingTestDefinition,
+    llm_serving_metric_observations,
     validate_custom_bash_patterns,
 )
 
@@ -127,11 +129,22 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
             error_message=f"SGLang bench jsonl does not contain successful requests in {tr.output_path}.",
         )
 
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        del system
+        results = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
+        accuracy = (
+            parse_sglang_semantic_accuracy(tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
+            if self.semantic_eval_cmd_args is not None
+            else None
+        )
+        return llm_serving_metric_observations(results, accuracy)
+
 
 class SGLangBenchReport(LLMServingBenchReport):
     """Parsed benchmark data from SGLang bench_serving output."""
 
     request_throughput: float
+    output_throughput: float | None = None
 
     @property
     def throughput(self) -> float:

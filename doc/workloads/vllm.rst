@@ -123,6 +123,8 @@ The reported metric (``default``) is throughput. Additional supported metrics ar
 CloudAI also provides the scenario-level ``vllm_comparison`` report. It compares vLLM test runs in the scenario and
 uses ``bench_cmd_args`` values as comparison labels.
 
+.. include:: _llm_serving_metrics.inc
+
 
 Controlling the Number of GPUs
 -------------------------------

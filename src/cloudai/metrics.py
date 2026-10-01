@@ -105,6 +105,7 @@ BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Lite
 BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=True, min_length=1)])
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
+STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99"])
 
 BANDWIDTH = MetricDefinition(
     key="bandwidth",
@@ -119,8 +120,38 @@ LATENCY = MetricDefinition(
     direction=OptimizationDirection.MINIMIZE,
 )
 
-MetricCatalog._metrics = {metric.key: metric for metric in (BANDWIDTH, LATENCY)}
-MetricCatalog.register_metrics(BANDWIDTH, LATENCY)
+REQUEST_THROUGHPUT = MetricDefinition(
+    key="request_throughput",
+    display_name="Request throughput",
+    unit="requests/s",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+OUTPUT_TOKEN_THROUGHPUT = MetricDefinition(
+    key="output_token_throughput",
+    display_name="Output token throughput",
+    unit="tokens/s",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+TTFT = MetricDefinition(
+    key="ttft",
+    display_name="Time to first token",
+    unit="ms",
+    direction=OptimizationDirection.MINIMIZE,
+)
+TPOT = MetricDefinition(
+    key="tpot",
+    display_name="Time per output token",
+    unit="ms",
+    direction=OptimizationDirection.MINIMIZE,
+)
+ACCURACY = MetricDefinition(
+    key="accuracy",
+    display_name="Accuracy",
+    unit="ratio",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+
+MetricCatalog.register_metrics(BANDWIDTH, LATENCY, REQUEST_THROUGHPUT, OUTPUT_TOKEN_THROUGHPUT, TTFT, TPOT, ACCURACY)
 MetricCatalog.register_dimensions(
     SIZE_BYTES,
     BATCH_SIZE,
@@ -130,6 +161,7 @@ MetricCatalog.register_dimensions(
     BACKEND,
     SOURCE_MEMORY,
     TARGET_MEMORY,
+    STATISTIC,
 )
 
 
