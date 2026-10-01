@@ -65,9 +65,8 @@ Test-in-Scenario example
    docker_image_url = "lmsysorg/sglang:dev-cu13"
    model = "Qwen/Qwen3-8B"
 
-Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, are not
-supported under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
-``test_name`` when custom benchmark or semantic-evaluation arguments are needed.
+Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, can be set or
+overridden under ``[[Tests]]`` in a test scenario; see :ref:`test-in-scenario`.
 
 
 Local Models
