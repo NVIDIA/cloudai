@@ -32,7 +32,9 @@ def run_experiment(
     single_sbatch: bool = False,
     tests_dir: pathlib.Path | None = None,
     hook_dir: pathlib.Path | None = None,
-    on_start: collections.abc.Callable[[cloudai.models.output.Experiment], None] | None = None,
+    on_start: (
+        collections.abc.Callable[[cloudai.models.output.Experiment, collections.abc.Callable[[], None]], None] | None
+    ) = None,
 ) -> cloudai.models.output.Experiment:
     """
     Run a scenario synchronously and return its experiment snapshot.
