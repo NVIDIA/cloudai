@@ -63,12 +63,30 @@ class TestRunDependencyModel(BaseModel):
     id: str
 
 
+SCENARIO_TEST_RUN_FIELDS: set[str] = {
+    "id",
+    "test_name",
+    "path",
+    "num_nodes",
+    "nodes",
+    "pin_nodes",
+    "exclude_nodes",
+    "weight",
+    "iterations",
+    "sol",
+    "ideal_perf",
+    "time_limit",
+    "dependencies",
+    "extra_srun_args",
+}
+
+
 class TestRunModel(BaseModel):
     """Model for test run in test scenario."""
 
     __test__ = False
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     id: str = Field(min_length=1)
     test_name: Optional[str] = None
@@ -128,23 +146,12 @@ class TestRunModel(BaseModel):
         return self
 
     def tdef_model_dump(self, by_alias: bool) -> dict:
-        """Return a dictionary with non-None values that correspond to the test definition fields."""
-        data = {
-            "name": self.name,
-            "description": self.description,
-            "test_template_name": self.test_template_name,
-            "agent": self.agent,
-            "agent_steps": self.agent_steps,
-            "agent_metrics": self.agent_metrics if "agent_metrics" in self.model_fields_set else None,
-            "agent_reward_function": self.agent_reward_function,
-            "agent_config": self.agent_config,
-            "dse_excluded_args": self.dse_excluded_args,
-            "extra_container_mounts": self.extra_container_mounts,
-            "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
-            "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
-            "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
-            "nsys": self.nsys.model_dump(exclude_unset=True) if self.nsys else None,
-        }
+        """Return explicitly set workload fields, including workload-specific fields."""
+        data = self.model_dump(by_alias=by_alias, exclude=SCENARIO_TEST_RUN_FIELDS, exclude_unset=True)
+        # Empty values for these fields did not replace values in referenced tests.
+        for field in ("extra_env_vars", "git_repos"):
+            if not data.get(field):
+                data.pop(field, None)
         return {k: v for k, v in data.items() if v is not None}
 
     @model_validator(mode="after")

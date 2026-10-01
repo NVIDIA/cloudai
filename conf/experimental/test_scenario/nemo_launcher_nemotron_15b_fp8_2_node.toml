@@ -18,5 +18,13 @@ name = "nemo_launcher_nemotron_15b_fp8_2_node"
 
 [[Tests]]
 id = "nemo_launcher_nemotron_15b_fp8_2_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_2_node"
+path = "../test/nemo_launcher_nemotron_15b_bf16_2_node.toml"
+name = "nemo_launcher_nemotron_15b_fp8_2_node"
+description = "nemo_launcher_nemotron_15b_fp8_2_node"
 num_nodes = "2"
+
+  [Tests.cmd_args.training.model]
+  fp8 = "True"
+
+  [Tests.extra_cmd_args]
+  "+training.model.fp8_params" = "True"

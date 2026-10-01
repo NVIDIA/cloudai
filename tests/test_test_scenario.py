@@ -38,6 +38,7 @@ from cloudai.core import (
 )
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_parser import TestParser
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.aiconfig import AiconfiguratorReportGenerationStrategy, AiconfiguratorTestDefinition
@@ -314,6 +315,42 @@ class TestIncrementStep:
 
 
 class TestInScenario:
+    @pytest.mark.parametrize("reference", ["path", "test_name"])
+    def test_workload_specific_override(self, reference: str, slurm_system: SlurmSystem):
+        scenario_path = Path(__file__).resolve().parents[1] / "conf/experimental/sglang/test_scenario/sglang.toml"
+        scenario_data = toml.loads(
+            """
+            name = "sglang-override"
+
+            [[Tests]]
+            id = "semantic-eval"
+            path = "../test/sglang.toml"
+
+              [Tests.semantic_eval_cmd_args]
+              cli = "--host {host} --port {port} --eval-name gsm8k --num-examples 20 --num-threads 128 --model {model}"
+            """
+        )
+        test_path = scenario_path.parent / scenario_data["Tests"][0]["path"]
+        base_test = TestParser([test_path], slurm_system).parse_all()[0]
+
+        if reference == "test_name":
+            scenario_data["Tests"][0].pop("path")
+            scenario_data["Tests"][0]["test_name"] = base_test.name
+
+        parser = TestScenarioParser(scenario_path, slurm_system, {base_test.name: base_test}, {})
+        test = parser._parse_data(scenario_data).test_runs[0].test
+
+        assert isinstance(test, SglangTestDefinition)
+        assert isinstance(base_test, SglangTestDefinition)
+        assert test.semantic_eval_cmd_args is not None
+        assert base_test.semantic_eval_cmd_args is not None
+        assert test.semantic_eval_cmd_args.cli == scenario_data["Tests"][0]["semantic_eval_cmd_args"]["cli"]
+        assert test.semantic_eval_cmd_args.entrypoint == base_test.semantic_eval_cmd_args.entrypoint
+
+        scenario_data["Tests"][0]["unknown_workload_field"] = 1
+        with pytest.raises(TestConfigParsingError):
+            parser._parse_data(scenario_data)
+
     @pytest.mark.parametrize("missing_arg", ["test_template_name", "name", "description"])
     def test_without_base(self, missing_arg: str):
         spec = {
