@@ -24,8 +24,9 @@ its status. Configuration and setup errors raise exceptions. Use
 ``mode="dry-run"`` to generate commands without running workloads. Use
 ``single_sbatch=True`` for a single Slurm allocation. Pass ``hook_dir`` to use a
 custom hook directory. Pass an ``on_start`` callback to receive the initial
-``Experiment`` after ``experiment.json`` is created and before execution begins.
-The function remains synchronous after calling the callback.
+``Experiment`` and a cancellation function after ``experiment.json`` is created
+and before execution begins. The function remains synchronous after calling the
+callback.
 
 ``list_experiments(system)`` returns ``(experiment_id, result_directory)`` pairs
 from the system's configured output directory. Directories without
