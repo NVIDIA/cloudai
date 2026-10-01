@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import collections.abc
 import copy
 import logging
 import traceback
@@ -26,6 +27,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
+import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseInstaller,
@@ -287,7 +289,11 @@ def create_experiment_runner(
 
 
 def execute_experiment(
-    runner: Runner, tests: list[TestDefinition], *, enable_cache_without_check: bool = False
+    runner: Runner,
+    tests: list[TestDefinition],
+    *,
+    enable_cache_without_check: bool = False,
+    on_start: collections.abc.Callable[[cloudai.models.output.Experiment], None] | None = None,
 ) -> bool:
     """Install prerequisites, execute the scenario, and finalize its output."""
     system = runner.runner.system
@@ -296,6 +302,8 @@ def execute_experiment(
     successful = False
     try:
         runner.runner.experiment_output.write()
+        if on_start is not None:
+            on_start(runner.runner.experiment_output.snapshot())
         logging.info(f"System Name: {system.name}")
         logging.info(f"Scheduler: {system.scheduler}")
         logging.info(f"Test Scenario Name: {scenario.name}")
