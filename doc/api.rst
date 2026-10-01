@@ -26,7 +26,7 @@ use a custom hook directory.
 ``list_experiments(system)`` returns ``(experiment_id, result_directory)`` pairs
 from the system's configured output directory. Directories without
 ``experiment.json`` are skipped. A missing output directory gives an empty list;
-an invalid experiment file raises an error.
+experiment file contents are not parsed.
 
 ``get_experiment(experiment_id, system)`` loads an ``Experiment`` from that
 system's output directory. Pass a ``Path`` to a result directory or its

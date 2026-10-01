@@ -17,7 +17,6 @@
 import argparse
 import copy
 import logging
-import tempfile
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
@@ -274,9 +273,7 @@ def create_experiment_runner(
     *,
     mode: str = "run",
     output_dir: Path | None = None,
-    result_dir: Path | None = None,
     single_sbatch: bool = False,
-    unique_result_dir: bool = False,
 ) -> Runner:
     """Prepare the system and create a runner for one experiment."""
     if single_sbatch and not isinstance(system, SlurmSystem):
@@ -288,15 +285,8 @@ def create_experiment_runner(
     if mode == "dry-run":
         system.monitor_interval = 1
     system.update()
-    if unique_result_dir:
-        result_dir = Path(tempfile.mkdtemp(prefix=f"{scenario.name}_", dir=system.output_path)).resolve()
-    return Runner(
-        mode,
-        system,
-        scenario,
-        runner_class=SingleSbatchRunner if single_sbatch else None,
-        output_path=result_dir,
-    )
+    runner_class = SingleSbatchRunner if single_sbatch else Registry().runners_map.get(system.scheduler.lower())
+    return Runner(mode, system, scenario, runner_class=runner_class)
 
 
 def execute_experiment(
