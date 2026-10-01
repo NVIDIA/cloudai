@@ -1,0 +1,36 @@
+# Triggers the CloudAI release scan when a GitHub release is published.
+# published also fires for pre-releases, so release candidates are covered.
+name: Release scan
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  trigger:
+    name: Trigger release scan
+    # Jenkins is not reachable from GitHub-hosted runners.
+    runs-on: blossom
+
+    steps:
+      - name: Trigger release scan
+        env:
+          RELEASE_CI_SERVER: ${{ secrets.RELEASE_CI_SERVER }}
+          PAYLOAD: ${{ toJSON(github.event) }}
+          # Via env, not interpolated: a tag name is attacker-controlled text.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -eu
+
+          # The URL carries the trigger token, so refuse to send it in clear.
+          case "${RELEASE_CI_SERVER}" in
+            https://*) ;;
+            *) echo "RELEASE_CI_SERVER must be an https URL" >&2; exit 1 ;;
+          esac
+
+          curl --fail --silent --show-error --proto '=https' \
+            --connect-timeout 15 --max-time 60 \
+            -X POST "${RELEASE_CI_SERVER}" \
+            -H 'Content-Type: application/json' \
+            --data-raw "${PAYLOAD}"
+          echo "Release scan triggered for ${RELEASE_TAG}"
