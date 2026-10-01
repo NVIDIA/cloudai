@@ -45,22 +45,19 @@ def test_run_and_list_experiments(
         )
     )
     scenario = tmp_path / "scenario.toml"
-    scenario.write_text(
-        toml.dumps(
+    scenario_data = {
+        "name": "api-test",
+        "Tests": [
             {
-                "name": "api-test",
-                "Tests": [
-                    {
-                        "id": "sleep",
-                        "name": "sleep",
-                        "description": "API smoke test",
-                        "test_template_name": "Sleep",
-                        "cmd_args": {"seconds": 0},
-                    }
-                ],
+                "id": "sleep",
+                "name": "sleep",
+                "description": "API smoke test",
+                "test_template_name": "Sleep",
+                "cmd_args": {"seconds": 0},
             }
-        )
-    )
+        ],
+    }
+    scenario.write_text(toml.dumps(scenario_data))
     monkeypatch.setattr(StandaloneSystem, "is_job_completed", lambda *_: True)
     monkeypatch.setattr(StandaloneSystem, "is_job_running", lambda *_: False)
     monkeypatch.setattr(
@@ -99,6 +96,13 @@ def test_run_and_list_experiments(
     with pytest.raises(ValueError, match="Cannot read experiment"):
         cloudai.api.get_experiment(unparsed_path, system)
     assert signal.getsignal(signal.SIGINT) == signal_handler
+
+    scenario_data["name"] = "api-dry-run"
+    scenario.write_text(toml.dumps(scenario_data))
+    dry_run_experiment = cloudai.api.run_experiment(scenario, system, mode="dry-run")
+    assert dry_run_experiment.tests[0].runs == []
+    with pytest.raises(ValueError, match="Single sbatch is only supported for Slurm systems"):
+        cloudai.api.run_experiment(scenario, system, single_sbatch=True)
 
     scenario.write_text('name = "invalid"\n')
     with pytest.raises(cloudai.core.TestScenarioParsingError):
