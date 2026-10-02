@@ -17,7 +17,7 @@
 import re
 from pathlib import Path
 from typing import List, cast
-from unittest.mock import mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
@@ -245,3 +245,16 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
     ) -> None:
         cmd = cmd_gen_strategy._generate_cmd_args_str(args, [])
         assert cmd == expected
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.get_nodes_by_spec")
+    def test_excludes_configured_nodes(
+        self, mock_get_nodes_by_spec: Mock, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy
+    ) -> None:
+        mock_get_nodes_by_spec.return_value = (2, [])
+        cmd_gen_strategy.test_run.exclude_nodes = ["node05"]
+
+        cmd_gen_strategy.gen_exec_command()
+
+        mock_get_nodes_by_spec.assert_called_once_with(
+            cmd_gen_strategy.test_run.nnodes, cmd_gen_strategy.test_run.nodes, exclude_nodes=["node05"]
+        )

@@ -514,6 +514,15 @@ def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
     assert strategy.get_cached_nodes_spec()[0] == 2
 
 
+def test_get_cached_nodes_spec_excludes_configured_nodes(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    strategy.test_run.nodes = ["n0", "n1"]
+    strategy.test_run.num_nodes = 2
+    strategy.test_run.num_nodes_explicit = True
+    strategy.test_run.exclude_nodes = ["n0"]
+
+    assert strategy.get_cached_nodes_spec() == (1, ["n1"])
+
+
 def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
     slurm_system: SlurmSystem, tmp_path: Path, cmd_args: AIDynamoCmdArgs
 ) -> None:
