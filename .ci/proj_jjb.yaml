@@ -4,11 +4,10 @@
 # Do NOT edit the resulting jobs through the Jenkins web UI.
 # Changes will be overwritten on the next jenkins-jobs update according to this file.
 #
-# Each pipeline gets its own subfolder of CloudAI, its own job prefix and its
-# own directory under .ci/:
+# Each pipeline gets its own subfolder of CloudAI and its own job prefix:
 #   CloudAI/PR/cloudai-pr        - launcher; Blossom triggers it, it runs the
-#                                  leaves below (.ci/pr/Jenkinsfile.launcher)
-#   CloudAI/PR/cloudai-pr-<leaf> - one small pipeline per .ci/pr/<leaf>_matrix.yaml
+#                                  leaves below (.ci/Jenkinsfile.launcher)
+#   CloudAI/PR/cloudai-pr-<leaf> - one small pipeline per .ci/pipeline/<leaf>_matrix.yaml
 #                                  (.ci/Jenkinsfile, ci-demo)
 #
 # The CloudAI folder itself and the release job are still declared outside this
@@ -51,7 +50,7 @@
             description: "[blossom] Raw webhook payload; set automatically on PR-triggered runs. Leave empty for a manual run - the pipeline then skips reporting commit status. Paste a captured payload only to replay a build onto a specific PR."
         - string:
             name: "script"
-            default: ".ci/pr/Jenkinsfile.launcher"
+            default: ".ci/Jenkinsfile.launcher"
             description: "[tools] Jenkinsfile that starts the leaf jobs"
     triggers:
         - generic-webhook-trigger:
@@ -117,7 +116,7 @@
             description: "[blossom] Raw webhook payload, passed down by the launcher. Leave empty for a manual run - the pipeline then skips reporting commit status."
         - string:
             name: "conf_file"
-            default: ".ci/pr/{leaf}_matrix.yaml"
+            default: ".ci/pipeline/{leaf}_matrix.yaml"
             description: "[tools] CI Demo job matrix"
         - string:
             name: "script"

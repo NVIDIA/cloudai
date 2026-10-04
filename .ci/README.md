@@ -1,32 +1,27 @@
 # CloudAI Jenkins pipelines
 
-Blossom Jenkins pipelines for CloudAI. Each pipeline gets its own directory
-here, its own subfolder of the `CloudAI` Jenkins folder and its own job prefix:
+Blossom Jenkins pipelines for CloudAI. Each pipeline gets its own subfolder of
+the `CloudAI` Jenkins folder and its own job prefix:
 
-| Pipeline | Directory | Jenkins jobs | Trigger |
-| --- | --- | --- | --- |
-| PR | `pr/` | `CloudAI/PR/cloudai-pr*` | `/build` comment on a pull request |
+| Pipeline | Jenkins jobs | Trigger |
+| --- | --- | --- |
+| PR | `CloudAI/PR/cloudai-pr*` | `/build` comment on a pull request |
 
-A new pipeline `<name>` follows the same scheme: `<name>/`,
-`CloudAI/<Name>/` and the `cloudai-<name>` prefix.
-
-Shared by all pipelines:
+A new pipeline `<name>` follows the same scheme: `CloudAI/<Name>/` and the
+`cloudai-<name>` prefix.
 
 | File | Role |
 | --- | --- |
 | `proj_jjb.yaml` | Job definitions, applied with `jenkins-jobs update` |
 | `Jenkinsfile` | Runs one ci-demo matrix; reports commit status when started for a PR |
+| `Jenkinsfile.launcher` | PR pipeline launcher; runs the leaf jobs in parallel |
+| `pipeline/<leaf>_matrix.yaml` | The stage one leaf job runs |
 | `header-check.yml` | Copyright-header policy for `header_check.py` |
 
 ## PR pipeline
 
-| File | Role |
-| --- | --- |
-| `pr/Jenkinsfile.launcher` | Launcher; runs the leaf jobs in parallel |
-| `pr/<leaf>_matrix.yaml` | The stage one leaf job runs |
-
 Resulting jobs, in `CloudAI/PR`: the launcher `cloudai-pr` and one leaf job
-`cloudai-pr-<leaf>` per matrix in `pr/`.
+`cloudai-pr-<leaf>` per matrix in `pipeline/`.
 
 ### Flow
 
@@ -41,7 +36,7 @@ on its own in Jenkins (same parameters); its status then updates the PR.
 
 ### Stages
 
-One leaf job per stage, each with its own matrix in `pr/`:
+One leaf job per stage, each with its own matrix in `pipeline/`:
 
 | Leaf job | Stage |
 | --- | --- |
@@ -64,8 +59,8 @@ existing leaf runs is an ordinary pull request. Only three things need
 Jenkins-side action, and all are one-time:
 
 1. `jenkins-jobs update .ci/proj_jjb.yaml` to create or update the jobs. A new
-   PR leaf needs this: add `pr/<leaf>_matrix.yaml`, list the leaf under `jobs`
-   in `proj_jjb.yaml` and in `pr/Jenkinsfile.launcher`, then update.
+   PR leaf needs this: add `pipeline/<leaf>_matrix.yaml`, list the leaf under
+   `jobs` in `proj_jjb.yaml` and in `Jenkinsfile.launcher`, then update.
 2. installing credentials
 3. adding namespace egress rules when a stage needs a new host
 

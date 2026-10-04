@@ -2,7 +2,7 @@
 
 // Entry point of the PR pipeline. Blossom triggers this job; it runs the small
 // leaf jobs below in parallel, each of which runs .ci/Jenkinsfile with its own
-// matrix from .ci/pr/ and reports its own commit status.
+// matrix from .ci/pipeline/ and reports its own commit status.
 
 // Blossom's helper, used to report commit status back to the pull request.
 @Library('blossom-github-lib@master')
