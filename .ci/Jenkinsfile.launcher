@@ -1,6 +1,6 @@
 #!/usr/bin/groovy
 
-// Entry point of the PR pipeline. Blossom triggers this job; it runs the small
+// Entry point of the CI pipeline. Blossom triggers this job; it runs the small
 // leaf jobs below in parallel, each of which runs .ci/Jenkinsfile with its own
 // matrix from .ci/pipeline/ and reports its own commit status.
 
@@ -11,10 +11,10 @@ import ipp.blossom.*
 
 // Leaf jobs, keyed by parallel-branch name. Declared in .ci/proj_jjb.yaml.
 def leafJobs = [
-    'copyright': 'cloudai-pr-copyright',
-    'secrets':   'cloudai-pr-secrets',
-    'coverity':  'cloudai-pr-coverity',
-    'coverage':  'cloudai-pr-coverage',
+    'copyright': 'cloudai-ci-copyright',
+    'secrets':   'cloudai-ci-secrets',
+    'coverity':  'cloudai-ci-coverity',
+    'coverage':  'cloudai-ci-coverage',
 ]
 
 def githubHelper = null

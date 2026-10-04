@@ -1,11 +1,11 @@
-# CloudAI PR pipeline - copyright header check (ci-demo), run by the cloudai-pr-copyright job.
+# CloudAI CI pipeline - copyright header check (ci-demo), run by the cloudai-ci-copyright job.
 #
 # pipeline-scm has already checked the pull request out into ${WORKSPACE};
 # the merge commit arrives as sha1.
 #
 # Named by the conf_file build parameter in .ci/proj_jjb.yaml.
 ---
-job: cloudai-pr-copyright
+job: cloudai-ci-copyright
 
 failFast: false
 timeout_minutes: 60

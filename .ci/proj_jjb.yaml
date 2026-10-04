@@ -5,28 +5,28 @@
 # Changes will be overwritten on the next jenkins-jobs update according to this file.
 #
 # Each pipeline gets its own subfolder of CloudAI and its own job prefix:
-#   CloudAI/PR/cloudai-pr        - launcher; Blossom triggers it, it runs the
+#   CloudAI/CI/cloudai-ci        - launcher; Blossom triggers it, it runs the
 #                                  leaves below (.ci/Jenkinsfile.launcher)
-#   CloudAI/PR/cloudai-pr-<leaf> - one small pipeline per .ci/pipeline/<leaf>_matrix.yaml
+#   CloudAI/CI/cloudai-ci-<leaf> - one small pipeline per .ci/pipeline/<leaf>_matrix.yaml
 #                                  (.ci/Jenkinsfile, ci-demo)
 #
 # The CloudAI folder itself and the release job are still declared outside this
 # repository, so neither is redeclared here - doing so would overwrite them on
 # every update from this side.
 
-# The PR pipeline's subfolder. Nested under CloudAI so its jobs inherit that
+# The CI pipeline's subfolder. Nested under CloudAI so its jobs inherit that
 # folder's credentials and permissions.
 - job-template:
-    name: "{jjb_folder}/PR"
+    name: "{jjb_folder}/CI"
     project-type: folder
     description: &description |
         <h1><font color="blue">Do NOT edit this job through the Web GUI !</font></h1>
         <h3>Source of truth: <a href="https://github.com/NVIDIA/cloudai/blob/main/.ci/proj_jjb.yaml">cloudai/.ci/proj_jjb.yaml</a>. Edit there and re-run <code>jenkins-jobs update</code>.</h3>
 
 - job-template:
-    name: "{jjb_proj}-pr"
+    name: "{jjb_proj}-ci"
     project-type: pipeline
-    folder: "{jjb_folder}/PR"
+    folder: "{jjb_folder}/CI"
     concurrent: true
     properties:
         - github:
@@ -37,7 +37,7 @@
         - inject:
             keep-system-variables: true
             properties-content: |
-              jjb_proj={jjb_proj}-pr
+              jjb_proj={jjb_proj}-ci
     description: *description
     parameters:
         - string:
@@ -48,17 +48,13 @@
             name: "githubData"
             default: ""
             description: "[blossom] Raw webhook payload; set automatically on PR-triggered runs. Leave empty for a manual run - the pipeline then skips reporting commit status. Paste a captured payload only to replay a build onto a specific PR."
-        - string:
-            name: "script"
-            default: ".ci/Jenkinsfile.launcher"
-            description: "[tools] Jenkinsfile that starts the leaf jobs"
     triggers:
         - generic-webhook-trigger:
             # Also the right-hand side of the CI_SERVER GitHub secret:
-            # <jenkins-url>@cloudai-pr. These tokens are matched across the
+            # <jenkins-url>@cloudai-ci. These tokens are matched across the
             # whole instance rather than per folder, so two jobs sharing one
             # would both fire - keep it unique.
-            token: "{jjb_proj}-pr"
+            token: "{jjb_proj}-ci"
             print-contrib-var: true
             print-post-content: true
             silent-response: false
@@ -72,8 +68,8 @@
                 - type: JSONPath
                   key: sha1
                   value: '$.concat("refs/pull/", $.issue.number, "/merge")'
-    pipeline-scm: &pipeline_scm
-        scm:
+    pipeline-scm:
+        scm: &scm
             - git:
                 url: "{jjb_git}"
                 credentials-id: "{jjb_gh_cred_id}"
@@ -85,14 +81,14 @@
                 browser: githubweb
                 browser-url: "{jjb_github_url}"
                 wipe-workspace: true
-        script-path: "$script"
+        script-path: ".ci/Jenkinsfile.launcher"
 
 # A leaf job. No trigger of its own: only the launcher above starts it, passing
 # down the commit to test and the Blossom payload so it can report status.
 - job-template:
-    name: "{jjb_proj}-pr-{leaf}"
+    name: "{jjb_proj}-ci-{leaf}"
     project-type: pipeline
-    folder: "{jjb_folder}/PR"
+    folder: "{jjb_folder}/CI"
     concurrent: true
     properties:
         - github:
@@ -103,7 +99,7 @@
         - inject:
             keep-system-variables: true
             properties-content: |
-              jjb_proj={jjb_proj}-pr-{leaf}
+              jjb_proj={jjb_proj}-ci-{leaf}
     description: *description
     parameters:
         - string:
@@ -118,15 +114,13 @@
             name: "conf_file"
             default: ".ci/pipeline/{leaf}_matrix.yaml"
             description: "[tools] CI Demo job matrix"
-        - string:
-            name: "script"
-            default: ".ci/Jenkinsfile"
-            description: "[tools] CI Demo Jenkinsfile to initialise job"
-    pipeline-scm: *pipeline_scm
+    pipeline-scm:
+        scm: *scm
+        script-path: ".ci/Jenkinsfile"
 
 # One project per pipeline, so each can be added or moved on its own.
 - project:
-    name: cloudai-pr
+    name: cloudai-ci
     jjb_proj: 'cloudai'
     jjb_folder: 'CloudAI'
     jjb_branch: 'main'
@@ -138,13 +132,13 @@
     # the other jobs on this instance already use.
     jjb_gh_cred_id: 'svcnbu-swx-hpcx_ssh_with_key'
     jobs:
-        - "{jjb_folder}/PR"
-        - "{jjb_proj}-pr"
-        - "{jjb_proj}-pr-{leaf}":
+        - "{jjb_folder}/CI"
+        - "{jjb_proj}-ci"
+        - "{jjb_proj}-ci-{leaf}":
             leaf: copyright
-        - "{jjb_proj}-pr-{leaf}":
+        - "{jjb_proj}-ci-{leaf}":
             leaf: secrets
-        - "{jjb_proj}-pr-{leaf}":
+        - "{jjb_proj}-ci-{leaf}":
             leaf: coverity
-        - "{jjb_proj}-pr-{leaf}":
+        - "{jjb_proj}-ci-{leaf}":
             leaf: coverage
