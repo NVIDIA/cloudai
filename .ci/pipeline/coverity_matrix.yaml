@@ -17,6 +17,9 @@ kubernetes:
   # Container resources are set per image (requests/limits on each
   # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
 
+volumes:
+  - {mountPath: /auto/sw_tools, hostPath: /auto/sw_tools}
+
 runs_on_dockers:
   # Same toolbox image and tag the release pipeline pins. Its 4 CPU/4Gi limits
   # are raised: cov-analyze runs one worker per CPU and each needs its own
@@ -41,6 +44,8 @@ steps:
       # ARE ${WORKSPACE}, so the emit directory is kept outside the scanned
       # tree to stop cov-capture walking its own output.
       cov_dir=/tmp/coverity-scan
+
+      export PATH=/auto/sw_tools/Commercial/Synopsys/Coverity/Coverity_2026.3.0/linux_x86_64/bin:${PATH}
 
       cov-capture --project-dir ${WORKSPACE} --dir ${cov_dir}
       cov-analyze --dir ${cov_dir} --all-security --aggressiveness-level high \
