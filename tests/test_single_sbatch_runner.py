@@ -29,7 +29,7 @@ import cloudai.metrics
 import cloudai.models.output
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParams, EnvParamSpec
-from cloudai.core import JobStatusResult, Registry, System, TestRun, TestScenario
+from cloudai.core import DSEConstraints, JobStatusResult, Registry, System, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -359,6 +359,21 @@ def test_unroll_dse_constraint_check(nccl_tr: TestRun, slurm_system: SlurmSystem
 
     dse_runs = list(runner.unroll_dse(nccl_tr))
     assert len(dse_runs) == 0
+
+
+def test_unroll_dse_declarative_constraint(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["1", "2"]
+    nccl_tr.test.dse_constraints = DSEConstraints(
+        variables={"value": "extra_env_vars.NCCL_VAR"},
+        expressions={"only_first_value": 'value == "1"'},
+    )
+    tc = TestScenario(name="tc", test_runs=[nccl_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+
+    dse_runs = list(runner.unroll_dse(nccl_tr))
+
+    assert len(dse_runs) == 1
+    assert dse_runs[0].test.extra_env_vars["NCCL_VAR"] == "1"
 
 
 class TestSbatch:

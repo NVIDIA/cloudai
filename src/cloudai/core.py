@@ -68,6 +68,7 @@ from .configurator.env_params import (
 )
 from .configurator.grid_search import GridSearchAgent
 from .configurator.gymnasium_adapter import GymnasiumAdapter
+from .models.dse_constraint import ConstraintEvaluationError, DSEConstraints
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
@@ -89,6 +90,8 @@ __all__ = [
     "CmdArgs",
     "CommandGenStrategy",
     "ConfigPaths",
+    "ConstraintEvaluationError",
+    "DSEConstraints",
     "DockerImage",
     "Encoding",
     "File",

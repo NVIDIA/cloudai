@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
@@ -25,6 +26,7 @@ import cloudai.metrics
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
 
 from ..configurator.env_params import EnvParamSpec
+from .dse_constraint import DSEConstraints
 
 
 class CmdArgs(BaseModel):
@@ -123,6 +125,10 @@ class TestDefinition(BaseModel, ABC):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
+    dse_constraints: DSEConstraints | None = Field(
+        default=None,
+        description="Declarative constraints evaluated before a DSE configuration is executed.",
+    )
     env_params: dict[str, EnvParamSpec] = Field(
         default_factory=dict,
         description=(
@@ -153,7 +159,39 @@ class TestDefinition(BaseModel, ABC):
         return [*self.git_repos]
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
+        """
+        Return whether the candidate satisfies workload-owned invariants.
+
+        Workloads may override this hook. Execution paths should call
+        :meth:`check_constraints` so declarative constraints are also enforced.
+        """
         return True
+
+    def check_constraints(self, tr: TestRun, system: Optional[System]) -> bool:
+        """Evaluate user-declared constraints, then the workload-owned hook."""
+        if self.dse_constraints:
+            context = {
+                "cmd_args": tr.test.cmd_args.model_dump(mode="python"),
+                "extra_env_vars": tr.test.extra_env_vars,
+                "system": system.model_dump(mode="python") if system is not None else {},
+                "test_run": {
+                    "name": tr.name,
+                    "num_nodes": tr.num_nodes,
+                    "nodes": tr.nodes,
+                    "iterations": tr.iterations,
+                    "current_iteration": tr.current_iteration,
+                    "step": tr.step,
+                },
+            }
+            accepted, failed_name, failed_expression = self.dse_constraints.evaluate(context)
+            if not accepted:
+                logging.info(
+                    "DSE constraint '%s' rejected the configuration: %s",
+                    failed_name,
+                    failed_expression,
+                )
+                return False
+        return self.constraint_check(tr, system)
 
     def is_env_sampled(self, cmd_args_path: str) -> bool:
         """Whether a cmd_args field is env-sampled (env draws it per trial, not the agent)."""
