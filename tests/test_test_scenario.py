@@ -747,6 +747,41 @@ class TestInScenario:
 
         assert "DSE excluded arg must start with 'cmd_args.'" in str(excinfo.value.__cause__)
 
+    def test_dse_constraints_can_be_overridden_in_scenario_toml(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.dse_constraints.variables]
+              gpus_per_node = "system.gpus_per_node"
+
+              [Tests.dse_constraints.expressions]
+              has_gpus = "gpus_per_node > 0"
+            """
+            )
+        )
+
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.dse_constraints is not None
+        assert tdef.dse_constraints.variables == {"gpus_per_node": "system.gpus_per_node"}
+        assert tdef.dse_constraints.expressions == {"has_gpus": "gpus_per_node > 0"}
+
 
 class TestReporters:
     def test_default(self):

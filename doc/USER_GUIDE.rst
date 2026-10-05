@@ -227,6 +227,36 @@ action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
 
+Declarative DSE constraints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``dse_constraints`` in a test TOML to reject invalid parameter combinations before they are executed. Declare
+aliases once under ``variables``, then define one or more named Boolean expressions. Variable paths may select fields
+from ``cmd_args``, ``extra_env_vars``, ``system``, or ``test_run``.
+
+.. code-block:: toml
+
+   [dse_constraints.variables]
+   prefill_tp = "cmd_args.dynamo.prefill_worker.args.tensor_parallel_size"
+   prefill_pp = "cmd_args.dynamo.prefill_worker.args.pipeline_parallel_size"
+   decode_tp = "cmd_args.dynamo.decode_worker.args.tensor_parallel_size"
+   decode_pp = "cmd_args.dynamo.decode_worker.args.pipeline_parallel_size"
+   gpus_per_node = "system.gpus_per_node"
+
+   [dse_constraints.expressions]
+   prefill_not_larger = "prefill_tp <= decode_tp"
+   prefill_fits = "prefill_tp * prefill_pp <= gpus_per_node"
+   decode_fits = "decode_tp * decode_pp <= gpus_per_node"
+
+Expressions support numeric arithmetic, comparisons, membership checks, and the ``and``, ``or``, and ``not``
+operators. Function calls and private attribute access are not allowed. A malformed expression or unresolved variable
+path fails the DSE run with an evaluation error instead of silently accepting or rejecting the configuration.
+
+The expression key is used as the constraint name in rejection logs. Constraints run in declaration order and stop at
+the first failure, before trajectory-cache reuse and before the workload's Python ``constraint_check`` method. Use TOML
+constraints for experiment-specific search-space restrictions. Keep intrinsic workload invariants and validation that
+requires helpers, normalization, or runtime-derived state in ``constraint_check``.
+
 DSE Parameter Exclusions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

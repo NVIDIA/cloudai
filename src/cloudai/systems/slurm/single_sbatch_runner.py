@@ -134,7 +134,7 @@ class SingleSbatchRunner(SlurmRunner):
             next_tr.step = idx
             next_tr.output_path = self.get_job_output_path(next_tr)
 
-            if next_tr.test.constraint_check(next_tr, self.system):
+            if next_tr.test.check_constraints(next_tr, self.system):
                 yield next_tr
 
     def get_global_env_vars(self) -> str:
@@ -230,7 +230,7 @@ class SingleSbatchRunner(SlurmRunner):
                     next_tr.step = idx
                     next_tr.output_path = self.get_job_output_path(next_tr)
 
-                    if not next_tr.test.constraint_check(next_tr, self.system):
+                    if not next_tr.test.check_constraints(next_tr, self.system):
                         continue
 
                     gym.test_run = next_tr

@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, DSEConstraints, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -467,6 +467,35 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     contents = trajectory_path.read_text().strip().splitlines()
     assert contents[0] == "step,action,reward,observation"
     assert contents[-1].startswith("5,")
+
+
+def test_constraint_check_precedes_trajectory_cache(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+    """A stale cache entry must not bypass constraints from the current run."""
+    tdef = nemorun.model_copy(deep=True)
+    tdef.cmd_args.data.global_batch_size = 8
+    tdef.agent_metrics = ["default"]
+    tdef.dse_constraints = DSEConstraints(expressions={"reject_cached_action": "cmd_args.trainer.max_steps != 1000"})
+    test_run = TestRun(
+        name="cache_constraint_tr",
+        test=tdef,
+        num_nodes=1,
+        nodes=[],
+        reports={NeMoRunReportGenerationStrategy},
+    )
+    runner = MagicMock(spec=BaseRunner)
+    runner.scenario_root = tmp_path / "scenario"
+    runner.system = MagicMock()
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    cached_action = {"trainer.max_steps": 1000}
+    env.trajectory.append(step=1, action=cached_action, reward=0.42, observation={"default": 0.84})
+
+    observation, reward, done, _ = env.step(cached_action)
+
+    assert observation == [-1.0]
+    assert reward == env.rewards.constraint_failure
+    assert done is True
+    assert len(env.trajectory) == 1
+    runner.run.assert_not_called()
 
 
 def _seed_cached_entry_with_env_params(

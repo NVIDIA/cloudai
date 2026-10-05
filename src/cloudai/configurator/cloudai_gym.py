@@ -168,6 +168,10 @@ class CloudAIGymEnv(BaseGym):
         info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
         self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
 
+        if not self.test_run.test.check_constraints(self.test_run, self.runner.system):
+            logging.info("Constraint check failed. Skipping step.")
+            return [-1.0], self.rewards.constraint_failure, True, info
+
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
 
         if cached_result is not None:
@@ -181,10 +185,6 @@ class CloudAIGymEnv(BaseGym):
             }
             reward = cast(float, cached_result["reward"])
         else:
-            if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
-                logging.info("Constraint check failed. Skipping step.")
-                return [-1.0], self.rewards.constraint_failure, True, info
-
             new_tr = copy.deepcopy(self.test_run)
             new_tr.output_path = self.runner.get_job_output_path(new_tr)
             self.runner.test_scenario.test_runs = [new_tr]
