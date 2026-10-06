@@ -123,7 +123,17 @@ The reported metric (``default``) is throughput. Additional supported metrics ar
 CloudAI also provides the scenario-level ``sglang_comparison`` report. It compares SGLang test runs in the scenario and
 uses ``bench_cmd_args`` values as comparison labels.
 
-.. include:: _llm_serving_metrics.inc
+Structured metrics
+~~~~~~~~~~~~~~~~~~
+
+.. csv-table::
+   :header: "Metric", "Unit", "Preferred", "Dimensions"
+
+   "``request_throughput``", "requests/s", "Higher", "None"
+   "``output_token_throughput``", "tokens/s", "Higher", "None"
+   "``ttft`` (time to first token)", "ms", "Lower", "``statistic``: mean, median, p99"
+   "``tpot`` (time per output token)", "ms", "Lower", "``statistic``: mean, median, p99"
+   "``accuracy``", "ratio (0–1)", "Higher", "None"
 
 
 Readiness health checks
