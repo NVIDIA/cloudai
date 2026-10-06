@@ -45,6 +45,13 @@ and workload metrics.
 Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.
 
+Live ``runs`` status tracking:
+
+- Standalone jobs are ``running`` from submission.
+- Slurm jobs (excluding single-sbatch) start as ``pending`` while waiting for allocation, then transition to ``running``
+  once allocated and executing.
+- Single-sbatch Slurm run records remain ``pending`` until the allocation finishes and their final statuses are recorded.
+
 For standalone runs and Slurm's default mode (one submission per run), CloudAI refreshes the file on submission,
 completion, and an observed status transition. Status checks follow the system's ``monitor_interval``. Standalone runs
 are ``running`` from launch; Slurm runs transition
