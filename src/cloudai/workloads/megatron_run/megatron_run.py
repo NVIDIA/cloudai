@@ -22,7 +22,8 @@ from typing import Any, Optional, Tuple
 import toml
 from pydantic import Field, field_validator, model_validator
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
+import cloudai.metrics
+from cloudai.core import DockerImage, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmJobMetadata
 
@@ -160,6 +161,21 @@ class MegatronRunTestDefinition(TestDefinition):
 
         if not Path(expandvars(src_mount)).exists():
             raise ValueError(f"Source path {src_mount} ({expandvars(src_mount)}) does not exist for {field}={path}.")
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        """Return stdout averages using the report's last-ten-iterations window."""
+        from .report_generation_strategy import MegatronRunReportGenerationStrategy
+
+        report = MegatronRunReportGenerationStrategy(system, tr)
+        observations = []
+        for name, metric in (
+            ("iteration-time", cloudai.metrics.ITERATION_TIME),
+            ("tflops-per-gpu", cloudai.metrics.TFLOPS_PER_GPU),
+        ):
+            value = report.get_metric(name)
+            if isinstance(value, float):
+                observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
+        return observations
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         slurm_job_path = tr.output_path / "slurm-job.toml"
