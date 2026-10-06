@@ -212,7 +212,7 @@ class BaseRunner(ABC):
                     self.system.is_job_completed(job),
                 )
 
-            if self.mode == "run" and is_running:
+            if self.mode == "run" and is_running and not is_completed:
                 test_output = next(
                     (test for test in self.experiment_output.experiment.tests if test.id == str(tr.name)), None
                 )
