@@ -64,13 +64,16 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
     runner.jobs.append(job)
     runner.testrun_to_job_map[test_run] = job
     runner.update_run_output(job)
+    initial = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
     datetime_type = datetime.datetime
     with (
         mock.patch.object(StandaloneSystem, "is_job_running", return_value=True),
         mock.patch.object(StandaloneSystem, "is_job_completed", side_effect=[False, False, False, False, True, True]),
         mock.patch("cloudai.output.datetime.datetime", wraps=datetime_type) as clock,
+        mock.patch.object(runner.experiment_output, "write", wraps=runner.experiment_output.write) as write,
     ):
         for seconds, expected in ((1, "running"), (2, "running"), (3, "completed")):
+            write.reset_mock()
             clock.now.return_value = start + datetime.timedelta(seconds=seconds)
             runner.check_start_post_init_dependencies()
             runner.monitor_jobs()
@@ -79,9 +82,12 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
             run = stored.tests[0].runs[0]
             assert stored.tests[0].status == expected
             assert run.status == expected
-            assert run.duration == seconds
             if expected == "running":
-                assert run.finish is None and run.metrics == []
+                write.assert_not_called()
+                assert stored == initial
+            else:
+                write.assert_called_once()
+                assert run.duration == seconds
 
     stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
     run = stored.tests[0].runs[0]

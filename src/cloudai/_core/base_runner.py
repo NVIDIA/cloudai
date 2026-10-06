@@ -200,6 +200,7 @@ class BaseRunner(ABC):
         start_post_init dependencies.
         """
         items = list(self.testrun_to_job_map.items())
+        status_changed = False
 
         for tr, job in items:
             is_running, is_completed = False, False
@@ -220,11 +221,15 @@ class BaseRunner(ABC):
                         if run_output.path == str(tr.output_path.absolute()) and run_output.status == "pending":
                             run_output.status = "running"
                             self.experiment_output.update_run(str(tr.name), run_output)
+                            status_changed = True
                             break
 
             logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
             if is_running or is_completed:
                 self.check_and_schedule_start_post_init_dependent_tests(tr)
+
+        if status_changed:
+            self.experiment_output.write()
 
     def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
         """
@@ -335,8 +340,6 @@ class BaseRunner(ABC):
                         successful_jobs_count += 1
                         self.handle_job_completion(job)
 
-        if self.mode == "run":
-            self.experiment_output.write()
         return successful_jobs_count
 
     def get_runner_job_status(self, job: BaseJob) -> JobStatusResult:
