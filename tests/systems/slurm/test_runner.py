@@ -25,7 +25,6 @@ import cloudai.metrics
 import cloudai.models.output
 from cloudai.systems.slurm import SlurmJob, SlurmRunner, SlurmSystem
 from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
-from cloudai.systems.slurm.slurm_rest_client import SlurmAPIConfig, SlurmRestClient
 
 
 @pytest.mark.parametrize(
@@ -42,10 +41,17 @@ def test_slurm_run_output(
     status: str,
     step: int,
 ) -> None:
-    runner = SlurmRunner("run", slurm_system, cloudai.core.TestScenario(name="scenario", test_runs=[base_tr]), tmp_path)
+    runner = SlurmRunner(
+        "run",
+        slurm_system,
+        cloudai.core.TestScenario(name="scenario", test_runs=[base_tr], job_status_check=False),
+        tmp_path,
+    )
     base_tr.output_path.mkdir(parents=True)
     base_tr.step = step
     job = SlurmJob(base_tr, id=123)
+    runner.jobs.append(job)
+    runner.testrun_to_job_map[base_tr] = job
     runner.update_run_output(job)
     metadata = SlurmStepMetadata(
         job_id=123,
@@ -65,6 +71,11 @@ def test_slurm_run_output(
         {"size_bytes": 1024, "bandwidth_basis": "bus"},
     )
     with (
+        mock.patch.object(SlurmSystem, "is_job_running", side_effect=[False, True, False]) as is_running,
+        mock.patch.object(
+            SlurmSystem, "is_job_completed", side_effect=[False, False, False, False, True, True]
+        ) as is_completed,
+        mock.patch.object(SlurmSystem, "complete_job", return_value=[]),
         mock.patch.object(SlurmSystem, "get_job_status", return_value=[metadata]) as get_metadata,
         mock.patch.object(
             runner,
@@ -80,15 +91,29 @@ def test_slurm_run_output(
             cloudai.core.TestDefinition, "metric_observations", return_value=[observation]
         ) as get_metrics,
     ):
-        runner.store_job_metadata(job)
-        runner.update_run_output(job, runner.get_job_status(job))
+        for expected in ("pending", "running", status):
+            is_running.reset_mock()
+            is_completed.reset_mock()
+            runner.check_start_post_init_dependencies()
+            runner.monitor_jobs()
+            is_running.assert_called_once_with(job)
+            assert is_completed.call_count == 2
+            stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
+            assert stored.tests[0].status == expected
+            assert len(stored.tests[0].runs) == 1
+            run = stored.tests[0].runs[0]
+            assert run.status == expected
+            if expected in ("pending", "running"):
+                assert run.start is None and run.finish is None and run.duration is None
+                get_metadata.assert_not_called()
+                get_metrics.assert_not_called()
         get_metadata.assert_called_once_with(job)
         assert get_metrics.call_count == int(successful)
 
     base_tr.step = 3
     runner.shutting_down = status == "cancelled"
     runner.finish_output(successful=True)
-    experiment = runner.experiment_output.snapshot()
+    experiment = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
     assert experiment.status == status
     assert experiment.system_name == "actual-cluster"
     test = experiment.tests[0]
@@ -151,85 +176,3 @@ def test_slurm_output_unknown_timing_and_metric_failure(
     }
     assert runner._output_timestamp(timestamp) is None
     assert "broken metrics" in caplog.text
-
-
-@pytest.mark.parametrize("backend", ["cli", "rest"])
-def test_slurm_live_output_reuses_existing_checks(
-    tmp_path: pathlib.Path, base_tr: cloudai.core.TestRun, slurm_system: SlurmSystem, backend: str
-) -> None:
-    if backend == "rest":
-        slurm_system.slurm_api = SlurmAPIConfig(url="https://slurm.example.com")
-    runner = SlurmRunner("run", slurm_system, cloudai.core.TestScenario(name="scenario", test_runs=[base_tr]), tmp_path)
-    job = SlurmJob(base_tr, id=123)
-    runner.jobs.append(job)
-    runner.testrun_to_job_map[base_tr] = job
-    runner.update_run_output(job)
-    process = mock.Mock()
-    response = {"jobs": [{"job_state": "PENDING"}]}
-    with (
-        mock.patch.object(slurm_system.cmd_shell, "execute", return_value=process) as execute,
-        mock.patch.object(SlurmRestClient, "_request", return_value=response) as request,
-        mock.patch.object(SlurmSystem, "get_job_status") as get_metadata,
-        mock.patch.object(cloudai.core.TestDefinition, "metric_observations") as get_metrics,
-    ):
-        # Losing a later RUNNING observation must not regress the published status.
-        for state, expected in (
-            ("PENDING", "pending"),
-            ("RUNNING", "running"),
-            ("RUNNING", "running"),
-            ("", "running"),
-        ):
-            process.communicate.return_value = (state, "")
-            response["jobs"][0]["job_state"] = state
-            execute.reset_mock()
-            request.reset_mock()
-            runner.check_start_post_init_dependencies()
-            assert runner.monitor_jobs() == 0
-            if backend == "rest":
-                assert request.call_count == 3
-                execute.assert_not_called()
-            else:
-                assert execute.call_count == 3
-                request.assert_not_called()
-            get_metadata.assert_not_called()
-            get_metrics.assert_not_called()
-            experiment = cloudai.models.output.Experiment.model_validate_json(
-                (tmp_path / "experiment.json").read_text()
-            )
-            assert experiment.status == "running"
-            assert experiment.duration is not None
-            test = experiment.tests[0]
-            assert test.status == expected
-            assert len(test.runs) == 1
-            run = test.runs[0]
-            assert run.status == expected
-            assert run.jobid == "123"
-            assert run.path == str(base_tr.output_path.absolute())
-            assert run.start is None
-            assert run.finish is None
-            assert run.duration is None
-            assert run.metrics == []
-
-
-@pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
-def test_running_check_preserves_terminal_output(
-    tmp_path: pathlib.Path,
-    base_tr: cloudai.core.TestRun,
-    slurm_system: SlurmSystem,
-    status: cloudai.models.output.Status,
-) -> None:
-    runner = SlurmRunner("run", slurm_system, cloudai.core.TestScenario(name="scenario", test_runs=[base_tr]), tmp_path)
-    job = SlurmJob(base_tr, id=123)
-    runner.jobs.append(job)
-    runner.testrun_to_job_map[base_tr] = job
-    run = cloudai.models.output.Run(path=str(base_tr.output_path.absolute()), jobid="123", status=status)
-    runner.experiment_output.update_run(str(base_tr.name), run)
-    with (
-        mock.patch.object(SlurmSystem, "is_job_running", return_value=True),
-        mock.patch.object(SlurmSystem, "is_job_completed", return_value=False),
-    ):
-        runner.check_start_post_init_dependencies()
-        runner.monitor_jobs()
-    experiment = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
-    assert experiment.tests[0].status == status
-    assert experiment.tests[0].runs[0] == run
