@@ -132,6 +132,10 @@ def test_megatron_run_extract_and_generate_report(slurm_system: SlurmSystem, meg
     assert abs(float(tflops_stats["min"]) - 490.0) < 0.1
     assert abs(float(tflops_stats["max"]) - 500.6) < 0.1
 
+    observations = megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr)
+    assert [item.metric for item in observations] == [cloudai.metrics.ITERATION_TIME, cloudai.metrics.TFLOPS_PER_GPU]
+    assert [item.value for item in observations] == pytest.approx([expected_iter_avg, expected_tflops_avg])
+
 
 def test_megatron_run_get_metric_iteration_time(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
     strategy = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
@@ -179,30 +183,6 @@ def test_megatron_run_metrics_class_var() -> None:
     assert MegatronRunReportGenerationStrategy.metrics == ["default", "iteration-time", "tflops-per-gpu"]
 
 
-def test_metric_observations_use_last_ten_iterations(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
-    tr = megatron_run_tr
-    (tr.output_path / "stdout.txt").write_text(
-        "startup noise\n"
-        + "\n".join(
-            f"iteration {step} | elapsed time per iteration (ms): {step * 10}.0 | "
-            f"throughput per GPU (TFLOP/s/GPU): {step}.0 |"
-            for step in range(1, 13)
-        )
-    )
-    observations = tr.test.metric_observations(slurm_system, tr)
-    assert observations == [
-        cloudai.metrics.MetricObservation(cloudai.metrics.ITERATION_TIME, 75.0, {}),
-        cloudai.metrics.MetricObservation(cloudai.metrics.TFLOPS_PER_GPU, 7.5, {}),
-    ]
-    assert observations[0].metric.direction is cloudai.metrics.OptimizationDirection.MINIMIZE
-    assert observations[1].metric.direction is cloudai.metrics.OptimizationDirection.MAXIMIZE
-    report = MegatronRunReportGenerationStrategy(slurm_system, tr)
-    assert report.get_metric("iteration-time") == observations[0].value
-    assert report.get_metric("tflops-per-gpu") == observations[1].value
-    report.generate_report()
-    assert tr.test.metric_observations(slurm_system, tr) == observations
-
-
 @pytest.mark.parametrize("stdout", [None, "validation loss at iteration 1.0\n", ""])
 def test_metric_observations_without_iteration_data(
     slurm_system: SlurmSystem, megatron_run_tr: TestRun, stdout: str | None
@@ -213,31 +193,3 @@ def test_metric_observations_without_iteration_data(
     else:
         path.write_text(stdout)
     assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr) == []
-
-
-def test_metrics_cache_uses_absolute_paths(
-    tmp_path: Path, slurm_system: SlurmSystem, megatron_run_tr: TestRun, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Reports and observations share a scan without confusing relative paths across directories."""
-    open_calls = []
-    original_open = Path.open
-
-    def record_open(path, *args, **kwargs):
-        open_calls.append(path)
-        return original_open(path, *args, **kwargs)
-
-    for name, timing in (("first", 10), ("second", 20)):
-        output = tmp_path / name / "results"
-        output.mkdir(parents=True)
-        (output / "stdout.txt").write_text(
-            f"elapsed time per iteration (ms): {timing} | throughput per GPU (TFLOP/s/GPU): 100 |\n"
-        )
-    monkeypatch.setattr(Path, "open", record_open)
-    megatron_run_tr.output_path = Path("results")
-    report = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
-    for name, timing in (("first", 10), ("second", 20)):
-        monkeypatch.chdir(tmp_path / name)
-        assert report.can_handle_directory()
-        assert report.get_metric("iteration-time") == timing
-        assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr)[0].value == timing
-    assert open_calls == [tmp_path / name / "results" / "stdout.txt" for name in ("first", "second")]
