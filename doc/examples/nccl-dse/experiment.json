@@ -1,0 +1,118 @@
+{
+  "id": "nccl-dse_2026-09-21_14-55-45",
+  "name": "nccl-dse",
+  "system_name": "example-cluster",
+  "description": null,
+  "status": "completed",
+  "path": "/results/nccl-dse_2026-09-21_14-55-45",
+  "start": "2026-09-21T14:55:45.275325Z",
+  "finish": "2026-09-21T15:01:50.432934Z",
+  "duration": 365.157609,
+  "tests": [
+    {
+      "id": "nccl",
+      "name": "nccl_base_test",
+      "description": "NCCL base test configuration",
+      "status": "completed",
+      "path": "/results/nccl-dse_2026-09-21_14-55-45/nccl",
+      "metrics": [
+        {
+          "name": "Latency",
+          "value": 24.76,
+          "unit": "us",
+          "dimensions": [
+            {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+            {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+            {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+          ]
+        },
+        {
+          "name": "Bandwidth",
+          "value": 74.12,
+          "unit": "GB/s",
+          "dimensions": [
+            {"name": "Bandwidth basis", "value": "bus", "unit": "", "is_x": false},
+            {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+            {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+            {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "path": "/results/nccl-dse_2026-09-21_14-55-45/nccl/0/1",
+          "jobid": "1001",
+          "status": "completed",
+          "metrics": [
+            {
+              "name": "Latency",
+              "value": 24.76,
+              "unit": "us",
+              "dimensions": [
+                {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+                {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+                {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+              ]
+            },
+            {
+              "name": "Bandwidth",
+              "value": 74.12,
+              "unit": "GB/s",
+              "dimensions": [
+                {"name": "Bandwidth basis", "value": "bus", "unit": "", "is_x": false},
+                {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+                {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+                {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+              ]
+            }
+          ],
+          "start": "2026-09-21T14:55:46Z",
+          "finish": "2026-09-21T14:57:28Z",
+          "duration": 102.0,
+          "iteration": 0,
+          "step": 1
+        },
+        {
+          "path": "/results/nccl-dse_2026-09-21_14-55-45/nccl/0/2",
+          "jobid": "1002",
+          "status": "completed",
+          "metrics": [
+            {
+              "name": "Latency",
+              "value": 37.36,
+              "unit": "us",
+              "dimensions": [
+                {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+                {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+                {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+              ]
+            },
+            {
+              "name": "Bandwidth",
+              "value": 49.11,
+              "unit": "GB/s",
+              "dimensions": [
+                {"name": "Bandwidth basis", "value": "bus", "unit": "", "is_x": false},
+                {"name": "Operation", "value": "all_reduce", "unit": "", "is_x": false},
+                {"name": "Placement", "value": "out_of_place", "unit": "", "is_x": false},
+                {"name": "Size", "value": "1048576", "unit": "", "is_x": true}
+              ]
+            }
+          ],
+          "start": "2026-09-21T14:58:47Z",
+          "finish": "2026-09-21T15:00:28Z",
+          "duration": 101.0,
+          "iteration": 0,
+          "step": 2
+        }
+      ],
+      "dse": {
+        "space": {
+          "extra_env_vars.NCCL_ALGO": ["Ring", "Tree"]
+        },
+        "best_config": {"extra_env_vars.NCCL_ALGO": "Ring"},
+        "best_step": 1
+      }
+    }
+  ]
+}

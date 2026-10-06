@@ -15,9 +15,13 @@
 # limitations under the License.
 
 import logging
+import os
+from typing import cast
 
 from cloudai.core import BaseJob, System
 from cloudai.util import CommandShell
+
+from .standalone_job import StandaloneJob
 
 
 class StandaloneSystem(System):
@@ -28,7 +32,7 @@ class StandaloneSystem(System):
     """
 
     scheduler: str = "standalone"
-    monitor_interval: int = 1
+    monitor_interval: float = 1.0
     cmd_shell: CommandShell = CommandShell()
 
     def update(self) -> None:
@@ -49,15 +53,42 @@ class StandaloneSystem(System):
         Returns:
             bool: True if the job is running, False otherwise.
         """
-        command = f"ps -p {job.id}"
-        logging.debug(f"Checking job status with command: {command}")
-        stdout = self.cmd_shell.execute(command).communicate()[0]
+        # Poll the handle when we own it. Shelling out to `ps` spawns two processes per
+        # check and the check runs on every monitor tick, so on a fast backend it cost more
+        # than the job being waited for. Polling also reaps the child, so a finished process
+        # cannot linger as a zombie and keep reading as running.
+        process = cast(StandaloneJob, job).process
+        if process is not None:
+            is_running = process.poll() is None
+            logging.debug(f"Job {job.id} running status: {is_running}")
+            return is_running
 
-        # Check if the job's PID is in the ps output
-        is_running = str(job.id) in stdout
-        logging.debug(f"Job {job.id} running status: {is_running}")
+        # No handle: the job was not launched by this process. Probe with signal 0, which
+        # checks for the pid without delivering anything.
+        try:
+            pid = int(job.id)
+        except (TypeError, ValueError):
+            logging.debug(f"Job {job.id} running status: False")
+            return False
 
-        return is_running
+        # 0 and negatives are not pids to os.kill: 0 addresses this process group and -1
+        # every process the user may signal, so both would probe successfully and report a
+        # job that does not exist as running.
+        if pid <= 0:
+            logging.debug(f"Job {job.id} running status: False")
+            return False
+
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            logging.debug(f"Job {job.id} running status: False")
+            return False
+        except PermissionError:
+            # The process exists, this user just may not signal it. Reporting it complete
+            # would drop a live job from monitoring.
+            pass
+        logging.debug(f"Job {job.id} running status: True")
+        return True
 
     def is_job_completed(self, job: BaseJob) -> bool:
         """

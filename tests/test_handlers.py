@@ -32,6 +32,7 @@ from cloudai.cli.handlers import (
     verify_test_configs,
     verify_test_scenarios,
 )
+from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
@@ -387,14 +388,18 @@ def test_handle_dse_job_invokes_agent_run(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``handle_dse_job`` must delegate orchestration to ``agent.run()`` (polymorphism)."""
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    update_output = MagicMock()
+    monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
     assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
     assert CustomRunStubAgent.run_calls == 1
+    assert update_output.call_count == 2
 
 
 def test_handle_dse_job_propagates_agent_run_nonzero_rc(
@@ -438,6 +443,7 @@ def test_handle_dse_job_propagates_agent_run_exception(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Hard failure: an exception out of ``agent.run()`` propagates instead of being swallowed.
 
@@ -448,10 +454,13 @@ def test_handle_dse_job_propagates_agent_run_exception(
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    update_output = MagicMock()
+    monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
         handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
     assert CustomRunStubAgent.run_calls == 1
+    assert update_output.call_count == 2
 
 
 def test_handle_dse_job_hard_fail_aborts_remaining_runs(

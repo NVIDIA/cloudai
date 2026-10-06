@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 import shutil
 from functools import cache
 from pathlib import Path
@@ -292,8 +293,20 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
         finally:
             self._current_image_url = curr_image
 
-    def gen_nixlbench_srun_commands(self, test_cmd: list[str], backend: str) -> list[list[str]]:
-        prefix_part = self.gen_srun_prefix(with_num_nodes=False)
+    def gen_nixlbench_srun_commands(
+        self,
+        test_cmd: list[str],
+        backend: str,
+        *,
+        task_script: Path | None = None,
+    ) -> list[list[str]]:
+        prefix_part = self.gen_srun_prefix(use_pretest_extras=task_script is not None, with_num_nodes=False)
+        if task_script is not None:
+            num_nodes, _ = self.get_cached_nodes_spec()
+            # Defaults precede user placement options so explicit overrides still work.
+            prefix_part[1:1] = [f"-N{num_nodes}", "--ntasks-per-node=1"]
+            return [[*prefix_part, "bash", shlex.quote(str(task_script))]]
+
         bash_part = [
             "bash",
             "-c",

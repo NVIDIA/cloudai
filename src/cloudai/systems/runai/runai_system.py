@@ -35,7 +35,7 @@ class RunAISystem(System):
     """RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes."""
 
     scheduler: str = "runai"
-    monitor_interval: int = 60
+    monitor_interval: float = 60.0
     base_url: str
     user_email: str
     app_id: str

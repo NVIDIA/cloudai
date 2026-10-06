@@ -1,8 +1,7 @@
 #!/usr/bin/groovy
 
-// load pipeline functions
-// Requires pipeline-github-lib plugin to load library from github
-@Library('github.com/Mellanox/ci-demo@stable_hpcx')
+// ci-demo pipeline functions, from the library the Jenkins instance defines.
+@Library('ci-demo')
 // Blossom's helper, used to report commit status back to the pull request.
 @Library('blossom-github-lib@master')
 

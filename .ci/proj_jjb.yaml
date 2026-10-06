@@ -1,20 +1,32 @@
-# Jenkins Job Builder definition for the CloudAI PR CI pipeline.
+# Jenkins Job Builder definition for CloudAI's Jenkins jobs.
 #
 # Applied to the Blossom Jenkins instance that hosts the CloudAI folder.
-# Do NOT edit the resulting job through the Jenkins web UI.
+# Do NOT edit the resulting jobs through the Jenkins web UI.
 # Changes will be overwritten on the next jenkins-jobs update according to this file.
 #
-# Resulting job: CloudAI / cloudai-ci
-# Pipeline body: .ci/Jenkinsfile + .ci/job_matrix.yaml (ci-demo).
+# Each pipeline gets its own subfolder of CloudAI and its own job prefix:
+#   CloudAI/CI/cloudai-ci        - launcher; Blossom triggers it, it runs the
+#                                  leaves below (.ci/Jenkinsfile.launcher)
+#   CloudAI/CI/cloudai-ci-<leaf> - one small pipeline per .ci/pipeline/<leaf>_matrix.yaml
+#                                  (.ci/Jenkinsfile, ci-demo)
 #
-# The CloudAI folder itself is declared alongside the existing cloudai-release
-# job, so it is deliberately not redeclared here - doing so would overwrite that
-# folder's description on every update from this side.
+# The CloudAI folder itself and the release job are still declared outside this
+# repository, so neither is redeclared here - doing so would overwrite them on
+# every update from this side.
+
+# The CI pipeline's subfolder. Nested under CloudAI so its jobs inherit that
+# folder's credentials and permissions.
+- job-template:
+    name: "{jjb_folder}/CI"
+    project-type: folder
+    description: &description |
+        <h1><font color="blue">Do NOT edit this job through the Web GUI !</font></h1>
+        <h3>Source of truth: <a href="https://github.com/NVIDIA/cloudai/blob/main/.ci/proj_jjb.yaml">cloudai/.ci/proj_jjb.yaml</a>. Edit there and re-run <code>jenkins-jobs update</code>.</h3>
 
 - job-template:
-    name: "{jjb_proj}"
+    name: "{jjb_proj}-ci"
     project-type: pipeline
-    folder: "{jjb_folder}"
+    folder: "{jjb_folder}/CI"
     concurrent: true
     properties:
         - github:
@@ -25,10 +37,8 @@
         - inject:
             keep-system-variables: true
             properties-content: |
-              jjb_proj={jjb_proj}
-    description: |
-        <h1><font color="blue">Do NOT edit this job through the Web GUI !</font></h1>
-        <h3>Source of truth: <a href="https://github.com/NVIDIA/cloudai/blob/main/.ci/proj_jjb.yaml">cloudai/.ci/proj_jjb.yaml</a>. Edit there and re-run <code>jenkins-jobs update</code>.</h3>
+              jjb_proj={jjb_proj}-ci
+    description: *description
     parameters:
         - string:
             name: "sha1"
@@ -38,23 +48,15 @@
             name: "githubData"
             default: ""
             description: "[blossom] Raw webhook payload; set automatically on PR-triggered runs. Leave empty for a manual run - the pipeline then skips reporting commit status. Paste a captured payload only to replay a build onto a specific PR."
-        - string:
-            name: "conf_file"
-            default: ".ci/job_matrix.yaml"
-            description: "[tools] CI Demo job matrix"
-        - string:
-            name: "script"
-            default: ".ci/Jenkinsfile"
-            description: "[tools] CI Demo Jenkinsfile to initialise job"
     triggers:
         - generic-webhook-trigger:
             # Also the right-hand side of the CI_SERVER GitHub secret:
             # <jenkins-url>@cloudai-ci. These tokens are matched across the
             # whole instance rather than per folder, so two jobs sharing one
             # would both fire - keep it unique.
-            token: "{jjb_proj}"
-            print-contributors: true
-            print-posted-content: true
+            token: "{jjb_proj}-ci"
+            print-contrib-var: true
+            print-post-content: true
             silent-response: false
             cause: "Blossom PR trigger"
             post-content-params:
@@ -67,7 +69,7 @@
                   key: sha1
                   value: '$.concat("refs/pull/", $.issue.number, "/merge")'
     pipeline-scm:
-        scm:
+        scm: &scm
             - git:
                 url: "{jjb_git}"
                 credentials-id: "{jjb_gh_cred_id}"
@@ -79,14 +81,50 @@
                 browser: githubweb
                 browser-url: "{jjb_github_url}"
                 wipe-workspace: true
-        script-path: "$script"
+        script-path: ".ci/Jenkinsfile.launcher"
 
+# A leaf job. No trigger of its own: only the launcher above starts it, passing
+# down the commit to test and the Blossom payload so it can report status.
+- job-template:
+    name: "{jjb_proj}-ci-{leaf}"
+    project-type: pipeline
+    folder: "{jjb_folder}/CI"
+    concurrent: true
+    properties:
+        - github:
+            url: "{jjb_github_url}"
+        - build-discarder:
+            days-to-keep: 14
+            num-to-keep: 100
+        - inject:
+            keep-system-variables: true
+            properties-content: |
+              jjb_proj={jjb_proj}-ci-{leaf}
+    description: *description
+    parameters:
+        - string:
+            name: "sha1"
+            default: "{jjb_branch}"
+            description: "Commit of CloudAI to be checked. Set by the launcher."
+        - string:
+            name: "githubData"
+            default: ""
+            description: "[blossom] Raw webhook payload, passed down by the launcher. Leave empty for a manual run - the pipeline then skips reporting commit status."
+        - string:
+            name: "conf_file"
+            default: ".ci/pipeline/{leaf}_matrix.yaml"
+            description: "[tools] CI Demo job matrix"
+    pipeline-scm:
+        scm: *scm
+        script-path: ".ci/Jenkinsfile"
+
+# One project per pipeline, so each can be added or moved on its own.
 - project:
     name: cloudai-ci
-    jjb_proj: 'cloudai-ci'
+    jjb_proj: 'cloudai'
     jjb_folder: 'CloudAI'
     jjb_branch: 'main'
-    # Unlike cloudai-release, this pipeline lives in the repository it tests,
+    # Unlike cloudai-release, these pipelines live in the repository they test,
     # so the SCM clone URL and the GitHub project URL are the same repo.
     jjb_git: 'git@github.com:NVIDIA/cloudai.git'
     jjb_github_url: 'https://github.com/NVIDIA/cloudai/'
@@ -94,4 +132,13 @@
     # the other jobs on this instance already use.
     jjb_gh_cred_id: 'svcnbu-swx-hpcx_ssh_with_key'
     jobs:
-        - "{jjb_proj}"
+        - "{jjb_folder}/CI"
+        - "{jjb_proj}-ci"
+        - "{jjb_proj}-ci-{leaf}":
+            leaf: copyright
+        - "{jjb_proj}-ci-{leaf}":
+            leaf: secrets
+        - "{jjb_proj}-ci-{leaf}":
+            leaf: coverity
+        - "{jjb_proj}-ci-{leaf}":
+            leaf: coverage
