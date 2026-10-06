@@ -52,10 +52,6 @@ MegatronRun exposes ``iteration_time`` (milliseconds, lower is better) and ``tfl
 ``stdout.txt``, or all available lines when fewer than ten are present, matching the per-test CSV report.
 No observations are emitted when iteration metric lines are missing.
 
-``cloudai generate-report`` also refreshes metrics in an existing ``experiment.json`` using the local results
-directory. This works with results copied from a cluster and preserves recorded paths, job IDs, status, and
-timing. Completed executions are refreshed; DSE test metrics use the recorded best step.
-
 When a test case is executed successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
 metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
 in ``tests[].dse``.

@@ -14,71 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import datetime
 import pathlib
 
 import pytest
 
-import cloudai.core
-import cloudai.metrics
 import cloudai.models.output
 import cloudai.output
-
-
-def test_refresh_metrics_preserves_dse_selection_and_failed_runs(
-    tmp_path: pathlib.Path,
-    base_tr: cloudai.core.TestRun,
-    slurm_system: cloudai.core.System,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def observations(self, system, tr):
-        return [cloudai.metrics.MetricObservation(cloudai.metrics.ITERATION_TIME, float(tr.step), {})]
-
-    monkeypatch.setattr(cloudai.core.TestDefinition, "metric_observations", observations)
-    selected = cloudai.models.output.DSE(space={"size": [1, 2]}, best_step=2, best_config={"size": 2})
-    experiment = cloudai.models.output.Experiment(
-        id="experiment",
-        name="scenario",
-        system_name="remote",
-        path="/remote/results",
-        status="completed",
-        tests=[
-            cloudai.models.output.Test(
-                id=str(base_tr.name),
-                name="workload",
-                path="/remote/results/case",
-                status="failed",
-                dse=selected,
-                runs=[
-                    cloudai.models.output.Run(
-                        path=f"/remote/results/case/0/{step}",
-                        jobid=str(step),
-                        status="failed" if step == 3 else "completed",
-                        iteration=0,
-                        step=step,
-                    )
-                    for step in (1, 2, 3)
-                ],
-            )
-        ],
-    )
-    (tmp_path / "experiment.json").write_text(experiment.model_dump_json())
-    test_runs = []
-    for step in (1, 2, 3):
-        tr = copy.deepcopy(base_tr)
-        tr.step = step
-        tr.output_path = tmp_path / "case" / "0" / str(step)
-        test_runs.append(tr)
-    cloudai.output.refresh_experiment_metrics(slurm_system, test_runs, tmp_path)
-    refreshed = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
-    test = refreshed.tests[0]
-    assert test.dse == selected
-    assert [run.metrics[0].value for run in test.runs[:2]] == [1.0, 2.0]
-    assert test.metrics == test.runs[1].metrics
-    assert test.runs[2] == experiment.tests[0].runs[2]
-    assert test.status == "failed"
-    assert refreshed.path == "/remote/results"
 
 
 @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])

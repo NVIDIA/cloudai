@@ -15,17 +15,12 @@
 # limitations under the License.
 
 import csv
-import json
 from pathlib import Path
 
 import pytest
-import toml
-from click.testing import CliRunner
 
 import cloudai.metrics
-import cloudai.models.output
 from cloudai import TestRun
-from cloudai.cli import main
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.megatron_run import (
@@ -216,81 +211,3 @@ def test_metric_observations_without_iteration_data(
     else:
         path.write_text(stdout)
     assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr) == []
-
-
-def test_generate_report_refreshes_megatron_observations(
-    tmp_path: Path, megatron_run_tr: TestRun, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Copied results retain their execution metadata and acquire metrics without runtime access."""
-
-    def unexpected_runtime_access(*args, **kwargs):
-        pytest.fail("Report generation must only use disk artifacts")
-
-    monkeypatch.setattr("subprocess.run", unexpected_runtime_access)
-    result_dir = tmp_path / "copied-results"
-    output_path = result_dir / "case" / "0"
-    output_path.mkdir(parents=True)
-    (output_path / "stdout.txt").write_text((megatron_run_tr.output_path / "stdout.txt").read_text())
-    system_path = tmp_path / "system.toml"
-    system_path.write_text(
-        'name = "offline"\nscheduler = "slurm"\ninstall_path = "install"\n'
-        'output_path = "results"\ndefault_partition = "main"\n[[partitions]]\nname = "main"\n'
-    )
-    scenario_path = tmp_path / "scenario.toml"
-    config = megatron_run_tr.test.model_dump(mode="json", exclude_none=True)
-    config.update(id="case", test_template_name="MegatronRun")
-    scenario_path.write_text(toml.dumps({"name": "offline", "Tests": [config]}))
-    experiment = cloudai.models.output.Experiment(
-        id="original-id",
-        name="offline",
-        system_name="original-cluster",
-        status="completed",
-        path="/original/results",
-        tests=[
-            cloudai.models.output.Test(
-                id="case",
-                name="megatron_run",
-                status="completed",
-                path="/original/results/case",
-                runs=[
-                    cloudai.models.output.Run(
-                        path="/original/results/case/0",
-                        jobid="123",
-                        status="completed",
-                        duration=12.0,
-                        iteration=0,
-                        step=0,
-                    )
-                ],
-            )
-        ],
-    )
-    experiment_path = result_dir / "experiment.json"
-    experiment_path.write_text(experiment.model_dump_json())
-    result = CliRunner().invoke(
-        main,
-        [
-            "--log-file",
-            str(tmp_path / "debug.log"),
-            "generate-report",
-            "--system-config",
-            str(system_path),
-            "--test-scenario",
-            str(scenario_path),
-            "--result-dir",
-            str(result_dir),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    refreshed = json.loads(experiment_path.read_text())
-    metrics = refreshed["tests"][0]["runs"][0].pop("metrics")
-    assert refreshed["tests"][0].pop("metrics") == metrics
-    original = experiment.model_dump(mode="json")
-    original["tests"][0]["runs"][0].pop("metrics")
-    original["tests"][0].pop("metrics")
-    assert refreshed == original
-    assert metrics == [
-        {"name": "Iteration time", "value": pytest.approx(15629.1666667), "unit": "ms", "dimensions": []},
-        {"name": "Throughput per GPU", "value": pytest.approx(495.0666667), "unit": "TFLOP/s/GPU", "dimensions": []},
-    ]
-    assert (output_path / "megatron_run_report.csv").is_file()
