@@ -96,7 +96,7 @@ class BaseRunner(ABC):
     def get_run_output(
         self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
     ) -> cloudai.models.output.Run | None:
-        """Normalize one logical execution; result is absent at submission."""
+        """Normalize one logical execution; result is absent until completion."""
         return None
 
     def completed_test_runs(self, job: BaseJob) -> list[TestRun]:
@@ -112,6 +112,10 @@ class BaseRunner(ABC):
             if run is not None:
                 self.experiment_output.update_run(str(tr.name), run)
         self.experiment_output.write()
+
+    def update_live_run_output(self, job: BaseJob) -> None:
+        """Refresh output for an active job on backends supporting live snapshots."""
+        return
 
     def finish_output(self, successful: bool) -> None:
         status: cloudai.models.output.Status = "completed" if successful else "failed"
@@ -290,6 +294,9 @@ class BaseRunner(ABC):
         logging.debug(f"Monitoring {len(self.jobs)} jobs")
         for job in list(self.jobs):
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
+
+            if not is_completed:
+                self.update_live_run_output(job)
 
             if is_completed:
                 logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
