@@ -254,11 +254,12 @@ def llm_serving_metric_observations(
     if results is None or results.completed <= 0:
         return observations
 
-    for metric, value in (
-        (cloudai.metrics.REQUEST_THROUGHPUT, getattr(results, "request_throughput", None)),
-        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, getattr(results, "output_throughput", None)),
+    for metric, field in (
+        (cloudai.metrics.REQUEST_THROUGHPUT, "request_throughput"),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, "output_throughput"),
     ):
-        if value is not None and math.isfinite(value):
+        value = getattr(results, field)
+        if math.isfinite(value):
             observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
     for metric in (cloudai.metrics.TTFT, cloudai.metrics.TPOT):
         for statistic in ("mean", "median", "p99"):

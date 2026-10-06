@@ -144,7 +144,7 @@ class SGLangBenchReport(LLMServingBenchReport):
     """Parsed benchmark data from SGLang bench_serving output."""
 
     request_throughput: float
-    output_throughput: float | None = None
+    output_throughput: float
 
     @property
     def throughput(self) -> float:

@@ -47,6 +47,7 @@ BENCH_DATA = VLLMBenchReport(
     median_tpot_ms=11.0,
     p99_tpot_ms=19.0,
     output_throughput=2400.0,
+    request_throughput=10.0,
     max_concurrency=16,
 )
 

@@ -543,19 +543,15 @@ def test_serving_metric_observations_without_results(
     assert tr.test.metric_observations(slurm_system, tr) == []
 
 
-def test_serving_metric_observations_optional_throughput(slurm_system: SlurmSystem, serving_observation_run) -> None:
+@pytest.mark.parametrize("field", ["request_throughput", "output_throughput"])
+def test_serving_metric_observations_requires_both_throughputs(
+    slurm_system: SlurmSystem, serving_observation_run, field: str
+) -> None:
     tr, result_path, data = serving_observation_run
-    optional_field = "request_throughput" if tr.name == "vllm" else "output_throughput"
-    del data[optional_field]
+    del data[field]
     result_path.write_text(json.dumps(data))
 
-    observations = tr.test.metric_observations(slurm_system, tr)
-
-    assert len(observations) == 7
-    throughput = [o for o in observations if "throughput" in o.metric.key]
-    assert [o.metric.key for o in throughput] == [
-        "output_token_throughput" if tr.name == "vllm" else "request_throughput"
-    ]
+    assert tr.test.metric_observations(slurm_system, tr) == []
 
 
 def test_serving_metric_observations_nonfinite_values(slurm_system: SlurmSystem, serving_observation_run) -> None:
