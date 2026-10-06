@@ -79,6 +79,7 @@ class OSUBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["avg_lat"],
                         y_axis_label="Time (us)",
+                        x_axis_type="indexed_category",
                     )
                 )
             if self._has_metric(dfs, "mb_sec"):
@@ -90,6 +91,7 @@ class OSUBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["mb_sec"],
                         y_axis_label="Bandwidth (MB/s)",
+                        x_axis_type="indexed_category",
                     )
                 )
             if self._has_metric(dfs, "messages_sec"):
@@ -101,6 +103,7 @@ class OSUBenchComparisonReport(ComparisonReport):
                         info_columns=list(self.INFO_COLUMNS),
                         data_columns=["messages_sec"],
                         y_axis_label="Messages/s",
+                        x_axis_type="indexed_category",
                     )
                 )
 
