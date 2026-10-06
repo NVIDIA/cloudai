@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from cloudai.core import BaseJob
 
-from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
+from .slurm_metadata import SlurmJobMetadata
 
 
 @dataclass
@@ -27,4 +27,3 @@ class SlurmJob(BaseJob):
 
     nodes: list[str] = field(default_factory=list, init=False)
     metadata: SlurmJobMetadata | None = field(default=None, init=False)
-    live_metadata: SlurmStepMetadata | None = field(default=None, init=False)
