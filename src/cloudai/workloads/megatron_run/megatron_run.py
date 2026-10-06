@@ -16,6 +16,7 @@
 
 import logging
 import re
+from functools import cache
 from os.path import expandvars
 from pathlib import Path
 from statistics import mean
@@ -170,7 +171,7 @@ class MegatronRunTestDefinition(TestDefinition):
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
         """Return stdout averages using the report's last-ten-iterations window."""
         del system
-        iter_times_ms, gpu_tflops = extract_iteration_metrics(tr.output_path / "stdout.txt")
+        iter_times_ms, gpu_tflops = extract_iteration_metrics((tr.output_path / "stdout.txt").absolute())
         if not iter_times_ms:
             return []
         return [
@@ -221,8 +222,9 @@ class MegatronRunTestDefinition(TestDefinition):
         )
 
 
+@cache
 def extract_iteration_metrics(log_path: Path) -> tuple[list[float], list[float]]:
-    """Read iteration times (ms) and TFLOP/s per GPU from the last ten metric lines."""
+    """Read the last ten metric lines of an absolute log path; cache completed, unchanged logs."""
     if not log_path.is_file():
         return [], []
     iter_times_ms: list[float] = []

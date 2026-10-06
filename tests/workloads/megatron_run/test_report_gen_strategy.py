@@ -213,3 +213,31 @@ def test_metric_observations_without_iteration_data(
     else:
         path.write_text(stdout)
     assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr) == []
+
+
+def test_metrics_cache_uses_absolute_paths(
+    tmp_path: Path, slurm_system: SlurmSystem, megatron_run_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reports and observations share a scan without confusing relative paths across directories."""
+    open_calls = []
+    original_open = Path.open
+
+    def record_open(path, *args, **kwargs):
+        open_calls.append(path)
+        return original_open(path, *args, **kwargs)
+
+    for name, timing in (("first", 10), ("second", 20)):
+        output = tmp_path / name / "results"
+        output.mkdir(parents=True)
+        (output / "stdout.txt").write_text(
+            f"elapsed time per iteration (ms): {timing} | throughput per GPU (TFLOP/s/GPU): 100 |\n"
+        )
+    monkeypatch.setattr(Path, "open", record_open)
+    megatron_run_tr.output_path = Path("results")
+    report = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
+    for name, timing in (("first", 10), ("second", 20)):
+        monkeypatch.chdir(tmp_path / name)
+        assert report.can_handle_directory()
+        assert report.get_metric("iteration-time") == timing
+        assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr)[0].value == timing
+    assert open_calls == [tmp_path / name / "results" / "stdout.txt" for name in ("first", "second")]

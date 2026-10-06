@@ -75,7 +75,7 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "iteration-time", "tflops-per-gpu"]
 
     def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "stdout.txt"
+        log = (self.test_run.output_path / "stdout.txt").absolute()
         return log if log.is_file() else None
 
     @property
@@ -83,7 +83,7 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
         return self.get_log_file() or (self.test_run.output_path / "stdout.txt")
 
     def can_handle_directory(self) -> bool:
-        iter_times_ms, _ = extract_iteration_metrics(self.test_run.output_path / "stdout.txt")
+        iter_times_ms, _ = extract_iteration_metrics((self.test_run.output_path / "stdout.txt").absolute())
         return bool(iter_times_ms)
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
