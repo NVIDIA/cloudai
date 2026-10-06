@@ -25,7 +25,7 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .megatron_run import ITERATION_LOG_REGEX, extract_iteration_metrics
+from .megatron_run import extract_iteration_metrics
 
 CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
 
@@ -83,14 +83,8 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
         return self.get_log_file() or (self.test_run.output_path / "stdout.txt")
 
     def can_handle_directory(self) -> bool:
-        log_file = self.get_log_file()
-        if not log_file:
-            return False
-        with log_file.open("r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                if ITERATION_LOG_REGEX.search(line):
-                    return True
-        return False
+        iter_times_ms, _ = extract_iteration_metrics(self.test_run.output_path / "stdout.txt")
+        return bool(iter_times_ms)
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
         log_file = self.get_log_file()
