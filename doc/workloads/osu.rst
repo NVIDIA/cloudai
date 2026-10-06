@@ -56,6 +56,13 @@ Test-in-Scenario example:
         iterations = 10
         message_size = "1024"
 
+Comparison Reports
+------------------
+
+The OSU comparison v2 report labels the X axis with the measured message sizes
+in bytes. Sizes are displayed at equally spaced positions, including zero-byte
+messages, rather than using default logarithmic ticks.
+
 API Documentation
 -----------------
 
