@@ -26,12 +26,6 @@ import click
 
 import cloudai.core
 import cloudai.handlers
-from cloudai.handlers import (
-    handle_generate_report,
-    handle_install_and_uninstall,
-    handle_list_registered_items,
-    handle_verify_all_configs,
-)
 
 
 def register_signal_handlers(signal_handler: Callable) -> None:
@@ -211,7 +205,7 @@ def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_dir: Pat
         hook_dir=hook_dir,
         mode="install",
     )
-    exit(handle_install_and_uninstall(args))
+    exit(cloudai.handlers.handle_install_and_uninstall(args))
 
 
 @main.command()
@@ -225,7 +219,7 @@ def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_dir: P
         hook_dir=hook_dir,
         mode="uninstall",
     )
-    exit(handle_install_and_uninstall(args))
+    exit(cloudai.handlers.handle_install_and_uninstall(args))
 
 
 @main.command()
@@ -310,7 +304,7 @@ def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_
         hook_dir=hook_dir,
         result_dir=result_dir,
     )
-    exit(handle_generate_report(args))
+    exit(cloudai.handlers.handle_generate_report(args))
 
 
 @main.command()
@@ -326,7 +320,7 @@ def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, hook_
 def verify_configs(configs_dir: Path, tests_dir: Path):
     """Verify the configuration TOML files."""
     args = argparse.Namespace(configs_dir=configs_dir, tests_dir=tests_dir)
-    raise click.exceptions.Exit(1 if handle_verify_all_configs(args) else 0)
+    raise click.exceptions.Exit(1 if cloudai.handlers.handle_verify_all_configs(args) else 0)
 
 
 @main.command()
@@ -334,4 +328,4 @@ def verify_configs(configs_dir: Path, tests_dir: Path):
 @click.option("-v", "--verbose", is_flag=True, default=False, help="Verbose output.")
 def list(type: str, verbose: bool):
     """List available in Registry items."""
-    handle_list_registered_items(type, verbose)
+    cloudai.handlers.handle_list_registered_items(type, verbose)
