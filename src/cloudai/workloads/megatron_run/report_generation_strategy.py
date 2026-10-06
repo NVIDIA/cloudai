@@ -28,7 +28,6 @@ from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from .megatron_run import ITERATION_LOG_REGEX, extract_iteration_metrics
 
 CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
-ITERATION_REGEX = ITERATION_LOG_REGEX
 
 
 class CheckpointTimingReportGenerationStrategy(ReportGenerationStrategy):
@@ -89,7 +88,7 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
             return False
         with log_file.open("r", encoding="utf-8", errors="ignore") as f:
             for line in f:
-                if ITERATION_REGEX.search(line):
+                if ITERATION_LOG_REGEX.search(line):
                     return True
         return False
 
