@@ -14,47 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import datetime
 import logging
 import pathlib
 import tempfile
-from typing import TYPE_CHECKING
 
 import cloudai.metrics
 import cloudai.models.output
-
-if TYPE_CHECKING:
-    import cloudai.core
-
-
-def refresh_experiment_metrics(
-    system: cloudai.core.System, test_runs: list[cloudai.core.TestRun], results_root: pathlib.Path
-) -> None:
-    """Refresh existing experiment metrics from local artifacts, retaining execution metadata."""
-    path = results_root / "experiment.json"
-    if not path.is_file():
-        return
-    experiment = cloudai.models.output.Experiment.model_validate_json(path.read_text())
-    runs = {(str(tr.name), tr.current_iteration, tr.step): tr for tr in test_runs}
-    for test in experiment.tests:
-        for run in test.runs:
-            tr = runs.get((test.id, run.iteration or 0, run.step or 0))
-            if run.status != "completed" or tr is None:
-                continue
-            try:
-                run.metrics = [metric_output(item) for item in tr.test.metric_observations(system, tr)]
-            except Exception as exc:
-                logging.warning("Cannot refresh output metrics for %s: %s", tr.output_path, exc)
-        if test.dse is None:
-            test.metrics = ExperimentOutput._single_run_metrics(test)
-        else:
-            selected = next(
-                (run for run in test.runs if run.status == "completed" and run.step == test.dse.best_step), None
-            )
-            test.metrics = [metric.model_copy(deep=True) for metric in selected.metrics] if selected else []
-    ExperimentOutput(experiment, results_root).write()
 
 
 def elapsed_seconds(start: datetime.datetime | None, finish: datetime.datetime | None) -> float | None:
