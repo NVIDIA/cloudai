@@ -113,10 +113,6 @@ class BaseRunner(ABC):
                 self.experiment_output.update_run(str(tr.name), run)
         self.experiment_output.write()
 
-    def update_live_run_output(self, job: BaseJob) -> None:
-        """Refresh output for an active job on backends supporting live snapshots."""
-        return
-
     def finish_output(self, successful: bool) -> None:
         status: cloudai.models.output.Status = "completed" if successful else "failed"
         if self.shutting_down and not any(test.status == "failed" for test in self.experiment_output.experiment.tests):
@@ -215,6 +211,17 @@ class BaseRunner(ABC):
                     self.system.is_job_completed(job),
                 )
 
+            if self.mode == "run" and is_running:
+                test_output = next(
+                    (test for test in self.experiment_output.experiment.tests if test.id == str(tr.name)), None
+                )
+                if test_output is not None:
+                    for run_output in test_output.runs:
+                        if run_output.path == str(tr.output_path.absolute()) and run_output.status == "pending":
+                            run_output.status = "running"
+                            self.experiment_output.update_run(str(tr.name), run_output)
+                            break
+
             logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
             if is_running or is_completed:
                 self.check_and_schedule_start_post_init_dependent_tests(tr)
@@ -295,9 +302,6 @@ class BaseRunner(ABC):
         for job in list(self.jobs):
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
 
-            if not is_completed:
-                self.update_live_run_output(job)
-
             if is_completed:
                 logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
                 self.on_job_completion(job)
@@ -331,6 +335,8 @@ class BaseRunner(ABC):
                         successful_jobs_count += 1
                         self.handle_job_completion(job)
 
+        if self.mode == "run":
+            self.experiment_output.write()
         return successful_jobs_count
 
     def get_runner_job_status(self, job: BaseJob) -> JobStatusResult:

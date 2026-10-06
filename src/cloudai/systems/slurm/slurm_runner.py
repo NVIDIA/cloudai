@@ -42,15 +42,9 @@ class SlurmRunner(BaseRunner):
     def get_run_output(
         self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
     ) -> cloudai.models.output.Run | None:
-        slurm_job = cast(SlurmJob, job)
-        metadata = slurm_job.metadata or slurm_job.live_metadata
+        metadata = cast(SlurmJob, job).metadata
         status: cloudai.models.output.Status = "pending"
         metrics: list[cloudai.models.output.Metric] = []
-        if metadata is not None:
-            if metadata.state in ("RUNNING", "COMPLETING", "SUSPENDED", "RESIZING", "STAGE_OUT"):
-                status = "running"
-            elif metadata.state not in ("PENDING", "CONFIGURING", "REQUEUED", "REQUEUE_FED", "REQUEUE_HOLD"):
-                status = "unknown"
         if result is not None:
             status = "completed" if result.is_successful else "failed"
             if job.terminated_by_dependency or (metadata is not None and metadata.state.startswith("CANCELLED")):
@@ -68,29 +62,12 @@ class SlurmRunner(BaseRunner):
             jobid=str(job.id),
             status=status,
             metrics=metrics,
-            start=self._output_timestamp(metadata.start_time)
-            if metadata is not None and (status == "running" or result is not None)
-            else None,
-            finish=self._output_timestamp(metadata.end_time) if metadata is not None and result is not None else None,
-            duration=slurm_job.metadata.elapsed_time_sec
-            if slurm_job.metadata is not None and result is not None
-            else None,
+            start=self._output_timestamp(metadata.start_time) if metadata is not None else None,
+            finish=self._output_timestamp(metadata.end_time) if metadata is not None else None,
+            duration=metadata.elapsed_time_sec if metadata is not None else None,
             iteration=tr.current_iteration,
             step=tr.step,
         )
-
-    def update_live_run_output(self, job: BaseJob) -> None:
-        try:
-            steps_metadata = self.system.get_job_status(job)
-        except Exception as exc:
-            logging.warning("Cannot refresh live output for Slurm job %s: %s", job.id, exc)
-        else:
-            metadata = next((step for step in steps_metadata if not step.step_id and step.job_id == int(job.id)), None)
-            if metadata is not None:
-                cast(SlurmJob, job).live_metadata = metadata
-                if metadata.cluster_name:
-                    self.experiment_output.experiment.system_name = metadata.cluster_name
-        self.update_run_output(job)
 
     @staticmethod
     def _output_timestamp(value: str) -> datetime.datetime | None:

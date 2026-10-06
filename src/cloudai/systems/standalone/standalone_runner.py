@@ -71,9 +71,6 @@ class StandaloneRunner(BaseRunner):
         standalone_job = cast(StandaloneJob, job)
         standalone_job.finish = datetime.datetime.now(datetime.timezone.utc)
 
-    def update_live_run_output(self, job: BaseJob) -> None:
-        self.update_run_output(job)
-
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)

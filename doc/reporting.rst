@@ -47,9 +47,9 @@ could not be determined. Dry runs include scenario and test-case details without
 
 For standalone runs and Slurm's default mode (one submission per run), CloudAI refreshes the file on each job monitoring
 cycle, controlled by the system's ``monitor_interval``. Standalone runs are ``running`` from launch; Slurm runs transition
-from ``pending`` to ``running``
-when Slurm reports execution. Running durations are refreshed when the start time is known, and finish times remain
-``null`` until completion. If Slurm accounting is temporarily unavailable, the last observed state is retained.
+from ``pending`` to ``running`` when the existing job checks report execution. Slurm start times and durations remain
+``null`` until completion supplies accounting metadata. Standalone running durations are refreshed using the launch
+time. Finish times remain ``null`` until completion.
 Snapshots replace the file atomically so readers can safely read it while the experiment is running.
 
 Metrics are sourced from ``TestDefinition.metric_observations()``, and are not affected by reporter settings.
