@@ -37,24 +37,6 @@ ITERATION_LOG_REGEX = re.compile(
 )
 
 
-def extract_iteration_metrics(log_path: Path) -> tuple[list[float], list[float]]:
-    """Read iteration times (ms) and TFLOP/s per GPU from the last ten metric lines."""
-    if not log_path.is_file():
-        return [], []
-    iter_times_ms: list[float] = []
-    gpu_tflops: list[float] = []
-    with log_path.open("r", encoding="utf-8", errors="ignore") as file:
-        for line in file:
-            match = ITERATION_LOG_REGEX.search(line)
-            if match:
-                try:
-                    iter_times_ms.append(float(match.group(1)))
-                    gpu_tflops.append(float(match.group(2)))
-                except (ValueError, TypeError):
-                    logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
-    return iter_times_ms[-10:], gpu_tflops[-10:]
-
-
 class MegatronRunCmdArgs(CmdArgs):
     """MegatronRun test command arguments."""
 
@@ -234,3 +216,21 @@ class MegatronRunTestDefinition(TestDefinition):
                 "Expected at least one line with elapsed time per iteration and throughput per GPU or validation loss."
             ),
         )
+
+
+def extract_iteration_metrics(log_path: Path) -> tuple[list[float], list[float]]:
+    """Read iteration times (ms) and TFLOP/s per GPU from the last ten metric lines."""
+    if not log_path.is_file():
+        return [], []
+    iter_times_ms: list[float] = []
+    gpu_tflops: list[float] = []
+    with log_path.open("r", encoding="utf-8", errors="ignore") as file:
+        for line in file:
+            match = ITERATION_LOG_REGEX.search(line)
+            if match:
+                try:
+                    iter_times_ms.append(float(match.group(1)))
+                    gpu_tflops.append(float(match.group(2)))
+                except (ValueError, TypeError):
+                    logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
+    return iter_times_ms[-10:], gpu_tflops[-10:]
