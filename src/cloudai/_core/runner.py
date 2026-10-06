@@ -90,11 +90,12 @@ class Runner:
         """
         registry = Registry()
         scheduler_type = system.scheduler.lower()
-        if scheduler_type not in registry.runners_map:
-            msg = f"No runner registered for scheduler: {scheduler_type}"
-            logging.error(msg)
-            raise NotImplementedError(msg)
-        runner_class = runner_class or registry.runners_map[scheduler_type]
+        if runner_class is None:
+            if scheduler_type not in registry.runners_map:
+                msg = f"No runner registered for scheduler: {scheduler_type}"
+                logging.error(msg)
+                raise NotImplementedError(msg)
+            runner_class = registry.runners_map[scheduler_type]
         logging.info(f"Creating {runner_class.__name__}")
 
         if not system.output_path.exists():
