@@ -197,6 +197,8 @@ def test_metric_observations_use_last_ten_iterations(slurm_system: SlurmSystem, 
     assert observations[0].metric.direction is cloudai.metrics.OptimizationDirection.MINIMIZE
     assert observations[1].metric.direction is cloudai.metrics.OptimizationDirection.MAXIMIZE
     report = MegatronRunReportGenerationStrategy(slurm_system, tr)
+    assert report.get_metric("iteration-time") == observations[0].value
+    assert report.get_metric("tflops-per-gpu") == observations[1].value
     report.generate_report()
     assert tr.test.metric_observations(slurm_system, tr) == observations
 

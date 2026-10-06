@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import re
 from os.path import expandvars
 from pathlib import Path
+from statistics import mean
 from typing import Any, Optional, Tuple
 
 import toml
@@ -33,6 +35,24 @@ ITERATION_LOG_REGEX = re.compile(
     r"throughput per GPU \(TFLOP/s/GPU\):\s*([0-9]+(?:\.[0-9]+)?)",
     re.IGNORECASE,
 )
+
+
+def extract_iteration_metrics(log_path: Path) -> tuple[list[float], list[float]]:
+    """Read iteration times (ms) and TFLOP/s per GPU from the last ten metric lines."""
+    if not log_path.is_file():
+        return [], []
+    iter_times_ms: list[float] = []
+    gpu_tflops: list[float] = []
+    with log_path.open("r", encoding="utf-8", errors="ignore") as file:
+        for line in file:
+            match = ITERATION_LOG_REGEX.search(line)
+            if match:
+                try:
+                    iter_times_ms.append(float(match.group(1)))
+                    gpu_tflops.append(float(match.group(2)))
+                except (ValueError, TypeError):
+                    logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
+    return iter_times_ms[-10:], gpu_tflops[-10:]
 
 
 class MegatronRunCmdArgs(CmdArgs):
@@ -164,18 +184,14 @@ class MegatronRunTestDefinition(TestDefinition):
 
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
         """Return stdout averages using the report's last-ten-iterations window."""
-        from .report_generation_strategy import MegatronRunReportGenerationStrategy
-
-        report = MegatronRunReportGenerationStrategy(system, tr)
-        observations = []
-        for name, metric in (
-            ("iteration-time", cloudai.metrics.ITERATION_TIME),
-            ("tflops-per-gpu", cloudai.metrics.TFLOPS_PER_GPU),
-        ):
-            value = report.get_metric(name)
-            if isinstance(value, float):
-                observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
-        return observations
+        del system
+        iter_times_ms, gpu_tflops = extract_iteration_metrics(tr.output_path / "stdout.txt")
+        if not iter_times_ms:
+            return []
+        return [
+            cloudai.metrics.MetricObservation(cloudai.metrics.ITERATION_TIME, float(mean(iter_times_ms)), {}),
+            cloudai.metrics.MetricObservation(cloudai.metrics.TFLOPS_PER_GPU, float(mean(gpu_tflops)), {}),
+        ]
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         slurm_job_path = tr.output_path / "slurm-job.toml"
