@@ -52,13 +52,6 @@ Live ``runs`` status tracking:
   once allocated and executing.
 - Single-sbatch Slurm run records remain ``pending`` until the allocation finishes and their final statuses are recorded.
 
-For standalone runs and Slurm's default mode (one submission per run), CloudAI refreshes the file on submission,
-completion, and an observed status transition. Status checks follow the system's ``monitor_interval``. Standalone runs
-are ``running`` from launch; Slurm runs transition
-from ``pending`` to ``running`` when the existing job checks report execution. Slurm start times and durations remain
-``null`` until completion supplies accounting metadata. Running durations reflect the time of the last published snapshot. Finish times remain ``null`` until completion.
-Snapshots replace the file atomically so readers can safely read it while the experiment is running.
-
 Metrics are sourced from ``TestDefinition.metric_observations()``, and are not affected by reporter settings.
 
 MegatronRun exposes ``iteration_time`` (milliseconds, lower is better) and ``tflops_per_gpu``
