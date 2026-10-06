@@ -119,6 +119,18 @@ LATENCY = MetricDefinition(
     unit="us",
     direction=OptimizationDirection.MINIMIZE,
 )
+ITERATION_TIME = MetricDefinition(
+    key="iteration_time",
+    display_name="Iteration time",
+    unit="ms",
+    direction=OptimizationDirection.MINIMIZE,
+)
+TFLOPS_PER_GPU = MetricDefinition(
+    key="tflops_per_gpu",
+    display_name="Throughput per GPU",
+    unit="TFLOP/s/GPU",
+    direction=OptimizationDirection.MAXIMIZE,
+)
 
 REQUEST_THROUGHPUT = MetricDefinition(
     key="request_throughput",
@@ -151,7 +163,7 @@ ACCURACY = MetricDefinition(
     direction=OptimizationDirection.MAXIMIZE,
 )
 
-MetricCatalog.register_metrics(BANDWIDTH, LATENCY, REQUEST_THROUGHPUT, OUTPUT_TOKEN_THROUGHPUT, TTFT, TPOT, ACCURACY)
+MetricCatalog.register_metrics(BANDWIDTH, LATENCY, REQUEST_THROUGHPUT, OUTPUT_TOKEN_THROUGHPUT, TTFT, TPOT, ACCURACY, ITERATION_TIME, TFLOPS_PER_GPU)
 MetricCatalog.register_dimensions(
     SIZE_BYTES,
     BATCH_SIZE,
