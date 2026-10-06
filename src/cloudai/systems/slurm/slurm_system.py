@@ -85,7 +85,7 @@ class SlurmSystem(System):
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
     scheduler: str = "slurm"
-    monitor_interval: int = 60
+    monitor_interval: float = 60.0
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
@@ -481,7 +481,8 @@ class SlurmSystem(System):
 
         retry_count = 0
         command = (
-            f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
+            "TZ=UTC SLURM_TIME_FORMAT='%Y-%m-%dT%H:%M:%SZ' "
+            f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,Cluster,SubmitLine "
             "--delimiter='|' -p --noheader"
         )
 

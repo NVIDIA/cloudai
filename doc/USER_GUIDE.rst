@@ -62,7 +62,7 @@ Field Descriptions
    * - **scheduler**
      - Indicates the type of system. It should be one of the supported types, currently ``slurm`` or ``standalone``. ``slurm`` refers to a system with the Slurm scheduler, while ``standalone`` refers to a single-node system without any slave nodes. Other values are possible depending on the available schedulers supported by CloudAI.
    * - **install_path**
-     - Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
+     - Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images. Relative paths are converted to absolute paths using the current working directory when the system is loaded, preserving symbolic links.
    * - **output_path**
      - Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
    * - **default_partition**

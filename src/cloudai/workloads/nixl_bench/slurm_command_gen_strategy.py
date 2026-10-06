@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
+from pathlib import Path
 from typing import cast
 
 from cloudai.workloads.common.nixl import NIXLCmdGenBase
@@ -37,7 +39,13 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         backend = str(self.tdef.cmd_args_dict.get("backend", "unset"))
         self._current_image_url = str(self.tdef.docker_image.installed_path)
         try:
-            nixl_commands = self.gen_nixlbench_srun_commands(self.gen_nixlbench_command(), backend)
+            test_command = self.gen_nixlbench_command()
+            task_script = (
+                self._write_independent_task_script(test_command)
+                if self.tdef.cmd_args.launch_mode == "independent"
+                else None
+            )
+            nixl_commands = self.gen_nixlbench_srun_commands(test_command, backend, task_script=task_script)
             if self.tdef.cmd_args.runtime_type == "ASIO" and len(nixl_commands) != 2:
                 raise ValueError(f"ASIO runtime requires exactly two NIXLBench processes, got {len(nixl_commands)}.")
 
@@ -85,6 +93,32 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             '(exit "$nixl_rc")',
         ]
         return "\n".join(commands)
+
+    def _write_independent_task_script(self, test_command: list[str]) -> Path:
+        """Write the node-local shell for independent task results."""
+        output_dir = self.test_run.output_path.absolute()
+        (output_dir / "nixlbench").mkdir(exist_ok=True)
+        script_path = output_dir / "nixlbench.sh"
+        script_path.write_text(
+            "\n".join(
+                [
+                    "#!/bin/bash",
+                    "set -e",
+                    f"nixl_output={shlex.quote(str(output_dir / 'nixlbench'))}",
+                    'nixl_task="$SLURM_PROCID"',
+                    'trap \'echo "$?" > "$nixl_output/$nixl_task.status"\' EXIT',
+                    'exec > "$nixl_output/$nixl_task.stdout" 2> "$nixl_output/$nixl_task.stderr"',
+                    'hostname > "$nixl_output/$nixl_task.hostname"',
+                    'if [ "$nixl_task" -eq 0 ]; then',
+                    '    echo "$SLURM_NTASKS" > "$nixl_output/ntasks"',
+                    "fi",
+                    f"source {shlex.quote(str(output_dir / 'env_vars.sh'))}",
+                    " ".join(test_command),
+                    "",
+                ]
+            )
+        )
+        return script_path
 
     def gen_nixlbench_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test)
