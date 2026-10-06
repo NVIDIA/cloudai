@@ -41,6 +41,7 @@ BENCH_RECORD = {
     "num_prompts": 30,
     "completed": 30,
     "request_throughput": 2400.0,
+    "output_throughput": 4800.0,
     "max_concurrency": 16,
     "mean_ttft_ms": 120.0,
     "median_ttft_ms": 100.0,
