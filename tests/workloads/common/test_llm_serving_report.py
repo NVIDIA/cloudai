@@ -87,6 +87,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
                 "median_tpot_ms": 9.0,
                 "p99_tpot_ms": 15.0,
                 "output_throughput": 1200.0,
+                "request_throughput": 12.0,
                 "max_concurrency": 8,
             }
         ),
@@ -106,6 +107,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
                 "median_tpot_ms": 7.0,
                 "p99_tpot_ms": 13.0,
                 "output_throughput": 1800.0,
+                "request_throughput": 18.0,
                 "max_concurrency": 16,
             }
         ),
@@ -188,6 +190,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
                 "median_tpot_ms": 11.0,
                 "p99_tpot_ms": 18.0,
                 "request_throughput": 960.0,
+                "output_throughput": 96000.0,
                 "max_concurrency": 8,
             }
         )
@@ -208,6 +211,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
                 "median_tpot_ms": 8.0,
                 "p99_tpot_ms": 14.0,
                 "request_throughput": 1760.0,
+                "output_throughput": 176000.0,
                 "max_concurrency": 16,
             }
         )
