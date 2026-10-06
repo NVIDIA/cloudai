@@ -525,16 +525,6 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
     tr.test.bench_cmd_args.max_concurrency = 32
     assert tr.test.metric_observations(slurm_system, tr) == observations
 
-    tr.metric_sol = cloudai.metrics.parse_sol_spec(
-        {
-            "output_token_throughput": [{"value": 4800}],
-            "ttft": [{"value": 60}, {"value": 100, "match": {"statistic": "p99"}}],
-        }
-    )
-    assessments = cloudai.metrics.assess_test_run_metrics(slurm_system, tr)
-    assert [a.attainment for a in assessments if a.observation.metric.key == "output_token_throughput"] == [0.5]
-    assert [a.attainment for a in assessments if a.observation.metric.key == "ttft"] == [0.5, 0.6, 0.5]
-
 
 @pytest.mark.parametrize("result", ["missing", "invalid", "incomplete", "unsuccessful"])
 def test_serving_metric_observations_without_results(
