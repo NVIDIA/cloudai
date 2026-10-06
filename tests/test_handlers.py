@@ -102,6 +102,15 @@ def test_runner_warns_about_legacy_create_runner_signature(slurm_system: SlurmSy
         Runner(mode="dry-run", system=slurm_system, test_scenario=scenario)
 
 
+def test_runner_uses_explicit_class_without_registered_scheduler(slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
+    slurm_system.scheduler = "custom"
+    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=scenario, runner_class=SlurmRunner)
+
+    assert isinstance(runner.runner, SlurmRunner)
+
+
 @pytest.mark.parametrize("dep", ["start_post_comp", "start_post_init", "end_post_comp"])
 def test_dse_run_does_not_support_dependencies(
     slurm_system: SlurmSystem, dse_tr: TestRun, dep: str, caplog: pytest.LogCaptureFixture
