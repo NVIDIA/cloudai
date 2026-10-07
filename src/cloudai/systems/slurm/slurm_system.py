@@ -106,7 +106,7 @@ class SlurmSystem(System):
     cache_docker_images_locally: bool = False
     scheduler: str = "slurm"
     monitor_interval: int = 60
-    cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
+    cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = Field(default_factory=list)
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)

@@ -32,12 +32,8 @@ class CommandShell:
 
         Args:
             executable (Path): The shell executable path. Defaults to Path("/bin/bash").
-
-        Raises:
-            FileNotFoundError: If the specified executable does not exist.
+                Existence is checked when execute() is called, not at init.
         """
-        if not executable.exists():
-            raise FileNotFoundError(f"Executable '{executable}' not found.")
         self.executable = executable
 
     def execute(self, command: str) -> subprocess.Popen:
@@ -51,8 +47,11 @@ class CommandShell:
             subprocess.Popen: The process object for the executed command.
 
         Raises:
+            FileNotFoundError: If the shell executable does not exist.
             subprocess.CalledProcessError: If command execution fails.
         """
+        if not self.executable.exists():
+            raise FileNotFoundError(f"Executable '{self.executable}' not found.")
         process = subprocess.Popen(
             command,
             shell=True,
