@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Safe declarative constraints for DSE configurations."""
-
 from __future__ import annotations
 
 import ast
