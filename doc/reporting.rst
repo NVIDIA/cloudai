@@ -104,9 +104,15 @@ Enabling or disabling a report needs to be done in the system configuration:
    junit = { enable = true }
 
 The ``junit`` scenario reporter is disabled by default. When enabled, it writes ``junit.xml`` in the scenario results
-directory. It emits one test case for every regular test iteration and every DSE step, including pass/fail status,
+directory. It emits one test case for each existing regular test iteration and DSE step, including pass/fail status,
 failure details, scheduler duration when available, and the contents of ``stdout.txt`` and ``stderr.txt``. The artifact
 can be consumed directly by Jenkins, GitLab, GitHub Actions, and other CI systems that support JUnit XML.
+
+If job submission fails, CloudAI generates enabled reports before exiting with a nonzero status.
+The JUnit report preserves completed executions and records the failed submission as an ``error``, including
+its exception type and submission details. Reports include only existing test-run directories; unattempted
+iterations and DSE steps are absent. The failed directory retains ``submission-error.txt`` so subsequent
+``generate-report`` calls preserve the submission error.
 
 Speed-of-Light comparisons
 --------------------------

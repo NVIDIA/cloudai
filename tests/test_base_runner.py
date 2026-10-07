@@ -24,6 +24,7 @@ from pydantic import ConfigDict
 from cloudai.core import (
     BaseJob,
     BaseRunner,
+    JobIdRetrievalError,
     JobStatusResult,
     System,
     TestDefinition,
@@ -159,3 +160,21 @@ class TestHandleDependencies:
         runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.killed_by_dependency) == 1
         assert runner.killed_by_dependency[0].test_run == tr_dep
+
+
+def test_submission_error_is_preserved(runner: MyRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    error = JobIdRetrievalError("tr-name", "sbatch test.sh", "", "submission timeout", "No job ID")
+
+    def submit(tr: TestRun) -> BaseJob:
+        raise error
+
+    monkeypatch.setattr(runner, "_submit_test", submit)
+    tr = runner.test_scenario.test_runs[0]
+    with pytest.raises(JobIdRetrievalError) as caught:
+        runner.submit_test(tr)
+    assert caught.value is error
+    assert runner.jobs == []
+    persisted = (tr.output_path / runner.SUBMISSION_ERROR_FILE_NAME).read_text()
+    assert "JobIdRetrievalError" in persisted
+    assert "submission timeout" in persisted
+    assert "sbatch test.sh" in persisted

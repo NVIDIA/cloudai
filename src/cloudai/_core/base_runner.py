@@ -54,6 +54,8 @@ class BaseRunner(ABC):
             new tests and ensuring a graceful termination of all running tests.
     """
 
+    SUBMISSION_ERROR_FILE_NAME = "submission-error.txt"
+
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path):
         """
         Initialize the BaseRunner with a system object, test scenario, and monitor interval.
@@ -162,7 +164,11 @@ class BaseRunner(ABC):
             self.update_run_output(job)
         except JobSubmissionError as e:
             logging.error(e)
-            exit(1)
+            try:
+                (tr.output_path / self.SUBMISSION_ERROR_FILE_NAME).write_text(f"{type(e).__name__}: {e}")
+            except OSError:
+                logging.exception("Failed to persist submission error for %s", tr.name)
+            raise
 
     def on_job_submit(self, tr: TestRun) -> None:
         return
