@@ -25,6 +25,11 @@ Resulting jobs, in `CloudAI/CI`: the launcher `cloudai-ci` and one leaf job
 
 ### Flow
 
+Members of Srivatsan Krishnan's organization, Daniel Pressler, and Or Balayla
+can request CI by commenting `/build` on a pull request. Their GitHub usernames
+are listed in the workflow's `Authorization` condition; update that list when
+organization membership or GitHub usernames change.
+
 `.github/workflows/blossom-ci.yml` authorizes the requester, runs Blossom's own
 vulnerability scan, then triggers the launcher via the `CI_SERVER` secret
 (`<jenkins-url>@cloudai-ci`). The launcher resolves the PR merged into its base
