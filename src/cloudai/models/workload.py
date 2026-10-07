@@ -181,6 +181,7 @@ class TestDefinition(BaseModel, ABC):
                     "iterations": tr.iterations,
                     "current_iteration": tr.current_iteration,
                     "step": tr.step,
+                    "time_limit": tr.time_limit,
                 },
             }
             accepted, failed_name, failed_expression = self.dse_constraints.evaluate(context)
