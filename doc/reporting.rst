@@ -32,26 +32,26 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
 
-Unified experiment output
+Unified Experiment Output
 -------------------------
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, the system name, and test cases under ``tests``. For Slurm runs, the system name is
-the cluster reported by Slurm. Standalone and Slurm execution records appear in each test case's ``runs`` list. Each
+The file contains scenario details, system name, and test cases listed under ``tests``. For Slurm runs, the system name is
+the cluster reported by Slurm. Both Standalone and Slurm execution records are stored in each test case's ``runs`` list. Each
 record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
 and workload metrics.
 
-Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A final status of ``unknown`` means the outcome
+Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.
 
-Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings.
+Metrics are sourced from ``TestDefinition.metric_observations()``, and are not affected by reporter settings.
 
-When a test case executes once successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
+When a test case is executed successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
 metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
 in ``tests[].dse``.
 
-NCCL DSE example
+NCCL DSE Example
 ~~~~~~~~~~~~~~~~
 
 This example comes from a Slurm NCCL all-reduce run on one node with eight H100 GPUs. DSE tried ``Ring`` and ``Tree``
