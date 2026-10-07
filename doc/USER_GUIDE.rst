@@ -227,7 +227,7 @@ action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
 
-DSE parameter exclusions
+DSE Parameter Exclusions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 CloudAI builds the DSE parameter space implicitly from list-valued fields under ``cmd_args``, list-valued
@@ -259,7 +259,7 @@ or ``num_nodes``; those lists are still interpreted as sweep dimensions. To excl
 exclude their common parent path. Common examples are ``cmd_args.aiperf_phases`` and
 ``cmd_args.lmcache.lmcache_worker_ports``.
 
-Metric errors and report strategies
+Metric Errors and Report Strategies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Report generation strategies signal a failed or missing metric by returning the singleton ``METRIC_ERROR`` from
