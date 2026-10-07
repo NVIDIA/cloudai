@@ -70,14 +70,8 @@ from .configurator.grid_search import GridSearchAgent
 from .configurator.gymnasium_adapter import GymnasiumAdapter
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
-from .reporter import (
-    JUnitReporter,
-    PerTestReporter,
-    ResultsUploadConfig,
-    ResultsUploadReporter,
-    StatusReporter,
-    TarballReporter,
-)
+from .reporter import JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
+from .s3_reporter import S3UploadConfig, S3UploadReporter
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
 from .util.object_store import ObjectStore, S3ObjectStore, UploadStats
@@ -125,11 +119,11 @@ __all__ = [
     "Registry",
     "ReportGenerationStrategy",
     "Reporter",
-    "ResultsUploadConfig",
-    "ResultsUploadReporter",
     "RewardOverrides",
     "Runner",
     "S3ObjectStore",
+    "S3UploadConfig",
+    "S3UploadReporter",
     "StatusReporter",
     "StructuredObservationProducer",
     "System",

@@ -190,7 +190,7 @@ And it can be used in a test scenario as follows:
 Uploading Results to Object Storage
 ------------------------------------
 
-The ``results_upload`` scenario report publishes the scenario results directory to an
+The ``s3`` scenario report publishes the scenario results directory to an
 S3-compatible bucket. It is disabled by default, because shipping results off-box should
 be a deliberate choice.
 
@@ -208,14 +208,14 @@ Then enable it in a test scenario:
 .. code-block:: toml
 
    [reports]
-   results_upload = { enable = true, bucket = "my-bucket", prefix = "cloudai/runs", upload_tarball = true }
+   s3 = { enable = true, bucket = "my-bucket", prefix = "cloudai/runs", upload_tarball = true }
 
 Or, for Slurm systems, once per cluster in the system config:
 
 .. code-block:: toml
 
    [reports]
-   results_upload = { enable = true, bucket = "my-bucket" }
+   s3 = { enable = true, bucket = "my-bucket" }
 
 Configuration options:
 
@@ -245,7 +245,9 @@ Configuration options:
      - Also upload a ``.tgz`` of the whole directory, creating it if absent.
    * - ``upload_concurrency``
      - ``8``
-     - Number of files uploaded concurrently when ``upload_tree`` is enabled.
+     - Number of files uploaded concurrently when ``upload_tree`` is enabled. Must be at least 1.
+
+At least one of ``upload_tree`` and ``upload_tarball`` must be enabled; the config is rejected otherwise.
 
 Destination fields fall back to the environment variable shown above when not set in
 TOML, so a cluster-wide default can come from the environment while an individual

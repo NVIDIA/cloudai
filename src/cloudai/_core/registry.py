@@ -279,7 +279,7 @@ class Registry(metaclass=Singleton):
                 "status": 2,
                 "dse": 3,
                 "tarball": 4,
-                "results_upload": 5,  # last, must observe every other report's output
+                "s3": 5,  # last, must observe every other report's output
             }.get(k, 1)
 
         return sorted(self.scenario_reports.items(), key=lambda kv: report_order(kv[0]))
