@@ -86,13 +86,14 @@ Field Descriptions
 Slurm REST API
 ~~~~~~~~~~~~~~
 
-CloudAI uses the Slurm 22.05 REST API v0.0.38 when ``slurm_api`` is configured. The ``slurm`` endpoint backed by
-``slurmctld`` must be enabled by the service; ``slurmdbd`` is not required.
+Set ``slurm_api.version`` to match your service: ``v0.0.38`` (the default), ``v0.0.40``, ``v0.0.41``, or ``v0.0.42``.
+The service must enable the ``slurm`` endpoint backed by ``slurmctld``; ``slurmdbd`` is not required.
 
 .. code-block:: toml
 
    [slurm_api]
    url = "https://slurm-api.example.com"
+   version = "v0.0.42"
    verify_certs = true
 
      [slurm_api.headers]
