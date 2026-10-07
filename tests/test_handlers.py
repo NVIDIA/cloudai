@@ -16,7 +16,7 @@
 
 import copy
 from pathlib import Path
-from typing import Any, ClassVar, Iterator, Optional
+from typing import Any, Callable, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -50,6 +50,7 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.test_parser import TestParser
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -343,6 +344,143 @@ def test_verify_test_scenarios_logs_failure_details(tmp_path: Path, caplog: pyte
     assert "1 out of 1 test scenarios have issues." in caplog.text
 
 
+def test_verify_test_scenarios_does_not_blame_scenarios_for_an_unreferenced_unparseable_test(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_test = tmp_path / "bad_agent_test.toml"
+    write_unregistered_agent_test(bad_test, "bad_agent_test")
+    scenarios = []
+    for index in range(3):
+        scenario = tmp_path / f"scenario_{index}.toml"
+        write_scenario(scenario, "good_test")
+        scenarios.append(scenario)
+
+    assert verify_test_scenarios(scenarios, [good_test, bad_test], [], []) == 0
+
+
+def test_verify_test_scenarios_parses_test_configs_once_regardless_of_scenario_count(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    driven: list[TestParser] = []
+    parse_all = TestParser.parse_all
+
+    def spying_parse_all(self: TestParser):
+        driven.append(self)
+        return parse_all(self)
+
+    monkeypatch.setattr(TestParser, "parse_all", spying_parse_all)
+
+    def parse_all_calls_for(scenario_count: int) -> int:
+        scenarios = []
+        for index in range(scenario_count):
+            scenario = tmp_path / f"scenario_{scenario_count}_{index}.toml"
+            write_scenario(scenario, "good_test")
+            scenarios.append(scenario)
+        driven.clear()
+        assert verify_test_scenarios(scenarios, [good_test], [], []) == 0
+        return len(driven)
+
+    assert parse_all_calls_for(1) == parse_all_calls_for(5)
+
+
+def test_verify_test_scenarios_reports_an_unparseable_hook_test_no_scenario_references(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_hook_test = tmp_path / "bad_hook_test.toml"
+    write_unregistered_agent_test(bad_hook_test, "bad_hook_test")
+    scenario = tmp_path / "scenario.toml"
+    write_scenario(scenario, "good_test")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test], [], [bad_hook_test])
+
+    assert nfailed > 0
+    assert str(bad_hook_test) in caplog.text
+    assert "is not registered" in caplog.text
+
+
+def test_verify_test_scenarios_blames_the_scenario_that_references_an_unparseable_test(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_test = tmp_path / "bad_agent_test.toml"
+    write_unregistered_agent_test(bad_test, "bad_agent_test")
+    scenario = tmp_path / "uses_bad.toml"
+    write_scenario(scenario, "bad_agent_test")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test, bad_test], [], [])
+
+    assert nfailed == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(str(scenario) in msg and "bad_agent_test" in msg for msg in messages)
+
+
+def test_verify_test_scenarios_blames_the_scenario_that_names_a_test_that_exists_nowhere(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    scenario = tmp_path / "uses_missing.toml"
+    write_scenario(scenario, "no_such_test_anywhere")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test], [], [])
+
+    assert nfailed == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(str(scenario) in msg and "no_such_test_anywhere" in msg for msg in messages)
+
+
+def test_verify_test_scenarios_reports_a_duplicate_test_name_to_every_scenario_without_raising(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    duplicate = tmp_path / "good_test_copy.toml"
+    write_parseable_test(duplicate, "good_test")
+    scenarios = []
+    for index in range(2):
+        scenario = tmp_path / f"scenario_{index}.toml"
+        write_scenario(scenario, "good_test")
+        scenarios.append(scenario)
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios(scenarios, [good_test, duplicate], [], [])
+
+    assert nfailed == 2
+    messages = [record.getMessage() for record in caplog.records]
+    blamed = [msg for msg in messages if str(good_test) in msg and str(duplicate) in msg]
+    assert len(blamed) == 2
+
+
 class CustomRunStubAgentConfig(BaseAgentConfig):
     pass
 
@@ -581,8 +719,6 @@ def test_verify_test_scenarios_rejects_env_params_without_dse(
 ) -> None:
     base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     bad = TestScenario(name="s", test_runs=[base_tr])
-    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
-    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: bad)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
 
@@ -593,7 +729,5 @@ def test_verify_test_scenarios_allows_env_params_with_dse(
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     dse_tr.test.agent = stub_agent_name  # learning agent (not grid_search)
     good = TestScenario(name="s", test_runs=[dse_tr])
-    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
-    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0

@@ -15,7 +15,7 @@
 # limitations under the License.
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, NamedTuple, Optional
 
 import toml
 from pydantic import ValidationError
@@ -23,6 +23,20 @@ from pydantic import ValidationError
 from .core import Registry, System, TestConfigParsingError, format_validation_error
 from .models.workload import TestDefinition
 from .toml_utils import format_toml_decode_error
+
+
+class TestConfigFailure(NamedTuple):  # noqa: D101
+    declared_name: Optional[str]
+    error: TestConfigParsingError
+
+
+def failure_declaring(failures: Dict[Path, TestConfigFailure], test_name: str) -> Optional[TestConfigFailure]:
+    return next((failure for failure in failures.values() if failure.declared_name == test_name), None)
+
+
+def raise_on_any_failure(failures: Dict[Path, TestConfigFailure]) -> None:
+    for failure in failures.values():
+        raise failure.error
 
 
 class TestParser:
@@ -46,7 +60,7 @@ class TestParser:
         self.system = system
         self.test_tomls = test_tomls
 
-    def parse_all(self) -> List[Any]:
+    def parse_all(self) -> tuple[List[Any], Dict[Path, TestConfigFailure]]:
         """
         Parse all TOML files in the directory and returns a list of objects.
 
@@ -54,39 +68,41 @@ class TestParser:
             List[Any]: List of objects from the configuration files.
         """
         objects: List[Any] = []
+        failures: Dict[Path, TestConfigFailure] = {}
         seen_names: Dict[str, Path] = {}
         for f in self.test_tomls:
             self.current_file = f
             logging.debug(f"Parsing file: {f}")
-            with f.open() as fh:
-                data: Dict[str, Any] = load_test_toml_file(fh, f)
-                parsed_object = self._parse_data(data)
-                obj_name: str = parsed_object.name
-                if obj_name in seen_names:
-                    raise ValueError(f"Duplicate test name '{obj_name}' found in:\n  - {seen_names[obj_name]}\n  - {f}")
-                seen_names[obj_name] = f
-                objects.append(parsed_object)
-        return objects
+            declared_name: Optional[str] = None
+            try:
+                with f.open() as fh:
+                    data: Dict[str, Any] = load_test_toml_file(fh, f)
+                    declared_name = data.get("name")
+                    parsed_object = self._parse_data(data)
+            except TestConfigParsingError as e:
+                failures[f] = TestConfigFailure(declared_name, e)
+                continue
+            obj_name: str = parsed_object.name
+            if obj_name in seen_names:
+                raise ValueError(f"Duplicate test name '{obj_name}' found in:\n  - {seen_names[obj_name]}\n  - {f}")
+            seen_names[obj_name] = f
+            objects.append(parsed_object)
+        return objects, failures
 
     def load_test_definition(self, data: dict) -> TestDefinition:
         test_template_name = data.get("test_template_name")
         registry = Registry()
         if not test_template_name or test_template_name not in registry.test_definitions_map:
-            logging.error(
-                "Failed to parse test spec: '%s'\n\tTestTemplate with name '%s' not supported.",
-                self.current_file,
-                test_template_name,
+            raise TestConfigParsingError(
+                f"Failed to parse test spec '{self.current_file}': "
+                f"TestTemplate with name '{test_template_name}' not supported."
             )
-            raise TestConfigParsingError(f"TestTemplate with name '{test_template_name}' not supported.")
 
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
         except ValidationError as e:
-            msg = f"Failed to parse test spec: '{self.current_file}'"
-            for err in e.errors(include_url=False):
-                msg += f"\n\t{format_validation_error(err)}"
-            logging.error(msg)
-            raise TestConfigParsingError("Failed to parse test spec") from e
+            reasons = "; ".join(format_validation_error(err) for err in e.errors(include_url=False))
+            raise TestConfigParsingError(f"Failed to parse test spec '{self.current_file}': {reasons}") from e
 
         return test_def
 
@@ -107,6 +123,4 @@ def load_test_toml_file(fh, file_path: Path) -> Dict[str, Any]:
     try:
         return toml.load(fh)
     except toml.TomlDecodeError as e:
-        message = format_toml_decode_error(file_path, e, "test spec")
-        logging.error(message)
-        raise TestConfigParsingError(message) from e
+        raise TestConfigParsingError(format_toml_decode_error(file_path, e, "test spec")) from e

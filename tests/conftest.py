@@ -16,6 +16,7 @@
 
 import csv
 from pathlib import Path
+from typing import Callable
 
 import pytest
 import toml
@@ -37,6 +38,40 @@ def cleanup():
 
     for f in {"env_vars.sh", "hostfile.txt", "start_server_wrapper.sh"}:
         (Path.cwd() / f).unlink(missing_ok=True)
+
+
+@pytest.fixture
+def write_parseable_test() -> Callable[[Path, str], None]:
+    def write(path: Path, name: str) -> None:
+        path.write_text(
+            f'name = "{name}"\ndescription = "{name}"\ntest_template_name = "Sleep"\n\n[cmd_args]\nseconds = 1\n'
+        )
+
+    return write
+
+
+@pytest.fixture
+def write_unregistered_agent_test() -> Callable[[Path, str], None]:
+    def write(path: Path, name: str) -> None:
+        path.write_text(
+            f'name = "{name}"\n'
+            f'description = "{name}"\n'
+            'test_template_name = "Sleep"\n'
+            'agent = "agent_from_an_extra_nobody_installed"\n'
+            "\n"
+            "[cmd_args]\n"
+            "seconds = 1\n"
+        )
+
+    return write
+
+
+@pytest.fixture
+def write_scenario() -> Callable[[Path, str], None]:
+    def write(path: Path, test_name: str) -> None:
+        path.write_text(f'name = "{path.stem}"\n\n[[Tests]]\nid = "Tests.1"\ntest_name = "{test_name}"\n')
+
+    return write
 
 
 @pytest.fixture
