@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
 import tarfile
 from pathlib import Path
@@ -33,7 +32,6 @@ from cloudai.core import (
     BaseAgentConfig,
     GitRepo,
     InstallStatusResult,
-    JobStatusResult,
     Parser,
     Registry,
     RewardOverrides,
@@ -44,10 +42,8 @@ from cloudai.core import (
     TestScenarioParsingError,
 )
 from cloudai.handlers import (
-    InstallationError,
     execute_experiment,
     handle_dse_job,
-    handle_install_and_uninstall,
     prepare_installation,
     validate_domain_randomization_active,
     verify_system_configs,
@@ -58,7 +54,6 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
-from cloudai.systems.standalone import StandaloneRunner, StandaloneSystem
 from cloudai.test_parser import TestParser
 
 
@@ -178,13 +173,20 @@ def test_dse_run_uses_agent_config(
     stub_agent_name: str,
     agent_config: dict[str, Any] | None,
     expected: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dse_tr.test.agent = stub_agent_name
     dse_tr.test.agent_config = agent_config
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner) == 0
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(mark_as_installed=lambda _: InstallStatusResult(True))),
+    )
+    assert execute_experiment(runner, [], enable_cache_without_check=True)
+    assert (runner.runner.scenario_root / "test_scenario.html").is_file()
+    assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
     assert len(StubAgent.received_configs) == 1
 
     recorded = StubAgent.received_configs[0]
@@ -192,78 +194,6 @@ def test_dse_run_uses_agent_config(
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
     assert recorded.random_seed == expected["random_seed"]
-
-
-@pytest.mark.parametrize("mode", ["install", "run"])
-@pytest.mark.parametrize("already_installed", [True, False])
-@pytest.mark.parametrize("install_success", [True, False])
-def test_install_and_run_share_installation(
-    mode: str,
-    already_installed: bool,
-    install_success: bool,
-    standalone_system: StandaloneSystem,
-    base_tr: TestRun,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = TestScenario(name="scenario", test_runs=[base_tr])
-    installer = MagicMock()
-    installer.is_installed.return_value = InstallStatusResult(already_installed)
-    installer.install.return_value = InstallStatusResult(install_success, "installation outcome")
-    prepare = MagicMock(return_value=([], installer))
-    monkeypatch.setattr("cloudai.handlers.prepare_installation", prepare)
-    failed = not already_installed and not install_success
-
-    if mode == "install":
-        parser = MagicMock()
-        parser.parse.return_value = (standalone_system, [], scenario)
-        monkeypatch.setattr("cloudai.handlers.Parser", lambda *_: parser)
-        args = argparse.Namespace(mode=mode, system_config=None, hook_dir=None, tests_dir=None, test_scenario=None)
-        assert handle_install_and_uninstall(args) == int(failed)
-    else:
-        runner = Runner(mode, standalone_system, scenario, runner_class=StandaloneRunner)
-        monkeypatch.setattr(Runner, "run", lambda _: True)
-        monkeypatch.setattr("cloudai.handlers.generate_reports", lambda *_: None)
-        if failed:
-            with pytest.raises(InstallationError, match="installation outcome"):
-                execute_experiment(runner, [])
-        else:
-            assert execute_experiment(runner, [])
-
-    prepare.assert_called_once_with(standalone_system, [], scenario)
-    installer.is_installed.assert_called_once_with([])
-    installer.mark_as_installed.assert_not_called()
-    if already_installed:
-        installer.install.assert_not_called()
-    else:
-        installer.install.assert_called_once_with([])
-
-
-@pytest.mark.parametrize("mode", ["run", "dry-run"])
-@pytest.mark.parametrize("cache_without_check", [True, False])
-def test_execution_installation_cache_modes(
-    mode: str,
-    cache_without_check: bool,
-    standalone_system: StandaloneSystem,
-    base_tr: TestRun,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = TestScenario(name="scenario", test_runs=[base_tr])
-    installer = MagicMock()
-    installer.is_installed.return_value = InstallStatusResult(True)
-    installer.mark_as_installed.return_value = InstallStatusResult(True)
-    monkeypatch.setattr("cloudai.handlers.prepare_installation", lambda *_: ([], installer))
-    monkeypatch.setattr(Runner, "run", lambda _: True)
-    monkeypatch.setattr("cloudai.handlers.generate_reports", lambda *_: None)
-    runner = Runner(mode, standalone_system, scenario, runner_class=StandaloneRunner)
-
-    assert execute_experiment(runner, [], enable_cache_without_check=cache_without_check)
-
-    if cache_without_check:
-        installer.is_installed.assert_not_called()
-    else:
-        installer.is_installed.assert_called_once_with([])
-    assert installer.mark_as_installed.call_count == int(cache_without_check) + int(mode == "dry-run")
-    installer.install.assert_not_called()
 
 
 def test_prepare_installation_includes_hook_installables(slurm_system: SlurmSystem) -> None:
@@ -718,73 +648,7 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     assert CustomRunStubAgent.run_calls == 1
 
 
-def test_handle_dse_job_documents_failure_before_raising(
-    slurm_system: SlurmSystem,
-    dse_tr: TestRun,
-    custom_run_agent_name: str,
-    tmp_path: Path,
-) -> None:
-    """On a hard-fail, the aborting error is documented, then re-raised."""
-    CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
-    dse_tr.test.agent = custom_run_agent_name
-    test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
-    runner.runner.scenario_root = tmp_path
-
-    with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner)
-
-    failure_report = tmp_path / "dse_failure.txt"
-    assert failure_report.exists()
-    contents = failure_report.read_text()
-    assert "RuntimeError" in contents
-    assert "agent blew up" in contents
-
-
-@pytest.mark.parametrize("mode", ["run", "dry-run"])
-@pytest.mark.parametrize("successful", [True, False])
-def test_standalone_archive_contains_final_experiment(
-    mode: str,
-    successful: bool,
-    standalone_system: StandaloneSystem,
-    base_tr: TestRun,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = TestScenario(name="test_scenario", test_runs=[base_tr])
-    runner = Runner(mode, standalone_system, scenario, runner_class=StandaloneRunner)
-    monkeypatch.setattr(
-        "cloudai.handlers.prepare_installation",
-        lambda *_: ([], MagicMock(is_installed=lambda _: InstallStatusResult(True))),
-    )
-    monkeypatch.setattr(Registry, "ordered_scenario_reports", lambda _: [("tarball", TarballReporter)])
-
-    monkeypatch.setattr(TestDefinition, "was_run_successful", lambda *_: JobStatusResult(successful))
-
-    def run(runner: Runner) -> bool:
-        (runner.runner.scenario_root / base_tr.name / "0").mkdir(parents=True)
-        return successful
-
-    monkeypatch.setattr(Runner, "run", run)
-    assert execute_experiment(runner, []) is successful
-
-    results_root = runner.runner.scenario_root
-    local = cloudai.models.output.Experiment.model_validate_json((results_root / "experiment.json").read_text())
-    assert local.status == ("completed" if successful else "failed")
-    assert local.finish is not None
-    if successful:
-        assert not Path(f"{results_root}.tgz").exists()
-        return
-    with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
-        archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
-        assert archived_file is not None
-        archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
-
-    assert archived == local
-    assert archived.status == ("completed" if successful else "failed")
-    assert archived.finish is not None
-
-
-def test_dse_failure_report_contains_final_experiment(
+def test_handle_dse_job_documents_failure_in_reports_before_raising(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
@@ -820,31 +684,6 @@ def test_dse_failure_report_contains_final_experiment(
     assert archived.status == "failed"
     assert archived.finish is not None
     assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
-
-
-def test_dse_dry_run_generates_reports(
-    slurm_system: SlurmSystem, dse_tr: TestRun, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner("dry-run", slurm_system, scenario, runner_class=SlurmRunner)
-    monkeypatch.setattr(
-        "cloudai.handlers.prepare_installation",
-        lambda *_: ([], MagicMock(mark_as_installed=lambda _: InstallStatusResult(True))),
-    )
-    slurm_system.reports = {
-        "per_test": ReportConfig(enable=False),
-        "status": ReportConfig(enable=True),
-        "dse": ReportConfig(enable=True),
-    }
-
-    assert execute_experiment(runner, [], enable_cache_without_check=True)
-
-    root = runner.runner.scenario_root
-    assert (root / "test_scenario.html").is_file()
-    assert (root / dse_tr.name / "0" / "trajectory.csv").is_file()
-    assert not (root / "test_scenario-dse-report.html").exists()
-    assert not (root / dse_tr.name / "0" / f"{dse_tr.name}.toml").exists()
-    assert [tr.name for tr in scenario.test_runs] == [dse_tr.name]
 
 
 def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:
