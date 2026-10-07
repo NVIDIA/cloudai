@@ -50,3 +50,72 @@ def test_v2_axis_labels_match_measured_sizes(
     assert chart["x_axis_type"] == "indexed_category"
     assert chart["labels"] == [str(size) for size in sizes]
     assert chart["datasets"][0]["data"] == values
+
+
+@pytest.mark.parametrize(
+    ("metric", "reverse_runs"),
+    [("avg_lat", False), ("mb_sec", False), ("messages_sec", False), ("mb_sec", True)],
+)
+def test_comparison_aligns_different_size_ranges(
+    metric: str, reverse_runs: bool, tmp_path: Path, slurm_system: SlurmSystem
+) -> None:
+    runs = [
+        ("small", [1, 2, 4], [10.0, 20.0, 40.0]),
+        ("large", [2, 4, 8], [200.0, 400.0, 800.0]),
+    ]
+    if reverse_runs:
+        runs.reverse()
+    items = []
+    for name, sizes, values in runs:
+        output = tmp_path / name
+        output.mkdir()
+        pd.DataFrame({"size": sizes, metric: values}).to_csv(output / "osu_bench.csv", index=False)
+        tr = TestRun(name=name, test=Mock(), num_nodes=2, nodes=[], output_path=output)
+        items.append(TRGroupItem(name=name, tr=tr))
+    report = OSUBenchComparisonReport(
+        slurm_system,
+        TestScenario(name="osu", test_runs=[]),
+        tmp_path,
+        ComparisonReportConfig(enable=True, group_by=[]),
+    )
+
+    sections = report.build_sections([GroupedTestRuns(name="all-in-one", items=items)])
+    assert len(sections) == 1
+    section = sections[0]
+    payload = report._build_sections_v2(sections)[0]
+
+    assert payload["chart"]["labels"] == ["1", "2", "4", "8"]
+    assert {dataset["label"]: dataset["data"] for dataset in payload["chart"]["datasets"]} == {
+        "small": [10.0, 20.0, 40.0, None],
+        "large": [None, 200.0, 400.0, 800.0],
+    }
+    for df in section.dfs:
+        assert df["size"].tolist() == [1, 2, 4, 8]
+    expected_values = {
+        "small": ["10.0", "20.0", "40.0", "n/a"],
+        "large": ["n/a", "200.0", "400.0", "800.0"],
+    }
+    for column, item in enumerate(items):
+        assert [row["data_cells"][column] for row in payload["table"]["rows"]] == expected_values[item.name]
+
+
+@pytest.mark.parametrize("missing_output", [False, True])
+def test_comparison_skips_empty_run(missing_output: bool, tmp_path: Path, slurm_system: SlurmSystem) -> None:
+    items = []
+    for name in ["valid", "empty"]:
+        output = tmp_path / name
+        output.mkdir()
+        if name == "valid":
+            pd.DataFrame({"size": [1, 2], "mb_sec": [10.0, 20.0]}).to_csv(output / "osu_bench.csv", index=False)
+        elif not missing_output:
+            pd.DataFrame(columns=["size", "mb_sec"]).to_csv(output / "osu_bench.csv", index=False)
+        tr = TestRun(name=name, test=Mock(), num_nodes=2, nodes=[], output_path=output)
+        items.append(TRGroupItem(name=name, tr=tr))
+    report = OSUBenchComparisonReport(
+        slurm_system,
+        TestScenario(name="osu", test_runs=[]),
+        tmp_path,
+        ComparisonReportConfig(enable=True, group_by=[]),
+    )
+
+    assert report.build_sections([GroupedTestRuns(name="all-in-one", items=items)]) == []

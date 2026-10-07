@@ -69,6 +69,12 @@ class OSUBenchComparisonReport(ComparisonReport):
         sections: list[ComparisonSection] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            if not dfs or any(df.empty for df in dfs):
+                continue
+
+            # Keep chart and table rows aligned across different message-size ranges.
+            sizes = sorted({size for df in dfs for size in df["size"]})
+            dfs = [df.set_index("size").reindex(sizes).rename_axis("size").reset_index() for df in dfs]
 
             if self._has_metric(dfs, "avg_lat"):
                 sections.append(
