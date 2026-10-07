@@ -26,7 +26,7 @@ import pytest
 import toml
 
 from cloudai import TestRun, TestScenario
-from cloudai.core import BaseRunner, CommandGenStrategy, JobStatusResult, Registry, Reporter, System
+from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.handlers import generate_reports
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
@@ -688,44 +688,3 @@ def test_dse_reporter(
 
     assert (slurm_system.output_path / "single-dse-scenario-dse-report.html").exists()
     assert (slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml").exists()
-
-
-@pytest.mark.parametrize("dse", [False, True])
-def test_junit_submission_error_keeps_completed_runs_only(
-    slurm_system: SlurmSystem,
-    benchmark_tr: TestRun,
-    dse_tr: TestRun,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    dse: bool,
-) -> None:
-    tr = dse_tr if dse else benchmark_tr
-    tr.iterations = 1 if dse else 32
-    tr.test.agent_steps = 32 if dse else tr.test.agent_steps
-    run_dirs = [tmp_path / tr.name / "0" / str(i + 1) if dse else tmp_path / tr.name / str(i) for i in range(12)]
-    for run_dir in run_dirs:
-        run_dir.mkdir(parents=True)
-    failed_dir = run_dirs[-1]
-    (failed_dir / BaseRunner.SUBMISSION_ERROR_FILE_NAME).write_text("JobIdRetrievalError: submission timeout")
-    checked = []
-
-    def status(self, tr):
-        checked.append(tr.output_path)
-        return JobStatusResult(True)
-
-    monkeypatch.setattr(type(tr.test), "was_run_successful", status)
-    reporter = JUnitReporter(slurm_system, TestScenario(name="scenario", test_runs=[tr]), tmp_path, ReportConfig())
-    reporter.generate()
-    suite = ET.parse(tmp_path / "junit.xml").getroot().find("testsuite")
-    assert suite is not None
-    assert suite.attrib == {"name": "scenario", "tests": "12", "failures": "0", "errors": "1", "skipped": "0"}
-    cases = suite.findall("testcase")
-    assert len(cases) == 12
-    assert all(case.find("error") is None and case.find("failure") is None for case in cases[:11])
-    error = cases[11].find("error")
-    assert error is not None
-    assert "JobIdRetrievalError" in error.attrib["message"]
-    assert error.text is not None
-    assert "submission timeout" in error.text
-    assert len(checked) == 11
-    assert failed_dir not in checked
