@@ -112,3 +112,6 @@ if is_cms_build:
 root_doc = "index"
 
 source_suffix = [".rst"]
+
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
