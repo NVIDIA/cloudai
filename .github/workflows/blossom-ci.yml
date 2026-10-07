@@ -34,7 +34,7 @@ jobs:
     outputs:
       args: ${{ env.args }}
 
-    # Allow Srivatsan Krishnan's org, plus Daniel Pressler and Or Balayla.
+    # This job only runs for pull request comments
     if: |
          github.event.comment.body == '/build' && contains(fromJSON('[
            "alexmanle",
