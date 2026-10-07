@@ -35,9 +35,11 @@ from .ai_dynamo import (
     AIDynamoTestDefinition,
     AIPerf,
     AIPerfPhase,
+    WorkerConfig,
 )
 
 AIPERF_SCRIPT_FILE_NAME = "aiperf.sh"
+LEGACY_WORKER_ROLE_SELECTORS = frozenset({"--is-prefill-worker", "--is-decode-worker"})
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -59,6 +61,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
+        if not env_vars.get("DYNAMO_NODELIST"):
+            env_vars["DYNAMO_NODELIST"] = (
+                "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
+            )
         if self.td.cmd_args.hicache is not None:
             env_vars["HICACHE_CONFIG_FILE"] = f"{self.CONTAINER_MOUNT_OUTPUT}/{HICACHE_CONFIG_FILE_NAME}"
         if self.td.cmd_args.lmcache is not None:
@@ -158,6 +164,33 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return result
 
+    @staticmethod
+    def _uses_legacy_role_selector(worker: WorkerConfig) -> bool:
+        cmd_tokens = shlex.split(worker.cmd or "")
+        return any(token.partition("=")[0] in LEGACY_WORKER_ROLE_SELECTORS for token in cmd_tokens) or any(
+            worker.has_extra_arg(selector) for selector in LEGACY_WORKER_ROLE_SELECTORS
+        )
+
+    @staticmethod
+    def _uses_explicit_disaggregation_mode(worker: WorkerConfig) -> bool:
+        cmd_tokens = shlex.split(worker.cmd or "")
+        return any(token.partition("=")[0] == "--disaggregation-mode" for token in cmd_tokens) or worker.has_extra_arg(
+            "--disaggregation-mode"
+        )
+
+    def _get_worker_script_args(self, role: str, worker: WorkerConfig, mode: str | None) -> List[str]:
+        prefix = f"--{role}-"
+        result = self._get_nested_toml_args(worker, prefix, exclude=["nodes"])
+        mode_arg = f"{prefix}args-disaggregation-mode"
+        has_explicit_mode = self._uses_explicit_disaggregation_mode(worker) or any(
+            arg.startswith(f"{mode_arg} ") for arg in result
+        )
+        if mode is None or self._uses_legacy_role_selector(worker) or has_explicit_mode:
+            return result
+
+        result.append(f'{mode_arg} "{mode}"')
+        return result
+
     def _prepare_lmcache_config(self):
         if self.td.cmd_args.lmcache is None:
             return
@@ -174,6 +207,55 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         config = toml.dumps(self.td.cmd_args.hicache)
         (self.test_run.output_path / HICACHE_CONFIG_FILE_NAME).write_text(config)
+
+    def _validate_multinode_worker(self, role: str, worker: WorkerConfig) -> None:
+        if not worker.is_enabled or worker.nodes_per_worker is None:
+            return
+        if not isinstance(worker.num_nodes, int) or not isinstance(worker.nodes_per_worker, int):
+            raise ValueError(f"{role} worker topology must be scalar after DSE unrolling")
+
+        nodes_per_worker = worker.nodes_per_worker
+        if nodes_per_worker <= 1:
+            return
+
+        tp = worker.args.tensor_parallel_size
+        pp = worker.args.pipeline_parallel_size
+        dp = worker.args.data_parallel_size
+        if not isinstance(tp, int) or not isinstance(pp, int) or isinstance(dp, list):
+            raise ValueError(f"{role} worker parallelism must be scalar after DSE unrolling")
+
+        world_size = tp * pp
+        data_parallel_size = int(dp or 1)
+        backend = self.td.cmd_args.dynamo.backend
+        is_vllm_multinode_dp = backend == "vllm" and data_parallel_size > 1
+        if backend == "sglang" and data_parallel_size > 1 and not worker.has_extra_arg("--enable-dp-attention"):
+            raise ValueError(f"Multinode SGLang data parallelism for the {role} worker requires --enable-dp-attention")
+        if is_vllm_multinode_dp and data_parallel_size % nodes_per_worker != 0:
+            raise ValueError(
+                f"{role} worker data_parallel_size ({data_parallel_size}) must be divisible by "
+                f"nodes_per_worker ({nodes_per_worker})"
+            )
+        if not is_vllm_multinode_dp and world_size % nodes_per_worker != 0:
+            raise ValueError(
+                f"{role} worker TP*PP ({world_size}) must be divisible by nodes_per_worker ({nodes_per_worker})"
+            )
+        local_world_size = (
+            world_size * (data_parallel_size // nodes_per_worker)
+            if is_vllm_multinode_dp
+            else world_size // nodes_per_worker
+        )
+        gpus_per_node = int(getattr(self.system, "gpus_per_node", 0) or 0)
+        if gpus_per_node and local_world_size > gpus_per_node:
+            raise ValueError(
+                f"{role} worker needs {local_world_size} GPU(s) per node, but the system has {gpus_per_node}"
+            )
+        if self.td.cmd_args.dynamo.backend == "vllm" and worker.args.distributed_executor_backend not in {None, "mp"}:
+            raise ValueError("Multinode Dynamo vLLM currently supports only the mp distributed executor backend")
+
+    def _validate_multinode_workers(self) -> None:
+        dynamo = self.td.cmd_args.dynamo
+        self._validate_multinode_worker("prefill", dynamo.prefill_worker)
+        self._validate_multinode_worker("decode", dynamo.decode_worker)
 
     def _render_aiperf_args(self, args: dict[str, Any]) -> str:
         parts: list[str] = []
@@ -407,6 +489,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f"{self.CONTAINER_MOUNT_OUTPUT}/{AIPERF_SCRIPT_FILE_NAME}"
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
+        self._validate_multinode_workers()
         self._prepare_hicache_config()
         self._prepare_lmcache_config()
         aiperf_script = self._prepare_aiperf_script()
@@ -444,13 +527,18 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.append('--dynamo-dcgm-exporter-enabled "True"')
             args.append(f'--dynamo-dcgm-exporter-port "{td.cmd_args.dynamo.dcgm_exporter.port}"')
 
-        if td.cmd_args.dynamo.prefill_worker:
-            args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-", exclude=["nodes"]))
-            if td.cmd_args.dynamo.prefill_worker.nodes:
-                args.append(f"--prefill-node-list {shlex.quote(td.cmd_args.dynamo.prefill_worker.nodes)}")
-        args.extend(self._get_nested_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-", exclude=["nodes"]))
-        if td.cmd_args.dynamo.decode_worker.nodes:
-            args.append(f"--decode-node-list {shlex.quote(td.cmd_args.dynamo.decode_worker.nodes)}")
+        prefill_worker = td.cmd_args.dynamo.prefill_worker
+        if prefill_worker:
+            prefill_mode = "prefill" if prefill_worker.is_enabled else None
+            args.extend(self._get_worker_script_args("prefill", prefill_worker, prefill_mode))
+            if prefill_worker.nodes:
+                args.append(f"--prefill-node-list {shlex.quote(prefill_worker.nodes)}")
+
+        decode_worker = td.cmd_args.dynamo.decode_worker
+        decode_mode = "decode" if prefill_worker.is_enabled else "agg"
+        args.extend(self._get_worker_script_args("decode", decode_worker, decode_mode))
+        if decode_worker.nodes:
+            args.append(f"--decode-node-list {shlex.quote(decode_worker.nodes)}")
 
         args.extend(self._get_nested_toml_args(td.cmd_args.genai_perf, "--genai_perf-"))
         if aiperf_script:
