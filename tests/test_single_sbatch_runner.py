@@ -474,6 +474,24 @@ class TestSbatch:
         paths = set([str(tr.output_path.absolute()) for tr in dse_runs])
         assert len(paths) == len(dse_runs), "Output paths are not unique"
 
+    def test_dse_with_no_qualified_runs_is_not_submitted(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+        nccl_tr.test.extra_env_vars["CONSTRAINT"] = "1"
+        tc = TestScenario(name="tc", test_runs=[nccl_tr])
+        runner = SingleSbatchRunner(
+            mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
+        )
+        runner.scenario_root.mkdir(parents=True, exist_ok=True)
+
+        with (
+            patch.object(SlurmSystem, "submit_sbatch") as submit_sbatch,
+            pytest.raises(ValueError, match="No test runs qualified for the single sbatch job"),
+        ):
+            runner._submit_test(nccl_tr)
+
+        assert not (runner.scenario_root / "cloudai_sbatch_script.sh").exists()
+        submit_sbatch.assert_not_called()
+
     def test_dse_and_non_dse(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
         dse_nccl = copy.deepcopy(nccl_tr)
         dse_nccl.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
