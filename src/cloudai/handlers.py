@@ -468,7 +468,7 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
                 tp.current_file = test_toml
                 tp.load_test_definition(load_test_toml_file(fh, test_toml))
         except Exception as e:
-            logging.error(f"Failed to verify Test: {e}")
+            logging.error(f"Failed to verify Test: {test_toml}: {e}")
             logging.debug("", exc_info=True)
             nfailed += 1
 

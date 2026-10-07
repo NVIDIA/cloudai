@@ -128,8 +128,13 @@ class Parser:
                 list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
             )
 
-        for failure in test_parse_failures.values():
-            logging.warning(f"Leaving a test config out of the scenario's test mapping. {failure.error}")
+        if test_parse_failures:
+            logging.warning(
+                f"{len(test_parse_failures)} test config(s) under '{test_path}' could not be parsed and are not "
+                "available to this scenario. Run verify-configs for the details."
+            )
+            for failure in test_parse_failures.values():
+                logging.debug(f"Unparseable test config. {failure.error}")
 
         try:
             test_scenario = self.parse_test_scenario(
