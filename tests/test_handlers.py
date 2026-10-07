@@ -45,7 +45,6 @@ from cloudai.core import (
 from cloudai.handlers import (
     execute_experiment,
     handle_dse_job,
-    handle_non_dse_job,
     prepare_installation,
     validate_domain_randomization_active,
     verify_system_configs,
@@ -644,13 +643,13 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     assert CustomRunStubAgent.run_calls == 1
 
 
-def test_handle_dse_job_documents_failure_in_reports_before_raising(
+def test_handle_dse_job_documents_failure_before_raising(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
     tmp_path: Path,
 ) -> None:
-    """On a hard-fail, reports are still generated and the aborting error is documented, then re-raised."""
+    """On a hard-fail, the aborting error is documented, then re-raised."""
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
@@ -748,15 +747,29 @@ def test_dse_failure_report_contains_final_experiment(
     assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
 
 
-def test_non_dse_handler_generates_reports_for_direct_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = MagicMock()
-    runner.run.return_value = False
-    reports = MagicMock()
-    monkeypatch.setattr("cloudai.handlers.generate_reports", reports)
+def test_dse_dry_run_generates_reports(
+    slurm_system: SlurmSystem, dse_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    runner = Runner("dry-run", slurm_system, scenario, runner_class=SlurmRunner)
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(mark_as_installed=lambda _: InstallStatusResult(True))),
+    )
+    slurm_system.reports = {
+        "per_test": ReportConfig(enable=False),
+        "status": ReportConfig(enable=True),
+        "dse": ReportConfig(enable=True),
+    }
 
-    assert handle_non_dse_job(runner) is False
+    assert execute_experiment(runner, [], enable_cache_without_check=True)
 
-    reports.assert_called_once_with(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+    root = runner.runner.scenario_root
+    assert (root / "test_scenario.html").is_file()
+    assert (root / dse_tr.name / "0" / "trajectory.csv").is_file()
+    assert not (root / "test_scenario-dse-report.html").exists()
+    assert not (root / dse_tr.name / "0" / f"{dse_tr.name}.toml").exists()
+    assert [tr.name for tr in scenario.test_runs] == [dse_tr.name]
 
 
 def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:
