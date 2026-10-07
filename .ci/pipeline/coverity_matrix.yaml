@@ -18,14 +18,16 @@ kubernetes:
   # runs_on_dockers entry below), same as the release pipeline - HPCINFRA-4329.
 
 runs_on_dockers:
-  # Same toolbox images and tags the release pipeline pins, with its
-  # requests/limits carried over unchanged.
+  # Same toolbox image and tag the release pipeline pins. Its 4 CPU/4Gi limits
+  # are raised: cov-analyze runs one worker per CPU and each needs its own
+  # memory, so under 4Gi it drops to 1 worker and the scan takes 22-33
+  # minutes. 8 CPU/32Gi keeps 8 workers and takes under 5.
   - url: 'harbor.mellanox.com/hpcx/x86_64/coverity_2023:until_2028'
     name: 'coverity_scan'
     tag: 'base'
     arch: 'x86_64'
-    requests: '{memory: 1Gi, cpu: 1000m}'
-    limits: '{memory: 4Gi, cpu: 4000m}'
+    requests: '{memory: 4Gi, cpu: 1000m}'
+    limits: '{memory: 32Gi, cpu: 8000m}'
 
 steps:
   - name: Coverity scan
