@@ -107,7 +107,10 @@ class SingleSbatchRunner(SlurmRunner):
         return max_nodes, node_list
 
     def aux_commands(self) -> list[str]:
-        tr = copy.deepcopy(next(self.all_trs))
+        first_tr = next(self.all_trs, None)
+        if first_tr is None:
+            raise ValueError("No test runs qualified for the single sbatch job")
+        tr = copy.deepcopy(first_tr)
         tr.output_path = self.scenario_root
         max_nodes, _ = self.extract_sbatch_nodes_spec()
         tr.num_nodes = max_nodes
@@ -287,8 +290,9 @@ class SingleSbatchRunner(SlurmRunner):
         return run
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
+        sbatch_content = self.gen_sbatch_content()
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
-            f.write(self.gen_sbatch_content())
+            f.write(sbatch_content)
 
         job_id = 0
         if self.mode == "run":
