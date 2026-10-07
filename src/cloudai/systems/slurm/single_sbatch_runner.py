@@ -290,9 +290,8 @@ class SingleSbatchRunner(SlurmRunner):
         return run
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
-        sbatch_content = self.gen_sbatch_content()
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
-            f.write(sbatch_content)
+            f.write(self.gen_sbatch_content())
 
         job_id = 0
         if self.mode == "run":

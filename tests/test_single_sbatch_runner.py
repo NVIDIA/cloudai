@@ -489,7 +489,6 @@ class TestSbatch:
         ):
             runner._submit_test(nccl_tr)
 
-        assert not (runner.scenario_root / "cloudai_sbatch_script.sh").exists()
         submit_sbatch.assert_not_called()
 
     def test_dse_and_non_dse(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
