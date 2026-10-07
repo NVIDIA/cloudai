@@ -61,12 +61,6 @@ class TestParser:
         self.test_tomls = test_tomls
 
     def parse_all(self) -> tuple[List[Any], Dict[Path, TestConfigFailure]]:
-        """
-        Parse all TOML files in the directory and returns a list of objects.
-
-        Returns
-            List[Any]: List of objects from the configuration files.
-        """
         objects: List[Any] = []
         failures: Dict[Path, TestConfigFailure] = {}
         seen_names: Dict[str, Path] = {}

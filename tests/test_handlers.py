@@ -434,7 +434,11 @@ def test_verify_test_scenarios_blames_the_scenario_that_references_an_unparseabl
 
     assert nfailed == 1
     messages = [record.getMessage() for record in caplog.records]
-    assert any(str(scenario) in msg and "bad_agent_test" in msg for msg in messages)
+    blame = [msg for msg in messages if msg.startswith(f"Failed to verify Test Scenario: {scenario}:")]
+    assert len(blame) == 1
+    assert str(bad_test) in blame[0]
+    assert "is not registered" in blame[0]
+    assert "is not defined" not in blame[0]
 
 
 def test_verify_test_scenarios_blames_the_scenario_that_names_a_test_that_exists_nowhere(
