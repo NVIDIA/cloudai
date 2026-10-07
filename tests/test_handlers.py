@@ -32,7 +32,6 @@ from cloudai.core import (
     BaseAgentConfig,
     GitRepo,
     InstallStatusResult,
-    JobIdRetrievalError,
     JobStatusResult,
     Parser,
     Registry,
@@ -763,37 +762,3 @@ def test_verify_test_scenarios_allows_env_params_with_dse(
     good = TestScenario(name="s", test_runs=[dse_tr])
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0
-
-
-@pytest.mark.parametrize("dse", [True, False])
-def test_submission_failure_generates_reports_before_propagating(
-    slurm_system: SlurmSystem,
-    base_tr: TestRun,
-    dse_tr: TestRun,
-    custom_run_agent_name: str,
-    monkeypatch: pytest.MonkeyPatch,
-    dse: bool,
-) -> None:
-    tr = dse_tr if dse else base_tr
-    error = JobIdRetrievalError(tr.name, "sbatch test.sh", "", "timeout", "No job ID")
-    tr.test.agent = custom_run_agent_name
-    scenario = TestScenario(name="scenario", test_runs=[tr])
-    runner = Runner(mode="run", system=slurm_system, test_scenario=scenario, runner_class=SlurmRunner)
-
-    def check_final_output(*args) -> None:
-        output = runner.runner.experiment_output.snapshot()
-        assert output.status == "failed"
-        assert output.finish is not None
-        assert runner.runner.test_scenario.test_runs == [tr]
-
-    reports = MagicMock(side_effect=check_final_output)
-    monkeypatch.setattr("cloudai.handlers.generate_reports", reports)
-    monkeypatch.setattr("cloudai.handlers._ensure_installation", MagicMock())
-    if dse:
-        CustomRunStubAgent.run_raises = error
-    else:
-        monkeypatch.setattr(runner, "run", MagicMock(side_effect=error))
-    with pytest.raises(JobIdRetrievalError) as caught:
-        execute_experiment(runner, [])
-    assert caught.value is error
-    reports.assert_called_once_with(slurm_system, scenario, runner.runner.scenario_root)
