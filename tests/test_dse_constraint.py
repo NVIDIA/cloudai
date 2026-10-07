@@ -1,6 +1,18 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from unittest.mock import patch
 
@@ -179,6 +191,21 @@ def test_test_definition_delegates_to_workload_check_after_declarative_success()
 
     with patch.object(SleepTestDefinition, "constraint_check", return_value=False) as workload_check:
         assert not test.check_constraints(test_run, None)
+    workload_check.assert_called_once_with(test_run, None)
+
+
+def test_test_definition_exposes_time_limit_to_declarative_constraints() -> None:
+    test = SleepTestDefinition(
+        name="sleep",
+        description="test",
+        test_template_name="Sleep",
+        cmd_args=SleepCmdArgs(seconds=5),
+        dse_constraints=DSEConstraints(expressions={"requested_limit": "test_run.time_limit == '00:05:00'"}),
+    )
+    test_run = TestRun(name="sleep", test=test, num_nodes=1, nodes=[], time_limit="00:05:00")
+
+    with patch.object(SleepTestDefinition, "constraint_check", return_value=True) as workload_check:
+        assert test.check_constraints(test_run, None)
     workload_check.assert_called_once_with(test_run, None)
 
 
