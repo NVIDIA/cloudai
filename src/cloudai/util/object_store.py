@@ -172,13 +172,23 @@ class S3ObjectStore(ObjectStore):
         return True
 
     def bucket_exists(self) -> bool:
-        """Return whether the configured bucket exists and is accessible."""
+        """
+        Return False only when the configured bucket definitively does not exist (404).
+
+        A 403 is not treated as missing: HeadBucket needs ``s3:ListBucket``, which
+        write-only credentials (``s3:PutObject`` only) commonly lack, even though
+        uploads would succeed. If access really is denied, the per-file uploads fail
+        and are reported.
+        """
         try:
             self.client.head_bucket(Bucket=self.bucket)
         except self.client.exceptions.ClientError as e:
             status = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-            if status in (404, 403):
-                logging.debug(f"Bucket '{self.bucket}' is not accessible: {e}")
+            if status == 404:
+                logging.debug(f"Bucket '{self.bucket}' does not exist: {e}")
                 return False
+            if status == 403:
+                logging.debug(f"Cannot verify bucket '{self.bucket}' (access denied on HeadBucket), proceeding: {e}")
+                return True
             raise
         return True

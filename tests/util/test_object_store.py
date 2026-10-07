@@ -221,8 +221,16 @@ def test_s3_object_store_bucket_exists() -> None:
         client.head_bucket.side_effect = _client_error(404)
         assert store.bucket_exists() is False
 
+
+def test_s3_object_store_bucket_exists_tolerates_403() -> None:
+    """Write-only credentials lack s3:ListBucket, so HeadBucket returns 403 even though uploads work."""
+    with patch("cloudai.util.object_store.lazy") as mock_lazy:
+        client = MagicMock()
+        client.exceptions.ClientError = ClientError
         client.head_bucket.side_effect = _client_error(403)
-        assert store.bucket_exists() is False
+        mock_lazy.boto3.client.return_value = client
+
+        assert S3ObjectStore(bucket="my-bucket").bucket_exists() is True
 
 
 def test_s3_object_store_bucket_exists_reraises_other_errors() -> None:

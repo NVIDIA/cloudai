@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tarfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -81,7 +83,7 @@ class TestS3UploadReporter:
 
             mock_store_cls.assert_not_called()
 
-    def test_bucket_not_accessible_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+    def test_missing_bucket_uploads_nothing(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls:
             store = mock_store_cls.return_value
             store.bucket_exists.return_value = False
@@ -116,9 +118,10 @@ class TestS3UploadReporter:
                 tarball_path, "test_system/nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
             )
 
-    def test_existing_tarball_is_reused(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+    def test_fresh_tarball_is_reused(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         tarball_path = Path(str(results_dir) + ".tgz")
         tarball_path.write_bytes(b"pre-existing")
+        self._set_tarball_newer_than_contents(results_dir, tarball_path)
 
         with patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls:
             mock_store_cls.return_value.upload_directory.return_value = UploadStats()
@@ -126,6 +129,31 @@ class TestS3UploadReporter:
             self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_tarball=True).generate()
 
             assert tarball_path.read_bytes() == b"pre-existing"
+            mock_store_cls.return_value.upload_file.assert_called_once()
+
+    def test_stale_tarball_is_regenerated(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        """A tarball left by an earlier run must not be uploaded in place of the regenerated reports."""
+        tarball_path = Path(str(results_dir) + ".tgz")
+        tarball_path.write_bytes(b"stale")
+        self._set_tarball_newer_than_contents(results_dir, tarball_path)
+        (results_dir / "report.html").write_text("<html>regenerated</html>")
+        os.utime(tarball_path, (1, 1))  # tarball predates the regenerated report
+
+        with patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls:
+            mock_store_cls.return_value.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket", upload_tarball=True).generate()
+
+        assert tarball_path.read_bytes() != b"stale"
+        with tarfile.open(tarball_path) as tar:
+            member = tar.extractfile(f"{results_dir.name}/report.html")
+            assert member is not None
+            assert member.read() == b"<html>regenerated</html>"
+
+    @staticmethod
+    def _set_tarball_newer_than_contents(results_dir: Path, tarball_path: Path) -> None:
+        newest = max(p.stat().st_mtime for p in [results_dir, *results_dir.rglob("*")])
+        os.utime(tarball_path, (newest + 10, newest + 10))
 
     def test_env_var_fallback(self, slurm_system: SlurmSystem, results_dir: Path, monkeypatch) -> None:
         monkeypatch.setenv("CLOUDAI_S3_BUCKET", "env-bucket")

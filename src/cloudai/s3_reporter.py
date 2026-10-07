@@ -75,7 +75,7 @@ class S3UploadReporter(Reporter):
 
         store = S3ObjectStore(bucket=config.bucket, endpoint_url=config.endpoint_url, region=config.region)
         if not store.bucket_exists():
-            logging.warning(f"Bucket '{config.bucket}' does not exist or is not accessible, skipping results upload.")
+            logging.warning(f"Bucket '{config.bucket}' does not exist, skipping results upload.")
             return
 
         key_prefix = join_key(config.prefix, self.system.name, self.results_root.name)
@@ -97,13 +97,14 @@ class S3UploadReporter(Reporter):
 
     def upload_tarball(self, store: S3ObjectStore, key_prefix: str) -> None:
         """
-        Upload a tarball of the results directory, creating it if it does not exist.
+        Upload a tarball of the results directory, (re)creating it if it is missing or stale.
 
         TarballReporter only produces a tarball when a test run failed, so we cannot
-        assume one is already present.
+        assume one is already present. A leftover tarball from an earlier run may predate
+        regenerated reports, so it is reused only if nothing in the directory is newer.
         """
         tarball_path = Path(str(self.results_root) + ".tgz")
-        if not tarball_path.exists():
+        if not tarball_path.exists() or self._tarball_is_stale(tarball_path):
             TarballReporter(self.system, self.test_scenario, self.results_root, self.config).create_tarball(
                 self.results_root
             )
@@ -116,3 +117,9 @@ class S3UploadReporter(Reporter):
             logging.debug(e, exc_info=True)
             return
         logging.info(f"Uploaded tarball to {store.uri(key)}")
+
+    def _tarball_is_stale(self, tarball_path: Path) -> bool:
+        """Whether anything in the results directory was modified after the tarball was written."""
+        tarball_mtime = tarball_path.stat().st_mtime
+        entries = [self.results_root, *self.results_root.rglob("*")]
+        return any(entry.stat().st_mtime > tarball_mtime for entry in entries)
