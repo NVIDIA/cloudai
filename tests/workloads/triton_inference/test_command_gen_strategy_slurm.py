@@ -17,7 +17,7 @@
 import stat
 from pathlib import Path
 from typing import List, cast
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -154,3 +154,17 @@ def test_gen_srun_command(strategy: TritonInferenceSlurmCommandGenStrategy) -> N
     strategy._build_client_srun = Mock(return_value="C")
     cmd = strategy._gen_srun_command()
     assert cmd == f"S &\n\nsleep {strategy.test_run.test.cmd_args.sleep_seconds}\n\nC"
+
+
+@patch("cloudai.systems.slurm.slurm_system.SlurmSystem.get_nodes_by_spec")
+def test_get_server_client_split_excludes_configured_nodes(
+    mock_get_nodes_by_spec: Mock, strategy: TritonInferenceSlurmCommandGenStrategy
+) -> None:
+    mock_get_nodes_by_spec.return_value = (3, [])
+    strategy.test_run.exclude_nodes = ["node05"]
+
+    strategy._get_server_client_split()
+
+    mock_get_nodes_by_spec.assert_called_once_with(
+        strategy.test_run.nnodes, strategy.test_run.nodes, exclude_nodes=["node05"]
+    )
