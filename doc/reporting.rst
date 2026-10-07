@@ -242,16 +242,46 @@ Configuration options:
      - Upload each file individually, preserving relative paths.
    * - ``upload_tarball``
      - ``false``
-     - Also upload a ``.tgz`` of the whole directory, creating it if absent.
+     - Also upload a ``.tgz`` of the whole directory. It is created if absent and rebuilt if older than the results.
    * - ``upload_concurrency``
      - ``8``
      - Number of files uploaded concurrently when ``upload_tree`` is enabled. Must be at least 1.
 
 At least one of ``upload_tree`` and ``upload_tarball`` must be enabled; the config is rejected otherwise.
 
-Destination fields fall back to the environment variable shown above when not set in
-TOML, so a cluster-wide default can come from the environment while an individual
-scenario can still override it.
+Environment variables
+~~~~~~~~~~~~~~~~~~~~~
+
+The destination can be supplied through three environment variables, so a cluster-wide
+default does not have to be repeated in every scenario:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Variable
+     - Sets option
+     - Notes
+   * - ``CLOUDAI_S3_BUCKET``
+     - ``bucket``
+     - Destination bucket.
+   * - ``CLOUDAI_S3_PREFIX``
+     - ``prefix``
+     - Key prefix. Empty by default.
+   * - ``CLOUDAI_S3_ENDPOINT_URL``
+     - ``endpoint_url``
+     - Custom endpoint, for MinIO or other S3-compatible stores. An empty value is treated as unset.
+
+A value set in TOML takes precedence over the environment variable. The variables are read by
+the ``cloudai`` process when the report configuration is loaded, so export them where
+``cloudai`` runs:
+
+.. code-block:: bash
+
+   export CLOUDAI_S3_BUCKET=my-bucket
+   export CLOUDAI_S3_PREFIX=cloudai/runs
+   export CLOUDAI_S3_ENDPOINT_URL=http://localhost:9000   # only for MinIO or other S3-compatible stores
+
+With these set, enabling the report only needs ``s3 = { enable = true }``.
 
 **Credentials are never read from CloudAI configuration.** They are resolved by boto3's
 standard chain: ``AWS_ACCESS_KEY_ID``/``AWS_SECRET_ACCESS_KEY``, ``~/.aws/credentials``,
