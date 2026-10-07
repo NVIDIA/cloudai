@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import copy
 import tarfile
 from pathlib import Path
@@ -43,8 +44,10 @@ from cloudai.core import (
     TestScenarioParsingError,
 )
 from cloudai.handlers import (
+    InstallationError,
     execute_experiment,
     handle_dse_job,
+    handle_install_and_uninstall,
     prepare_installation,
     validate_domain_randomization_active,
     verify_system_configs,
@@ -189,6 +192,78 @@ def test_dse_run_uses_agent_config(
     assert recorded.knob == expected["knob"]
     assert recorded.payload == expected["payload"]
     assert recorded.random_seed == expected["random_seed"]
+
+
+@pytest.mark.parametrize("mode", ["install", "run"])
+@pytest.mark.parametrize("already_installed", [True, False])
+@pytest.mark.parametrize("install_success", [True, False])
+def test_install_and_run_share_installation(
+    mode: str,
+    already_installed: bool,
+    install_success: bool,
+    standalone_system: StandaloneSystem,
+    base_tr: TestRun,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = TestScenario(name="scenario", test_runs=[base_tr])
+    installer = MagicMock()
+    installer.is_installed.return_value = InstallStatusResult(already_installed)
+    installer.install.return_value = InstallStatusResult(install_success, "installation outcome")
+    prepare = MagicMock(return_value=([], installer))
+    monkeypatch.setattr("cloudai.handlers.prepare_installation", prepare)
+    failed = not already_installed and not install_success
+
+    if mode == "install":
+        parser = MagicMock()
+        parser.parse.return_value = (standalone_system, [], scenario)
+        monkeypatch.setattr("cloudai.handlers.Parser", lambda *_: parser)
+        args = argparse.Namespace(mode=mode, system_config=None, hook_dir=None, tests_dir=None, test_scenario=None)
+        assert handle_install_and_uninstall(args) == int(failed)
+    else:
+        runner = Runner(mode, standalone_system, scenario, runner_class=StandaloneRunner)
+        monkeypatch.setattr(Runner, "run", lambda _: True)
+        monkeypatch.setattr("cloudai.handlers.generate_reports", lambda *_: None)
+        if failed:
+            with pytest.raises(InstallationError, match="installation outcome"):
+                execute_experiment(runner, [])
+        else:
+            assert execute_experiment(runner, [])
+
+    prepare.assert_called_once_with(standalone_system, [], scenario)
+    installer.is_installed.assert_called_once_with([])
+    installer.mark_as_installed.assert_not_called()
+    if already_installed:
+        installer.install.assert_not_called()
+    else:
+        installer.install.assert_called_once_with([])
+
+
+@pytest.mark.parametrize("mode", ["run", "dry-run"])
+@pytest.mark.parametrize("cache_without_check", [True, False])
+def test_execution_installation_cache_modes(
+    mode: str,
+    cache_without_check: bool,
+    standalone_system: StandaloneSystem,
+    base_tr: TestRun,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = TestScenario(name="scenario", test_runs=[base_tr])
+    installer = MagicMock()
+    installer.is_installed.return_value = InstallStatusResult(True)
+    installer.mark_as_installed.return_value = InstallStatusResult(True)
+    monkeypatch.setattr("cloudai.handlers.prepare_installation", lambda *_: ([], installer))
+    monkeypatch.setattr(Runner, "run", lambda _: True)
+    monkeypatch.setattr("cloudai.handlers.generate_reports", lambda *_: None)
+    runner = Runner(mode, standalone_system, scenario, runner_class=StandaloneRunner)
+
+    assert execute_experiment(runner, [], enable_cache_without_check=cache_without_check)
+
+    if cache_without_check:
+        installer.is_installed.assert_not_called()
+    else:
+        installer.is_installed.assert_called_once_with([])
+    assert installer.mark_as_installed.call_count == int(cache_without_check) + int(mode == "dry-run")
+    installer.install.assert_not_called()
 
 
 def test_prepare_installation_includes_hook_installables(slurm_system: SlurmSystem) -> None:
