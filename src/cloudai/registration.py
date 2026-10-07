@@ -48,6 +48,7 @@ def register_all():
     from cloudai.models.scenario import ReportConfig
     from cloudai.report_generator.training import TrainingReporter
     from cloudai.reporter import DSEReporter, JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
+    from cloudai.s3_reporter import S3UploadConfig, S3UploadReporter
 
     # Import systems
     from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesRunner, KubernetesSystem
@@ -343,6 +344,7 @@ def register_all():
     Registry().add_scenario_report("junit", JUnitReporter, ReportConfig(enable=False))
     Registry().add_scenario_report("dse", DSEReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("s3", S3UploadReporter, S3UploadConfig(enable=False))
     Registry().add_scenario_report(
         "nixl_bench_summary",
         NIXLBenchComparisonReport,
