@@ -331,7 +331,8 @@ class TestInScenario:
             """
         )
         test_path = scenario_path.parent / scenario_data["Tests"][0]["path"]
-        base_test = TestParser([test_path], slurm_system).parse_all()[0]
+        parsed_tests, _ = TestParser([test_path], slurm_system).parse_all()
+        base_test = parsed_tests[0]
 
         if reference == "test_name":
             scenario_data["Tests"][0].pop("path")

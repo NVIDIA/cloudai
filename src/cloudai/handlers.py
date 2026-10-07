@@ -33,6 +33,7 @@ from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    MissingTestError,
     Parser,
     Registry,
     Runner,
@@ -45,7 +46,7 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
-from cloudai.test_parser import load_test_toml_file
+from cloudai.test_parser import TestConfigFailure, failure_declaring, load_test_toml_file
 from cloudai.toml_utils import format_toml_decode_error
 from cloudai.util import prepare_output_dir
 
@@ -467,7 +468,7 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
                 tp.current_file = test_toml
                 tp.load_test_definition(load_test_toml_file(fh, test_toml))
         except Exception as e:
-            logging.error(f"Failed to verify Test: {test_toml}: {e}")
+            logging.error(f"Failed to verify Test: {e}")
             logging.debug("", exc_info=True)
             nfailed += 1
 
@@ -484,16 +485,32 @@ def verify_test_scenarios(
 ) -> int:
     system = Mock(spec=System, sol={})
     nfailed = 0
+    test_mapping: dict[str, TestDefinition] = {}
+    test_parse_failures: dict[Path, TestConfigFailure] = {}
+    hooks: dict[str, TestScenario] = {}
+    shared_failure: Optional[Exception] = None
+    try:
+        tests, test_parse_failures = TestParser(test_tomls, system).parse_all()
+        test_mapping = {t.name: t for t in tests}
+        hook_tests = Parser.parse_tests(hook_test_tomls, system)
+        hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
+    except Exception as e:
+        shared_failure = e
+        logging.debug("", exc_info=True)
     for scenario_file in scenario_tomls:
         logging.debug(f"Verifying Test Scenario: {scenario_file}...")
+        if shared_failure is not None:
+            logging.error(f"Failed to verify Test Scenario: {scenario_file}: {shared_failure}")
+            nfailed += 1
+            continue
         try:
-            tests = Parser.parse_tests(test_tomls, system)
-            hook_tests = Parser.parse_tests(hook_test_tomls, system)
-            hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            scenario = Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            scenario = Parser.parse_test_scenario(scenario_file, system, test_mapping, hooks)
             validate_domain_randomization_active(scenario)
         except Exception as e:
-            logging.error(f"Failed to verify Test Scenario: {scenario_file}: {e}")
+            referenced = (
+                failure_declaring(test_parse_failures, e.test_name) if isinstance(e, MissingTestError) else None
+            )
+            logging.error(f"Failed to verify Test Scenario: {scenario_file}: {referenced.error if referenced else e}")
             logging.debug("", exc_info=True)
             nfailed += 1
 
