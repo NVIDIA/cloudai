@@ -363,14 +363,19 @@ class TestUnparseableTestConfigs:
         test_scenario_path = tests_dir.parent / "test_scenario.toml"
         write_scenario(test_scenario_path, "good_test")
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             _, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
         assert test_scenario is not None
         assert [test.name for test in tests] == ["good_test"]
         warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
-        assert any(str(tests_dir / "bad_agent_test.toml") in msg and "is not registered" in msg for msg in warnings)
-        assert any(str(tests_dir / "broken_toml_test.toml") in msg and "TOML parsing error" in msg for msg in warnings)
+        assert [msg for msg in warnings if "could not be parsed" in msg] == [
+            f"2 test config(s) under '{tests_dir}' could not be parsed and are not available to this scenario. "
+            "Run verify-configs for the details."
+        ]
+        debug = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
+        assert any(str(tests_dir / "bad_agent_test.toml") in msg and "is not registered" in msg for msg in debug)
+        assert any(str(tests_dir / "broken_toml_test.toml") in msg and "TOML parsing error" in msg for msg in debug)
 
     def test_parse_raises_test_config_parsing_error_naming_the_referenced_unparseable_config(
         self, raising_parser: Parser, tests_dir: Path, write_scenario: Callable[[Path, str], None]
