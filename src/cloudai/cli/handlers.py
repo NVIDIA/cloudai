@@ -82,4 +82,4 @@ def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) ->
         DeprecationWarning,
         stacklevel=2,
     )
-    return cloudai.handlers.handle_non_dse_job(runner)
+    return runner.run()

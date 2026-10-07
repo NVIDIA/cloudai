@@ -188,6 +188,9 @@ Agents Configuration
 
 For DSE workloads, you can pass agent configuration via ``agent_config`` in the scenario.
 
+DSE dry runs generate the enabled scenario status report and record explored configurations in
+``trajectory.csv``. Without measured results, they do not produce a DSE HTML report or best-config TOML.
+
 ``BaseAgentConfig`` includes:
 
 - ``random_seed``: controls deterministic random behavior in agents.

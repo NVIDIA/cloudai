@@ -130,7 +130,7 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
-def handle_dse_job(runner: Runner, *, report: bool = True) -> int:
+def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
@@ -144,8 +144,6 @@ def handle_dse_job(runner: Runner, *, report: bool = True) -> int:
         return 1
 
     err = 0
-    # Capture an unexpected error so reports still generate, then re-raise below.
-    run_error: Exception | None = None
     try:
         for tr in runner.runner.test_scenario.test_runs:
             test_run = copy.deepcopy(tr)
@@ -179,21 +177,11 @@ def handle_dse_job(runner: Runner, *, report: bool = True) -> int:
             finally:
                 env.update_output()
     except Exception as exc:
-        run_error = exc
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
-
-    if runner.runner.mode == "run":
+        _record_run_failure(runner.runner.scenario_root, exc)
+        raise
+    finally:
         runner.runner.test_scenario.test_runs = original_test_runs
-    if report and runner.runner.mode == "run":
-        generate_reports(
-            runner.runner.system,
-            runner.runner.test_scenario,
-            runner.runner.scenario_root,
-            error=run_error,
-        )
-
-    if run_error is not None:
-        raise run_error.with_traceback(run_error.__traceback__)
 
     logging.info("All jobs are complete.")
     return err
@@ -244,14 +232,6 @@ def generate_reports(
             logging.debug(e, exc_info=True)
 
 
-def handle_non_dse_job(runner: Runner, *, report: bool = True) -> bool:
-    successful = runner.run()
-    if report:
-        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
-    logging.info("All jobs are complete.")
-    return successful
-
-
 class InstallationError(RuntimeError):
     """Workload prerequisites could not be installed."""
 
@@ -291,7 +271,31 @@ def create_experiment_runner(
     return Runner(mode, system, scenario, runner_class=runner_class)
 
 
-def execute_experiment(  # noqa: C901
+def _ensure_installation(runner: Runner, tests: list[TestDefinition], *, enable_cache_without_check: bool) -> None:
+    system = runner.runner.system
+    scenario = runner.runner.test_scenario
+    mode = runner.runner.mode
+    logging.info("Checking if workloads components are installed.")
+    installables, installer = prepare_installation(system, tests, scenario)
+    if enable_cache_without_check:
+        result = installer.mark_as_installed(installables)
+    else:
+        result = installer.is_installed(installables)
+    if mode == "run" and not result.success:
+        logging.info("Not all workloads components are installed. Installing...")
+        result = installer.install(installables)
+        if not result.success:
+            logging.error("Failed to install workloads components.")
+            logging.error(result.message)
+            raise InstallationError(result.message)
+        _log_installation_dirs("CloudAI is successfully installed into", system)
+    elif mode == "dry-run":
+        result = installer.mark_as_installed(installables)
+        if not result.success:
+            logging.warning("Failed to mark workloads components as installed for dry-run.")
+
+
+def execute_experiment(
     runner: Runner,
     tests: list[TestDefinition],
     *,
@@ -303,10 +307,7 @@ def execute_experiment(  # noqa: C901
     """Install prerequisites, execute the scenario, and finalize its output."""
     system = runner.runner.system
     scenario = runner.runner.test_scenario
-    mode = runner.runner.mode
     successful = False
-    report_needed = False
-    report_error: Exception | None = None
     try:
         runner.runner.experiment_output.write()
         if on_start is not None:
@@ -314,45 +315,21 @@ def execute_experiment(  # noqa: C901
         logging.info(f"System Name: {system.name}")
         logging.info(f"Scheduler: {system.scheduler}")
         logging.info(f"Test Scenario Name: {scenario.name}")
-        logging.info("Checking if workloads components are installed.")
-        installables, installer = prepare_installation(system, tests, scenario)
-        if enable_cache_without_check:
-            result = installer.mark_as_installed(installables)
-        else:
-            result = installer.is_installed(installables)
-        if mode == "run" and not result.success:
-            logging.info("Not all workloads components are installed. Installing...")
-            result = installer.install(installables)
-            if not result.success:
-                logging.error("Failed to install workloads components.")
-                logging.error(result.message)
-                raise InstallationError(result.message)
-            _log_installation_dirs("CloudAI is successfully installed into", system)
-        elif mode == "dry-run":
-            result = installer.mark_as_installed(installables)
-            if not result.success:
-                logging.warning("Failed to mark workloads components as installed for dry-run.")
+        _ensure_installation(runner, tests, enable_cache_without_check=enable_cache_without_check)
 
         logging.info(scenario.pretty_print())
         logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
         has_dse = any(tr.is_dse_job for tr in scenario.test_runs)
         if isinstance(runner.runner, SingleSbatchRunner) or not has_dse:
-            successful = handle_non_dse_job(runner, report=False)
-            report_needed = True
+            successful = runner.run()
         elif all(tr.is_dse_job for tr in scenario.test_runs):
-            report_needed = mode == "run"
-            try:
-                successful = handle_dse_job(runner, report=False) == 0
-            except Exception as exc:
-                report_error = exc
-                raise
+            successful = handle_dse_job(runner) == 0
         else:
             logging.error("Mixing DSE and non-DSE jobs is not allowed.")
         return successful
     finally:
         runner.runner.finish_output(successful)
-        if report_needed:
-            generate_reports(system, scenario, runner.runner.scenario_root, error=report_error)
+        generate_reports(system, scenario, runner.runner.scenario_root)
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
