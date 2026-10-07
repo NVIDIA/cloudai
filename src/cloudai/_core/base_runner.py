@@ -21,6 +21,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List
 
+import toml
+
 import cloudai.models.output
 import cloudai.output
 
@@ -53,8 +55,6 @@ class BaseRunner(ABC):
         shutting_down (bool): A flag indicating whether a shutdown process has been initiated, preventing the start of
             new tests and ensuring a graceful termination of all running tests.
     """
-
-    SUBMISSION_ERROR_FILE_NAME = "submission-error.txt"
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path):
         """
@@ -164,11 +164,26 @@ class BaseRunner(ABC):
             self.update_run_output(job)
         except JobSubmissionError as e:
             logging.error(e)
-            try:
-                (tr.output_path / self.SUBMISSION_ERROR_FILE_NAME).write_text(f"{type(e).__name__}: {e}")
-            except OSError:
-                logging.exception("Failed to persist submission error for %s", tr.name)
+            self.record_execution_error(tr, e)
             raise
+
+    def record_execution_error(self, tr: TestRun, error: JobSubmissionError) -> None:
+        """Preserve a CloudAI failure in the run dump for report regeneration."""
+        from cloudai.models.scenario import ExecutionError, TestRunDetails
+
+        path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+        try:
+            if path.is_file():
+                details = toml.load(path)
+            else:
+                details = TestRunDetails.from_test_run(tr, test_cmd="", full_cmd=error.command).model_dump(
+                    exclude_none=True
+                )
+            details["execution_error"] = ExecutionError(type=type(error).__name__, message=str(error)).model_dump()
+            with path.open("w") as stream:
+                toml.dump(details, stream)
+        except (OSError, toml.TomlDecodeError):
+            logging.exception("Failed to persist execution error for %s", tr.name)
 
     def on_job_submit(self, tr: TestRun) -> None:
         return

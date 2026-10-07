@@ -31,8 +31,8 @@ from rich.table import Table
 from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.report_generator.util import load_system_metadata
 
-from .core import BaseRunner, CommandGenStrategy, Reporter, TestRun, case_name
-from .models.scenario import TestRunDetails
+from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .models.scenario import ExecutionError, TestRunDetails
 
 
 @dataclass
@@ -150,8 +150,11 @@ class JUnitReporter(Reporter):
 
         results = []
         for tr in self.trs:
-            error_path = tr.output_path / BaseRunner.SUBMISSION_ERROR_FILE_NAME
-            error = error_path.read_text() if error_path.is_file() else None
+            dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+            details = toml.load(dump_path) if dump_path.is_file() else {}
+            error = (
+                ExecutionError.model_validate(details["execution_error"]) if details.get("execution_error") else None
+            )
             status = tr.test.was_run_successful(tr) if error is None else None
             results.append((tr, status, self._duration(tr.output_path), error))
         failures = sum(status is not None and not status.is_successful for _, status, _, _ in results)
@@ -177,8 +180,11 @@ class JUnitReporter(Reporter):
 
             testcase = ET.SubElement(suite, "testcase", attributes)
             if error is not None:
-                error_element = ET.SubElement(testcase, "error", {"message": self._xml_text(error)})
-                error_element.text = self._xml_text(error)
+                message = self._xml_text(f"{error.type}: {error.message}")
+                error_element = ET.SubElement(
+                    testcase, "error", {"type": self._xml_text(error.type), "message": message}
+                )
+                error_element.text = message
             elif status is not None and not status.is_successful:
                 message = status.error_message or "Test run failed"
                 failure = ET.SubElement(testcase, "failure", {"message": self._xml_text(message)})

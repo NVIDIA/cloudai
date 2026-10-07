@@ -475,6 +475,11 @@ def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
         return JobStatusResult(successful, message)
 
     monkeypatch.setattr(type(benchmark_tr.test), "was_run_successful", lambda self, tr: was_run_successful(tr))
+    details = TestRunDetails.from_test_run(benchmark_tr, test_cmd="benchmark", full_cmd="sbatch test.sh")
+    dump = details.model_dump(exclude_none=True)
+    dump["execution_error"] = {"type": "JobIdRetrievalError", "message": "submission timeout"}
+    with (run_dirs[2] / "test-run.toml").open("w") as stream:
+        toml.dump(dump, stream)
     reporter = JUnitReporter(
         slurm_system,
         TestScenario(name="test-scenario", test_runs=[benchmark_tr]),
@@ -489,7 +494,7 @@ def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
         "name": "test-scenario",
         "tests": "3",
         "failures": "1",
-        "errors": "0",
+        "errors": "1",
         "skipped": "0",
         "time": "6.000",
     }
@@ -505,6 +510,11 @@ def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
     assert failure is not None
     assert failure.attrib["message"] == "benchmark failed"
     assert cases[1].findtext("system-err") == "stderr 1\n"
+    error = cases[2].find("error")
+    assert error is not None
+    assert error.attrib == {"type": "JobIdRetrievalError", "message": "JobIdRetrievalError: submission timeout"}
+    assert error.text == "JobIdRetrievalError: submission timeout"
+    assert cases[2].find("failure") is None
 
 
 def _write_slurm_job(step_dir: Path, elapsed_time_sec: int) -> None:

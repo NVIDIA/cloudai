@@ -32,7 +32,6 @@ from cloudai.core import (
     BaseAgentConfig,
     GitRepo,
     InstallStatusResult,
-    JobStatusResult,
     Parser,
     Registry,
     RewardOverrides,

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import toml
 from pydantic import ConfigDict
 
 from cloudai.core import (
@@ -162,7 +163,8 @@ class TestHandleDependencies:
         assert runner.killed_by_dependency[0].test_run == tr_dep
 
 
-def test_submission_error_is_preserved(runner: MyRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("existing_dump", [False, True])
+def test_submission_error_is_preserved(runner: MyRunner, monkeypatch: pytest.MonkeyPatch, existing_dump: bool) -> None:
     error = JobIdRetrievalError("tr-name", "sbatch test.sh", "", "submission timeout", "No job ID")
 
     def submit(tr: TestRun) -> BaseJob:
@@ -170,11 +172,17 @@ def test_submission_error_is_preserved(runner: MyRunner, monkeypatch: pytest.Mon
 
     monkeypatch.setattr(runner, "_submit_test", submit)
     tr = runner.test_scenario.test_runs[0]
+    if existing_dump:
+        tr.output_path = runner.get_job_output_path(tr)
+        with (tr.output_path / "test-run.toml").open("w") as stream:
+            toml.dump({"name": tr.name, "full_cmd": "original command"}, stream)
     with pytest.raises(JobIdRetrievalError) as caught:
         runner.submit_test(tr)
     assert caught.value is error
     assert runner.jobs == []
-    persisted = (tr.output_path / runner.SUBMISSION_ERROR_FILE_NAME).read_text()
-    assert "JobIdRetrievalError" in persisted
-    assert "submission timeout" in persisted
-    assert "sbatch test.sh" in persisted
+    details = toml.load(tr.output_path / "test-run.toml")
+    assert details["name"] == tr.name
+    assert details["full_cmd"] == ("original command" if existing_dump else error.command)
+    assert details["execution_error"]["type"] == "JobIdRetrievalError"
+    assert "submission timeout" in details["execution_error"]["message"]
+    assert "sbatch test.sh" in details["execution_error"]["message"]
