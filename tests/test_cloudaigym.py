@@ -475,7 +475,8 @@ def test_constraint_check_precedes_trajectory_cache(nemorun: NeMoRunTestDefiniti
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
     tdef.sweep_constraints = SweepConstraints(
-        expressions={"reject_cached_action": "test.cmd_args.trainer.max_steps != 1000"}
+        variables={"max_steps": "cmd_args.trainer.max_steps"},
+        expressions={"reject_cached_action": "max_steps != 1000"},
     )
     test_run = TestRun(
         name="cache_constraint_tr",

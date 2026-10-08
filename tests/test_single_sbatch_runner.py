@@ -364,7 +364,7 @@ def test_unroll_dse_constraint_check(nccl_tr: TestRun, slurm_system: SlurmSystem
 def test_unroll_dse_declarative_constraint(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["1", "2"]
     nccl_tr.test.sweep_constraints = SweepConstraints(
-        variables={"value": "test.extra_env_vars.NCCL_VAR"},
+        variables={"value": "extra_env_vars.NCCL_VAR"},
         expressions={"only_first_value": 'value == "1"'},
     )
     tc = TestScenario(name="tc", test_runs=[nccl_tr])

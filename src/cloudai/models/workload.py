@@ -172,7 +172,6 @@ class TestDefinition(BaseModel, ABC):
         if self.sweep_constraints:
             test = tr.test.model_dump(mode="python")
             context = {
-                "test": test,
                 "system": system.model_dump(mode="python") if system is not None else {},
                 "test_run": {**vars(tr), "test": test},
             }

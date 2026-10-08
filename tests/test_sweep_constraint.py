@@ -31,10 +31,10 @@ class ExtendedSleepTestDefinition(SleepTestDefinition):
 def test_constraints_share_bound_variables_and_report_first_failure() -> None:
     constraints = SweepConstraints(
         variables={
-            "tp": "test.cmd_args.tensor_parallel_size",
-            "pp": "test.cmd_args.pipeline_parallel_size",
+            "tp": "cmd_args.tensor_parallel_size",
+            "pp": "cmd_args.pipeline_parallel_size",
             "gpus_per_node": "system.gpus_per_node",
-            "mode": "test.extra_env_vars.MODE",
+            "mode": "extra_env_vars.MODE",
         },
         expressions={
             "parallelism_fits": "tp * pp <= gpus_per_node",
@@ -42,17 +42,19 @@ def test_constraints_share_bound_variables_and_report_first_failure() -> None:
         },
     )
     context = {
-        "test": {
-            "cmd_args": {"tensor_parallel_size": 4, "pipeline_parallel_size": 2},
-            "extra_env_vars": {"MODE": "fast"},
-        },
         "system": {"gpus_per_node": 8},
-        "test_run": {"num_nodes": 1},
+        "test_run": {
+            "num_nodes": 1,
+            "test": {
+                "cmd_args": {"tensor_parallel_size": 4, "pipeline_parallel_size": 2},
+                "extra_env_vars": {"MODE": "fast"},
+            },
+        },
     }
 
     assert constraints.evaluate(context) == (True, None, None)
 
-    context["test"]["cmd_args"]["pipeline_parallel_size"] = 4
+    context["test_run"]["test"]["cmd_args"]["pipeline_parallel_size"] = 4
     assert constraints.evaluate(context) == (False, "parallelism_fits", "tp * pp <= gpus_per_node")
 
 
@@ -60,7 +62,7 @@ def test_constraints_share_bound_variables_and_report_first_failure() -> None:
     "expression",
     [
         "__import__('os').system('id')",
-        "test.cmd_args.__class__",
+        "test_run.test.cmd_args.__class__",
         "sum([1, 2]) <= 3",
     ],
 )
@@ -77,11 +79,12 @@ def test_constraints_reject_unknown_variable_at_parse_time() -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "cmd_args.value",
-        "unknown.value",
-        "test.cmd_args.",
-        "test.cmd_args..tp",
-        "test.cmd_args._private",
+        "system",
+        "test_run",
+        "_private.value",
+        "cmd_args.",
+        "cmd_args..tp",
+        "cmd_args._private",
     ],
 )
 def test_constraints_reject_invalid_variable_paths(path: str) -> None:
@@ -99,34 +102,37 @@ def test_constraints_reject_invalid_variable_paths(path: str) -> None:
         "tp in (1, 2, 4, 8)",
         "((tp + 2) * 3 - 4) // 2 % 4 == 3",
         "tp / 2 == 2",
-        "ratio >= 0.5 and test.cmd_args.optional == None",
+        "ratio >= 0.5 and optional == None",
         "+tp == 4 and -offset == -2",
-        "values[0] == tp and test.cmd_args['tp'] == tp",
+        "values[0] == tp",
     ],
 )
 def test_constraints_support_documented_expression_syntax(expression: str) -> None:
     context = {
-        "test": {
-            "cmd_args": {
-                "enabled": True,
-                "disabled": False,
-                "mode": "fast",
-                "tp": 4,
-                "offset": 2,
-                "optional": None,
-                "ratio": 0.5,
-                "values": [4],
-            },
-            "extra_env_vars": {},
-        },
         "system": {"gpus_per_node": 8},
-        "test_run": {"num_nodes": 2},
+        "test_run": {
+            "num_nodes": 2,
+            "test": {
+                "cmd_args": {
+                    "enabled": True,
+                    "disabled": False,
+                    "mode": "fast",
+                    "tp": 4,
+                    "offset": 2,
+                    "optional": None,
+                    "ratio": 0.5,
+                    "values": [4],
+                },
+                "extra_env_vars": {},
+            },
+        },
     }
 
-    # Direct names outside the three roots must be declared as aliases.
+    # Test-definition paths are declared as aliases; system and test_run remain expression roots.
     constraints = SweepConstraints(
         variables={
-            name: f"test.cmd_args.{name}" for name in ("enabled", "disabled", "mode", "tp", "offset", "ratio", "values")
+            name: f"cmd_args.{name}"
+            for name in ("enabled", "disabled", "mode", "tp", "offset", "optional", "ratio", "values")
         },
         expressions={"supported": expression},
     )
@@ -134,13 +140,14 @@ def test_constraints_support_documented_expression_syntax(expression: str) -> No
     assert constraints.evaluate(context) == (True, None, None)
 
 
-@pytest.mark.parametrize("expression", ["1 / 0 > 0", "test.cmd_args.tp + 'x' > 0", "test.cmd_args.values[2] == 1"])
+@pytest.mark.parametrize("expression", ["1 / 0 > 0", "tp + 'x' > 0", "values[2] == 1"])
 def test_constraints_wrap_runtime_evaluation_errors(expression: str) -> None:
-    constraints = SweepConstraints(expressions={"broken": expression})
+    constraints = SweepConstraints(
+        variables={"tp": "cmd_args.tp", "values": "cmd_args.values"}, expressions={"broken": expression}
+    )
     context = {
-        "test": {"cmd_args": {"tp": 4, "values": [1]}},
         "system": {},
-        "test_run": {},
+        "test_run": {"test": {"cmd_args": {"tp": 4, "values": [1]}}},
     }
 
     with pytest.raises(ConstraintEvaluationError, match="Failed to evaluate sweep constraint 'broken'"):
@@ -148,20 +155,20 @@ def test_constraints_wrap_runtime_evaluation_errors(expression: str) -> None:
 
 
 def test_constraints_require_boolean_result() -> None:
-    constraints = SweepConstraints(expressions={"not_a_predicate": "test.cmd_args.tp + 1"})
+    constraints = SweepConstraints(variables={"tp": "cmd_args.tp"}, expressions={"not_a_predicate": "tp + 1"})
 
     with pytest.raises(ConstraintEvaluationError, match="did not evaluate to a Boolean"):
-        constraints.evaluate({"test": {"cmd_args": {"tp": 4}}, "system": {}, "test_run": {}})
+        constraints.evaluate({"system": {}, "test_run": {"test": {"cmd_args": {"tp": 4}}}})
 
 
 def test_constraints_report_unresolvable_variable_path() -> None:
     constraints = SweepConstraints(
-        variables={"tp": "test.cmd_args.tensor_parallel_size"},
+        variables={"tp": "cmd_args.tensor_parallel_size"},
         expressions={"missing": "tp <= 8"},
     )
 
     with pytest.raises(ConstraintEvaluationError, match=r"cmd_args\.tensor_parallel_size"):
-        constraints.evaluate({"test": {"cmd_args": {}}, "system": {}, "test_run": {}})
+        constraints.evaluate({"system": {}, "test_run": {"test": {"cmd_args": {}}}})
 
 
 def test_test_definition_stops_at_first_declarative_failure(caplog: pytest.LogCaptureFixture) -> None:
@@ -171,7 +178,7 @@ def test_test_definition_stops_at_first_declarative_failure(caplog: pytest.LogCa
         test_template_name="Sleep",
         cmd_args=SleepCmdArgs(seconds=5),
         sweep_constraints=SweepConstraints(
-            variables={"seconds": "test.cmd_args.seconds"},
+            variables={"seconds": "cmd_args.seconds"},
             expressions={
                 "duration_limit": "seconds <= 4",
                 "not_evaluated": "1 / 0 > 1",
@@ -192,7 +199,9 @@ def test_test_definition_delegates_to_workload_check_after_declarative_success()
         description="test",
         test_template_name="Sleep",
         cmd_args=SleepCmdArgs(seconds=5),
-        sweep_constraints=SweepConstraints(expressions={"positive_duration": "test.cmd_args.seconds > 0"}),
+        sweep_constraints=SweepConstraints(
+            variables={"seconds": "cmd_args.seconds"}, expressions={"positive_duration": "seconds > 0"}
+        ),
     )
     test_run = TestRun(name="sleep", test=test, num_nodes=1, nodes=[])
 
@@ -224,12 +233,12 @@ def test_test_definition_exposes_complete_test_and_test_run() -> None:
         cmd_args=SleepCmdArgs(seconds=5),
         bench_cmd_args={"num_prompts": 32},
         sweep_constraints=SweepConstraints(
-            expressions={
-                "extended_fields": (
-                    "test.bench_cmd_args.num_prompts == 32 and "
-                    "test_run.test.bench_cmd_args.num_prompts == 32 and test_run.weight == 2.5"
-                )
-            }
+            variables={
+                "prompts": "bench_cmd_args.num_prompts",
+                "nested_prompts": "test_run.test.bench_cmd_args.num_prompts",
+                "weight": "test_run.weight",
+            },
+            expressions={"extended_fields": "prompts == 32 and nested_prompts == 32 and weight == 2.5"},
         ),
     )
     test_run = TestRun(name="sleep", test=test, num_nodes=1, nodes=[], weight=2.5)
@@ -249,7 +258,7 @@ def test_test_definition_accepts_shared_aliases_and_multiple_expressions_from_to
             seconds = 5
 
             [sweep_constraints.variables]
-            seconds = "test.cmd_args.seconds"
+            seconds = "cmd_args.seconds"
             nodes = "test_run.num_nodes"
 
             [sweep_constraints.expressions]
