@@ -29,7 +29,7 @@ class ConstraintEvaluationError(ValueError):
     """Raised when a declarative sweep constraint cannot be evaluated."""
 
 
-_ROOT_NAMES = {"system", "test", "test_run"}
+_ROOT_NAMES = {"system", "test_run"}
 _BINARY_OPERATORS: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -89,8 +89,13 @@ def _parse_expression(expression: str) -> ast.Expression:
 
 
 def _resolve_path(context: Mapping[str, Any], path: str) -> Any:
-    value: Any = context
-    for component in path.split("."):
+    components = path.split(".")
+    if components[0] in _ROOT_NAMES:
+        value: Any = context
+    else:
+        value = _resolve_member(_resolve_member(context, "test_run"), "test")
+
+    for component in components:
         if not isinstance(value, Mapping) or component not in value:
             raise ConstraintEvaluationError(f"Cannot resolve constraint variable path '{path}'")
         value = value[component]
@@ -174,14 +179,12 @@ class SweepConstraints(BaseModel):
             if alias in _ROOT_NAMES:
                 raise ValueError(f"Constraint variable name is reserved: {alias!r}")
             components = path.split(".")
-            if (
-                len(components) < 2
-                or components[0] not in _ROOT_NAMES
-                or any(not component or component.startswith("_") for component in components)
+            if any(not component or component.startswith("_") for component in components) or (
+                components[0] in _ROOT_NAMES and len(components) < 2
             ):
                 raise ValueError(
-                    "Constraint variable path must start with one of "
-                    f"{sorted(_ROOT_NAMES)} and contain only public, nonempty components: {path!r}"
+                    "Constraint variable path must contain only public, nonempty components and cannot select an "
+                    f"entire root object ({', '.join(sorted(_ROOT_NAMES))}): {path!r}"
                 )
 
         for name, expression in self.expressions.items():

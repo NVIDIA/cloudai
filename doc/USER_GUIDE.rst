@@ -232,16 +232,17 @@ Declarative sweep constraints
 
 Use ``sweep_constraints`` in a test TOML to reject invalid parameter combinations before they are executed. Declare
 aliases once under ``variables``, then define one or more named Boolean expressions. Variable paths may select fields
-from the complete ``test`` definition, ``test_run``, or ``system``. This includes workload-specific test fields such as
-the vLLM and SGLang benchmark arguments.
+from the complete test definition, ``test_run``, or ``system``. Paths beginning with ``system.`` or ``test_run.`` select
+those objects. All other paths are relative to the test definition, including workload-specific fields such as the vLLM
+and SGLang benchmark arguments.
 
 .. code-block:: toml
 
    [sweep_constraints.variables]
-   prefill_tp = "test.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size"
-   prefill_pp = "test.cmd_args.dynamo.prefill_worker.args.pipeline_parallel_size"
-   decode_tp = "test.cmd_args.dynamo.decode_worker.args.tensor_parallel_size"
-   decode_pp = "test.cmd_args.dynamo.decode_worker.args.pipeline_parallel_size"
+   prefill_tp = "cmd_args.dynamo.prefill_worker.args.tensor_parallel_size"
+   prefill_pp = "cmd_args.dynamo.prefill_worker.args.pipeline_parallel_size"
+   decode_tp = "cmd_args.dynamo.decode_worker.args.tensor_parallel_size"
+   decode_pp = "cmd_args.dynamo.decode_worker.args.pipeline_parallel_size"
    gpus_per_node = "system.gpus_per_node"
 
    [sweep_constraints.expressions]
