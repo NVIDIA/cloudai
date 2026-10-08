@@ -26,7 +26,7 @@ import cloudai.metrics
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
 
 from ..configurator.env_params import EnvParamSpec
-from .dse_constraint import DSEConstraints
+from ..configurator.sweep_constraint import SweepConstraints
 
 
 class CmdArgs(BaseModel):
@@ -125,9 +125,9 @@ class TestDefinition(BaseModel, ABC):
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")
-    dse_constraints: DSEConstraints | None = Field(
+    sweep_constraints: SweepConstraints | None = Field(
         default=None,
-        description="Declarative constraints evaluated before a DSE configuration is executed.",
+        description="Declarative constraints evaluated before a sweep configuration is executed.",
     )
     env_params: dict[str, EnvParamSpec] = Field(
         default_factory=dict,
@@ -169,25 +169,17 @@ class TestDefinition(BaseModel, ABC):
 
     def check_constraints(self, tr: TestRun, system: Optional[System]) -> bool:
         """Evaluate user-declared constraints, then the workload-owned hook."""
-        if self.dse_constraints:
+        if self.sweep_constraints:
+            test = tr.test.model_dump(mode="python")
             context = {
-                "cmd_args": tr.test.cmd_args.model_dump(mode="python"),
-                "extra_env_vars": tr.test.extra_env_vars,
+                "test": test,
                 "system": system.model_dump(mode="python") if system is not None else {},
-                "test_run": {
-                    "name": tr.name,
-                    "num_nodes": tr.num_nodes,
-                    "nodes": tr.nodes,
-                    "iterations": tr.iterations,
-                    "current_iteration": tr.current_iteration,
-                    "step": tr.step,
-                    "time_limit": tr.time_limit,
-                },
+                "test_run": {**vars(tr), "test": test},
             }
-            accepted, failed_name, failed_expression = self.dse_constraints.evaluate(context)
+            accepted, failed_name, failed_expression = self.sweep_constraints.evaluate(context)
             if not accepted:
                 logging.info(
-                    "DSE constraint '%s' rejected the configuration: %s",
+                    "Sweep constraint '%s' rejected the configuration: %s",
                     failed_name,
                     failed_expression,
                 )

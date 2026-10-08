@@ -23,8 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serial
 from typing_extensions import Self
 
 import cloudai.metrics
+from cloudai.configurator.sweep_constraint import SweepConstraints
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
-from cloudai.models.dse_constraint import DSEConstraints
 from cloudai.models.workload import TestDefinition
 
 
@@ -123,7 +123,7 @@ class TestRunModel(BaseModel):
     test_template_name: Optional[str] = None
     cmd_args: Optional[CmdArgs] = None
     dse_excluded_args: Optional[list[str]] = None
-    dse_constraints: DSEConstraints | None = None
+    sweep_constraints: SweepConstraints | None = None
     extra_env_vars: dict[str, str | list[str]] | None = None
     extra_container_mounts: Optional[list[str]] = None
     git_repos: Optional[list[GitRepo]] = None

@@ -747,7 +747,7 @@ class TestInScenario:
 
         assert "DSE excluded arg must start with 'cmd_args.'" in str(excinfo.value.__cause__)
 
-    def test_dse_constraints_can_be_overridden_in_scenario_toml(
+    def test_sweep_constraints_can_be_overridden_in_scenario_toml(
         self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
     ):
         test_scenario_parser.test_mapping = {
@@ -767,10 +767,10 @@ class TestInScenario:
             id = "1"
             test_name = "nccl"
 
-              [Tests.dse_constraints.variables]
+              [Tests.sweep_constraints.variables]
               gpus_per_node = "system.gpus_per_node"
 
-              [Tests.dse_constraints.expressions]
+              [Tests.sweep_constraints.expressions]
               has_gpus = "gpus_per_node > 0"
             """
             )
@@ -778,9 +778,9 @@ class TestInScenario:
 
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
 
-        assert tdef.dse_constraints is not None
-        assert tdef.dse_constraints.variables == {"gpus_per_node": "system.gpus_per_node"}
-        assert tdef.dse_constraints.expressions == {"has_gpus": "gpus_per_node > 0"}
+        assert tdef.sweep_constraints is not None
+        assert tdef.sweep_constraints.variables == {"gpus_per_node": "system.gpus_per_node"}
+        assert tdef.sweep_constraints.expressions == {"has_gpus": "gpus_per_node > 0"}
 
 
 class TestReporters:

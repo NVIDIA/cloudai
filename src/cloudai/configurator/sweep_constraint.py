@@ -26,10 +26,10 @@ from typing_extensions import Self
 
 
 class ConstraintEvaluationError(ValueError):
-    """Raised when a declarative DSE constraint cannot be evaluated."""
+    """Raised when a declarative sweep constraint cannot be evaluated."""
 
 
-_ROOT_NAMES = {"cmd_args", "extra_env_vars", "system", "test_run"}
+_ROOT_NAMES = {"system", "test", "test_run"}
 _BINARY_OPERATORS: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -158,8 +158,8 @@ def _evaluate_node(node: ast.AST, context: Mapping[str, Any]) -> Any:  # noqa: C
     raise ConstraintEvaluationError(f"Unsupported constraint expression element: {type(node).__name__}")
 
 
-class DSEConstraints(BaseModel):
-    """Shared variable bindings and named Boolean constraints for DSE candidates."""
+class SweepConstraints(BaseModel):
+    """Shared variable bindings and named Boolean constraints for sweep candidates."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -200,15 +200,15 @@ class DSEConstraints(BaseModel):
         try:
             evaluation_context.update({alias: _resolve_path(context, path) for alias, path in self.variables.items()})
         except ConstraintEvaluationError as e:
-            raise ConstraintEvaluationError(f"Failed to resolve DSE constraint variables: {e}") from e
+            raise ConstraintEvaluationError(f"Failed to resolve sweep constraint variables: {e}") from e
 
         for name, expression in self.expressions.items():
             try:
                 result = _evaluate_node(_parse_expression(expression), evaluation_context)
             except (ArithmeticError, ConstraintEvaluationError, TypeError, ValueError) as e:
-                raise ConstraintEvaluationError(f"Failed to evaluate DSE constraint '{name}': {e}") from e
+                raise ConstraintEvaluationError(f"Failed to evaluate sweep constraint '{name}': {e}") from e
             if not isinstance(result, bool):
-                raise ConstraintEvaluationError(f"DSE constraint '{name}' did not evaluate to a Boolean")
+                raise ConstraintEvaluationError(f"Sweep constraint '{name}' did not evaluate to a Boolean")
             if not result:
                 return False, name, expression
         return True, None, None

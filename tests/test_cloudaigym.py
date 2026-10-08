@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, DSEConstraints, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, RewardOverrides, Runner, SweepConstraints, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -474,7 +474,9 @@ def test_constraint_check_precedes_trajectory_cache(nemorun: NeMoRunTestDefiniti
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
-    tdef.dse_constraints = DSEConstraints(expressions={"reject_cached_action": "cmd_args.trainer.max_steps != 1000"})
+    tdef.sweep_constraints = SweepConstraints(
+        expressions={"reject_cached_action": "test.cmd_args.trainer.max_steps != 1000"}
+    )
     test_run = TestRun(
         name="cache_constraint_tr",
         test=tdef,
