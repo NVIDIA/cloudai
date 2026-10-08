@@ -30,9 +30,6 @@ from cloudai.core import DockerImage, Installable, JobStatusResult, System, Test
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmJobMetadata
 
-# Pattern to match lines like:
-# [2026-01-16 07:32:39] iteration  6/100 | ... |
-#   elapsed time per iteration (ms): 15639.0 | throughput per GPU (TFLOP/s/GPU): 494.6 | ...
 ITERATION_LOG_REGEX = re.compile(
     r"elapsed time per iteration \(ms\):\s*([0-9]+(?:\.[0-9]+)?)"
     r".*?"

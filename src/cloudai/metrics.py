@@ -163,7 +163,17 @@ ACCURACY = MetricDefinition(
     direction=OptimizationDirection.MAXIMIZE,
 )
 
-MetricCatalog.register_metrics(BANDWIDTH, LATENCY, REQUEST_THROUGHPUT, OUTPUT_TOKEN_THROUGHPUT, TTFT, TPOT, ACCURACY, ITERATION_TIME, TFLOPS_PER_GPU)
+MetricCatalog.register_metrics(
+    BANDWIDTH,
+    LATENCY,
+    REQUEST_THROUGHPUT,
+    OUTPUT_TOKEN_THROUGHPUT,
+    TTFT,
+    TPOT,
+    ACCURACY,
+    ITERATION_TIME,
+    TFLOPS_PER_GPU,
+)
 MetricCatalog.register_dimensions(
     SIZE_BYTES,
     BATCH_SIZE,
