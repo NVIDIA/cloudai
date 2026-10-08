@@ -71,7 +71,17 @@ def handle_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> int
         DeprecationWarning,
         stacklevel=2,
     )
-    return cloudai.handlers.handle_dse_job(runner)
+    successful = False
+    try:
+        result = cloudai.handlers.handle_dse_job(runner)
+        successful = result == 0
+        return result
+    finally:
+        runner.runner.finish_output(successful)
+        if runner.runner.mode == "run":
+            cloudai.handlers.generate_reports(
+                runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root
+            )
 
 
 def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) -> bool:
@@ -82,4 +92,12 @@ def handle_non_dse_job(runner: cloudai.core.Runner, args: argparse.Namespace) ->
         DeprecationWarning,
         stacklevel=2,
     )
-    return runner.run()
+    successful = False
+    try:
+        successful = runner.run()
+        return successful
+    finally:
+        runner.runner.finish_output(successful)
+        cloudai.handlers.generate_reports(
+            runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root
+        )
