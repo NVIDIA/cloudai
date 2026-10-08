@@ -112,4 +112,12 @@ def test_python_environment_uninstall_removes_venv(installer: BaseInstaller) -> 
 
     assert res.success
     assert not venv_path.exists()
+
+
+def test_python_environment_uninstall_clears_venv_path(installer: BaseInstaller) -> None:
+    env = PythonEnvironment(name="aiconfigurator", python_version="3.10", venv_path=installer.system.install_path)
+
+    res = env.uninstall(installer)
+
+    assert res.success
     assert env.venv_path is None
