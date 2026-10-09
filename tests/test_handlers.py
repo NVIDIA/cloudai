@@ -14,30 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import copy
+import tarfile
 from pathlib import Path
-from typing import Any, ClassVar, Iterator, Optional
+from typing import Any, Callable, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 from pydantic import Field
 
-from cloudai.cli.handlers import (
-    handle_dse_job,
-    prepare_installation,
-    validate_domain_randomization_active,
-    verify_system_configs,
-    verify_test_configs,
-    verify_test_scenarios,
-)
+import cloudai.models.output
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
     GitRepo,
+    InstallStatusResult,
     Parser,
     Registry,
     RewardOverrides,
@@ -47,10 +41,20 @@ from cloudai.core import (
     TestScenario,
     TestScenarioParsingError,
 )
+from cloudai.handlers import (
+    execute_experiment,
+    handle_dse_job,
+    prepare_installation,
+    validate_domain_randomization_active,
+    verify_system_configs,
+    verify_test_configs,
+    verify_test_scenarios,
+)
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.reporter import StatusReporter
-from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.reporter import StatusReporter, TarballReporter
+from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.test_parser import TestParser
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -97,6 +101,21 @@ def stub_agent_name() -> Iterator[str]:
         registry.update_agent(agent_name, old_agent)
 
 
+def test_runner_warns_about_legacy_create_runner_signature(slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
+    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+    with pytest.warns(DeprecationWarning, match="will be removed in CloudAI 1.9.1"):
+        Runner(mode="dry-run", system=slurm_system, test_scenario=scenario)
+
+
+def test_runner_uses_explicit_class_without_registered_scheduler(slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
+    slurm_system.scheduler = "custom"
+    scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
+
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=scenario, runner_class=SlurmRunner)
+
+    assert isinstance(runner.runner, SlurmRunner)
+
+
 @pytest.mark.parametrize("dep", ["start_post_comp", "start_post_init", "end_post_comp"])
 def test_dse_run_does_not_support_dependencies(
     slurm_system: SlurmSystem, dse_tr: TestRun, dep: str, caplog: pytest.LogCaptureFixture
@@ -113,8 +132,8 @@ def test_dse_run_does_not_support_dependencies(
     """
     dse_tr.dependencies = {dep: TestDependency(test_run=dse_tr)}
     test_scenario: TestScenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
+    assert handle_dse_job(runner) == 1
     assert "Dependencies are not supported for DSE jobs, all cases run consecutively." in caplog.text
     assert "Please remove dependencies and re-run." in caplog.text
 
@@ -154,13 +173,20 @@ def test_dse_run_uses_agent_config(
     stub_agent_name: str,
     agent_config: dict[str, Any] | None,
     expected: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dse_tr.test.agent = stub_agent_name
     dse_tr.test.agent_config = agent_config
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(mark_as_installed=lambda _: InstallStatusResult(True))),
+    )
+    assert execute_experiment(runner, [], enable_cache_without_check=True)
+    assert (runner.runner.scenario_root / "test_scenario.html").is_file()
+    assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
     assert len(StubAgent.received_configs) == 1
 
     recorded = StubAgent.received_configs[0]
@@ -255,7 +281,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
 
     # run test
     with caplog.at_level("INFO"):
-        assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+        assert handle_dse_job(runner) == 0
 
     reporter = StatusReporter(
         inner_runner.system,
@@ -329,6 +355,147 @@ def test_verify_test_scenarios_logs_failure_details(tmp_path: Path, caplog: pyte
     assert "1 out of 1 test scenarios have issues." in caplog.text
 
 
+def test_verify_test_scenarios_does_not_blame_scenarios_for_an_unreferenced_unparseable_test(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_test = tmp_path / "bad_agent_test.toml"
+    write_unregistered_agent_test(bad_test, "bad_agent_test")
+    scenarios = []
+    for index in range(3):
+        scenario = tmp_path / f"scenario_{index}.toml"
+        write_scenario(scenario, "good_test")
+        scenarios.append(scenario)
+
+    assert verify_test_scenarios(scenarios, [good_test, bad_test], [], []) == 0
+
+
+def test_verify_test_scenarios_parses_test_configs_once_regardless_of_scenario_count(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    driven: list[TestParser] = []
+    parse_all = TestParser.parse_all
+
+    def spying_parse_all(self: TestParser):
+        driven.append(self)
+        return parse_all(self)
+
+    monkeypatch.setattr(TestParser, "parse_all", spying_parse_all)
+
+    def parse_all_calls_for(scenario_count: int) -> int:
+        scenarios = []
+        for index in range(scenario_count):
+            scenario = tmp_path / f"scenario_{scenario_count}_{index}.toml"
+            write_scenario(scenario, "good_test")
+            scenarios.append(scenario)
+        driven.clear()
+        assert verify_test_scenarios(scenarios, [good_test], [], []) == 0
+        return len(driven)
+
+    assert parse_all_calls_for(1) == parse_all_calls_for(5)
+
+
+def test_verify_test_scenarios_reports_an_unparseable_hook_test_no_scenario_references(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_hook_test = tmp_path / "bad_hook_test.toml"
+    write_unregistered_agent_test(bad_hook_test, "bad_hook_test")
+    scenario = tmp_path / "scenario.toml"
+    write_scenario(scenario, "good_test")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test], [], [bad_hook_test])
+
+    assert nfailed > 0
+    assert str(bad_hook_test) in caplog.text
+    assert "is not registered" in caplog.text
+
+
+def test_verify_test_scenarios_blames_the_scenario_that_references_an_unparseable_test(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_unregistered_agent_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    bad_test = tmp_path / "bad_agent_test.toml"
+    write_unregistered_agent_test(bad_test, "bad_agent_test")
+    scenario = tmp_path / "uses_bad.toml"
+    write_scenario(scenario, "bad_agent_test")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test, bad_test], [], [])
+
+    assert nfailed == 1
+    messages = [record.getMessage() for record in caplog.records]
+    blame = [msg for msg in messages if msg.startswith(f"Failed to verify Test Scenario: {scenario}:")]
+    assert len(blame) == 1
+    assert str(bad_test) in blame[0]
+    assert "is not registered" in blame[0]
+    assert "is not defined" not in blame[0]
+
+
+def test_verify_test_scenarios_blames_the_scenario_that_names_a_test_that_exists_nowhere(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    scenario = tmp_path / "uses_missing.toml"
+    write_scenario(scenario, "no_such_test_anywhere")
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios([scenario], [good_test], [], [])
+
+    assert nfailed == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(str(scenario) in msg and "no_such_test_anywhere" in msg for msg in messages)
+
+
+def test_verify_test_scenarios_reports_a_duplicate_test_name_to_every_scenario_without_raising(
+    tmp_path: Path,
+    write_parseable_test: Callable[[Path, str], None],
+    write_scenario: Callable[[Path, str], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_test = tmp_path / "good_test.toml"
+    write_parseable_test(good_test, "good_test")
+    duplicate = tmp_path / "good_test_copy.toml"
+    write_parseable_test(duplicate, "good_test")
+    scenarios = []
+    for index in range(2):
+        scenario = tmp_path / f"scenario_{index}.toml"
+        write_scenario(scenario, "good_test")
+        scenarios.append(scenario)
+
+    with caplog.at_level("INFO"):
+        nfailed = verify_test_scenarios(scenarios, [good_test, duplicate], [], [])
+
+    assert nfailed == 2
+    messages = [record.getMessage() for record in caplog.records]
+    blamed = [msg for msg in messages if str(good_test) in msg and str(duplicate) in msg]
+    assert len(blamed) == 2
+
+
 class CustomRunStubAgentConfig(BaseAgentConfig):
     pass
 
@@ -393,11 +560,11 @@ def test_handle_dse_job_invokes_agent_run(
     """``handle_dse_job`` must delegate orchestration to ``agent.run()`` (polymorphism)."""
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
     update_output = MagicMock()
     monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 0
+    assert handle_dse_job(runner) == 0
     assert CustomRunStubAgent.run_calls == 1
     assert update_output.call_count == 2
 
@@ -411,9 +578,9 @@ def test_handle_dse_job_propagates_agent_run_nonzero_rc(
     CustomRunStubAgent.run_returns = 1
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner) == 1
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -433,9 +600,9 @@ def test_handle_dse_job_accumulates_nonzero_rc_and_continues(
     second_tr = copy.deepcopy(dse_tr)
     second_tr.name = "dse_second"
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner, argparse.Namespace(mode="dry-run")) == 1
+    assert handle_dse_job(runner) == 1
     assert CustomRunStubAgent.run_calls == 2
 
 
@@ -453,12 +620,12 @@ def test_handle_dse_job_propagates_agent_run_exception(
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
     update_output = MagicMock()
     monkeypatch.setattr(CloudAIGymEnv, "update_output", update_output)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner)
     assert CustomRunStubAgent.run_calls == 1
     assert update_output.call_count == 2
 
@@ -474,10 +641,10 @@ def test_handle_dse_job_hard_fail_aborts_remaining_runs(
     second_tr = copy.deepcopy(dse_tr)
     second_tr.name = "dse_second"
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr, second_tr])
-    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="dry-run"))
+        handle_dse_job(runner)
     assert CustomRunStubAgent.run_calls == 1
 
 
@@ -485,23 +652,38 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On a hard-fail, reports are still generated and the aborting error is documented, then re-raised."""
+    """On a hard-fail, final output and the aborting error are reported before re-raising."""
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
-    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
-    runner.runner.scenario_root = tmp_path
+    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
+    results_root = runner.runner.scenario_root
+    (results_root / dse_tr.name / "0" / "0").mkdir(parents=True)
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(is_installed=lambda _: InstallStatusResult(True))),
+    )
+    monkeypatch.setattr(Registry, "ordered_scenario_reports", lambda _: [("tarball", TarballReporter)])
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner, argparse.Namespace(mode="run"))
+        execute_experiment(runner, [])
 
-    failure_report = tmp_path / "dse_failure.txt"
+    failure_report = results_root / "dse_failure.txt"
     assert failure_report.exists()
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+    with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
+        archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
+        assert archived_file is not None
+        archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
+    local = cloudai.models.output.Experiment.model_validate_json((results_root / "experiment.json").read_text())
+    assert archived == local
+    assert archived.status == "failed"
+    assert archived.finish is not None
+    assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
 
 
 def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:
@@ -567,8 +749,6 @@ def test_verify_test_scenarios_rejects_env_params_without_dse(
 ) -> None:
     base_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     bad = TestScenario(name="s", test_runs=[base_tr])
-    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
-    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: bad)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 1
 
@@ -579,7 +759,5 @@ def test_verify_test_scenarios_allows_env_params_with_dse(
     dse_tr.test.env_params = {"ball_speed": EnvParamSpec()}
     dse_tr.test.agent = stub_agent_name  # learning agent (not grid_search)
     good = TestScenario(name="s", test_runs=[dse_tr])
-    monkeypatch.setattr(Parser, "parse_tests", lambda *a, **k: [])
-    monkeypatch.setattr(Parser, "parse_hooks", lambda *a, **k: {})
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0

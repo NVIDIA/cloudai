@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
-from typing import Generator, cast
+from typing import Callable, Generator, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -24,14 +25,14 @@ from pydantic_core import ErrorDetails
 
 from cloudai.core import (
     ConfigPaths,
-    Parser,
+    MissingTestError,
     Registry,
     Reporter,
     TestConfigParsingError,
-    TestParser,
     format_validation_error,
 )
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
+from cloudai.parser import Parser
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -154,7 +155,7 @@ class Test_Parser:
         for i in range(3):
             fake_tests.append(Mock())
             fake_tests[-1].name = f"test-{i}"
-        test_parser.return_value = fake_tests
+        test_parser.return_value = (fake_tests, {})
         _, tests, _ = parser.parse(tests_dir, None)
         assert len(tests) == 3
 
@@ -167,7 +168,7 @@ class Test_Parser:
         for i, test in enumerate(fake_tests):
             test.name = f"test-{i}"
 
-        test_parser.side_effect = [fake_tests, []]
+        test_parser.side_effect = [(fake_tests, {}), ([], {})]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
@@ -193,7 +194,7 @@ class Test_Parser:
         hook_tests = [Mock()]
         hook_tests[0].name = "test-1"
 
-        test_parser.side_effect = [main_tests, hook_tests]
+        test_parser.side_effect = [(main_tests, {}), (hook_tests, {})]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
@@ -223,7 +224,7 @@ class Test_Parser:
             test.name = f"test-{i}"
         hook_tests[0].name = "hook-test-1"
 
-        test_parser.side_effect = [main_tests, hook_tests]
+        test_parser.side_effect = [(main_tests, {}), (hook_tests, {})]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
@@ -323,90 +324,106 @@ class TestParseReportsSpec:
         assert f"Error validating report configuration '{scenario_report}' as ReportConfig: " in str(exc_info.value)
 
 
-class TestParseAllDuplicateDetection:
-    """Tests for TestParser.parse_all() duplicate name detection.
+class TestUnparseableTestConfigs:
+    @pytest.fixture()
+    def tests_dir(
+        self,
+        tmp_path: Path,
+        write_parseable_test: Callable[[Path, str], None],
+        write_unregistered_agent_test: Callable[[Path, str], None],
+    ) -> Path:
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        write_parseable_test(tests_dir / "good_test.toml", "good_test")
+        write_unregistered_agent_test(tests_dir / "bad_agent_test.toml", "bad_agent_test")
+        (tests_dir / "broken_toml_test.toml").write_text('name = "broken_toml_test"\ndescription = \n')
+        return tests_dir
 
-    Reproduces the scenario where two TOML files (e.g. a DSE config and a
-    single-point copy) share the same ``name`` field. The implementation
-    tracks seen names in a ``dict[str, Path]`` and raises ``ValueError``
-    listing both conflicting file paths when a duplicate is found.
-    """
+    @pytest.fixture()
+    def parser(self, tmp_path: Path) -> Parser:
+        system = Path.cwd() / "conf" / "common" / "system" / "standalone_system.toml"
+        return Parser(system, tmp_path / "hooks")
 
-    __test__ = True
+    @pytest.fixture()
+    def raising_parser(self, tmp_path: Path) -> Parser:
+        system = Path.cwd() / "conf" / "common" / "system" / "standalone_system.toml"
+        return Parser(system, tmp_path / "hooks", exit_on_error=False)
 
-    @staticmethod
-    def _write_test_toml(path: Path, name: str) -> None:
-        path.write_text(toml.dumps({"name": name, "description": "test"}))
+    def test_parse_tests_still_raises_on_any_unparseable_config(self, parser: Parser, tests_dir: Path):
+        with pytest.raises(TestConfigParsingError):
+            Parser.parse_tests(sorted(tests_dir.glob("*.toml")), parser.system)
 
-    @staticmethod
-    def _make_fake_parsed(name: str) -> Mock:
-        obj = Mock()
-        obj.name = name
-        return obj
+    def test_parse_tolerates_unparseable_config_the_scenario_does_not_reference(
+        self,
+        parser: Parser,
+        tests_dir: Path,
+        write_scenario: Callable[[Path, str], None],
+        caplog: pytest.LogCaptureFixture,
+    ):
+        test_scenario_path = tests_dir.parent / "test_scenario.toml"
+        write_scenario(test_scenario_path, "good_test")
 
-    def test_duplicate_name_across_files_raises(self, tmp_path: Path):
-        """Two files with the same name field should raise ValueError."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        dse_toml = test_dir / "dse_qwen_30b_a3b.toml"
-        single_toml = test_dir / "qwen_30b_a3b.toml"
-        self._write_test_toml(dse_toml, "dse_qwen_30b_a3b")
-        self._write_test_toml(single_toml, "dse_qwen_30b_a3b")
+        with caplog.at_level(logging.DEBUG):
+            _, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
-        parser = TestParser([dse_toml, single_toml], None)  # type: ignore
-        fake = self._make_fake_parsed("dse_qwen_30b_a3b")
+        assert test_scenario is not None
+        assert [test.name for test in tests] == ["good_test"]
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert [msg for msg in warnings if "could not be parsed" in msg] == [
+            f"2 test config(s) under '{tests_dir}' could not be parsed and are not available to this scenario. "
+            "Run verify-configs for the details."
+        ]
+        debug = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
+        assert any(str(tests_dir / "bad_agent_test.toml") in msg and "is not registered" in msg for msg in debug)
+        assert any(str(tests_dir / "broken_toml_test.toml") in msg and "TOML parsing error" in msg for msg in debug)
 
-        with patch.object(parser, "_parse_data", return_value=fake):
-            with pytest.raises(ValueError, match="dse_qwen_30b_a3b") as exc_info:
-                parser.parse_all()
-            msg = str(exc_info.value)
-            assert str(dse_toml) in msg
-            assert str(single_toml) in msg
+    def test_parse_raises_test_config_parsing_error_naming_the_referenced_unparseable_config(
+        self, raising_parser: Parser, tests_dir: Path, write_scenario: Callable[[Path, str], None]
+    ):
+        test_scenario_path = tests_dir.parent / "test_scenario.toml"
+        write_scenario(test_scenario_path, "bad_agent_test")
 
-    def test_unique_names_no_error(self, tmp_path: Path):
-        """Files with distinct names should parse without error."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        toml_a = test_dir / "test_a.toml"
-        toml_b = test_dir / "test_b.toml"
-        self._write_test_toml(toml_a, "test_a")
-        self._write_test_toml(toml_b, "test_b")
-
-        parser = TestParser([toml_a, toml_b], None)  # type: ignore
-
-        with patch.object(
-            parser,
-            "_parse_data",
-            side_effect=[self._make_fake_parsed("test_a"), self._make_fake_parsed("test_b")],
-        ):
-            results = parser.parse_all()
-            assert len(results) == 2
-
-    def test_single_file_no_error(self, tmp_path: Path):
-        """A single file should parse without error."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        toml_a = test_dir / "only_one.toml"
-        self._write_test_toml(toml_a, "only_one")
-
-        parser = TestParser([toml_a], None)  # type: ignore
-
-        with patch.object(parser, "_parse_data", return_value=self._make_fake_parsed("only_one")):
-            results = parser.parse_all()
-            assert len(results) == 1
-
-    def test_duplicate_toml_key_reports_file_and_key(self, tmp_path: Path):
-        """A duplicate TOML key should report the offending file and key."""
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir()
-        broken_toml = test_dir / "broken.toml"
-        broken_toml.write_text('name = "test_a"\nname = "test_b"\n')
-
-        parser = TestParser([broken_toml], None)  # type: ignore
-
-        with pytest.raises(TestConfigParsingError, match="duplicate TOML key 'name'") as exc_info:
-            parser.parse_all()
+        with pytest.raises(TestConfigParsingError) as exc_info:
+            raising_parser.parse(tests_dir, test_scenario_path)
 
         msg = str(exc_info.value)
-        assert str(broken_toml) in msg
-        assert "line 2, column 1" in msg
+        assert str(tests_dir / "bad_agent_test.toml") in msg
+        assert "is not registered" in msg
+
+    def test_parse_raises_missing_test_when_the_scenario_names_a_test_that_exists_nowhere(
+        self, raising_parser: Parser, tests_dir: Path, write_scenario: Callable[[Path, str], None]
+    ):
+        test_scenario_path = tests_dir.parent / "test_scenario.toml"
+        write_scenario(test_scenario_path, "no_such_test_anywhere")
+
+        with pytest.raises(MissingTestError) as exc_info:
+            raising_parser.parse(tests_dir, test_scenario_path)
+
+        assert exc_info.value.test_name == "no_such_test_anywhere"
+
+    def test_parse_without_scenario_exits_on_any_unparseable_config(self, parser: Parser, tests_dir: Path):
+        with pytest.raises(SystemExit) as exc_info:
+            parser.parse(tests_dir, None)
+
+        assert exc_info.value.code == 1
+
+    def test_parse_exits_when_a_hook_test_is_unparseable(
+        self,
+        parser: Parser,
+        tmp_path: Path,
+        tests_dir: Path,
+        write_unregistered_agent_test: Callable[[Path, str], None],
+        write_scenario: Callable[[Path, str], None],
+    ):
+        (tests_dir / "bad_agent_test.toml").unlink()
+        (tests_dir / "broken_toml_test.toml").unlink()
+        hook_test_root = parser.hook_test_root
+        hook_test_root.mkdir(parents=True)
+        write_unregistered_agent_test(hook_test_root / "bad_hook_test.toml", "bad_hook_test")
+        test_scenario_path = tmp_path / "test_scenario.toml"
+        write_scenario(test_scenario_path, "good_test")
+
+        with pytest.raises(SystemExit) as exc_info:
+            parser.parse(tests_dir, test_scenario_path)
+
+        assert exc_info.value.code == 1

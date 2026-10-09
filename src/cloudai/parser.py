@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from cloudai.models.workload import TestDefinition
 
 from ._core.exceptions import (
+    MissingTestError,
     SystemConfigParsingError,
     TestConfigParsingError,
     TestScenarioParsingError,
@@ -32,7 +33,7 @@ from ._core.exceptions import (
 from ._core.registry import Registry
 from ._core.system import System
 from ._core.test_scenario import ConfigPaths, TestScenario
-from .test_parser import TestParser
+from .test_parser import TestConfigFailure, TestParser, failure_declaring, raise_on_any_failure
 from .test_scenario_parser import TestScenarioParser
 from .toml_utils import format_toml_decode_error
 
@@ -42,16 +43,18 @@ HOOK_ROOT = Path("conf/hook")
 class Parser:
     """Main parser for parsing all types of configurations."""
 
-    def __init__(self, system_config_path: Path, hook_root: Path = HOOK_ROOT) -> None:
+    def __init__(self, system_config_path: Path, hook_root: Path = HOOK_ROOT, *, exit_on_error: bool = True) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
             hook_root (Path): Directory containing hook scenarios and tests.
+            exit_on_error (bool): Exit on parsing errors instead of raising them.
         """
         logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
+        self.exit_on_error = exit_on_error
         self.hook_root = hook_root
         self.hook_test_root = hook_root / "test"
         self._system: Optional[System] = None
@@ -64,6 +67,8 @@ class Parser:
         try:
             self._system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
+            if not self.exit_on_error:
+                raise
             exit(1)  # exit right away to keep error message readable for users
         return self._system
 
@@ -82,48 +87,64 @@ class Parser:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
                 test template objects, and the main test scenario object if provided.
         """
+        try:
+            return self._parse(test_path, test_scenario_path)
+        except (SystemConfigParsingError, TestConfigParsingError, TestScenarioParsingError) as e:
+            if not self.exit_on_error:
+                raise
+            if isinstance(e, TestConfigParsingError):
+                logging.error(str(e))
+            raise SystemExit(1) from None
+
+    def _parse(
+        self, test_path: Path | None, test_scenario_path: Path | None
+    ) -> tuple[System, list[TestDefinition], TestScenario | None]:
         tests: list[TestDefinition] = []
+        test_parse_failures: dict[Path, TestConfigFailure] = {}
         if test_path:
             if not test_path.exists():
                 raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-            try:
-                tests = self.parse_tests(list(test_path.glob("*.toml")), self.system)
-            except TestConfigParsingError:
-                exit(1)  # exit right away to keep error message readable for users
+            tests, test_parse_failures = TestParser(list(test_path.glob("*.toml")), self.system).parse_all()
 
         if not self.hook_root.exists():
             logging.debug(f"Hook root path '{self.hook_root}' does not exist.")
 
-        try:
-            hook_tests = (
-                self.parse_tests(list(self.hook_test_root.glob("*.toml")), self.system)
-                if self.hook_test_root.exists()
-                else []
-            )
-        except TestConfigParsingError:
-            exit(1)  # exit right away to keep error message readable for users
+        hook_tests = (
+            self.parse_tests(list(self.hook_test_root.glob("*.toml")), self.system)
+            if self.hook_test_root.exists()
+            else []
+        )
 
         if not test_scenario_path:
+            raise_on_any_failure(test_parse_failures)
             all_tests = list({test.name: test for test in tests + hook_tests}.values())
             return self.system, all_tests, None
 
         test_mapping = {t.name: t for t in tests}
         hook_test_scenario_mapping = {}
         if self.hook_root.exists() and list(self.hook_root.glob("*.toml")):
-            try:
-                hook_test_scenario_mapping = self.parse_hooks(
-                    list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
-                )
-            except TestScenarioParsingError:
-                exit(1)  # exit right away to keep error message readable for users
+            hook_test_scenario_mapping = self.parse_hooks(
+                list(self.hook_root.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
+            )
+
+        if test_parse_failures:
+            logging.warning(
+                f"{len(test_parse_failures)} test config(s) under '{test_path}' could not be parsed and are not "
+                "available to this scenario. Run verify-configs for the details."
+            )
+            for failure in test_parse_failures.values():
+                logging.debug(f"Unparseable test config. {failure.error}")
 
         try:
             test_scenario = self.parse_test_scenario(
                 test_scenario_path, self.system, test_mapping, hook_test_scenario_mapping
             )
-        except TestScenarioParsingError:
-            exit(1)  # exit right away to keep error message readable for users
+        except MissingTestError as e:
+            referenced = failure_declaring(test_parse_failures, e.test_name)
+            if referenced is None:
+                raise
+            raise referenced.error from e
 
         test_scenario.config_paths = ConfigPaths(
             system_path=self.system_config_path.resolve(),
@@ -168,8 +189,8 @@ class Parser:
 
     @staticmethod
     def parse_tests(test_tomls: list[Path], system: System) -> list[TestDefinition]:
-        test_parser = TestParser(test_tomls, system)
-        tests: list[TestDefinition] = test_parser.parse_all()
+        tests, failures = TestParser(test_tomls, system).parse_all()
+        raise_on_any_failure(failures)
         return tests
 
     @staticmethod

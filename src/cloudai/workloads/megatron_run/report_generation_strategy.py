@@ -25,17 +25,9 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
+from .megatron_run import extract_iteration_metrics
 
-# Pattern to match lines like:
-# [2026-01-16 07:32:39] iteration  6/100 | ... |
-#   elapsed time per iteration (ms): 15639.0 | throughput per GPU (TFLOP/s/GPU): 494.6 | ...
-ITERATION_REGEX = re.compile(
-    r"elapsed time per iteration \(ms\):\s*([0-9]+(?:\.[0-9]+)?)"
-    r".*?"
-    r"throughput per GPU \(TFLOP/s/GPU\):\s*([0-9]+(?:\.[0-9]+)?)",
-    re.IGNORECASE,
-)
+CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
 
 
 class CheckpointTimingReportGenerationStrategy(ReportGenerationStrategy):
@@ -83,7 +75,7 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "iteration-time", "tflops-per-gpu"]
 
     def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "stdout.txt"
+        log = (self.test_run.output_path / "stdout.txt").absolute()
         return log if log.is_file() else None
 
     @property
@@ -91,40 +83,14 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
         return self.get_log_file() or (self.test_run.output_path / "stdout.txt")
 
     def can_handle_directory(self) -> bool:
-        log_file = self.get_log_file()
-        if not log_file:
-            return False
-        with log_file.open("r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                if ITERATION_REGEX.search(line):
-                    return True
-        return False
-
-    def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
-        """Extract iteration times (ms) and GPU TFLOPS from the log file."""
-        iter_times_ms: list[float] = []
-        gpu_tflops: list[float] = []
-        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                m = ITERATION_REGEX.search(line)
-                if m:
-                    try:
-                        iter_times_ms.append(float(m.group(1)))
-                        gpu_tflops.append(float(m.group(2)))
-                    except (ValueError, TypeError):
-                        logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
-
-        # Keep only the last 10 iterations for statistics (to exclude warmup)
-        if len(iter_times_ms) > 10:
-            iter_times_ms = iter_times_ms[-10:]
-            gpu_tflops = gpu_tflops[-10:]
-        return iter_times_ms, gpu_tflops
+        iter_times_ms, _ = extract_iteration_metrics((self.test_run.output_path / "stdout.txt").absolute())
+        return bool(iter_times_ms)
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
         log_file = self.get_log_file()
         if not log_file:
             return None, [], []
-        iter_times_ms, gpu_tflops = self._extract(log_file)
+        iter_times_ms, gpu_tflops = extract_iteration_metrics(log_file)
         return log_file, iter_times_ms, gpu_tflops
 
     def generate_report(self) -> None:

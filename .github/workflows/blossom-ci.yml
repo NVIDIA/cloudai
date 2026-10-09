@@ -36,7 +36,18 @@ jobs:
 
     # This job only runs for pull request comments
     if: |
-         github.event.comment.body == '/build' && (github.actor == 'orbalayla-nvidia' || github.actor == 'dpressle' || github.actor == 'podkidyshev')
+         github.event.comment.body == '/build' && contains(fromJSON('[
+           "alexmanle",
+           "dpressle",
+           "jj10306",
+           "orbalayla-nvidia",
+           "podkidyshev",
+           "rutayan-nv",
+           "saivishal1999",
+           "srivatsankrishnan",
+           "whowu",
+           "yimingzhang2026"
+         ]'), github.actor)
     steps:
       - name: Check if comment is issued by authorized person
         run: blossom-ci

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import shlex
 from abc import ABC, abstractmethod
@@ -27,6 +28,7 @@ from rich.console import Console
 from rich.table import Table
 from typing_extensions import Self
 
+import cloudai.metrics
 from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, MetricValue, ReportGenerationStrategy
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -239,6 +241,32 @@ class LLMServingBenchReport(BaseModel, ABC):
         if self.concurrency <= 0:
             return None
         return self.throughput / self.concurrency
+
+
+def llm_serving_metric_observations(
+    results: LLMServingBenchReport | None,
+    accuracy: float | None = None,
+) -> list[cloudai.metrics.MetricObservation]:
+    """Use statistics to distinguish latency results; scalar results have no dimensions."""
+    observations: list[cloudai.metrics.MetricObservation] = []
+    if accuracy is not None and math.isfinite(accuracy):
+        observations.append(cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, accuracy, {}))
+    if results is None or results.completed <= 0:
+        return observations
+
+    for metric, field in (
+        (cloudai.metrics.REQUEST_THROUGHPUT, "request_throughput"),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, "output_throughput"),
+    ):
+        value = getattr(results, field)
+        if math.isfinite(value):
+            observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
+    for metric in (cloudai.metrics.TTFT, cloudai.metrics.TPOT):
+        for statistic in ("mean", "median", "p99"):
+            value = getattr(results, f"{statistic}_{metric.key}_ms")
+            if math.isfinite(value):
+                observations.append(cloudai.metrics.MetricObservation(metric, value, {"statistic": statistic}))
+    return observations
 
 
 class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestDefT, ReportT], ABC):

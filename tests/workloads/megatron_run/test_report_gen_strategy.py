@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+import cloudai.metrics
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -131,6 +132,10 @@ def test_megatron_run_extract_and_generate_report(slurm_system: SlurmSystem, meg
     assert abs(float(tflops_stats["min"]) - 490.0) < 0.1
     assert abs(float(tflops_stats["max"]) - 500.6) < 0.1
 
+    observations = megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr)
+    assert [item.metric for item in observations] == [cloudai.metrics.ITERATION_TIME, cloudai.metrics.TFLOPS_PER_GPU]
+    assert [item.value for item in observations] == pytest.approx([expected_iter_avg, expected_tflops_avg])
+
 
 def test_megatron_run_get_metric_iteration_time(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
     strategy = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
@@ -176,3 +181,15 @@ def test_megatron_run_get_metric_no_data(slurm_system: SlurmSystem, megatron_run
 
 def test_megatron_run_metrics_class_var() -> None:
     assert MegatronRunReportGenerationStrategy.metrics == ["default", "iteration-time", "tflops-per-gpu"]
+
+
+@pytest.mark.parametrize("stdout", [None, "validation loss at iteration 1.0\n", ""])
+def test_metric_observations_without_iteration_data(
+    slurm_system: SlurmSystem, megatron_run_tr: TestRun, stdout: str | None
+) -> None:
+    path = megatron_run_tr.output_path / "stdout.txt"
+    if stdout is None:
+        path.unlink()
+    else:
+        path.write_text(stdout)
+    assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr) == []

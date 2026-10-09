@@ -192,6 +192,7 @@ Notes on the test scenario:
 
 #. ``id`` is a mandatory field and must be unique for each test.
 #. The ``test_name`` specifies the test definition from one of the Test TOML files. Node lists and time limits are optional.
+#. All workload definition parameters can be overridden in a test case, including workload-specific sections such as ``semantic_eval_cmd_args``. The referenced test's ``test_template_name`` cannot be changed.
 #. If needed, ``nodes`` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example, ``nodes = ['PARTITION:GROUP:16']`` allocates 16 nodes from group ``GROUP`` and partition ``PARTITION``.
 #. There are three types of dependencies: ``start_post_comp``, ``start_post_init`` and ``end_post_comp``.
 

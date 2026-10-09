@@ -71,8 +71,10 @@ from .configurator.gymnasium_adapter import GymnasiumAdapter
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
+from .s3_reporter import S3UploadConfig, S3UploadReporter
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
+from .util.object_store import ObjectStore, S3ObjectStore, UploadStats
 
 __all__ = [
     "METRIC_ERROR",
@@ -107,6 +109,7 @@ __all__ = [
     "MetricValue",
     "MissingTestError",
     "NsysConfiguration",
+    "ObjectStore",
     "ObsLeafDescriptor",
     "Parser",
     "PerTestReporter",
@@ -118,6 +121,9 @@ __all__ = [
     "Reporter",
     "RewardOverrides",
     "Runner",
+    "S3ObjectStore",
+    "S3UploadConfig",
+    "S3UploadReporter",
     "StatusReporter",
     "StructuredObservationProducer",
     "System",
@@ -131,6 +137,7 @@ __all__ = [
     "TestScenario",
     "TestScenarioParser",
     "TestScenarioParsingError",
+    "UploadStats",
     "case_name",
     "format_validation_error",
 ]

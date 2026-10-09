@@ -26,11 +26,18 @@ import pytest
 import toml
 
 from cloudai import TestRun, TestScenario
-from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
+from cloudai.handlers import generate_reports
 from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.report_generator.dse_report import build_dse_summaries
-from cloudai.reporter import DSEReporter, JUnitReporter, PerTestReporter, ReportItem, StatusReporter, TarballReporter
+from cloudai.reporter import (
+    DSEReporter,
+    JUnitReporter,
+    PerTestReporter,
+    ReportItem,
+    StatusReporter,
+    TarballReporter,
+)
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
     MetadataMPI,
@@ -440,9 +447,10 @@ def test_scenario_report_escapes_error_message(
 def test_report_order() -> None:
     reports = Registry().ordered_scenario_reports()
     assert reports[0][0] == "per_test"
-    assert reports[-3][0] == "status"
-    assert reports[-2][0] == "dse"
-    assert reports[-1][0] == "tarball"
+    assert reports[-4][0] == "status"
+    assert reports[-3][0] == "dse"
+    assert reports[-2][0] == "tarball"
+    assert reports[-1][0] == "s3"
 
 
 def test_junit_reporter_generates_testcases_with_status_logs_and_duration(

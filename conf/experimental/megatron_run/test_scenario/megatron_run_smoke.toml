@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "megatron_run_smoke"
+
+[[Tests]]
+id = "megatron_run_smoke"
+name = "megatron_run_smoke"
+description = "Ten-iteration GPT smoke test using synthetic data on one eight-GPU node."
+test_template_name = "MegatronRun"
+num_nodes = 1
+time_limit = "00:15:00"
+
+  [Tests.extra_env_vars]
+  RANK = "$SLURM_PROCID"
+  WORLD_SIZE = "$SLURM_NTASKS"
+  LOCAL_RANK = "$SLURM_LOCALID"
+  MASTER_ADDR = "$SLURM_JOB_MASTER_NODE"
+  MASTER_PORT = "29517"
+  CUDA_DEVICE_MAX_CONNECTIONS = "1"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/nemo:26.06.00"
+  run_script = "/opt/Megatron-Bridge/3rdparty/Megatron-LM/pretrain_gpt.py"
+  global_batch_size = 8
+  micro_batch_size = 1
+  hidden_size = 256
+  num_attention_heads = 4
+  num_layers = 2
+  seq_length = 128
+  max_position_embeddings = 128
+  tensor_model_parallel_size = 1
+  pipeline_model_parallel_size = 1
+  train_iters = 10
+  eval_iters = 0
+  eval_interval = 1000
+  lr = "0.0001"
+  lr_decay_style = "constant"
+  mock_data = ""
+  tokenizer_type = "NullTokenizer"
+  vocab_size = 1024
+  bf16 = ""

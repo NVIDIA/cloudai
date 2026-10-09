@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -22,6 +23,7 @@ import pytest
 from pydantic import Field
 from rich.table import Table
 
+import cloudai.metrics
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.llm_serving import (
@@ -34,6 +36,8 @@ from cloudai.workloads.common.llm_serving import (
     all_gpu_ids,
     parse_gpu_ids,
 )
+from cloudai.workloads.sglang import SglangCmdArgs, SglangSemanticEvalCmdArgs, SglangTestDefinition
+from cloudai.workloads.vllm import VllmCmdArgs, VllmSemanticEvalCmdArgs, VllmTestDefinition
 
 
 class FakeLLMArgs(LLMServingArgs):
@@ -461,3 +465,122 @@ def test_used_gpus_count_counts_all_cluster_gpus_for_two_node_disaggregated_run(
     )
 
     assert strategy.used_gpus_count() == 8
+
+
+@pytest.fixture(params=["vllm", "sglang"])
+def serving_observation_run(request: pytest.FixtureRequest, tmp_path: Path) -> tuple[TestRun, Path, dict]:
+    backend = request.param
+    if backend == "vllm":
+        tdef = VllmTestDefinition(
+            name=backend,
+            description="Serving observations",
+            test_template_name=backend,
+            cmd_args=VllmCmdArgs(docker_image_url="image:latest", model="test/model"),
+        )
+    else:
+        tdef = SglangTestDefinition(
+            name=backend,
+            description="Serving observations",
+            test_template_name=backend,
+            cmd_args=SglangCmdArgs(docker_image_url="image:latest", model="test/model"),
+        )
+    tr = TestRun(name=backend, test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    result_path = tmp_path / ("vllm-bench.json" if backend == "vllm" else "sglang-bench.jsonl")
+    data = {
+        "num_prompts": 30,
+        "completed": 30,
+        "max_concurrency": 16,
+        "request_throughput": 10.0,
+        "output_throughput": 2400.0,
+        "mean_ttft_ms": 120.0,
+        "median_ttft_ms": 100.0,
+        "p99_ttft_ms": 200.0,
+        "mean_tpot_ms": 12.0,
+        "median_tpot_ms": 10.0,
+        "p99_tpot_ms": 20.0,
+    }
+    result_path.write_text(json.dumps(data) + "\n")
+    return tr, result_path, data
+
+
+def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observation_run) -> None:
+    tr, _, _ = serving_observation_run
+    observations = tr.test.metric_observations(slurm_system, tr)
+
+    assert len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations}) == 8
+    assert {(o.metric.key, o.dimensions.get("statistic")): (o.value, o.metric.unit) for o in observations} == {
+        ("request_throughput", None): (10.0, "requests/s"),
+        ("output_token_throughput", None): (2400.0, "tokens/s"),
+        ("ttft", "mean"): (120.0, "ms"),
+        ("ttft", "median"): (100.0, "ms"),
+        ("ttft", "p99"): (200.0, "ms"),
+        ("tpot", "mean"): (12.0, "ms"),
+        ("tpot", "median"): (10.0, "ms"),
+        ("tpot", "p99"): (20.0, "ms"),
+    }
+    for observation in observations:
+        assert set(observation.dimensions) == ({"statistic"} if observation.metric.key in {"ttft", "tpot"} else set())
+
+    tr.test.cmd_args.model = "other/model"
+    tr.test.bench_cmd_args.max_concurrency = 32
+    assert tr.test.metric_observations(slurm_system, tr) == observations
+
+
+@pytest.mark.parametrize("result", ["missing", "invalid", "incomplete", "unsuccessful"])
+def test_serving_metric_observations_without_results(
+    slurm_system: SlurmSystem, serving_observation_run, result: str
+) -> None:
+    tr, result_path, data = serving_observation_run
+    if result == "missing":
+        result_path.unlink()
+    elif result == "invalid":
+        result_path.write_text("{invalid\n")
+    elif result == "incomplete":
+        result_path.write_text("{}\n")
+    else:
+        result_path.write_text(json.dumps({**data, "completed": 0}))
+
+    assert tr.test.metric_observations(slurm_system, tr) == []
+
+
+@pytest.mark.parametrize("field", ["request_throughput", "output_throughput"])
+def test_serving_metric_observations_requires_both_throughputs(
+    slurm_system: SlurmSystem, serving_observation_run, field: str
+) -> None:
+    tr, result_path, data = serving_observation_run
+    del data[field]
+    result_path.write_text(json.dumps(data))
+
+    assert tr.test.metric_observations(slurm_system, tr) == []
+
+
+def test_serving_metric_observations_nonfinite_values(slurm_system: SlurmSystem, serving_observation_run) -> None:
+    tr, result_path, data = serving_observation_run
+    data.update(mean_ttft_ms=float("nan"), output_throughput=float("inf"), max_concurrency=0)
+    result_path.write_text(json.dumps(data))
+
+    observations = tr.test.metric_observations(slurm_system, tr)
+
+    assert len(observations) == 6
+    assert all("max_concurrency" not in o.dimensions for o in observations)
+    assert all(o.metric.key != "output_token_throughput" for o in observations)
+    assert all((o.metric.key, o.dimensions.get("statistic")) != ("ttft", "mean") for o in observations)
+
+
+@pytest.mark.parametrize("evaluation", ["disabled", "missing", "valid"])
+def test_serving_metric_observations_accuracy(
+    slurm_system: SlurmSystem, serving_observation_run, evaluation: str
+) -> None:
+    tr, _, _ = serving_observation_run
+    if evaluation != "disabled":
+        tr.test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs() if tr.name == "vllm" else SglangSemanticEvalCmdArgs()
+    if evaluation != "missing":
+        (tr.output_path / f"{tr.name}-semantic-eval.log").write_text("Accuracy: 0.875\n")
+
+    observations = tr.test.metric_observations(slurm_system, tr)
+    accuracy = [o for o in observations if o.metric.key == "accuracy"]
+
+    assert len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations})
+    assert accuracy == (
+        [cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.875, {})] if evaluation == "valid" else []
+    )

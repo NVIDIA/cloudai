@@ -65,11 +65,6 @@ Test-in-Scenario example
    docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:0.7.0"
    model = "Qwen/Qwen3-0.6B"
 
-Workload-specific test definition sections, such as ``bench_cmd_args`` and ``semantic_eval_cmd_args``, are not
-supported under ``[[Tests]]`` in a test scenario. Define them in a test definition TOML and reference that test with
-``test_name`` when custom benchmark or semantic-evaluation arguments are needed.
-
-
 Local Models
 ------------
 Set ``cmd_args.model`` to an absolute, container-visible path to load an existing model directory instead of
@@ -122,6 +117,18 @@ The reported metric (``default``) is throughput. Additional supported metrics ar
 
 CloudAI also provides the scenario-level ``vllm_comparison`` report. It compares vLLM test runs in the scenario and
 uses ``bench_cmd_args`` values as comparison labels.
+
+Structured metrics
+~~~~~~~~~~~~~~~~~~
+
+.. csv-table::
+   :header: "Metric", "Unit", "Preferred", "Dimensions"
+
+   "``request_throughput``", "requests/s", "Higher", "None"
+   "``output_token_throughput``", "tokens/s", "Higher", "None"
+   "``ttft`` (time to first token)", "ms", "Lower", "``statistic``: mean, median, p99"
+   "``tpot`` (time per output token)", "ms", "Lower", "``statistic``: mean, median, p99"
+   "``accuracy``", "ratio (0–1)", "Higher", "None"
 
 
 Controlling the Number of GPUs

@@ -8,6 +8,7 @@ This chapter describes the reporting system in CloudAI. In this chapter, we will
 - :ref:`Enabling, Disabling and Configuring Reports <enabling-disabling-and-configuring-reports>`
 - :ref:`Reporting Registration <reporting-registration>`
 - :ref:`Reporting Configuration Implementation <reporting-configuration-implementation>`
+- :ref:`Uploading Results to Object Storage <uploading-results-to-object-storage>`
 - :doc:`Reports <reports>`
 
 .. toctree::
@@ -31,26 +32,31 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
 
-Unified experiment output
+Unified Experiment Output
 -------------------------
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, the system name, and test cases under ``tests``. For Slurm runs, the system name is
-the cluster reported by Slurm. Standalone and Slurm execution records appear in each test case's ``runs`` list. Each
+The file contains scenario details, system name, and test cases listed under ``tests``. For Slurm runs, the system name is
+the cluster reported by Slurm. Both Standalone and Slurm execution records are stored in each test case's ``runs`` list. Each
 record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
 and workload metrics.
 
-Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A final status of ``unknown`` means the outcome
+Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.
 
-Metrics come from ``TestDefinition.metric_observations()``, independently of reporter settings.
+Metrics are sourced from ``TestDefinition.metric_observations()``, and are not affected by reporter settings.
 
-When a test case executes once successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
+MegatronRun exposes ``iteration_time`` (milliseconds, lower is better) and ``tflops_per_gpu``
+(TFLOP/s/GPU, higher is better). Each observation is the mean of the last ten iteration metric lines in
+``stdout.txt``, or all available lines when fewer than ten are present, matching the per-test CSV report.
+No observations are emitted when iteration metric lines are missing.
+
+When a test case is executed successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
 metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
 in ``tests[].dse``.
 
-NCCL DSE example
+NCCL DSE Example
 ~~~~~~~~~~~~~~~~
 
 This example comes from a Slurm NCCL all-reduce run on one node with eight H100 GPUs. DSE tried ``Ring`` and ``Tree``
@@ -183,3 +189,115 @@ And it can be used in a test scenario as follows:
 
    [reports]
    custom = { enable = true, greeting = "Hello, world!" }
+
+.. _uploading-results-to-object-storage:
+
+Uploading Results to Object Storage
+------------------------------------
+
+The ``s3`` scenario report publishes the scenario results directory to an
+S3-compatible bucket. It is disabled by default, because shipping results off-box should
+be a deliberate choice.
+
+It is registered last, after ``tarball``, so it always observes the complete results
+directory including every other report's output.
+
+Install the optional dependency first:
+
+.. code-block:: bash
+
+   pip install 'cloudai[s3]'
+
+Then enable it in a test scenario:
+
+.. code-block:: toml
+
+   [reports]
+   s3 = { enable = true, bucket = "my-bucket", prefix = "cloudai/runs", upload_tarball = true }
+
+Or, for Slurm systems, once per cluster in the system config:
+
+.. code-block:: toml
+
+   [reports]
+   s3 = { enable = true, bucket = "my-bucket" }
+
+Configuration options:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Default
+     - Description
+   * - ``bucket``
+     - ``$CLOUDAI_S3_BUCKET``
+     - Destination bucket. Required; the upload is skipped with a warning if unset.
+   * - ``prefix``
+     - ``$CLOUDAI_S3_PREFIX``
+     - Key prefix. Objects are written under ``<prefix>/<system_name>/<results_dir_name>/``.
+   * - ``endpoint_url``
+     - ``$CLOUDAI_S3_ENDPOINT_URL``
+     - Custom endpoint, for MinIO or other S3-compatible stores.
+   * - ``region``
+     - unset
+     - AWS region. When unset, boto3 resolves it (e.g. ``AWS_DEFAULT_REGION``).
+   * - ``upload_tree``
+     - ``true``
+     - Upload each file individually, preserving relative paths.
+   * - ``upload_tarball``
+     - ``false``
+     - Also upload a ``.tgz`` of the whole directory. It is created if absent and rebuilt if older than the results.
+   * - ``upload_concurrency``
+     - ``8``
+     - Number of files uploaded concurrently when ``upload_tree`` is enabled. Must be at least 1.
+
+At least one of ``upload_tree`` and ``upload_tarball`` must be enabled; the config is rejected otherwise.
+
+Environment variables
+~~~~~~~~~~~~~~~~~~~~~
+
+The destination can be supplied through three environment variables, so a cluster-wide
+default does not have to be repeated in every scenario:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Variable
+     - Sets option
+     - Notes
+   * - ``CLOUDAI_S3_BUCKET``
+     - ``bucket``
+     - Destination bucket.
+   * - ``CLOUDAI_S3_PREFIX``
+     - ``prefix``
+     - Key prefix. Empty by default.
+   * - ``CLOUDAI_S3_ENDPOINT_URL``
+     - ``endpoint_url``
+     - Custom endpoint, for MinIO or other S3-compatible stores. An empty value is treated as unset.
+
+A value set in TOML takes precedence over the environment variable. The variables are read by
+the ``cloudai`` process when the report configuration is loaded, so export them where
+``cloudai`` runs:
+
+.. code-block:: bash
+
+   export CLOUDAI_S3_BUCKET=my-bucket
+   export CLOUDAI_S3_PREFIX=cloudai/runs
+   export CLOUDAI_S3_ENDPOINT_URL=http://localhost:9000   # only for MinIO or other S3-compatible stores
+
+With these set, enabling the report only needs ``s3 = { enable = true }``.
+
+**Credentials are never read from CloudAI configuration.** They are resolved by boto3's
+standard chain: ``AWS_ACCESS_KEY_ID``/``AWS_SECRET_ACCESS_KEY``, ``~/.aws/credentials``,
+or an instance/IAM role.
+
+Because reports run inside a ``try``/``except``, an upload failure logs a warning and
+leaves the run's exit status unchanged.
+
+To upload a results directory from an earlier run, re-run the reports against it:
+
+.. code-block:: bash
+
+   cloudai generate-report --system-config <system.toml> --tests-dir <tests/> \
+     --test-scenario <scenario.toml> --result-dir results/<scenario>_<timestamp>

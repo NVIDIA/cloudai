@@ -25,6 +25,7 @@ from typing import Optional, cast
 
 from pydantic import ConfigDict, Field, field_validator
 
+import cloudai.metrics
 from cloudai.core import GitRepo, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
@@ -35,6 +36,7 @@ from cloudai.workloads.common.llm_serving import (
     all_gpu_ids,
     calculate_decode_gpu_ids,
     calculate_prefill_gpu_ids,
+    llm_serving_metric_observations,
     validate_custom_bash_patterns,
 )
 
@@ -263,6 +265,14 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         return JobStatusResult(
             is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."
         )
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        del system
+        from .report_generation_strategy import parse_vllm_bench_output
+
+        results = parse_vllm_bench_output(tr.output_path / VLLM_BENCH_JSON_FILE)
+        accuracy = parse_vllm_semantic_accuracy(tr.output_path) if self.semantic_eval_cmd_args is not None else None
+        return llm_serving_metric_observations(results, accuracy)
 
 
 @cache

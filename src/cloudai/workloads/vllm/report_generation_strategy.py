@@ -28,6 +28,7 @@ class VLLMBenchReport(LLMServingBenchReport):
     """Report for vLLM benchmark results."""
 
     output_throughput: float
+    request_throughput: float
 
     @property
     def throughput(self) -> float:
