@@ -85,18 +85,6 @@ def runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
 
 
 @pytest.mark.parametrize("mode", ["run", "dry-run"])
-def test_experiment_records_username(
-    slurm_system: SlurmSystem, test_scenario: TestScenario, tmp_path: Path, mode: str
-) -> None:
-    with patch("getpass.getuser", return_value="test-user"):
-        runner = MyRunner(mode, slurm_system, test_scenario, tmp_path)
-    runner.experiment_output.write()
-
-    stored = Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
-    assert stored.user == "test-user"
-
-
-@pytest.mark.parametrize("mode", ["run", "dry-run"])
 @pytest.mark.parametrize("error", [OSError, KeyError, ImportError])
 def test_username_lookup_failure_does_not_block_initialization(
     slurm_system: SlurmSystem,

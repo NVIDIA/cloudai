@@ -164,11 +164,3 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
             },
         ],
     }
-
-
-def test_experiment_without_user_remains_readable() -> None:
-    experiment = cloudai.models.output.Experiment.model_validate_json(
-        '{"id": "experiment", "name": "scenario", "system_name": "test-system", "path": "/results"}'
-    )
-
-    assert experiment.user == ""

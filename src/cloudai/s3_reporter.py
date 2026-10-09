@@ -85,11 +85,11 @@ class S3UploadReporter(Reporter):
             user = Experiment.model_validate_json(
                 (self.results_root / "experiment.json").read_text(encoding="utf-8")
             ).user
-        except (OSError, ValueError) as exc:
-            logging.warning("Cannot read experiment owner; falling back to the current user in the S3 path: %s", exc)
+        except (OSError, ValueError):
             user = ""
         if not user:
             user = get_current_username() or "unknown"
+            logging.warning("Experiment owner unavailable; using '%s' in the S3 path.", user)
         key_prefix = join_key(config.prefix, self.system.name, user, self.results_root.name)
 
         if config.upload_tree:
