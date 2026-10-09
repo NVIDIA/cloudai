@@ -265,6 +265,13 @@ class TestScenarioModel(BaseModel):
         return parse_reports_spec(value)
 
 
+class ExecutionError(BaseModel):
+    """Unrecoverable CloudAI execution error, distinct from a workload failure."""
+
+    type: str
+    message: str
+
+
 class TestRunDetails(BaseModel):
     """
     Model for test run dump.
@@ -285,6 +292,7 @@ class TestRunDetails(BaseModel):
     test_cmd: str
     full_cmd: str
     test_definition: Any
+    execution_error: ExecutionError | None = None
 
     @field_serializer("output_path")
     def _path_serializer(self, v: Path) -> str:
