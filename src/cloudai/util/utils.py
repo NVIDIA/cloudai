@@ -28,8 +28,8 @@ def parse_time_limit(limit: str) -> timedelta:
             hours, minutes, seconds = map(int, limit.split(":"))
             return timedelta(hours=hours, minutes=minutes, seconds=seconds)
         if len(limit.split(":")) == 2:
-            hours, minutes = map(int, limit.split(":"))
-            return timedelta(hours=hours, minutes=minutes)
+            minutes, seconds = map(int, limit.split(":"))
+            return timedelta(minutes=minutes, seconds=seconds)
     except ValueError as err:
         raise ValueError(f"Invalid time limit format: {limit}. Refer to SLURM time format documentation.") from err
 
