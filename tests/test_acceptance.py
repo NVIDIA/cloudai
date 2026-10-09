@@ -951,3 +951,23 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_aiperf = aiperf_script.read_text().strip()
         ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
         assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"
+
+
+def test_srt_slurm_example_dry_run(slurm_system: SlurmSystem, tmp_path: Path):
+    from cloudai.core import BaseInstaller
+    from cloudai.test_scenario_parser import TestScenarioParser
+    from cloudai.workloads.srt_slurm import SRTSlurmTestDefinition
+
+    scenario = TestScenarioParser(Path("conf/experimental/srt_slurm/scenario.toml"), slurm_system, {}, {}).parse()
+    tr = scenario.test_runs[0].apply_params_set({"recipe_overrides.benchmark.concurrencies": "4"})
+    assert isinstance(tr.test, SRTSlurmTestDefinition)
+    tr.output_path = tmp_path / "trial"
+    BaseInstaller(slurm_system).mark_as_installed(tr.test.installables)
+    runner = SlurmRunner("dry-run", slurm_system, TestScenario(name="srt", test_runs=[tr]), tmp_path)
+    job = runner._submit_test(tr)
+    runner.on_job_submit(tr)
+    assert job.id == 0
+    script = tr.output_path / "cloudai_generated" / "run_srtctl.sh"
+    assert script.is_file()
+    assert "--set" in script.read_text()
+    assert (tr.output_path / "test-run.toml").is_file()
