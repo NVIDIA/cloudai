@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import tarfile
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Iterator, Optional
 from unittest.mock import MagicMock
@@ -23,12 +24,14 @@ import pandas as pd
 import pytest
 from pydantic import Field
 
+import cloudai.models.output
 from cloudai.configurator import CloudAIGymEnv
 from cloudai.configurator.env_params import EnvParamSpec
 from cloudai.core import (
     BaseAgent,
     BaseAgentConfig,
     GitRepo,
+    InstallStatusResult,
     Parser,
     Registry,
     RewardOverrides,
@@ -39,6 +42,7 @@ from cloudai.core import (
     TestScenarioParsingError,
 )
 from cloudai.handlers import (
+    execute_experiment,
     handle_dse_job,
     prepare_installation,
     validate_domain_randomization_active,
@@ -48,7 +52,7 @@ from cloudai.handlers import (
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.reporter import StatusReporter
+from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.test_parser import TestParser
 
@@ -169,13 +173,20 @@ def test_dse_run_uses_agent_config(
     stub_agent_name: str,
     agent_config: dict[str, Any] | None,
     expected: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dse_tr.test.agent = stub_agent_name
     dse_tr.test.agent_config = agent_config
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
 
-    assert handle_dse_job(runner) == 0
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(mark_as_installed=lambda _: InstallStatusResult(True))),
+    )
+    assert execute_experiment(runner, [], enable_cache_without_check=True)
+    assert (runner.runner.scenario_root / "test_scenario.html").is_file()
+    assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
     assert len(StubAgent.received_configs) == 1
 
     recorded = StubAgent.received_configs[0]
@@ -641,23 +652,38 @@ def test_handle_dse_job_documents_failure_in_reports_before_raising(
     slurm_system: SlurmSystem,
     dse_tr: TestRun,
     custom_run_agent_name: str,
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """On a hard-fail, reports are still generated and the aborting error is documented, then re-raised."""
+    """On a hard-fail, final output and the aborting error are reported before re-raising."""
     CustomRunStubAgent.run_raises = RuntimeError("agent blew up")
     dse_tr.test.agent = custom_run_agent_name
     test_scenario = TestScenario(name="test_scenario", test_runs=[dse_tr])
     runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario, runner_class=SlurmRunner)
-    runner.runner.scenario_root = tmp_path
+    results_root = runner.runner.scenario_root
+    (results_root / dse_tr.name / "0" / "0").mkdir(parents=True)
+    monkeypatch.setattr(
+        "cloudai.handlers.prepare_installation",
+        lambda *_: ([], MagicMock(is_installed=lambda _: InstallStatusResult(True))),
+    )
+    monkeypatch.setattr(Registry, "ordered_scenario_reports", lambda _: [("tarball", TarballReporter)])
 
     with pytest.raises(RuntimeError, match="agent blew up"):
-        handle_dse_job(runner)
+        execute_experiment(runner, [])
 
-    failure_report = tmp_path / "dse_failure.txt"
+    failure_report = results_root / "dse_failure.txt"
     assert failure_report.exists()
     contents = failure_report.read_text()
     assert "RuntimeError" in contents
     assert "agent blew up" in contents
+    with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
+        archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
+        assert archived_file is not None
+        archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
+    local = cloudai.models.output.Experiment.model_validate_json((results_root / "experiment.json").read_text())
+    assert archived == local
+    assert archived.status == "failed"
+    assert archived.finish is not None
+    assert [tr.name for tr in runner.runner.test_scenario.test_runs] == [dse_tr.name]
 
 
 def test_validate_domain_randomization_active_rejects_non_dse(base_tr: TestRun) -> None:

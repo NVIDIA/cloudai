@@ -18,6 +18,7 @@ import collections.abc
 import datetime
 import pathlib
 import signal
+import tarfile
 
 import pytest
 import toml
@@ -107,6 +108,7 @@ def saved_experiment(
     ("mode", "cancel_on_start", "expected_status", "expected_runs"),
     [
         ("run", False, "completed", 1),
+        ("run", False, "failed", 1),
         ("dry-run", False, "completed", 0),
         ("run", True, "cancelled", 0),
     ],
@@ -119,8 +121,13 @@ def test_run_experiment(
     expected_runs: int,
     system_config: pathlib.Path,
     scenario_config: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     signal_handler = signal.getsignal(signal.SIGINT)
+    if expected_status == "failed":
+        monkeypatch.setattr(
+            SleepTestDefinition, "was_run_successful", lambda *_: cloudai.core.JobStatusResult(False, "test failed")
+        )
     started_experiments: list[cloudai.models.output.Experiment] = []
     started_outputs: list[cloudai.models.output.Experiment] = []
 
@@ -150,6 +157,16 @@ def test_run_experiment(
     assert len(experiment.tests[0].runs) == expected_runs
     assert experiment.id == pathlib.Path(experiment.path).name
     assert signal.getsignal(signal.SIGINT) == signal_handler
+
+    if expected_status == "failed":
+        results_root = pathlib.Path(experiment.path)
+        local = cloudai.models.output.Experiment.model_validate_json((results_root / "experiment.json").read_text())
+        with tarfile.open(f"{results_root}.tgz", "r:gz") as tar:
+            archived_file = tar.extractfile(f"{results_root.name}/experiment.json")
+            assert archived_file is not None
+            archived = cloudai.models.output.Experiment.model_validate_json(archived_file.read())
+        assert archived == local == experiment
+        assert archived.finish is not None
 
 
 def test_run_experiment_rejects_single_sbatch_for_standalone(
