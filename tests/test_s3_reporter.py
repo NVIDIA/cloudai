@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import tarfile
 from pathlib import Path
@@ -39,6 +40,17 @@ class TestS3UploadReporter:
         (results_dir / "nccl" / "0").mkdir(parents=True)
         (results_dir / "nccl" / "0" / "stdout.txt").write_text("out")
         (results_dir / "report.html").write_text("<html></html>")
+        (results_dir / "experiment.json").write_text(
+            json.dumps(
+                {
+                    "id": results_dir.name,
+                    "name": "dummy",
+                    "system_name": "test_system",
+                    "path": str(results_dir),
+                    "user": "test-user",
+                }
+            )
+        )
         return results_dir
 
     def reporter(self, slurm_system: SlurmSystem, results_dir: Path, **kwargs: Any) -> S3UploadReporter:
@@ -50,7 +62,10 @@ class TestS3UploadReporter:
         )
 
     def test_uploads_tree(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
-        with patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls:
+        with (
+            patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls,
+            patch("getpass.getuser", return_value="another-user"),
+        ):
             store = mock_store_cls.return_value
             store.upload_directory.return_value = UploadStats(files_uploaded=2, bytes_uploaded=16)
 
@@ -58,7 +73,41 @@ class TestS3UploadReporter:
 
             mock_store_cls.assert_called_once_with(bucket="my-bucket", endpoint_url=None, region=None)
             store.upload_directory.assert_called_once_with(
-                results_dir, "cloudai/test_system/nccl-test_2025-04-16_14-27-45", max_workers=8
+                results_dir, "cloudai/test_system/test-user/nccl-test_2025-04-16_14-27-45", max_workers=8
+            )
+
+    @pytest.mark.parametrize(
+        "owner_state", ["missing-file", "invalid-json", "invalid-model", "missing-user", "empty-user"]
+    )
+    def test_missing_owner_falls_back_to_current_user(
+        self, slurm_system: SlurmSystem, results_dir: Path, owner_state: str
+    ) -> None:
+        experiment_path = results_dir / "experiment.json"
+        if owner_state == "missing-file":
+            experiment_path.unlink()
+        elif owner_state == "invalid-json":
+            experiment_path.write_text("not JSON")
+        elif owner_state == "invalid-model":
+            experiment_path.write_text("{}")
+        else:
+            experiment = json.loads(experiment_path.read_text())
+            if owner_state == "missing-user":
+                del experiment["user"]
+            else:
+                experiment["user"] = ""
+            experiment_path.write_text(json.dumps(experiment))
+
+        with (
+            patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls,
+            patch("getpass.getuser", return_value="current-user"),
+        ):
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket").generate()
+
+            store.upload_directory.assert_called_once_with(
+                results_dir, f"test_system/current-user/{results_dir.name}", max_workers=8
             )
 
     def test_upload_concurrency_is_configurable(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
@@ -115,7 +164,7 @@ class TestS3UploadReporter:
 
             assert tarball_path.exists(), "TarballReporter only tarballs on failure, so it must be created here"
             store.upload_file.assert_called_once_with(
-                tarball_path, "test_system/nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
+                tarball_path, "test_system/test-user/nccl-test_2025-04-16_14-27-45/nccl-test_2025-04-16_14-27-45.tgz"
             )
 
     def test_fresh_tarball_is_reused(self, slurm_system: SlurmSystem, results_dir: Path) -> None:

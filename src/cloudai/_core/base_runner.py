@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import datetime
+import getpass
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -78,6 +79,7 @@ class BaseRunner(ABC):
             id=output_path.name,
             name=self.test_scenario.name,
             system_name=self.system.name,
+            user=getpass.getuser(),
             status="running",
             path=str(output_path),
             start=datetime.datetime.now(datetime.timezone.utc),

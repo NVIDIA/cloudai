@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
 import logging
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ from pydantic import Field, model_validator
 from typing_extensions import Self
 
 from .core import Reporter
+from .models.output import Experiment
 from .models.scenario import ReportConfig
 from .reporter import TarballReporter
 from .util.object_store import S3ObjectStore, join_key
@@ -78,7 +80,15 @@ class S3UploadReporter(Reporter):
             logging.warning(f"Bucket '{config.bucket}' does not exist, skipping results upload.")
             return
 
-        key_prefix = join_key(config.prefix, self.system.name, self.results_root.name)
+        # generate-report has no in-memory experiment, so read the saved snapshot for its owner.
+        try:
+            user = Experiment.model_validate_json((self.results_root / "experiment.json").read_text()).user
+        except (OSError, ValueError) as exc:
+            logging.warning("Cannot read experiment owner; falling back to the current user in the S3 path: %s", exc)
+            user = ""
+        if not user:
+            user = getpass.getuser()
+        key_prefix = join_key(config.prefix, self.system.name, user, self.results_root.name)
 
         if config.upload_tree:
             stats = store.upload_directory(self.results_root, key_prefix, max_workers=config.upload_concurrency)

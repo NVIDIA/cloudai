@@ -17,6 +17,7 @@
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 from pydantic import ConfigDict
@@ -31,6 +32,7 @@ from cloudai.core import (
     TestRun,
     TestScenario,
 )
+from cloudai.models.output import Experiment
 from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm import SlurmSystem
 
@@ -80,6 +82,18 @@ def runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
     return MyRunner(
         mode="dry-run", system=slurm_system, test_scenario=test_scenario, output_path=slurm_system.output_path
     )
+
+
+@pytest.mark.parametrize("mode", ["run", "dry-run"])
+def test_experiment_records_username(
+    slurm_system: SlurmSystem, test_scenario: TestScenario, tmp_path: Path, mode: str
+) -> None:
+    with patch("cloudai._core.base_runner.getpass.getuser", return_value="test-user"):
+        runner = MyRunner(mode, slurm_system, test_scenario, tmp_path)
+    runner.experiment_output.write()
+
+    stored = Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
+    assert stored.user == "test-user"
 
 
 class TestGetJobStatus:
