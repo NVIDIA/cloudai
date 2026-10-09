@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
+import logging
 import re
 from datetime import timedelta
+
+
+def get_current_username() -> str:
+    """Return the current username, or an empty string if lookup fails."""
+    try:
+        return getpass.getuser()
+    except (OSError, KeyError, ImportError) as exc:
+        logging.warning("Cannot determine the current username: %s", exc)
+        return ""
 
 
 def parse_time_limit(limit: str) -> timedelta:

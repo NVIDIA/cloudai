@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import getpass
 import json
 from functools import partial
 from importlib.metadata import version
@@ -198,6 +199,7 @@ class TestInDryRun:
             "id": results_output.name,
             "name": toml.load(scenario["path"])["name"],
             "system_name": "example-cluster",
+            "user": getpass.getuser(),
             "description": None,
             "status": "completed",
             "path": str(results_output.absolute()),

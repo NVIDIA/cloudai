@@ -17,6 +17,7 @@
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 from pydantic import ConfigDict
@@ -31,6 +32,7 @@ from cloudai.core import (
     TestRun,
     TestScenario,
 )
+from cloudai.models.output import Experiment
 from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm import SlurmSystem
 
@@ -80,6 +82,27 @@ def runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
     return MyRunner(
         mode="dry-run", system=slurm_system, test_scenario=test_scenario, output_path=slurm_system.output_path
     )
+
+
+@pytest.mark.parametrize("mode", ["run", "dry-run"])
+@pytest.mark.parametrize("error", [OSError, KeyError, ImportError])
+def test_username_lookup_failure_does_not_block_initialization(
+    slurm_system: SlurmSystem,
+    test_scenario: TestScenario,
+    tmp_path: Path,
+    mode: str,
+    error: type[Exception],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with patch("getpass.getuser", side_effect=error("Username unavailable")):
+        runner = MyRunner(mode, slurm_system, test_scenario, tmp_path)
+    runner.experiment_output.write()
+
+    stored = Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
+    assert stored.user == ""
+    assert stored.status == "running"
+    assert stored.tests
+    assert "Cannot determine the current username" in caplog.text
 
 
 class TestGetJobStatus:

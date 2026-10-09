@@ -37,10 +37,13 @@ Unified Experiment Output
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, system name, and test cases listed under ``tests``. For Slurm runs, the system name is
+The file contains scenario details, system name, the username of the account running CloudAI in ``user``, and test cases
+listed under ``tests``. Older files without ``user`` are loaded with an empty string. For Slurm runs, the system name is
 the cluster reported by Slurm. Both Standalone and Slurm execution records are stored in each test case's ``runs`` list. Each
 record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
 and workload metrics.
+
+If username lookup fails, CloudAI logs a warning and records an empty ``user`` without interrupting execution.
 
 Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.
@@ -209,6 +212,13 @@ be a deliberate choice.
 It is registered last, after ``tarball``, so it always observes the complete results
 directory including every other report's output.
 
+Files are uploaded under ``s3://<bucket>/<prefix>/<cluster>/<username>/<results-directory>/``,
+where ``cluster`` is the system name and ``username`` is the original experiment owner's
+``user`` field in ``experiment.json``, including when running ``generate-report``.
+If the file is missing, unreadable, invalid, or has no recorded owner, uploads use
+the current account's username. If that lookup also fails, uploads use ``unknown``.
+Tarballs use the same path, with ``<results-directory>.tgz`` appended.
+
 Install the optional dependency first:
 
 .. code-block:: bash
@@ -242,7 +252,7 @@ Configuration options:
      - Destination bucket. Required; the upload is skipped with a warning if unset.
    * - ``prefix``
      - ``$CLOUDAI_S3_PREFIX``
-     - Key prefix. Objects are written under ``<prefix>/<system_name>/<results_dir_name>/``.
+     - Key prefix. Objects are written under ``<prefix>/<system_name>/<username>/<results_dir_name>/``.
    * - ``endpoint_url``
      - ``$CLOUDAI_S3_ENDPOINT_URL``
      - Custom endpoint, for MinIO or other S3-compatible stores.

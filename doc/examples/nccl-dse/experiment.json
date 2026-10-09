@@ -2,6 +2,7 @@
   "id": "nccl-dse_2026-09-21_14-55-45",
   "name": "nccl-dse",
   "system_name": "example-cluster",
+  "user": "example-user",
   "description": null,
   "status": "completed",
   "path": "/results/nccl-dse_2026-09-21_14-55-45",
