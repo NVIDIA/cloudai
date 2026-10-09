@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import getpass
 import logging
 import os
 from pathlib import Path
@@ -28,6 +27,7 @@ from .models.output import Experiment
 from .models.scenario import ReportConfig
 from .reporter import TarballReporter
 from .util.object_store import S3ObjectStore, join_key
+from .util.utils import get_current_username
 
 
 class S3UploadConfig(ReportConfig):
@@ -89,7 +89,7 @@ class S3UploadReporter(Reporter):
             logging.warning("Cannot read experiment owner; falling back to the current user in the S3 path: %s", exc)
             user = ""
         if not user:
-            user = getpass.getuser()
+            user = get_current_username() or "unknown"
         key_prefix = join_key(config.prefix, self.system.name, user, self.results_root.name)
 
         if config.upload_tree:

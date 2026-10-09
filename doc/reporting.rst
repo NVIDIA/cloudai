@@ -43,6 +43,8 @@ the cluster reported by Slurm. Both Standalone and Slurm execution records are s
 record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
 and workload metrics.
 
+If username lookup fails, CloudAI logs a warning and records an empty ``user`` without interrupting execution.
+
 Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
 could not be determined. Dry runs include scenario and test-case details without launching workloads.
 
@@ -214,7 +216,8 @@ Files are uploaded under ``s3://<bucket>/<prefix>/<cluster>/<username>/<results-
 where ``cluster`` is the system name and ``username`` is the original experiment owner's
 ``user`` field in ``experiment.json``, including when running ``generate-report``.
 If the file is missing, unreadable, invalid, or has no recorded owner, uploads use
-the current account's username. Tarballs use the same path, with ``<results-directory>.tgz`` appended.
+the current account's username. If that lookup also fails, uploads use ``unknown``.
+Tarballs use the same path, with ``<results-directory>.tgz`` appended.
 
 Install the optional dependency first:
 

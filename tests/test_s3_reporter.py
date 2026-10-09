@@ -110,6 +110,24 @@ class TestS3UploadReporter:
                 results_dir, f"test_system/current-user/{results_dir.name}", max_workers=8
             )
 
+    @pytest.mark.parametrize("error", [OSError, KeyError, ImportError])
+    def test_username_lookup_failure_uploads_under_unknown(
+        self, slurm_system: SlurmSystem, results_dir: Path, error: type[Exception]
+    ) -> None:
+        (results_dir / "experiment.json").unlink()
+        with (
+            patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls,
+            patch("getpass.getuser", side_effect=error("Username unavailable")),
+        ):
+            store = mock_store_cls.return_value
+            store.upload_directory.return_value = UploadStats()
+
+            self.reporter(slurm_system, results_dir, bucket="my-bucket").generate()
+
+            store.upload_directory.assert_called_once_with(
+                results_dir, f"test_system/unknown/{results_dir.name}", max_workers=8
+            )
+
     def test_upload_concurrency_is_configurable(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
         with patch("cloudai.s3_reporter.S3ObjectStore") as mock_store_cls:
             store = mock_store_cls.return_value

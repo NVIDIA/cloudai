@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import datetime
-import getpass
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -24,6 +23,7 @@ from typing import Dict, List
 
 import cloudai.models.output
 import cloudai.output
+from cloudai.util.utils import get_current_username
 
 from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
@@ -79,7 +79,7 @@ class BaseRunner(ABC):
             id=output_path.name,
             name=self.test_scenario.name,
             system_name=self.system.name,
-            user=getpass.getuser(),
+            user=get_current_username(),
             status="running",
             path=str(output_path),
             start=datetime.datetime.now(datetime.timezone.utc),
