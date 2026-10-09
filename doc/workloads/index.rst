@@ -30,6 +30,7 @@ Available Workloads
    ":doc:`nixl_perftest`", "✅", "❌", "❌", "❌"
    ":doc:`sleep`", "✅", "✅", "❌", "✅"
    ":doc:`sglang`", "✅", "❌", "❌", "❌"
+   ":doc:`srt_slurm`", "✅", "❌", "❌", "❌"
    ":doc:`slurm_container`", "✅", "❌", "❌", "❌"
    "Triton Inference", "✅", "❌", "❌", "❌"
    ":doc:`ucc`", "✅", "❌", "❌", "❌"
