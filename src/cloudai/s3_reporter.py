@@ -82,7 +82,9 @@ class S3UploadReporter(Reporter):
 
         # generate-report has no in-memory experiment, so read the saved snapshot for its owner.
         try:
-            user = Experiment.model_validate_json((self.results_root / "experiment.json").read_text()).user
+            user = Experiment.model_validate_json(
+                (self.results_root / "experiment.json").read_text(encoding="utf-8")
+            ).user
         except (OSError, ValueError) as exc:
             logging.warning("Cannot read experiment owner; falling back to the current user in the S3 path: %s", exc)
             user = ""
