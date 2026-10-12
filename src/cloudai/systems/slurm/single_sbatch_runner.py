@@ -123,6 +123,9 @@ class SingleSbatchRunner(SlurmRunner):
             f"{node_arg} --output={tr.output_path.absolute()}/stdout.txt --error={tr.output_path.absolute()}/stderr.txt"
         )
         srun_cmd = srun_cmd.replace("srun", f"srun {extra_args}")
+        if cmd_gen.final_env_vars.get("ENABLE_VBOOST") == "1":
+            vboost_cmd = cmd_gen._enable_vboost_cmd().replace("srun ", f"srun {node_arg} ", 1)
+            srun_cmd = f"{vboost_cmd}\n{srun_cmd}"
 
         return srun_cmd
 
