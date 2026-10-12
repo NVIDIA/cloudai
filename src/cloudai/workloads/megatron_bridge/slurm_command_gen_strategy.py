@@ -105,7 +105,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _gen_srun_command(self) -> str:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        env_vars_path = self._write_env_vars_file()
+        env_vars_path = self._write_env_vars_script()
         extra_args = [self.system.extra_srun_args, self.test_run.extra_srun_args]
         if self.test_run.pre_test:
             for tr in self.test_run.pre_test.test_runs:
