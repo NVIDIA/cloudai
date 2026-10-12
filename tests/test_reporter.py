@@ -393,6 +393,95 @@ class TestSlurmReportItem:
         assert report_item.is_successful is False
         assert report_item.error_message == "command failed"
 
+    def test_records_cancelled_status_from_experiment_json(self, slurm_system: SlurmSystem) -> None:
+        import cloudai.models.output
+
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
+        experiment = cloudai.models.output.Experiment(
+            id="ts",
+            name="ts",
+            system_name=slurm_system.name,
+            path=str(slurm_system.output_path),
+            tests=[
+                cloudai.models.output.Test(
+                    id="run_dir",
+                    name="nccl",
+                    path=str(run_dir),
+                    status="cancelled",
+                    runs=[cloudai.models.output.Run(path=str(run_dir.absolute()), jobid="1", status="cancelled")],
+                )
+            ],
+        )
+        (slurm_system.output_path / "experiment.json").write_text(experiment.model_dump_json())
+
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.is_cancelled is True
+        assert report_item.is_successful is None
+
+    def test_missing_experiment_json_falls_back_to_was_run_successful(
+        self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cloudai.core import JobStatusResult
+
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
+        monkeypatch.setattr(type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(True, ""))
+
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.is_cancelled is False
+        assert report_item.is_successful is True
+
+    def test_corrupt_experiment_json_falls_back_to_was_run_successful(
+        self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cloudai.core import JobStatusResult
+
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (slurm_system.output_path / "experiment.json").write_text("not valid json")
+        tr = TestRun(
+            name="run_dir",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="NCCL test",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=run_dir,
+        )
+        monkeypatch.setattr(type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(True, ""))
+
+        [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
+        assert report_item.is_cancelled is False
+        assert report_item.is_successful is True
+
 
 def test_scenario_report_shows_pass_fail_status(
     slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
@@ -416,6 +505,55 @@ def test_scenario_report_shows_pass_fail_status(
     report_html = (slurm_system.output_path / "test-scenario.html").read_text()
     assert "FAILED" in report_html
     assert "command failed" in report_html
+
+
+def test_scenario_report_shows_cancelled_status(
+    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test: a run killed by a start_post_comp/end_post_comp dependency is recorded
+    as "cancelled" in experiment.json, but was still rendered as PASSED/FAILED here because
+    was_run_successful has no notion of that distinction."""
+    import cloudai.models.output
+    from cloudai.core import JobStatusResult
+
+    def was_run_successful_should_not_be_called(self: object, tr: TestRun) -> JobStatusResult:
+        raise AssertionError("was_run_successful should not be consulted for a cancelled run")
+
+    monkeypatch.setattr(type(benchmark_tr.test), "was_run_successful", was_run_successful_should_not_be_called)
+
+    iteration_dirs = [slurm_system.output_path / benchmark_tr.name / str(i) for i in range(benchmark_tr.iterations)]
+    experiment = cloudai.models.output.Experiment(
+        id="test-scenario",
+        name="test-scenario",
+        system_name=slurm_system.name,
+        path=str(slurm_system.output_path),
+        tests=[
+            cloudai.models.output.Test(
+                id=benchmark_tr.name,
+                name=benchmark_tr.test.name,
+                path=str(benchmark_tr.output_path),
+                status="cancelled",
+                runs=[
+                    cloudai.models.output.Run(path=str(d.absolute()), jobid=str(i), status="cancelled")
+                    for i, d in enumerate(iteration_dirs)
+                ],
+            )
+        ],
+    )
+    (slurm_system.output_path / "experiment.json").write_text(experiment.model_dump_json())
+
+    reporter = StatusReporter(
+        slurm_system,
+        TestScenario(name="test-scenario", test_runs=[benchmark_tr]),
+        slurm_system.output_path,
+        ReportConfig(),
+    )
+    reporter.generate()
+
+    report_html = (slurm_system.output_path / "test-scenario.html").read_text()
+    assert "CANCELLED" in report_html
+    assert "PASSED" not in report_html
+    assert "FAILED" not in report_html
 
 
 def test_scenario_report_escapes_error_message(

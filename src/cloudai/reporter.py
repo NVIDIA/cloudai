@@ -23,16 +23,37 @@ from pathlib import Path
 from typing import Optional
 
 import jinja2
+import pydantic
 import toml
 from rich import box
 from rich.console import Console
 from rich.table import Table
 
+import cloudai.models.output
 from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.report_generator.util import load_system_metadata
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
+
+
+def _cancelled_run_paths(results_root: Path) -> set[str]:
+    """
+    Return absolute output paths of runs that experiment.json already recorded as cancelled.
+
+    A run killed by a start_post_comp/end_post_comp dependency never reaches was_run_successful's
+    notion of pass/fail, so callers must check this first: experiment.json is the only place that
+    distinction (job.terminated_by_dependency) survives to report-generation time.
+    """
+    experiment_path = results_root / "experiment.json"
+    if not experiment_path.is_file():
+        return set()
+    try:
+        experiment = cloudai.models.output.Experiment.model_validate_json(experiment_path.read_text())
+    except (OSError, UnicodeDecodeError, pydantic.ValidationError) as e:
+        logging.debug("Could not read experiment output %s: %s", experiment_path, e)
+        return set()
+    return {run.path for test in experiment.tests for run in test.runs if run.status == "cancelled"}
 
 
 @dataclass
@@ -44,20 +65,25 @@ class ReportItem:
     logs_path: Optional[str] = None
     nodes: Optional[str] = None
     is_successful: Optional[bool] = None
+    is_cancelled: bool = False
     error_message: str = ""
 
     @classmethod
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
+        cancelled_paths = _cancelled_run_paths(results_root)
         for tr in test_runs:
             ri = ReportItem(case_name(tr), tr.test.description)
             if tr.output_path.exists():
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
             if metadata := load_system_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
-            status = tr.test.was_run_successful(tr)
-            ri.is_successful = status.is_successful
-            ri.error_message = status.error_message
+            if str(tr.output_path.absolute()) in cancelled_paths:
+                ri.is_cancelled = True
+            else:
+                status = tr.test.was_run_successful(tr)
+                ri.is_successful = status.is_successful
+                ri.error_message = status.error_message
             report_items.append(ri)
 
         return report_items
@@ -123,13 +149,18 @@ class StatusReporter(Reporter):
         for col in ["Case", "Status", "Details"]:
             table.add_column(col, overflow="fold")
 
+        cancelled_paths = _cancelled_run_paths(self.results_root)
         for tr in self.trs:
-            tr_status = tr.test.was_run_successful(tr)
-            sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
             display_path = str(tr.output_path.absolute())
+            if display_path in cancelled_paths:
+                sts_text = "[bold][yellow]CANCELLED[/yellow][/bold]"
+                details_text = ""
+            else:
+                tr_status = tr.test.was_run_successful(tr)
+                sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
+                details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
             with contextlib.suppress(ValueError):
                 display_path = str(tr.output_path.absolute().relative_to(Path.cwd()))
-            details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
             columns = [tr.name, sts_text, f"{display_path}{details_text}"]
             table.add_row(*columns)
 
