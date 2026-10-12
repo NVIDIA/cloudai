@@ -51,6 +51,19 @@ def test_worker_config_allows_omitting_launch_fields_when_num_nodes_is_zero() ->
     assert worker.worker_initialized_regex is None
 
 
+def test_worker_config_skips_topology_validation_when_num_nodes_is_zero() -> None:
+    worker = WorkerConfig.model_validate(
+        {
+            "num-nodes": 0,
+            "nodes-per-worker": 2,
+            "multiple-workers-per-node": True,
+        }
+    )
+
+    assert worker.num_nodes == 0
+    assert worker.nodes_per_worker == 2
+
+
 @pytest.mark.parametrize("num_nodes", [1, [0, 1]])
 def test_worker_config_requires_launch_fields_when_any_num_nodes_is_nonzero(num_nodes: int | list[int]) -> None:
     with pytest.raises(ValueError, match="cmd, worker-initialized-regex must be set when num-nodes is non-zero"):
@@ -74,7 +87,7 @@ def cmd_args() -> AIDynamoCmdArgs:
             model="model",
             workspace_path="/workspace",
             prefill_worker=WorkerConfig(
-                cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                cmd="python3 -m dynamo.vllm",
                 worker_initialized_regex="VllmWorker.*has.been.initialized",
                 **{
                     "num-nodes": 1,
@@ -139,17 +152,60 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
     return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
 
 
+def test_legacy_vllm_prefill_selector_is_not_combined_with_disaggregation_mode(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.prefill_worker.cmd = "python3 -m dynamo.vllm --is-prefill-worker"
+
+    args = strategy._gen_script_args(td)
+
+    assert '--prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker"' in args
+    assert not any(arg.startswith("--prefill-args-disaggregation-mode ") for arg in args)
+    assert '--decode-args-disaggregation-mode "decode"' in args
+
+
 def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
-    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0, nodes_per_worker=2)
 
     args = strategy._gen_script_args(td)
 
     assert '--prefill-num-nodes "0"' in args
+    assert '--prefill-nodes-per-worker "2"' in args
     assert not any(arg.startswith("--prefill-cmd ") for arg in args)
     assert not any(arg.startswith("--prefill-worker-initialized-regex ") for arg in args)
+    assert '--decode-args-disaggregation-mode "agg"' in args
+
+
+def test_explicit_sglang_aggregate_mode_is_preserved(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
+    td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate({"disaggregation-mode": "null"})
+
+    args = strategy._gen_script_args(td)
+
+    assert '--decode-args-disaggregation-mode "null"' in args
+    assert '--decode-args-disaggregation-mode "agg"' not in args
+
+
+def test_sglang_dsr1_deepep_configs_are_forwarded(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang_dsr1"
+    td.cmd_args.dynamo.prefill_worker.args = WorkerBaseArgs.model_validate(
+        {"deepep-config": "/configs/prefill-deepep.json"}
+    )
+    td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate(
+        {"deepep-config": "/configs/decode-deepep.json"}
+    )
+
+    args = strategy._gen_script_args(td)
+
+    assert '--prefill-args-deepep-config "/configs/prefill-deepep.json"' in args
+    assert '--decode-args-deepep-config "/configs/decode-deepep.json"' in args
 
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
@@ -162,6 +218,25 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     if td.cmd_args.storage_cache_dir:
         expected.append(f"{td.cmd_args.storage_cache_dir}:{td.cmd_args.storage_cache_dir}")
     assert mounts == expected
+
+
+@pytest.mark.parametrize("provided_value", [None, ""])
+def test_final_env_vars_defaults_empty_dynamo_nodelist(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+    provided_value: str | None,
+) -> None:
+    if provided_value is not None:
+        strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = provided_value
+
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == (
+        "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',' | sed 's/,$//')"
+    )
+
+
+def test_final_env_vars_preserves_user_dynamo_nodelist(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    strategy.test_run.test.extra_env_vars["DYNAMO_NODELIST"] = "node-0,node-1"
+
+    assert strategy.final_env_vars["DYNAMO_NODELIST"] == "node-0,node-1"
 
 
 def test_installables_include_top_level_git_repos(cmd_args: AIDynamoCmdArgs) -> None:
@@ -601,6 +676,159 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     test_run.num_nodes_explicit = True
 
     assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_ignores_disabled_worker_with_list_valued_topology(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig.model_validate(
+        {
+            "num-nodes": [0, 0],
+            "nodes-per-worker": [2, 4],
+            "multiple-workers-per-node": True,
+            "args": {
+                "tensor-parallel-size": [16, 32],
+                "pipeline-parallel-size": [1, 2],
+                "data-parallel-size": [2, 4],
+                "distributed-executor-backend": "ray",
+            },
+        }
+    )
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_allows_multinode_worker_using_group_capacity(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    slurm_system.gpus_per_node = 4
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    for worker in (td.cmd_args.dynamo.prefill_worker, td.cmd_args.dynamo.decode_worker):
+        worker.num_nodes = 2
+        worker.nodes_per_worker = 2
+        worker.args.tensor_parallel_size = 8
+        worker.args.pipeline_parallel_size = 1
+    test_run.num_nodes = 4
+    test_run.nodes = ["n0", "n1", "n2", "n3"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_allows_vllm_multinode_dp_using_local_rank_capacity(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    slurm_system.gpus_per_node = 4
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    for worker in (td.cmd_args.dynamo.prefill_worker, td.cmd_args.dynamo.decode_worker):
+        worker.num_nodes = 2
+        worker.nodes_per_worker = 2
+        worker.args.tensor_parallel_size = 1
+        worker.args.pipeline_parallel_size = 1
+        worker.args.data_parallel_size = 8
+    test_run.num_nodes = 4
+    test_run.nodes = ["n0", "n1", "n2", "n3"]
+    test_run.num_nodes_explicit = True
+
+    assert td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_multinode_vllm_ray(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    worker = td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 8
+    worker.args.distributed_executor_backend = "ray"
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
+def test_constraint_rejects_multinode_sglang_dp_without_dp_attention(
+    slurm_system: SlurmSystem, test_run: TestRun
+) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    worker = td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 8
+    worker.args.data_parallel_size = 8
+
+    assert not td.constraint_check(test_run, slurm_system)
+
+
+def test_multinode_worker_rejects_unbalanced_world_size(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 15
+
+    with pytest.raises(ValueError, match=r"TP\*PP \(15\) must be divisible"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_vllm_dp_rejects_unbalanced_rank_placement(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+) -> None:
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 1
+    worker.args.data_parallel_size = 7
+
+    with pytest.raises(ValueError, match=r"data_parallel_size \(7\) must be divisible"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_sglang_dp_accepts_combined_list_extra_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    strategy.td.cmd_args.dynamo.backend = "sglang"
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.extra_args = ["--trust-remote-code --enable-dp-attention"]
+    worker.args.tensor_parallel_size = 8
+    worker.args.data_parallel_size = 8
+
+    strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_sglang_dp_requires_dp_attention(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    strategy.td.cmd_args.dynamo.backend = "sglang"
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 8
+    worker.args.data_parallel_size = 8
+
+    with pytest.raises(ValueError, match="requires --enable-dp-attention"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_vllm_worker_rejects_ray(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    worker = strategy.td.cmd_args.dynamo.decode_worker
+    worker.num_nodes = 2
+    worker.nodes_per_worker = 2
+    worker.args.tensor_parallel_size = 16
+    worker.args.distributed_executor_backend = "ray"
+
+    with pytest.raises(ValueError, match="only the mp distributed executor"):
+        strategy._gen_script_args(strategy.td)
+
+
+def test_multinode_worker_topology_is_forwarded_to_runtime(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    prefill = strategy.td.cmd_args.dynamo.prefill_worker
+    decode = strategy.td.cmd_args.dynamo.decode_worker
+    prefill.num_nodes = 2
+    prefill.nodes_per_worker = 2
+    prefill.args.tensor_parallel_size = 16
+    decode.num_nodes = 2
+    decode.nodes_per_worker = 2
+    decode.args.tensor_parallel_size = 16
+
+    args = strategy._gen_script_args(strategy.td)
+
+    assert '--prefill-nodes-per-worker "2"' in args
+    assert '--decode-nodes-per-worker "2"' in args
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
