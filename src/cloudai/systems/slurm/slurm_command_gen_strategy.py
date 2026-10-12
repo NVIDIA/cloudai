@@ -238,13 +238,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = self.gen_srun_prefix(use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command()
         test_command_parts = self.generate_test_command()
-        env_vars_path = self._write_env_vars_file()
+        env_vars_path = self._write_env_vars_script()
 
         full_test_cmd = f'bash -c "source {env_vars_path}; ' + " ".join(nsys_command_parts + test_command_parts) + '"'
 
         return " ".join(srun_command_parts) + " " + full_test_cmd
 
-    def _write_env_vars_file(self) -> Path:
+    def _write_env_vars_script(self) -> Path:
         env_vars_path = (self.test_run.output_path / "env_vars.sh").absolute()
         with env_vars_path.open("w") as f:
             for key, value in self.final_env_vars.items():
