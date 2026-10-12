@@ -683,7 +683,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         logging.info("Using %d allocated node(s) for %d role node(s)", self.test_run.nnodes, role_total_nodes)
 
-        requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        requested_nodes, node_list = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
         shared_node_disagg = self._worker_nodes_overlap(prefill_nodes, decode_nodes) or (
             prefill_n > 0 and requested_nodes < role_total_nodes
         )

@@ -16,6 +16,7 @@
 
 import logging
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -105,3 +106,16 @@ class TestNeMoRunSlurmCommandGenStrategy:
         with caplog.at_level(logging.WARNING):
             cmd_gen_strategy.generate_test_command()
         assert "Mismatch in num_nodes" in caplog.text
+
+    @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.get_nodes_by_spec")
+    def test_excludes_configured_nodes(
+        self, mock_get_nodes_by_spec: Mock, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy
+    ) -> None:
+        mock_get_nodes_by_spec.return_value = (1, [])
+        cmd_gen_strategy.test_run.exclude_nodes = ["node05"]
+
+        cmd_gen_strategy.generate_test_command()
+
+        mock_get_nodes_by_spec.assert_called_once_with(
+            cmd_gen_strategy.test_run.nnodes, cmd_gen_strategy.test_run.nodes, exclude_nodes=["node05"]
+        )
