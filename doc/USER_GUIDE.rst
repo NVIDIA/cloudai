@@ -101,6 +101,9 @@ CloudAI uses the Slurm 22.05 REST API v0.0.38 when ``slurm_api`` is configured. 
 
 Workloads that invoke their own Slurm launcher instead of producing an sbatch script are not supported in REST mode.
 
+REST submission supports ``#SBATCH --exclusive``, ``--mem`` (integer MB or a ``K``, ``M``, ``G``, or ``T`` suffix),
+and ``--open-mode=append`` or ``--open-mode=truncate``. Use ``--mem=0`` to request all memory on each allocated node.
+
 RunAI Scheduler
 ---------------
 
