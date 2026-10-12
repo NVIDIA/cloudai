@@ -87,7 +87,8 @@ Slurm REST API
 ~~~~~~~~~~~~~~
 
 Set ``slurm_api.version`` to match your service: ``v0.0.38`` (the default), ``v0.0.40``, ``v0.0.41``, or ``v0.0.42``.
-The service must enable the ``slurm`` endpoint backed by ``slurmctld``; ``slurmdbd`` is not required.
+The service must enable the ``slurm`` endpoint backed by ``slurmctld``. To retrieve status and timing after a job
+leaves the controller's records, it must also expose the ``slurmdb`` endpoint backed by ``slurmdbd``.
 
 .. code-block:: toml
 

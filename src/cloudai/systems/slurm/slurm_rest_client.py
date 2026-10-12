@@ -146,6 +146,15 @@ class SlurmRestClient:
         if not isinstance(data, dict):
             raise RuntimeError(f"Slurm API returned a non-object response from {url}.")
         if errors := data.get("errors"):
+            if (
+                method == "GET"
+                and service == "slurm"
+                and re.fullmatch(r"job/\d+", path)
+                and response.status_code in {200, 400, 404}
+                and all(isinstance(error, dict) and error.get("error_number") == 2017 for error in errors)
+            ):
+                # ESLURM_INVALID_JOB_ID: completed jobs may have left slurmctld.
+                return {"jobs": []}
             details = "; ".join(self._message(error) for error in errors)
             raise RuntimeError(f"Slurm API request failed: {details}")
         response.raise_for_status()
@@ -387,13 +396,33 @@ class SlurmRestClient:
         if not isinstance(jobs, list):
             raise RuntimeError("Slurm API returned an invalid jobs response.")
         if not jobs:
-            return None
+            return self._get_accounting_job(job_id, retry_threshold)
         job = cast(dict[str, Any], jobs[0]).copy()
         job["cluster_name"] = response.get("meta", {}).get("slurm", {}).get("cluster", "")
         return job
 
+    def _get_accounting_job(self, job_id: int, retry_threshold: int) -> dict[str, Any]:
+        for attempt in range(retry_threshold):
+            response = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
+            jobs = response.get("jobs")
+            if not isinstance(jobs, list):
+                raise RuntimeError("Slurm accounting API returned an invalid jobs response.")
+            if jobs:
+                job = cast(dict[str, Any], jobs[0]).copy()
+                job.update(
+                    job_state=job["state"]["current"],
+                    start_time=job["time"]["start"],
+                    end_time=job["time"]["end"],
+                    cluster_name=job["cluster"],
+                    command=job.get("submit_line") or "",
+                )
+                return job
+            if attempt + 1 < retry_threshold:
+                time.sleep(self._retry_pause_seconds)
+        raise RuntimeError(f"Slurm job {job_id} is absent from both live and accounting records.")
+
     def get_job_state(self, job_id: int, retry_threshold: int = 3) -> str:
-        """Return current job state from slurmctld."""
+        """Return job state, using accounting after the job leaves slurmctld."""
         job = self._get_job(job_id, retry_threshold)
         if job is None:
             return ""
@@ -415,7 +444,7 @@ class SlurmRestClient:
         return value
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
-        """Return whether slurmctld reports a terminal job state."""
+        """Return whether Slurm reports a terminal job state."""
         return self.get_job_state(job_id, retry_threshold) in self._TERMINAL_JOB_STATES
 
     def get_job_status(self, job_id: int, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
@@ -428,7 +457,8 @@ class SlurmRestClient:
         signal = 0
         if isinstance(raw_exit_code, dict):
             return_code = self._number(raw_exit_code["return_code"])
-            signal = self._number(raw_exit_code["signal"]["id"])
+            raw_signal = raw_exit_code["signal"]
+            signal = self._number(raw_signal.get("id", raw_signal.get("signal_id", 0)))
         elif 0 <= raw_exit_code <= 0xFFFF:
             if os.WIFEXITED(raw_exit_code):
                 return_code = os.WEXITSTATUS(raw_exit_code)
