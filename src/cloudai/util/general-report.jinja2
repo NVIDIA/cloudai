@@ -4,6 +4,7 @@
 <style>
     .status-passed { color: var(--nv-green-strong); font-weight: 600; }
     .status-failed { color: #c0392b; font-weight: 600; }
+    .status-cancelled { color: #b58900; font-weight: 600; }
 </style>
 {% endblock %}
 
@@ -20,7 +21,9 @@
     <tr>
         <td>{{ item.name }}</td>
         <td>{{ item.description }}</td>
-        {% if item.is_successful is none %}
+        {% if item.is_cancelled %}
+            <td class="status-cancelled">CANCELLED</td>
+        {% elif item.is_successful is none %}
             <td>Unknown</td>
         {% elif item.is_successful %}
             <td class="status-passed">PASSED</td>
