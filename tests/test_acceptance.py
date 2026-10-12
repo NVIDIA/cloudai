@@ -17,8 +17,6 @@
 import argparse
 import getpass
 import json
-import shlex
-import subprocess
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
@@ -31,9 +29,9 @@ import toml
 import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
-from cloudai.core import METRIC_ERROR, CommandGenStrategy, TestDefinition, TestRun, TestScenario
+from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
-from cloudai.systems.slurm import SingleSbatchRunner, SlurmAPIConfig, SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
@@ -58,7 +56,7 @@ from cloudai.workloads.jax_toolbox import (
     GrokTestDefinition,
 )
 from cloudai.workloads.megatron_bridge import (
-    MegatronBridgeReportGenerationStrategy,
+    MegatronBridgeCmdArgs,
     MegatronBridgeSlurmCommandGenStrategy,
     MegatronBridgeTestDefinition,
 )
@@ -328,6 +326,7 @@ def build_special_test_run(
         "nemo-run-vboost",
         "slurm_container",
         "megatron-run",
+        "megatron-bridge",
         "triton-inference",
         "nixl_bench",
         "nixl_bench-independent",
@@ -682,6 +681,38 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
             ),
         ),
+        "megatron-bridge": lambda: create_test_run(
+            partial_tr,
+            "megatron-bridge",
+            MegatronBridgeTestDefinition(
+                name="megatron-bridge",
+                description="Megatron-Bridge benchmark",
+                test_template_name="MegatronBridge",
+                cmd_args=MegatronBridgeCmdArgs(
+                    container_image=str(slurm_system.output_path / "megatron_bridge_image.sqsh"),
+                    hf_token="dummy_token",
+                    model_family_name="qwen3",
+                    model_recipe_name="30b_a3b",
+                    num_gpus=16,
+                    enable_vboost=True,
+                    executor_env_vars={"NCCL_DEBUG": "WARN", "EXECUTOR_ONLY": "executor"},
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
+                extra_container_mounts=[],
+                git_repos=[
+                    GitRepo(
+                        url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                        commit="main",
+                        mount_as="/opt/Megatron-Bridge",
+                    )
+                ],
+            ),
+            num_nodes=2,
+            time_limit="00:20:00",
+            extra_srun_args="--cpu-bind=none",
+            pre_test=TestScenario(name="pre-test", test_runs=[test_mapping["nccl"]()]),
+            post_test=TestScenario(name="post-test", test_runs=[test_mapping["nccl"]()]),
+        ),
         "vllm": lambda: create_test_run(
             partial_tr,
             "vllm",
@@ -868,6 +899,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         cmd_gen.job_name = Mock(return_value="job_name")
     if isinstance(cmd_gen, NeMoLauncherSlurmCommandGenStrategy):
         cmd_gen.job_prefix = "test_account-cloudai.nemo"
+    if isinstance(cmd_gen, MegatronBridgeSlurmCommandGenStrategy):
+        upstream_script = tr.output_path / "nemo_sbatch.sh"
+        upstream = (Path(__file__).parent / "ref_data" / "megatron-bridge-nemo.sbatch").read_text()
+        upstream_script.write_text(
+            upstream.replace("__OUTPUT__", str(tr.output_path)).replace("__IMAGE__", str(cmd_gen.image_path()))
+        )
+        cmd_gen._generate_mbridge_sbatch = Mock(return_value=upstream_script)
     sbatch_script = cmd_gen.gen_exec_command().split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
@@ -913,212 +951,3 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_aiperf = aiperf_script.read_text().strip()
         ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
         assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"
-
-
-class TestMBridgeAcceptance:
-    """Exercise the runner lifecycle; only upstream generation and remote execution are simulated."""
-
-    @pytest.fixture
-    def mbridge_tr(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestRun:
-        monkeypatch.setenv("HF_TOKEN", "dummy_token")
-        config = toml.load("conf/experimental/megatron_bridge/test/h100/megatron_bridge_qwen_30b.toml")
-        config["cmd_args"]["executor_env_vars"] = {"PRIORITY": "executor", "EXECUTOR_ONLY": "executor"}
-        config["extra_env_vars"] = {"PRIORITY": "test", "TASK_RANK": "$SLURM_PROCID"}
-        tdef = MegatronBridgeTestDefinition.model_validate(config)
-        tdef.megatron_bridge_repo.installed_path = tmp_path / "bridge"
-        tdef.python_executable.venv_path = tmp_path / "venv"
-        tdef.docker_image.installed_path = tmp_path / "nemo.sqsh"
-        return TestRun(
-            name="mbridge",
-            test=tdef,
-            num_nodes=2,
-            nodes=[],
-            output_path=tmp_path / "job",
-            time_limit="00:10:00",
-            extra_srun_args="--cpu-bind=none",
-        )
-
-    @pytest.mark.parametrize("transport", ["cli", "rest", "single-sbatch"])
-    @pytest.mark.parametrize("vboost", [True, False])
-    def test_submission_and_reporting(
-        self,
-        slurm_system: SlurmSystem,
-        mbridge_tr: TestRun,
-        transport: str,
-        vboost: bool,
-    ) -> None:
-        tr = mbridge_tr
-        tdef = tr.test
-        assert isinstance(tdef, MegatronBridgeTestDefinition)
-        tdef.cmd_args.enable_vboost = vboost
-        tdef.cmd_args.enable_nsys = True
-        tdef.cmd_args.profiling_ranks = "0,8"
-        slurm_system.global_env_vars = {"PRIORITY": "global", "GLOBAL_ONLY": "global", "ENABLE_VBOOST": "1"}
-        slurm_system.extra_sbatch_args = ["--open-mode=truncate"]
-        slurm_system.extra_srun_args = "--kill-on-bad-exit=1"
-        if transport == "rest":
-            slurm_system.slurm_api = SlurmAPIConfig(url="https://slurm.example.com")
-        if transport != "single-sbatch":
-            for hook in ("pre_test", "post_test"):
-                hook_tr = TestRun(
-                    name=hook,
-                    num_nodes=2,
-                    nodes=[],
-                    test=NCCLTestDefinition(
-                        name=hook,
-                        description=hook,
-                        test_template_name="NcclTest",
-                        cmd_args=NCCLCmdArgs(docker_image_url="nccl.sqsh"),
-                    ),
-                )
-                setattr(tr, hook, TestScenario(name=hook, test_runs=[hook_tr]))
-        runner_cls = SingleSbatchRunner if transport == "single-sbatch" else SlurmRunner
-        runner = runner_cls(
-            mode="run",
-            system=slurm_system,
-            test_scenario=TestScenario(name="mbridge-acceptance", test_runs=[tr]),
-            output_path=slurm_system.output_path,
-        )
-        if isinstance(runner, SingleSbatchRunner):
-            tr = next(runner.all_trs)
-
-        def generate_nemo_script(command: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
-            args = shlex.split(command)
-            assert "-d" in args
-            assert args[args.index("-vb") + 1] == "false"
-            assert "-en" in args and args[args.index("--profiling_ranks") + 1] == "0,8"
-            assert args[args.index("-cb") + 1] == "source /cloudai_run_results/env_vars.sh"
-            source = Path("tests/ref_data/megatron-bridge-nemo.sbatch").read_text()
-            source = source.replace("__OUTPUT__", str(tr.output_path)).replace(
-                "__IMAGE__", str(tdef.docker_image.installed_path)
-            )
-            source = source.replace("__PROFILE__", "nsys profile -t cuda,nvtx")
-            script = tr.output_path / "experiments/run/training_sbatch.sh"
-            script.parent.mkdir(parents=True)
-            script.write_text(source)
-            return subprocess.CompletedProcess(command, 0)
-
-        response = Mock()
-        response.json.return_value = {"job_id": 123, "errors": []}
-        process = Mock()
-        process.communicate.return_value = ("Submitted batch job 123", "")
-        process.returncode = 0
-        with (
-            patch(
-                "cloudai.workloads.megatron_bridge.slurm_command_gen_strategy.subprocess.run",
-                side_effect=generate_nemo_script,
-            ) as launch,
-            patch("cloudai.util.command_shell.CommandShell.execute", return_value=process) as cli,
-            patch("cloudai.systems.slurm.slurm_rest_client.requests.request", return_value=response) as rest,
-        ):
-            if isinstance(runner, SingleSbatchRunner):
-                content = runner.gen_sbatch_content()
-                assert ("vboost.out" in content) is vboost
-            else:
-                runner.submit_test(tr)
-                assert runner.jobs[0].id == 123
-                content = (tr.output_path / "cloudai_sbatch_script.sh").read_text()
-                assert content.index("/pre_test/") < content.index("python train.py") < content.index("/post_test/")
-                assert "exit $?\n)" in content
-                assert "#SBATCH -N 2" in content
-                assert "#SBATCH --exclusive" in content and "#SBATCH --mem=0" in content
-                assert "upstream-node" not in content and "upstream-partition" not in content
-                assert "#SBATCH --open-mode=append" not in content
-                assert ("boost-slider --vboost 1" in content) is vboost
-                if transport == "rest":
-                    cli.assert_not_called()
-                    payload = rest.call_args.kwargs["json"]
-                    assert payload["script"] == content
-                    assert payload["job"]["nodes"] == [2, 2]
-                    assert payload["job"]["exclusive"] == "exclusive"
-                    assert payload["job"]["memory_per_node"] == 0
-                    assert payload["job"]["open_mode"] == "truncate"
-                else:
-                    rest.assert_not_called()
-                    cli.assert_called_once_with(f"sbatch {tr.output_path / 'cloudai_sbatch_script.sh'}")
-            launch.assert_called_once()
-            # A fresh strategy, as used for metadata/reporting, must reuse the retained NeMo artifacts.
-            cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, tr)
-            cmd_gen.generate_test_command()
-            launch.assert_called_once()
-
-        subprocess.run(["bash", "-n"], input=content, text=True, check=True)
-        assert "slurm-metadata.sh" in content and "nsys profile -t cuda,nvtx" in content
-        assert 'head_node_ip="$head_node"' in content and "hostname --ip-address" not in content
-        assert "export PRIORITY=upstream" not in content and "export UPSTREAM_ONLY=retained" in content
-        assert "--kill-on-bad-exit=1 --cpu-bind=none" in content
-        env = (tr.output_path / "env_vars.sh").read_text()
-        assert 'export PRIORITY="test"' in env
-        assert 'export EXECUTOR_ONLY="executor"' in env and 'export GLOBAL_ONLY="global"' in env
-        assert 'export TASK_RANK="$SLURM_PROCID"' in env
-        assert f'export ENABLE_VBOOST="{int(vboost)}"' in env
-        details = toml.load(tr.output_path / "test-run.toml")
-        assert details["test_definition"]["cmd_args"]["hf_token"] == "<REDACTED>"
-        assert "dummy_token" not in (tr.output_path / "test-run.toml").read_text()
-        assert tdef.cmd_args.hf_token == "dummy_token"
-
-        training_log = tr.output_path / "experiments/run/log_123.out"
-        training_log.write_text(
-            "Step Time : 2.0s GPU utilization: 100.0MODEL_TFLOP/s/GPU\n"
-            "Step Time : 4.0s GPU utilization: 200.0TFLOP/s/GPU\n"
-        )
-        report = MegatronBridgeReportGenerationStrategy(slurm_system, tr)
-        assert tdef.was_run_successful(tr).is_successful
-        assert report.get_metric("step-time") == 3.0 and report.get_metric("tflops-per-gpu") == 150.0
-        report.generate_report()
-        assert str(training_log) in (tr.output_path / "report.txt").read_text()
-        cmd_gen.cleanup_job_artifacts()
-        assert "dummy_token" not in (tr.output_path / "cloudai_megatron_bridge_launcher.sh").read_text()
-
-    @pytest.mark.parametrize("returncode", [0, 1])
-    def test_generation_failure_does_not_submit(
-        self,
-        slurm_system: SlurmSystem,
-        mbridge_tr: TestRun,
-        returncode: int,
-    ) -> None:
-        runner = SlurmRunner(
-            mode="run",
-            system=slurm_system,
-            test_scenario=TestScenario(name="mbridge-failure", test_runs=[mbridge_tr]),
-            output_path=slurm_system.output_path,
-        )
-        with (
-            patch(
-                "cloudai.workloads.megatron_bridge.slurm_command_gen_strategy.subprocess.run",
-                return_value=subprocess.CompletedProcess("", returncode),
-            ),
-            patch.object(SlurmSystem, "submit_job") as submit,
-            pytest.raises(RuntimeError, match=r"Megatron-Bridge dry-run.*See .*launcher.log"),
-        ):
-            runner.submit_test(mbridge_tr)
-        submit.assert_not_called()
-
-    @pytest.mark.parametrize("step_times", [None, [], [2.0], list(range(1, 13))])
-    def test_legacy_reporting(
-        self,
-        slurm_system: SlurmSystem,
-        mbridge_tr: TestRun,
-        step_times: list[float] | None,
-    ) -> None:
-        tr = mbridge_tr
-        tr.output_path.mkdir()
-        log = tr.output_path / "cloudai_megatron_bridge_launcher.log"
-        if step_times is not None:
-            log.write_text(
-                "\n".join(f"Step Time : {step}s GPU utilization: 100MODEL_TFLOP/s/GPU" for step in step_times)
-            )
-        report = MegatronBridgeReportGenerationStrategy(slurm_system, tr)
-        assert report.can_handle_directory() is (step_times is not None)
-        assert report.results_file == log
-        assert tr.test.was_run_successful(tr).is_successful is bool(step_times)
-        assert report.get_metric("unsupported") == METRIC_ERROR
-        report.generate_report()
-        if step_times:
-            last_steps = step_times[-10:]
-            assert report.get_metric("default") == sum(last_steps) / len(last_steps)
-            assert report.get_metric("tflops-per-gpu") == 100
-            assert "TFLOP/s per GPU" in (tr.output_path / "report.txt").read_text()
-        else:
-            assert report.get_metric("default") == METRIC_ERROR
-            assert (tr.output_path / "report.txt").exists() is (step_times is not None)
