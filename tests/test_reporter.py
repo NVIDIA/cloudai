@@ -16,6 +16,7 @@
 
 import copy
 import csv
+import logging
 import tarfile
 import xml.etree.ElementTree as ET
 from dataclasses import asdict
@@ -508,7 +509,7 @@ def test_scenario_report_shows_pass_fail_status(
 
 
 def test_scenario_report_shows_cancelled_status(
-    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Regression test: a run killed by a start_post_comp/end_post_comp dependency is recorded
     as "cancelled" in experiment.json, but was still rendered as PASSED/FAILED here because
@@ -548,11 +549,17 @@ def test_scenario_report_shows_cancelled_status(
         slurm_system.output_path,
         ReportConfig(),
     )
+    caplog.set_level(logging.INFO)
     reporter.generate()
 
     report_html = (slurm_system.output_path / "test-scenario.html").read_text()
     assert "CANCELLED" in report_html
     assert "PASSED" not in report_html
+    assert "FAILED" not in report_html
+
+    assert "CANCELLED" in caplog.text
+    assert "PASSED" not in caplog.text
+    assert "FAILED" not in caplog.text
     assert "FAILED" not in report_html
 
 

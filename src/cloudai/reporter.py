@@ -49,7 +49,7 @@ def _cancelled_run_paths(results_root: Path) -> set[str]:
     if not experiment_path.is_file():
         return set()
     try:
-        experiment = cloudai.models.output.Experiment.model_validate_json(experiment_path.read_text())
+        experiment = cloudai.models.output.Experiment.model_validate_json(experiment_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, pydantic.ValidationError) as e:
         logging.debug("Could not read experiment output %s: %s", experiment_path, e)
         return set()
