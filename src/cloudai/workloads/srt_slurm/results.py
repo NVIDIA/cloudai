@@ -16,6 +16,7 @@
 
 import json
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -43,7 +44,57 @@ def numeric_fields(data: dict[str, Any]) -> dict[str, float]:
     return {key: value for key, raw in data.items() if (value := number(raw)) is not None}
 
 
-def sa_bench_metrics(data: dict[str, Any], tdef: "SRTSlurmTestDefinition") -> dict[str, float]:
+@dataclass(frozen=True)
+class JobGPUCounts:
+    """Backend GPU pools resolved by srt-slurm for one submitted job."""
+
+    aggregate: int
+    prefill: int
+    decode: int
+
+    @property
+    def serving(self) -> int:
+        return self.aggregate + self.prefill + self.decode
+
+    def as_metrics(self) -> dict[str, float]:
+        return {
+            "serving_gpus": float(self.serving),
+            "aggregate_gpus": float(self.aggregate),
+            "prefill_gpus": float(self.prefill),
+            "decode_gpus": float(self.decode),
+        }
+
+
+def load_gpu_counts(path: Path) -> JobGPUCounts:
+    """Read required producer-resolved counts; never infer them from node capacity."""
+    if not path.is_file():
+        raise ValueError(f"Missing required srt-slurm job metadata: {path}")
+    metadata = read_json(path)
+    job_id = metadata.get("job_id")
+    if not isinstance(job_id, (str, int)) or isinstance(job_id, bool) or str(job_id) != path.stem:
+        raise ValueError(f"Invalid or mismatched job_id in srt-slurm job metadata: {path}")
+    resources = metadata.get("resources")
+    if not isinstance(resources, dict):
+        raise ValueError(f"Missing resources in srt-slurm job metadata: {path}")
+    counts = {}
+    for role in ("agg", "prefill", "decode"):
+        workers = resources.get(f"{role}_workers")
+        if type(workers) is not int or workers < 0:
+            raise ValueError(f"Invalid resources.{role}_workers in srt-slurm job metadata: {path}")
+        if workers == 0:
+            counts[role] = 0
+            continue
+        per_worker = resources.get(f"gpus_per_{role}")
+        if type(per_worker) is not int or per_worker <= 0:
+            raise ValueError(f"Invalid resources.gpus_per_{role} in srt-slurm job metadata: {path}")
+        counts[role] = workers * per_worker
+    result = JobGPUCounts(aggregate=counts["agg"], prefill=counts["prefill"], decode=counts["decode"])
+    if result.serving <= 0:
+        raise ValueError(f"No serving GPUs in srt-slurm job metadata: {path}")
+    return result
+
+
+def sa_bench_metrics(data: dict[str, Any], gpus: JobGPUCounts) -> dict[str, float]:
     metrics = numeric_fields(data)
     aliases = {"max_concurrency": "concurrency", "output_throughput": "throughput_toks"}
     for old, new in aliases.items():
@@ -52,12 +103,16 @@ def sa_bench_metrics(data: dict[str, Any], tdef: "SRTSlurmTestDefinition") -> di
     if "throughput_toks" not in metrics:
         return {}
     metrics["output_throughput"] = metrics["throughput_toks"]
-    if tdef.serving_gpus and "total_token_throughput" in metrics:
-        metrics["tput_per_gpu"] = metrics["total_token_throughput"] / tdef.serving_gpus
-        output_gpus = tdef.decode_gpus or tdef.serving_gpus
-        metrics["output_tput_per_gpu"] = metrics["throughput_toks"] / output_gpus
-        input_gpus = tdef.prefill_gpus or tdef.serving_gpus
-        metrics["input_tput_per_gpu"] = (metrics["total_token_throughput"] - metrics["throughput_toks"]) / input_gpus
+    # Producer rollups may contain capacity-based normalization; use only raw measurements.
+    for key in ("tput_per_gpu", "output_tput_per_gpu", "input_tput_per_gpu"):
+        metrics.pop(key, None)
+    metrics.update(gpus.as_metrics())
+    metrics["output_tput_per_gpu"] = metrics["throughput_toks"] / (gpus.decode or gpus.serving)
+    if "total_token_throughput" in metrics:
+        metrics["tput_per_gpu"] = metrics["total_token_throughput"] / gpus.serving
+        metrics["input_tput_per_gpu"] = (metrics["total_token_throughput"] - metrics["throughput_toks"]) / (
+            gpus.prefill or gpus.serving
+        )
     add_sa_latencies(data, metrics)
     return metrics
 
@@ -86,29 +141,35 @@ def add_sa_latencies(data: dict[str, Any], metrics: dict[str, float]) -> None:
                     metrics[f"{stat}_intvty"] = 1000 / value
 
 
-def agentx_metrics(data: dict[str, Any]) -> dict[str, float]:
+def agentx_metrics(data: dict[str, Any], gpus: JobGPUCounts) -> dict[str, float]:
     request = data.get("request_metrics")
     if not isinstance(request, dict):
         return {}
-    throughput = request.get("throughput", {})
-    per_gpu = throughput.get("per_gpu", {}) if isinstance(throughput, dict) else {}
-    if not isinstance(per_gpu, dict) or number(per_gpu.get("total_tput_tps")) is None:
+    throughput = request.get("throughput")
+    if not isinstance(throughput, dict):
         return {}
     metrics = numeric_fields(data)
     if "conc" in metrics:
         metrics["concurrency"] = metrics["conc"]
-    for source, dest in (
-        ("total_tput_tps", "tput_per_gpu"),
-        ("output_tput_tps", "output_tput_per_gpu"),
-        ("input_tput_tps", "input_tput_per_gpu"),
+    # AgentX normalizes every stream by total serving GPUs, including disaggregated runs.
+    # Its per_gpu values can reflect stale environment metadata after topology DSE.
+    for key in ("tput_per_gpu", "output_tput_per_gpu", "input_tput_per_gpu"):
+        metrics.pop(key, None)
+    metrics.update(gpus.as_metrics())
+    for source, raw_key, normalized_key in (
+        ("total", "total_tput_tps", "tput_per_gpu"),
+        ("input", "input_tput_tps", "input_tput_per_gpu"),
+        ("output", "output_tput_tps", "output_tput_per_gpu"),
     ):
-        if (value := number(per_gpu.get(source))) is not None:
-            metrics[dest] = value
-    metrics.update(numeric_fields(throughput))
-    for source, dest in (("total", "total_tput_tps"), ("input", "input_tput_tps"), ("output", "output_tput_tps")):
-        block = throughput.get(source, {})
-        if isinstance(block, dict) and (value := number(block.get("tokens_per_second"))) is not None:
-            metrics[dest] = value
+        block = throughput.get(source)
+        value = number(block.get("tokens_per_second")) if isinstance(block, dict) else None
+        if value is None:
+            value = number(throughput.get(raw_key))
+        if value is not None:
+            metrics[raw_key] = value
+            metrics[normalized_key] = value / gpus.serving
+    if "tput_per_gpu" not in metrics:
+        return {}
     if "output_tput_tps" in metrics:
         metrics["output_throughput"] = metrics["throughput_toks"] = metrics["output_tput_tps"]
     add_agentx_latencies(request.get("latency", {}), metrics)
@@ -136,10 +197,14 @@ def load_results(tdef: "SRTSlurmTestDefinition", tr: TestRun) -> list[dict[str, 
     logs = tdef.logs_path(tr)
     if logs is None:
         return []
+    metadata = tdef.metadata_path(tr)
+    if metadata is None:
+        raise ValueError("No submitted srt-slurm job ID for required job metadata")
+    gpus = load_gpu_counts(metadata)
     if tdef.cmd_args.result_format == "agentx":
         results = []
         for path in sorted((logs / "agentic").glob("*.json")):
-            metrics = agentx_metrics(read_json(path))
+            metrics = agentx_metrics(read_json(path), gpus)
             concurrency = metrics.get("concurrency")
             if concurrency is None or not concurrency.is_integer():
                 continue
@@ -150,8 +215,8 @@ def load_results(tdef: "SRTSlurmTestDefinition", tr: TestRun) -> list[dict[str, 
         return results
     raw_files = sorted(logs.glob("sa-bench_*/results_*.json"))
     if raw_files:
-        return [metrics for path in raw_files if (metrics := sa_bench_metrics(read_json(path), tdef))]
+        return [metrics for path in raw_files if (metrics := sa_bench_metrics(read_json(path), gpus))]
     runs = read_json(logs / "benchmark-rollup.json").get("runs", [])
     if not isinstance(runs, list):
         return []
-    return [metrics for run in runs if isinstance(run, dict) and (metrics := sa_bench_metrics(run, tdef))]
+    return [metrics for run in runs if isinstance(run, dict) and (metrics := sa_bench_metrics(run, gpus))]

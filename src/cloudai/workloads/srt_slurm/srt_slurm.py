@@ -31,19 +31,24 @@ class SRTSlurmCmdArgs(CmdArgs):
     recipe_path: Path
     cluster_config: Path
     result_format: Literal["sa-bench", "agentx"] = "sa-bench"
+    # native passes typed --set arguments to srtctl; render writes a per-trial
+    # recipe copy for older CLIs without --set, replacing existing keys only.
+    recipe_override_mode: Literal["native", "render"] = "native"
     recipe_overrides: dict[str, Any] = Field(default_factory=dict)
 
     def excluded_cmd_args(self) -> list[str]:
-        return ["cmd_args.recipe_path", "cmd_args.cluster_config", "cmd_args.result_format"]
+        return [
+            "cmd_args.recipe_path",
+            "cmd_args.cluster_config",
+            "cmd_args.result_format",
+            "cmd_args.recipe_override_mode",
+        ]
 
 
 class SRTSlurmTestDefinition(TestDefinition):
     """Run one declarative srt-slurm recipe as one CloudAI trial."""
 
     cmd_args: SRTSlurmCmdArgs
-    serving_gpus: int | None = Field(default=None, gt=0)
-    prefill_gpus: int | None = Field(default=None, gt=0)
-    decode_gpus: int | None = Field(default=None, gt=0)
     git_repos: list[GitRepo] = Field(
         default_factory=list, min_length=1, validate_default=True, description="The first repository supplies srtctl."
     )
@@ -74,22 +79,35 @@ class SRTSlurmTestDefinition(TestDefinition):
     def job_id_path(tr: TestRun) -> Path:
         return tr.output_path / "srt_job_id.txt"
 
-    def rollup_path(self, tr: TestRun) -> Path | None:
+    def job_output_path(self, tr: TestRun) -> Path | None:
+        """Return the submitted job's output directory, without guessing its identity."""
         try:
             job_id = self.job_id_path(tr).read_text(encoding="utf-8").strip()
         except OSError:
             return None
         if not job_id.isdigit():
             return None
-        return tr.output_path / "srt_slurm_outputs" / job_id / "logs" / "benchmark-rollup.json"
+        return tr.output_path / "srt_slurm_outputs" / job_id
+
+    def metadata_path(self, tr: TestRun) -> Path | None:
+        output = self.job_output_path(tr)
+        return output / f"{output.name}.json" if output else None
+
+    def rollup_path(self, tr: TestRun) -> Path | None:
+        logs = self.logs_path(tr)
+        return logs / "benchmark-rollup.json" if logs else None
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         from .results import load_results
 
-        if not load_results(self, tr):
+        try:
+            results = load_results(self, tr)
+        except ValueError as error:
+            return JobStatusResult(is_successful=False, error_message=str(error))
+        if not results:
             return JobStatusResult(is_successful=False, error_message="No usable job-local srt-slurm results found.")
         return JobStatusResult(is_successful=True)
 
     def logs_path(self, tr: TestRun) -> Path | None:
-        rollup = self.rollup_path(tr)
-        return rollup.parent if rollup else None
+        output = self.job_output_path(tr)
+        return output / "logs" if output else None

@@ -25,7 +25,6 @@ description = "SGLang through an existing srt-slurm recipe"
 test_template_name = "SRTSlurm"
 agent = "grid_search"
 agent_metrics = ["tput_per_gpu"]
-serving_gpus = 1
 
   [[Tests.git_repos]]
   url = "https://github.com/NVIDIA/srt-slurm.git"

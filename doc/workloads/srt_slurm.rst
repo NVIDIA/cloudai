@@ -21,7 +21,6 @@ and must be accessible on the shared filesystem.
    description = "SGLang with srt-slurm"
    test_template_name = "SRTSlurm"
    agent_metrics = ["tput_per_gpu"]
-   serving_gpus = 4
 
    [[git_repos]]
    url = "https://github.com/NVIDIA/srt-slurm.git"
@@ -37,6 +36,11 @@ and must be accessible on the shared filesystem.
 
 The first ``git_repos`` entry supplies srtctl; additional entries use ordinary
 CloudAI installation. Pin a revision supporting ``srtctl apply --set``.
+For older revisions without ``--set``, set ``cmd_args.recipe_override_mode = "render"``.
+This overlays existing mapping keys in a concrete recipe, preserves YAML value types,
+and submits a trial-local ``cloudai_generated/recipe.yaml``. It rejects missing keys
+and does not resolve recipe variants or interpret native override path expressions;
+select the effective concrete recipe first. The default remains ``"native"``.
 Lists in ``recipe_overrides`` are DSE dimensions. Use nested candidate lists
 when the selected recipe value is itself a list. Recipe paths, cluster config
 paths, and result format are excluded from DSE. Additional apply flags use
@@ -65,12 +69,27 @@ Results
 
 ``result_format = "sa-bench"`` reads job-local ``sa-bench_*/results_*.json``
 files, falling back to ``benchmark-rollup.json`` when raw results are absent.
-``default`` and ``output_throughput`` expose output tokens/s. Set
-``serving_gpus`` to the actual serving GPU count to enable ``tput_per_gpu``
-from total token throughput, including input tokens. For disaggregated serving,
-also set ``prefill_gpus`` and ``decode_gpus`` for the input/output per-GPU
-divisors. Infrastructure and idle GPUs do not belong in these counts; shared
-aggregate GPUs count once. A rollup lacking total throughput cannot provide
+Both result formats require the submitted job's ``<job_id>.json`` next to its
+``logs`` directory. Its ``job_id`` must match the tracked job, and ``resources``
+must contain nonnegative integer worker counts for ``agg``, ``prefill`` and
+``decode``, plus positive integer ``gpus_per_<role>`` for each active role.
+Missing, malformed, mismatched or incomplete metadata makes the trial unsuccessful;
+there is no fallback to manual counts, filenames, node capacity or resource snapshots.
+Use a pinned revision containing the resolved GPU metadata feature (introduced in
+commit ``7858d3091d5e278ab56ebf0246df9ea913bc2477``, first released in ``v1.0.0``).
+
+CloudAI calculates each role's GPU total as workers times GPUs per worker and sums
+those totals for the serving count. This automatically follows each trial's effective
+DSE topology. ``serving_gpus``, ``prefill_gpus`` and ``decode_gpus`` are no longer
+scenario fields; remove them from existing configs. Resolved counts appear in each
+CSV result row as ``serving_gpus``, ``aggregate_gpus``, ``prefill_gpus`` and ``decode_gpus``.
+
+``default`` and ``output_throughput`` expose output tokens/s;
+``total_token_throughput`` exposes input plus output tokens/s.
+``tput_per_gpu`` divides total throughput by the metadata-derived serving count.
+Disaggregated input/output per-GPU metrics use their respective prefill/decode pools;
+aggregated metrics share the aggregate pool, counted once. Producer-normalized
+rollup fields are ignored. A rollup lacking raw total throughput cannot provide
 ``tput_per_gpu``. Latency aliases such as ``median_ttft`` use seconds;
 ``ttft_median_ms`` uses milliseconds. ``median_intvty`` and ``p90_intvty``
 use the reciprocal of the corresponding TPOT, in tokens/s/user.
@@ -78,8 +97,12 @@ use the reciprocal of the corresponding TPOT, in tokens/s/user.
 ``result_format = "agentx"`` reads InferenceX aggregate JSON from the submitted
 job's ``logs/agentic`` directory. Each aggregate must have its corresponding
 ``conc_<c>/aiperf_artifacts/profile_export.jsonl``. CloudAI reads the existing
-aggregation rather than recomputing per-request statistics. Throughput uses
-``request_metrics.throughput.per_gpu``; interactivity uses full-response ITL
+aggregation rather than recomputing per-request statistics. CloudAI recomputes
+per-GPU throughput from raw ``request_metrics.throughput`` total/input/output values
+using the job metadata's total serving count for all three streams. Producer
+``per_gpu`` values are ignored, since environment-derived divisors can become stale
+when DSE changes topology. An aggregate without raw total throughput is unusable.
+Interactivity uses full-response ITL
 when available, otherwise ITL. Latency aliases use the same units as sa-bench.
 
 An AgentX recipe uses ``benchmark.type: custom`` and its existing InferenceX

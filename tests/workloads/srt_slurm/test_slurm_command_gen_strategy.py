@@ -19,8 +19,12 @@ import sys
 from pathlib import Path
 
 import pytest
+import toml
+import yaml
 
 from cloudai.core import Registry, TestRun, TestScenario
+from cloudai.models.scenario import ReportConfig, TestRunDetails
+from cloudai.reporter import DSEReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.workloads.srt_slurm import SRTSlurmCommandGenStrategy
 
@@ -35,17 +39,47 @@ def test_runner_tracks_the_recipe_job(slurm_system: SlurmSystem, tmp_path: Path,
     tdef.srtctl_path.parent.mkdir(parents=True)
     repo = slurm_system.install_path / tdef.git_repos[0].repo_name
     repo.mkdir(parents=True)
+    tdef.git_repos[0].installed_path = repo
     tdef.srtctl_path.write_text(f"#!{sys.executable}\nprint('Submitted batch job 111')\nprint('Job 222 submitted')\n")
     tdef.srtctl_path.chmod(0o755)
     monkeypatch.chdir(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=Path("relative output"))
     runner = SlurmRunner("run", slurm_system, TestScenario(name="srt", test_runs=[tr]), tmp_path)
-    job = runner._submit_test(tr)
+    runner.submit_test(tr)
+    job = runner.jobs[0]
     assert job.id == 222
     assert tdef.job_id_path(tr).read_text().strip() == "222"
-    runner.on_job_submit(tr)
     assert (tr.output_path / "test-run.toml").is_file()
+    details = TestRunDetails.model_validate(toml.load(tr.output_path / "test-run.toml"))
+    assert details.test_definition.cmd_args.recipe_path == tdef.cmd_args.recipe_path
+    assert details.test_definition.cmd_args.cluster_config == tdef.cmd_args.cluster_config
+    assert details.test_definition.git_repos[0].installed_path == repo
     assert Registry().get_command_gen_strategy(SlurmSystem, type(tdef)) is SRTSlurmCommandGenStrategy
+
+
+def test_best_dse_config_preserves_paths(slurm_system: SlurmSystem, tmp_path: Path):
+    tdef = make_tdef(tmp_path)
+    tdef.srtctl.venv_path = tmp_path / "venv"
+    tdef.cmd_args.recipe_overrides = {"roles": {"agg": {"args": {"tensor-parallel-size": [1, 2]}}}}
+    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "results")
+    root = tmp_path / "results"
+    iteration = root / "srt" / "0"
+    iteration.mkdir(parents=True)
+    key = "recipe_overrides.roles.agg.args.tensor-parallel-size"
+    (iteration / "trajectory.csv").write_text(
+        f"step,action,reward,observation\n1,\"{{'{key}': 1}}\",10,[10]\n2,\"{{'{key}': 2}}\",20,[20]\n"
+    )
+    for step in (1, 2):
+        selected = tr.apply_params_set({key: step})
+        selected.output_path = iteration / str(step)
+        SRTSlurmCommandGenStrategy(slurm_system, selected).store_test_run()
+    reporter = DSEReporter(slurm_system, TestScenario(name="srt", test_runs=[tr]), root, ReportConfig())
+    reporter.report_best_dse_config()
+    exported = toml.load(iteration / "srt.toml")
+    reloaded = type(tdef).model_validate(exported)
+    assert reloaded.cmd_args.recipe_path == tdef.cmd_args.recipe_path
+    assert reloaded.cmd_args.cluster_config == tdef.cmd_args.cluster_config
+    assert reloaded.cmd_args.recipe_overrides["roles"]["agg"]["args"]["tensor-parallel-size"] == 2
 
 
 def test_failed_submission_does_not_publish_a_job_id(slurm_system: SlurmSystem, tmp_path: Path):
@@ -69,3 +103,21 @@ def test_single_sbatch_rejected(slurm_system: SlurmSystem, tmp_path: Path):
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
     with pytest.raises(ValueError, match="single-sbatch"):
         SRTSlurmCommandGenStrategy(slurm_system, tr).gen_srun_command()
+
+
+def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path: Path):
+    tdef = make_tdef(tmp_path)
+    original = tdef.cmd_args.recipe_path.read_text()
+    tdef.cmd_args.recipe_override_mode = "render"
+    tdef.srtctl.venv_path = tmp_path / "venv"
+    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "results")
+    strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
+    strategy.gen_exec_command()
+    rendered = tr.output_path / "cloudai_generated" / "recipe.yaml"
+    assert yaml.safe_load(rendered.read_text())["roles"]["agg"]["gpus"] == 4
+    assert tdef.cmd_args.recipe_path.read_text() == original
+    assert str(rendered) in strategy._paths()["run_script"].read_text()
+    assert "--set" not in strategy._paths()["run_script"].read_text()
+    tdef.cmd_args.recipe_overrides = {"roles": {"agg": {"typo": 1}}}
+    with pytest.raises(ValueError, match=r"absent key: roles\.agg\.typo"):
+        strategy.gen_exec_command()
