@@ -77,6 +77,22 @@ benchmark:
     )
 
 
+def write_job_metadata(tdef: SRTSlurmTestDefinition, tr: TestRun, **resources) -> Path:
+    path = tdef.metadata_path(tr)
+    assert path is not None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    defaults = {
+        "gpus_per_node": 8,
+        "agg_nodes": 1,
+        "agg_workers": 1,
+        "gpus_per_agg": 4,
+        "prefill_workers": 0,
+        "decode_workers": 0,
+    }
+    path.write_text(json.dumps({"job_id": path.stem, "resources": defaults | resources}))
+    return path
+
+
 def test_command_generation_returns_srt_slurm_job(slurm_system: SlurmSystem, tmp_path: Path):
     tdef = make_tdef(tmp_path)
     tdef.srtctl.venv_path = tmp_path / "venv"
@@ -212,7 +228,12 @@ benchmark:
         "benchmark.concurrencies=[32, 64]",
     ]
     assert source.read_text(encoding="utf-8") == original
-    assert tdef.dse_excluded_args == ["cmd_args.recipe_path", "cmd_args.cluster_config", "cmd_args.result_format"]
+    assert tdef.dse_excluded_args == [
+        "cmd_args.recipe_path",
+        "cmd_args.cluster_config",
+        "cmd_args.result_format",
+        "cmd_args.recipe_override_mode",
+    ]
     assert "cmd_args.recipe_overrides" not in tdef.dse_excluded_args
 
 

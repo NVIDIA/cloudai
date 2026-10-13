@@ -77,16 +77,24 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         repo = self.tdef.git_repos[0]
         repo_path = (repo.installed_path or self.system.install_path / repo.repo_name).absolute()
         cluster_config = self.tdef.cmd_args.cluster_config.expanduser().absolute()
+        recipe = paths["recipe"]
+        overrides = self._override_args(self.tdef.cmd_args.recipe_overrides)
+        if self.tdef.cmd_args.recipe_override_mode == "render":
+            data = self._load_recipe(recipe)
+            self._overlay_recipe(data, self.tdef.cmd_args.recipe_overrides)
+            recipe = paths["generated"] / "recipe.yaml"
+            recipe.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+            overrides = []
         apply_command = shlex.join(
             [
                 str(self.tdef.srtctl_path),
                 "apply",
                 "-f",
-                str(paths["recipe"]),
+                str(recipe),
                 "-o",
                 str(paths["nested_outputs"]),
                 "-y",
-                *self._override_args(self.tdef.cmd_args.recipe_overrides),
+                *overrides,
                 *self._extra_cmd_arg_parts(),
             ]
         )
@@ -128,6 +136,20 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         paths["run_script"].write_text(script, encoding="utf-8")
 
+    @staticmethod
+    def _overlay_recipe(data: dict[str, Any], overrides: dict[str, Any], prefix: str = "") -> None:
+        """Overlay existing keys of a concrete recipe for older CLIs without --set."""
+        for key, value in overrides.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if key not in data:
+                raise ValueError(f"Rendered recipe override targets an absent key: {path}")
+            if isinstance(value, dict):
+                if not isinstance(data[key], dict):
+                    raise ValueError(f"Rendered recipe override targets a non-mapping: {path}")
+                SRTSlurmCommandGenStrategy._overlay_recipe(data[key], value, path)
+            else:
+                data[key] = value
+
     def _extra_cmd_arg_parts(self) -> list[str]:
         args = []
         for name, value in self.tdef.extra_cmd_args.items():
@@ -138,6 +160,12 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self) -> list[str]:
         return []
+
+    def store_test_run(self) -> None:
+        # SlurmRunner records command metadata before submitting the test.
+        # Prepare the wrapper first, without executing srtctl.
+        self.gen_exec_command()
+        super().store_test_run()
 
     def gen_exec_command(self) -> str:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import csv
+import logging
 from typing import ClassVar, cast
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
@@ -30,6 +31,7 @@ class SRTSlurmReportGenerationStrategy(ReportGenerationStrategy):
         "default",
         "output_throughput",
         "throughput_toks",
+        "total_token_throughput",
         "request_throughput",
         "tput_per_gpu",
         "input_tput_per_gpu",
@@ -48,7 +50,11 @@ class SRTSlurmReportGenerationStrategy(ReportGenerationStrategy):
     ]
 
     def results(self) -> list[dict[str, float]]:
-        return load_results(cast(SRTSlurmTestDefinition, self.test_run.test), self.test_run)
+        try:
+            return load_results(cast(SRTSlurmTestDefinition, self.test_run.test), self.test_run)
+        except ValueError as error:
+            logging.warning("Unable to read srt-slurm results: %s", error)
+            return []
 
     def can_handle_directory(self) -> bool:
         return bool(self.results())
