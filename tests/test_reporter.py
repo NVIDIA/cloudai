@@ -657,7 +657,9 @@ def test_dse_reporter(
         "observed_runtime": "6m",
         "efficiency_ratio": "~1.3x",
         "efficiency_steps": "3 / 4 steps",
-        "best_config_toml": toml.dumps(TestRunDetails.from_test_run(best_tr, "", "").test_definition.model_dump()),
+        "best_config_toml": toml.dumps(
+            TestRunDetails.from_test_run(best_tr, "", "").test_definition.model_dump(mode="json")
+        ),
         "parameter_rows": [
             {
                 "name": "ngpus",

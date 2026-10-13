@@ -182,6 +182,11 @@ def register_all():
         SleepTestDefinition,
     )
     from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+    from cloudai.workloads.srt_slurm import (
+        SRTSlurmCommandGenStrategy,
+        SRTSlurmReportGenerationStrategy,
+        SRTSlurmTestDefinition,
+    )
     from cloudai.workloads.triton_inference import (
         TritonInferenceReportGenerationStrategy,
         TritonInferenceSlurmCommandGenStrategy,
@@ -265,6 +270,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, FioTestDefinition, FioSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SglangTestDefinition, SglangSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, VllmTestDefinition, VllmSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, SRTSlurmTestDefinition, SRTSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -297,6 +303,7 @@ def register_all():
     Registry().add_test_definition("NixlEP", NixlEPTestDefinition)
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
     Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
+    Registry().add_test_definition("SRTSlurm", SRTSlurmTestDefinition)
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
@@ -332,6 +339,7 @@ def register_all():
     Registry().add_report(OSUBenchTestDefinition, OSUBenchReportGenerationStrategy)
     Registry().add_report(SglangTestDefinition, SGLangBenchReportGenerationStrategy)
     Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
+    Registry().add_report(SRTSlurmTestDefinition, SRTSlurmReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("training", TrainingReporter, ReportConfig(enable=True))

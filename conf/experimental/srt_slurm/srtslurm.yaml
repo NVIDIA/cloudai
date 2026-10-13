@@ -1,0 +1,4 @@
+# Adapt these paths and Slurm defaults to your shared filesystem.
+default_partition: gpu
+gpus_per_node: 8
+srtctl_root: /shared/cloudai/install/srt-slurm__v2.2.1
