@@ -18,5 +18,5 @@ nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
 head_node=${nodes[0]}
 head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)
 set +e
-srun --output=__OUTPUT__/experiments/run/log_%j.out --container-image=__IMAGE__ bash -c 'source /cloudai_run_results/env_vars.sh; python train.py'
+srun --cpu-bind=none --output=__OUTPUT__/experiments/run/log_%j.out --container-image=__IMAGE__ bash -c 'source /cloudai_run_results/env_vars.sh; python train.py'
 exit $?

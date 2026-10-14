@@ -17,6 +17,17 @@ NeMo Run directives and training artifact paths are retained. Set scenario
 An explicitly configured value takes precedence over the ``ENABLE_VBOOST`` environment setting.
 The rendezvous address uses NeMo's selected head-node hostname, which must resolve inside the training containers.
 
+Additional launcher options can be passed through ``[extra_cmd_args]``. For example:
+
+.. code-block:: toml
+
+   [extra_cmd_args]
+   "--custom_srun_args" = "--cpu-bind=none,--kill-on-bad-exit=1"
+
+CloudAI combines ``-cs`` and ``--custom_srun_args`` from this table, then appends
+system and test-run ``extra_srun_args`` and pre-test-provided arguments. The result
+is passed through Megatron-Bridge's native ``-cs`` option without deduplication.
+
 For Nsight profiling, use Megatron-Bridge's ``cmd_args.enable_nsys`` and
 ``profiling_start_step``, ``profiling_stop_step``, and ``profiling_ranks`` options.
 The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
