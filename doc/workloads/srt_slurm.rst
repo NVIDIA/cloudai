@@ -38,9 +38,12 @@ The first ``git_repos`` entry supplies srtctl; additional entries use ordinary
 CloudAI installation. Pin a revision supporting ``srtctl apply --set``.
 For older revisions without ``--set``, set ``cmd_args.recipe_override_mode = "render"``.
 This overlays existing mapping keys in a concrete recipe, preserves YAML value types,
-and submits a trial-local ``cloudai_generated/recipe.yaml``. It rejects missing keys
+and submits a trial-local ``srt_slurm_recipe.yaml``. It rejects missing keys
 and does not resolve recipe variants or interpret native override path expressions;
 select the effective concrete recipe first. The default remains ``"native"``.
+The launch script ``run_srtctl.sh`` and rendered recipe are stored directly in
+each trial's output directory, alongside ``run_srtctl.log`` and ``srt_job_id.txt``.
+SRT Slurm job outputs are stored under ``srt_slurm_outputs/`` in that directory.
 Lists in ``recipe_overrides`` are DSE dimensions. Use nested candidate lists
 when the selected recipe value is itself a list. Recipe paths, cluster config
 paths, and result format are excluded from DSE. Additional apply flags use

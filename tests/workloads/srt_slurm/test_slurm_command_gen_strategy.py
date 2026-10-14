@@ -113,7 +113,9 @@ def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path:
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "results")
     strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
     strategy.gen_exec_command()
-    rendered = tr.output_path / "cloudai_generated" / "recipe.yaml"
+    rendered = tr.output_path / "srt_slurm_recipe.yaml"
+    assert (tr.output_path / "run_srtctl.sh").is_file()
+    assert not (tr.output_path / "cloudai_generated").exists()
     assert yaml.safe_load(rendered.read_text())["roles"]["agg"]["gpus"] == 4
     assert tdef.cmd_args.recipe_path.read_text() == original
     assert str(rendered) in strategy._paths()["run_script"].read_text()

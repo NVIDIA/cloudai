@@ -59,8 +59,8 @@ class SRTSlurmExecutable(PythonExecutable):
         return self._runtime_status(installer)
 
     def _prepare_cluster_config(self, installer: BaseInstaller, repo_path: Path) -> None:
-        # make setup prompts interactively without this file. This bootstrap
-        # config is checkout-local; trial submission always uses the supplied config.
+        # We create a placeholder config (srtslurm.yaml) file to avoid the interactive prompt during `make setup`.
+        # This is purely a placeholder - the actual config file used is specified via Tests.cmd_args.cluster_config in the CloudAI config
         config = repo_path / "srtslurm.yaml"
         if not config.is_file():
             self._write_cluster_config(installer, config, repo_path)

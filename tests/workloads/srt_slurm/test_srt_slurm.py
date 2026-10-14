@@ -100,7 +100,7 @@ def test_command_generation_returns_srt_slurm_job(slurm_system: SlurmSystem, tmp
     strategy = SRTSlurmCommandGenStrategy(slurm_system, test_run)
 
     command = strategy.gen_exec_command()
-    run_script = test_run.output_path / "cloudai_generated" / "run_srtctl.sh"
+    run_script = test_run.output_path / "run_srtctl.sh"
     script = run_script.read_text(encoding="utf-8")
 
     subprocess.run(["bash", "-n", run_script], check=True)

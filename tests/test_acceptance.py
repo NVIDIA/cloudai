@@ -967,7 +967,9 @@ def test_srt_slurm_example_dry_run(slurm_system: SlurmSystem, tmp_path: Path):
     job = runner._submit_test(tr)
     runner.on_job_submit(tr)
     assert job.id == 0
-    script = tr.output_path / "cloudai_generated" / "run_srtctl.sh"
+    script = tr.output_path / "run_srtctl.sh"
     assert script.is_file()
+    assert not (tr.output_path / "cloudai_generated").exists()
+    assert not (tr.output_path / "srt_slurm_recipe.yaml").exists()
     assert "--set" in script.read_text()
     assert (tr.output_path / "test-run.toml").is_file()

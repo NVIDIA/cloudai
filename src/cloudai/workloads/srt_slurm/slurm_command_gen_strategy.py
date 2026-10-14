@@ -61,19 +61,17 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _paths(self) -> dict[str, Path]:
         output = self.test_run.output_path.absolute()
-        generated = output / "cloudai_generated"
         return {
-            "generated": generated,
             "recipe": self.tdef.cmd_args.recipe_path.expanduser().absolute(),
+            "rendered_recipe": output / "srt_slurm_recipe.yaml",
             "nested_outputs": output / "srt_slurm_outputs",
             "run_log": output / "run_srtctl.log",
-            "run_script": generated / "run_srtctl.sh",
+            "run_script": output / "run_srtctl.sh",
             "job_id": self.tdef.job_id_path(self.test_run).absolute(),
         }
 
     def write_run_script(self) -> None:
         paths = self._paths()
-        paths["generated"].mkdir(parents=True, exist_ok=True)
         repo = self.tdef.git_repos[0]
         repo_path = (repo.installed_path or self.system.install_path / repo.repo_name).absolute()
         cluster_config = self.tdef.cmd_args.cluster_config.expanduser().absolute()
@@ -82,7 +80,7 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.tdef.cmd_args.recipe_override_mode == "render":
             data = self._load_recipe(recipe)
             self._overlay_recipe(data, self.tdef.cmd_args.recipe_overrides)
-            recipe = paths["generated"] / "recipe.yaml"
+            recipe = paths["rendered_recipe"]
             recipe.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
             overrides = []
         apply_command = shlex.join(
