@@ -284,6 +284,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         overrides.update(extra_cmd_args)
         return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
 
+    def _build_custom_srun_args(self, extra_cmd_args: dict[str, str]) -> list[str]:
+        """Consume native srun options and combine them with CloudAI arguments."""
+        srun_args = [extra_cmd_args.pop(flag) for flag in ("-cs", "--custom_srun_args") if flag in extra_cmd_args]
+        srun_args.extend(arg for arg in (self.system.extra_srun_args, self.test_run.extra_srun_args) if arg)
+        if self.test_run.pre_test:
+            for tr in self.test_run.pre_test.test_runs:
+                srun_args.extend(self._get_cmd_gen_strategy(tr).pre_test_srun_extra_args(self.test_run))
+        if custom_srun_args := ",".join(arg for arg in srun_args if arg):
+            return [shlex.quote(f"-cs={custom_srun_args}")]
+        return []
+
     @staticmethod
     def _with_default_packager(repo_path: Path, extra_cmd_args: dict[str, str]) -> dict[str, str]:
         """Disable source packaging when the installed Megatron-Bridge version supports the option."""
@@ -487,13 +498,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
         extra_cmd_args = self._with_default_packager(repo_path, tdef.extra_cmd_args)
-        srun_args = [extra_cmd_args.pop(flag) for flag in ("-cs", "--custom_srun_args") if flag in extra_cmd_args]
-        srun_args.extend(arg for arg in (self.system.extra_srun_args, self.test_run.extra_srun_args) if arg)
-        if self.test_run.pre_test:
-            for tr in self.test_run.pre_test.test_runs:
-                srun_args.extend(self._get_cmd_gen_strategy(tr).pre_test_srun_extra_args(self.test_run))
-        if custom_srun_args := ",".join(arg for arg in srun_args if arg):
-            parts.append(shlex.quote(f"-cs={custom_srun_args}"))
+        parts.extend(self._build_custom_srun_args(extra_cmd_args))
         parts.extend(self._add_extra_cmd_args(extra_cmd_args))
 
         return parts
