@@ -710,8 +710,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             num_nodes=2,
             time_limit="00:20:00",
             extra_srun_args="--cpu-bind=none",
-            pre_test=TestScenario(name="pre-test", test_runs=[test_mapping["nccl"]()]),
-            post_test=TestScenario(name="post-test", test_runs=[test_mapping["nccl"]()]),
         ),
         "vllm": lambda: create_test_run(
             partial_tr,

@@ -106,9 +106,6 @@ as they do with ``sbatch``. Explicit ``srun`` options can override these default
 
 Workloads that invoke their own Slurm launcher instead of producing an sbatch script are not supported in REST mode.
 
-REST submission supports ``#SBATCH --exclusive``, ``--mem`` (integer MB or a ``K``, ``M``, ``G``, or ``T`` suffix),
-and ``--open-mode=append`` or ``--open-mode=truncate``. Use ``--mem=0`` to request all memory on each allocated node.
-
 RunAI Scheduler
 ---------------
 

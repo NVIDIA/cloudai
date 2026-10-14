@@ -27,7 +27,6 @@ from typing import Any, Optional, cast
 
 import toml
 
-from cloudai.core import System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -39,12 +38,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".stderr", ".toml", ".yaml"})
 
-    def __init__(self, system: System, test_run: TestRun) -> None:
-        super().__init__(system, test_run)
-        tdef = cast(MegatronBridgeTestDefinition, test_run.test)
-        self.final_env_vars = tdef.cmd_args.executor_env_vars | self.final_env_vars
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        env_vars = tdef.cmd_args.executor_env_vars | super().final_env_vars
         if "enable_vboost" in tdef.cmd_args.model_fields_set:
-            self.final_env_vars["ENABLE_VBOOST"] = "1" if tdef.cmd_args.enable_vboost else "0"
+            env_vars["ENABLE_VBOOST"] = "1" if tdef.cmd_args.enable_vboost else "0"
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value
 
     def image_path(self) -> str | None:
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
