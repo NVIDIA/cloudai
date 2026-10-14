@@ -15,11 +15,11 @@
 # limitations under the License.
 
 # Run with --hook-dir conf/hook.
-name = "megatron_bridge_hooks_h100"
+name = "megatron_bridge_hooks"
 pre_test = "nccl_test"
 post_test = "nccl_test"
 
 [[Tests]]
 id = "mbridge-hooks"
-path = "../test/h100/megatron_bridge_qwen_30b.toml"
+test_name = "megatron_bridge_qwen_30b"
 num_nodes = 2

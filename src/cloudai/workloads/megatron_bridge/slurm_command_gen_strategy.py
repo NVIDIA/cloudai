@@ -21,6 +21,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import textwrap
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -56,11 +57,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self) -> list[str]:
         return []
-
-    def gen_exec_command(self) -> str:
-        command = super().gen_exec_command()
-        self._write_command_to_file(command, self.test_run.output_path)
-        return command
 
     @cached_property
     def _mbridge_sbatch(self) -> tuple[list[str], str]:
@@ -129,7 +125,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 line = line.replace("srun ", f"srun {extras} ", 1)
             body.append(line)
         # NeMo's shell options and exit must not escape into CloudAI's post-hook block.
-        return "(\n" + "\n".join(body) + "\n)"
+        return "(\n" + textwrap.indent("\n".join(body), "    ") + "\n)"
 
     def _generate_mbridge_sbatch(self) -> Path:
         existing_script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
@@ -255,12 +251,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if cleanup_failures:
             raise RuntimeError(f"Failed to clean {len(cleanup_failures)} job artifact(s).")
-
-    def _write_command_to_file(self, command: str, output_path: Path) -> None:
-        log_file = output_path / "cloudai_generated_command.sh"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        with log_file.open("w") as f:
-            f.write(f"{command}\n")
 
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
