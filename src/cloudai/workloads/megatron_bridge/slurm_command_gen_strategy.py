@@ -106,11 +106,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _gen_srun_command(self) -> str:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         env_vars_path = self._write_env_vars_script()
-        extra_args = [self.system.extra_srun_args, self.test_run.extra_srun_args]
-        if self.test_run.pre_test:
-            for tr in self.test_run.pre_test.test_runs:
-                extra_args.extend(self._get_cmd_gen_strategy(tr).pre_test_srun_extra_args(self.test_run))
-        extras = " ".join(arg for arg in extra_args if arg)
         body: list[str] = [f"source {shlex.quote(str(env_vars_path))}"]
         for line in self._mbridge_sbatch[1].splitlines():
             # Rendezvous accepts a hostname; avoid capturing srun output redirected by SingleSbatchRunner.
@@ -121,8 +116,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             export = re.match(r"\s*export ([A-Za-z_][A-Za-z0-9_]*)=", line)
             if export and export[1] in self.final_env_vars:
                 continue
-            if extras and line.lstrip().startswith("srun ") and "--container-image" in line:
-                line = line.replace("srun ", f"srun {extras} ", 1)
             body.append(line)
         # NeMo's shell options and exit must not escape into CloudAI's post-hook block.
         return "(\n" + textwrap.indent("\n".join(body), "    ") + "\n)"
@@ -494,6 +487,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
         extra_cmd_args = self._with_default_packager(repo_path, tdef.extra_cmd_args)
+        srun_args = [extra_cmd_args.pop(flag) for flag in ("-cs", "--custom_srun_args") if flag in extra_cmd_args]
+        srun_args.extend(arg for arg in (self.system.extra_srun_args, self.test_run.extra_srun_args) if arg)
+        if self.test_run.pre_test:
+            for tr in self.test_run.pre_test.test_runs:
+                srun_args.extend(self._get_cmd_gen_strategy(tr).pre_test_srun_extra_args(self.test_run))
+        if custom_srun_args := ",".join(arg for arg in srun_args if arg):
+            parts.append(shlex.quote(f"-cs={custom_srun_args}"))
         parts.extend(self._add_extra_cmd_args(extra_cmd_args))
 
         return parts

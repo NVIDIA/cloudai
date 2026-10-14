@@ -21,8 +21,8 @@ from unittest.mock import patch
 
 import pytest
 
-from cloudai.core import TestRun
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.core import TestRun, TestScenario
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
     MegatronBridgeSlurmCommandGenStrategy,
@@ -52,7 +52,7 @@ def strategy(slurm_system: SlurmSystem, tmp_path: Path) -> MegatronBridgeSlurmCo
         (
             {},
             ["-m qwen", "-mr qwen3_30b_a3b", "-vb false"],
-            ["--task", "-en", "--use_recipes", "--moe_flex_dispatcher_backend"],
+            ["--task", "-en", "--use_recipes", "--moe_flex_dispatcher_backend", "-cs"],
         ),
         (
             {
@@ -132,6 +132,35 @@ def test_launcher_argument_translation(
     assert "logger.tensorboard_dir=/custom tensorboard" in shlex.split(" ".join(parts))
     assert "logger.log_memory_to_tensorboard=false" in command
     assert "logger.tensorboard_dir=/nemo_run/tb_logs" not in command
+
+
+@pytest.mark.parametrize(
+    "native_args,expected_native",
+    [
+        ({}, ""),
+        ({"-cs": "--cpu-bind=cores"}, "--cpu-bind=cores,"),
+        ({"--custom_srun_args": "--cpu-bind=cores"}, "--cpu-bind=cores,"),
+        ({"-cs": "--cpu-bind=cores", "--custom_srun_args": "--label"}, "--cpu-bind=cores,--label,"),
+    ],
+)
+def test_custom_srun_args(
+    strategy: MegatronBridgeSlurmCommandGenStrategy, native_args: dict[str, str], expected_native: str
+) -> None:
+    tdef = strategy.test_run.test
+    assert isinstance(tdef, MegatronBridgeTestDefinition)
+    tdef.extra_cmd_args = native_args.copy()
+    strategy.system.extra_srun_args = "--comment='smoke test' --kill-on-bad-exit=1"
+    strategy.test_run.extra_srun_args = "--cpu-bind=none"
+    strategy.test_run.pre_test = TestScenario(
+        name="pre", test_runs=[TestRun(name="hook", test=tdef, num_nodes=2, nodes=[])]
+    )
+    with patch.object(SlurmCommandGenStrategy, "pre_test_srun_extra_args", return_value=["--overlap"]):
+        parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))
+    tokens = shlex.split(" ".join(parts))
+    assert [arg for arg in tokens if arg.startswith(("-cs=", "--custom_srun_args="))] == [
+        f"-cs={expected_native}--comment='smoke test' --kill-on-bad-exit=1,--cpu-bind=none,--overlap"
+    ]
+    assert tdef.extra_cmd_args == native_args
 
 
 @pytest.mark.parametrize(
