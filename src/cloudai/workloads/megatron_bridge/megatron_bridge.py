@@ -624,9 +624,13 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
 
 def find_mbridge_log(output_path: Path) -> Path | None:
-    training_logs = sorted(output_path.glob("experiments/**/log*.out"))
+    def log_order(path: Path) -> tuple[int, int, str]:
+        match = re.fullmatch(r"log-.+_(\d+)_(\d+)\.out", path.name)
+        return (int(match[1]), int(match[2]), str(path)) if match else (-1, -1, str(path))
+
+    training_logs = list(output_path.glob("experiments/**/log*.out"))
     if training_logs:
-        return training_logs[-1]
+        return max(training_logs, key=log_order)
 
     launcher_log = output_path / "cloudai_megatron_bridge_launcher.log"
     return launcher_log if launcher_log.is_file() else None
