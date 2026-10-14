@@ -25,14 +25,14 @@ srun --export=ALL --mpi=none -N2 --cpu-bind=none --ntasks=2 --ntasks-per-node=1 
 srun --export=ALL --mpi=none -N2 --cpu-bind=none --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err --open-mode=append bash __INSTALL_DIR__/slurm-metadata.sh host
 
 (
-source __OUTPUT_DIR__/output/env_vars.sh
-export HF_TOKEN=dummy_token
-export UPSTREAM_ONLY=retained
-export PYTHONPATH=/opt/Megatron-Bridge
-nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
-head_node=${nodes[0]}
-head_node_ip="$head_node"
-set +e
-srun --cpu-bind=none --output=__OUTPUT_DIR__/output/experiments/run/log_%j.out --container-image=__OUTPUT_DIR__/output/megatron_bridge_image.sqsh bash -c 'source /cloudai_run_results/env_vars.sh; python train.py'
-exit $?
+    source __OUTPUT_DIR__/output/env_vars.sh
+    export HF_TOKEN=dummy_token
+    export UPSTREAM_ONLY=retained
+    export PYTHONPATH=/opt/Megatron-Bridge
+    nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
+    head_node=${nodes[0]}
+    head_node_ip="$head_node"
+    set +e
+    srun --cpu-bind=none --output=__OUTPUT_DIR__/output/experiments/run/log_%j.out --container-image=__OUTPUT_DIR__/output/megatron_bridge_image.sqsh bash -c 'source /cloudai_run_results/env_vars.sh; python train.py'
+    exit $?
 )
