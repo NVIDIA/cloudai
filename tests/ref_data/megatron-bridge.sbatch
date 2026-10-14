@@ -24,11 +24,7 @@ srun --export=ALL --mpi=pmix -N2 --container-image=__OUTPUT_DIR__/output/megatro
 srun --export=ALL --mpi=none -N2 --cpu-bind=none --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err --container-image=__OUTPUT_DIR__/output/megatron_bridge_image.sqsh --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__/Megatron-Bridge__main:/opt/Megatron-Bridge bash /cloudai_install/slurm-metadata.sh runtime
 srun --export=ALL --mpi=none -N2 --cpu-bind=none --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err --open-mode=append bash __INSTALL_DIR__/slurm-metadata.sh host
 
-srun --output=__OUTPUT_DIR__/output/pre_test/nccl/stdout.txt --error=__OUTPUT_DIR__/output/pre_test/nccl/stderr.txt --export=ALL --mpi=pmix -N1 --container-image=nvcr.io#nvidia/pytorch:24.02-py3 --container-mounts=__OUTPUT_DIR__/output/pre_test/nccl:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output/pre_test/nccl bash -c "source __OUTPUT_DIR__/output/pre_test/nccl/env_vars.sh; all_reduce_perf_mpi --nthreads 1 --ngpus 1 --minbytes 32M --maxbytes 32M --stepbytes 1M --op sum --datatype float --root 0 --iters 20 --warmup_iters 5 --agg_iters 1 --average 1 --parallel_init 0 --check 1 --blocking 0 --cudagraph 0"
-SUCCESS_0=$(grep -q "Avg bus bandwidth" __OUTPUT_DIR__/output/pre_test/nccl/stdout.txt && echo 1 || echo 0)
-PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )
-if [ $PRE_TEST_SUCCESS -eq 1 ]; then
-    (
+(
 source __OUTPUT_DIR__/output/env_vars.sh
 export HF_TOKEN=dummy_token
 export UPSTREAM_ONLY=retained
@@ -40,5 +36,3 @@ set +e
 srun --cpu-bind=none --output=__OUTPUT_DIR__/output/experiments/run/log_%j.out --container-image=__OUTPUT_DIR__/output/megatron_bridge_image.sqsh bash -c 'source /cloudai_run_results/env_vars.sh; python train.py'
 exit $?
 )
-    srun --output=__OUTPUT_DIR__/output/post_test/nccl/stdout.txt --error=__OUTPUT_DIR__/output/post_test/nccl/stderr.txt --export=ALL --mpi=pmix -N1 --container-image=nvcr.io#nvidia/pytorch:24.02-py3 --container-mounts=__OUTPUT_DIR__/output/post_test/nccl:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output/post_test/nccl bash -c "source __OUTPUT_DIR__/output/post_test/nccl/env_vars.sh; all_reduce_perf_mpi --nthreads 1 --ngpus 1 --minbytes 32M --maxbytes 32M --stepbytes 1M --op sum --datatype float --root 0 --iters 20 --warmup_iters 5 --agg_iters 1 --average 1 --parallel_init 0 --check 1 --blocking 0 --cudagraph 0"
-fi
