@@ -51,7 +51,9 @@ def test_run(tmp_path: Path) -> TestRun:
         },
     )
 
-    return TestRun(name="run", test=tdef, nodes=["nodeA", "nodeB", "nodeC"], num_nodes=3)
+    return TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 3}), nodes=["nodeA", "nodeB", "nodeC"]
+    )
 
 
 @pytest.fixture
@@ -74,12 +76,7 @@ def test_container_mounts_with_model_and_cache(
     tmp_path: Path, strategy: TritonInferenceSlurmCommandGenStrategy, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(
-        TestRun,
-        "output_path",
-        property(lambda self: tmp_path),
-        raising=True,
-    )
+    strategy.test_run.output_path = tmp_path
 
     model_dir = tmp_path / "model"
     cache_dir = tmp_path / "cache"

@@ -66,7 +66,11 @@ def nixl_ep_tr(tmp_path) -> TestRun:
             num_processes_per_node=4,
         ),
     )
-    return TestRun(name="nixl-ep", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path / "output")
+    return TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 3}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
 
 
 class TestNixlEPStatusCheck:

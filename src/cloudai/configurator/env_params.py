@@ -38,7 +38,7 @@ from typing_extensions import Self
 from cloudai._core.exceptions import TestScenarioParsingError
 
 if TYPE_CHECKING:
-    from cloudai._core.test_scenario import TestScenario
+    from cloudai.models.scenario import TestScenario
     from cloudai.models.workload import TestDefinition
 
 

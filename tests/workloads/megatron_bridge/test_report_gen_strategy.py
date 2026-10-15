@@ -15,18 +15,24 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
 from cloudai import TestRun
+from cloudai.core import CmdArgs, TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStrategy
 
 
 @pytest.fixture
 def mb_tr(tmp_path: Path) -> TestRun:
-    tr = TestRun(name="megatron_bridge", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "megatron_bridge", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     log_content = "\n".join(
         [
             "ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU",

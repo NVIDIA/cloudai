@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import shlex
 import shutil
@@ -150,7 +151,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         assert self.test_run.pre_test is not None
         success_vars = []
         for idx, tr in enumerate(self.test_run.pre_test.test_runs):
-            tr.num_nodes = 1
+            tr = copy.copy(tr)
+            tr.test = tr.test.model_copy(update={"num_nodes": 1})
             strategy = self._get_cmd_gen_strategy(tr)
             self._set_hook_output_path(tr, self.test_run.output_path / "pre_test")
             tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -269,23 +271,25 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         sbatch_lines: list[str],
     ) -> Optional[Path]:
         allocation_run = strategy.test_run
-        original_num_nodes = allocation_run.num_nodes
+        original_definition = allocation_run.test
         original_nodes = allocation_run.nodes
-        original_exclude_nodes = allocation_run.exclude_nodes
         allocation_strategy = self._get_cmd_gen_strategy(allocation_run)
 
         try:
-            allocation_run.num_nodes = self._max_post_hook_nodes(post_test.test_runs)
+            allocation_run.test = original_definition.model_copy(
+                update={
+                    "num_nodes": self._max_post_hook_nodes(post_test.test_runs),
+                    "exclude_nodes": self._aggregate_post_hook_exclude_nodes(post_test.test_runs),
+                }
+            )
             allocation_run.nodes = self._aggregate_post_hook_nodes(post_test.test_runs)
-            allocation_run.exclude_nodes = self._aggregate_post_hook_exclude_nodes(post_test.test_runs)
             return allocation_strategy._append_resource_directives(
                 sbatch_lines,
                 self._post_hook_time_limit(post_test.test_runs),
             )
         finally:
-            allocation_run.num_nodes = original_num_nodes
+            allocation_run.test = original_definition
             allocation_run.nodes = original_nodes
-            allocation_run.exclude_nodes = original_exclude_nodes
 
     @staticmethod
     def _max_post_hook_nodes(test_runs: list[TestRun]) -> int:

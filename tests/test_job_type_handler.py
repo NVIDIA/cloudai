@@ -29,7 +29,11 @@ def tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    return TestRun(name="test_run", test=tdef, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+    return TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "test_run", "num_nodes": 1}),
+        nodes=[],
+        output_path=slurm_system.output_path,
+    )
 
 
 def test_is_dse_job_non_dse(tr: TestRun):
@@ -48,5 +52,5 @@ def test_is_dse_job_dse_env_vars(tr: TestRun):
 
 
 def test_is_dse_job_num_nodes(tr: TestRun):
-    tr.num_nodes = [1, 2]
+    tr.test = tr.test.model_copy(update={"num_nodes": [1, 2]})
     assert tr.is_dse_job is True

@@ -32,10 +32,10 @@ class MyCmdGen(CommandGenStrategy):
 @pytest.fixture
 def test_run() -> TestRun:
     return TestRun(
-        name="test_a",
-        num_nodes=1,
+        test=(TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())).model_copy(
+            deep=True, update={"id": "test_a", "num_nodes": 1}
+        ),
         nodes=["node1"],
-        test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
     )
 
 

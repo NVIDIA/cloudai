@@ -37,13 +37,12 @@ from .core import (
     TestScenarioParsingError,
     format_validation_error,
 )
-from .models.scenario import TestRunModel, TestScenarioModel
 from .models.workload import TestDefinition
 from .test_parser import TestParser, load_test_toml_file
 from .toml_utils import format_toml_decode_error
 
 
-def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
+def get_reporters(tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
     reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
 
     from .workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
@@ -117,11 +116,19 @@ class TestScenarioParser:
             TestScenario: Parsed TestScenario object.
         """
         try:
-            ts_model = TestScenarioModel.model_validate(data)
-        except ValidationError as e:
+            resolved = dict(data)
+            items = data.get("Tests")
+            if not isinstance(items, list) or not items:
+                raise ValueError("Tests must contain at least one test definition")
+            resolved["Tests"] = [self._prepare_tdef(item) for item in items]
+            ts_model = TestScenario.model_validate(resolved)
+        except (ValidationError, ValueError) as e:
             msg = f"Failed to parse Test Scenario definition: {self.file_path}"
-            for err in e.errors(include_url=False):
-                msg += f"\n\t{format_validation_error(err)}"
+            if isinstance(e, ValidationError):
+                for err in e.errors(include_url=False):
+                    msg += f"\n\t{format_validation_error(err)}"
+            else:
+                msg += f"\n\t{e}"
             logging.error(msg)
             raise TestScenarioParsingError(msg) from e
 
@@ -152,115 +159,103 @@ class TestScenarioParser:
                 raise TestScenarioParsingError(msg)
 
         test_runs_by_id: dict[str, TestRun] = {
-            trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
+            (trm.id or trm.name): self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
             for trm in ts_model.tests
         }
 
-        tests_data: dict[str, TestRunModel] = {trm.id: trm for trm in ts_model.tests}
-        for section, tr in test_runs_by_id.items():
-            test_info = tests_data[section]
+        for test_info in ts_model.tests:
+            tr = test_runs_by_id[test_info.id or test_info.name]
             tr.dependencies = {
                 dep.type: TestDependency(test_run=test_runs_by_id[dep.id]) for dep in test_info.dependencies
             }
 
-        return TestScenario(
-            name=ts_model.name,
-            test_runs=list(test_runs_by_id.values()),
-            job_status_check=ts_model.job_status_check,
-            reports=ts_model.reports,
-        )
+        ts_model.test_runs = list(test_runs_by_id.values())
+        return ts_model
 
     def _create_test_run(
         self,
-        test_info: TestRunModel,
+        test_info: TestDefinition,
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
         scenario_sol: cloudai.metrics.MetricSOLConfig | None = None,
     ) -> TestRun:
         """
-        Create a section-specific Test object by copying from the test mapping.
+        Prepare effective configuration and bind it to a new execution.
 
         Args:
-            test_info (Dict[str, Any]): Information of the test.
+            test_info: Original scenario definition, kept unchanged.
             normalized_weight (float): Normalized weight for the test.
             pre_test (Optional[TestScenario]): TestScenario object representing the pre-test sequence.
             post_test (Optional[TestScenario]): TestScenario object representing the post-test sequence.
             scenario_sol: Scenario-level metric SOL configuration.
 
         Returns:
-            Test: Copied and updated Test object for the section.
+            TestRun: Execution bound to its prepared definition.
 
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        tdef = self._prepare_tdef(test_info)
-
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
         metric_sol = test_info.sol if isinstance(test_info.sol, dict) else None
         legacy_sol = test_info.sol if isinstance(test_info.sol, (float, int)) else None
 
-        tr = TestRun(
-            test_info.id,
-            tdef,
-            num_nodes=test_info.num_nodes or 1,
-            iterations=test_info.iterations,
-            nodes=test_info.nodes,
-            pin_nodes=test_info.pin_nodes,
-            time_limit=total_time_limit,
-            sol=legacy_sol,
-            metric_sol=cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
-            weight=test_info.weight * normalized_weight,
-            ideal_perf=test_info.ideal_perf,
-            pre_test=pre_test,
-            post_test=post_test,
-            reports=get_reporters(test_info, tdef),
-            extra_srun_args=test_info.extra_srun_args,
-            exclude_nodes=test_info.exclude_nodes,
-            num_nodes_explicit="num_nodes" in test_info.model_fields_set,
+        prepared = test_info.model_copy(
+            deep=True,
+            update={
+                "time_limit": total_time_limit,
+                "sol": legacy_sol,
+                "metric_sol": cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
+                "weight": test_info.weight * normalized_weight,
+                "reporters": get_reporters(test_info),
+            },
         )
+        return TestRun(test=prepared, pre_test=pre_test, post_test=post_test)
 
-        return tr
-
-    def _prepare_tdef(self, test_info: TestRunModel) -> TestDefinition:
-        tp = TestParser([self.file_path], self.system)
-        tp.current_file = self.file_path
-
-        if test_info.test_name:
-            if test_info.test_name not in self.test_mapping:
-                raise MissingTestError(test_info.test_name)
-            test = self.test_mapping[test_info.test_name]
-
-            test_defined = test.model_dump(by_alias=True)
-            tc_defined = test_info.tdef_model_dump(by_alias=True)
-            merged_data = deep_merge(test_defined, tc_defined)
-            test = tp.load_test_definition(merged_data)
-        elif test_info.path:
-            resolved_path = (self.file_path.parent / test_info.path).resolve()
-            if not resolved_path.is_file():
+    def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:
+        """Resolve a scenario item into its sole, workload-specific definition model."""
+        if not isinstance(data, dict):
+            raise ValueError("Each Tests item must be a table")
+        overrides = {
+            key: value
+            for key, value in data.items()
+            if value is not None and (value or key not in {"extra_env_vars", "git_repos"})
+        }
+        if "extra_srun_args" in overrides:
+            overrides["srun_args"] = overrides.pop("extra_srun_args")
+        test_name = overrides.pop("test_name", None)
+        path = overrides.pop("path", None)
+        if test_name is not None and path is not None:
+            raise ValueError("'test_name' and 'path' must not both be set")
+        if (test_name is not None or path is not None) and "test_template_name" in overrides:
+            raise ValueError("'test_template_name' must not be set with 'test_name' or 'path'")
+        source = self.file_path
+        if test_name is not None:
+            try:
+                base = self.test_mapping[test_name]
+            except (KeyError, TypeError) as e:
+                raise MissingTestError(str(test_name)) from e
+            test_defined = base.model_dump(by_alias=True, exclude_unset=True)
+        elif path is not None:
+            if not isinstance(path, str) or not path:
+                raise ValueError("'path' must be a non-empty string")
+            source = (self.file_path.parent / path).resolve()
+            if not source.is_file():
                 msg = (
-                    f"Test case '{test_info.id}' references path '{test_info.path}', "
-                    f"which resolves to '{resolved_path}', but that file does not exist."
+                    f"Test case '{data.get('id')}' references path '{path}', "
+                    f"which resolves to '{source}', but that file does not exist."
                 )
                 logging.error(msg)
                 raise TestScenarioParsingError(msg)
-            tp.current_file = resolved_path
-            with resolved_path.open() as fh:
-                test_defined = load_test_toml_file(fh, resolved_path)
-            tc_defined = test_info.tdef_model_dump(by_alias=True)
-            merged_data = deep_merge(test_defined, tc_defined)
-            test = tp.load_test_definition(merged_data)
-        elif test_info.test_template_name:  # test fully defined in the scenario
-            test = tp._parse_data(test_info.tdef_model_dump(by_alias=True))
+            with source.open() as fh:
+                test_defined = load_test_toml_file(fh, source)
         else:
-            # this should never happen, because we check for this in the modelvalidator
-            raise ValueError(
-                f"Test case '{test_info.id}' has none of 'test_name', 'path', or 'test_template_name' set."
-            )
-
-        return test
+            test_defined = {}
+        parser = TestParser([], self.system)
+        parser.current_file = source
+        return parser.load_test_definition(deep_merge(test_defined, overrides))
 
 
 def load_scenario_toml_file(fh, file_path: Path) -> Dict[str, Any]:

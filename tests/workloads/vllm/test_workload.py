@@ -81,7 +81,7 @@ def test_constraint_check_rejects_tp_pp_dp_above_available_gpus(tmp_path) -> Non
         ),
         extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2"},
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
 
     assert tdef.constraint_check(tr, None) is False
 
@@ -99,7 +99,7 @@ def test_constraint_check_rejects_flashinfer_with_dp_and_expert_parallel(tmp_pat
         ),
         extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1"},
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
 
     assert tdef.constraint_check(tr, None) is False
 
@@ -116,7 +116,7 @@ def test_constraint_check_validates_disaggregated_roles_against_split_gpus(tmp_p
         ),
         extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
 
     assert tdef.constraint_check(tr, None) is False
 
@@ -132,7 +132,7 @@ def test_constraint_check_uses_all_node_gpus_per_role_for_two_node_disagg(tmp_pa
             decode=VllmArgs.model_validate({"tensor_parallel_size": 4}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 2}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
@@ -148,7 +148,7 @@ def test_constraint_check_uses_all_allocated_gpus_for_multinode_aggregated(tmp_p
             decode=VllmArgs.model_validate({"tensor_parallel_size": 8}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 2}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
@@ -167,7 +167,7 @@ def test_constraint_check_rejects_explicit_disagg_role_nodes_that_do_not_match_t
             decode=VllmArgs.model_validate({"num_nodes": 1}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 2}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is False
@@ -184,7 +184,7 @@ def test_constraint_check_allows_explicit_single_node_disagg_role_nodes(tmp_path
             decode=VllmArgs.model_validate({"num_nodes": 1, "gpu_ids": "2,3", "tensor_parallel_size": 2}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
@@ -201,7 +201,7 @@ def test_constraint_check_uses_role_nodes_for_multinode_disagg(tmp_path, slurm_s
             decode=VllmArgs.model_validate({"num_nodes": 2, "tensor_parallel_size": 8}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 4}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is True
@@ -231,7 +231,7 @@ def test_constraint_check_rejects_invalid_multinode_disagg_role_nodes(
             decode=VllmArgs.model_validate({"num_nodes": decode_nodes}),
         ),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=4, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 4}), nodes=[], output_path=tmp_path)
     slurm_system.gpus_per_node = 4
 
     assert tdef.constraint_check(tr, slurm_system) is False

@@ -40,7 +40,9 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
-    return TestRun(name="test_job", test=tdef, output_path=tmp_path, num_nodes=2, nodes=[])
+    return TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "test_job", "num_nodes": 2}), output_path=tmp_path, nodes=[]
+    )
 
 
 @pytest.fixture
@@ -70,7 +72,7 @@ def test_filename_generation(slurm_system: SlurmSystem, testrun_fixture: TestRun
 def test_num_nodes_and_nodes(slurm_system: SlurmSystem):
     tr = make_test_run(name="test_job", output_dir=slurm_system.output_path)
     tr.nodes = ["node1", "node2"]
-    tr.num_nodes = 3
+    tr.test = tr.test.model_copy(update={"num_nodes": 3})
     tr.output_path.mkdir(parents=True, exist_ok=True)
     strategy = MySlurmCommandGenStrategy(slurm_system, tr)
 
@@ -84,7 +86,7 @@ def test_num_nodes_and_nodes(slurm_system: SlurmSystem):
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     lines: list[str] = []
     strategy_fixture.test_run.nodes = []
-    strategy_fixture.test_run.num_nodes = 3
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"num_nodes": 3})
     strategy_fixture._append_sbatch_directives(lines)
 
     assert f"#SBATCH -N {strategy_fixture.test_run.num_nodes}" in lines
@@ -93,7 +95,7 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 def test_only_nodes(slurm_system: SlurmSystem):
     tr = make_test_run(name="test_job", output_dir=slurm_system.output_path)
-    tr.num_nodes = 0
+    tr.test = tr.test.model_copy(update={"num_nodes": 0})
     tr.nodes = ["node1", "node2"]
     tr.output_path.mkdir(parents=True, exist_ok=True)
 
@@ -110,7 +112,7 @@ def test_only_nodes(slurm_system: SlurmSystem):
 def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGenStrategy):
     lines: list[str] = []
     strategy_fixture.test_run.nodes = []
-    strategy_fixture.test_run.time_limit = time_limit
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"time_limit": time_limit})
     strategy_fixture._append_sbatch_directives(lines)
 
     if time_limit is not None:
@@ -127,7 +129,11 @@ def make_test_run(name: str, output_dir: Path) -> TestRun:
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    return TestRun(name=name, test=test_def, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
+    return TestRun(
+        test=test_def.model_copy(deep=True, update={"id": name, "num_nodes": 1}),
+        nodes=["node1"],
+        output_path=output_dir / name,
+    )
 
 
 def test_pre_post_combinations(tmp_path: Path, slurm_system: SlurmSystem, strategy_fixture: SlurmCommandGenStrategy):
@@ -338,7 +344,7 @@ def test_gen_srun_prefix_with_container_mount_home(
 
 
 def test_gen_srun_prefix_tr_extra_srun_args(strategy_fixture: SlurmCommandGenStrategy):
-    strategy_fixture.test_run.extra_srun_args = "--arg val --flag"
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"srun_args": "--arg val --flag"})
     srun_prefix = strategy_fixture.gen_srun_prefix()
     assert "--arg val --flag" in srun_prefix  # added as a single element
 
@@ -372,8 +378,10 @@ def test_distribution_fallback_when_no_nodes(strategy_fixture: SlurmCommandGenSt
 
 def test_exclude_nodes_directive_when_no_nodelist(strategy_fixture: SlurmCommandGenStrategy) -> None:
     strategy_fixture.test_run.nodes = []
-    strategy_fixture.test_run.num_nodes = 3
-    strategy_fixture.test_run.exclude_nodes = ["node01", "node02"]
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"num_nodes": 3})
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(
+        update={"exclude_nodes": ["node01", "node02"]}
+    )
     content: List[str] = []
     strategy_fixture._append_nodes_related_directives(content)
 
@@ -383,7 +391,7 @@ def test_exclude_nodes_directive_when_no_nodelist(strategy_fixture: SlurmCommand
 
 def test_no_exclude_directive_when_nodelist_present(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
     testrun_fixture.nodes = ["node3", "node4"]
-    testrun_fixture.exclude_nodes = ["node01", "node02"]
+    testrun_fixture.test = testrun_fixture.test.model_copy(update={"exclude_nodes": ["node01", "node02"]})
     strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
     content: List[str] = []
     strategy._append_nodes_related_directives(content)
@@ -394,8 +402,8 @@ def test_no_exclude_directive_when_nodelist_present(slurm_system: SlurmSystem, t
 
 def test_no_exclude_directive_when_exclude_nodes_unset(strategy_fixture: SlurmCommandGenStrategy) -> None:
     strategy_fixture.test_run.nodes = []
-    strategy_fixture.test_run.num_nodes = 2
-    strategy_fixture.test_run.exclude_nodes = []
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"num_nodes": 2})
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"exclude_nodes": []})
     content: List[str] = []
     strategy_fixture._append_nodes_related_directives(content)
 
@@ -405,7 +413,7 @@ def test_no_exclude_directive_when_exclude_nodes_unset(strategy_fixture: SlurmCo
 
 def test_nodelist_over_num_nodes(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
     testrun_fixture.nodes = ["nodeA", "nodeB", "nodeC"]
-    testrun_fixture.num_nodes = 5
+    testrun_fixture.test = testrun_fixture.test.model_copy(update={"num_nodes": 5})
     strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
     content: list[str] = []
 

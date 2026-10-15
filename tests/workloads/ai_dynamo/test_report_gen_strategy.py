@@ -89,7 +89,9 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             genai_perf=GenAIPerf(),
         ),
     )
-    tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "ai_dynamo", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
     csv_content = get_csv_content()
     (tr.output_path / "genai_perf_report.csv").write_text(csv_content)
@@ -120,7 +122,11 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
             aiperf=AIPerf(),
         ),
     )
-    tr = TestRun(name="ai_dynamo_aiperf", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "ai_dynamo_aiperf", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / test.success_marker).touch()
     return tr
@@ -146,7 +152,11 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
         ),
     )
-    tr = TestRun(name="ai_dynamo_aiperf_with_split_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "ai_dynamo_aiperf_with_split_accuracy", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())
     (tr.output_path / test.success_marker).touch()
@@ -174,7 +184,9 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
         ),
     )
     tr = TestRun(
-        name="ai_dynamo_genai_perf_with_split_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path
+        test=test.model_copy(deep=True, update={"id": "ai_dynamo_genai_perf_with_split_accuracy", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
     (tr.output_path / "genai_perf_report.csv").write_text(get_csv_content())
     (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())

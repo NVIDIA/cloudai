@@ -60,7 +60,9 @@ def sglang_tr(tmp_path: Path) -> TestRun:
         test_template_name="sglang",
         cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
     )
-    tr = TestRun(name="sglang", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "sglang", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
     (tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
         json.dumps(BENCH_RECORD) + "\n",
@@ -183,7 +185,9 @@ def test_sglang_parses_num_prompts_from_input_lens(slurm_system: SlurmSystem, tm
         test_template_name="sglang",
         cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev"),
     )
-    tr = TestRun(name="sglang", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "sglang", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
     (tr.output_path / SGLANG_BENCH_JSONL_FILE).write_text(
         json.dumps({k: v for k, v in BENCH_RECORD.items() if k != "num_prompts"} | {"input_lens": [16] * 30}) + "\n",

@@ -266,14 +266,14 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -285,14 +285,14 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -306,14 +306,14 @@ class TestSlurmReportItem:
         with open(run_dir / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -328,14 +328,14 @@ class TestSlurmReportItem:
         with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -349,14 +349,14 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -374,14 +374,14 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            name="run_dir",
-            test=NCCLTestDefinition(
-                name="nccl",
-                description="NCCL test",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl",
+                    description="NCCL test",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "run_dir", "num_nodes": 1}),
             nodes=["node1"],
             output_path=run_dir,
         )
@@ -585,18 +585,17 @@ def test_dse_reporter(
     slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
 
     dse_case = TestRun(
-        name="dse-case",
-        test=NCCLTestDefinition(
-            name="nccl",
-            description="NCCL case",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
-            extra_env_vars={"VAR1": ["value1", "value2"]},
-            agent_steps=3,
-        ),
-        num_nodes=1,
+        test=(
+            NCCLTestDefinition(
+                name="nccl",
+                description="NCCL case",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
+                extra_env_vars={"VAR1": ["value1", "value2"]},
+                agent_steps=3,
+            )
+        ).model_copy(deep=True, update={"id": "dse-case", "num_nodes": 1, "iterations": 1}),
         nodes=["node1"],
-        iterations=1,
     )
 
     steps = [

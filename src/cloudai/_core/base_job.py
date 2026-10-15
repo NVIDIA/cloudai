@@ -17,7 +17,7 @@
 from dataclasses import dataclass, field
 from typing import Union
 
-from .test_scenario import TestRun
+from .test_run import TestRun
 
 
 @dataclass

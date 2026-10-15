@@ -467,7 +467,7 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", path_to_benchmark="./nixlbench"),
     )
     trd = TestRunDetails.from_test_run(
-        TestRun(name="test", test=tdef, num_nodes=1, nodes=[]),
+        TestRun(test=tdef.model_copy(deep=True, update={"id": "test", "num_nodes": 1}), nodes=[]),
         "test cmd",
         "full cmd",
     )
@@ -475,4 +475,4 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
     serialized = toml.dumps(trd.model_dump())
     recreated = NIXLBenchTestDefinition.model_validate(toml.loads(serialized)["test_definition"])
-    assert recreated == tdef
+    assert recreated == trd.test_definition

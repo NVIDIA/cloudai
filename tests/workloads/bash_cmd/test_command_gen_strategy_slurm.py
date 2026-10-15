@@ -26,14 +26,14 @@ from cloudai.workloads.bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, B
 @pytest.fixture
 def bash_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
-        name="bash",
-        test=BashCmdTestDefinition(
-            name="bash",
-            description="desc",
-            test_template_name="t",
-            cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
-        ),
-        num_nodes=1,
+        test=(
+            BashCmdTestDefinition(
+                name="bash",
+                description="desc",
+                test_template_name="t",
+                cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
+            )
+        ).model_copy(deep=True, update={"id": "bash", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )

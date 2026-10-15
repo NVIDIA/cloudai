@@ -99,9 +99,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             )
             self._configure_fake_installs(tdef, tmp_path)
             return TestRun(
-                test=tdef,
-                name="tr",
-                num_nodes=num_nodes,
+                test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": num_nodes}),
                 nodes=[],
                 output_path=tmp_path / output_subdir,
             )
@@ -351,12 +349,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             extra_env_vars={"HOOK_VAR": "1"},
         )
         post_run = TestRun(
-            test=hook_tdef,
-            name="nccl_post",
-            num_nodes=1,
+            test=hook_tdef.model_copy(deep=True, update={"id": "nccl_post", "num_nodes": 1, "time_limit": "00:05:00"}),
             nodes=[],
             output_path=tmp_path / "unused",
-            time_limit="00:05:00",
         )
         tr.post_test = TestScenario(name="post", test_runs=[post_run])
 
@@ -379,30 +374,28 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         tr = make_test_run(output_subdir="out_post_hook_resources")
         first_post = TestRun(
-            test=NCCLTestDefinition(
-                name="post_one",
-                description="post",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            name="post_one",
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="post_one",
+                    description="post",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "post_one", "num_nodes": 1, "time_limit": "00:05:00"}),
             nodes=[],
             output_path=tmp_path / "unused_one",
-            time_limit="00:05:00",
         )
         second_post = TestRun(
-            test=NCCLTestDefinition(
-                name="post_two",
-                description="post",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            name="post_two",
-            num_nodes=3,
+            test=(
+                NCCLTestDefinition(
+                    name="post_two",
+                    description="post",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "post_two", "num_nodes": 3, "time_limit": "00:10:00"}),
             nodes=[],
             output_path=tmp_path / "unused_two",
-            time_limit="00:10:00",
         )
         tr.post_test = TestScenario(name="post", test_runs=[first_post, second_post])
 
@@ -428,17 +421,16 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         configured_slurm_system.ntasks_per_node = 2
         tr = make_test_run(output_subdir="out_post_hook_hostfile")
         post_run = TestRun(
-            test=NCCLTestDefinition(
-                name="nccl_post",
-                description="post",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            name="nccl_post",
-            num_nodes=1,
+            test=(
+                NCCLTestDefinition(
+                    name="nccl_post",
+                    description="post",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                )
+            ).model_copy(deep=True, update={"id": "nccl_post", "num_nodes": 1, "time_limit": "00:05:00"}),
             nodes=["node2", "node1"],
             output_path=tmp_path / "unused",
-            time_limit="00:05:00",
         )
         tr.post_test = TestScenario(name="post", test_runs=[post_run])
 
@@ -662,7 +654,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(output_subdir="out_tr_srun")
-        tr.extra_srun_args = "--constraint gpu"
+        tr.test = tr.test.model_copy(update={"srun_args": "--constraint gpu"})
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "constraint=gpu" in wrapper_content

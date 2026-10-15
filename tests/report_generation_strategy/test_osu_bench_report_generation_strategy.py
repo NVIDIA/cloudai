@@ -15,11 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import METRIC_ERROR, TestRun
+from cloudai.core import METRIC_ERROR, CmdArgs, TestDefinition, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.osu_bench.report_generation_strategy import (
     OSUBenchReportGenerationStrategy,
@@ -121,7 +120,13 @@ def test_osu_multi_latency_short_header_parsing(tmp_path: Path) -> None:
 @pytest.mark.parametrize("metric", OSUBenchReportGenerationStrategy.metrics)
 def test_get_metric_returns_mean_latency(metric: str, tmp_path: Path, slurm_system: SlurmSystem) -> None:
     (tmp_path / "stdout.txt").write_text(OSU_ALLGATHER_LAT)
-    tr = TestRun(name="osu", test=Mock(), num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "osu", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     strategy = OSUBenchReportGenerationStrategy(slurm_system, tr)
 
     assert strategy.get_metric(metric) == pytest.approx((2.81 + 104.30) / 2)
@@ -129,7 +134,13 @@ def test_get_metric_returns_mean_latency(metric: str, tmp_path: Path, slurm_syst
 
 def test_get_metric_returns_error_for_unsupported_metric_or_output(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     (tmp_path / "stdout.txt").write_text(OSU_BW)
-    tr = TestRun(name="osu", test=Mock(), num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "osu", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     strategy = OSUBenchReportGenerationStrategy(slurm_system, tr)
 
     for metric in strategy.metrics:

@@ -18,7 +18,7 @@ from typing import ClassVar
 
 import pytest
 
-from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_run import TestRun
 from cloudai.core import ReportGenerationStrategy, TestDefinition
 from cloudai.models.workload import CmdArgs
 
@@ -47,9 +47,9 @@ class TestMetricsReporter:
     @pytest.fixture
     def tr(self) -> TestRun:
         return TestRun(
-            name="test",
-            test=TestDefinition(name="test", description="", test_template_name="Test", cmd_args=CmdArgs()),
-            num_nodes=1,
+            test=(
+                TestDefinition(name="test", description="", test_template_name="Test", cmd_args=CmdArgs())
+            ).model_copy(deep=True, update={"id": "test", "num_nodes": 1}),
             nodes=[],
         )
 
@@ -59,12 +59,12 @@ class TestMetricsReporter:
         assert tr.metric_reporter is None
 
     def test_no_metrics(self, tr: TestRun):
-        tr.reports = {MyReport}
+        tr.test = tr.test.model_copy(update={"reporters": {MyReport}})
         tr.test.agent_metrics = []
         assert tr.metric_reporter is None
 
     def test_one_report_multiple_metrics(self, tr: TestRun):
-        tr.reports = {MyReport}
+        tr.test = tr.test.model_copy(update={"reporters": {MyReport}})
         metrics = ["m1", "m2"]
         MyReport.metrics = metrics
         tr.test.agent_metrics = metrics
@@ -72,7 +72,7 @@ class TestMetricsReporter:
         assert tr.metric_reporter is MyReport
 
     def test_all_metrics_should_be_provided_by_the_same_reporter(self, tr: TestRun):
-        tr.reports = {MyReport, MyReport2}
+        tr.test = tr.test.model_copy(update={"reporters": {MyReport, MyReport2}})
         metrics = ["m1", "m2"]
         MyReport.metrics = ["m1"]
         MyReport2.metrics = ["m2"]

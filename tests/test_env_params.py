@@ -349,7 +349,7 @@ def test_apply_params_set_accepts_weighted_env_param_draw() -> None:
     """Regression: apply_params_set re-validates after the overlay; a weighted env_param's scalar
     draw must not trip validate_env_params (which would reject 'weights but not a candidate list')."""
     tdef = _tdef({"ball_speed": EnvParamSpec(weights=[0.7, 0.3])}, ball_speed=[1, 2])
-    tr = TestRun(name="tr", test=tdef, num_nodes=1, nodes=[])
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[])
 
     new_tr = tr.apply_params_set({}, env_params={"ball_speed": 1})
 

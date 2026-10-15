@@ -60,7 +60,7 @@ def vllm_tr(tmp_path: Path) -> TestRun:
         test_template_name="vllm",
         cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest"),
     )
-    tr = TestRun(name="vllm", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
 
     (tr.output_path / VLLM_BENCH_JSON_FILE).write_text(BENCH_DATA.model_dump_json(), encoding="utf-8")
     return tr

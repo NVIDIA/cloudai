@@ -167,9 +167,9 @@ def standalone_system(tmp_path: Path) -> StandaloneSystem:
 @pytest.fixture
 def base_tr(tmp_path: Path) -> TestRun:
     return TestRun(
-        name="tr-name",
-        test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
-        num_nodes=1,
+        test=(TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())).model_copy(
+            deep=True, update={"id": "tr-name", "num_nodes": 1}
+        ),
         nodes=[],
         output_path=tmp_path / "output" / "tr-name",
     )
@@ -202,7 +202,10 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    tr = TestRun(name="benchmark", test=test_definition, num_nodes=1, nodes=["node1"], iterations=3)
+    tr = TestRun(
+        test=test_definition.model_copy(deep=True, update={"id": "benchmark", "num_nodes": 1, "iterations": 3}),
+        nodes=["node1"],
+    )
     create_test_directories(slurm_system, tr)
     return tr
 
@@ -218,7 +221,10 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         agent_steps=12,
     )
 
-    tr = TestRun(name="dse", test=test_definition, num_nodes=1, nodes=["node1"], iterations=12)
+    tr = TestRun(
+        test=test_definition.model_copy(deep=True, update={"id": "dse", "num_nodes": 1, "iterations": 12}),
+        nodes=["node1"],
+    )
     create_test_directories(slurm_system, tr)
     return tr
 
@@ -231,7 +237,9 @@ def nccl_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "nccl_test", "num_nodes": 2}), nodes=[], output_path=tmp_path
+    )
 
     stdout_content = """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100
 # Rank  1 Group  0 Pid 1001 on node1 device  1 [0xbb] NVIDIA H100

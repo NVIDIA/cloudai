@@ -56,13 +56,17 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
     def gpt_tr(self, gpt_test: GPTTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=gpt_test, num_nodes=1, nodes=["node1"], output_path=slurm_system.output_path, name="test-job"
+            test=gpt_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            nodes=["node1"],
+            output_path=slurm_system.output_path,
         )
 
     @pytest.fixture
     def grok_tr(self, grok_test: GrokTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=grok_test, num_nodes=1, nodes=["node1"], output_path=slurm_system.output_path, name="test-job"
+            test=grok_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            nodes=["node1"],
+            output_path=slurm_system.output_path,
         )
 
     @pytest.mark.parametrize("test_fixture", ["gpt_test", "grok_test"])
@@ -72,7 +76,9 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
         test_run = TestRun(
-            test=test_def, num_nodes=1, nodes=["node1"], output_path=tmp_path / "output", name="test-job"
+            test=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            nodes=["node1"],
+            output_path=tmp_path / "output",
         )
 
         cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, test_run)
@@ -162,7 +168,11 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
         cmd_gen = JaxToolboxSlurmCommandGenStrategy(
             slurm_system,
-            TestRun(name="test-job", test=grok_test, num_nodes=1, nodes=[], output_path=tmp_path),
+            TestRun(
+                test=grok_test.model_copy(deep=True, update={"id": "test-job", "num_nodes": 1}),
+                nodes=[],
+                output_path=tmp_path,
+            ),
         )
         cmd_gen.test_name = "Grok"
         cmd_gen._script_content = MagicMock(return_value="")

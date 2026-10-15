@@ -110,7 +110,7 @@ class SingleSbatchRunner(SlurmRunner):
         tr = copy.deepcopy(next(self.all_trs))
         tr.output_path = self.scenario_root
         max_nodes, _ = self.extract_sbatch_nodes_spec()
-        tr.num_nodes = max_nodes
+        tr.test = tr.test.model_copy(update={"num_nodes": max_nodes})
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
         return [cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
 

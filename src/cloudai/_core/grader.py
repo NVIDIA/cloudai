@@ -14,14 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import csv
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 from .registry import Registry
 from .system import System
-from .test_scenario import TestRun, TestScenario
+from .test_run import TestRun
+
+if TYPE_CHECKING:
+    from ..models.scenario import TestScenario
 
 
 class Grader:

@@ -674,12 +674,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if prefill_nodes or decode_nodes:
             self.test_run.nodes = role_nodes
-            self.test_run.num_nodes = len(role_nodes)
+            self.test_run.test = self.test_run.test.model_copy(update={"num_nodes": len(role_nodes)})
             prefill_n = len(self._split_node_list(prefill_nodes)) if prefill_nodes else prefill_n
             decode_n = len(self._split_node_list(decode_nodes)) if decode_nodes else decode_n
             role_total_nodes = prefill_n + decode_n
         elif not has_explicit_allocation:
-            self.test_run.num_nodes = role_total_nodes
+            self.test_run.test = self.test_run.test.model_copy(update={"num_nodes": role_total_nodes})
 
         logging.info("Using %d allocated node(s) for %d role node(s)", self.test_run.nnodes, role_total_nodes)
 

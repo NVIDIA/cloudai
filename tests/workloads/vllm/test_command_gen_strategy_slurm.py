@@ -45,7 +45,9 @@ def vllm() -> VllmTestDefinition:
 
 @pytest.fixture
 def vllm_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
-    return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-job")
+    return TestRun(
+        test=vllm.model_copy(deep=True, update={"num_nodes": 1, "id": "vllm-job"}), nodes=[], output_path=tmp_path
+    )
 
 
 @pytest.fixture
@@ -58,7 +60,11 @@ def vllm_disagg_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     """TestRun for disaggregated mode with 4 GPUs."""
     vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     vllm.cmd_args.prefill = VllmArgs()
-    return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-disagg-job")
+    return TestRun(
+        test=vllm.model_copy(deep=True, update={"num_nodes": 1, "id": "vllm-disagg-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -66,7 +72,11 @@ def vllm_disagg_2node_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     """TestRun for disaggregated mode with 2 nodes and a shared local GPU view."""
     vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     vllm.cmd_args.prefill = VllmArgs()
-    return TestRun(test=vllm, num_nodes=2, nodes=[], output_path=tmp_path, name="vllm-disagg-2node-job")
+    return TestRun(
+        test=vllm.model_copy(deep=True, update={"num_nodes": 2, "id": "vllm-disagg-2node-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
@@ -309,7 +319,7 @@ wait_for_health() {{
 
         vllm.cmd_args.prefill = VllmArgs()
         vllm.cmd_args.proxy_healthcheck = "/router-ready"
-        vllm_tr.num_nodes = 2
+        vllm_tr.test = vllm_tr.test.model_copy(update={"num_nodes": 2})
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
         assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in disaggregated
         assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in disaggregated
@@ -333,7 +343,7 @@ wait_for_health() {{
         vllm.cmd_args.healthcheck = "/legacy-ready"
         vllm.cmd_args.prefill = VllmArgs()
         vllm_tr.test = vllm
-        vllm_tr.num_nodes = 2
+        vllm_tr.test = vllm_tr.test.model_copy(update={"num_nodes": 2})
 
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
 
@@ -366,7 +376,7 @@ class TestVllmDisaggregatedMode:
         assert "echo bench setup; exec vllm bench serve" in srun_command
 
     def test_disagg_more_than_two_nodes_is_rejected(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        vllm_disagg_tr.num_nodes = 3
+        vllm_disagg_tr.test = vllm_disagg_tr.test.model_copy(update={"num_nodes": 3})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
@@ -379,7 +389,7 @@ class TestVllmDisaggregatedMode:
         assert tdef.cmd_args.prefill is not None
         tdef.cmd_args.prefill.num_nodes = 2
         tdef.cmd_args.decode.num_nodes = 2
-        vllm_disagg_tr.num_nodes = 4
+        vllm_disagg_tr.test = vllm_disagg_tr.test.model_copy(update={"num_nodes": 4})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         srun_command = strategy._gen_srun_command()
@@ -431,7 +441,7 @@ class TestVllmDisaggregatedMode:
                 "num_gpus": 4,
             }
         )
-        vllm_disagg_tr.num_nodes = 4
+        vllm_disagg_tr.test = vllm_disagg_tr.test.model_copy(update={"num_nodes": 4})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         srun_command = strategy._gen_srun_command()

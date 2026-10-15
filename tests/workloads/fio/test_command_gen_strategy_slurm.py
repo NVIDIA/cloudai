@@ -28,7 +28,11 @@ def test_job_file_is_appended_without_declaring_fio_options(slurm_system: SlurmS
         test_template_name="Fio",
         cmd_args=FioCmdArgs(fio_binary="fio", job_file="/tmp/kv_emulation.fio"),
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
     strategy = FioSlurmCommandGenStrategy(slurm_system, tr)
 
     assert strategy.generate_test_command() == ["fio", "/tmp/kv_emulation.fio"]
@@ -41,7 +45,11 @@ def test_success_check_matches_fio_summary_lines(slurm_system: SlurmSystem, tmp_
         test_template_name="Fio",
         cmd_args=FioCmdArgs(),
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
     strategy = FioSlurmCommandGenStrategy(slurm_system, tr)
 
     assert "IOPS=.*BW=|BW=.*IOPS=" in strategy.gen_srun_success_check()
@@ -60,7 +68,11 @@ def test_nested_arg_table_repeats_same_fio_option(slurm_system: SlurmSystem, tmp
             },
         ),
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
     strategy = FioSlurmCommandGenStrategy(slurm_system, tr)
 
     assert strategy.generate_test_command() == [

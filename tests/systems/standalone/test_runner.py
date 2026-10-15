@@ -50,9 +50,7 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
         cmd_args=cloudai.core.CmdArgs(),
     )
     test_run = cloudai.core.TestRun(
-        name="case",
-        test=workload,
-        num_nodes=1,
+        test=workload.model_copy(deep=True, update={"id": "case", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "case" / "0",
     )
