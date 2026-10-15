@@ -1,7 +1,7 @@
 Python API
 ==========
 
-``cloudai.api`` lets a Python program run a scenario and find its saved results.
+``cloudai.api`` lets a Python program validate or run a scenario and find its saved results.
 Pass configuration file paths as ``pathlib.Path`` objects:
 
 .. code-block:: python
@@ -13,10 +13,20 @@ Pass configuration file paths as ``pathlib.Path`` objects:
    system = Path("conf/common/system/example_slurm_cluster.toml")
    scenario = Path("conf/common/test_scenario/sleep.toml")
 
+   cloudai.api.validate_scenario(
+       scenario, system, tests_dir=Path("conf/common/test")
+   )
    experiment = cloudai.api.run_experiment(
        scenario, system, tests_dir=Path("conf/common/test")
    )
    print(experiment.status, experiment.path)
+
+``validate_scenario`` performs the same configuration loading checks as
+``run_experiment``. It returns ``None`` on success and raises configuration errors
+on failure, without creating a runner, installing dependencies, or submitting
+jobs. Pass ``tests_dir`` for referenced test definitions and ``hook_dir`` for
+custom hooks, as with ``run_experiment``. Validation does not check cluster
+availability or whether a workload will run successfully.
 
 ``run_experiment`` waits for the scenario to finish and returns an ``Experiment``
 model with the same data saved in ``experiment.json``. Workload failures appear in
