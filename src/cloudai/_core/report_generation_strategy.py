@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import ClassVar
 
 from .system import System
-from .test_scenario import METRIC_ERROR, MetricValue, TestRun
+from .test_run import METRIC_ERROR, MetricValue, TestRun
 
 
 class ReportGenerationStrategy(ABC):

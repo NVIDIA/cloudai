@@ -25,10 +25,10 @@ from typing import TYPE_CHECKING
 import toml
 
 from .system import System
-from .test_scenario import TestRun, TestScenario
+from .test_run import TestRun
 
 if TYPE_CHECKING:
-    from ..models.scenario import ReportConfig
+    from ..models.scenario import ReportConfig, TestScenario
 
 
 def case_name(tr: TestRun) -> str:
@@ -67,7 +67,14 @@ class Reporter(ABC):
                         tr_file = tr.output_path / "test-run.toml"
                         if tr_file.exists():
                             tr_file = toml.load(tr_file)
-                            tr.test = tr.test.model_validate(tr_file["test_definition"])
+                            # Older snapshots omit scheduling fields; retain the current
+                            # definition's values for any missing fields.
+                            config = tr.test.model_dump()
+                            restored = type(tr.test).model_validate(config | tr_file["test_definition"])
+                            tr.test = restored.model_copy(
+                                update={"num_nodes": tr_file["nnodes"], "reporters": tr.test.reporters}
+                            )
+                            tr.nodes = tr_file["nodes"]
                         self.trs.append(copy.deepcopy(tr))
                 else:
                     tr.current_iteration = int(iter.name)

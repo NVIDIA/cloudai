@@ -37,7 +37,11 @@ def test_gen_exec_command_redirects_output_and_writes_test_run(
         ),
         extra_env_vars={"FIO_VAR": "1"},
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
     strategy = FioStandaloneCommandGenStrategy(standalone_system, tr)
 
     command = strategy.gen_exec_command()

@@ -43,7 +43,9 @@ def sglang() -> SglangTestDefinition:
 
 @pytest.fixture
 def sglang_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
-    return TestRun(test=sglang, num_nodes=1, nodes=[], output_path=tmp_path, name="sglang-job")
+    return TestRun(
+        test=sglang.model_copy(deep=True, update={"num_nodes": 1, "id": "sglang-job"}), nodes=[], output_path=tmp_path
+    )
 
 
 @pytest.fixture
@@ -55,14 +57,22 @@ def sglang_cmd_gen_strategy(sglang_tr: TestRun, slurm_system: SlurmSystem) -> Sg
 def sglang_disagg_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
     sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     sglang.cmd_args.prefill = SglangArgs()
-    return TestRun(test=sglang, num_nodes=1, nodes=[], output_path=tmp_path, name="sglang-disagg-job")
+    return TestRun(
+        test=sglang.model_copy(deep=True, update={"num_nodes": 1, "id": "sglang-disagg-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
 def sglang_disagg_2node_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
     sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     sglang.cmd_args.prefill = SglangArgs()
-    return TestRun(test=sglang, num_nodes=2, nodes=[], output_path=tmp_path, name="sglang-disagg-2node-job")
+    return TestRun(
+        test=sglang.model_copy(deep=True, update={"num_nodes": 2, "id": "sglang-disagg-2node-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
@@ -161,7 +171,7 @@ def test_disaggregated_server_healthcheck_defaults_to_legacy_health_endpoint(
 
 
 def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    sglang_disagg_tr.num_nodes = 3
+    sglang_disagg_tr.test = sglang_disagg_tr.test.model_copy(update={"num_nodes": 3})
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
     with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
@@ -175,7 +185,7 @@ def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_lau
     assert tdef.cmd_args.prefill is not None
     tdef.cmd_args.prefill.num_nodes = 2
     tdef.cmd_args.decode.num_nodes = 2
-    sglang_disagg_tr.num_nodes = 4
+    sglang_disagg_tr.test = sglang_disagg_tr.test.model_copy(update={"num_nodes": 4})
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
     srun_command = strategy._gen_srun_command()

@@ -30,18 +30,18 @@ def nixl_bench_tr(tmp_path) -> TestRun:
     output_path = tmp_path / "nixl-bench"
     output_path.mkdir(parents=True, exist_ok=True)
     return TestRun(
-        name="nixl-bench",
-        num_nodes=2,
+        test=(
+            NIXLBenchTestDefinition(
+                cmd_args=NIXLBenchCmdArgs(
+                    docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
+                ),
+                name="nixl-bench",
+                description="NIXL Bench",
+                test_template_name="NIXLBench",
+            )
+        ).model_copy(deep=True, update={"id": "nixl-bench", "num_nodes": 2}),
         nodes=[],
         output_path=output_path,
-        test=NIXLBenchTestDefinition(
-            cmd_args=NIXLBenchCmdArgs(
-                docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
-            ),
-            name="nixl-bench",
-            description="NIXL Bench",
-            test_template_name="NIXLBench",
-        ),
     )
 
 
@@ -220,7 +220,7 @@ def test_get_etcd_srun_command_with_etcd_image(nixl_bench_tr: TestRun, slurm_sys
 def test_gen_nixl_srun_command(
     nixl_bench_tr: TestRun, slurm_system: SlurmSystem, backend: str, nnodes: int, exp_ntasks: int
 ):
-    nixl_bench_tr.num_nodes = nnodes
+    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"num_nodes": nnodes})
     nixl_bench_tr.test.cmd_args.backend = backend
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
 
@@ -243,7 +243,7 @@ def test_gen_nixl_srun_command(
 
 @pytest.mark.parametrize("num_nodes", [1, 2])
 def test_asio_srun_lifecycle(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, num_nodes: int) -> None:
-    nixl_bench_tr.num_nodes = num_nodes
+    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"num_nodes": num_nodes})
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     tdef.cmd_args.runtime_type = "ASIO"
     nixl_bench_tr.test.cmd_args.backend = "UCX"
@@ -283,8 +283,8 @@ def test_storage_backend_without_runtime(nixl_bench_tr: TestRun, slurm_system: S
 def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, runtime: str) -> None:
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     nixl_bench_tr.test.cmd_args.backend = "UCX" if runtime == "ASIO" else "POSIX"
-    nixl_bench_tr.num_nodes = 2 if runtime == "ASIO" else 4
-    nixl_bench_tr.extra_srun_args = "--ntasks=4 --ntasks-per-node=1"
+    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"num_nodes": 2 if runtime == "ASIO" else 4})
+    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"srun_args": "--ntasks=4 --ntasks-per-node=1"})
     slurm_system.extra_srun_args = "--ntasks-per-node=1"
     if runtime == "null":
         tdef.cmd_args.etcd_endpoints = ""

@@ -41,7 +41,11 @@ def kvbench() -> NIXLKVBenchTestDefinition:
 def kvbench_tr(kvbench: NIXLKVBenchTestDefinition, tmp_path) -> TestRun:
     output_path = tmp_path / "nixl-kvbench"
     output_path.mkdir(parents=True, exist_ok=True)
-    return TestRun(name="nixl-bench", num_nodes=2, nodes=[], test=kvbench, output_path=output_path)
+    return TestRun(
+        test=kvbench.model_copy(deep=True, update={"id": "nixl-bench", "num_nodes": 2}),
+        nodes=[],
+        output_path=output_path,
+    )
 
 
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):

@@ -72,7 +72,13 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
     test = MyWorkload(name="n", description="d", test_template_name="wrk", cmd_args=CmdArgs())
     test_scenario = TestScenario(
         name="Test Scenario",
-        test_runs=[TestRun("tr-name", test, 1, [], output_path=slurm_system.output_path / "tr-name")],
+        test_runs=[
+            TestRun(
+                test=test.model_copy(deep=True, update={"id": "tr-name", "num_nodes": 1}),
+                output_path=slurm_system.output_path / "tr-name",
+                nodes=[],
+            )
+        ],
     )
     return test_scenario
 

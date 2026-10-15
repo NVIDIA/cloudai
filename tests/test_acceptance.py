@@ -225,11 +225,12 @@ class TestInDryRun:
 
 @pytest.fixture
 def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
-    return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+    return partial(TestRun, nodes=[], output_path=slurm_system.output_path)
 
 
 def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition, **kwargs) -> TestRun:
-    tr = partial_tr(name=name, test=test_definition, **kwargs)
+    test_definition = test_definition.model_copy(deep=True, update={"id": name, **kwargs})
+    tr = partial_tr(test=test_definition)
     return tr
 
 
@@ -854,19 +855,19 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
-            tr.num_nodes = 3
+            tr.test = tr.test.model_copy(update={"num_nodes": 3})
             tr.test.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
             tr.test.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param in {"nixl_bench", "nixl-kvbench"}:
-            tr.num_nodes = 2
+            tr.test = tr.test.model_copy(update={"num_nodes": 2})
         if request.param == "nixl-ep":
-            tr.num_nodes = 3
+            tr.test = tr.test.model_copy(update={"num_nodes": 3})
         if request.param == "ai-dynamo":
-            tr.num_nodes = 2
+            tr.test = tr.test.model_copy(update={"num_nodes": 2})
         if request.param in {"moe-benchmark", "deepep-benchmark", "fio"}:
-            tr.num_nodes = 2
+            tr.test = tr.test.model_copy(update={"num_nodes": 2})
         if request.param in {"sglang-multinode", "sglang-disagg-2nodes", "vllm-multinode", "vllm-disagg-2nodes"}:
-            tr.num_nodes = 2
+            tr.test = tr.test.model_copy(update={"num_nodes": 2})
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

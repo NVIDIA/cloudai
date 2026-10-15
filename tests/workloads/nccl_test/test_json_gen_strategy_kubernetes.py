@@ -31,7 +31,9 @@ class TestNcclTestKubernetesJsonGenStrategy:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
         tr = TestRun(
-            name="t1", test=nccl, nodes=["node1", "node2"], num_nodes=2, output_path=k8s_system.output_path / "t1"
+            test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}),
+            nodes=["node1", "node2"],
+            output_path=k8s_system.output_path / "t1",
         )
         tr.output_path.mkdir(parents=True, exist_ok=True)
         return tr
@@ -142,7 +144,11 @@ class TestNcclCniNetworking:
     def test_run(self, k8s_system: KubernetesSystem) -> TestRun:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "img"})
         nccl = NCCLTestDefinition(name="n", description="d", test_template_name="NcclTest", cmd_args=cmd_args)
-        tr = TestRun(name="t", test=nccl, nodes=["n1", "n2"], num_nodes=2, output_path=k8s_system.output_path / "t")
+        tr = TestRun(
+            test=nccl.model_copy(deep=True, update={"id": "t", "num_nodes": 2}),
+            nodes=["n1", "n2"],
+            output_path=k8s_system.output_path / "t",
+        )
         tr.output_path.mkdir(parents=True, exist_ok=True)
         return tr
 

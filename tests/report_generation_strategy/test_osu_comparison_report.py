@@ -15,12 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
-from cloudai.core import TestRun, TestScenario
+from cloudai.core import CmdArgs, TestDefinition, TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReportConfig
 from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
 from cloudai.systems.slurm import SlurmSystem
@@ -34,7 +33,13 @@ def test_v2_axis_labels_match_measured_sizes(
 ) -> None:
     values = [float(index + 1) for index in range(len(sizes))]
     pd.DataFrame({"size": sizes, metric: values}).to_csv(tmp_path / "osu_bench.csv", index=False)
-    tr = TestRun(name="osu", test=Mock(), num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "osu", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     report = OSUBenchComparisonReport(
         slurm_system,
         TestScenario(name="osu", test_runs=[]),
@@ -70,7 +75,13 @@ def test_comparison_aligns_different_size_ranges(
         output = tmp_path / name
         output.mkdir()
         pd.DataFrame({"size": sizes, metric: values}).to_csv(output / "osu_bench.csv", index=False)
-        tr = TestRun(name=name, test=Mock(), num_nodes=2, nodes=[], output_path=output)
+        tr = TestRun(
+            test=(
+                TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+            ).model_copy(deep=True, update={"id": name, "num_nodes": 2}),
+            nodes=[],
+            output_path=output,
+        )
         items.append(TRGroupItem(name=name, tr=tr))
     report = OSUBenchComparisonReport(
         slurm_system,
@@ -109,7 +120,13 @@ def test_comparison_skips_empty_run(missing_output: bool, tmp_path: Path, slurm_
             pd.DataFrame({"size": [1, 2], "mb_sec": [10.0, 20.0]}).to_csv(output / "osu_bench.csv", index=False)
         elif not missing_output:
             pd.DataFrame(columns=["size", "mb_sec"]).to_csv(output / "osu_bench.csv", index=False)
-        tr = TestRun(name=name, test=Mock(), num_nodes=2, nodes=[], output_path=output)
+        tr = TestRun(
+            test=(
+                TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+            ).model_copy(deep=True, update={"id": name, "num_nodes": 2}),
+            nodes=[],
+            output_path=output,
+        )
         items.append(TRGroupItem(name=name, tr=tr))
     report = OSUBenchComparisonReport(
         slurm_system,

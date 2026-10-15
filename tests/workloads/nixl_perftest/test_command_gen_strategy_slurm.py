@@ -53,7 +53,11 @@ def nixl_perftest() -> NixlPerftestTestDefinition:
 
 @pytest.fixture
 def test_run(nixl_perftest: NixlPerftestTestDefinition, slurm_system: SlurmSystem) -> TestRun:
-    return TestRun(name="test_run", num_nodes=2, nodes=[], test=nixl_perftest, output_path=slurm_system.output_path)
+    return TestRun(
+        test=nixl_perftest.model_copy(deep=True, update={"id": "test_run", "num_nodes": 2}),
+        nodes=[],
+        output_path=slurm_system.output_path,
+    )
 
 
 def test_gen_matrix_gen_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
@@ -193,11 +197,12 @@ def test_constraint_check(
     prefill_nodes: int,
     res: bool,
 ) -> None:
-    nixl_perftest.cmd_args.decode_tp = decode_tp
-    nixl_perftest.cmd_args.num_decode_nodes = dec_nodes
-    nixl_perftest.cmd_args.prefill_tp = prefill_tp
-    nixl_perftest.cmd_args.num_prefill_nodes = prefill_nodes
-    assert nixl_perftest.constraint_check(test_run, None) is res
+    definition = cast(NixlPerftestTestDefinition, test_run.test)
+    definition.cmd_args.decode_tp = decode_tp
+    definition.cmd_args.num_decode_nodes = dec_nodes
+    definition.cmd_args.prefill_tp = prefill_tp
+    definition.cmd_args.num_prefill_nodes = prefill_nodes
+    assert definition.constraint_check(test_run, None) is res
 
 
 def test_get_etcd_srun_command_with_etcd_image(test_run: TestRun, slurm_system: SlurmSystem):

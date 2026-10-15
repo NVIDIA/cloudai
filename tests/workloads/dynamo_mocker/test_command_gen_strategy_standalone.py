@@ -63,9 +63,7 @@ def _make_strategy(
     # Simulate post-install state: venv_path is set on the cached instance.
     tdef.python_environment.venv_path = system.install_path / tdef.python_environment.venv_name
     tr = TestRun(
-        name="test-run",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "test-run", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output" / "test-run",
     )

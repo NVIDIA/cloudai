@@ -89,7 +89,10 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     test_template_mock.command_gen_strategy = mock_command_gen
 
     test_run = TestRun(
-        name="mock_test_run", test=tdef, num_nodes=1, nodes=[], reports={NeMoRunReportGenerationStrategy}
+        test=tdef.model_copy(
+            deep=True, update={"id": "mock_test_run", "num_nodes": 1, "reporters": {NeMoRunReportGenerationStrategy}}
+        ),
+        nodes=[],
     )
 
     test_scenario = TestScenario(name="mock_test_scenario", test_runs=[test_run])
@@ -203,11 +206,11 @@ def test_constraint_failure(
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
     test_run = TestRun(
-        name="constraint_fail_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(
+            deep=True,
+            update={"id": "constraint_fail_tr", "num_nodes": 1, "reporters": {NeMoRunReportGenerationStrategy}},
+        ),
         nodes=[],
-        reports={NeMoRunReportGenerationStrategy},
     )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
@@ -232,7 +235,7 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2"]
 
     tr.test = nemorun
-    tr.num_nodes = [1, 2]
+    tr.test = tr.test.model_copy(update={"num_nodes": [1, 2]})
 
     action_space = tr.param_space
 
@@ -269,7 +272,7 @@ def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestR
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2]))
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2", "3"]
     tr.test = nemorun
-    tr.num_nodes = num_nodes
+    tr.test = tr.test.model_copy(update={"num_nodes": num_nodes})
 
     expected_num_combinations = 6
     if isinstance(num_nodes, list):
@@ -324,14 +327,14 @@ def test_all_combinations_dse_on_num_nodes(nemorun: NeMoRunTestDefinition, setup
         test_template_name="nemo_template",
         cmd_args=NeMoRunCmdArgs(docker_image_url="https://docker/url", task="some_task", recipe_name="some_recipe"),
     )
-    tr.num_nodes = [1, 2]
+    tr.test = tr.test.model_copy(update={"num_nodes": [1, 2]})
     assert len(tr.all_combinations) == 2
 
 
 @pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
 def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
     tr, _ = setup_env
-    tr.num_nodes = num_nodes
+    tr.test = tr.test.model_copy(update={"num_nodes": num_nodes})
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
         new_tr = tr.apply_params_set(action)
@@ -429,11 +432,10 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     tdef.cmd_args.data.global_batch_size = 8
     tdef.agent_metrics = ["default"]
     test_run = TestRun(
-        name="cache_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(
+            deep=True, update={"id": "cache_tr", "num_nodes": 1, "reporters": {NeMoRunReportGenerationStrategy}}
+        ),
         nodes=[],
-        reports={NeMoRunReportGenerationStrategy},
     )
 
     runner = MagicMock(spec=BaseRunner)
@@ -566,9 +568,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
         agent_config={"random_seed": 42},
     )
     test_run = TestRun(
-        name="dr_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "dr_tr", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
@@ -614,9 +614,7 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
     )
 
     test_run = TestRun(
-        name="dr_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "dr_tr", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
@@ -659,9 +657,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
     )
 
     test_run = TestRun(
-        name="dr_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "dr_tr", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
@@ -721,9 +717,7 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     )
 
     test_run = TestRun(
-        name="dr_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "dr_tr", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
@@ -793,9 +787,7 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     )
 
     test_run = TestRun(
-        name="overlay_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(deep=True, update={"id": "overlay_tr", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "out" / "overlay_tr" / "0",
     )
@@ -848,12 +840,11 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
     test_run = TestRun(
-        name="plain_tr",
-        test=tdef,
-        num_nodes=1,
+        test=tdef.model_copy(
+            deep=True, update={"id": "plain_tr", "num_nodes": 1, "reporters": {NeMoRunReportGenerationStrategy}}
+        ),
         nodes=[],
         output_path=tmp_path / "out" / "plain_tr" / "0",
-        reports={NeMoRunReportGenerationStrategy},
     )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
@@ -882,7 +873,11 @@ def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEn
         agent_metrics=["default"],
         agent_config={"random_seed": seed},
     )
-    test_run = TestRun(name="dr_tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out" / "dr_tr" / "0")
+    test_run = TestRun(
+        test=tdef.model_copy(deep=True, update={"id": "dr_tr", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "out" / "dr_tr" / "0",
+    )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
@@ -904,7 +899,7 @@ class TestStructuredObservationProducer:
         """A workload with no env_params returns ``None`` (adapter keeps the flat Box path)."""
         tdef = nemorun.model_copy(deep=True)
         tdef.cmd_args.data.global_batch_size = 8
-        test_run = TestRun(name="plain_tr", test=tdef, num_nodes=1, nodes=[])
+        test_run = TestRun(test=tdef.model_copy(deep=True, update={"id": "plain_tr", "num_nodes": 1}), nodes=[])
         runner = MagicMock(spec=BaseRunner)
         runner.scenario_root = tmp_path / "scenario"
         runner.system = MagicMock()

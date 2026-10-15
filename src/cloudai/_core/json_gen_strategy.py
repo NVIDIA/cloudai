@@ -21,7 +21,7 @@ from typing import Any, Dict
 import toml
 
 from .system import System
-from .test_scenario import TestRun
+from .test_run import TestRun
 
 
 class JsonGenStrategy(ABC):

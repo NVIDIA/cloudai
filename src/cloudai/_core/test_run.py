@@ -18,19 +18,18 @@ from __future__ import annotations
 
 import copy
 import itertools
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
+import pathlib
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
 
 import cloudai.metrics
 
+from ..models.workload import TestDefinition
 from ..util import flatten_dict
 from .registry import Registry
 from .system import System
 
 if TYPE_CHECKING:
-    from ..models.scenario import ReportConfig
-    from ..models.workload import TestDefinition
+    from ..models.scenario import TestScenario
     from .report_generation_strategy import ReportGenerationStrategy
 
 
@@ -77,31 +76,82 @@ class TestDependency:
         self.test_run = test_run
 
 
-@dataclass
 class TestRun:
+    """Mutable execution state bound to one prepared test definition."""
+
     __test__ = False
 
-    name: str
-    test: TestDefinition
-    num_nodes: Union[int, list[int]]
-    nodes: List[str]
-    exclude_nodes: List[str] = field(default_factory=list)
-    output_path: Path = Path("")
-    iterations: int = 1
-    current_iteration: int = 0
-    step: int = 0
-    time_limit: Optional[str] = None
-    sol: Optional[float] = None
-    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
-    weight: float = 0.0
-    ideal_perf: float = 1.0
-    dependencies: dict[str, TestDependency] = field(default_factory=dict)
-    pre_test: Optional[TestScenario] = None
-    post_test: Optional[TestScenario] = None
-    reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
-    extra_srun_args: str | None = None
-    num_nodes_explicit: bool = False
-    pin_nodes: bool = False
+    def __init__(
+        self,
+        test: TestDefinition,
+        nodes: list[str] | None = None,
+        output_path: pathlib.Path = pathlib.Path(""),
+        current_iteration: int = 0,
+        step: int = 0,
+        dependencies: dict[str, TestDependency] | None = None,
+        pre_test: TestScenario | None = None,
+        post_test: TestScenario | None = None,
+    ) -> None:
+        self.test = test
+        self.nodes = list(nodes if nodes is not None else test.nodes)
+        self.output_path = output_path
+        self.current_iteration = current_iteration
+        self.step = step
+        self.dependencies = dependencies if dependencies is not None else {}
+        self.pre_test = pre_test
+        self.post_test = post_test
+
+    @property
+    def name(self) -> str:
+        return self.test.id or self.test.name
+
+    @property
+    def num_nodes(self) -> int | list[int]:
+        return self.test.num_nodes if self.test.num_nodes is not None else 1
+
+    @property
+    def num_nodes_explicit(self) -> bool:
+        return self.test.num_nodes is not None and "num_nodes" in self.test.model_fields_set
+
+    @property
+    def time_limit(self) -> str | None:
+        return self.test.time_limit
+
+    @property
+    def sol(self) -> float | None:
+        return self.test.sol if isinstance(self.test.sol, (float, int)) else None
+
+    @property
+    def metric_sol(self) -> cloudai.metrics.MetricSOLConfig:
+        return self.test.metric_sol
+
+    @property
+    def weight(self) -> float:
+        return self.test.weight
+
+    @property
+    def reports(self) -> set[type[ReportGenerationStrategy]]:
+        return self.test.reporters
+
+    @property
+    def exclude_nodes(self) -> list[str]:
+        return self.test.exclude_nodes
+
+    @property
+    def iterations(self) -> int:
+        return self.test.iterations
+
+    @property
+    def ideal_perf(self) -> float:
+        return self.test.ideal_perf
+
+    @property
+    def extra_srun_args(self) -> str | None:
+        return self.test.srun_args
+
+    @property
+    def pin_nodes(self) -> bool:
+        return self.test.pin_nodes
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -218,9 +268,7 @@ class TestRun:
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
             elif key == "NUM_NODES":
-                # Handled below via new_tr.num_nodes; cmd_args has no such field, and CmdArgs'
-                # extra="allow" would otherwise let this create a phantom attribute on it.
-                continue
+                tdef.num_nodes = value
             else:
                 attrs = key.split(".")
                 obj = tdef.cmd_args
@@ -240,62 +288,4 @@ class TestRun:
 
         new_tr = copy.deepcopy(self)
         new_tr.test = tdef
-        if "NUM_NODES" in action:
-            new_tr.num_nodes = action["NUM_NODES"]
         return new_tr
-
-
-@dataclass(frozen=True)
-class ConfigPaths:
-    """Source paths used to build a system and test scenario."""
-
-    system_path: Path
-    tests_dir_path: Optional[Path]
-    test_scenario_path: Path
-
-
-@dataclass
-class TestScenario:
-    """
-    Represents a test scenario, comprising a set of tests.
-
-    Attributes
-        name (str): Unique name of the test scenario.
-        tests (List[Test]): Tests in the scenario.
-        job_status_check (bool): Flag indicating whether to check the job status or not.
-        reports (dict[str, ReportConfig] | None): Report configurations for the scenario.
-        config_paths (Optional[ConfigPaths]): Source configuration paths, when parsed from files.
-    """
-
-    __test__ = False
-
-    name: str
-    test_runs: list[TestRun]
-    job_status_check: bool = True
-    reports: dict[str, ReportConfig] = field(default_factory=dict)
-    config_paths: Optional[ConfigPaths] = None
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the TestScenario instance.
-
-        Returns
-            str: String representation of the test scenario.
-        """
-        test_names = ", ".join([tr.test.name for tr in self.test_runs])
-        return f"TestScenario(name={self.name}, tests=[{test_names}])"
-
-    def pretty_print(self) -> str:
-        """Print each test in the scenario along with its section name, description, and visualized dependencies."""
-        s = f"Test Scenario: {self.name}\n"
-        for tr in self.test_runs:
-            s += f"\nSection Name: {tr.name}\n"
-            s += f"  Test Name: {tr.test.name}\n"
-            s += f"  Description: {tr.test.description}\n"
-            if tr.dependencies:
-                for dep_type, dependency in tr.dependencies.items():
-                    if dependency:
-                        s += f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}"
-            else:
-                s += "  No dependencies"
-        return s

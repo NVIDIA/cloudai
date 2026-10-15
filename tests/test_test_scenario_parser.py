@@ -14,14 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import List, Optional, cast
 
 import pytest
 import toml
 
 from cloudai.core import TestDefinition, TestRun, TestScenario
-from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
 from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportConfig
 
@@ -29,24 +27,14 @@ from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportC
 class DummyTestRun(TestRun):
     def __init__(self, time_limit: str) -> None:
         super().__init__(
-            name="dummy_run",
             test=TestDefinition(
-                name="dummy_test", description="dummy_test", test_template_name="dummy_test", cmd_args={}
-            ),
-            num_nodes=1,
-            nodes=[],
-            output_path=Path(""),
-            iterations=1,
-            current_iteration=0,
-            step=0,
-            time_limit=time_limit,
-            sol=None,
-            weight=0.0,
-            ideal_perf=1.0,
-            dependencies={},
-            pre_test=None,
-            post_test=None,
-            reports=set(),
+                id="dummy_run",
+                name="dummy_test",
+                description="dummy_test",
+                test_template_name="dummy_test",
+                cmd_args={},
+                time_limit=time_limit,
+            )
         )
 
 
@@ -73,7 +61,7 @@ def test_calculate_total_time_limit(
 
 
 def test_report_spec_is_parsed() -> None:
-    model = TestScenarioModel.model_validate(
+    model = TestScenario.model_validate(
         toml.loads("""
     name = "scenario"
 
@@ -87,6 +75,7 @@ def test_report_spec_is_parsed() -> None:
     name = "name"
     description = "desc"
     test_template_name = "NcclTest"
+    cmd_args = {}
     """)
     )
 

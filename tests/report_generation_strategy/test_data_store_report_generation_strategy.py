@@ -37,8 +37,8 @@ def nemo_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
-    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
-    tr.reports = {NeMoRunReportGenerationStrategy}
+    tr = TestRun(test=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}), nodes=[], output_path=tmp_path)
+    tr.test = tr.test.model_copy(update={"reporters": {NeMoRunReportGenerationStrategy}})
 
     stdout_content = (
         "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
@@ -84,7 +84,9 @@ def nemo_tr_empty_log(tmp_path: Path) -> TestRun:
             recipe_name="recipe",
         ),
     )
-    return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    return TestRun(
+        test=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
 
 @pytest.mark.parametrize(

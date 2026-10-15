@@ -45,7 +45,11 @@ class TestNeMoRunSlurmCommandGenStrategy:
             extra_cmd_args={"extra_args": ""},
         )
 
-        tr = TestRun(test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
+        tr = TestRun(
+            test=tdef.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            nodes=[],
+            output_path=tmp_path / "output",
+        )
 
         return tr
 
@@ -93,7 +97,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
     def test_trainer_num_nodes_greater_than_num_nodes(
         self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, caplog: pytest.LogCaptureFixture
     ) -> None:
-        cmd_gen_strategy.test_run.num_nodes = 1
+        cmd_gen_strategy.test_run.test = cmd_gen_strategy.test_run.test.model_copy(update={"num_nodes": 1})
         cmd_args = NeMoRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",

@@ -48,29 +48,29 @@ def _write_result(run_dir: pathlib.Path, file_name: str, content: str) -> None:
 
 def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
-        name="vllm-8",
-        test=VllmTestDefinition(
-            name="vllm",
-            description="vLLM benchmark",
-            test_template_name="vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
-            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=8),
-            semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
-        ),
-        num_nodes=1,
+        test=(
+            VllmTestDefinition(
+                name="vllm",
+                description="vLLM benchmark",
+                test_template_name="vllm",
+                cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
+                bench_cmd_args=VllmBenchCmdArgs(max_concurrency=8),
+                semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
+            )
+        ).model_copy(deep=True, update={"id": "vllm-8", "num_nodes": 1}),
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
-        name="vllm-16",
-        test=VllmTestDefinition(
-            name="vllm",
-            description="vLLM benchmark",
-            test_template_name="vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
-            bench_cmd_args=VllmBenchCmdArgs(max_concurrency=16),
-            semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
-        ),
-        num_nodes=1,
+        test=(
+            VllmTestDefinition(
+                name="vllm",
+                description="vLLM benchmark",
+                test_template_name="vllm",
+                cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B"),
+                bench_cmd_args=VllmBenchCmdArgs(max_concurrency=16),
+                semantic_eval_cmd_args=VllmSemanticEvalCmdArgs(),
+            )
+        ).model_copy(deep=True, update={"id": "vllm-16", "num_nodes": 1}),
         nodes=[],
     )
     _write_result(
@@ -151,29 +151,29 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
 
 def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
-        name="sglang-8",
-        test=SglangTestDefinition(
-            name="sglang",
-            description="SGLang benchmark",
-            test_template_name="sglang",
-            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
-            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
-            semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
-        ),
-        num_nodes=1,
+        test=(
+            SglangTestDefinition(
+                name="sglang",
+                description="SGLang benchmark",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+                bench_cmd_args=SglangBenchCmdArgs(max_concurrency=8),
+                semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
+            )
+        ).model_copy(deep=True, update={"id": "sglang-8", "num_nodes": 1}),
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
-        name="sglang-16",
-        test=SglangTestDefinition(
-            name="sglang",
-            description="SGLang benchmark",
-            test_template_name="sglang",
-            cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
-            bench_cmd_args=SglangBenchCmdArgs(max_concurrency=16),
-            semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
-        ),
-        num_nodes=1,
+        test=(
+            SglangTestDefinition(
+                name="sglang",
+                description="SGLang benchmark",
+                test_template_name="sglang",
+                cmd_args=SglangCmdArgs(docker_image_url="docker.io/lmsysorg/sglang:dev", model="Qwen/Qwen3-8B"),
+                bench_cmd_args=SglangBenchCmdArgs(max_concurrency=16),
+                semantic_eval_cmd_args=SglangSemanticEvalCmdArgs(),
+            )
+        ).model_copy(deep=True, update={"id": "sglang-16", "num_nodes": 1}),
         nodes=[],
     )
     _write_result(

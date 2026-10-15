@@ -38,7 +38,11 @@ def megatron_run_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
-    tr = TestRun(name="megatron_run_test", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     stdout_content = (
         "[2026-01-16 07:32:24] iteration        5/     100 | consumed samples:        10240 | "
@@ -73,7 +77,11 @@ def megatron_run_tr_no_data(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
-    tr = TestRun(name="megatron_run_test", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     stdout_content = """
 Some random log output without iteration metrics

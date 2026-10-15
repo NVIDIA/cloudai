@@ -46,7 +46,11 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef.python_executable.git_repo.installed_path = tmp_path / "repo"
         tdef.python_executable.venv_path = tmp_path / "venv"
 
-        tr = TestRun(test=tdef, num_nodes=2, nodes=[], output_path=tmp_path / "output", name="test-job")
+        tr = TestRun(
+            test=tdef.model_copy(deep=True, update={"num_nodes": 2, "id": "test-job"}),
+            nodes=[],
+            output_path=tmp_path / "output",
+        )
 
         return tr
 

@@ -66,14 +66,14 @@ Iterations:
 @pytest.fixture
 def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
     ucc_tr = TestRun(
-        name="ucc_test",
-        test=UCCTestDefinition(
-            name="ucc_test",
-            description="ucc_test",
-            test_template_name="ucc_test",
-            cmd_args=UCCCmdArgs(docker_image_url="url://fake/ucc"),
-        ),
-        num_nodes=1,
+        test=(
+            UCCTestDefinition(
+                name="ucc_test",
+                description="ucc_test",
+                test_template_name="ucc_test",
+                cmd_args=UCCCmdArgs(docker_image_url="url://fake/ucc"),
+            )
+        ).model_copy(deep=True, update={"id": "ucc_test", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )

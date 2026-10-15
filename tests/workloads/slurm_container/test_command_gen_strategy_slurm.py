@@ -47,7 +47,7 @@ def test_run() -> TestRun:
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd", check_exit_code=True),
     )
-    tr = TestRun(name="name", test=tdef, num_nodes=1, nodes=[])
+    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "name", "num_nodes": 1}), nodes=[])
     return tr
 
 

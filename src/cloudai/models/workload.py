@@ -14,17 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 from typing_extensions import Self
 
 import cloudai.metrics
-from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
+from cloudai._core.installables import GitRepo, Installable, PythonExecutable
+from cloudai._core.job_status_result import JobStatusResult
+from cloudai._core.registry import Registry
 
 from ..configurator.env_params import EnvParamSpec
+
+if TYPE_CHECKING:
+    from cloudai.core import System, TestRun
 
 
 class CmdArgs(BaseModel):
@@ -99,12 +107,39 @@ class TrainingReportConfig(BaseModel):
     exclude_post_profiling_steps: int = Field(default=2, ge=0)
 
 
+class TestRunDependencyModel(BaseModel):
+    """Model for test dependency in test scenario."""
+
+    __test__ = False
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
+    id: str
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
     __test__ = False
 
     model_config = ConfigDict(extra="forbid")
+
+    id: str | None = Field(default=None, min_length=1)
+    num_nodes: int | list[int] | None = None
+    nodes: list[str] = Field(default_factory=list)
+    pin_nodes: bool = False
+    exclude_nodes: list[str] = Field(default_factory=list)
+    weight: float = 0.0
+    iterations: int = 1
+    sol: float | cloudai.metrics.MetricSOLConfig | None = None
+    metric_sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
+    reporters: SkipJsonSchema[set[type]] = Field(default_factory=set, exclude=True, repr=False)
+    ideal_perf: float = 1.0
+    time_limit: str | None = None
+    dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
+    srun_args: str | None = None
+
     name: str
     description: str
     test_template_name: str
@@ -131,6 +166,17 @@ class TestDefinition(BaseModel, ABC):
             "persists them in the trajectory output, and includes them in the trajectory cache key."
         ),
     )
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:
+        return cloudai.metrics.parse_sol_spec(value) if isinstance(value, dict) else value
+
+    @model_validator(mode="after")
+    def validate_pin_nodes(self) -> Self:
+        if self.pin_nodes and isinstance(self.num_nodes, list):
+            raise ValueError("pin_nodes cannot be enabled when num_nodes is swept")
+        return self
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

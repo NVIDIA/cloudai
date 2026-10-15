@@ -17,7 +17,7 @@
 from abc import ABC, abstractmethod
 
 from .system import System
-from .test_scenario import TestRun
+from .test_run import TestRun
 
 
 class CommandGenStrategy(ABC):
