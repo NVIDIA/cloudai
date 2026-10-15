@@ -40,8 +40,8 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 @pytest.fixture(params=["v0.0.38", "v0.0.40", "v0.0.41", "v0.0.42"])
-def rest_slurm_system(slurm_system: SlurmSystem, request: pytest.FixtureRequest) -> SlurmSystem:
-    slurm_system.slurm_api = SlurmAPIConfig(
+def rest_slurm_api_config(request: pytest.FixtureRequest) -> SlurmAPIConfig:
+    return SlurmAPIConfig(
         url="https://slurm.example.com/",
         version=request.param,
         headers={
@@ -50,11 +50,17 @@ def rest_slurm_system(slurm_system: SlurmSystem, request: pytest.FixtureRequest)
         },
         verify_certs=False,
     )
+
+
+@pytest.fixture
+def rest_slurm_system(slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig) -> SlurmSystem:
+    slurm_system.slurm_api = rest_slurm_api_config
     return slurm_system
 
 
-def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
-    assert rest_slurm_system.slurm_api is not None
+def test_slurm_api_request_expands_headers(
+    rest_slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("SLURM_USER", "cloudai")
     monkeypatch.setenv("SLURM_JWT", "secret")
     response = Mock()
@@ -65,7 +71,7 @@ def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monke
 
     request.assert_called_once_with(
         "GET",
-        f"https://slurm.example.com/slurm/{rest_slurm_system.slurm_api.version}/nodes/",
+        f"https://slurm.example.com/slurm/{rest_slurm_api_config.version}/nodes/",
         headers={"X-SLURM-USER-NAME": "cloudai", "X-SLURM-USER-TOKEN": "secret"},
         json=None,
         timeout=30,
@@ -84,13 +90,13 @@ def test_slurm_api_request_expands_headers(rest_slurm_system: SlurmSystem, monke
 )
 def test_submit_job_through_slurm_api(
     rest_slurm_system: SlurmSystem,
+    rest_slurm_api_config: SlurmAPIConfig,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     gpus_per_node: bool,
     distribution: str,
     distribution_environment: dict[str, str],
 ):
-    assert rest_slurm_system.slurm_api is not None
     monkeypatch.setenv("CLOUDAI_TEST_SESSION_ENV", "preserved")
     monkeypatch.setenv("SLURM_NTASKS_PER_NODE", "1")
     monkeypatch.setenv("SLURM_DISTRIBUTION", "cyclic")
@@ -130,7 +136,7 @@ srun --container-image=image.sqsh benchmark
     expected_environment = {**os.environ, "SLURM_NTASKS_PER_NODE": "8"}
     if gpus_per_node:
         expected_environment["SLURM_GPUS_PER_NODE"] = "8"
-    if rest_slurm_system.slurm_api.version in {"v0.0.38", "v0.0.40"}:
+    if rest_slurm_api_config.version in {"v0.0.38", "v0.0.40"}:
         expected_environment.update(distribution_environment)
     expected_job = {
         "name": "rest-test",
@@ -149,7 +155,7 @@ srun --container-image=image.sqsh benchmark
         "current_working_directory": str(tmp_path),
         "environment": expected_environment,
     }
-    if rest_slurm_system.slurm_api.version == "v0.0.38":
+    if rest_slurm_api_config.version == "v0.0.38":
         expected_payload = {"script": script, "job": expected_job}
     else:
         expected_job.update(
@@ -204,8 +210,8 @@ def test_slurm_api_job_lifecycle(
     end: int,
     accounting: bool,
     monkeypatch: pytest.MonkeyPatch,
+    rest_slurm_api_config: SlurmAPIConfig,
 ):
-    assert rest_slurm_system.slurm_api is not None
     monkeypatch.setenv("SLURM_USER", "test-user")
     monkeypatch.setenv("SLURM_JWT", "test-token")
     response = {
@@ -222,7 +228,7 @@ def test_slurm_api_job_lifecycle(
             }
         ],
     }
-    if rest_slurm_system.slurm_api.version != "v0.0.38":
+    if rest_slurm_api_config.version != "v0.0.38":
         return_code, signal = (int(value) for value in expected_exit_code.split(":"))
         exit_status = {"FAILED": "ERROR", "CANCELLED": "SIGNALED", "COMPLETED": "SUCCESS"}.get(state, "PENDING")
         response["jobs"][0].update(
@@ -259,8 +265,7 @@ def test_slurm_api_job_lifecycle(
 
     services = ["slurm", "slurmdb"] if accounting else ["slurm"]
     expected_requests = [
-        ("GET", f"https://slurm.example.com/{service}/{rest_slurm_system.slurm_api.version}/job/42")
-        for service in services
+        ("GET", f"https://slurm.example.com/{service}/{rest_slurm_api_config.version}/job/42") for service in services
     ]
     assert [item.args[:2] for item in request.call_args_list] == expected_requests * 4
     assert [(item.step_id, item.name, item.state) for item in metadata] == [("", "rest-test", state)]
@@ -289,8 +294,7 @@ def test_slurm_api_missing_accounting_records(rest_slurm_system: SlurmSystem):
     sleep.assert_called_once_with(client._retry_pause_seconds)
 
 
-def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
-    assert rest_slurm_system.slurm_api is not None
+def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig):
     nodes_response = {
         "nodes": [
             {
@@ -319,7 +323,7 @@ def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
             }
         ]
     }
-    if rest_slurm_system.slurm_api.version != "v0.0.38":
+    if rest_slurm_api_config.version != "v0.0.38":
         for node in nodes_response["nodes"]:
             node["state"] = [node["state"].upper(), *node.pop("state_flags")]
         jobs_response["jobs"][0]["job_state"] = ["RUNNING", "CONFIGURING"]
