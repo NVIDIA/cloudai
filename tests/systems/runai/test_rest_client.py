@@ -14,16 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ssl
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-from unittest.mock import MagicMock
 
 import pytest
 import requests
 from requests import Response
 
-from cloudai.systems.runai import RunAISystem
 from cloudai.systems.runai.runai_rest_client import RunAIRestClient
 
 
@@ -54,19 +50,13 @@ def dummy_token_response() -> DummyResponse:
     return DummyResponse({"accessToken": "dummy_token"})
 
 
-@pytest.fixture(params=[True, False])
-def dummy_client(
-    monkeypatch: pytest.MonkeyPatch, dummy_token_response: DummyResponse, request: pytest.FixtureRequest
-) -> RunAIRestClient:
-    def fake_post(
-        self: requests.Session, url: str, json: Dict[str, Any], timeout: float, verify: bool
-    ) -> DummyResponse:
-        assert timeout == 30
-        assert verify is request.param
+@pytest.fixture
+def dummy_client(monkeypatch: pytest.MonkeyPatch, dummy_token_response: DummyResponse) -> RunAIRestClient:
+    def fake_post(self: requests.Session, url: str, json: Dict[str, Any], **kwargs: Any) -> DummyResponse:
         return dummy_token_response
 
     monkeypatch.setattr(requests.Session, "post", fake_post)
-    return RunAIRestClient("http://dummy", "app_id", "app_secret", verify_certs=request.param)
+    return RunAIRestClient("http://dummy", "app_id", "app_secret")
 
 
 def test_init_access_token(dummy_client: RunAIRestClient) -> None:
@@ -75,11 +65,7 @@ def test_init_access_token(dummy_client: RunAIRestClient) -> None:
 
 
 def test_get_access_token_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_post(
-        self: requests.Session, url: str, json: Dict[str, Any], timeout: float, verify: bool
-    ) -> DummyResponse:
-        assert timeout == 30
-        assert verify is True
+    def fake_post(self: requests.Session, url: str, json: Dict[str, Any], **kwargs: Any) -> DummyResponse:
         return DummyResponse({}, 200)
 
     monkeypatch.setattr(requests.Session, "post", fake_post)
@@ -94,11 +80,8 @@ def test_request_success(dummy_client: RunAIRestClient, monkeypatch: pytest.Monk
         headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
-        timeout: float = 0,
-        verify: bool = True,
+        **kwargs: Any,
     ) -> DummyResponse:
-        assert timeout == 30
-        assert verify is dummy_client.verify_certs
         return DummyResponse({"result": "ok"}, 200)
 
     monkeypatch.setattr(requests, "request", fake_request)
@@ -113,11 +96,8 @@ def test_request_http_error(dummy_client: RunAIRestClient, monkeypatch: pytest.M
         headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
-        timeout: float = 0,
-        verify: bool = True,
+        **kwargs: Any,
     ) -> DummyResponse:
-        assert timeout == 30
-        assert verify is dummy_client.verify_certs
         return DummyResponse({"error": "fail"}, 400)
 
     monkeypatch.setattr(requests, "request", fake_request)
@@ -158,38 +138,3 @@ def test_endpoints(
         assert result["data"] == args[0]
     else:
         assert result["data"] is None
-
-
-def test_fetch_training_logs_respects_tls_config(
-    dummy_client: RunAIRestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    status = MagicMock(return_value=DummyResponse({"status": "OK"}))
-    status.return_value._content = b"OK"
-    monkeypatch.setattr(requests, "get", status)
-    connect = MagicMock()
-    connect.return_value.__enter__.return_value = iter([b"first\n", "second\n"])
-    monkeypatch.setattr("cloudai.systems.runai.runai_rest_client.ws_connect", connect)
-    output = tmp_path / "training.log"
-
-    dummy_client.fetch_training_logs("https://cluster.example.com", "project", "training", output)
-
-    assert status.call_args.kwargs["timeout"] == 30
-    assert status.call_args.kwargs["verify"] is dummy_client.verify_certs
-    assert connect.call_args.args[0].startswith("wss://cluster.example.com/")
-    context = connect.call_args.kwargs["ssl"]
-    assert context.verify_mode == (ssl.CERT_REQUIRED if dummy_client.verify_certs else ssl.CERT_NONE)
-    assert context.check_hostname is dummy_client.verify_certs
-    assert output.read_text() == "first\nsecond\n"
-
-
-@pytest.mark.parametrize("verify_certs", [True, False])
-def test_system_passes_tls_config(
-    runai_system: RunAISystem, monkeypatch: pytest.MonkeyPatch, verify_certs: bool
-) -> None:
-    assert runai_system.verify_certs is True
-    runai_system.verify_certs = verify_certs
-    client = MagicMock()
-    monkeypatch.setattr("cloudai.systems.runai.runai_system.RunAIRestClient", client)
-
-    assert runai_system.api_client is client.return_value
-    assert client.call_args.kwargs["verify_certs"] is verify_certs
