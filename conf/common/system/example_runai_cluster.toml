@@ -25,7 +25,7 @@ base_url = "http://runai.example.com"
 verify_certs = true
 user_email = "your_email"
 app_id = "your_app_id"
-app_secret = ""                       # Fill in your application secret locally.
+app_secret = ""
 project_id = "your_project_id"
 cluster_id = "your_cluster_id"
 
