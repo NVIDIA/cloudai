@@ -42,18 +42,18 @@ steps:
       # The release job emits to ${WORKSPACE}/coverity-scan because there the
       # sources sit in a ${WORKSPACE}/CLOUDAI subdirectory. Here the sources
       # ARE ${WORKSPACE}, so the emit directory is kept outside the scanned
-      # tree to stop cov-capture walking its own output.
+      # tree to stop capture walking its own output.
       cov_dir=$(mktemp -d /tmp/coverity-scan.XXXXXX)
       trap 'rm -rf -- "${cov_dir}"' EXIT
 
       cov_bin=/auto/sw_tools/Commercial/Synopsys/Coverity/Coverity_2026.3.0/linux_x86_64/bin
       export PATH="${cov_bin}:${PATH}"
       # Never fall back to the older tools bundled in the container.
-      for tool in cov-capture cov-analyze cov-format-errors; do
+      for tool in coverity cov-analyze cov-format-errors; do
         [ -x "${cov_bin}/${tool}" ] || { echo "Missing Coverity tool: ${cov_bin}/${tool}"; exit 1; }
       done
 
-      "${cov_bin}/cov-capture" --project-dir "${WORKSPACE}" --dir "${cov_dir}"
+      "${cov_bin}/coverity" capture --project-dir "${WORKSPACE}" --dir "${cov_dir}"
       "${cov_bin}/cov-analyze" --dir "${cov_dir}" --all-security --aggressiveness-level high \
         2>&1 | tee "${WORKSPACE}/coverity-analyze.log"
       "${cov_bin}/cov-format-errors" --dir "${cov_dir}" --text-output-style oneline \
