@@ -184,6 +184,7 @@ def test_slurm_api_rejects_non_sbatch_launcher(rest_slurm_system: SlurmSystem):
         rest_slurm_system.submit_job("python launcher.py", "launcher")
 
 
+@pytest.mark.parametrize("accounting", [False, True])
 @pytest.mark.parametrize(
     "state,exit_code,expected_exit_code,start,end",
     [
@@ -195,9 +196,18 @@ def test_slurm_api_rejects_non_sbatch_launcher(rest_slurm_system: SlurmSystem):
     ],
 )
 def test_slurm_api_job_lifecycle(
-    rest_slurm_system: SlurmSystem, state: str, exit_code: int, expected_exit_code: str, start: int, end: int
+    rest_slurm_system: SlurmSystem,
+    state: str,
+    exit_code: int,
+    expected_exit_code: str,
+    start: int,
+    end: int,
+    accounting: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     assert rest_slurm_system.slurm_api is not None
+    monkeypatch.setenv("SLURM_USER", "test-user")
+    monkeypatch.setenv("SLURM_JWT", "test-token")
     response = {
         "meta": {"slurm": {"cluster": "rest-cluster"}},
         "jobs": [
@@ -225,21 +235,58 @@ def test_slurm_api_job_lifecycle(
             start_time={"set": bool(start), "infinite": False, "number": start},
             end_time={"set": bool(end), "infinite": False, "number": end},
         )
+    if accounting:
+        accounting_job = response["jobs"][0].copy()
+        accounting_job.update(
+            state={"current": accounting_job.pop("job_state")},
+            time={"start": accounting_job.pop("start_time"), "end": accounting_job.pop("end_time")},
+            cluster="rest-cluster",
+            submit_line="sbatch job.sbatch",
+        )
+        response = {"jobs": [accounting_job]}
+    found = Mock(status_code=200)
+    found.json.return_value = response
+    missing = Mock(status_code=404)
+    missing.json.return_value = {"errors": [{"error_number": 2017}]}
+    responses = [missing, found] if accounting else [found]
     job = SlurmJob(test_run=Mock(), id=42)
 
-    with patch.object(SlurmRestClient, "_request", return_value=response) as request:
+    with patch("cloudai.systems.slurm.slurm_rest_client.requests.request", side_effect=responses * 4) as request:
         assert rest_slurm_system.is_job_running(job) is (state == "RUNNING")
         assert rest_slurm_system.is_job_completed(job) is (state not in {"PENDING", "RUNNING"})
         assert rest_slurm_system.complete_job(job) == ["node01", "node02"]
         metadata = rest_slurm_system.get_job_status(job)
 
-    assert request.call_args_list == [call("GET", "slurm", "job/42", retry_threshold=3)] * 4
+    services = ["slurm", "slurmdb"] if accounting else ["slurm"]
+    expected_requests = [
+        ("GET", f"https://slurm.example.com/{service}/{rest_slurm_system.slurm_api.version}/job/42")
+        for service in services
+    ]
+    assert [item.args[:2] for item in request.call_args_list] == expected_requests * 4
     assert [(item.step_id, item.name, item.state) for item in metadata] == [("", "rest-test", state)]
     assert metadata[0].exit_code == expected_exit_code
     assert metadata[0].elapsed_time_sec == max(end - start, 0)
     assert metadata[0].start_time == ("1970-01-01T00:01:40Z" if start else "")
     assert metadata[0].end_time == ("1970-01-01T00:02:00Z" if end else "")
     assert metadata[0].cluster_name == "rest-cluster"
+    assert metadata[0].submit_line == ("sbatch job.sbatch" if accounting else "")
+
+
+def test_slurm_api_missing_accounting_records(rest_slurm_system: SlurmSystem):
+    client = rest_slurm_system._rest_client
+    with (
+        patch.object(client, "_request", return_value={"jobs": []}) as request,
+        patch("cloudai.systems.slurm.slurm_rest_client.time.sleep") as sleep,
+        pytest.raises(RuntimeError, match="absent from both live and accounting records"),
+    ):
+        client.get_job_state(42, retry_threshold=2)
+
+    assert request.call_args_list == [
+        call("GET", "slurm", "job/42", retry_threshold=2),
+        call("GET", "slurmdb", "job/42", retry_threshold=2),
+        call("GET", "slurmdb", "job/42", retry_threshold=2),
+    ]
+    sleep.assert_called_once_with(client._retry_pause_seconds)
 
 
 def test_slurm_api_nodes_cancel_and_validation(rest_slurm_system: SlurmSystem):
