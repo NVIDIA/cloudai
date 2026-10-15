@@ -43,8 +43,10 @@ steps:
       # sources sit in a ${WORKSPACE}/CLOUDAI subdirectory. Here the sources
       # ARE ${WORKSPACE}, so the emit directory is kept outside the scanned
       # tree to stop capture walking its own output.
-      cov_dir=$(mktemp -d /tmp/coverity-scan.XXXXXX)
-      trap 'rm -rf -- "${cov_dir}"' EXIT
+      cov_tmp=$(mktemp -d /tmp/coverity-scan.XXXXXX)
+      trap 'rm -rf -- "${cov_tmp}"' EXIT
+      # Capture must create the intermediate directory itself.
+      cov_dir="${cov_tmp}/idir"
 
       cov_bin=/auto/sw_tools/Commercial/Synopsys/Coverity/Coverity_2026.3.0/linux_x86_64/bin
       export PATH="${cov_bin}:${PATH}"
