@@ -104,6 +104,41 @@ def saved_experiment(
     return experiment, experiment_path
 
 
+@pytest.mark.parametrize("referenced_tests", [False, True])
+def test_validate_scenario(
+    system_config: pathlib.Path,
+    scenario_config: pathlib.Path,
+    standalone_system: StandaloneSystem,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    referenced_tests: bool,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(StandaloneSystem, "update", lambda *_: pytest.fail("Validation must not prepare execution"))
+    tests_dir, hook_dir = None, None
+    if referenced_tests:
+        tests_dir, hook_dir = pathlib.Path("tests"), pathlib.Path("hooks")
+        tests_dir.mkdir()
+        hook_dir.mkdir()
+        scenario_data = toml.loads(scenario_config.read_text())
+        test_data = scenario_data["Tests"][0]
+        test_data.pop("id")
+        (tests_dir / "sleep.toml").write_text(toml.dumps(test_data))
+        (hook_dir / "prepare.toml").write_text(
+            toml.dumps({"name": "prepare", "Tests": [{"id": "prepare", **test_data}]})
+        )
+        scenario_data.update(pre_test="prepare", Tests=[{"id": "sleep", "test_name": "sleep"}])
+        scenario_config.write_text(toml.dumps(scenario_data))
+
+    result = cloudai.api.validate_scenario(
+        pathlib.Path(scenario_config.name), pathlib.Path(system_config.name), tests_dir=tests_dir, hook_dir=hook_dir
+    )
+
+    assert result is None
+    assert not standalone_system.output_path.exists()
+    assert not standalone_system.install_path.exists()
+
+
 @pytest.mark.parametrize(
     ("mode", "cancel_on_start", "expected_status", "expected_runs"),
     [
@@ -177,14 +212,23 @@ def test_run_experiment_rejects_single_sbatch_for_standalone(
         cloudai.api.run_experiment(scenario_config, system_config, single_sbatch=True)
 
 
-def test_run_experiment_rejects_invalid_scenario(
+@pytest.mark.parametrize("api_function", [cloudai.api.run_experiment, cloudai.api.validate_scenario])
+def test_api_rejects_invalid_scenario(
     system_config: pathlib.Path,
     scenario_config: pathlib.Path,
+    api_function: collections.abc.Callable,
 ) -> None:
     scenario_config.write_text('name = "invalid"\n')
 
     with pytest.raises(cloudai.core.TestScenarioParsingError):
-        cloudai.api.run_experiment(scenario_config, system_config)
+        api_function(scenario_config, system_config)
+
+
+def test_validate_scenario_rejects_invalid_system(system_config: pathlib.Path, scenario_config: pathlib.Path) -> None:
+    system_config.write_text('name = "invalid"\n')
+
+    with pytest.raises(cloudai.core.SystemConfigParsingError):
+        cloudai.api.validate_scenario(scenario_config, system_config)
 
 
 def test_list_experiments(system_config: pathlib.Path, standalone_system: StandaloneSystem) -> None:
