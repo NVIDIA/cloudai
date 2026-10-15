@@ -42,7 +42,7 @@ One leaf job per stage, each with its own matrix in `pipeline/`:
 | --- | --- |
 | `cloudai-ci-copyright` | **Check copyrights** — `header_check.py` against `header-check.yml`, limited to files touched this calendar year. |
 | `cloudai-ci-secrets` | **Secret scan** — `secret_scan.py` over the working tree. |
-| `cloudai-ci-coverity` | **Coverity scan** — `--all-security`; fails on any defect, since the codebase reports zero. |
+| `cloudai-ci-coverity` | **Coverity scan** — `--all-security`; fails on any reported defect. |
 | `cloudai-ci-coverage` | **Coverage** — `pytest --cov`. Containers run as root, so the two permission-sensitive tests are run separately with their exit code inverted. |
 
 Blackduck and the antivirus scan stay in the release pipeline: Blossom already

@@ -37,6 +37,7 @@ class RunAISystem(System):
     scheduler: str = "runai"
     monitor_interval: float = 60.0
     base_url: str
+    verify_certs: bool = True
     user_email: str
     app_id: str
     app_secret: str
@@ -52,6 +53,7 @@ class RunAISystem(System):
                 base_url=self.base_url,
                 app_id=self.app_id,
                 app_secret=self.app_secret,
+                verify_certs=self.verify_certs,
             )
         return self._api_client
 

@@ -30,7 +30,7 @@ class RunAIRestClient:
     REST API documentation can be found at https://api-docs.run.ai/latest/
     """
 
-    def __init__(self, base_url: str, app_id: str, app_secret: str) -> None:
+    def __init__(self, base_url: str, app_id: str, app_secret: str, verify_certs: bool = True) -> None:
         """
         Initialize the client and automatically retrieve the access token.
 
@@ -41,6 +41,7 @@ class RunAIRestClient:
         self.app_id = app_id
         self.app_secret = app_secret
         self.base_url = base_url.rstrip("/")
+        self.verify_certs = verify_certs
         self.session = requests.Session()
         self.access_token = self._get_access_token()
         self.session.headers.update(
@@ -62,7 +63,15 @@ class RunAIRestClient:
         """Make an HTTP request and return JSON."""
         url: str = f"{self.base_url}{path}"
         try:
-            response = requests.request(method, url, headers=self.session.headers, params=params, json=data)
+            response = requests.request(
+                method,
+                url,
+                headers=self.session.headers,
+                params=params,
+                json=data,
+                timeout=30,
+                verify=self.verify_certs,
+            )
             response.raise_for_status()
             return response.json() if response.text else None
         except requests.exceptions.HTTPError as http_err:
@@ -80,7 +89,7 @@ class RunAIRestClient:
         payload = {"grantType": "app_token", "AppId": self.app_id, "AppSecret": self.app_secret}
 
         try:
-            response = self.session.post(url, json=payload)
+            response = self.session.post(url, json=payload, timeout=30, verify=self.verify_certs)
             response.raise_for_status()
             data = response.json()
             token = data.get("accessToken")
@@ -493,7 +502,7 @@ class RunAIRestClient:
             "Accept-Encoding": "gzip",
             "Content-Length": "0",
         }
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=30, verify=self.verify_certs)
         return "OK" in response.text
 
     def fetch_training_logs(
@@ -511,7 +520,9 @@ class RunAIRestClient:
             "Accept-Encoding": "gzip",
         }
 
-        ssl_context = ssl._create_unverified_context()
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = self.verify_certs
+        ssl_context.verify_mode = ssl.CERT_REQUIRED if self.verify_certs else ssl.CERT_NONE
         with (
             ws_connect(url, additional_headers=headers, ssl=ssl_context) as websocket,
             output_file_path.open("w") as log_file,

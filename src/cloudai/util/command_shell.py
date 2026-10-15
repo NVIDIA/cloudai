@@ -35,10 +35,9 @@ class CommandShell:
         if not self.executable.exists():
             raise FileNotFoundError(f"Executable '{self.executable}' not found.")
 
+        # Commands come from trusted configs and intentionally support shell syntax.
         process = subprocess.Popen(
-            command,
-            shell=True,
-            executable=str(self.executable),
+            [str(self.executable), "-c", command],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

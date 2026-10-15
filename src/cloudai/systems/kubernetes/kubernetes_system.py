@@ -559,8 +559,8 @@ class KubernetesSystem(System):
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
         logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
-        cmd = f"kubectl delete dgd {job_name} -n {self.default_namespace}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        cmd = ["kubectl", "delete", "dgd", job_name, "-n", self.default_namespace]
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
 
