@@ -235,6 +235,7 @@ class SlurmRestClient:
     def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
+        directives: dict[str, str] = {}
         for line in script.splitlines():
             stripped = line.strip()
             if not stripped or (stripped.startswith("#") and not stripped.startswith("#SBATCH")):
@@ -243,10 +244,10 @@ class SlurmRestClient:
                 break
             for option, value in self._parse_sbatch_line(stripped.removeprefix("#SBATCH").strip()):
                 self._apply_sbatch_directive(job, option, value)
+                directives[option] = value
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
-        environment = dict(os.environ)
-        environment.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+        environment = self._job_environment(directives)
         if self._config.version == "v0.0.38":
             job["environment"] = environment
         else:
@@ -260,6 +261,24 @@ class SlurmRestClient:
             for field in job.keys() & {"required_nodes", "excluded_nodes"}:
                 job[field] = parse_node_list(str(job[field]))
         return job
+
+    def _job_environment(self, directives: dict[str, str]) -> dict[str, str]:
+        """Preserve sbatch's step defaults in addition to the REST allocation fields."""
+        environment = dict(os.environ)
+        environment.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+        for option in ("--ntasks-per-node", "--gpus-per-node"):
+            if option in directives:
+                environment[f"SLURM_{option[2:].replace('-', '_').upper()}"] = directives[option]
+        # v41 and v42 populate distribution variables in their REST parser.
+        if self._config.version in {"v0.0.38", "v0.0.40"} and "--distribution" in directives:
+            distribution = directives["--distribution"]
+            environment["SLURM_DISTRIBUTION"] = distribution
+            if distribution.lower().startswith("plane="):
+                environment["SLURM_DISTRIBUTION"] = "plane"
+                environment["SLURM_DIST_PLANESIZE"] = distribution.split("=", 1)[1]
+            if distribution.lower() in {"arbitrary", "hostfile"} and "--nodelist" in directives:
+                environment["SLURM_ARBITRARY_NODELIST"] = directives["--nodelist"]
+        return environment
 
     def submit_sbatch(
         self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: float = 1.0
