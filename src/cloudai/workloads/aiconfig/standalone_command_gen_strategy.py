@@ -135,6 +135,6 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
         script_file = Path(out_dir) / "run_simple_predictor.sh"
         script_file.parent.mkdir(parents=True, exist_ok=True)
         script_file.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{full_cmd}\n", encoding="utf-8")
-        os.chmod(script_file, 0o755)
+        os.chmod(script_file, 0o700)
 
         return f"bash {shlex.quote(str(script_file))}"

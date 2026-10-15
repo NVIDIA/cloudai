@@ -151,8 +151,8 @@ def test_delete_batch_job(k8s_system: KubernetesSystem):
         )
 
 
-def test_delete_dynamo_graph_deployment(k8s_system: KubernetesSystem):
-    job_name = "test-dgd"
+@pytest.mark.parametrize("job_name", ["test-dgd", "test-dgd; echo unexpected"])
+def test_delete_dynamo_graph_deployment(k8s_system: KubernetesSystem, job_name: str):
 
     with patch("subprocess.run") as mock_run:
         mock_process = Mock()
@@ -162,8 +162,7 @@ def test_delete_dynamo_graph_deployment(k8s_system: KubernetesSystem):
         k8s_system._delete_dynamo_graph_deployment(job_name)
 
         mock_run.assert_called_once_with(
-            f"kubectl delete dgd {job_name} -n {k8s_system.default_namespace}",
-            shell=True,
+            ["kubectl", "delete", "dgd", job_name, "-n", k8s_system.default_namespace],
             capture_output=True,
             text=True,
         )

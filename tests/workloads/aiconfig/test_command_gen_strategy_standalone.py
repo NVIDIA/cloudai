@@ -68,6 +68,7 @@ def test_gen_exec_command_writes_repro_script_and_returns_bash(tmp_path: Path, s
 
     script_path = out_dir.resolve() / "run_simple_predictor.sh"
     assert script_path.is_file()
+    assert script_path.stat().st_mode & 0o777 == 0o700
 
     content = script_path.read_text(encoding="utf-8")
     assert content.startswith("#!/usr/bin/env bash")

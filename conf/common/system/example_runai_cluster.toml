@@ -22,9 +22,10 @@ output_path = "./results"
 monitor_interval = 1
 
 base_url = "http://runai.example.com"
+verify_certs = true
 user_email = "your_email"
 app_id = "your_app_id"
-app_secret = "your_app_secret"
+app_secret = ""                       # Fill in your application secret locally.
 project_id = "your_project_id"
 cluster_id = "your_cluster_id"
 
