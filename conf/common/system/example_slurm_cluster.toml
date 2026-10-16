@@ -64,6 +64,7 @@ CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 # Uncomment to use Slurm REST API instead of local Slurm CLI tools.
 # [slurm_api]
 # url = "https://slurm-api.example.com"
+# version = "v0.0.38"
 # verify_certs = true
 #
 #   [slurm_api.headers]

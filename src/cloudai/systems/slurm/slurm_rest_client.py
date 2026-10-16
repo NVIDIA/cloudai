@@ -25,7 +25,7 @@ import pathlib
 import re
 import shlex
 import time
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 
 import pydantic
 import requests
@@ -46,14 +46,14 @@ class SlurmAPIConfig(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
     url: str
+    version: Literal["v0.0.38", "v0.0.40", "v0.0.41", "v0.0.42"] = "v0.0.38"
     headers: dict[str, str] = pydantic.Field(default_factory=dict)
     verify_certs: bool = True
 
 
 class SlurmRestClient:
-    """Translate CloudAI Slurm operations to slurmrestd v0.0.38 requests."""
+    """Translate CloudAI Slurm operations to the configured slurmrestd version."""
 
-    _API_VERSION: ClassVar[str] = "v0.0.38"
     _REQUEST_TIMEOUT_SECONDS: ClassVar[int] = 30
     _TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
         {
@@ -129,7 +129,7 @@ class SlurmRestClient:
         return str(item.get("error") or item.get("description") or item)
 
     def _request_once(self, method: str, service: str, path: str, payload: dict[str, object] | None) -> dict[str, Any]:
-        url = f"{self._config.url.rstrip('/')}/{service}/{self._API_VERSION}/{path.lstrip('/')}"
+        url = f"{self._config.url.rstrip('/')}/{service}/{self._config.version}/{path.lstrip('/')}"
         response = requests.request(
             method,
             url,
@@ -146,6 +146,15 @@ class SlurmRestClient:
         if not isinstance(data, dict):
             raise RuntimeError(f"Slurm API returned a non-object response from {url}.")
         if errors := data.get("errors"):
+            if (
+                method == "GET"
+                and service == "slurm"
+                and re.fullmatch(r"job/\d+", path)
+                and response.status_code in {200, 400, 404}
+                and all(isinstance(error, dict) and error.get("error_number") == 2017 for error in errors)
+            ):
+                # ESLURM_INVALID_JOB_ID: completed jobs may have left slurmctld.
+                return {"jobs": []}
             details = "; ".join(self._message(error) for error in errors)
             raise RuntimeError(f"Slurm API request failed: {details}")
         response.raise_for_status()
@@ -198,7 +207,7 @@ class SlurmRestClient:
         job[field] = value
 
     def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:
-        """Map one SBATCH directive to its v0.0.38 job field; e.g. `--nodes=2` sets `nodes=[2, 2]`."""
+        """Map one SBATCH directive to a job field; e.g. `--ntasks=2` sets `tasks=2`."""
         option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
 
         if option in self._DIRECTIVE_FIELDS:
@@ -226,6 +235,7 @@ class SlurmRestClient:
     def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
+        directives: dict[str, str] = {}
         for line in script.splitlines():
             stripped = line.strip()
             if not stripped or (stripped.startswith("#") and not stripped.startswith("#SBATCH")):
@@ -234,12 +244,41 @@ class SlurmRestClient:
                 break
             for option, value in self._parse_sbatch_line(stripped.removeprefix("#SBATCH").strip()):
                 self._apply_sbatch_directive(job, option, value)
+                directives[option] = value
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
+        environment = self._job_environment(directives)
+        if self._config.version == "v0.0.38":
+            job["environment"] = environment
+        else:
+            job["environment"] = [f"{name}={value}" for name, value in environment.items()]
+            if "nodes" in job:
+                job["nodes"] = "-".join(str(count) for count in cast(list[int], job["nodes"]))
+            if "time_limit" in job:
+                job["time_limit"] = {"set": True, "number": job["time_limit"]}
+            if "gres" in job:
+                job["tres_per_node"] = ",".join(f"gres:{resource}" for resource in str(job.pop("gres")).split(","))
+            for field in job.keys() & {"required_nodes", "excluded_nodes"}:
+                job[field] = parse_node_list(str(job[field]))
+        return job
+
+    def _job_environment(self, directives: dict[str, str]) -> dict[str, str]:
+        """Preserve sbatch's step defaults in addition to the REST allocation fields."""
         environment = dict(os.environ)
         environment.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
-        job["environment"] = environment
-        return job
+        for option in ("--ntasks-per-node", "--gpus-per-node"):
+            if option in directives:
+                environment[f"SLURM_{option[2:].replace('-', '_').upper()}"] = directives[option]
+        # v41 and v42 populate distribution variables in their REST parser.
+        if self._config.version in {"v0.0.38", "v0.0.40"} and "--distribution" in directives:
+            distribution = directives["--distribution"]
+            environment["SLURM_DISTRIBUTION"] = distribution
+            if distribution.lower().startswith("plane="):
+                environment["SLURM_DISTRIBUTION"] = "plane"
+                environment["SLURM_DIST_PLANESIZE"] = distribution.split("=", 1)[1]
+            if distribution.lower() in {"arbitrary", "hostfile"} and "--nodelist" in directives:
+                environment["SLURM_ARBITRARY_NODELIST"] = directives["--nodelist"]
+        return environment
 
     def submit_sbatch(
         self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: float = 1.0
@@ -247,16 +286,22 @@ class SlurmRestClient:
         """Submit an SBATCH file and optionally wait for a terminal job state."""
         try:
             script = script_path.read_text(encoding="utf-8")
+            job = self._make_job(script, script_path)
+            payload: dict[str, object] = {"job": job}
+            if self._config.version == "v0.0.38":
+                payload["script"] = script
+            else:
+                job["script"] = script
             data = self._request(
                 "POST",
                 "slurm",
                 "job/submit",
-                payload={"script": script, "job": self._make_job(script, script_path)},
+                payload=payload,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             raise cloudai.core.JobIdRetrievalError(
                 test_name=operation_name,
-                command=f"POST /slurm/{self._API_VERSION}/job/submit",
+                command=f"POST /slurm/{self._config.version}/job/submit",
                 stdout="",
                 stderr=str(exc),
                 message="Failed to submit job through Slurm REST API.",
@@ -266,7 +311,7 @@ class SlurmRestClient:
         if not isinstance(job_id, int):
             raise cloudai.core.JobIdRetrievalError(
                 test_name=operation_name,
-                command=f"POST /slurm/{self._API_VERSION}/job/submit",
+                command=f"POST /slurm/{self._config.version}/job/submit",
                 stdout=str(data),
                 stderr="",
                 message="Failed to retrieve job ID.",
@@ -284,8 +329,11 @@ class SlurmRestClient:
         return cast(list[dict[str, Any]], nodes)
 
     @staticmethod
-    def _node_state(state: str, state_flags: list[str]) -> SlurmNodeState:
-        """Combine the v0.0.38 node state and flags; e.g. `idle` plus `DRAIN` means `DRAINED`."""
+    def _node_state(state: str | list[str], state_flags: list[str]) -> SlurmNodeState:
+        """Combine node state and flags; e.g. `IDLE` plus `DRAIN` means `DRAINED`."""
+        if isinstance(state, list):
+            state_flags = state[1:] + state_flags
+            state = state[0] if state else "UNKNOWN"
         state = state.upper()
         flags = {flag.upper() for flag in state_flags}
 
@@ -327,7 +375,7 @@ class SlurmRestClient:
     def get_nodes(self) -> list[SlurmNode]:
         nodes: list[SlurmNode] = []
         for node in self._cluster_nodes():
-            state = self._node_state(node["state"], node["state_flags"])
+            state = self._node_state(node["state"], node.get("state_flags", []))
             nodes.extend(
                 SlurmNode(name=node["name"], partition=partition, state=state) for partition in node["partitions"]
             )
@@ -347,7 +395,7 @@ class SlurmRestClient:
     def get_allocated_nodes(self) -> list[SlurmNode]:
         nodes: list[SlurmNode] = []
         for job in self._queue_jobs():
-            if job["job_state"].upper().rstrip("+") not in {"RUNNING", "PENDING"}:
+            if self._job_state(job["job_state"]) not in {"RUNNING", "PENDING"}:
                 continue
 
             nodes.extend(
@@ -367,21 +415,55 @@ class SlurmRestClient:
         if not isinstance(jobs, list):
             raise RuntimeError("Slurm API returned an invalid jobs response.")
         if not jobs:
-            return None
+            return self._get_accounting_job(job_id, retry_threshold)
         job = cast(dict[str, Any], jobs[0]).copy()
         job["cluster_name"] = response.get("meta", {}).get("slurm", {}).get("cluster", "")
         return job
 
+    def _get_accounting_job(self, job_id: int, retry_threshold: int) -> dict[str, Any]:
+        for attempt in range(retry_threshold):
+            response = self._request("GET", "slurmdb", f"job/{job_id}", retry_threshold=retry_threshold)
+            jobs = response.get("jobs")
+            if not isinstance(jobs, list):
+                raise RuntimeError("Slurm accounting API returned an invalid jobs response.")
+            if jobs:
+                job = cast(dict[str, Any], jobs[0]).copy()
+                job.update(
+                    job_state=job["state"]["current"],
+                    start_time=job["time"]["start"],
+                    end_time=job["time"]["end"],
+                    cluster_name=job["cluster"],
+                    command=job.get("submit_line") or "",
+                )
+                return job
+            if attempt + 1 < retry_threshold:
+                time.sleep(self._retry_pause_seconds)
+        raise RuntimeError(f"Slurm job {job_id} is absent from both live and accounting records.")
+
     def get_job_state(self, job_id: int, retry_threshold: int = 3) -> str:
-        """Return current job state from slurmctld."""
+        """Return job state, using accounting after the job leaves slurmctld."""
         job = self._get_job(job_id, retry_threshold)
         if job is None:
             return ""
 
-        return job["job_state"].upper().rstrip("+")
+        return self._job_state(job["job_state"])
+
+    @staticmethod
+    def _job_state(state: str | list[str]) -> str:
+        """Extract the base job state from a string or a state-and-flags array."""
+        if isinstance(state, list):
+            state = state[0] if state else ""
+        return state.upper().rstrip("+")
+
+    @staticmethod
+    def _number(value: int | dict[str, Any]) -> int:
+        """Read Slurm's numeric wrapper, treating unset and infinite values as unavailable."""
+        if isinstance(value, dict):
+            return int(value["number"]) if value.get("set") and not value.get("infinite") else 0
+        return value
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
-        """Return whether slurmctld reports a terminal job state."""
+        """Return whether Slurm reports a terminal job state."""
         return self.get_job_state(job_id, retry_threshold) in self._TERMINAL_JOB_STATES
 
     def get_job_status(self, job_id: int, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
@@ -392,14 +474,18 @@ class SlurmRestClient:
         raw_exit_code = job["exit_code"]
         return_code = 0
         signal = 0
-        if 0 <= raw_exit_code <= 0xFFFF:
+        if isinstance(raw_exit_code, dict):
+            return_code = self._number(raw_exit_code.get("return_code", 0))
+            raw_signal = raw_exit_code.get("signal", {})
+            signal = self._number(raw_signal.get("id", raw_signal.get("signal_id", 0)))
+        elif 0 <= raw_exit_code <= 0xFFFF:
             if os.WIFEXITED(raw_exit_code):
                 return_code = os.WEXITSTATUS(raw_exit_code)
             elif os.WIFSIGNALED(raw_exit_code):
                 signal = os.WTERMSIG(raw_exit_code)
 
-        start_timestamp = job["start_time"]
-        end_timestamp = job["end_time"]
+        start_timestamp = self._number(job["start_time"])
+        end_timestamp = self._number(job["end_time"])
         start_time = (
             datetime.datetime.fromtimestamp(start_timestamp, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if start_timestamp
@@ -417,7 +503,7 @@ class SlurmRestClient:
                 job_id=job["job_id"],
                 step_id="",
                 name=job["name"],
-                state=job["job_state"].upper().rstrip("+"),
+                state=self._job_state(job["job_state"]),
                 exit_code=f"{return_code}:{signal}",
                 start_time=start_time,
                 end_time=end_time,
