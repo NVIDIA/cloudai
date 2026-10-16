@@ -49,6 +49,7 @@ classifiers = [
 
   [project.optional-dependencies]
   dev = [
+    "defusedxml~=0.7",
     "pre-commit~=4.0",
     "ruff~=0.15",
     "pandas-stubs~=2.3",

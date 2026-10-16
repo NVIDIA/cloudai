@@ -17,11 +17,11 @@
 import copy
 import csv
 import tarfile
-import xml.etree.ElementTree as ET
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import defusedxml.ElementTree as ET
 import pytest
 import toml
 
@@ -484,6 +484,7 @@ def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
     reporter.generate()
 
     root = ET.parse(slurm_system.output_path / "junit.xml").getroot()
+    assert root is not None
     suite = root.find("testsuite")
     assert root.attrib == {
         "name": "test-scenario",

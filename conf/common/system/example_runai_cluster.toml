@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +22,10 @@ output_path = "./results"
 monitor_interval = 1
 
 base_url = "http://runai.example.com"
+verify_certs = true
 user_email = "your_email"
 app_id = "your_app_id"
-app_secret = "your_app_secret"
+app_secret = ""
 project_id = "your_project_id"
 cluster_id = "your_cluster_id"
 

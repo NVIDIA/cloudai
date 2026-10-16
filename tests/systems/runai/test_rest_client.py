@@ -52,7 +52,7 @@ def dummy_token_response() -> DummyResponse:
 
 @pytest.fixture
 def dummy_client(monkeypatch: pytest.MonkeyPatch, dummy_token_response: DummyResponse) -> RunAIRestClient:
-    def fake_post(self: requests.Session, url: str, json: Dict[str, Any]) -> DummyResponse:
+    def fake_post(self: requests.Session, url: str, json: Dict[str, Any], **kwargs: Any) -> DummyResponse:
         return dummy_token_response
 
     monkeypatch.setattr(requests.Session, "post", fake_post)
@@ -65,7 +65,7 @@ def test_init_access_token(dummy_client: RunAIRestClient) -> None:
 
 
 def test_get_access_token_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_post(self: requests.Session, url: str, json: Dict[str, Any]) -> DummyResponse:
+    def fake_post(self: requests.Session, url: str, json: Dict[str, Any], **kwargs: Any) -> DummyResponse:
         return DummyResponse({}, 200)
 
     monkeypatch.setattr(requests.Session, "post", fake_post)
@@ -80,6 +80,7 @@ def test_request_success(dummy_client: RunAIRestClient, monkeypatch: pytest.Monk
         headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> DummyResponse:
         return DummyResponse({"result": "ok"}, 200)
 
@@ -95,6 +96,7 @@ def test_request_http_error(dummy_client: RunAIRestClient, monkeypatch: pytest.M
         headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> DummyResponse:
         return DummyResponse({"error": "fail"}, 400)
 
