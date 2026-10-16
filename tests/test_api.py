@@ -220,8 +220,12 @@ def test_api_rejects_invalid_scenario(
 ) -> None:
     scenario_config.write_text('name = "invalid"\n')
 
-    with pytest.raises(cloudai.core.TestScenarioParsingError):
+    with pytest.raises(cloudai.core.TestScenarioParsingError) as exc_info:
         api_function(scenario_config, system_config)
+
+    assert str(exc_info.value) == (
+        f"Failed to parse Test Scenario definition: {scenario_config.resolve()}\n\tField 'Tests': Field required"
+    )
 
 
 def test_validate_scenario_rejects_invalid_system(system_config: pathlib.Path, scenario_config: pathlib.Path) -> None:
