@@ -140,9 +140,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
         with log_path.open("w") as log:
             result = subprocess.run(
-                launcher_cmd,
-                shell=True,
-                executable="/bin/bash",
+                ["/bin/bash", "-c", launcher_cmd],
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
