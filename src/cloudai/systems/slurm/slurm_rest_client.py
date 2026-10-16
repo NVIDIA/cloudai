@@ -476,7 +476,7 @@ class SlurmRestClient:
         signal = 0
         if isinstance(raw_exit_code, dict):
             return_code = self._number(raw_exit_code["return_code"])
-            raw_signal = raw_exit_code["signal"]
+            raw_signal = raw_exit_code.get("signal", {})
             signal = self._number(raw_signal.get("id", raw_signal.get("signal_id", 0)))
         elif 0 <= raw_exit_code <= 0xFFFF:
             if os.WIFEXITED(raw_exit_code):
