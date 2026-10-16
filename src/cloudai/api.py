@@ -36,6 +36,14 @@ def validate_scenario(
 
     Return None on success and raise configuration errors on failure. This does
     not create a runner, install workload dependencies, or submit jobs.
+
+    Raises:
+        OSError: If a configuration file cannot be read or tests_dir is missing.
+        cloudai.core.SystemConfigParsingError: If the system configuration is invalid.
+        cloudai.core.TestConfigParsingError: If a required workload definition is invalid.
+        cloudai.core.TestScenarioParsingError: If the scenario configuration is invalid.
+        cloudai.core.MissingTestError: If a referenced test is not defined.
+        ValueError: If the tests directory contains duplicate test names.
     """
     cloudai.handlers.load_experiment(
         scenario.expanduser().resolve(),
