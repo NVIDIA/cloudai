@@ -24,6 +24,35 @@ import cloudai.handlers
 import cloudai.models.output
 
 
+def validate_scenario(
+    scenario: pathlib.Path,
+    system: pathlib.Path,
+    *,
+    tests_dir: pathlib.Path | None = None,
+    hook_dir: pathlib.Path | None = None,
+) -> None:
+    """
+    Validate scenario configuration using the same loading checks as run_experiment.
+
+    Return None on success and raise configuration errors on failure. This does
+    not create a runner, install workload dependencies, or submit jobs.
+
+    Raises:
+        OSError: If a configuration file cannot be read or tests_dir is missing.
+        cloudai.core.SystemConfigParsingError: If the system configuration is invalid.
+        cloudai.core.TestConfigParsingError: If a required workload definition is invalid.
+        cloudai.core.TestScenarioParsingError: If the scenario configuration is invalid.
+        cloudai.core.MissingTestError: If a referenced test is not defined.
+        ValueError: If the tests directory contains duplicate test names.
+    """
+    cloudai.handlers.load_experiment(
+        scenario.expanduser().resolve(),
+        system.expanduser().resolve(),
+        tests_dir=tests_dir,
+        hook_dir=hook_dir,
+    )
+
+
 def run_experiment(
     scenario: pathlib.Path,
     system: pathlib.Path,
