@@ -57,6 +57,7 @@ from cloudai.workloads.jax_toolbox import (
 )
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
+    MegatronBridgeSlurmCommandGenStrategy,
     MegatronBridgeTestDefinition,
 )
 from cloudai.workloads.megatron_run import (
@@ -692,7 +693,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     hf_token="dummy_token",
                     model_family_name="qwen3",
                     model_recipe_name="30b_a3b",
-                    num_gpus=8,
+                    num_gpus=16,
+                    enable_vboost=True,
+                    executor_env_vars={"NCCL_DEBUG": "WARN", "EXECUTOR_ONLY": "executor"},
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
                 extra_container_mounts=[],
@@ -704,7 +707,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     )
                 ],
             ),
+            num_nodes=2,
             time_limit="00:20:00",
+            extra_srun_args="--cpu-bind=none",
         ),
         "vllm": lambda: create_test_run(
             partial_tr,
@@ -892,6 +897,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         cmd_gen.job_name = Mock(return_value="job_name")
     if isinstance(cmd_gen, NeMoLauncherSlurmCommandGenStrategy):
         cmd_gen.job_prefix = "test_account-cloudai.nemo"
+    if isinstance(cmd_gen, MegatronBridgeSlurmCommandGenStrategy):
+        upstream_script = tr.output_path / "nemo_sbatch.sh"
+        upstream = (Path(__file__).parent / "ref_data" / "megatron-bridge-nemo.sbatch").read_text()
+        upstream_script.write_text(
+            upstream.replace("__OUTPUT__", str(tr.output_path)).replace("__IMAGE__", str(cmd_gen.image_path()))
+        )
+        cmd_gen._generate_mbridge_sbatch = Mock(return_value=upstream_script)
     sbatch_script = cmd_gen.gen_exec_command().split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"

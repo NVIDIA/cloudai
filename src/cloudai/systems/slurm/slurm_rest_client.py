@@ -86,6 +86,7 @@ class SlurmRestClient:
         "--nodelist": "required_nodes",
         "--exclude": "excluded_nodes",
         "--chdir": "current_working_directory",
+        "--open-mode": "open_mode",
     }
     _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
     _LONG_DIRECTIVES: ClassVar[list[str]] = [
@@ -105,6 +106,9 @@ class SlurmRestClient:
         "gres=",
         "gpus-per-node=",
         "chdir=",
+        "exclusive",
+        "mem=",
+        "open-mode=",
     ]
 
     def __init__(self, config: SlurmAPIConfig, retry_pause_seconds: int) -> None:
@@ -197,6 +201,16 @@ class SlurmRestClient:
             )
         job[field] = value
 
+    @staticmethod
+    def _memory_megabytes(value: str) -> int:
+        """Convert Slurm memory units to MB, rounding kilobytes up and preserving zero."""
+        match = re.fullmatch(r"([0-9]+)([KMGT]?)", value, re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Invalid SBATCH memory value: {value!r}.")
+        amount = int(match[1])
+        unit = match[2].upper()
+        return (amount + 1023) // 1024 if unit == "K" else amount * {"": 1, "M": 1, "G": 1024, "T": 1024**2}[unit]
+
     def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:
         """Map one SBATCH directive to its v0.0.38 job field; e.g. `--nodes=2` sets `nodes=[2, 2]`."""
         option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
@@ -212,6 +226,11 @@ class SlurmRestClient:
             self._set_directive(job, "tasks", int(value), option)
         elif option == "--ntasks-per-node":
             self._set_directive(job, "tasks_per_node", int(value), option)
+        elif option == "--exclusive":
+            # v0.0.38's parser expects "exclusive", despite its schema listing "true".
+            self._set_directive(job, "exclusive", "exclusive", option)
+        elif option == "--mem":
+            self._set_directive(job, "memory_per_node", self._memory_megabytes(value), option)
         elif option == "--time":
             minutes = (
                 int(value) if value.isdigit() else math.ceil(cloudai.util.parse_time_limit(value).total_seconds() / 60)

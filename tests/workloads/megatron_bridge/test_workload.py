@@ -20,6 +20,28 @@ import pytest
 
 from cloudai.core import GitRepo, TestRun
 from cloudai.workloads.megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from cloudai.workloads.megatron_bridge.megatron_bridge import find_mbridge_log
+
+
+@pytest.mark.parametrize(
+    "names,expected",
+    [
+        (["log-train_123_9.out", "log-train_123_10.out"], "log-train_123_10.out"),
+        (["log-train_123_0.out", "log-unexpected.out"], "log-train_123_0.out"),
+        (["log-train_123_invalid.out"], "log-train_123_invalid.out"),
+        (["log_123.out", "log_other.out"], "log_other.out"),
+        ([], None),
+    ],
+)
+def test_find_mbridge_log(tmp_path: Path, names: list[str], expected: str | None) -> None:
+    experiment = tmp_path / "experiments" / "training"
+    experiment.mkdir(parents=True)
+    for name in names:
+        (experiment / name).touch()
+    assert find_mbridge_log(tmp_path) == (experiment / expected if expected else None)
+    launcher_log = tmp_path / "cloudai_megatron_bridge_launcher.log"
+    launcher_log.touch()
+    assert find_mbridge_log(tmp_path) == (experiment / expected if expected else launcher_log)
 
 
 def _megatron_bridge_tdef() -> MegatronBridgeTestDefinition:

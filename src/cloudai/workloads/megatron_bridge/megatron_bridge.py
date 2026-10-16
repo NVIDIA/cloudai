@@ -17,6 +17,7 @@
 import logging
 import os
 import re
+from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
@@ -40,10 +41,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     enable_nsys: bool | None = Field(default=False)
     executor_env_vars: dict[str, str] = Field(
         default_factory=dict,
-        description=(
-            "Environment variables passed through Megatron-Bridge -E/--env into NeMo-Run executor "
-            "env_vars/container_env. Requires a Megatron-Bridge version that supports -E."
-        ),
+        description="Additional job environment variables. CloudAI global_env_vars and extra_env_vars take precedence.",
     )
 
     # Domain / model overrides (argument_parser main + model)
@@ -609,20 +607,12 @@ class MegatronBridgeTestDefinition(TestDefinition):
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        """
-        Ensure that the MBridge script finished correctly.
-
-        The current state of Megatron-Bridge performance scripts makes us running their tool until the very specific
-            failure. Right before the failure the M-Bridge script saves output metrics as JSON.
-
-        - At the point of failure the script asks for reference golden values, that we don't have
-        - Then the script will perform convergence test between provided golden and actual golden - we don't need it
-        """
-        log_path = tr.output_path / "cloudai_megatron_bridge_launcher.log"
-        if not log_path.is_file():
+        """Check training metrics in the job log, falling back to legacy launcher logs."""
+        log_path = find_mbridge_log(tr.output_path)
+        if log_path is None:
             return JobStatusResult(
                 is_successful=False,
-                error_message=f"Megatron-Bridge launcher log not found in {tr.output_path}.",
+                error_message=f"Megatron-Bridge training log not found in {tr.output_path}.",
             )
 
         log_data = log_path.read_text(encoding="utf-8", errors="ignore")
@@ -631,6 +621,19 @@ class MegatronBridgeTestDefinition(TestDefinition):
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         return JobStatusResult(is_successful=True)
+
+
+def find_mbridge_log(output_path: Path) -> Path | None:
+    def log_order(path: Path) -> tuple[int, int, str]:
+        match = re.fullmatch(r"log-.+_(\d+)_(\d+)\.out", path.name)
+        return (int(match[1]), int(match[2]), str(path)) if match else (-1, -1, str(path))
+
+    training_logs = list(output_path.glob("experiments/**/log*.out"))
+    if training_logs:
+        return max(training_logs, key=log_order)
+
+    launcher_log = output_path / "cloudai_megatron_bridge_launcher.log"
+    return launcher_log if launcher_log.is_file() else None
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:
