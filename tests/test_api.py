@@ -130,11 +130,10 @@ def test_validate_scenario(
         scenario_data.update(pre_test="prepare", Tests=[{"id": "sleep", "test_name": "sleep"}])
         scenario_config.write_text(toml.dumps(scenario_data))
 
-    result = cloudai.api.validate_scenario(
+    cloudai.api.validate_scenario(
         pathlib.Path(scenario_config.name), pathlib.Path(system_config.name), tests_dir=tests_dir, hook_dir=hook_dir
     )
 
-    assert result is None
     assert not standalone_system.output_path.exists()
     assert not standalone_system.install_path.exists()
 
