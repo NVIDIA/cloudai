@@ -69,8 +69,10 @@ definition when settings change.
 allocated nodes, iteration, step, output path and resolved dependency and hook
 bindings. Static settings, including selected node count, effective time limit,
 weight and SOL, belong to ``TestRun.test``. Existing read access through
-``test_run.nnodes``, ``iterations``, ``pin_nodes`` and ``extra_srun_args`` forwards
-to that definition.
+``test_run.nnodes``, ``iterations`` and ``extra_srun_args`` forwards to that
+definition. Compatibility properties used by workload generators and reporters
+remain available. Read ``weight``, ``ideal_perf`` and ``pin_nodes`` from
+``test_run.test``; their runtime forwarding properties are removed.
 
 ``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, a ``SOLMetricModel`` or ``None``.
 Import ``SOLMetricModel`` from ``cloudai.core``; its ``root`` maps metric names to target lists. Structured SOL
@@ -81,9 +83,24 @@ The existing runners use ``TestScenario.test_runs`` for bound executions.
 Replacing that list does not replace ``TestScenario.tests``. The execution list
 is excluded from scenario serialization.
 
-``test-run.toml`` and best-config exports include the full test definition,
-including scheduling configuration. Existing saved runs that omit those fields
-remain readable.
+``TestRun`` is a Pydantic model. Save it with ``model_dump(mode="json")`` and load
+saved TOMLs through ``load_test_run(path, fallback=definition)`` from
+``cloudai.core``. The fallback supplies reporter registrations and definition
+fields absent from legacy files. New files contain the complete prepared
+definition under ``[test]``, with ``nodes``, ``output_path``, ``current_iteration``
+and ``step`` at top level. Live dependency references and pre/post-test scenarios
+are excluded. The definition retains declared dependency IDs.
+
+The old top-level ``name``, ``nnodes`` and ``iterations`` are no longer written;
+they are available from the definition. ``test_cmd`` and ``full_cmd`` are removed.
+Reporting still loads old files containing ``[test_definition]`` through a
+separate legacy converter. The containing folder supplies the output path,
+allowing results to be moved. Best-config exports contain only the definition.
+
+``TestRunDetails`` is no longer a separate model. Its ``from_test_run`` method
+remains as a compatibility adapter for extension writers and returns the actual
+``TestRun``. Command-string arguments are accepted but not stored. Use
+``load_test_run`` instead of the former ``TestRunDetails.model_validate`` reader.
 
 Migration notes for direct model users:
 

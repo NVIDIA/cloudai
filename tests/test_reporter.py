@@ -28,7 +28,7 @@ import toml
 from cloudai import TestRun, TestScenario
 from cloudai.core import CommandGenStrategy, Registry, Reporter, System
 from cloudai.handlers import generate_reports
-from cloudai.models.scenario import ReportConfig, TestRunDetails
+from cloudai.models.scenario import ReportConfig
 from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.reporter import (
     DSEReporter,
@@ -576,7 +576,7 @@ def _create_dse_iteration(
             step_tr.step = step_no
             step_tr.output_path = step_dir
             with (step_dir / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).open("w") as dump_file:
-                toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
+                toml.dump(step_tr.model_dump(mode="json"), dump_file)
 
 
 def test_dse_reporter(
@@ -657,7 +657,7 @@ def test_dse_reporter(
         "observed_runtime": "6m",
         "efficiency_ratio": "~1.3x",
         "efficiency_steps": "3 / 4 steps",
-        "best_config_toml": toml.dumps(TestRunDetails.from_test_run(best_tr, "", "").test_definition.model_dump()),
+        "best_config_toml": toml.dumps(best_tr.test.model_dump()),
         "parameter_rows": [
             {
                 "name": "ngpus",

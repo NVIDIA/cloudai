@@ -113,8 +113,8 @@ def test_single_test_case(tdef: TestDefinition, test_scenario_parser: TestScenar
     assert tr.iterations == 1
     assert tr.current_iteration == 0
     assert tr.dependencies == {}
-    assert tr.weight == 0
-    assert tr.ideal_perf == 1.0
+    assert tr.test.weight == 0
+    assert tr.test.ideal_perf == 1.0
     assert tr.sol is None
     parsed_tdef = test_scenario.test_runs[0].test
     assert parsed_tdef.name == tdef.name
@@ -133,7 +133,7 @@ def test_with_some_props(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
     tr = test_scenario.test_runs[0]
-    assert getattr(tr, prop) == cfg_value
+    assert getattr(tr.test, prop) == cfg_value
 
 
 def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
@@ -344,7 +344,7 @@ def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: 
     )
 
     assert test_run.time_limit == "01:50:00"  # Main + pre + post hooks
-    assert test_run.pin_nodes is True
+    assert test_run.test.pin_nodes is True
 
 
 def test_total_time_limit_with_empty_hooks():

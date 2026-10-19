@@ -19,10 +19,7 @@ import stat
 from pathlib import Path
 from typing import List, Optional, cast
 
-import toml
-
 from cloudai.core import CommandGenStrategy
-from cloudai.models.scenario import TestRunDetails
 
 from .dynamo_mocker import DynamoMockerCmdArgs, DynamoMockerTestDefinition
 
@@ -186,25 +183,3 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
         self.store_test_run()
 
         return f'bash "{wrapper_path}"'
-
-    def store_test_run(self) -> None:
-        """Persist TestRunDetails to the output directory for inspection."""
-        tdef = cast(DynamoMockerTestDefinition, self.test_run.test)
-        args: DynamoMockerCmdArgs = tdef.cmd_args
-        output_path = self.test_run.output_path
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        if tdef.python_environment.venv_path is None:
-            raise RuntimeError("Unexpected state: python environment is not installed yet")
-        python_exec = tdef.python_environment.venv_path / "bin" / "python"
-
-        script_path = _SCRIPT_DIR / "dynamo_mocker.sh"
-        script_args = self._build_script_args(args, output_path, python_exec)
-        wrapper_path = output_path / "dynamo_mocker_run.sh"
-
-        test_cmd = "bash " + shlex.quote(str(script_path)) + " " + " ".join(shlex.quote(a) for a in script_args)
-        full_cmd = f'bash "{wrapper_path}"'
-        dump_path = output_path / self.TEST_RUN_DUMP_FILE_NAME
-        trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
-        with dump_path.open("w", encoding="utf-8") as f:
-            toml.dump(trd.model_dump(), f)

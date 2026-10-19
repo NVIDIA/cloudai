@@ -28,7 +28,6 @@ from typing import Any, Optional, cast
 
 import toml
 
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
@@ -192,11 +191,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return patcher_path
 
     def store_test_run(self) -> None:
-        trd = TestRunDetails.from_test_run(
-            self.test_run, test_cmd=" ".join(self.generate_test_command()), full_cmd=self.gen_srun_command()
-        )
-        details = trd.model_dump()
-        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        details = self.test_run.model_dump(mode="json")
+        details["test"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         token = cast(MegatronBridgeTestDefinition, self.test_run.test).cmd_args.hf_token
         serialized = toml.dumps(details)
         if token:

@@ -19,10 +19,7 @@ from __future__ import annotations
 import shlex
 from typing import cast
 
-import toml
-
 from cloudai.core import CommandGenStrategy
-from cloudai.models.scenario import TestRunDetails
 
 from .command import build_fio_command
 from .fio import FioTestDefinition
@@ -36,14 +33,6 @@ class FioStandaloneCommandGenStrategy(CommandGenStrategy):
         exports = [f'export {key}="{value}"' for key, value in self.final_env_vars.items()]
         prefix = [f"{'; '.join(exports)};"] if exports else []
         return build_fio_command(tdef.cmd_args, prefix=prefix)
-
-    def store_test_run(self) -> None:
-        test_cmd = self._generate_fio_command()
-        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        full_cmd = self.gen_exec_command(store=False)
-        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as f:
-            trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
-            toml.dump(trd.model_dump(exclude_none=True), f)
 
     def gen_exec_command(self, store: bool = True) -> str:
         if store:

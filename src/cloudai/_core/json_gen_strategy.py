@@ -64,12 +64,9 @@ class JsonGenStrategy(ABC):
         return sanitized_name
 
     def store_test_run(self) -> None:
-        from cloudai.models.scenario import TestRunDetails
-
-        test_cmd, srun_cmd = ("", "n/a")
-        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=srun_cmd)
-            toml.dump(trd.model_dump(), f)
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as stream:
+            toml.dump(self.test_run.model_dump(mode="json"), stream)
 
     @abstractmethod
     def gen_json(self) -> Dict[Any, Any]:

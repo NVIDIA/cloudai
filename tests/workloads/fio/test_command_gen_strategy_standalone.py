@@ -19,7 +19,6 @@ from pathlib import Path
 import toml
 
 from cloudai.core import CommandGenStrategy, TestRun
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.standalone import StandaloneSystem
 from cloudai.workloads.fio import FioCmdArgs, FioStandaloneCommandGenStrategy, FioTestDefinition
 
@@ -51,6 +50,6 @@ def test_gen_exec_command_redirects_output_and_writes_test_run(
 
     dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     assert dump_path.is_file()
-    details = TestRunDetails.model_validate(toml.load(dump_path))
-    assert details.test_cmd == 'export FIO_VAR="1"; fio --name=smoke --filename=/tmp/file --rw=write --group_reporting'
-    assert details.full_cmd == command
+    details = TestRun.model_validate(toml.load(dump_path))
+    assert details.test == tr.test
+    assert details.output_path == tr.output_path

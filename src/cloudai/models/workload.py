@@ -20,7 +20,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationInfo, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from typing_extensions import Self
 
@@ -278,7 +278,7 @@ class TestDefinition(BaseModel, ABC):
         return self
 
     @model_validator(mode="after")
-    def validate_env_params(self) -> Self:
+    def validate_env_params(self, info: ValidationInfo) -> Self:
         """
         Validate env_params annotations against cmd_args.
 
@@ -292,7 +292,8 @@ class TestDefinition(BaseModel, ABC):
         live in ``CloudAIGymEnv``; keeping this shape check in core lets the overlay stay
         agent- and workload-agnostic rather than re-implemented per workload.
         """
-        if not self.env_params:
+        # Saved executions contain scalar draws rather than the original candidate lists.
+        if not self.env_params or (info.context and info.context.get("materialized")):
             return self
 
         cmd_args_fields = getattr(type(self.cmd_args), "model_fields", None)

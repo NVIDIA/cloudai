@@ -379,7 +379,7 @@ class BaseRunner(ABC):
         """
         logging.info(
             f"Job completed: {completed_job.test_run.name} "
-            f"(iteration {completed_job.test_run.current_iteration + 1} of {completed_job.test_run.iterations})"
+            f"(iteration {completed_job.test_run.current_iteration + 1} of {completed_job.test_run.test.iterations})"
         )
 
         self.jobs.remove(completed_job)

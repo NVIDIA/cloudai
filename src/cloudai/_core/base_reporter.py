@@ -22,13 +22,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import toml
-
 from .system import System
-from .test_run import TestRun
 
 if TYPE_CHECKING:
     from ..models.scenario import ReportConfig, TestScenario
+    from .test_run import TestRun
 
 
 def case_name(tr: TestRun) -> str:
@@ -53,34 +51,24 @@ class Reporter(ABC):
 
     def load_test_runs(self):
         """Load test runs from the results directory."""
-        for _tr in self.test_scenario.test_runs:
-            tr = copy.deepcopy(_tr)
-            tr_root = self.results_root / tr.name
-            iters = list(subdir for subdir in tr_root.glob("*") if subdir.is_dir())
-            for iter in sorted(iters, key=lambda x: int(x.name)):
-                if tr.is_dse_job:
-                    steps = list(subdir for subdir in iter.glob("*") if subdir.is_dir())
-                    for step in sorted(steps, key=lambda x: int(x.name)):
-                        tr.current_iteration = int(iter.name)
-                        tr.step = int(step.name)
-                        tr.output_path = tr_root / f"{tr.current_iteration}" / f"{tr.step}"
-                        tr_file = tr.output_path / "test-run.toml"
-                        if tr_file.exists():
-                            tr_file = toml.load(tr_file)
-                            # Older snapshots omit scheduling fields; retain the current
-                            # definition's values for any missing fields.
-                            config = tr.test.model_dump()
-                            restored = type(tr.test).model_validate(config | tr_file["test_definition"])
-                            tr.test = restored.model_copy(
-                                update={"num_nodes": tr_file["nnodes"], "reporters": tr.test.reporters}
-                            )
-                            tr.nodes = tr_file["nodes"]
-                        self.trs.append(copy.deepcopy(tr))
-                else:
-                    tr.current_iteration = int(iter.name)
-                    tr.step = 0
-                    tr.output_path = tr_root / f"{tr.current_iteration}"
-                    self.trs.append(copy.deepcopy(tr))
+        from .test_run_io import load_test_run
+
+        for template in self.test_scenario.test_runs:
+            tr_root = self.results_root / template.name
+            iterations = sorted((path for path in tr_root.glob("*") if path.is_dir()), key=lambda path: int(path.name))
+            for iteration in iterations:
+                paths = [iteration]
+                if template.is_dse_job:
+                    paths = sorted(
+                        (path for path in iteration.iterdir() if path.is_dir()), key=lambda path: int(path.name)
+                    )
+                for output_path in paths:
+                    snapshot = output_path / "test-run.toml"
+                    run = load_test_run(snapshot, template.test) if snapshot.is_file() else copy.deepcopy(template)
+                    run.current_iteration = int(iteration.name)
+                    run.step = int(output_path.name) if template.is_dse_job else 0
+                    run.output_path = output_path
+                    self.trs.append(run)
 
         logging.debug(f"Loaded {len(self.trs)} test runs for {self.test_scenario.name} in {self.results_root}")
         for tr in self.trs:

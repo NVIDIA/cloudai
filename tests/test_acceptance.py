@@ -30,7 +30,6 @@ import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
@@ -187,7 +186,7 @@ class TestInDryRun:
         assert len(details_tomls) == num_cases, "Details files number is not as expected"
 
         for details_toml in details_tomls:
-            TestRunDetails.model_validate(toml.load(details_toml))
+            TestRun.model_validate(toml.load(details_toml))
 
     def test_experiment_output_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
         tmp_path, scenario = do_dry_run
