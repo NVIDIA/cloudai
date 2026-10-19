@@ -33,6 +33,8 @@ from cloudai.report_generator.pareto_report import (
     ParetoReportConfig,
     ParetoReporter,
     RunObservations,
+    format_number,
+    inference_context,
     pareto_mask,
 )
 from cloudai.systems.slurm import SlurmSystem
@@ -97,6 +99,11 @@ def test_grouping_invariance_and_independent_frontiers(slurm_system: SlurmSystem
         tr.name = case
         runs.append(RunObservations(tr, observations(x, y)))
     first = report.build_sections(runs)[0]
+    assert first["chart"]["x_reverse"] is True
+    assert first["chart"]["y_reverse"] is False
+    assert first["chart"]["datasets"][0]["hidden"] is False
+    assert first["chart"]["datasets"][1]["hidden"] is True
+    assert len({p["id"] for p in first["points"]}) == 3
     assert [p["status"] for p in first["points"]] == ["Frontier", "Frontier", "Dominated"]
     for run in runs:
         run.tr.name = "a"
@@ -169,7 +176,11 @@ def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tm
         (folder / "vllm-bench.log").write_text(
             "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
         )
-        resolved = TestRun("search", definition, 2, [], output_path=folder)
+        executed_inputs = definition.model_dump()
+        executed_inputs["bench_cmd_args"]["max_concurrency"] = 8
+        executed_inputs["cmd_args"]["decode"]["tensor_parallel_size"] = 4
+        executed = cls.model_validate(executed_inputs)
+        resolved = TestRun("search", executed, 2, [], output_path=folder)
         if relative.startswith("search"):
             (folder / "test-run.toml").write_text(
                 toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
@@ -186,14 +197,33 @@ def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tm
     assert len(section["excluded"]) == 3
     assert section["summaries"][0]["frontier"] == 2
     assert "num_nodes = 2" in section["points"][-1]["config"]
+    context = section["points"][-1]["context"]
+    assert context["Concurrency"] == 8
+    assert context["Decode / TP"] == 4
+    assert context["Nodes"] == 2
+    assert context["Model"] == definition.cmd_args.model
+    assert context["Input tokens"] == 16
+    assert context["Output tokens"] == 128
+    assert inference_context(ordinary)["Concurrency"] == 16
     report.generate()
     html = (tmp_path / "pareto.html").read_text()
     assert '"type": "scatter"' in html
     assert "Executed configuration" in html
     assert "Missing test-run.toml" in html
+    assert "Hover to inspect" in html
+    assert "Show dominated points" in html
+    assert "Each frontier compares" not in html
     config.plots[0].frontiers[0].cases.append("unknown")
     with pytest.raises(ValueError, match="Unknown Pareto case"):
         report.collect_runs()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(12345.678901, "12,345.68"), (10, "10"), (0, "0"), (0.000123456, "0.000123"), (-12.345, "-12.35")],
+)
+def test_display_precision(value, expected):
+    assert format_number(value) == expected
 
 
 def test_empty_report_and_html_escaping(slurm_system: SlurmSystem, base_tr: TestRun, tmp_path: Path, monkeypatch):

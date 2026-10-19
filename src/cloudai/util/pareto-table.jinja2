@@ -1,3 +1,17 @@
+<div class="pareto-inspector" aria-label="Point details">
+    <h3 class="js-point-title">Point details</h3>
+    <p class="js-point-run"></p>
+    <p class="js-point-hint">Hover to inspect. Click a point to pin its details for selection and copying.</p>
+    <div class="js-point-content" hidden>
+        <dl class="pareto-properties js-point-properties"></dl>
+        <details>
+            <summary>Executed configuration</summary>
+            <p>Results: <code class="js-point-artifact"></code></p>
+            <pre class="case-differences-yaml js-point-config"></pre>
+        </details>
+        <button type="button" class="reset-zoom js-point-clear">Clear selection</button>
+    </div>
+</div>
 <div class="case-context-grid" aria-label="Frontier summaries">
     {% for summary in section.summaries %}
     <article class="case-context-card">
@@ -6,7 +20,6 @@
     </article>
     {% endfor %}
 </div>
-<p class="comparison-group">Filled markers: frontier · Hollow markers: dominated</p>
 {% if not section.points %}
 <p class="empty-report">No valid points. Review the exclusions below.</p>
 {% endif %}
@@ -23,12 +36,12 @@
             <tbody>
                 {% for point in section.points %}
                 <tr>
-                    <td>{{ point.group }}<br>{{ point.run }}<br><small>{{ point.dimensions }}</small></td>
+                    <td>{{ point.group }}<br><button type="button" class="pareto-point-button js-inspect-point" data-point-id="{{ point.id }}">{{ point.run }}</button><br><small>{{ point.dimensions }}</small></td>
                     <td>{{ point.status }}</td>
-                    <td>{{ "%.6g" | format(point.x) }}</td><td>{{ "%.6g" | format(point.y) }}</td>
+                    <td>{{ format_number(point.x) }}</td><td>{{ format_number(point.y) }}</td>
                     <td><details><summary>View configuration</summary>
                         <p>Results: <code>{{ point.artifact }}</code></p>
-                        <pre class="case-differences-yaml">{{ point.config }}</pre>
+                        <pre class="case-differences-yaml" id="{{ point.id }}-config">{{ point.config }}</pre>
                     </details></td>
                 </tr>
                 {% endfor %}

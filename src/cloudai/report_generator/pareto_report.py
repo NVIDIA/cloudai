@@ -65,9 +65,10 @@ class MetricSelector(BaseModel):
 
     @property
     def label(self) -> str:
-        qualifiers = ", ".join(f"{key}={value}" for key, value in self.match.items())
-        name = self.definition.display_name + (f" · {qualifiers}" if qualifiers else "")
-        return f"{name} ({self.definition.unit}) · {self.resolved_direction.value}"
+        statistic = str(self.match.get("statistic", "")).upper()
+        name = f"{statistic} {self.definition.display_name}".strip()
+        qualifiers = ", ".join(f"{key}={value}" for key, value in self.match.items() if key != "statistic")
+        return f"{name} ({self.definition.unit})" + (f" · {qualifiers}" if qualifiers else "")
 
     def select(self, observations: list[metrics.MetricObservation]) -> metrics.MetricObservation:
         selected = [
@@ -173,6 +174,51 @@ def numeric_directories(root: Path) -> list[Path]:
     return sorted((p for p in root.glob("*") if p.is_dir() and p.name.isdecimal()), key=lambda p: int(p.name))
 
 
+def format_number(value: float) -> str:
+    if value != 0 and abs(value) < 0.01:
+        return f"{value:.3g}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def inference_context(tr: TestRun) -> dict[str, Any]:
+    """Summarize explicitly configured inference settings, including serving roles."""
+    labels = {
+        "model": "Model",
+        "max_concurrency": "Concurrency",
+        "concurrency": "Concurrency",
+        "random_input_len": "Input tokens",
+        "random_input": "Input tokens",
+        "random_output_len": "Output tokens",
+        "random_output": "Output tokens",
+        "num_prompts": "Requests",
+        "request_rate": "Request rate",
+        "tensor_parallel_size": "TP",
+        "tp_size": "TP",
+        "pipeline_parallel_size": "PP",
+        "pp_size": "PP",
+        "data_parallel_size": "DP",
+        "dp_size": "DP",
+        "enable_expert_parallel": "Expert parallel",
+        "dtype": "Precision",
+        "quantization": "Quantization",
+        "num_nodes": "Nodes",
+        "gpu_ids": "GPU IDs",
+    }
+    context: dict[str, Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
+
+    def collect(values: dict[str, Any], scope: str = "") -> None:
+        for key, value in values.items():
+            if isinstance(value, dict):
+                collect(value, f"{scope}{key.replace('_', ' ').title()} / ")
+            elif key in labels and value is not None:
+                context[f"{scope}{labels[key]}"] = value
+
+    definition = tr.test.model_dump(mode="json", exclude_none=True)
+    collect(definition.get("cmd_args", {}))
+    collect(definition.get("bench_cmd_args", {}))
+    return context
+
+
 class ParetoReporter(Reporter):
     """Render all successful iterations and search steps in selected cases."""
 
@@ -275,6 +321,7 @@ class ParetoReporter(Reporter):
                             "y": y.value,
                             "run": run.label,
                             "group": frontier.name,
+                            "context": inference_context(run.tr),
                             "dimensions": dimensions,
                             "config": run.config,
                             "artifact": run.tr.output_path.relative_to(self.results_root).as_posix(),
@@ -285,8 +332,9 @@ class ParetoReporter(Reporter):
                     plot.x.resolved_direction,
                     plot.y.resolved_direction,
                 )
-                for point, is_frontier in zip(candidates, mask, strict=True):
+                for point_index, (point, is_frontier) in enumerate(zip(candidates, mask, strict=True)):
                     point["status"] = "Frontier" if is_frontier else "Dominated"
+                    point["id"] = f"pareto-{plot_index}-point-{len(points) + point_index}"
                 for status in ("Frontier", "Dominated"):
                     data = [
                         {k: v for k, v in point.items() if k != "config"}
@@ -296,10 +344,11 @@ class ParetoReporter(Reporter):
                     if data:
                         datasets.append(
                             {
-                                "label": f"{frontier.name} · {status.lower()}",
+                                "label": frontier.name if status == "Frontier" else f"{frontier.name} · dominated",
                                 "data": sorted(data, key=lambda p: (p["x"], p["y"])),
                                 "source_color_index": group_index,
                                 "is_frontier": status == "Frontier",
+                                "hidden": status == "Dominated",
                             }
                         )
                 summaries.append(
@@ -315,7 +364,6 @@ class ParetoReporter(Reporter):
                 {
                     "pareto": True,
                     "title": plot.name,
-                    "group_name": "Each frontier compares only its selected cases. Lines connect measured points.",
                     "summaries": summaries,
                     "points": points,
                     "excluded": excluded,
@@ -327,6 +375,8 @@ class ParetoReporter(Reporter):
                         "y_axis_type": "linear",
                         "x_axis_label": plot.x.label,
                         "y_axis_label": plot.y.label,
+                        "x_reverse": plot.x.resolved_direction == metrics.OptimizationDirection.MINIMIZE,
+                        "y_reverse": plot.y.resolved_direction == metrics.OptimizationDirection.MINIMIZE,
                         "datasets": datasets,
                     },
                 }
@@ -342,6 +392,7 @@ class ParetoReporter(Reporter):
         content = env.get_template("comparison-report-v2.jinja2").render(
             name=f"{self.test_scenario.name} Pareto Report",
             sections=sections,
+            format_number=format_number,
         )
         path = self.results_root / "pareto.html"
         self.results_root.mkdir(parents=True, exist_ok=True)

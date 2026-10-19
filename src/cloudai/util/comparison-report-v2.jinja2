@@ -242,9 +242,46 @@
         vertical-align: top;
         overflow-wrap: anywhere;
     }
-    .pareto-table pre {
+    .pareto-table pre, .pareto-inspector pre {
         max-height: 20rem;
         overflow: auto;
+    }
+    .pareto-inspector {
+        margin-top: 0.75rem;
+        padding: 1rem;
+        border: 1px solid var(--nv-border);
+        border-radius: var(--radius-md);
+        background: var(--nv-surface-alt);
+        user-select: text;
+        overflow-wrap: anywhere;
+    }
+    .pareto-inspector h3, .pareto-inspector p {
+        margin: 0 0 0.5rem;
+    }
+    .pareto-properties {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+        gap: 0.6rem 1.25rem;
+        margin: 0.75rem 0;
+    }
+    .pareto-properties dt {
+        color: var(--nv-muted);
+        font-size: 0.8rem;
+    }
+    .pareto-properties dd {
+        margin: 0.1rem 0 0;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .pareto-point-button {
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--nv-green-strong);
+        font: inherit;
+        text-align: left;
+        text-decoration: underline;
+        cursor: pointer;
     }
     .run-label {
         display: block;
@@ -365,6 +402,45 @@
             const isLine = payload.type === "line";
             const isCategory = payload.x_axis_type === "category";
             const isIndexedCategory = payload.x_axis_type === "indexed_category";
+            const card = canvas.closest(".comparison-card");
+            const numberFormat = new Intl.NumberFormat("en-US", {maximumFractionDigits: 2});
+            function formatValue(value) {
+                if (typeof value === "number") {
+                    return value !== 0 && Math.abs(value) < 0.01 ? value.toPrecision(3) : numberFormat.format(value);
+                }
+                return Array.isArray(value) ? value.join(", ") : String(value);
+            }
+            let pinnedPoint = false;
+            const inspector = isPareto ? card.querySelector(".pareto-inspector") : null;
+            function inspectPoint(point, pin = false) {
+                if (!inspector || (pinnedPoint && !pin)) {
+                    return;
+                }
+                pinnedPoint = pin;
+                inspector.querySelector(".js-point-title").textContent = `${point.group} · ${point.status}`;
+                inspector.querySelector(".js-point-run").textContent = point.run;
+                inspector.querySelector(".js-point-hint").hidden = true;
+                inspector.querySelector(".js-point-content").hidden = false;
+                inspector.querySelector(".js-point-clear").textContent = pin ? "Unpin point" : "Clear selection";
+                const fields = inspector.querySelector(".js-point-properties");
+                fields.replaceChildren();
+                Object.entries({
+                    [payload.x_axis_label]: point.x,
+                    [payload.y_axis_label]: point.y,
+                    ...point.context
+                }).forEach(([label, value]) => {
+                    const item = document.createElement("div");
+                    const name = document.createElement("dt");
+                    const content = document.createElement("dd");
+                    name.textContent = label;
+                    content.textContent = formatValue(value);
+                    item.append(name, content);
+                    fields.append(item);
+                });
+                inspector.querySelector(".js-point-artifact").textContent = point.artifact;
+                const config = document.getElementById(`${point.id}-config`);
+                inspector.querySelector(".js-point-config").textContent = config ? config.textContent : "";
+            }
 
             if (isIndexedCategory) {
                 payload.datasets.forEach((dataset) => {
@@ -394,6 +470,7 @@
                     dataset.pointStyle = pointStyles[dataset.source_color_index % pointStyles.length];
                     dataset.pointRadius = dataset.is_frontier ? 6 : 3;
                     dataset.pointHoverRadius = 8;
+                    dataset.pointHitRadius = 6;
                     dataset.pointBackgroundColor = dataset.is_frontier ? color : "#ffffff";
                     dataset.pointBorderColor = color;
                     dataset.pointBorderWidth = dataset.is_frontier ? 2 : 1;
@@ -403,6 +480,7 @@
 
             const xScale = {
                 type: isIndexedCategory ? "linear" : payload.x_axis_type,
+                reverse: isPareto && payload.x_reverse,
                 title: {
                     display: true,
                     text: payload.x_axis_label
@@ -411,6 +489,10 @@
                     color: "rgba(57, 66, 78, 0.08)"
                 }
             };
+            if (isPareto) {
+                xScale.ticks = {callback: formatValue};
+                xScale.title.text += " · better →";
+            }
             if (isIndexedCategory) {
                 xScale.min = -0.5;
                 xScale.max = payload.labels.length - 0.5;
@@ -460,28 +542,51 @@
                     animation: false,
                     interaction: {
                         mode: isPareto ? "nearest" : "index",
-                        intersect: !isPareto
+                        intersect: true
+                    },
+                    onHover: function (_event, elements) {
+                        if (isPareto && elements.length) {
+                            const hit = elements[0];
+                            inspectPoint(payload.datasets[hit.datasetIndex].data[hit.index]);
+                        }
+                    },
+                    onClick: function (_event, elements) {
+                        if (isPareto && elements.length) {
+                            const hit = elements[0];
+                            inspectPoint(payload.datasets[hit.datasetIndex].data[hit.index], true);
+                        }
                     },
                     plugins: {
                         legend: {
                             position: "bottom",
                             labels: {
+                                filter: (item, data) => !isPareto || data.datasets[item.datasetIndex].is_frontier,
                                 usePointStyle: true,
                                 boxWidth: 8,
                                 padding: 10,
                                 font: {
                                     size: 11
                                 }
+                            },
+                            onClick: function (_event, item, legend) {
+                                const current = legend.chart;
+                                const visible = !current.isDatasetVisible(item.datasetIndex);
+                                const group = payload.datasets[item.datasetIndex].source_color_index;
+                                payload.datasets.forEach((dataset, index) => {
+                                    if (index === item.datasetIndex || (isPareto && dataset.source_color_index === group)) {
+                                        const showDominated = card.querySelector(".js-show-dominated")?.checked;
+                                        current.setDatasetVisibility(index, visible && (!isPareto || dataset.is_frontier || showDominated));
+                                    }
+                                });
+                                current.update();
                             }
                         },
                         tooltip: {
+                            enabled: !isPareto,
                             callbacks: {
                                 title: function (items) {
                                     if (!items.length) {
                                         return "";
-                                    }
-                                    if (isPareto) {
-                                        return items[0].raw.run;
                                     }
                                     const parsed = items[0].parsed;
                                     const categoryLabel = isIndexedCategory
@@ -491,14 +596,6 @@
                                         + ((isCategory || isIndexedCategory) ? categoryLabel : parsed.x);
                                 },
                                 label: function (context) {
-                                    if (isPareto) {
-                                        return [
-                                            context.dataset.label,
-                                            payload.x_axis_label + ": " + context.parsed.x,
-                                            payload.y_axis_label + ": " + context.parsed.y,
-                                            context.raw.dimensions
-                                        ].filter(Boolean);
-                                    }
                                     const value = context.parsed.y;
                                     return context.dataset.label + " — " + payload.y_axis_label + ": " + value;
                                 }
@@ -526,10 +623,13 @@
                         x: xScale,
                         y: {
                             type: yAxisType,
+                            reverse: isPareto && payload.y_reverse,
+                            ticks: isPareto ? {callback: formatValue} : {},
                             beginAtZero: payload.type === "bar" && yAxisType === "linear",
                             title: {
                                 display: true,
                                 text: payload.y_axis_label + (yAxisType === "logarithmic" ? " (log scale)" : "")
+                                    + (isPareto ? " · better ↑" : "")
                             },
                             grid: {
                                 color: "rgba(57, 66, 78, 0.10)"
@@ -569,7 +669,34 @@
                 );
             }, {passive: false});
 
-            const card = canvas.closest(".comparison-card");
+            if (isPareto) {
+                card.querySelector(".js-show-dominated").addEventListener("change", function (event) {
+                    payload.datasets.forEach((dataset, index) => {
+                        if (!dataset.is_frontier) {
+                            const frontierIndex = payload.datasets.findIndex((candidate) =>
+                                candidate.is_frontier && candidate.source_color_index === dataset.source_color_index);
+                            chart.setDatasetVisibility(index, event.target.checked && chart.isDatasetVisible(frontierIndex));
+                        }
+                    });
+                    chart.resetZoom();
+                    chart.update();
+                });
+                inspector.querySelector(".js-point-clear").addEventListener("click", function () {
+                    pinnedPoint = false;
+                    inspector.querySelector(".js-point-hint").hidden = false;
+                    inspector.querySelector(".js-point-content").hidden = true;
+                    inspector.querySelector(".js-point-title").textContent = "Point details";
+                    inspector.querySelector(".js-point-run").textContent = "";
+                });
+                card.querySelectorAll(".js-inspect-point").forEach((button) => {
+                    button.addEventListener("click", function () {
+                        const point = payload.datasets.flatMap((dataset) => dataset.data)
+                            .find((candidate) => candidate.id === button.dataset.pointId);
+                        inspectPoint(point, true);
+                        inspector.scrollIntoView({block: "nearest"});
+                    });
+                });
+            }
             const fallback = card ? card.querySelector(".chart-fallback") : null;
             if (fallback) {
                 fallback.hidden = true;
@@ -612,7 +739,7 @@
     {% for section in sections %}
     <section class="comparison-card">
         <h2>{{ section.title }}</h2>
-        <p class="comparison-group">{{ section.group_name }}</p>
+        {% if section.group_name %}<p class="comparison-group">{{ section.group_name }}</p>{% endif %}
 
         <div class="chart-shell">
             <canvas
@@ -622,10 +749,14 @@
             ></canvas>
         </div>
         <div class="chart-controls">
+            {% if section.pareto %}
+            <label><input type="checkbox" class="js-show-dominated"> Show dominated points</label>
+            {% else %}
             <p>
                 Click a legend entry to show or hide a series · Shift + wheel or pinch to zoom · Shift + drag to pan ·
                 double-click to reset
             </p>
+            {% endif %}
             <button type="button" class="reset-zoom js-reset-zoom">Reset view</button>
         </div>
         <p class="chart-fallback">Interactive chart unavailable. The complete numeric data remains available below.</p>
