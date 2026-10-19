@@ -293,6 +293,8 @@ class TestDefinition(BaseModel, ABC):
         agent- and workload-agnostic rather than re-implemented per workload.
         """
         # Saved executions contain scalar draws rather than the original candidate lists.
+        # Temporary workaround until parsing extracts the exploration space from TestDefinition;
+        # then saved runs will no longer need this validation exception.
         if not self.env_params or (info.context and info.context.get("materialized")):
             return self
 

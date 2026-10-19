@@ -88,8 +88,9 @@ separate legacy converter. The containing folder supplies the output path,
 allowing results to be moved. Best-config exports contain only the definition.
 
 ``TestRunDetails`` is no longer a separate model. Its ``from_test_run`` method
-remains as a compatibility adapter for extension writers and returns the actual
-``TestRun``. Command-string arguments are accepted but not stored. Use
+is deprecated and retained only for internal project compatibility until those
+projects migrate to direct ``TestRun`` serialization. It returns the actual
+``TestRun`` and will be removed. Command-string arguments are accepted but not stored. Use
 ``load_test_run`` instead of the former ``TestRunDetails.model_validate`` reader.
 
 Migration notes for direct model users:

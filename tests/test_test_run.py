@@ -22,7 +22,6 @@ import toml
 from pydantic import ValidationError
 
 from cloudai.core import ReportGenerationStrategy, TestDefinition, TestDependency, TestRun, TestScenario, load_test_run
-from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestRunDependencyModel
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
@@ -183,10 +182,6 @@ def test_materialized_environment_parameters_round_trip(run: TestRun) -> None:
     assert loaded.test.cmd_args.ngpus == 2
     assert loaded.test.env_params["ngpus"].weights == [0.5, 0.5]
     assert template.test.cmd_args.ngpus == [1, 2]
-
-
-def test_extension_writer_adapter_returns_actual_run(run: TestRun) -> None:
-    assert TestRunDetails.from_test_run(run, "ignored", "ignored") is run
 
 
 @pytest.mark.parametrize("nodes", [None, [], ["allocated-node"]])

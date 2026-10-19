@@ -112,6 +112,8 @@ class TestRun(pydantic.BaseModel):
         if isinstance(value, TestDefinition):
             return value
         workload_type = value["test_template_name"]
+        # Temporary workaround: saved runs have chosen values but retain exploration rules.
+        # Remove this flag once parsing extracts the exploration space from TestDefinition.
         return Registry().test_definitions_map[workload_type].model_validate(value, context={"materialized": True})
 
     @pydantic.field_serializer("output_path")
