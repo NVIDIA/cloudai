@@ -565,7 +565,7 @@
                                 generateLabels: function (chart) {
                                     return Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({
                                         ...item,
-                                        text: `   ${item.text}`
+                                        text: `\u2002${item.text}` // Half-em space follows the label font size.
                                     }));
                                 },
                                 filter: (item, data) => !isPareto || data.datasets[item.datasetIndex].is_frontier,
