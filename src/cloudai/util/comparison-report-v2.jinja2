@@ -258,6 +258,9 @@
     .pareto-inspector h3, .pareto-inspector p {
         margin: 0 0 0.5rem;
     }
+    .pareto-inspector .js-point-clear {
+        margin-top: 0.75rem;
+    }
     .pareto-properties {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
@@ -559,6 +562,12 @@
                         legend: {
                             position: "bottom",
                             labels: {
+                                generateLabels: function (chart) {
+                                    return Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({
+                                        ...item,
+                                        text: `   ${item.text}`
+                                    }));
+                                },
                                 filter: (item, data) => !isPareto || data.datasets[item.datasetIndex].is_frontier,
                                 usePointStyle: true,
                                 boxWidth: 8,
