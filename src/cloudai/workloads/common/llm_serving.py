@@ -293,7 +293,6 @@ def llm_serving_metric_observations(
             observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
     output_throughput = cast(Any, results).output_throughput
     for metric, divisor in (
-        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_USER, results.concurrency),
         (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU, allocated_gpu_count),
         (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU, serving_gpu_count),
     ):

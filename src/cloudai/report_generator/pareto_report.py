@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Scenario-level Pareto plots from semantic metric observations."""
-
 from __future__ import annotations
 
 import copy
@@ -89,11 +87,11 @@ class MetricSelector(BaseModel):
 
 
 class ParetoFrontierConfig(BaseModel):
-    """Case IDs whose executions compete within one frontier."""
+    """Case IDs whose executions compete within one frontier; empty selects all cases."""
 
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1)
-    cases: list[str] = Field(min_length=1)
+    cases: list[str] = Field(default_factory=list)
     match: dict[str, metrics.MetricValue] = Field(default_factory=dict)
 
     @field_validator("match")
@@ -229,8 +227,13 @@ class ParetoReporter(Reporter):
     config: ParetoReportConfig
 
     def collect_runs(self) -> list[RunObservations]:
-        selected_cases = {case for plot in self.config.plots for frontier in plot.frontiers for case in frontier.cases}
         known_cases = {tr.name for tr in self.test_scenario.test_runs}
+        selected_cases = {
+            case
+            for plot in self.config.plots
+            for frontier in plot.frontiers
+            for case in (frontier.cases or known_cases)
+        }
         if unknown := selected_cases - known_cases:
             raise ValueError(f"Unknown Pareto case IDs: {', '.join(sorted(unknown))}")
         runs = []
@@ -309,7 +312,7 @@ class ParetoReporter(Reporter):
                 candidates = []
                 excluded_before = len(excluded)
                 for run in runs:
-                    if run.tr.name not in frontier.cases:
+                    if frontier.cases and run.tr.name not in frontier.cases:
                         continue
                     try:
                         x, y = self.select_pair(run, plot, frontier)

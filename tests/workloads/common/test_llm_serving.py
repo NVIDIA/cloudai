@@ -521,7 +521,6 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
     expected = {
         ("request_throughput", None): (10.0, "requests/s"),
         ("output_token_throughput", None): (2400.0, "tokens/s"),
-        ("output_token_throughput_per_user", None): (150.0, "tokens/s/user"),
         ("output_token_throughput_per_serving_gpu", None): (200.0, "tokens/s/GPU"),
         ("ttft", "mean"): (120.0, "ms"),
         ("ttft", "median"): (100.0, "ms"),

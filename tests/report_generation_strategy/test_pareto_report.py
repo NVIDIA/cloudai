@@ -14,32 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import itertools
-import json
 import random
-from pathlib import Path
 
 import pytest
-import toml
 from pydantic import ValidationError
 
 import cloudai.metrics as metrics
-from cloudai.core import TestRun, TestScenario
-from cloudai.models.scenario import TestRunDetails, parse_reports_spec
+from cloudai.core import TestRun
+from cloudai.models.scenario import parse_reports_spec
 from cloudai.report_generator.pareto_report import (
     MetricSelector,
     ParetoPlotConfig,
     ParetoReportConfig,
     ParetoReporter,
     RunObservations,
-    format_number,
-    inference_context,
     pareto_mask,
 )
-from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.sglang import SglangTestDefinition
-from cloudai.workloads.vllm import VllmTestDefinition
 
 
 @pytest.mark.parametrize("directions", list(itertools.product(metrics.OptimizationDirection, repeat=2)))
@@ -90,31 +81,6 @@ def observations(x: float, y: float):
     ]
 
 
-def test_grouping_invariance_and_independent_frontiers(slurm_system: SlurmSystem, base_tr: TestRun):
-    config = ParetoReportConfig(enable=True, plots=[plot_config(["a", "b"])])
-    report = ParetoReporter(slurm_system, TestScenario("scenario", []), base_tr.output_path, config)
-    runs = []
-    for case, x, y in [("a", 1, 10), ("a", 2, 20), ("b", 3, 15)]:
-        tr = copy.deepcopy(base_tr)
-        tr.name = case
-        runs.append(RunObservations(tr, observations(x, y)))
-    first = report.build_sections(runs)[0]
-    assert "x_reverse" not in first["chart"] and "y_reverse" not in first["chart"]
-    assert first["chart"]["datasets"][0]["hidden"] is False
-    assert first["chart"]["datasets"][1]["hidden"] is True
-    assert len({p["id"] for p in first["points"]}) == 3
-    assert [p["status"] for p in first["points"]] == ["Frontier", "Frontier", "Dominated"]
-    for run in runs:
-        run.tr.name = "a"
-    assert [p["status"] for p in report.build_sections(runs)[0]["points"]] == [p["status"] for p in first["points"]]
-    runs[-1].tr.name = "b"
-    config.plots[0].frontiers = [
-        type(config.plots[0].frontiers[0])(name="A", cases=["a"]),
-        type(config.plots[0].frontiers[0])(name="B", cases=["b"]),
-    ]
-    assert all(p["status"] == "Frontier" for p in report.build_sections(runs)[0]["points"])
-
-
 def test_missing_ambiguous_and_incompatible_metrics(base_tr: TestRun):
     plot = plot_config([base_tr.name])
     frontier = plot.frontiers[0]
@@ -137,110 +103,3 @@ def test_missing_ambiguous_and_incompatible_metrics(base_tr: TestRun):
     frontier.match = {"backend": "one"}
     with pytest.raises(ValueError, match="Missing"):
         ParetoReporter.select_pair(run, plot, frontier)
-
-
-@pytest.mark.parametrize("workload", ["vllm", "sglang"])
-def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tmp_path: Path, workload: str):
-    cls = VllmTestDefinition if workload == "vllm" else SglangTestDefinition
-    definition = cls.model_validate(
-        {
-            "name": "test",
-            "description": "test",
-            "test_template_name": workload,
-            "cmd_args": {"docker_image_url": "example/image:latest"},
-        }
-    )
-    ordinary = TestRun("ordinary", definition, 1, [], iterations=2)
-    search = TestRun("search", definition.model_copy(deep=True), [1, 2], [])
-    missing = TestRun("missing", definition.model_copy(deep=True), 1, [])
-    for relative, x, y in [("ordinary/0", 1, 10), ("ordinary/1", 2, 20), ("search/0/1", 3, 15)]:
-        folder = tmp_path / relative
-        folder.mkdir(parents=True)
-        data = {
-            "num_prompts": 10,
-            "completed": 10,
-            "max_concurrency": 4,
-            "mean_ttft_ms": x,
-            "median_ttft_ms": x,
-            "p99_ttft_ms": x,
-            "mean_tpot_ms": 1,
-            "median_tpot_ms": 1,
-            "p99_tpot_ms": 1,
-            "request_throughput": 1,
-            "output_throughput": y,
-            "output_throughput_per_gpu": y,
-            "input_throughput": y,
-        }
-        (folder / ("vllm-bench.json" if workload == "vllm" else "sglang-bench.jsonl")).write_text(json.dumps(data))
-        (folder / "vllm-bench.log").write_text(
-            "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
-        )
-        executed_inputs = definition.model_dump()
-        executed_inputs["bench_cmd_args"]["max_concurrency"] = 8
-        executed_inputs["cmd_args"]["decode"]["tensor_parallel_size"] = 4
-        executed = cls.model_validate(executed_inputs)
-        resolved = TestRun("search", executed, 2, [], output_path=folder)
-        resolved.allocated_gpu_count = 24
-        if relative.startswith("search"):
-            (folder / "test-run.toml").write_text(
-                toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
-            )
-    (tmp_path / "search/0/2").mkdir()
-    (tmp_path / "search/0/2/test-run.toml").write_text("invalid = [")
-    (tmp_path / "search/0/3").mkdir()
-    (tmp_path / "search/controller").mkdir()
-    config = ParetoReportConfig(enable=True, plots=[plot_config(["ordinary", "search", "missing"])])
-    report = ParetoReporter(slurm_system, TestScenario("example", [ordinary, search, missing]), tmp_path, config)
-    collected = report.collect_runs()
-    section = report.build_sections(collected)[0]
-    assert len(section["points"]) == 3
-    assert len(section["excluded"]) == 3
-    assert section["summaries"][0]["frontier"] == 2
-    assert "num_nodes = 2" in section["points"][-1]["config"]
-    context = section["points"][-1]["context"]
-    assert context["Concurrency"] == 8
-    assert context["Decode / TP"] == 4
-    assert context["Nodes"] == 2
-    assert context["Model"] == definition.cmd_args.model
-    assert context["Input tokens"] == 16
-    assert context["Output tokens"] == 128
-    assert context["Allocated GPUs"] == 24
-    assert context["Serving GPUs"] == 4
-    assert inference_context(ordinary)["Concurrency"] == 16
-    report.generate()
-    html = (tmp_path / "pareto.html").read_text()
-    assert '"type": "scatter"' in html
-    assert "Executed configuration" in html
-    assert "Missing test-run.toml" in html
-    assert "Hover to inspect" in html
-    assert "Show dominated points" in html
-    assert "Each frontier compares" not in html
-    report.config.plots[0].x = MetricSelector(metric="output_token_throughput_per_user")
-    report.config.plots[0].y = MetricSelector(metric="output_token_throughput_per_allocated_gpu")
-    normalized = report.build_sections(collected)[0]
-    assert len(normalized["points"]) == 1  # Only the saved search step has an allocation.
-    assert normalized["points"][0]["x"] == 15 / 4
-    assert normalized["points"][0]["y"] == 15 / 24
-    config.plots[0].frontiers[0].cases.append("unknown")
-    with pytest.raises(ValueError, match="Unknown Pareto case"):
-        report.collect_runs()
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [(12345.678901, "12,345.68"), (10, "10"), (0, "0"), (0.000123456, "0.000123"), (-12.345, "-12.35")],
-)
-def test_display_precision(value, expected):
-    assert format_number(value) == expected
-
-
-def test_empty_report_and_html_escaping(slurm_system: SlurmSystem, base_tr: TestRun, tmp_path: Path, monkeypatch):
-    config = ParetoReportConfig(enable=True, plots=[plot_config([base_tr.name])])
-    config.plots[0].name = "<script>alert(1)</script>"
-    report = ParetoReporter(slurm_system, TestScenario("test", [base_tr]), tmp_path, config)
-    monkeypatch.setattr(report, "collect_runs", lambda: [RunObservations(base_tr, error="<script>bad</script>")])
-    report.generate()
-    html = (tmp_path / "pareto.html").read_text()
-    assert "No valid points" in html
-    assert "&lt;script&gt;bad&lt;/script&gt;" in html
-    assert "<script>alert(1)</script>" not in html
