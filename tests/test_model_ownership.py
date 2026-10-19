@@ -22,8 +22,12 @@ import toml
 from pydantic import Field
 
 from cloudai.core import CmdArgs, SOLMetricModel, TestDefinition, TestRun, TestScenario, TestScenarioParser
+from cloudai.models.scenario import ReportConfig
+from cloudai.reporter import DSEReporter
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
+from cloudai.workloads.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
 
 
 def test_scenario_schema_is_complete_without_rebuilding():
@@ -249,9 +253,6 @@ def test_scenario_srun_args_override_test_defaults_for_workload_and_metadata(
     scenario_args: str | list[str] | None,
     expected_args: list[str],
 ):
-    from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
-    from cloudai.workloads.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
-
     definition = SlurmContainerTestDefinition(
         name="container",
         description="container",
@@ -301,9 +302,6 @@ def test_report_restore_preserves_execution_configuration(
     legacy: bool,
     sweep: bool,
 ):
-    from cloudai.models.scenario import ReportConfig
-    from cloudai.reporter import DSEReporter
-
     definition.extra_srun_args = ["--exclusive"]
     definition.exclude_nodes = ["excluded"]
     definition.ideal_perf = 2.0

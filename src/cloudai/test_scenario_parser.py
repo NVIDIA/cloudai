@@ -40,12 +40,11 @@ from .core import (
 from .models.workload import TestDefinition
 from .test_parser import TestParser, load_test_toml_file
 from .toml_utils import format_toml_decode_error
+from .workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
 
 
 def get_reporters(tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
     reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
-
-    from .workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
 
     if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
         reporters.add(NcclTestPredictionReportGenerationStrategy)
