@@ -2,8 +2,8 @@ Pareto frontiers
 ================
 
 Enable ``pareto`` in a scenario to generate ``pareto.html``. Each plot compares two metrics and excludes a measurement
-when another is at least as good on both axes and better on at least one. All successful iterations and DSE steps
-participate: a grid-search case can contribute several points, and several cases can contribute to one frontier.
+when another is at least as good on both axes and better on at least one. All successful iterations and sweep steps
+participate: a sweep case can contribute several points, and several cases can contribute to one frontier.
 
 Choose the axes
 ---------------
@@ -75,7 +75,7 @@ best configurations independently:
    name = "Version B"
    cases = ["b-grid"]
 
-``cases`` contains scenario ``[[Tests]].id`` values. A single search case and multiple fixed-concurrency cases
+``cases`` contains scenario ``[[Tests]].id`` values. A single sweep case and multiple fixed-concurrency cases
 are handled identically: all their measurements compete within the named frontier.
 
 For Y, ``output_token_throughput_per_allocated_gpu`` divides output tokens/s by the Slurm reservation, including

@@ -952,7 +952,7 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
             "cmd_args": {"docker_image_url": "example/image:latest"},
         }
     )
-    for relative, x, y in [("ordinary/0", 1, 10), ("ordinary/1", 2, 20), ("search/0/1", 3, 15)]:
+    for relative, x, y in [("ordinary/0", 1, 10), ("ordinary/1", 2, 20), ("sweep/0/1", 3, 15)]:
         folder = tmp_path / relative
         folder.mkdir(parents=True)
         data = {
@@ -972,19 +972,19 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
         (folder / "vllm-bench.log").write_text(
             "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
         )
-        if relative.startswith("search"):
+        if relative.startswith("sweep"):
             inputs = definition.model_dump()
             inputs["bench_cmd_args"]["max_concurrency"] = 8
             inputs["cmd_args"]["decode"]["tensor_parallel_size" if workload == "vllm" else "tp_size"] = 4
             executed = cls.model_validate(inputs)
-            resolved = TestRun("search", executed, 2, [], output_path=folder, allocated_gpu_count=24)
+            resolved = TestRun("sweep", executed, 2, [], output_path=folder, allocated_gpu_count=24)
             (folder / "test-run.toml").write_text(
                 toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
             )
-    (tmp_path / "search/0/2").mkdir()
-    (tmp_path / "search/0/2/test-run.toml").write_text("invalid = [")
-    (tmp_path / "search/0/3").mkdir()
-    (tmp_path / "search/controller").mkdir()
+    (tmp_path / "sweep/0/2").mkdir()
+    (tmp_path / "sweep/0/2/test-run.toml").write_text("invalid = [")
+    (tmp_path / "sweep/0/3").mkdir()
+    (tmp_path / "sweep/controller").mkdir()
     plot = {
         "name": "All configurations",
         "x": {"metric": "ttft", "match": {"statistic": "p99"}},
@@ -997,7 +997,7 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
         {
             **plot,
             "name": "Independent versions",
-            "frontiers": [{"name": "A", "cases": ["ordinary"]}, {"name": "B", "cases": ["search", "missing"]}],
+            "frontiers": [{"name": "A", "cases": ["ordinary"]}, {"name": "B", "cases": ["sweep", "missing"]}],
         },
         {
             **plot,
@@ -1017,7 +1017,7 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
                 "reports": reports,
                 "Tests": [
                     {**definition.model_dump(), "id": "ordinary", "num_nodes": 1, "iterations": 2},
-                    {**definition.model_dump(), "id": "search", "num_nodes": [1, 2]},
+                    {**definition.model_dump(), "id": "sweep", "num_nodes": [1, 2]},
                     {**definition.model_dump(), "id": "missing", "num_nodes": 1},
                 ],
             }
@@ -1054,5 +1054,5 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
     assert "No valid points" in html and "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)</script>" not in html
     assert "Executed configuration" in html and "num_nodes = 2" in html
-    assert "Missing test-run.toml" in html and "No execution results found" in html
+    assert "Missing test-run.toml for sweep step" in html and "No execution results found" in html
     assert "Show dominated points" in html and "Hover to inspect" in html
