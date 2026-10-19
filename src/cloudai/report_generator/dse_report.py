@@ -25,8 +25,7 @@ from typing import Any
 
 import toml
 
-from cloudai.core import CommandGenStrategy, System, TestRun
-from cloudai.models.scenario import TestRunDetails
+from cloudai.core import CommandGenStrategy, System, TestRun, load_test_run
 from cloudai.systems.slurm import SlurmJobMetadata
 from cloudai.util.lazy_imports import lazy
 
@@ -173,14 +172,14 @@ def calculate_saved_gpu_hours(
     system: System,
     total_runtime_sec: float,
     projected_runtime_sec: float,
-    test_run_details: TestRunDetails,
+    test_run: TestRun,
 ) -> float | None:
     gpus_per_node = getattr(system, "gpus_per_node", None)
     total_gpu_hours = (
-        (total_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node if gpus_per_node is not None else None
+        (total_runtime_sec / 3600.0) * test_run.nnodes * gpus_per_node if gpus_per_node is not None else None
     )
     projected_gpu_hours = (
-        (projected_runtime_sec / 3600.0) * test_run_details.nnodes * gpus_per_node
+        (projected_runtime_sec / 3600.0) * test_run.nnodes * gpus_per_node
         if projected_runtime_sec is not None and gpus_per_node is not None
         else None
     )
@@ -307,8 +306,7 @@ def _build_iteration_summary(
         logging.warning(f"No test run dump found for best DSE step at {best_step_dump}")
         return None
 
-    with best_step_dump.open() as f:
-        test_run_details = TestRunDetails.model_validate(toml.load(f))
+    test_run = load_test_run(best_step_dump, test_case.test)
 
     elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
     if not elapsed_times:
@@ -326,7 +324,7 @@ def _build_iteration_summary(
         system=system,
         total_runtime_sec=total_observed_runtime_sec,
         projected_runtime_sec=projected_runtime_sec,
-        test_run_details=test_run_details,
+        test_run=test_run,
     )
     estimated_saved_cost_usd = calculate_savings(saved_gpu_hours, gpu_arch_label)
     reduction_factor = total_space / len(trajectory_steps)
@@ -341,7 +339,7 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
+        best_config_toml=toml.dumps(test_run.test.model_dump()),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )

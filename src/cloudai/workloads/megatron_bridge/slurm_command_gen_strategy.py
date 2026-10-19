@@ -27,7 +27,6 @@ from typing import Any, Optional, cast
 import toml
 
 from cloudai.core import TestRun, TestScenario
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util import format_time_limit, parse_time_limit
 
@@ -314,10 +313,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return format_time_limit(total_time_limit)
 
     def store_test_run(self) -> None:
-        test_cmd = self.gen_exec_command()
-        trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
-        details = trd.model_dump()
-        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        details = self.test_run.model_dump(mode="json")
+        details["test"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
             toml.dump(details, f)
 

@@ -25,10 +25,8 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
-    SerializationInfo,
     SerializeAsAny,
     ValidationError,
-    field_serializer,
     field_validator,
     model_validator,
 )
@@ -185,60 +183,10 @@ class TestScenario(BaseModel):
         return s
 
 
-class TestRunDetails(BaseModel):
-    """
-    Model for test run dump.
+class TestRunDetails:
+    """Compatibility entry point for extension writers; new code serializes TestRun directly."""
 
-    Used for storing a single test run with all fields set during command generation.
-    """
-
-    __test__ = False
-    model_config = ConfigDict(extra="forbid")
-
-    name: str
-    nnodes: int
-    nodes: list[str] = []
-    output_path: Path
-    iterations: int
-    current_iteration: int
-    step: int
-    test_cmd: str
-    full_cmd: str
-    test_definition: Any
-
-    @field_serializer("output_path")
-    def _path_serializer(self, v: Path) -> str:
-        return str(v.absolute())
-
-    @field_validator("test_definition", mode="before")
-    @classmethod
-    def load_tdef(cls, value: Any | None) -> TestDefinition | None:
-        if value is None:
-            return None
-        if isinstance(value, TestDefinition):
-            return value
-        if isinstance(value, dict):
-            workload_type = value["test_template_name"]
-            workload_cls = Registry().test_definitions_map[workload_type]
-            return workload_cls.model_validate(value)
-
-        raise ValueError(f"Invalid test definition: {value}")
-
-    @field_serializer("test_definition")
-    def dump_definition(self, value: TestDefinition | None, info: SerializationInfo) -> dict | None:
-        return value.model_dump(mode=info.mode) if value is not None else None
-
-    @classmethod
-    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:
-        return cls(
-            name=tr.name,
-            nnodes=tr.nnodes,
-            nodes=tr.nodes,
-            output_path=tr.output_path,
-            iterations=tr.iterations,
-            current_iteration=tr.current_iteration,
-            step=tr.step,
-            test_cmd=test_cmd,
-            full_cmd=full_cmd,
-            test_definition=tr.test,
-        )
+    @staticmethod
+    def from_test_run(tr: TestRun, test_cmd: str = "", full_cmd: str = "") -> TestRun:
+        """Return the run itself; command strings are no longer saved."""
+        return tr

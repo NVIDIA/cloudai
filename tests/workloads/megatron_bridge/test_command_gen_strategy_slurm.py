@@ -515,7 +515,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
         test_run_path = test_run.output_path / "test-run.toml"
         details = toml.load(test_run_path)
-        assert details["test_definition"]["cmd_args"]["hf_token"] == HF_TOKEN_REDACTION
+        assert details["test"]["cmd_args"]["hf_token"] == HF_TOKEN_REDACTION
         assert "dummy_token" not in test_run_path.read_text()
         assert test_run.test.cmd_args.hf_token == "dummy_token"
 

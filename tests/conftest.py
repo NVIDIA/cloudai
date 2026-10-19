@@ -23,7 +23,6 @@ import toml
 import yaml
 
 from cloudai.core import CommandGenStrategy, TestRun
-from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
@@ -188,10 +187,9 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
                 for step in range(test_run.test.agent_steps):
                     step_folder = folder / str(step)
                     step_folder.mkdir(exist_ok=True, parents=True)
-                    trd = TestRunDetails.from_test_run(test_run, "", "")
                     csw_writer.writerow([step, {}, step * 2.1, [step]])
                     with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
-                        toml.dump(trd.model_dump(), _f_trd)
+                        toml.dump(test_run.model_dump(mode="json"), _f_trd)
 
 
 @pytest.fixture

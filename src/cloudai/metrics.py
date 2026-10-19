@@ -309,7 +309,7 @@ def assess_observation(observation: MetricObservation, sol_config: MetricSOLConf
 def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment]:
     """Collect and assess every metric produced by a completed test run."""
     observations = test_run.test.metric_observations(system, test_run)
-    sol = test_run.sol
+    sol = test_run.test.sol
     targets = sol.root if isinstance(sol, SOLMetricModel) else {}
     return [assess_observation(observation, targets) for observation in observations]
 

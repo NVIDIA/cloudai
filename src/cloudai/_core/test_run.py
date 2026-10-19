@@ -21,15 +21,18 @@ import itertools
 import pathlib
 from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
 
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, SkipValidation, field_serializer, field_validator
+from pydantic.json_schema import SkipJsonSchema
+
 import cloudai.metrics
 
+from ..models.scenario import TestScenario
 from ..models.workload import TestDefinition
 from ..util import flatten_dict
 from .registry import Registry
 from .system import System
 
 if TYPE_CHECKING:
-    from ..models.scenario import TestScenario
     from .report_generation_strategy import ReportGenerationStrategy
 
 
@@ -76,10 +79,22 @@ class TestDependency:
         self.test_run = test_run
 
 
-class TestRun:
+class TestRun(BaseModel):
     """Mutable execution state bound to one prepared test definition."""
 
     __test__ = False
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    # Prepared definitions may already contain scalar environment-parameter draws.
+    test: SerializeAsAny[SkipValidation[TestDefinition]]
+    nodes: list[str] = Field(default_factory=list)
+    output_path: pathlib.Path = pathlib.Path("")
+    current_iteration: int = 0
+    step: int = 0
+    # These references connect live executions; the definition already stores dependency IDs.
+    dependencies: SkipJsonSchema[dict[str, TestDependency]] = Field(default_factory=dict, exclude=True, repr=False)
+    pre_test: TestScenario | None = Field(default=None, exclude=True, repr=False)
+    post_test: TestScenario | None = Field(default=None, exclude=True, repr=False)
 
     def __init__(
         self,
@@ -92,14 +107,34 @@ class TestRun:
         pre_test: TestScenario | None = None,
         post_test: TestScenario | None = None,
     ) -> None:
-        self.test = test
-        self.nodes = list(nodes if nodes is not None else test.nodes)
-        self.output_path = output_path
-        self.current_iteration = current_iteration
-        self.step = step
-        self.dependencies = dependencies if dependencies is not None else {}
-        self.pre_test = pre_test
-        self.post_test = post_test
+        super().__init__(
+            test=test,
+            nodes=nodes if nodes is not None else [],
+            output_path=output_path,
+            current_iteration=current_iteration,
+            step=step,
+            dependencies=dependencies if dependencies is not None else {},
+            pre_test=pre_test,
+            post_test=post_test,
+        )
+        if nodes is None:
+            self.nodes = list(self.test.nodes)
+
+    @field_validator("test", mode="before")
+    @classmethod
+    def load_definition(cls, value: Any) -> TestDefinition:
+        """Keep prepared instances intact; restore dictionaries using their workload class."""
+        if isinstance(value, TestDefinition):
+            return value
+        workload_type = value["test_template_name"]
+        return Registry().test_definitions_map[workload_type].model_validate(value, context={"materialized": True})
+
+    @field_serializer("output_path")
+    def dump_output_path(self, value: pathlib.Path) -> str:
+        return str(value.absolute())
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
 
     @property
     def name(self) -> str:
@@ -122,10 +157,6 @@ class TestRun:
         return self.test.sol
 
     @property
-    def weight(self) -> float:
-        return self.test.weight
-
-    @property
     def reports(self) -> set[type[ReportGenerationStrategy]]:
         return self.test.reporters
 
@@ -138,19 +169,11 @@ class TestRun:
         return self.test.iterations
 
     @property
-    def ideal_perf(self) -> float:
-        return self.test.ideal_perf
-
-    @property
     def extra_srun_args(self) -> str | None:
         return " ".join(self.test.extra_srun_args) or None
 
-    @property
-    def pin_nodes(self) -> bool:
-        return self.test.pin_nodes
-
     def __hash__(self) -> int:
-        return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
+        return hash(self.name + self.test.name + str(self.test.iterations) + str(self.current_iteration))
 
     def has_more_iterations(self) -> bool:
         """
@@ -159,7 +182,7 @@ class TestRun:
         Returns
             bool: True if more iterations are pending, False otherwise.
         """
-        return self.current_iteration + 1 < self.iterations
+        return self.current_iteration + 1 < self.test.iterations
 
     def increment_step(self) -> int:
         """Advance the trial counter and return the new value."""
@@ -168,13 +191,13 @@ class TestRun:
 
     @property
     def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
-        if not self.reports:
+        if not self.test.reporters:
             return None
 
         if not self.test.agent_metrics:
             return None
 
-        for r in self.reports:
+        for r in self.test.reporters:
             if all(metric in r.metrics for metric in self.test.agent_metrics):
                 return r
 

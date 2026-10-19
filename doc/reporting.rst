@@ -31,6 +31,19 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
+Saved test runs
+---------------
+
+Each execution writes ``test-run.toml`` with its prepared definition under
+``[test]`` and its allocated nodes, output path, iteration and step at top level.
+Pre/post-test scenarios and live dependency references are not saved.
+
+Reports accept both this layout and older files with ``[test_definition]``.
+For old files, saved top-level values take precedence over the supplied scenario;
+the scenario supplies definition settings that were never saved. Newly written
+files omit the old command strings and repeated top-level definition settings.
+Extensions reading saved runs should use ``cloudai.core.load_test_run``.
+
 
 Unified Experiment Output
 -------------------------

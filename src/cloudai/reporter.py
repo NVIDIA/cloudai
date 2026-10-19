@@ -31,8 +31,7 @@ from rich.table import Table
 from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.report_generator.util import load_system_metadata
 
-from .core import CommandGenStrategy, Reporter, TestRun, case_name
-from .models.scenario import TestRunDetails
+from .core import CommandGenStrategy, Reporter, TestRun, case_name, load_test_run
 
 
 @dataclass
@@ -283,17 +282,16 @@ class DSEReporter(Reporter):
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
                 continue
 
-            with best_step_details.open() as f:
-                try:
-                    trd = TestRunDetails.model_validate(toml.load(f))
-                except Exception as exc:
-                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
-                    continue
+            try:
+                saved_run = load_test_run(best_step_details, tr.test)
+            except Exception as exc:
+                logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
+                continue
 
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(), f)
+                toml.dump(saved_run.test.model_dump(), f)
 
 
 class TarballReporter(Reporter):

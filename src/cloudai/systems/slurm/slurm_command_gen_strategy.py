@@ -21,10 +21,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast, final
 
-import toml
-
 from cloudai.core import CommandGenStrategy, Registry, System, TestRun, TestScenario
-from cloudai.models.scenario import TestRunDetails
 
 from .slurm_system import SlurmSystem
 
@@ -69,12 +66,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @property
     def mpi(self) -> str:
         return self.system.mpi
-
-    def store_test_run(self) -> None:
-        test_cmd, srun_cmd = (" ".join(self.generate_test_command()), self.gen_srun_command())
-        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=srun_cmd)
-            toml.dump(trd.model_dump(), f)
 
     @final
     def container_mounts(self) -> list[str]:
