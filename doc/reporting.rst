@@ -154,9 +154,14 @@ A frontier can also set ``match`` to filter observations before both axes are se
 Each axis must resolve to exactly one observation per execution. Shared measurement dimensions must agree between
 axes, except for ``statistic``, which can differ. Missing or ambiguous measurements are listed as exclusions.
 
-The report shows all valid points, highlights non-dominated points, and connects them in x order. Lines guide the eye;
-intermediate configurations have not been measured. Identical coordinates retain their originating executions in the
-table. Expand the measurements table to inspect the executed configuration, iteration, step, and result location.
+The chart initially shows frontier points. Enable **Show dominated points** to include the remaining measurements;
+the axes adjust to the visible points. Minimizing axes are reversed so better values appear toward the upper right.
+Lines connect measured frontier points; intermediate configurations have not been measured.
+
+Hover over a point to view its metrics and configured inference parameters, including model, concurrency, token
+lengths, node count, and available parallelism settings. Click to pin the details for text selection and copying.
+The measurements table retains all valid executions, including identical coordinates. Select an execution there
+to inspect its details, or expand its configuration to see the full executed inputs and result location.
 Failed executions and missing or malformed search-step configurations appear in the exclusions table.
 Existing comparison reports can remain enabled alongside this report.
 
