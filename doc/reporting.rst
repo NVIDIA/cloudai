@@ -118,6 +118,48 @@ directory. It emits one test case for every regular test iteration and every DSE
 failure details, scheduler duration when available, and the contents of ``stdout.txt`` and ``stderr.txt``. The artifact
 can be consumed directly by Jenkins, GitLab, GitHub Actions, and other CI systems that support JUnit XML.
 
+Pareto frontiers
+----------------
+
+Enable ``pareto`` in a scenario to write ``pareto.html``. Each plot selects two metrics from
+``metric_observations()``; each named frontier compares all successful iterations and DSE steps from its case IDs.
+Grid search and other DSE agents use the same calculation. Cases can contribute zero, one, or several frontier points.
+
+.. code-block:: toml
+
+   [reports.pareto]
+   enable = true
+
+   [[reports.pareto.plots]]
+   name = "Throughput vs latency"
+   x = { metric = "ttft", match = { statistic = "p99" } }
+   y = { metric = "output_token_throughput" }
+
+   [[reports.pareto.plots.frontiers]]
+   name = "Version A"
+   cases = ["a-c16", "a-c32", "a-c64"]
+
+   [[reports.pareto.plots.frontiers]]
+   name = "Version B"
+   cases = ["b-grid"]
+
+``cases`` references ``[[Tests]].id`` values, not workload names. Each frontier is calculated independently;
+splitting the same executions across different cases does not change it. Choose comparable model, input/output
+lengths, and hardware conditions when assigning cases to a frontier.
+
+Axes default to their metric's optimization direction: throughput is maximized and latency minimized.
+Set ``direction = "maximize"`` or ``direction = "minimize"`` on either axis to override it.
+``match`` selects observation dimensions, such as ``statistic = "mean"``, ``"median"``, or ``"p99"`` for latency.
+A frontier can also set ``match`` to filter observations before both axes are selected.
+Each axis must resolve to exactly one observation per execution. Shared measurement dimensions must agree between
+axes, except for ``statistic``, which can differ. Missing or ambiguous measurements are listed as exclusions.
+
+The report shows all valid points, highlights non-dominated points, and connects them in x order. Lines guide the eye;
+intermediate configurations have not been measured. Identical coordinates retain their originating executions in the
+table. Expand the measurements table to inspect the executed configuration, iteration, step, and result location.
+Failed executions and missing or malformed search-step configurations appear in the exclusions table.
+Existing comparison reports can remain enabled alongside this report.
+
 Speed-of-Light comparisons
 --------------------------
 
