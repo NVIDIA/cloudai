@@ -272,7 +272,12 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
 
         results = parse_vllm_bench_output(tr.output_path / VLLM_BENCH_JSON_FILE)
         accuracy = parse_vllm_semantic_accuracy(tr.output_path) if self.semantic_eval_cmd_args is not None else None
-        return llm_serving_metric_observations(results, accuracy)
+        return llm_serving_metric_observations(
+            results,
+            accuracy,
+            allocated_gpu_count=tr.allocated_gpu_count,
+            serving_gpu_count=self.serving_gpu_count,
+        )
 
 
 @cache

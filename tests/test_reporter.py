@@ -55,13 +55,31 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 class TestLoadTestTuns:
-    def test_load_test_runs_behcnmark_sorted(self, slurm_system: SlurmSystem, benchmark_tr: TestRun) -> None:
+    @pytest.mark.parametrize("allocation_source", ["dump", "run_metadata", "scenario_metadata", "incomplete_metadata"])
+    def test_load_test_runs_behcnmark_sorted(
+        self, slurm_system: SlurmSystem, benchmark_tr: TestRun, allocation_source: str
+    ) -> None:
         reporter = PerTestReporter(
             slurm_system,
             TestScenario(name="test_scenario", test_runs=[benchmark_tr]),
             slurm_system.output_path,
             ReportConfig(),
         )
+        for i in range(benchmark_tr.iterations):
+            run_dir = slurm_system.output_path / benchmark_tr.name / str(i)
+            if allocation_source == "dump":
+                dump = run_dir / "test-run.toml"
+                details = toml.load(dump) if dump.exists() else {}
+                dump.write_text(toml.dumps({**details, "allocated_gpu_count": 24}))
+            else:
+                metadata = (
+                    slurm_system.output_path if allocation_source == "scenario_metadata" else run_dir
+                ) / "metadata"
+                metadata.mkdir(exist_ok=True)
+                for node in range(5 if allocation_source == "incomplete_metadata" else 6):
+                    (metadata / f"node-{node}.toml").write_text(
+                        toml.dumps({"system": {"gpu_count": 4}, "slurm": {"num_nodes": "6"}})
+                    )
         reporter.load_test_runs()
 
         assert len(reporter.trs) == benchmark_tr.iterations
@@ -70,6 +88,7 @@ class TestLoadTestTuns:
             assert tr.current_iteration == i
             assert tr.step == 0
             assert tr.output_path == slurm_system.output_path / benchmark_tr.name / str(i)
+            assert tr.allocated_gpu_count == (None if allocation_source == "incomplete_metadata" else 24)
 
     def test_load_test_runs_dse_sorted(self, slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
         reporter = PerTestReporter(

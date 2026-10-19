@@ -205,6 +205,10 @@ def inference_context(tr: TestRun) -> dict[str, Any]:
         "gpu_ids": "GPU IDs",
     }
     context: dict[str, Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
+    if tr.allocated_gpu_count is not None:
+        context["Allocated GPUs"] = tr.allocated_gpu_count
+    if serving_gpus := getattr(tr.test, "serving_gpu_count", None):
+        context["Serving GPUs"] = serving_gpus
 
     def collect(values: dict[str, Any], scope: str = "") -> None:
         for key, value in values.items():
@@ -259,8 +263,10 @@ class ParetoReporter(Reporter):
                 tr.test = details.test_definition
                 tr.num_nodes = details.nnodes
                 tr.nodes = details.nodes
+                tr.allocated_gpu_count = details.allocated_gpu_count
             elif is_search:
                 raise ValueError("Missing test-run.toml for search step")
+            self.system.load_run_metadata(tr, self.results_root)
             run.config = toml.dumps(
                 {
                     "num_nodes": tr.nnodes,
@@ -375,8 +381,6 @@ class ParetoReporter(Reporter):
                         "y_axis_type": "linear",
                         "x_axis_label": plot.x.label,
                         "y_axis_label": plot.y.label,
-                        "x_reverse": plot.x.resolved_direction == metrics.OptimizationDirection.MINIMIZE,
-                        "y_reverse": plot.y.resolved_direction == metrics.OptimizationDirection.MINIMIZE,
                         "datasets": datasets,
                     },
                 }

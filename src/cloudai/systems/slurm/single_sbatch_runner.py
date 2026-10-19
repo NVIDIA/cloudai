@@ -42,6 +42,12 @@ class SingleSbatchRunner(SlurmRunner):
         self.system = cast(SlurmSystem, system)
         self.job_name = "cloudai-single-sbatch"
 
+    def get_allocated_gpu_count(self, tr: TestRun) -> int | None:
+        if not self.system.gpus_per_node:
+            return None
+        nnodes, _ = self.extract_sbatch_nodes_spec()
+        return nnodes * self.system.gpus_per_node
+
     def get_sbatch_directives(self) -> list[str]:
         max_nodes, node_list = self.extract_sbatch_nodes_spec()
 

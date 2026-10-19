@@ -26,9 +26,10 @@ from copy import copy
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
+import toml
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from cloudai.core import BaseJob, File, Installable, JobFailureError, JobIdRetrievalError, System
+from cloudai.core import BaseJob, File, Installable, JobFailureError, JobIdRetrievalError, System, TestRun
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
@@ -64,6 +65,28 @@ class SlurmPartition(BaseModel):
 
 class SlurmSystem(System):
     """Represents a Slurm system."""
+
+    def load_run_metadata(self, tr: TestRun, results_root: Path) -> None:
+        if tr.allocated_gpu_count is not None:
+            return
+        try:
+            dump = tr.output_path / "test-run.toml"
+            if dump.is_file():
+                tr.allocated_gpu_count = toml.load(dump).get("allocated_gpu_count")
+                if tr.allocated_gpu_count is not None:
+                    return
+            metadata = tr.output_path / "metadata"
+            if not metadata.is_dir():
+                metadata = results_root / "metadata"
+            nodes = [toml.load(path) for path in metadata.glob("node-*.toml")]
+            if not nodes:
+                return
+            expected_nodes = int(nodes[0]["slurm"]["num_nodes"])
+            counts = [node["system"]["gpu_count"] for node in nodes]
+            if len(nodes) == expected_nodes and all(isinstance(count, int) and count > 0 for count in counts):
+                tr.allocated_gpu_count = sum(counts)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            logging.debug("Cannot restore GPU allocation at %s: %s", tr.output_path, exc)
 
     def submit_sbatch(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
         """Submit an sbatch script without exposing the CLI transport to callers."""
