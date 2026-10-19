@@ -75,32 +75,32 @@ def test_get_access_token_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_request_success(dummy_client: RunAIRestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_request(
+        self: requests.Session,
         method: str,
         url: str,
-        headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> DummyResponse:
         return DummyResponse({"result": "ok"}, 200)
 
-    monkeypatch.setattr(requests, "request", fake_request)
+    monkeypatch.setattr(requests.Session, "request", fake_request)
     result = dummy_client._request("GET", "/test", params={"a": 1})
     assert result == {"result": "ok"}
 
 
 def test_request_http_error(dummy_client: RunAIRestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_request(
+        self: requests.Session,
         method: str,
         url: str,
-        headers: Dict[str, Any],
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> DummyResponse:
         return DummyResponse({"error": "fail"}, 400)
 
-    monkeypatch.setattr(requests, "request", fake_request)
+    monkeypatch.setattr(requests.Session, "request", fake_request)
     with pytest.raises(requests.exceptions.HTTPError):
         dummy_client._request("GET", "/error")
 

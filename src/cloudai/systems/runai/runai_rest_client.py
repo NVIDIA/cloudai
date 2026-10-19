@@ -43,6 +43,7 @@ class RunAIRestClient:
         self.base_url = base_url.rstrip("/")
         self.verify_certs = verify_certs
         self.session = requests.Session()
+        self.session.verify = verify_certs
         self.access_token = self._get_access_token()
         self.session.headers.update(
             {
@@ -63,14 +64,12 @@ class RunAIRestClient:
         """Make an HTTP request and return JSON."""
         url: str = f"{self.base_url}{path}"
         try:
-            response = requests.request(
+            response = self.session.request(
                 method,
                 url,
-                headers=self.session.headers,
                 params=params,
                 json=data,
                 timeout=30,
-                verify=self.verify_certs,
             )
             response.raise_for_status()
             return response.json() if response.text else None
@@ -89,7 +88,7 @@ class RunAIRestClient:
         payload = {"grantType": "app_token", "AppId": self.app_id, "AppSecret": self.app_secret}
 
         try:
-            response = self.session.post(url, json=payload, timeout=30, verify=self.verify_certs)
+            response = self.session.post(url, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
             token = data.get("accessToken")
@@ -502,7 +501,7 @@ class RunAIRestClient:
             "Accept-Encoding": "gzip",
             "Content-Length": "0",
         }
-        response = requests.get(url, headers=headers, timeout=30, verify=self.verify_certs)
+        response = self.session.get(url, headers=headers, timeout=30)
         return "OK" in response.text
 
     def fetch_training_logs(
