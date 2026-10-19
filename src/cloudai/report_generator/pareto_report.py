@@ -16,49 +16,49 @@
 
 from __future__ import annotations
 
+import collections.abc
 import copy
+import dataclasses
 import logging
 import math
-from collections.abc import Sequence
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+import pathlib
+import typing
 
 import jinja2
+import pydantic
 import toml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from typing_extensions import Self
+import typing_extensions
 
-import cloudai.metrics as metrics
-from cloudai.core import Reporter, TestRun
-from cloudai.models.scenario import ReportConfig, TestRunDetails
+import cloudai.core
+import cloudai.metrics
+import cloudai.models.scenario
 
 
-class MetricSelector(BaseModel):
+class MetricSelector(pydantic.BaseModel):
     """Select exactly one observation per execution."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid")
     metric: str
-    match: dict[str, metrics.MetricValue] = Field(default_factory=dict)
-    direction: metrics.OptimizationDirection | None = None
+    match: dict[str, cloudai.metrics.MetricValue] = pydantic.Field(default_factory=dict)
+    direction: cloudai.metrics.OptimizationDirection | None = None
 
-    @field_validator("metric")
+    @pydantic.field_validator("metric")
     @classmethod
     def known_metric(cls, value: str) -> str:
-        metrics.MetricCatalog.get_metric(value)
+        cloudai.metrics.MetricCatalog.get_metric(value)
         return value
 
-    @field_validator("match")
+    @pydantic.field_validator("match")
     @classmethod
-    def known_dimensions(cls, value: dict[str, metrics.MetricValue]) -> dict[str, metrics.MetricValue]:
-        return dict(metrics.MetricCatalog.validate_dimensions(value))
+    def known_dimensions(cls, value: dict[str, cloudai.metrics.MetricValue]) -> dict[str, cloudai.metrics.MetricValue]:
+        return dict(cloudai.metrics.MetricCatalog.validate_dimensions(value))
 
     @property
-    def definition(self) -> metrics.MetricDefinition:
-        return metrics.MetricCatalog.get_metric(self.metric)
+    def definition(self) -> cloudai.metrics.MetricDefinition:
+        return cloudai.metrics.MetricCatalog.get_metric(self.metric)
 
     @property
-    def resolved_direction(self) -> metrics.OptimizationDirection:
+    def resolved_direction(self) -> cloudai.metrics.OptimizationDirection:
         return self.direction or self.definition.direction
 
     @property
@@ -68,7 +68,7 @@ class MetricSelector(BaseModel):
         qualifiers = ", ".join(f"{key}={value}" for key, value in self.match.items() if key != "statistic")
         return f"{name} ({self.definition.unit})" + (f" · {qualifiers}" if qualifiers else "")
 
-    def select(self, observations: list[metrics.MetricObservation]) -> metrics.MetricObservation:
+    def select(self, observations: list[cloudai.metrics.MetricObservation]) -> cloudai.metrics.MetricObservation:
         selected = [
             obs
             for obs in observations
@@ -86,53 +86,53 @@ class MetricSelector(BaseModel):
         return obs
 
 
-class ParetoFrontierConfig(BaseModel):
+class ParetoFrontierConfig(pydantic.BaseModel):
     """Case IDs whose executions compete within one frontier; empty selects all cases."""
 
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1)
-    cases: list[str] = Field(default_factory=list)
-    match: dict[str, metrics.MetricValue] = Field(default_factory=dict)
+    model_config = pydantic.ConfigDict(extra="forbid")
+    name: str = pydantic.Field(min_length=1)
+    cases: list[str] = pydantic.Field(default_factory=list)
+    match: dict[str, cloudai.metrics.MetricValue] = pydantic.Field(default_factory=dict)
 
-    @field_validator("match")
+    @pydantic.field_validator("match")
     @classmethod
-    def known_dimensions(cls, value: dict[str, metrics.MetricValue]) -> dict[str, metrics.MetricValue]:
-        return dict(metrics.MetricCatalog.validate_dimensions(value))
+    def known_dimensions(cls, value: dict[str, cloudai.metrics.MetricValue]) -> dict[str, cloudai.metrics.MetricValue]:
+        return dict(cloudai.metrics.MetricCatalog.validate_dimensions(value))
 
 
-class ParetoPlotConfig(BaseModel):
+class ParetoPlotConfig(pydantic.BaseModel):
     """Two objectives and the independent frontiers displayed together."""
 
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1)
+    model_config = pydantic.ConfigDict(extra="forbid")
+    name: str = pydantic.Field(min_length=1)
     x: MetricSelector
     y: MetricSelector
-    frontiers: list[ParetoFrontierConfig] = Field(min_length=1)
+    frontiers: list[ParetoFrontierConfig] = pydantic.Field(min_length=1)
 
-    @model_validator(mode="after")
-    def unique_frontiers(self) -> Self:
+    @pydantic.model_validator(mode="after")
+    def unique_frontiers(self) -> typing_extensions.Self:
         names = [frontier.name for frontier in self.frontiers]
         if len(set(names)) != len(names):
             raise ValueError("Frontier names must be unique within each plot")
         return self
 
 
-class ParetoReportConfig(ReportConfig):
+class ParetoReportConfig(cloudai.models.scenario.ReportConfig):
     """Opt-in plots configured at scenario level."""
 
-    plots: list[ParetoPlotConfig] = Field(default_factory=list)
+    plots: list[ParetoPlotConfig] = pydantic.Field(default_factory=list)
 
-    @model_validator(mode="after")
-    def enabled_plots(self) -> Self:
+    @pydantic.model_validator(mode="after")
+    def enabled_plots(self) -> typing_extensions.Self:
         if self.enable and not self.plots:
             raise ValueError("Pareto reporting requires at least one plot")
         return self
 
 
 def pareto_mask(
-    points: Sequence[tuple[float, float]],
-    x_direction: metrics.OptimizationDirection,
-    y_direction: metrics.OptimizationDirection,
+    points: collections.abc.Sequence[tuple[float, float]],
+    x_direction: cloudai.metrics.OptimizationDirection,
+    y_direction: cloudai.metrics.OptimizationDirection,
 ) -> list[bool]:
     """
     Identify non-dominated points, retaining ties and original order.
@@ -142,8 +142,8 @@ def pareto_mask(
     """
     if any(not math.isfinite(value) for point in points for value in point):
         raise ValueError("Pareto coordinates must be finite")
-    sx = 1 if x_direction == metrics.OptimizationDirection.MAXIMIZE else -1
-    sy = 1 if y_direction == metrics.OptimizationDirection.MAXIMIZE else -1
+    sx = 1 if x_direction == cloudai.metrics.OptimizationDirection.MAXIMIZE else -1
+    sy = 1 if y_direction == cloudai.metrics.OptimizationDirection.MAXIMIZE else -1
     ordered = sorted({(sx * x, sy * y) for x, y in points}, reverse=True)
     frontier: set[tuple[float, float]] = set()
     best_y = -math.inf
@@ -154,12 +154,12 @@ def pareto_mask(
     return [(sx * x, sy * y) in frontier for x, y in points]
 
 
-@dataclass
+@dataclasses.dataclass
 class RunObservations:
     """Measurements and executed configuration, or a collection failure."""
 
-    tr: TestRun
-    observations: list[metrics.MetricObservation] = field(default_factory=list)
+    tr: cloudai.core.TestRun
+    observations: list[cloudai.metrics.MetricObservation] = dataclasses.field(default_factory=list)
     error: str = ""
     config: str = ""
 
@@ -168,7 +168,7 @@ class RunObservations:
         return f"{self.tr.name} · iteration={self.tr.current_iteration} · step={self.tr.step}"
 
 
-def numeric_directories(root: Path) -> list[Path]:
+def numeric_directories(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted((p for p in root.glob("*") if p.is_dir() and p.name.isdecimal()), key=lambda p: int(p.name))
 
 
@@ -178,7 +178,7 @@ def format_number(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def inference_context(tr: TestRun) -> dict[str, Any]:
+def inference_context(tr: cloudai.core.TestRun) -> dict[str, typing.Any]:
     """Summarize explicitly configured inference settings, including serving roles."""
     labels = {
         "model": "Model",
@@ -202,13 +202,13 @@ def inference_context(tr: TestRun) -> dict[str, Any]:
         "num_nodes": "Nodes",
         "gpu_ids": "GPU IDs",
     }
-    context: dict[str, Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
+    context: dict[str, typing.Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
     if tr.allocated_gpu_count is not None:
         context["Allocated GPUs"] = tr.allocated_gpu_count
     if serving_gpus := getattr(tr.test, "serving_gpu_count", None):
         context["Serving GPUs"] = serving_gpus
 
-    def collect(values: dict[str, Any], scope: str = "") -> None:
+    def collect(values: dict[str, typing.Any], scope: str = "") -> None:
         for key, value in values.items():
             if isinstance(value, dict):
                 collect(value, f"{scope}{key.replace('_', ' ').title()} / ")
@@ -221,7 +221,7 @@ def inference_context(tr: TestRun) -> dict[str, Any]:
     return context
 
 
-class ParetoReporter(Reporter):
+class ParetoReporter(cloudai.core.Reporter):
     """Render all successful iterations and search steps in selected cases."""
 
     config: ParetoReportConfig
@@ -255,12 +255,12 @@ class ParetoReporter(Reporter):
                     runs.append(self._collect_run(tr, case.is_dse_job))
         return runs
 
-    def _collect_run(self, tr: TestRun, is_search: bool) -> RunObservations:
+    def _collect_run(self, tr: cloudai.core.TestRun, is_search: bool) -> RunObservations:
         run = RunObservations(tr)
         try:
             dump = tr.output_path / "test-run.toml"
             if dump.exists():
-                details = TestRunDetails.model_validate(toml.load(dump))
+                details = cloudai.models.scenario.TestRunDetails.model_validate(toml.load(dump))
                 if details.test_definition is None:
                     raise ValueError("Missing executed test definition")
                 tr.test = details.test_definition
@@ -288,7 +288,7 @@ class ParetoReporter(Reporter):
     @staticmethod
     def select_pair(
         run: RunObservations, plot: ParetoPlotConfig, frontier: ParetoFrontierConfig
-    ) -> tuple[metrics.MetricObservation, metrics.MetricObservation]:
+    ) -> tuple[cloudai.metrics.MetricObservation, cloudai.metrics.MetricObservation]:
         if run.error:
             raise ValueError(run.error)
         observations = [
@@ -301,11 +301,11 @@ class ParetoReporter(Reporter):
             raise ValueError("Axis metrics have incompatible measurement dimensions")
         return x, y
 
-    def build_sections(self, runs: list[RunObservations]) -> list[dict[str, Any]]:
+    def build_sections(self, runs: list[RunObservations]) -> list[dict[str, typing.Any]]:
         sections = []
         for plot_index, plot in enumerate(self.config.plots):
-            datasets: list[dict[str, Any]] = []
-            points: list[dict[str, Any]] = []
+            datasets: list[dict[str, typing.Any]] = []
+            points: list[dict[str, typing.Any]] = []
             excluded: list[dict[str, str]] = []
             summaries = []
             for group_index, frontier in enumerate(plot.frontiers):
@@ -393,7 +393,7 @@ class ParetoReporter(Reporter):
     def generate(self) -> None:
         sections = self.build_sections(self.collect_runs())
         env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util"),
+            loader=jinja2.FileSystemLoader(pathlib.Path(__file__).parent.parent / "util"),
             autoescape=jinja2.select_autoescape(enabled_extensions=("html", "htm", "xml", "jinja2")),
         )
         content = env.get_template("comparison-report-v2.jinja2").render(
