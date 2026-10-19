@@ -187,3 +187,12 @@ def test_materialized_environment_parameters_round_trip(run: TestRun) -> None:
 
 def test_extension_writer_adapter_returns_actual_run(run: TestRun) -> None:
     assert TestRunDetails.from_test_run(run, "ignored", "ignored") is run
+
+
+@pytest.mark.parametrize("nodes", [None, [], ["allocated-node"]])
+def test_runtime_nodes_default_to_definition_without_sharing_list(run: TestRun, nodes: list[str] | None) -> None:
+    definition = run.test.model_copy(update={"nodes": ["configured-node"]})
+    loaded = TestRun(test=definition) if nodes is None else TestRun(test=definition, nodes=nodes)
+    assert loaded.nodes == (["configured-node"] if nodes is None else nodes)
+    loaded.nodes.append("another-node")
+    assert definition.nodes == ["configured-node"]

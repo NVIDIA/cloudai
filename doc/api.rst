@@ -116,7 +116,7 @@ Migration notes for direct model users:
   arguments such as ``name``, ``num_nodes`` and ``iterations`` move to the
   definition (``name`` becomes the case ``id``). Static forwarding properties are
   read-only. ``TestRun.definition`` is removed; ``TestRun.test`` is its sole
-  definition reference. The constructor no longer copies the definition.
+  definition reference. The constructor accepts keyword arguments only and no longer copies the definition.
 * ``extra_srun_args`` accepts a string or a list of string fragments in test and
   scenario TOMLs. Definitions store a list; ``TestRun.extra_srun_args`` provides
   the joined string for existing strategies. Existing quoting is preserved.
