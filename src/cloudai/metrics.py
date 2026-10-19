@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Any, ClassVar, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, TypeAdapter, field_validator
 
 MetricValue: TypeAlias = str | int | float | bool
 MetricDimensions: TypeAlias = Mapping[str, MetricValue]
@@ -246,11 +246,24 @@ def parse_sol_spec(value: dict[str, Any] | None) -> MetricSOLConfig:
     return parsed
 
 
-def merge_sol_configs(*configs: MetricSOLConfig | None) -> MetricSOLConfig:
+class SOLMetricModel(RootModel[MetricSOLConfig]):
+    """Metric-keyed SOL targets, serialized using the existing SOL table format."""
+
+    root: MetricSOLConfig = Field(default_factory=dict)
+
+    @field_validator("root", mode="before")
+    @classmethod
+    def validate_targets(cls, value: dict[str, Any] | None) -> MetricSOLConfig:
+        return parse_sol_spec(value)
+
+
+def merge_sol_configs(*configs: MetricSOLConfig | SOLMetricModel | None) -> MetricSOLConfig:
     """Merge SOL configurations; a more specific level replaces an entire metric."""
     merged: MetricSOLConfig = {}
     for config in configs:
-        if config:
+        if isinstance(config, SOLMetricModel):
+            merged.update(config.root)
+        elif config:
             merged.update(config)
     return merged
 
@@ -310,7 +323,9 @@ def assess_observation(observation: MetricObservation, sol_config: MetricSOLConf
 def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment]:
     """Collect and assess every metric produced by a completed test run."""
     observations = test_run.test.metric_observations(system, test_run)
-    return [assess_observation(observation, test_run.metric_sol) for observation in observations]
+    sol = test_run.sol
+    targets = sol.root if isinstance(sol, SOLMetricModel) else {}
+    return [assess_observation(observation, targets) for observation in observations]
 
 
 def dimension_label(key: str) -> str:

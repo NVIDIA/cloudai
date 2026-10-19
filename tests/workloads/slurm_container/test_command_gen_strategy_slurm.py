@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import shlex
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -100,8 +101,9 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     )
 
 
-def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    extra_args = ["--ntasks=1", "--ntasks-per-node=1"]
+def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun, tmp_path: Path) -> None:
+    test_run.output_path = tmp_path
+    extra_args = ["--exclusive", "--comment='a b'"]
     tdef = cast(SlurmContainerTestDefinition, test_run.test)
     tdef.extra_srun_args = extra_args
 
@@ -122,6 +124,9 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
         f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; cmd"'
         f"{_status_capture(test_run)}"
     )
+    for metadata_command in cgs._metadata_cmd().splitlines():
+        for arg in extra_args:
+            assert metadata_command.count(arg) == 1
 
 
 def test_single_sbatch_writes_exit_code_to_per_test_output(slurm_system: SlurmSystem, test_run: TestRun) -> None:

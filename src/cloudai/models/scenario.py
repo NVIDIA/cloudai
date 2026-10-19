@@ -91,7 +91,7 @@ class TestScenario(BaseModel):
 
     name: str
     tests: list[SerializeAsAny[TestDefinition]] = Field(alias="Tests")
-    sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
+    sol: cloudai.metrics.SOLMetricModel = Field(default_factory=cloudai.metrics.SOLMetricModel)
     job_status_check: bool = True
     pre_test: str | None = None
     post_test: str | None = None
@@ -119,11 +119,6 @@ class TestScenario(BaseModel):
     @test_runs.setter
     def test_runs(self, value: list[TestRun]) -> None:
         self._test_runs = value
-
-    @field_validator("sol", mode="before")
-    @classmethod
-    def parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
-        return cloudai.metrics.parse_sol_spec(value)
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):

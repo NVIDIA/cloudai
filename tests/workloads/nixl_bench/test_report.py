@@ -96,7 +96,7 @@ def test_comparison_report_contains_sol(
         )
         tr.test = tr.test.model_copy(
             update={
-                "metric_sol": cloudai.metrics.parse_sol_spec(
+                "sol": cloudai.metrics.SOLMetricModel.model_validate(
                     {
                         "bandwidth": [{"value": 100}],
                         "latency": [{"value": 10}],

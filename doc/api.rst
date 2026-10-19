@@ -72,6 +72,11 @@ weight and SOL, belong to ``TestRun.test``. Existing read access through
 ``test_run.nnodes``, ``iterations``, ``pin_nodes`` and ``extra_srun_args`` forwards
 to that definition.
 
+``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, a ``SOLMetricModel`` or ``None``.
+Import ``SOLMetricModel`` from ``cloudai.core``; its ``root`` maps metric names to target lists. Structured SOL
+serializes directly as the existing metric-keyed ``sol`` tables. ``System.sol`` and ``TestScenario.sol`` use that
+same model. ``TestRun.metric_sol`` is removed.
+
 The existing runners use ``TestScenario.test_runs`` for bound executions.
 Replacing that list does not replace ``TestScenario.tests``. The execution list
 is excluded from scenario serialization.
@@ -95,6 +100,10 @@ Migration notes for direct model users:
   definition (``name`` becomes the case ``id``). Static forwarding properties are
   read-only. ``TestRun.definition`` is removed; ``TestRun.test`` is its sole
   definition reference. The constructor no longer copies the definition.
-* Scenario TOML keeps ``extra_srun_args``. Its internal definition field is
-  ``srun_args`` to preserve SlurmContainer's separate, list-valued workload field
-  named ``extra_srun_args``.
+* ``extra_srun_args`` accepts a string or a list of string fragments in test and
+  scenario TOMLs. Definitions store a list; ``TestRun.extra_srun_args`` provides
+  the joined string for existing strategies. Existing quoting is preserved.
+  Scenario-case arguments now replace test-file arguments instead of being
+  appended to them; an empty string or list clears inherited test arguments.
+  SlurmContainer test-file arguments now also apply to metadata commands.
+  See :ref:`extra-slurm-arguments` for configuration rules and examples.

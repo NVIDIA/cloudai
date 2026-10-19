@@ -344,7 +344,9 @@ def test_gen_srun_prefix_with_container_mount_home(
 
 
 def test_gen_srun_prefix_tr_extra_srun_args(strategy_fixture: SlurmCommandGenStrategy):
-    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(update={"srun_args": "--arg val --flag"})
+    strategy_fixture.test_run.test = strategy_fixture.test_run.test.model_copy(
+        update={"extra_srun_args": ["--arg val --flag"]}
+    )
     srun_prefix = strategy_fixture.gen_srun_prefix()
     assert "--arg val --flag" in srun_prefix  # added as a single element
 

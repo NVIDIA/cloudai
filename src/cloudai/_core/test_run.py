@@ -118,12 +118,8 @@ class TestRun:
         return self.test.time_limit
 
     @property
-    def sol(self) -> float | None:
-        return self.test.sol if isinstance(self.test.sol, (float, int)) else None
-
-    @property
-    def metric_sol(self) -> cloudai.metrics.MetricSOLConfig:
-        return self.test.metric_sol
+    def sol(self) -> float | cloudai.metrics.SOLMetricModel | None:
+        return self.test.sol
 
     @property
     def weight(self) -> float:
@@ -147,7 +143,7 @@ class TestRun:
 
     @property
     def extra_srun_args(self) -> str | None:
-        return self.test.srun_args
+        return " ".join(self.test.extra_srun_args) or None
 
     @property
     def pin_nodes(self) -> bool:

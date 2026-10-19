@@ -324,8 +324,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             metadata_srun_prefix.append(f"-N{num_nodes}")
         if self.system.extra_srun_args:
             metadata_srun_prefix.append(self.system.extra_srun_args)
-        if self.test_run.extra_srun_args:
-            metadata_srun_prefix.append(self.test_run.extra_srun_args)
+        metadata_srun_prefix.extend(self.test_run.test.extra_srun_args)
 
         metadata_srun_prefix = [
             *metadata_srun_prefix,
