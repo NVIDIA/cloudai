@@ -14,33 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from importlib import import_module
-from typing import TYPE_CHECKING, Any
+from .base_agent import BaseAgent
+from .base_gym import BaseGym
+from .cloudai_gym import CloudAIGymEnv
+from .grid_search import GridSearchAgent
+from .gymnasium_adapter import GymnasiumAdapter
+from .trajectory import Trajectory
 
-if TYPE_CHECKING:
-    from .base_agent import BaseAgent as BaseAgent
-    from .base_gym import BaseGym as BaseGym
-    from .cloudai_gym import CloudAIGymEnv as CloudAIGymEnv
-    from .grid_search import GridSearchAgent as GridSearchAgent
-    from .gymnasium_adapter import GymnasiumAdapter as GymnasiumAdapter
-    from .trajectory import Trajectory as Trajectory
-
-_EXPORTS = {
-    "BaseAgent": ".base_agent",
-    "BaseGym": ".base_gym",
-    "CloudAIGymEnv": ".cloudai_gym",
-    "GridSearchAgent": ".grid_search",
-    "GymnasiumAdapter": ".gymnasium_adapter",
-    "Trajectory": ".trajectory",
-}
-
-__all__ = ["BaseAgent", "BaseGym", "CloudAIGymEnv", "GridSearchAgent", "GymnasiumAdapter", "Trajectory"]
-
-
-def __getattr__(name: str) -> Any:
-    """Load convenience exports without pulling execution code into configuration models."""
-    if name not in _EXPORTS:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    value = getattr(import_module(_EXPORTS[name], __name__), name)
-    globals()[name] = value
-    return value
+__all__ = [
+    "BaseAgent",
+    "BaseGym",
+    "CloudAIGymEnv",
+    "GridSearchAgent",
+    "GymnasiumAdapter",
+    "Trajectory",
+]
