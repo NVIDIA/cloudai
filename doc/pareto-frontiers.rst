@@ -100,5 +100,5 @@ To change plots without rerunning workloads, edit the scenario and regenerate re
 
 Other workloads can use any pair of metrics they expose through ``metric_observations()``. Use ``match`` on an axis
 or frontier to select measurement dimensions; each axis must select exactly one observation per execution.
-Shared dimensions must agree between axes, except for the statistic. Override an axis's optimization preference
-with ``direction = "minimize"`` or ``"maximize"`` when needed.
+Axis selectors are independent. Override an axis's optimization preference with ``direction = "minimize"`` or
+``"maximize"`` when needed.

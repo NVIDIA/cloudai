@@ -294,12 +294,7 @@ class ParetoReporter(cloudai.core.Reporter):
         observations = [
             obs for obs in run.observations if all(obs.dimensions.get(k) == v for k, v in frontier.match.items())
         ]
-        x, y = plot.x.select(observations), plot.y.select(observations)
-        # Statistics can intentionally differ, e.g. mean TTFT versus p99 TPOT.
-        shared = (x.dimensions.keys() & y.dimensions.keys()) - {"statistic"}
-        if any(x.dimensions[key] != y.dimensions[key] for key in shared):
-            raise ValueError("Axis metrics have incompatible measurement dimensions")
-        return x, y
+        return plot.x.select(observations), plot.y.select(observations)
 
     def build_sections(self, runs: list[RunObservations]) -> list[dict[str, typing.Any]]:
         sections = []

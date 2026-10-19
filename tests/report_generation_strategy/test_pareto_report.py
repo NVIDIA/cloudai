@@ -81,7 +81,7 @@ def observations(x: float, y: float):
     ]
 
 
-def test_missing_ambiguous_and_incompatible_metrics(base_tr: TestRun):
+def test_axis_selectors_and_frontier_filter(base_tr: TestRun):
     plot = plot_config([base_tr.name])
     frontier = plot.frontiers[0]
     run = RunObservations(base_tr, observations(1, 10))
@@ -98,8 +98,9 @@ def test_missing_ambiguous_and_incompatible_metrics(base_tr: TestRun):
         metrics.MetricObservation(metrics.TTFT, 1, {"statistic": "p99", "backend": "one"}),
         metrics.MetricObservation(metrics.OUTPUT_TOKEN_THROUGHPUT, 10, {"backend": "two"}),
     ]
-    with pytest.raises(ValueError, match="incompatible"):
-        ParetoReporter.select_pair(run, plot, frontier)
+    plot.x.match = {"statistic": "p99", "backend": "one"}
+    plot.y.match = {"backend": "two"}
+    assert ParetoReporter.select_pair(run, plot, frontier) == tuple(run.observations)
     frontier.match = {"backend": "one"}
     with pytest.raises(ValueError, match="Missing"):
         ParetoReporter.select_pair(run, plot, frontier)
