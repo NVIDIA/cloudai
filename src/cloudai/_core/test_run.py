@@ -21,9 +21,9 @@ import itertools
 import pathlib
 from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
 
+import pydantic
+import pydantic.json_schema
 import toml
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, SkipValidation, field_serializer, field_validator
-from pydantic.json_schema import SkipJsonSchema
 
 import cloudai.metrics
 
@@ -80,48 +80,32 @@ class TestDependency:
         self.test_run = test_run
 
 
-class TestRun(BaseModel):
+class TestRun(pydantic.BaseModel):
     """Mutable execution state bound to one prepared test definition."""
 
     __test__ = False
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = pydantic.ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     # Prepared definitions may already contain scalar environment-parameter draws.
-    test: SerializeAsAny[SkipValidation[TestDefinition]]
-    nodes: list[str] = Field(default_factory=list)
+    test: pydantic.SerializeAsAny[pydantic.SkipValidation[TestDefinition]]
+    nodes: list[str] = pydantic.Field(default_factory=list)
     output_path: pathlib.Path = pathlib.Path("")
     current_iteration: int = 0
     step: int = 0
     # These references connect live executions; the definition already stores dependency IDs.
-    dependencies: SkipJsonSchema[dict[str, TestDependency]] = Field(default_factory=dict, exclude=True, repr=False)
-    pre_test: TestScenario | None = Field(default=None, exclude=True, repr=False)
-    post_test: TestScenario | None = Field(default=None, exclude=True, repr=False)
+    dependencies: pydantic.json_schema.SkipJsonSchema[dict[str, TestDependency]] = pydantic.Field(
+        default_factory=dict, exclude=True, repr=False
+    )
+    pre_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
+    post_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
 
-    def __init__(
-        self,
-        test: TestDefinition,
-        nodes: list[str] | None = None,
-        output_path: pathlib.Path = pathlib.Path(""),
-        current_iteration: int = 0,
-        step: int = 0,
-        dependencies: dict[str, TestDependency] | None = None,
-        pre_test: TestScenario | None = None,
-        post_test: TestScenario | None = None,
-    ) -> None:
-        super().__init__(
-            test=test,
-            nodes=nodes if nodes is not None else [],
-            output_path=output_path,
-            current_iteration=current_iteration,
-            step=step,
-            dependencies=dependencies if dependencies is not None else {},
-            pre_test=pre_test,
-            post_test=post_test,
-        )
-        if nodes is None:
+    @pydantic.model_validator(mode="after")
+    def inherit_nodes(self) -> TestRun:
+        if "nodes" not in self.model_fields_set:
             self.nodes = list(self.test.nodes)
+        return self
 
-    @field_validator("test", mode="before")
+    @pydantic.field_validator("test", mode="before")
     @classmethod
     def load_definition(cls, value: Any) -> TestDefinition:
         """Keep prepared instances intact; restore dictionaries using their workload class."""
@@ -130,7 +114,7 @@ class TestRun(BaseModel):
         workload_type = value["test_template_name"]
         return Registry().test_definitions_map[workload_type].model_validate(value, context={"materialized": True})
 
-    @field_serializer("output_path")
+    @pydantic.field_serializer("output_path")
     def dump_output_path(self, value: pathlib.Path) -> str:
         return str(value.absolute())
 
