@@ -32,7 +32,6 @@ from pydantic import (
 )
 
 import cloudai.metrics
-from cloudai._core.base_reporter import Reporter
 from cloudai._core.registry import Registry
 from cloudai.models.workload import TestDefinition
 
@@ -54,7 +53,7 @@ def parse_reports_spec(
                 f"Report configuration for '{name}' not found in the registry. "
                 f"Available reports: {', '.join(Registry().report_configs.keys())}"
             )
-        if not allow_scenario_reports and issubclass(Registry().scenario_reports[name], Reporter):
+        if not allow_scenario_reports and name in Registry().scenario_reports:
             raise ValueError(f"Scenario level report '{name}' is not allowed here.")
         try:
             parsed[name] = report_cfg.model_validate(dict_cfg)

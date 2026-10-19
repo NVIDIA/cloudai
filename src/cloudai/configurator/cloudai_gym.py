@@ -22,6 +22,7 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
+import cloudai.core
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -56,14 +57,12 @@ class CloudAIGymEnv(BaseGym):
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
         """
-        from cloudai.core import Registry
-
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
-        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
+        self.reward_function = cloudai.core.Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
@@ -261,8 +260,6 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Metric values keyed by configured metric name.
         """
-        from cloudai.core import METRIC_ERROR
-
         all_metrics = self.test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
@@ -270,7 +267,7 @@ class CloudAIGymEnv(BaseGym):
         observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v is METRIC_ERROR:
+            if v is cloudai.core.METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v
         return observation

@@ -23,10 +23,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .system import System
+from .test_run import TestRun, load_test_run
 
 if TYPE_CHECKING:
     from ..models.scenario import ReportConfig, TestScenario
-    from .test_run import TestRun
 
 
 def case_name(tr: TestRun) -> str:
@@ -51,8 +51,6 @@ class Reporter(ABC):
 
     def load_test_runs(self):
         """Load test runs from the results directory."""
-        from .test_run import load_test_run
-
         for template in self.test_scenario.test_runs:
             tr_root = self.results_root / template.name
             iterations = sorted((path for path in tr_root.glob("*") if path.is_dir()), key=lambda path: int(path.name))
