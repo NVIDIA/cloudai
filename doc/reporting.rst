@@ -131,9 +131,9 @@ Grid search and other DSE agents use the same calculation. Cases can contribute 
    enable = true
 
    [[reports.pareto.plots]]
-   name = "Throughput vs latency"
-   x = { metric = "ttft", match = { statistic = "p99" } }
-   y = { metric = "output_token_throughput" }
+   name = "Per-user vs per-GPU throughput"
+   x = { metric = "output_token_throughput_per_user" }
+   y = { metric = "output_token_throughput_per_allocated_gpu" }
 
    [[reports.pareto.plots.frontiers]]
    name = "Version A"
@@ -147,7 +147,7 @@ Grid search and other DSE agents use the same calculation. Cases can contribute 
 splitting the same executions across different cases does not change it. Choose comparable model, input/output
 lengths, and hardware conditions when assigning cases to a frontier.
 
-Axes default to their metric's optimization direction: throughput is maximized and latency minimized.
+Optimization defaults to each metric's direction: throughput is maximized and latency minimized.
 Set ``direction = "maximize"`` or ``direction = "minimize"`` on either axis to override it.
 ``match`` selects observation dimensions, such as ``statistic = "mean"``, ``"median"``, or ``"p99"`` for latency.
 A frontier can also set ``match`` to filter observations before both axes are selected.
@@ -155,7 +155,7 @@ Each axis must resolve to exactly one observation per execution. Shared measurem
 axes, except for ``statistic``, which can differ. Missing or ambiguous measurements are listed as exclusions.
 
 The chart initially shows frontier points. Enable **Show dominated points** to include the remaining measurements;
-the axes adjust to the visible points. Minimizing axes are reversed so better values appear toward the upper right.
+the axes adjust to the visible points. Both axes increase normally; optimization direction only determines dominance.
 Lines connect measured frontier points; intermediate configurations have not been measured.
 
 Hover over a point to view its metrics and configured inference parameters, including model, concurrency, token
@@ -164,6 +164,26 @@ The measurements table retains all valid executions, including identical coordin
 to inspect its details, or expand its configuration to see the full executed inputs and result location.
 Failed executions and missing or malformed search-step configurations appear in the exclusions table.
 Existing comparison reports can remain enabled alongside this report.
+
+vLLM and SGLang expose three additional output-token throughput metrics, all maximized:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Metric
+     - Output tokens/s divided by
+   * - ``output_token_throughput_per_user``
+     - Configured concurrency recorded in the benchmark result
+   * - ``output_token_throughput_per_allocated_gpu``
+     - GPUs reserved by the Slurm job, including idle GPUs
+   * - ``output_token_throughput_per_serving_gpu``
+     - GPUs in the configured serving layout, including both prefill and decode roles
+
+Per-user throughput is an aggregate rate per configured concurrency, rather than inverse TPOT.
+In single-sbatch mode, the allocated count is the reservation for the whole batch, even when a test uses fewer GPUs.
+CloudAI saves this count in ``test-run.toml`` and reads existing node metadata when reporting older runs.
+The serving count comes from each execution's resolved parallelism settings. GPU counts are shown in point details.
+A metric is omitted if its divisor is unavailable or non-positive.
 
 Speed-of-Light comparisons
 --------------------------

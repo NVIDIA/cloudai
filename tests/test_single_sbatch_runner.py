@@ -139,6 +139,8 @@ class TestNodeSpec:
         )
         sbatch_lines = runner.get_sbatch_directives()
         assert sbatch_lines[0] == f"#SBATCH -N {another_tr.num_nodes}"
+        assert runner.get_allocated_gpu_count(sleep_tr) == 3 * cast(int, slurm_system.gpus_per_node)
+        assert runner.get_allocated_gpu_count(another_tr) == runner.get_allocated_gpu_count(sleep_tr)
 
     def test_nodes_list_covers_max(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
@@ -152,6 +154,7 @@ class TestNodeSpec:
         sbatch_lines = runner.get_sbatch_directives()
         _, node_list = runner.system.get_nodes_by_spec(1, another_tr.nodes)
         assert sbatch_lines[0] == f"#SBATCH --nodelist={','.join(node_list)}"
+        assert runner.get_allocated_gpu_count(sleep_tr) == len(node_list) * cast(int, slurm_system.gpus_per_node)
 
     def test_nodes_list_does_not_cover_max(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
@@ -384,12 +387,17 @@ class TestSbatch:
     def test_with_two_cases(self, slurm_system: SlurmSystem, nccl_tr: TestRun, sleep_tr: TestRun) -> None:
         nccl_tr.test.extra_env_vars["NCCL_VAR"] = "nccl_value"
         sleep_tr.test.extra_env_vars["SLEEP_VAR"] = "sleep_value"
+        sleep_tr.num_nodes = 3
         tc = TestScenario(name="tc", test_runs=[nccl_tr, sleep_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
         )
 
         sbatch = runner.gen_sbatch_content()
+        for tr in (nccl_tr, sleep_tr):
+            assert toml.load(tr.output_path / "test-run.toml")["allocated_gpu_count"] == 3 * cast(
+                int, slurm_system.gpus_per_node
+            )
         sbatch = sbatch.replace(str(runner.scenario_root.absolute()), "SCENARIO_ROOT").replace(
             str(runner.system.install_path.absolute()), "INSTALL_PATH"
         )

@@ -480,7 +480,6 @@
 
             const xScale = {
                 type: isIndexedCategory ? "linear" : payload.x_axis_type,
-                reverse: isPareto && payload.x_reverse,
                 title: {
                     display: true,
                     text: payload.x_axis_label
@@ -491,7 +490,7 @@
             };
             if (isPareto) {
                 xScale.ticks = {callback: formatValue};
-                xScale.title.text += " · better →";
+                xScale.beginAtZero = true;
             }
             if (isIndexedCategory) {
                 xScale.min = -0.5;
@@ -623,13 +622,11 @@
                         x: xScale,
                         y: {
                             type: yAxisType,
-                            reverse: isPareto && payload.y_reverse,
                             ticks: isPareto ? {callback: formatValue} : {},
-                            beginAtZero: payload.type === "bar" && yAxisType === "linear",
+                            beginAtZero: (isPareto || payload.type === "bar") && yAxisType === "linear",
                             title: {
                                 display: true,
                                 text: payload.y_axis_label + (yAxisType === "logarithmic" ? " (log scale)" : "")
-                                    + (isPareto ? " · better ↑" : "")
                             },
                             grid: {
                                 color: "rgba(57, 66, 78, 0.10)"

@@ -99,8 +99,7 @@ def test_grouping_invariance_and_independent_frontiers(slurm_system: SlurmSystem
         tr.name = case
         runs.append(RunObservations(tr, observations(x, y)))
     first = report.build_sections(runs)[0]
-    assert first["chart"]["x_reverse"] is True
-    assert first["chart"]["y_reverse"] is False
+    assert "x_reverse" not in first["chart"] and "y_reverse" not in first["chart"]
     assert first["chart"]["datasets"][0]["hidden"] is False
     assert first["chart"]["datasets"][1]["hidden"] is True
     assert len({p["id"] for p in first["points"]}) == 3
@@ -181,6 +180,7 @@ def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tm
         executed_inputs["cmd_args"]["decode"]["tensor_parallel_size"] = 4
         executed = cls.model_validate(executed_inputs)
         resolved = TestRun("search", executed, 2, [], output_path=folder)
+        resolved.allocated_gpu_count = 24
         if relative.startswith("search"):
             (folder / "test-run.toml").write_text(
                 toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
@@ -204,6 +204,8 @@ def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tm
     assert context["Model"] == definition.cmd_args.model
     assert context["Input tokens"] == 16
     assert context["Output tokens"] == 128
+    assert context["Allocated GPUs"] == 24
+    assert context["Serving GPUs"] == 4
     assert inference_context(ordinary)["Concurrency"] == 16
     report.generate()
     html = (tmp_path / "pareto.html").read_text()
@@ -213,6 +215,12 @@ def test_real_workload_iterations_and_search_steps(slurm_system: SlurmSystem, tm
     assert "Hover to inspect" in html
     assert "Show dominated points" in html
     assert "Each frontier compares" not in html
+    report.config.plots[0].x = MetricSelector(metric="output_token_throughput_per_user")
+    report.config.plots[0].y = MetricSelector(metric="output_token_throughput_per_allocated_gpu")
+    normalized = report.build_sections(collected)[0]
+    assert len(normalized["points"]) == 1  # Only the saved search step has an allocation.
+    assert normalized["points"][0]["x"] == 15 / 4
+    assert normalized["points"][0]["y"] == 15 / 24
     config.plots[0].frontiers[0].cases.append("unknown")
     with pytest.raises(ValueError, match="Unknown Pareto case"):
         report.collect_runs()
