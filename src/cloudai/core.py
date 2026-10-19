@@ -55,8 +55,8 @@ from ._core.test_run import (
     MetricValue,
     TestDependency,
     TestRun,
+    load_test_run,
 )
-from ._core.test_run_io import load_test_run
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.env_params import (

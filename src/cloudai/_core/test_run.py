@@ -21,6 +21,7 @@ import itertools
 import pathlib
 from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
 
+import toml
 from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, SkipValidation, field_serializer, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
@@ -308,3 +309,35 @@ class TestRun(BaseModel):
         new_tr = copy.deepcopy(self)
         new_tr.test = tdef
         return new_tr
+
+
+def _convert_legacy_run(data: dict[str, Any], fallback: TestDefinition | None) -> dict[str, Any]:
+    """Translate the old TestRunDetails layout into TestRun fields."""
+    definition = fallback.model_dump() if fallback is not None else {}
+    definition.update(data["test_definition"])
+    definition.update(id=data["name"], num_nodes=data["nnodes"], iterations=data["iterations"])
+    return {
+        "test": definition,
+        "nodes": data["nodes"],
+        "output_path": data["output_path"],
+        "current_iteration": data["current_iteration"],
+        "step": data["step"],
+    }
+
+
+def load_test_run(path: pathlib.Path, fallback: TestDefinition | None = None) -> TestRun:
+    """
+    Read a saved execution; use scenario defaults only for incomplete legacy definitions.
+
+    The containing folder determines the output path so copied result folders remain usable.
+    Reporter registrations come from the supplied definition, never from the saved file.
+    """
+    with path.open() as stream:
+        data = toml.load(stream)
+    if "test_definition" in data:
+        data = _convert_legacy_run(data, fallback)
+    run = TestRun.model_validate(data)
+    run.output_path = path.parent
+    if fallback is not None:
+        run.test = run.test.model_copy(update={"reporters": fallback.reporters})
+    return run

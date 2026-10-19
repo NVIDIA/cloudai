@@ -28,7 +28,7 @@ import cloudai.metrics
 from cloudai._core.installables import GitRepo, Installable, PythonExecutable
 from cloudai._core.job_status_result import JobStatusResult
 from cloudai._core.registry import Registry
-from cloudai.models.env_params import EnvParamSpec
+from cloudai.configurator.env_params import EnvParamSpec
 
 if TYPE_CHECKING:
     from cloudai.core import System, TestRun
