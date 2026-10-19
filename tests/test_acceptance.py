@@ -327,6 +327,7 @@ def build_special_test_run(
         "slurm_container",
         "megatron-run",
         "megatron-bridge",
+        "megatron-bridge-uninstalled",
         "triton-inference",
         "nixl_bench",
         "nixl_bench-independent",
@@ -849,6 +850,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
 
         return tr, sbatch_file, run_script
 
+    test_mapping["megatron-bridge-uninstalled"] = test_mapping["megatron-bridge"]
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
@@ -897,7 +899,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         cmd_gen.job_name = Mock(return_value="job_name")
     if isinstance(cmd_gen, NeMoLauncherSlurmCommandGenStrategy):
         cmd_gen.job_prefix = "test_account-cloudai.nemo"
-    if isinstance(cmd_gen, MegatronBridgeSlurmCommandGenStrategy):
+    if isinstance(cmd_gen, MegatronBridgeSlurmCommandGenStrategy) and test_req[1] == "megatron-bridge.sbatch":
         upstream_script = tr.output_path / "nemo_sbatch.sh"
         upstream = (Path(__file__).parent / "ref_data" / "megatron-bridge-nemo.sbatch").read_text()
         upstream_script.write_text(

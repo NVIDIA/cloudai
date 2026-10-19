@@ -15,13 +15,14 @@
 # limitations under the License.
 
 import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from cloudai.core import TestRun, TestScenario
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.megatron_bridge import (
     MegatronBridgeCmdArgs,
@@ -40,10 +41,50 @@ def strategy(slurm_system: SlurmSystem, tmp_path: Path) -> MegatronBridgeSlurmCo
             hf_token="dummy_token", model_family_name="qwen", model_recipe_name="qwen3_30b_a3b"
         ),
     )
+    tdef.python_executable.venv_path = tmp_path / "nemo-run-venv"
     return MegatronBridgeSlurmCommandGenStrategy(
         slurm_system,
         TestRun(name="bridge", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path / "job"),
     )
+
+
+@pytest.mark.parametrize(
+    "launcher_present,python_present", [(True, None), (False, False), (False, True), (True, False), (True, True)]
+)
+def test_launcher_dependencies(
+    strategy: MegatronBridgeSlurmCommandGenStrategy, launcher_present: bool, python_present: bool | None
+):
+    tdef = strategy.test_run.test
+    assert isinstance(tdef, MegatronBridgeTestDefinition)
+    tdef.git_repos = [GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="v0.4.0")]
+    repo = strategy.system.install_path / tdef.megatron_bridge_repo.repo_name
+    venv = strategy.system.install_path / tdef.python_executable.venv_name
+    tdef.megatron_bridge_repo.installed_path = repo
+    tdef.python_executable.venv_path = venv if python_present is not None else None
+    for present, path in (
+        (launcher_present, repo / "scripts/performance/setup_experiment.py"),
+        (python_present, venv / "bin/python"),
+    ):
+        if present:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+
+    with patch("subprocess.run") as run:
+        run.return_value.returncode = 1
+        if launcher_present and python_present:
+            with pytest.raises(RuntimeError, match="Megatron-Bridge dry-run failed"):
+                strategy._generate_mbridge_sbatch()
+            run.assert_called_once()
+        else:
+            assert strategy._generate_mbridge_sbatch() is None
+            run.assert_not_called()
+            assert not list(strategy.test_run.output_path.glob("experiments/**/*_sbatch.sh"))
+
+    if not (launcher_present and python_present):
+        body = strategy.generate_test_command()[0]
+        result = subprocess.run(["bash", "-c", body], capture_output=True, text=True)
+        assert result.returncode == 1
+        assert "Install MBridge and NeMo Run" in result.stderr
 
 
 @pytest.mark.parametrize(

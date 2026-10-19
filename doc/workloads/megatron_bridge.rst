@@ -7,7 +7,10 @@ Megatron-Bridge and NeMo Run generate the training script in dry-run mode on the
 submit host. CloudAI retains and parses their sbatch, then writes
 ``cloudai_sbatch_script.sh`` with its standard environment setup, metadata,
 rank mapping, and pre/post tests. These tests run inside the training allocation.
-The launcher environment must be installed even for ``cloudai dry-run``.
+Without the installed MBridge launcher or NeMo Run Python environment,
+``cloudai dry-run`` produces a placeholder instead of the training commands and
+logs a warning. The placeholder exits with an error if executed. Install the
+dependencies and repeat the dry-run to generate the complete training script.
 
 CloudAI owns the job name, output/error paths, and node placement. Configured
 CloudAI allocation directives override matching NeMo Run directives; other

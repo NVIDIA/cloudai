@@ -61,6 +61,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @cached_property
     def _mbridge_sbatch(self) -> tuple[list[str], str]:
         script = self._generate_mbridge_sbatch()
+        if script is None:
+            return [], (
+                "# MBridge script generation skipped: launcher dependencies are missing.\n"
+                'echo "Install MBridge and NeMo Run, then regenerate this script." >&2\n'
+                "exit 1"
+            )
         directives: list[str] = []
         body: list[str] = []
         in_header = True
@@ -120,7 +126,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # NeMo's shell options and exit must not escape into CloudAI's post-hook block.
         return "(\n" + textwrap.indent("\n".join(body), "    ") + "\n)"
 
-    def _generate_mbridge_sbatch(self) -> Path:
+    def _generate_mbridge_sbatch(self) -> Path | None:
         existing_script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
         if existing_script:
             return existing_script
@@ -129,8 +135,16 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         repo_path = tdef.megatron_bridge_repo.installed_path or (
             self.system.install_path / tdef.megatron_bridge_repo.repo_name
         )
-        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         launcher_py = (repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
+        venv_path = tdef.python_executable.venv_path
+        if venv_path is None or not launcher_py.is_file() or not (venv_path / "bin" / "python").is_file():
+            logging.warning(
+                "MBridge launcher dependencies are missing; generating a placeholder script. "
+                "Install MBridge and NeMo Run, then regenerate this script."
+            )
+            return None
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         patcher_path = self._write_dryrun_patcher(launcher_py)
         parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, patcher_path)
         if "-d" not in parts:
@@ -328,7 +342,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         mounts = self.container_mounts()
 
-        venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
+        venv_path = tdef.python_executable.venv_path
+        if venv_path is None:
+            raise RuntimeError("NeMo Run Python environment path is not set.")
         python_bin = (venv_path / "bin" / "python").absolute()
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
