@@ -67,7 +67,6 @@ from .configurator.env_params import (
 )
 from .configurator.grid_search import GridSearchAgent
 from .configurator.gymnasium_adapter import GymnasiumAdapter
-from .metrics import SOLMetricModel
 from .models.scenario import ConfigPaths, TestScenario
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
@@ -125,7 +124,6 @@ __all__ = [
     "S3ObjectStore",
     "S3UploadConfig",
     "S3UploadReporter",
-    "SOLMetricModel",
     "StatusReporter",
     "StructuredObservationProducer",
     "System",

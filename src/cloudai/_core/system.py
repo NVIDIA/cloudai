@@ -42,12 +42,17 @@ class System(ABC, BaseModel):
     hf_home_path: Path = Field(default_factory=lambda data: data["install_path"] / "huggingface")
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: float = 1.0
-    sol: cloudai.metrics.SOLMetricModel = Field(default_factory=cloudai.metrics.SOLMetricModel)
+    sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
 
     @field_validator("install_path")
     @classmethod
     def _absolute_install_path(cls, value: Path) -> Path:
         return value.absolute()
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def _parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
+        return cloudai.metrics.parse_sol_spec(value)
 
     @abstractmethod
     def update(self) -> None:

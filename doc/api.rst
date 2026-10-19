@@ -64,10 +64,11 @@ definition. Compatibility properties used by workload generators and reporters
 remain available. Read ``weight``, ``ideal_perf`` and ``pin_nodes`` from
 ``test_run.test``; their runtime forwarding properties are removed.
 
-``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, a ``SOLMetricModel`` or ``None``.
-Import ``SOLMetricModel`` from ``cloudai.core``; its ``root`` maps metric names to target lists. Structured SOL
-serializes directly as the existing metric-keyed ``sol`` tables. ``System.sol`` and ``TestScenario.sol`` use that
-same model. ``TestRun.metric_sol`` is removed.
+``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, the existing
+``cloudai.metrics.MetricSOLConfig`` dictionary, or ``None``. The dictionary maps
+metric names to lists of ``SOLTarget`` objects and uses the existing metric-keyed
+``sol`` TOML tables. ``System.sol`` and ``TestScenario.sol`` use the same dictionary
+type. ``TestRun.metric_sol`` is removed.
 
 The existing runners use ``TestScenario.test_runs`` for bound executions.
 Replacing that list does not replace ``TestScenario.tests``. The execution list

@@ -19,7 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai.core import SOLMetricModel, TestRun
+import cloudai.metrics
+from cloudai.core import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.nemo_run.report_generation_strategy import extract_timings
@@ -99,7 +100,7 @@ def nemo_tr_encoded(tmp_path: Path) -> TestRun:
 def test_numeric_sol_plot_handles_both_sol_forms(
     slurm_system: SlurmSystem, nemo_tr: TestRun, monkeypatch: pytest.MonkeyPatch, structured: bool
 ) -> None:
-    sol = SOLMetricModel.model_validate({"bandwidth": [{"value": 100}]}) if structured else 42.0
+    sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]}) if structured else 42.0
     nemo_tr.test = nemo_tr.test.model_copy(update={"sol": sol})
     tool = MagicMock()
     monkeypatch.setattr(
