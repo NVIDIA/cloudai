@@ -222,7 +222,7 @@ def inference_context(tr: cloudai.core.TestRun) -> dict[str, typing.Any]:
 
 
 class ParetoReporter(cloudai.core.Reporter):
-    """Render all successful iterations and search steps in selected cases."""
+    """Render all successful iterations and sweep steps in selected cases."""
 
     config: ParetoReportConfig
 
@@ -246,16 +246,16 @@ class ParetoReporter(cloudai.core.Reporter):
             for iteration in iterations:
                 paths = numeric_directories(iteration) if case.is_dse_job else [iteration]
                 if not paths:
-                    runs.append(RunObservations(case, error=f"No search steps found in iteration {iteration.name}"))
+                    runs.append(RunObservations(case, error=f"No sweep steps found in iteration {iteration.name}"))
                 for path in paths:
                     tr = copy.deepcopy(case)
                     tr.current_iteration = int(iteration.name)
                     tr.step = int(path.name) if case.is_dse_job else 0
                     tr.output_path = path
-                    runs.append(self._collect_run(tr, case.is_dse_job))
+                    runs.append(self._collect_run(tr))
         return runs
 
-    def _collect_run(self, tr: cloudai.core.TestRun, is_search: bool) -> RunObservations:
+    def _collect_run(self, tr: cloudai.core.TestRun) -> RunObservations:
         run = RunObservations(tr)
         try:
             dump = tr.output_path / "test-run.toml"
@@ -267,8 +267,8 @@ class ParetoReporter(cloudai.core.Reporter):
                 tr.num_nodes = details.nnodes
                 tr.nodes = details.nodes
                 tr.allocated_gpu_count = details.allocated_gpu_count
-            elif is_search:
-                raise ValueError("Missing test-run.toml for search step")
+            elif tr.is_dse_job:
+                raise ValueError("Missing test-run.toml for sweep step")
             self.system.load_run_metadata(tr, self.results_root)
             run.config = toml.dumps(
                 {
