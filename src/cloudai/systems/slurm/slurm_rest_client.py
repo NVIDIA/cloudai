@@ -426,8 +426,13 @@ class SlurmRestClient:
             jobs = response.get("jobs")
             if not isinstance(jobs, list):
                 raise RuntimeError("Slurm accounting API returned an invalid jobs response.")
-            if jobs:
-                job = cast(dict[str, Any], jobs[0]).copy()
+            matching_jobs = [job for job in jobs if job["job_id"] == job_id]
+            if len(matching_jobs) > 1:
+                raise RuntimeError(
+                    f"Slurm accounting returned multiple records for job {job_id}; job identity is ambiguous."
+                )
+            if matching_jobs:
+                job = cast(dict[str, Any], matching_jobs[0]).copy()
                 job.update(
                     job_state=job["state"]["current"],
                     start_time=job["time"]["start"],
