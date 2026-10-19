@@ -61,9 +61,9 @@ steps:
       "${cov_bin}/cov-format-errors" --dir "${cov_dir}" --text-output-style oneline \
         2>&1 | tee "${WORKSPACE}/coverity.log"
 
-      # Fail on any finding. Resolve false positives in the
-      # code, not by loosening this - coverity[] annotations are not honoured
-      # for Python here.
+      # Fail on any finding. Resolve false positives in the code, not by
+      # loosening this - coverity[] annotations are not honoured for Python
+      # here.
       # `|| true` keeps grep's no-match from tripping `set -e`; an absent
       # summary means the log was unreadable, which must not read as zero.
       summary=$(grep -oE 'Defect occurrences found[[:space:]]*:[[:space:]]*[0-9]+' \
