@@ -9,11 +9,13 @@ This chapter describes the reporting system in CloudAI. In this chapter, we will
 - :ref:`Reporting Registration <reporting-registration>`
 - :ref:`Reporting Configuration Implementation <reporting-configuration-implementation>`
 - :ref:`Uploading Results to Object Storage <uploading-results-to-object-storage>`
+- :doc:`Pareto frontiers <pareto-frontiers>`
 - :doc:`Reports <reports>`
 
 .. toctree::
    :hidden:
 
+   pareto-frontiers
    reports
 
 .. _overview:
@@ -117,73 +119,6 @@ The ``junit`` scenario reporter is disabled by default. When enabled, it writes 
 directory. It emits one test case for every regular test iteration and every DSE step, including pass/fail status,
 failure details, scheduler duration when available, and the contents of ``stdout.txt`` and ``stderr.txt``. The artifact
 can be consumed directly by Jenkins, GitLab, GitHub Actions, and other CI systems that support JUnit XML.
-
-Pareto frontiers
-----------------
-
-Enable ``pareto`` in a scenario to write ``pareto.html``. Each plot selects two metrics from
-``metric_observations()``; each named frontier compares all successful iterations and DSE steps from its case IDs.
-Grid search and other DSE agents use the same calculation. Cases can contribute zero, one, or several frontier points.
-
-.. code-block:: toml
-
-   [reports.pareto]
-   enable = true
-
-   [[reports.pareto.plots]]
-   name = "Per-user vs per-GPU throughput"
-   x = { metric = "output_token_throughput_per_user" }
-   y = { metric = "output_token_throughput_per_allocated_gpu" }
-
-   [[reports.pareto.plots.frontiers]]
-   name = "Version A"
-   cases = ["a-c16", "a-c32", "a-c64"]
-
-   [[reports.pareto.plots.frontiers]]
-   name = "Version B"
-   cases = ["b-grid"]
-
-``cases`` references ``[[Tests]].id`` values, not workload names. Each frontier is calculated independently;
-splitting the same executions across different cases does not change it. Choose comparable model, input/output
-lengths, and hardware conditions when assigning cases to a frontier.
-
-Optimization defaults to each metric's direction: throughput is maximized and latency minimized.
-Set ``direction = "maximize"`` or ``direction = "minimize"`` on either axis to override it.
-``match`` selects observation dimensions, such as ``statistic = "mean"``, ``"median"``, or ``"p99"`` for latency.
-A frontier can also set ``match`` to filter observations before both axes are selected.
-Each axis must resolve to exactly one observation per execution. Shared measurement dimensions must agree between
-axes, except for ``statistic``, which can differ. Missing or ambiguous measurements are listed as exclusions.
-
-The chart initially shows frontier points. Enable **Show dominated points** to include the remaining measurements;
-the axes adjust to the visible points. Both axes increase normally; optimization direction only determines dominance.
-Lines connect measured frontier points; intermediate configurations have not been measured.
-
-Hover over a point to view its metrics and configured inference parameters, including model, concurrency, token
-lengths, node count, and available parallelism settings. Click to pin the details for text selection and copying.
-The measurements table retains all valid executions, including identical coordinates. Select an execution there
-to inspect its details, or expand its configuration to see the full executed inputs and result location.
-Failed executions and missing or malformed search-step configurations appear in the exclusions table.
-Existing comparison reports can remain enabled alongside this report.
-
-vLLM and SGLang expose three additional output-token throughput metrics, all maximized:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Metric
-     - Output tokens/s divided by
-   * - ``output_token_throughput_per_user``
-     - Configured concurrency recorded in the benchmark result
-   * - ``output_token_throughput_per_allocated_gpu``
-     - GPUs reserved by the Slurm job, including idle GPUs
-   * - ``output_token_throughput_per_serving_gpu``
-     - GPUs in the configured serving layout, including both prefill and decode roles
-
-Per-user throughput is an aggregate rate per configured concurrency, rather than inverse TPOT.
-In single-sbatch mode, the allocated count is the reservation for the whole batch, even when a test uses fewer GPUs.
-CloudAI saves this count in ``test-run.toml`` and reads existing node metadata when reporting older runs.
-The serving count comes from each execution's resolved parallelism settings. GPU counts are shown in point details.
-A metric is omitted if its divisor is unavailable or non-positive.
 
 Speed-of-Light comparisons
 --------------------------

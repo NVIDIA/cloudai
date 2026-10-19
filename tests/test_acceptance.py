@@ -17,6 +17,7 @@
 import argparse
 import getpass
 import json
+import re
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
@@ -29,7 +30,8 @@ import toml
 import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
-from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
+from cloudai.core import CommandGenStrategy, GitRepo, Parser, Registry, TestDefinition, TestRun, TestScenario
+from cloudai.handlers import generate_reports
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -937,3 +939,120 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_aiperf = aiperf_script.read_text().strip()
         ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
         assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"
+
+
+@pytest.mark.parametrize("workload", ["vllm", "sglang"])
+def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, tmp_path: Path, workload: str):
+    cls = VllmTestDefinition if workload == "vllm" else SglangTestDefinition
+    definition = cls.model_validate(
+        {
+            "name": "test",
+            "description": "test",
+            "test_template_name": workload,
+            "cmd_args": {"docker_image_url": "example/image:latest"},
+        }
+    )
+    for relative, x, y in [("ordinary/0", 1, 10), ("ordinary/1", 2, 20), ("search/0/1", 3, 15)]:
+        folder = tmp_path / relative
+        folder.mkdir(parents=True)
+        data = {
+            "num_prompts": 10,
+            "completed": 10,
+            "max_concurrency": 4,
+            "mean_ttft_ms": x,
+            "median_ttft_ms": x,
+            "p99_ttft_ms": x,
+            "mean_tpot_ms": 1,
+            "median_tpot_ms": 1,
+            "p99_tpot_ms": 1,
+            "request_throughput": 1,
+            "output_throughput": y,
+        }
+        (folder / ("vllm-bench.json" if workload == "vllm" else "sglang-bench.jsonl")).write_text(json.dumps(data))
+        (folder / "vllm-bench.log").write_text(
+            "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
+        )
+        if relative.startswith("search"):
+            inputs = definition.model_dump()
+            inputs["bench_cmd_args"]["max_concurrency"] = 8
+            inputs["cmd_args"]["decode"]["tensor_parallel_size" if workload == "vllm" else "tp_size"] = 4
+            executed = cls.model_validate(inputs)
+            resolved = TestRun("search", executed, 2, [], output_path=folder, allocated_gpu_count=24)
+            (folder / "test-run.toml").write_text(
+                toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
+            )
+    (tmp_path / "search/0/2").mkdir()
+    (tmp_path / "search/0/2/test-run.toml").write_text("invalid = [")
+    (tmp_path / "search/0/3").mkdir()
+    (tmp_path / "search/controller").mkdir()
+    plot = {
+        "name": "All configurations",
+        "x": {"metric": "ttft", "match": {"statistic": "p99"}},
+        "y": {"metric": "output_token_throughput"},
+        "frontiers": [{"name": "All"}],
+    }
+    plots = [
+        plot,
+        {**plot, "name": "Explicit empty cases", "frontiers": [{"name": "All", "cases": []}]},
+        {
+            **plot,
+            "name": "Independent versions",
+            "frontiers": [{"name": "A", "cases": ["ordinary"]}, {"name": "B", "cases": ["search", "missing"]}],
+        },
+        {
+            **plot,
+            "name": "Per allocated GPU",
+            "x": {"metric": "tpot", "match": {"statistic": "mean"}},
+            "y": {"metric": "output_token_throughput_per_allocated_gpu"},
+        },
+        {**plot, "name": "<script>alert(1)</script>", "y": {"metric": "accuracy"}},
+    ]
+    reports: dict[str, dict] = {name: {"enable": False} for name in Registry().scenario_reports}
+    reports["pareto"] = {"enable": True, "plots": plots}
+    scenario_path = tmp_path / "scenario.toml"
+    scenario_path.write_text(
+        toml.dumps(
+            {
+                "name": "example",
+                "reports": reports,
+                "Tests": [
+                    {**definition.model_dump(), "id": "ordinary", "num_nodes": 1, "iterations": 2},
+                    {**definition.model_dump(), "id": "search", "num_nodes": [1, 2]},
+                    {**definition.model_dump(), "id": "missing", "num_nodes": 1},
+                ],
+            }
+        )
+    )
+    scenario = Parser.parse_test_scenario(scenario_path, slurm_system, {})
+    generate_reports(slurm_system, scenario, tmp_path)
+
+    html = (tmp_path / "pareto.html").read_text()
+    charts = [json.loads(data) for data in re.findall(r'<script type="application/json"[^>]*>(.*?)</script>', html)]
+    assert len(charts) == 5
+    for omitted, empty in zip(charts[0]["datasets"], charts[1]["datasets"], strict=True):
+        assert [(p["artifact"], p["status"]) for p in omitted["data"]] == [
+            (p["artifact"], p["status"]) for p in empty["data"]
+        ]
+    frontier, dominated = charts[0]["datasets"]
+    assert [(p["x"], p["y"]) for p in frontier["data"]] == [(1, 10), (2, 20)]
+    assert [(p["x"], p["y"]) for p in dominated["data"]] == [(3, 15)]
+    assert frontier["hidden"] is False and dominated["hidden"] is True
+    assert all("x_reverse" not in chart and "y_reverse" not in chart for chart in charts)
+    assert [len(dataset["data"]) for dataset in charts[2]["datasets"]] == [2, 1]
+    assert all(dataset["is_frontier"] for dataset in charts[2]["datasets"])
+    normalized = charts[3]["datasets"][0]["data"]
+    assert len(normalized) == 1
+    assert (normalized[0]["x"], normalized[0]["y"]) == (1, 15 / 24)
+    context = normalized[0]["context"]
+    assert context["Concurrency"] == 8
+    assert context["Decode / TP"] == 4
+    assert context["Nodes"] == 2
+    assert context["Model"] == definition.cmd_args.model
+    assert context["Input tokens"] == 16 and context["Output tokens"] == 128
+    assert context["Allocated GPUs"] == 24 and context["Serving GPUs"] == 4
+    assert charts[4]["datasets"] == []
+    assert "No valid points" in html and "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<script>alert(1)</script>" not in html
+    assert "Executed configuration" in html and "num_nodes = 2" in html
+    assert "Missing test-run.toml" in html and "No execution results found" in html
+    assert "Show dominated points" in html and "Hover to inspect" in html
