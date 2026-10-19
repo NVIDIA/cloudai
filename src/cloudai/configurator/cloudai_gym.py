@@ -14,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import logging
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
-from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -30,6 +31,8 @@ from .trajectory import Trajectory
 
 if TYPE_CHECKING:
     import pandas as pd
+
+    from cloudai.core import BaseRunner, TestRun
 
 
 class CloudAIGymEnv(BaseGym):
@@ -53,6 +56,8 @@ class CloudAIGymEnv(BaseGym):
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
         """
+        from cloudai.core import Registry
+
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
@@ -256,6 +261,8 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Metric values keyed by configured metric name.
         """
+        from cloudai.core import METRIC_ERROR
+
         all_metrics = self.test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")

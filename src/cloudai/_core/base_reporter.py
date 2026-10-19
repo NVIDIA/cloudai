@@ -51,7 +51,7 @@ class Reporter(ABC):
 
     def load_test_runs(self):
         """Load test runs from the results directory."""
-        from .test_run_io import load_test_run
+        from .test_run import load_test_run
 
         for template in self.test_scenario.test_runs:
             tr_root = self.results_root / template.name
