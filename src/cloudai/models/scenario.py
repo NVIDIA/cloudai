@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -182,10 +183,18 @@ class TestScenario(BaseModel):
         return s
 
 
+# Temporary compatibility for internal projects, including CloudAIX.
+# Remove once their writers serialize TestRun directly.
 class TestRunDetails:
-    """Compatibility entry point for extension writers; new code serializes TestRun directly."""
+    """Deprecated wrapper retained only for internal project compatibility."""
 
     @staticmethod
     def from_test_run(tr: TestRun, test_cmd: str = "", full_cmd: str = "") -> TestRun:
         """Return the run itself; command strings are no longer saved."""
+        warnings.warn(
+            "TestRunDetails is retained only for internal project compatibility and will be removed. "
+            'Serialize TestRun directly with model_dump(mode="json") instead.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return tr
