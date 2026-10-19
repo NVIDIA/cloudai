@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import getopt
+import http
 import logging
 import math
 import os
@@ -38,6 +39,8 @@ from .slurm_metadata import SlurmStepMetadata
 from .slurm_node import SlurmNode, SlurmNodeState, parse_node_list
 
 logger = logging.getLogger(__name__)
+
+ESLURM_INVALID_JOB_ID = 2017
 
 
 class SlurmAPIConfig(pydantic.BaseModel):
@@ -150,8 +153,10 @@ class SlurmRestClient:
                 method == "GET"
                 and service == "slurm"
                 and re.fullmatch(r"job/\d+", path)
-                and response.status_code in {200, 400, 404}
-                and all(isinstance(error, dict) and error.get("error_number") == 2017 for error in errors)
+                and response.status_code in {http.HTTPStatus.OK, http.HTTPStatus.BAD_REQUEST, http.HTTPStatus.NOT_FOUND}
+                and all(
+                    isinstance(error, dict) and error.get("error_number") == ESLURM_INVALID_JOB_ID for error in errors
+                )
             ):
                 # ESLURM_INVALID_JOB_ID: completed jobs may have left slurmctld.
                 return {"jobs": []}
