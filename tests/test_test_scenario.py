@@ -144,6 +144,49 @@ def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenari
     assert test_scenario.test_runs[0].time_limit == "00:10:00"
 
 
+@pytest.mark.parametrize("num_nodes", [0, [], None])
+def test_empty_node_count_defaults_to_one(num_nodes: int | list[int] | None, test_scenario_parser: TestScenarioParser):
+    case: dict = {"id": "1", "test_name": "nccl"}
+    if num_nodes is not None:
+        case["num_nodes"] = num_nodes
+    scenario = test_scenario_parser._parse_data({"name": "scenario", "Tests": [case]})
+    run = scenario.test_runs[0]
+    assert run.nnodes == 1
+    assert run.num_nodes_explicit is (num_nodes is not None)
+    assert scenario.tests[0].num_nodes == num_nodes
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("extra_env_vars", []),
+        ("extra_env_vars", ""),
+        ("extra_env_vars", False),
+        ("git_repos", {}),
+        ("git_repos", ""),
+        ("git_repos", False),
+    ],
+)
+def test_malformed_empty_overrides_are_rejected(field: str, value: object, test_scenario_parser: TestScenarioParser):
+    with pytest.raises(TestConfigParsingError, match=field):
+        test_scenario_parser._parse_data(
+            {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", field: value}]}
+        )
+
+
+def test_valid_empty_overrides_retain_referenced_values(test_scenario_parser: TestScenarioParser):
+    base = test_scenario_parser.test_mapping["nccl"]
+    repo = GitRepo(url="https://example.com/repo.git", commit="main")
+    test_scenario_parser.test_mapping = {
+        "nccl": base.model_copy(update={"extra_env_vars": {"KEEP": "value"}, "git_repos": [repo]})
+    }
+    scenario = test_scenario_parser._parse_data(
+        {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", "extra_env_vars": {}, "git_repos": []}]}
+    )
+    assert scenario.tests[0].extra_env_vars == {"KEEP": "value"}
+    assert scenario.tests[0].git_repos == [repo]
+
+
 def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = tdef, tdef
 

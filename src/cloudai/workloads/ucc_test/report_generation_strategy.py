@@ -98,6 +98,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         Args:
             df (pd.DataFrame): DataFrame containing the NCCL test data.
         """
+        sol = self.test_run.sol
         report_tool = BokehReportTool(self.test_run.output_path)
         line_plots = [("Bandwidth (GB/s) avg", "black", "Average Bandwidth")]
         for col_name, color, title in line_plots:
@@ -108,7 +109,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
-                sol=self.test_run.sol,
+                sol=sol if isinstance(sol, (float, int)) else None,
             )
 
         combined_columns = [
@@ -123,7 +124,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
             x_axis_label="Message Size",
             y_axis_label="Bandwidth (GB/s)",
             df=df,
-            sol=self.test_run.sol,
+            sol=sol if isinstance(sol, (float, int)) else None,
         )
 
         report_tool.finalize_report(Path("cloudai_ucc_test_bokeh_report.html"))

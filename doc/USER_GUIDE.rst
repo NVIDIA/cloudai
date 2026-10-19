@@ -506,6 +506,8 @@ Single sbatch mode output directory structure:
 
 Most of the files are the same: output files, env vars script, test run metadata. The difference for single sbatch mode is that ``slurm-job.toml`` is created for the entire job as well as ``cloudai_sbatch_script.sh``. Extra ``common.err``/``common.out`` files are created for general sbatch outputs.
 
+.. _extra-slurm-arguments:
+
 Extra srun and sbatch Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -540,6 +542,30 @@ Will result in srun command inside sbatch script like this:
 .. code-block:: bash
 
    srun ... --arg=val --other-arg=other-val ...
+
+Test files and scenario cases also accept ``extra_srun_args``, as either a string
+or a list of string fragments. Shell quoting is preserved. A scenario case
+inherits its referenced test's arguments when the setting is omitted. Setting
+it in the scenario case replaces the test-file arguments; ``""`` or ``[]`` clears
+them. System arguments are always included before the effective test arguments.
+These rules apply to workload and metadata ``srun`` commands for all workloads.
+
+For example, given a test file with ``extra_srun_args = ["--exclusive"]``:
+
+.. code-block:: toml
+
+   [[Tests]]
+   id = "case"
+   test_name = "my_test"
+   extra_srun_args = ["--exclusive", "--overcommit"]
+
+The case uses both listed flags. To use only ``--overcommit``, list only that flag.
+
+.. important::
+
+   Scenario arguments previously combined with test-file arguments. Configs
+   defining both must now list all desired test flags in the scenario case.
+   SlurmContainer test-file arguments now also reach metadata commands.
 
 Container Mounts
 ~~~~~~~~~~~~~~~~

@@ -178,7 +178,7 @@ class TestScenarioParser:
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
-        scenario_sol: cloudai.metrics.MetricSOLConfig | None = None,
+        scenario_sol: cloudai.metrics.SOLMetricModel | None = None,
     ) -> TestRun:
         """
         Prepare effective configuration and bind it to a new execution.
@@ -199,32 +199,42 @@ class TestScenarioParser:
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
-        metric_sol = test_info.sol if isinstance(test_info.sol, dict) else None
-        legacy_sol = test_info.sol if isinstance(test_info.sol, (float, int)) else None
+        sol = test_info.sol
+        if not isinstance(sol, (float, int)):
+            targets = cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, sol)
+            sol = cloudai.metrics.SOLMetricModel(targets) if targets else None
+        num_nodes = test_info.num_nodes
+        if num_nodes is not None and not num_nodes:
+            num_nodes = 1
 
         prepared = test_info.model_copy(
             deep=True,
             update={
+                "num_nodes": num_nodes,
                 "time_limit": total_time_limit,
-                "sol": legacy_sol,
-                "metric_sol": cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, metric_sol),
+                "sol": sol,
                 "weight": test_info.weight * normalized_weight,
                 "reporters": get_reporters(test_info),
             },
         )
         return TestRun(test=prepared, pre_test=pre_test, post_test=post_test)
 
-    def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:
+    def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:  # noqa: C901
         """Resolve a scenario item into its sole, workload-specific definition model."""
         if not isinstance(data, dict):
             raise ValueError("Each Tests item must be a table")
-        overrides = {
-            key: value
-            for key, value in data.items()
-            if value is not None and (value or key not in {"extra_env_vars", "git_repos"})
-        }
-        if "extra_srun_args" in overrides:
-            overrides["srun_args"] = overrides.pop("extra_srun_args")
+
+        overrides = {key: value for key, value in data.items() if value is not None}
+
+        # Empty overrides preserve values from the referenced test
+        # test: [extra_env_vars] A=B
+        # scenario case: [extra_env_vars]
+        # resolved scenario case: [extra_env_vars] A=B
+        if overrides.get("extra_env_vars") == {}:
+            overrides.pop("extra_env_vars")
+        if overrides.get("git_repos") == []:
+            overrides.pop("git_repos")
+
         test_name = overrides.pop("test_name", None)
         path = overrides.pop("path", None)
         if test_name is not None and path is not None:
@@ -232,6 +242,7 @@ class TestScenarioParser:
         if (test_name is not None or path is not None) and "test_template_name" in overrides:
             raise ValueError("'test_template_name' must not be set with 'test_name' or 'path'")
         source = self.file_path
+
         if test_name is not None:
             try:
                 base = self.test_mapping[test_name]
@@ -249,10 +260,12 @@ class TestScenarioParser:
                 )
                 logging.error(msg)
                 raise TestScenarioParsingError(msg)
+
             with source.open() as fh:
                 test_defined = load_test_toml_file(fh, source)
         else:
             test_defined = {}
+
         parser = TestParser([], self.system)
         parser.current_file = source
         return parser.load_test_definition(deep_merge(test_defined, overrides))

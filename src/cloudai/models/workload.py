@@ -20,7 +20,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from typing_extensions import Self
 
@@ -132,13 +132,12 @@ class TestDefinition(BaseModel, ABC):
     exclude_nodes: list[str] = Field(default_factory=list)
     weight: float = 0.0
     iterations: int = 1
-    sol: float | cloudai.metrics.MetricSOLConfig | None = None
-    metric_sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
+    sol: float | cloudai.metrics.SOLMetricModel | None = None
     reporters: SkipJsonSchema[set[type]] = Field(default_factory=set, exclude=True, repr=False)
     ideal_perf: float = 1.0
     time_limit: str | None = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
-    srun_args: str | None = None
+    extra_srun_args: list[str] = Field(default_factory=list)
 
     name: str
     description: str
@@ -167,10 +166,13 @@ class TestDefinition(BaseModel, ABC):
         ),
     )
 
-    @field_validator("sol", mode="before")
+    @field_validator("extra_srun_args", mode="before")
     @classmethod
-    def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:
-        return cloudai.metrics.parse_sol_spec(value) if isinstance(value, dict) else value
+    def parse_extra_srun_args(cls, value: Any) -> list[str]:
+        """Accept legacy string fragments and lists without changing shell quoting."""
+        if isinstance(value, str):
+            return [value] if value else []
+        return TypeAdapter(list[str]).validate_python([] if value is None else value)
 
     @model_validator(mode="after")
     def validate_pin_nodes(self) -> Self:

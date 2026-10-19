@@ -654,7 +654,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(output_subdir="out_tr_srun")
-        tr.test = tr.test.model_copy(update={"srun_args": "--constraint gpu"})
+        tr.test = tr.test.model_copy(update={"extra_srun_args": ["--constraint gpu"]})
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "constraint=gpu" in wrapper_content

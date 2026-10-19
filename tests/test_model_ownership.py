@@ -16,13 +16,12 @@
 
 
 from pathlib import Path
-from typing import cast
 
 import pytest
 import toml
 from pydantic import Field
 
-from cloudai.core import CmdArgs, TestDefinition, TestRun, TestScenario, TestScenarioParser
+from cloudai.core import CmdArgs, SOLMetricModel, TestDefinition, TestRun, TestScenario, TestScenarioParser
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -33,6 +32,36 @@ def test_scenario_schema_is_complete_without_rebuilding():
     schema = TestScenario.model_json_schema()
     assert schema["properties"]["Tests"]["items"] == {"$ref": "#/$defs/TestDefinition"}
     assert "ReportConfig" in schema["$defs"]
+
+
+@pytest.mark.parametrize("case_sol", [None, 42.0, {"bandwidth": [{"value": 120}]}])
+def test_one_sol_field_preserves_inheritance_and_snapshot_format(
+    definition: NCCLTestDefinition, slurm_system: SlurmSystem, tmp_path: Path, case_sol: float | dict | None
+):
+    slurm_system.sol = SOLMetricModel.model_validate({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
+    parser = TestScenarioParser(tmp_path / "scenario.toml", slurm_system, {"nccl": definition}, {})
+    case: dict = {"id": "case", "test_name": "nccl", "num_nodes": 1}
+    if case_sol is not None:
+        case["sol"] = case_sol
+    scenario = parser._parse_data({"name": "scenario", "sol": {"bandwidth": [{"value": 110}]}, "Tests": [case]})
+    run = scenario.test_runs[0]
+    assert run.sol is run.test.sol
+    assert not hasattr(run, "metric_sol")
+    assert "metric_sol" not in run.test.model_dump()
+    payload = toml.loads(toml.dumps(TestRunDetails.from_test_run(run, "test", "full").model_dump()))
+    restored = TestRunDetails.model_validate(payload).test_definition
+    if isinstance(case_sol, float):
+        assert run.sol == restored.sol == 42.0
+    else:
+        assert isinstance(run.sol, SOLMetricModel)
+        assert isinstance(restored.sol, SOLMetricModel)
+        assert run.sol.root["bandwidth"][0].value == (120 if case_sol else 110)
+        assert run.sol.root["latency"][0].value == 10
+        assert restored.sol == run.sol
+        assert "root" not in payload["test_definition"]["sol"]
+    assert definition.sol is None
+    assert slurm_system.sol.root["bandwidth"][0].value == 100
+    assert scenario.sol.root["bandwidth"][0].value == 110
 
 
 @pytest.fixture
@@ -83,7 +112,7 @@ def test_execution_mutations_are_isolated(definition: NCCLTestDefinition):
     first.nodes.append("node1")
     first.test = first.test.model_copy(update={"iterations": 1})
     first.test = first.test.model_copy(update={"pin_nodes": True})
-    first.test = first.test.model_copy(update={"srun_args": "--exclusive"})
+    first.test = first.test.model_copy(update={"extra_srun_args": ["--exclusive"]})
     assert first.test is not definition
     assert type(first.test) is NCCLTestDefinition
     assert second.test.cmd_args.ngpus == definition.cmd_args.ngpus == [1, 2]
@@ -92,7 +121,7 @@ def test_execution_mutations_are_isolated(definition: NCCLTestDefinition):
     assert second.nodes == definition.nodes == []
     assert second.iterations == definition.iterations == 3
     assert not definition.pin_nodes
-    assert definition.srun_args is None
+    assert definition.extra_srun_args == []
 
 
 def test_materialized_trial_has_one_prepared_definition(definition: NCCLTestDefinition):
@@ -208,30 +237,65 @@ def test_multiple_runtime_trials_share_one_scenario_case(definition: NCCLTestDef
     assert first.test.id is None
 
 
-def test_srun_scheduling_and_workload_fields_remain_independent(slurm_system: SlurmSystem):
+@pytest.mark.parametrize("reference", ["test_name", "path"])
+@pytest.mark.parametrize(
+    ("scenario_args", "expected_args"),
+    [
+        (None, ["--exclusive"]),
+        ("--overcommit", ["--overcommit"]),
+        (["--overcommit"], ["--overcommit"]),
+        ("", []),
+        ([], []),
+    ],
+)
+def test_scenario_srun_args_override_test_defaults_for_workload_and_metadata(
+    slurm_system: SlurmSystem,
+    tmp_path: Path,
+    reference: str,
+    scenario_args: str | list[str] | None,
+    expected_args: list[str],
+):
     from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
+    from cloudai.workloads.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
 
     definition = SlurmContainerTestDefinition(
         name="container",
         description="container",
         test_template_name="SlurmContainer",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="fake://container", cmd="true"),
-        extra_srun_args=["--ntasks=2"],
+        extra_srun_args=["--exclusive"],
     )
-    parser = TestScenarioParser(Path("scenario.toml"), slurm_system, {"container": definition}, {})
-    scenario = parser._parse_data(
-        {
-            "name": "scenario",
-            "Tests": [
-                {"id": "case", "test_name": "container", "extra_srun_args": "--exclusive"},
-            ],
-        }
-    )
+    slurm_system.extra_srun_args = "--comment=system-flags"
+    (tmp_path / "container.toml").write_text(toml.dumps(definition.model_dump()))
+    parser = TestScenarioParser(tmp_path / "scenario.toml", slurm_system, {"container": definition}, {})
+    case: dict[str, str | list[str]] = {
+        "id": "case",
+        reference: "container" if reference == "test_name" else "container.toml",
+    }
+    if scenario_args is not None:
+        case["extra_srun_args"] = scenario_args
+    scenario = parser._parse_data({"name": "scenario", "Tests": [case]})
     run = scenario.test_runs[0]
-    assert run.extra_srun_args == "--exclusive"
-    assert cast(SlurmContainerTestDefinition, run.test).extra_srun_args == ["--ntasks=2"]
-    assert run.test.model_dump()["extra_srun_args"] == ["--ntasks=2"]
-    assert run.test.model_dump()["srun_args"] == "--exclusive"
+    assert run.extra_srun_args == (" ".join(expected_args) or None)
+    assert run.test.extra_srun_args == expected_args
+    assert "srun_args" not in run.test.model_dump()
+    assert definition.extra_srun_args == ["--exclusive"]
+    run.output_path = tmp_path
+    strategy = SlurmContainerCommandGenStrategy(slurm_system, run)
+    commands = [" ".join(strategy.gen_srun_prefix()), *strategy._metadata_cmd().splitlines()]
+    for command in commands:
+        assert command.count(slurm_system.extra_srun_args) == 1
+        for flag in ["--exclusive", "--overcommit"]:
+            assert command.count(flag) == (1 if flag in expected_args else 0)
+        for flag in expected_args:
+            assert command.index(slurm_system.extra_srun_args) < command.index(flag)
+
+
+@pytest.mark.parametrize("value", ["--comment='a b' --exclusive", ["--comment='a b'", "--exclusive"]])
+def test_srun_args_normalization_preserves_shell_quoting(definition: NCCLTestDefinition, value: str | list[str]):
+    prepared = type(definition).model_validate(definition.model_dump() | {"extra_srun_args": value})
+    assert isinstance(prepared.extra_srun_args, list)
+    assert TestRun(test=prepared).extra_srun_args == "--comment='a b' --exclusive"
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -244,7 +308,7 @@ def test_report_restore_preserves_execution_configuration(
     from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import DSEReporter
 
-    definition.srun_args = "--exclusive"
+    definition.extra_srun_args = ["--exclusive"]
     definition.exclude_nodes = ["excluded"]
     definition.ideal_perf = 2.0
     template = TestRun(test=definition.model_copy(deep=True, update={"id": "case"}))

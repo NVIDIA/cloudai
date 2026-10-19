@@ -284,7 +284,7 @@ def test_existing_placement_is_preserved(nixl_bench_tr: TestRun, slurm_system: S
     tdef = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     nixl_bench_tr.test.cmd_args.backend = "UCX" if runtime == "ASIO" else "POSIX"
     nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"num_nodes": 2 if runtime == "ASIO" else 4})
-    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"srun_args": "--ntasks=4 --ntasks-per-node=1"})
+    nixl_bench_tr.test = nixl_bench_tr.test.model_copy(update={"extra_srun_args": ["--ntasks=4 --ntasks-per-node=1"]})
     slurm_system.extra_srun_args = "--ntasks-per-node=1"
     if runtime == "null":
         tdef.cmd_args.etcd_endpoints = ""
