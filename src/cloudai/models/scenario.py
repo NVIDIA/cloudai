@@ -89,7 +89,7 @@ class TestScenario(BaseModel):
 
     name: str
     tests: list[SerializeAsAny[TestDefinition]] = Field(alias="Tests")
-    sol: cloudai.metrics.SOLMetricModel = Field(default_factory=cloudai.metrics.SOLMetricModel)
+    sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
     job_status_check: bool = True
     pre_test: str | None = None
     post_test: str | None = None
@@ -151,6 +151,11 @@ class TestScenario(BaseModel):
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
 
         return self
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: dict[str, Any] | None) -> cloudai.metrics.MetricSOLConfig:
+        return cloudai.metrics.parse_sol_spec(value)
 
     @field_validator("reports", mode="before")
     @classmethod

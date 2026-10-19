@@ -83,7 +83,7 @@ def test_metric_assessment_only_uses_metric_keyed_targets(structured: bool) -> N
         cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 50, {}),
         cloudai.metrics.MetricObservation(cloudai.metrics.LATENCY, 5, {}),
     ]
-    sol = cloudai.metrics.SOLMetricModel.model_validate({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
+    sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
     run = SimpleNamespace(
         test=SimpleNamespace(metric_observations=lambda system, run: observations, sol=sol if structured else 100.0)
     )

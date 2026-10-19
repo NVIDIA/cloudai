@@ -21,7 +21,8 @@ import pytest
 import toml
 from pydantic import Field
 
-from cloudai.core import CmdArgs, SOLMetricModel, TestDefinition, TestRun, TestScenario, TestScenarioParser
+import cloudai.metrics
+from cloudai.core import CmdArgs, TestDefinition, TestRun, TestScenario, TestScenarioParser
 from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import DSEReporter
 from cloudai.systems.slurm import SlurmSystem
@@ -41,7 +42,7 @@ def test_scenario_schema_is_complete_without_rebuilding():
 def test_one_sol_field_preserves_inheritance_and_snapshot_format(
     definition: NCCLTestDefinition, slurm_system: SlurmSystem, tmp_path: Path, case_sol: float | dict | None
 ):
-    slurm_system.sol = SOLMetricModel.model_validate({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
+    slurm_system.sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
     parser = TestScenarioParser(tmp_path / "scenario.toml", slurm_system, {"nccl": definition}, {})
     case: dict = {"id": "case", "test_name": "nccl", "num_nodes": 1}
     if case_sol is not None:
@@ -56,15 +57,15 @@ def test_one_sol_field_preserves_inheritance_and_snapshot_format(
     if isinstance(case_sol, float):
         assert run.sol == restored.sol == 42.0
     else:
-        assert isinstance(run.sol, SOLMetricModel)
-        assert isinstance(restored.sol, SOLMetricModel)
-        assert run.sol.root["bandwidth"][0].value == (120 if case_sol else 110)
-        assert run.sol.root["latency"][0].value == 10
+        assert isinstance(run.sol, dict)
+        assert isinstance(restored.sol, dict)
+        assert run.sol["bandwidth"][0].value == (120 if case_sol else 110)
+        assert run.sol["latency"][0].value == 10
         assert restored.sol == run.sol
         assert "root" not in payload["test"]["sol"]
     assert definition.sol is None
-    assert slurm_system.sol.root["bandwidth"][0].value == 100
-    assert scenario.sol.root["bandwidth"][0].value == 110
+    assert slurm_system.sol["bandwidth"][0].value == 100
+    assert scenario.sol["bandwidth"][0].value == 110
 
 
 @pytest.fixture

@@ -177,7 +177,7 @@ class TestScenarioParser:
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
-        scenario_sol: cloudai.metrics.SOLMetricModel | None = None,
+        scenario_sol: cloudai.metrics.MetricSOLConfig | None = None,
     ) -> TestRun:
         """
         Prepare effective configuration and bind it to a new execution.
@@ -200,8 +200,7 @@ class TestScenarioParser:
 
         sol = test_info.sol
         if not isinstance(sol, (float, int)):
-            targets = cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, sol)
-            sol = cloudai.metrics.SOLMetricModel(targets) if targets else None
+            sol = cloudai.metrics.merge_sol_configs(self.system.sol, scenario_sol, sol) or None
         num_nodes = test_info.num_nodes
         if num_nodes is not None and not num_nodes:
             num_nodes = 1

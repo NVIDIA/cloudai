@@ -131,7 +131,7 @@ class TestDefinition(BaseModel, ABC):
     exclude_nodes: list[str] = Field(default_factory=list)
     weight: float = 0.0
     iterations: int = 1
-    sol: float | cloudai.metrics.SOLMetricModel | None = None
+    sol: float | cloudai.metrics.MetricSOLConfig | None = None
     reporters: SkipJsonSchema[set[type]] = Field(default_factory=set, exclude=True, repr=False)
     ideal_perf: float = 1.0
     time_limit: str | None = None
@@ -164,6 +164,11 @@ class TestDefinition(BaseModel, ABC):
             "persists them in the trajectory output, and includes them in the trajectory cache key."
         ),
     )
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:
+        return cloudai.metrics.parse_sol_spec(value) if isinstance(value, dict) else value
 
     @field_validator("extra_srun_args", mode="before")
     @classmethod

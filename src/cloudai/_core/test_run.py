@@ -140,7 +140,7 @@ class TestRun(pydantic.BaseModel):
         return self.test.time_limit
 
     @property
-    def sol(self) -> float | cloudai.metrics.SOLMetricModel | None:
+    def sol(self) -> float | cloudai.metrics.MetricSOLConfig | None:
         return self.test.sol
 
     @property
