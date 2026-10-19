@@ -229,6 +229,23 @@
         vertical-align: bottom;
         white-space: normal;
     }
+    .pareto-table {
+        width: 100%;
+        min-width: 60rem;
+        table-layout: fixed;
+    }
+    .pareto-table th {
+        min-width: 0;
+    }
+    .pareto-table td {
+        white-space: normal;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+    .pareto-table pre {
+        max-height: 20rem;
+        overflow: auto;
+    }
     .run-label {
         display: block;
         max-width: 18rem;
@@ -344,6 +361,7 @@
             canvas.dataset.chartInitialized = "true";
 
             const payload = JSON.parse(dataNode.textContent);
+            const isPareto = payload.pareto === true;
             const isLine = payload.type === "line";
             const isCategory = payload.x_axis_type === "category";
             const isIndexedCategory = payload.x_axis_type === "indexed_category";
@@ -369,6 +387,18 @@
                 dataset.pointBorderColor = "#ffffff";
                 dataset.pointBorderWidth = dataset.is_sol ? 2 : (isLine ? 1.5 : 0);
                 dataset.tension = isLine ? 0.12 : 0;
+                if (isPareto) {
+                    dataset.showLine = dataset.is_frontier;
+                    dataset.tension = 0;
+                    dataset.borderWidth = dataset.is_frontier ? 2 : 0;
+                    dataset.pointStyle = pointStyles[dataset.source_color_index % pointStyles.length];
+                    dataset.pointRadius = dataset.is_frontier ? 6 : 3;
+                    dataset.pointHoverRadius = 8;
+                    dataset.pointBackgroundColor = dataset.is_frontier ? color : "#ffffff";
+                    dataset.pointBorderColor = color;
+                    dataset.pointBorderWidth = dataset.is_frontier ? 2 : 1;
+                    dataset.order = dataset.is_frontier ? 0 : 1;
+                }
             });
 
             const xScale = {
@@ -429,8 +459,8 @@
                     devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
                     animation: false,
                     interaction: {
-                        mode: "index",
-                        intersect: true
+                        mode: isPareto ? "nearest" : "index",
+                        intersect: !isPareto
                     },
                     plugins: {
                         legend: {
@@ -450,6 +480,9 @@
                                     if (!items.length) {
                                         return "";
                                     }
+                                    if (isPareto) {
+                                        return items[0].raw.run;
+                                    }
                                     const parsed = items[0].parsed;
                                     const categoryLabel = isIndexedCategory
                                         ? payload.labels[Math.round(parsed.x)]
@@ -458,6 +491,14 @@
                                         + ((isCategory || isIndexedCategory) ? categoryLabel : parsed.x);
                                 },
                                 label: function (context) {
+                                    if (isPareto) {
+                                        return [
+                                            context.dataset.label,
+                                            payload.x_axis_label + ": " + context.parsed.x,
+                                            payload.y_axis_label + ": " + context.parsed.y,
+                                            context.raw.dimensions
+                                        ].filter(Boolean);
+                                    }
                                     const value = context.parsed.y;
                                     return context.dataset.label + " — " + payload.y_axis_label + ": " + value;
                                 }
@@ -577,7 +618,7 @@
             <canvas
                 class="js-comparison-chart"
                 data-chart-data-id="{{ section.chart.id }}-data"
-                aria-label="{{ section.title }} comparison chart"
+                aria-label="{{ section.title }} {% if section.pareto %}Pareto{% else %}comparison{% endif %} chart"
             ></canvas>
         </div>
         <div class="chart-controls">
@@ -591,6 +632,9 @@
         <noscript><p class="chart-fallback">JavaScript is disabled. The complete numeric data remains available below.</p></noscript>
         <script type="application/json" id="{{ section.chart.id }}-data">{{ section.chart | tojson }}</script>
 
+        {% if section.pareto %}
+        {% include "pareto-table.jinja2" %}
+        {% else %}
         <details class="case-context">
             <summary>Compared case parameters</summary>
             <div class="case-context-grid">
@@ -673,6 +717,7 @@
             </table>
             </div>
         </div>
+        {% endif %}
     </section>
     {% endfor %}
 </div>

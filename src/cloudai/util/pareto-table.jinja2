@@ -1,0 +1,53 @@
+<div class="case-context-grid" aria-label="Frontier summaries">
+    {% for summary in section.summaries %}
+    <article class="case-context-card">
+        <h3>{{ summary.name }}</h3>
+        <p>{{ summary.candidates }} valid · <strong>{{ summary.frontier }} frontier</strong> · {{ summary.excluded }} excluded</p>
+    </article>
+    {% endfor %}
+</div>
+<p class="comparison-group">Filled markers: frontier · Hollow markers: dominated</p>
+{% if not section.points %}
+<p class="empty-report">No valid points. Review the exclusions below.</p>
+{% endif %}
+<details class="case-context">
+    <summary>Measurements and executed configurations ({{ section.points | length }})</summary>
+    <div class="comparison-table-shell">
+        <table class="comparison-table pareto-table">
+            <colgroup><col style="width: 25%"><col style="width: 10%"><col style="width: 15%"><col style="width: 15%"><col style="width: 35%"></colgroup>
+            <thead><tr>
+                <th>Frontier group / execution</th><th>Status</th>
+                <th>{{ section.chart.x_axis_label }}</th><th>{{ section.chart.y_axis_label }}</th>
+                <th>Executed configuration</th>
+            </tr></thead>
+            <tbody>
+                {% for point in section.points %}
+                <tr>
+                    <td>{{ point.group }}<br>{{ point.run }}<br><small>{{ point.dimensions }}</small></td>
+                    <td>{{ point.status }}</td>
+                    <td>{{ "%.6g" | format(point.x) }}</td><td>{{ "%.6g" | format(point.y) }}</td>
+                    <td><details><summary>View configuration</summary>
+                        <p>Results: <code>{{ point.artifact }}</code></p>
+                        <pre class="case-differences-yaml">{{ point.config }}</pre>
+                    </details></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+{% if section.excluded %}
+<details class="case-context" {% if not section.points %}open{% endif %}>
+    <summary>Excluded executions ({{ section.excluded | length }})</summary>
+    <div class="comparison-table-shell">
+        <table class="comparison-table pareto-table">
+            <thead><tr><th>Frontier group</th><th>Execution</th><th>Reason</th></tr></thead>
+            <tbody>
+                {% for exclusion in section.excluded %}
+                <tr><td>{{ exclusion.group }}</td><td>{{ exclusion.run }}</td><td>{{ exclusion.reason }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+{% endif %}
