@@ -267,15 +267,15 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs]):
         )
 
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
-        del system
         from .report_generation_strategy import parse_vllm_bench_output
 
+        gpus_per_node = getattr(system, "gpus_per_node", None)
         results = parse_vllm_bench_output(tr.output_path / VLLM_BENCH_JSON_FILE)
         accuracy = parse_vllm_semantic_accuracy(tr.output_path) if self.semantic_eval_cmd_args is not None else None
         return llm_serving_metric_observations(
             results,
             accuracy,
-            allocated_gpu_count=tr.allocated_gpu_count,
+            allocated_gpu_count=tr.nnodes * gpus_per_node if gpus_per_node else None,
             serving_gpu_count=self.serving_gpu_count,
         )
 

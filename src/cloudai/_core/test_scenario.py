@@ -102,7 +102,6 @@ class TestRun:
     extra_srun_args: str | None = None
     num_nodes_explicit: bool = False
     pin_nodes: bool = False
-    allocated_gpu_count: int | None = None
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

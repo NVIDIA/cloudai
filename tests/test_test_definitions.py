@@ -467,7 +467,7 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", path_to_benchmark="./nixlbench"),
     )
     trd = TestRunDetails.from_test_run(
-        TestRun(name="test", test=tdef, num_nodes=1, nodes=[], allocated_gpu_count=8),
+        TestRun(name="test", test=tdef, num_nodes=1, nodes=[]),
         "test cmd",
         "full cmd",
     )
@@ -476,7 +476,4 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
     serialized = toml.dumps(trd.model_dump())
     recreated = NIXLBenchTestDefinition.model_validate(toml.loads(serialized)["test_definition"])
     assert recreated == tdef
-    assert TestRunDetails.model_validate(toml.loads(serialized)).allocated_gpu_count == 8
-    legacy = toml.loads(serialized)
-    legacy.pop("allocated_gpu_count")
-    assert TestRunDetails.model_validate(legacy).allocated_gpu_count is None
+    assert TestRunDetails.model_validate(toml.loads(serialized)).nnodes == 1

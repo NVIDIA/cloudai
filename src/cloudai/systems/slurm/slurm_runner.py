@@ -42,7 +42,6 @@ class SlurmRunner(BaseRunner):
     def get_run_output(
         self, job: BaseJob, tr: TestRun, result: JobStatusResult | None = None
     ) -> cloudai.models.output.Run | None:
-        self.system.load_run_metadata(tr, self.scenario_root)
         metadata = cast(SlurmJob, job).metadata
         status: cloudai.models.output.Status = "pending"
         metrics: list[cloudai.models.output.Metric] = []
@@ -103,15 +102,8 @@ class SlurmRunner(BaseRunner):
             raise
 
     def on_job_submit(self, tr: TestRun) -> None:
-        tr.allocated_gpu_count = self.get_allocated_gpu_count(tr)
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
         cmd_gen.store_test_run()
-
-    def get_allocated_gpu_count(self, tr: TestRun) -> int | None:
-        if not self.system.gpus_per_node:
-            return None
-        nnodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes, exclude_nodes=tr.exclude_nodes or None)
-        return nnodes * self.system.gpus_per_node
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")

@@ -78,10 +78,11 @@ best configurations independently:
 ``cases`` contains scenario ``[[Tests]].id`` values. A single sweep case and multiple fixed-concurrency cases
 are handled identically: all their measurements compete within the named frontier.
 
-For Y, ``output_token_throughput_per_allocated_gpu`` divides output tokens/s by the Slurm reservation, including
-idle GPUs; in single-sbatch mode this is the whole batch's reservation. ``output_token_throughput_per_serving_gpu``
-uses the configured serving layout, summing prefill and decode GPUs. It describes configured devices, not measured
-GPU utilization. Counts appear in point details; unavailable counts leave the corresponding metric unavailable.
+For Y, ``output_token_throughput_per_allocated_gpu`` divides output tokens/s by the run's ``num_nodes`` times the
+system's ``gpus_per_node``, including idle GPUs on those nodes. Saved executions provide their node count in
+``test-run.toml``; a larger single-sbatch reservation does not change it. ``output_token_throughput_per_serving_gpu``
+uses the configured serving layout, summing prefill and decode GPUs. Counts appear in point details and describe
+configured devices, not measured GPU utilization. An unavailable GPU count leaves its metric unavailable.
 
 Reading and regenerating the report
 -----------------------------------

@@ -81,8 +81,6 @@ class Reporter(ABC):
             if dump.is_file():
                 details = toml.load(dump)
                 tr.num_nodes = details.get("nnodes", tr.num_nodes)
-                tr.allocated_gpu_count = details.get("allocated_gpu_count")
-            self.system.load_run_metadata(tr, self.results_root)
             logging.debug(f"Test run: {tr.name} {tr.output_path}")
 
     @abstractmethod

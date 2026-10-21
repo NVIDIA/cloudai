@@ -92,8 +92,6 @@ def test_slurm_run_output(
         ) as get_metrics,
         mock.patch.object(runner.experiment_output, "write", wraps=runner.experiment_output.write) as write,
     ):
-        runner.on_job_submit(base_tr)
-        assert base_tr.allocated_gpu_count == slurm_system.gpus_per_node
         for index, expected in enumerate(("pending", "running", "running", status)):
             write.reset_mock()
             is_running.reset_mock()

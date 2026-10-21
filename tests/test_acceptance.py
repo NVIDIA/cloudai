@@ -977,7 +977,7 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
             inputs["bench_cmd_args"]["max_concurrency"] = 8
             inputs["cmd_args"]["decode"]["tensor_parallel_size" if workload == "vllm" else "tp_size"] = 4
             executed = cls.model_validate(inputs)
-            resolved = TestRun("sweep", executed, 2, [], output_path=folder, allocated_gpu_count=24)
+            resolved = TestRun("sweep", executed, 2, [], output_path=folder)
             (folder / "test-run.toml").write_text(
                 toml.dumps(TestRunDetails.from_test_run(resolved, "", "").model_dump())
             )
@@ -1023,6 +1023,12 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
             }
         )
     )
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    for node in range(6):
+        (metadata / f"node-{node}.toml").write_text(
+            toml.dumps({"system": {"gpu_count": 8}, "slurm": {"num_nodes": "6"}})
+        )
     scenario = Parser.parse_test_scenario(scenario_path, slurm_system, {})
     generate_reports(slurm_system, scenario, tmp_path)
 
@@ -1040,16 +1046,17 @@ def test_pareto_report_from_saved_inference_results(slurm_system: SlurmSystem, t
     assert all("x_reverse" not in chart and "y_reverse" not in chart for chart in charts)
     assert [len(dataset["data"]) for dataset in charts[2]["datasets"]] == [2, 1]
     assert all(dataset["is_frontier"] for dataset in charts[2]["datasets"])
-    normalized = charts[3]["datasets"][0]["data"]
-    assert len(normalized) == 1
-    assert (normalized[0]["x"], normalized[0]["y"]) == (1, 15 / 24)
-    context = normalized[0]["context"]
+    normalized = [point for dataset in charts[3]["datasets"] for point in dataset["data"]]
+    assert len(normalized) == 3
+    sweep_point = next(point for point in normalized if point["artifact"] == "sweep/0/1")
+    assert (sweep_point["x"], sweep_point["y"]) == (1, 15 / 16)
+    context = sweep_point["context"]
     assert context["Concurrency"] == 8
     assert context["Decode / TP"] == 4
     assert context["Nodes"] == 2
     assert context["Model"] == definition.cmd_args.model
     assert context["Input tokens"] == 16 and context["Output tokens"] == 128
-    assert context["Allocated GPUs"] == 24 and context["Serving GPUs"] == 4
+    assert context["Allocated GPUs"] == 16 and context["Serving GPUs"] == 4
     assert charts[4]["datasets"] == []
     assert "No valid points" in html and "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)</script>" not in html
