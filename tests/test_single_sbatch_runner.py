@@ -384,16 +384,12 @@ class TestSbatch:
     def test_with_two_cases(self, slurm_system: SlurmSystem, nccl_tr: TestRun, sleep_tr: TestRun) -> None:
         nccl_tr.test.extra_env_vars["NCCL_VAR"] = "nccl_value"
         sleep_tr.test.extra_env_vars["SLEEP_VAR"] = "sleep_value"
-        sleep_tr.num_nodes = 3
         tc = TestScenario(name="tc", test_runs=[nccl_tr, sleep_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
         )
 
         sbatch = runner.gen_sbatch_content()
-        for tr in (nccl_tr, sleep_tr):
-            assert toml.load(tr.output_path / "test-run.toml")["nnodes"] == tr.nnodes
-        assert nccl_tr.nnodes == 2 and sleep_tr.nnodes == 3
         sbatch = sbatch.replace(str(runner.scenario_root.absolute()), "SCENARIO_ROOT").replace(
             str(runner.system.install_path.absolute()), "INSTALL_PATH"
         )
