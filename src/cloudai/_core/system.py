@@ -28,7 +28,6 @@ from .installables import Installable
 
 if TYPE_CHECKING:
     from .base_job import BaseJob
-    from .test_scenario import TestRun
 
 
 class System(ABC, BaseModel):
@@ -44,9 +43,6 @@ class System(ABC, BaseModel):
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: float = 1.0
     sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
-
-    def load_run_metadata(self, tr: "TestRun", results_root: Path) -> None:
-        """Restore scheduler-owned execution details for offline reporting."""
 
     @field_validator("install_path")
     @classmethod

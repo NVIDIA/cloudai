@@ -285,7 +285,6 @@ class TestRunDetails(BaseModel):
     test_cmd: str
     full_cmd: str
     test_definition: Any
-    allocated_gpu_count: int | None = Field(default=None, gt=0)
 
     @field_serializer("output_path")
     def _path_serializer(self, v: Path) -> str:
@@ -318,5 +317,4 @@ class TestRunDetails(BaseModel):
             test_cmd=test_cmd,
             full_cmd=full_cmd,
             test_definition=tr.test,
-            allocated_gpu_count=tr.allocated_gpu_count,
         )

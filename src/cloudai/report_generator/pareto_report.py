@@ -178,7 +178,7 @@ def format_number(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def inference_context(tr: cloudai.core.TestRun) -> dict[str, typing.Any]:
+def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> dict[str, typing.Any]:
     """Summarize explicitly configured inference settings, including serving roles."""
     labels = {
         "model": "Model",
@@ -203,8 +203,9 @@ def inference_context(tr: cloudai.core.TestRun) -> dict[str, typing.Any]:
         "gpu_ids": "GPU IDs",
     }
     context: dict[str, typing.Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
-    if tr.allocated_gpu_count is not None:
-        context["Allocated GPUs"] = tr.allocated_gpu_count
+    gpus_per_node = getattr(system, "gpus_per_node", None)
+    if gpus_per_node is not None and gpus_per_node > 0:
+        context["Allocated GPUs"] = tr.nnodes * gpus_per_node
     if serving_gpus := getattr(tr.test, "serving_gpu_count", None):
         context["Serving GPUs"] = serving_gpus
 
@@ -266,10 +267,8 @@ class ParetoReporter(cloudai.core.Reporter):
                 tr.test = details.test_definition
                 tr.num_nodes = details.nnodes
                 tr.nodes = details.nodes
-                tr.allocated_gpu_count = details.allocated_gpu_count
             elif tr.is_dse_job:
                 raise ValueError("Missing test-run.toml for sweep step")
-            self.system.load_run_metadata(tr, self.results_root)
             run.config = toml.dumps(
                 {
                     "num_nodes": tr.nnodes,
@@ -325,7 +324,7 @@ class ParetoReporter(cloudai.core.Reporter):
                             "y": y.value,
                             "run": run.label,
                             "group": frontier.name,
-                            "context": inference_context(run.tr),
+                            "context": inference_context(run.tr, self.system),
                             "dimensions": dimensions,
                             "config": run.config,
                             "artifact": run.tr.output_path.relative_to(self.results_root).as_posix(),

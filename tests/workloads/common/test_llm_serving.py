@@ -503,11 +503,11 @@ def serving_observation_run(request: pytest.FixtureRequest, tmp_path: Path) -> t
     return tr, result_path, data
 
 
-@pytest.mark.parametrize("allocated_gpus", [None, 24])
-def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observation_run, allocated_gpus) -> None:
+@pytest.mark.parametrize("gpus_per_node", [None, 12])
+def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observation_run, gpus_per_node) -> None:
     tr, _, _ = serving_observation_run
     tr.num_nodes = 2
-    tr.allocated_gpu_count = allocated_gpus
+    slurm_system.gpus_per_node = gpus_per_node
     # Both engines must use output tokens/s, despite their different legacy throughput properties.
     args = tr.test.cmd_args.decode.model_dump()
     args.update(
@@ -529,7 +529,7 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
         ("tpot", "median"): (10.0, "ms"),
         ("tpot", "p99"): (20.0, "ms"),
     }
-    if allocated_gpus is not None:
+    if gpus_per_node is not None:
         expected[("output_token_throughput_per_allocated_gpu", None)] = (100.0, "tokens/s/GPU")
     assert (
         len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations}) == len(expected)
@@ -543,7 +543,7 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
     assert tr.test.metric_observations(slurm_system, tr) == observations
 
     if tr.name == "sglang":
-        args["enable_dp_attention"] = True if allocated_gpus else ""
+        args["enable_dp_attention"] = True if gpus_per_node else ""
         args["dp_size"] = 2
         tr.test.cmd_args.decode = type(tr.test.cmd_args.decode).model_validate(args)
         assert tr.test.serving_gpu_count == 4
