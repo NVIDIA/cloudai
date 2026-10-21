@@ -2,8 +2,7 @@ Pareto Frontiers
 ================
 
 The ``pareto`` scenario report writes ``pareto.html`` in the scenario results directory. Each plot compares two
-metrics. A point is on the frontier when no other point in its group is at least as good on both axes and better
-on one. Successful iterations and sweep steps supply the points: one test case can contribute several points,
+metrics. Successful iterations and sweep steps supply the points: one test case can contribute several points,
 and several cases can contribute to one frontier.
 
 Usage Example
@@ -34,9 +33,6 @@ Available Metrics
 Use the metric keys below in either ``x.metric`` or ``y.metric``. Each axis must select exactly one measurement
 from each execution. ``match`` selects among measurements of the same metric, such as different statistics or
 message sizes. Missing or ambiguous measurements are listed as exclusions in the report.
-
-Inference
-~~~~~~~~~
 
 Both ``vllm`` and ``sglang`` expose these metrics:
 
@@ -84,41 +80,6 @@ The two GPU-normalized metrics divide total output tokens/s by different counts:
 
 Choose the denominator that matches your comparison and use it consistently. A normalized metric is omitted
 when its GPU count cannot be determined.
-
-Communication and Training
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 40 40
-
-   * - Workload
-     - Metrics (unit; default direction)
-     - Measurement selectors
-   * - ``NcclTest``
-     - ``latency`` (us; minimize), ``bandwidth`` (GB/s; maximize)
-     - ``operation``, ``placement``, ``size_bytes``; bandwidth also has ``bandwidth_basis = "bus"``
-   * - ``NIXLBench``
-     - ``latency`` (us; minimize), ``bandwidth`` (GB/s; maximize)
-     - ``operation``, ``size_bytes``, ``batch_size``, ``backend``, ``source_memory``, ``target_memory``;
-       bandwidth also has ``bandwidth_basis = "payload"``
-   * - ``MegatronRun``
-     - ``iteration_time`` (ms; minimize), ``tflops_per_gpu`` (TFLOP/s/GPU; maximize)
-     - None. Values are means over the last ten iteration metric lines, or all lines if fewer are available.
-
-For NCCL and NIXL Bench, select enough dimensions to identify one measurement per axis. A frontier's ``match``
-filters both axes; an axis's ``match`` applies only to that axis. For example, append this plot to an NCCL
-scenario's enabled Pareto report to compare latency and bus bandwidth for 1 MiB all-reduce messages:
-
-.. code-block:: toml
-
-   [[reports.pareto.plots]]
-   name = "All-reduce latency vs bus bandwidth"
-   x = { metric = "latency" }
-   y = { metric = "bandwidth", match = { bandwidth_basis = "bus" } }
-   [[reports.pareto.plots.frontiers]]
-   name = "All configurations"
-   match = { operation = "all_reduce", placement = "out_of_place", size_bytes = 1048576 }
 
 Examples and Best Practices
 ---------------------------
@@ -169,9 +130,8 @@ inference report, replacing the ``cases`` entries with your scenario's ``[[Tests
 Here, Version A combines three cases into one frontier; Version B uses every successful point from one sweep
 case. Combining both versions into a single group would instead select the best points across both versions.
 
-The default optimization directions suit the examples above. To override one, add ``direction = "minimize"``
-or ``direction = "maximize"`` to that axis's selector. This changes which points dominate others; it does not
-reverse the displayed axis.
+``direction = "minimize"`` or ``direction = "maximize"`` overrides which values are preferred on an axis.
+Both axes retain ascending numeric scales. Use the default directions listed above for these inference metrics.
 
 Viewing and Regenerating Reports
 --------------------------------
