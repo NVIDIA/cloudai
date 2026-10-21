@@ -626,11 +626,29 @@ class MegatronBridgeTestDefinition(TestDefinition):
             )
 
         log_data = log_path.read_text(encoding="utf-8", errors="ignore")
+        nonfinite_metrics = extract_nonfinite_training_metrics(log_data)
+        if nonfinite_metrics:
+            return JobStatusResult(
+                is_successful=False,
+                error_message="Non-finite Megatron-Bridge training metrics found: "
+                + ", ".join(f"{name}={value}" for name, value in nonfinite_metrics),
+            )
+
         step_times_s, _ = extract_mbridge_metrics(log_data)
         if not step_times_s:
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         return JobStatusResult(is_successful=True)
+
+
+def extract_nonfinite_training_metrics(logs: str) -> list[tuple[str, str]]:
+    """Return loss and gradient metrics whose logged values are NaN or infinity."""
+    metric_re = re.compile(
+        r"\b(?P<name>lm\s+loss|loss|grad(?:ient)?\s+norm)\s*:\s*"
+        r"(?P<value>[+-]?(?:nan|inf(?:inity)?))\b",
+        re.IGNORECASE,
+    )
+    return [(match.group("name"), match.group("value")) for match in metric_re.finditer(logs)]
 
 
 def extract_mbridge_metrics(logs: str) -> tuple[list[float], list[float]]:

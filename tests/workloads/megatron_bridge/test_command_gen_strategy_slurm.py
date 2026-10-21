@@ -491,6 +491,11 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             ("", False),
             ("any\bthing", False),
             ("ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU", True),
+            (
+                "ain_fp8_mx/0 Step Time : 9.09s GPU utilization: 663.5MODEL_TFLOP/s/GPU\n"
+                "lm loss: NaN | grad norm: NaN |",
+                False,
+            ),
         ),
     )
     def test_was_run_successful(
@@ -503,6 +508,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         tdef = cast(MegatronBridgeTestDefinition, tr.test)
         result = tdef.was_run_successful(tr)
         assert result.is_successful is expected_is_successful
+
+        if log_content and "NaN" in log_content:
+            assert "Non-finite Megatron-Bridge training metrics" in result.error_message
 
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
