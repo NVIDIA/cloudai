@@ -96,6 +96,9 @@ projects migrate to direct ``TestRun`` serialization. It returns the actual
 
 Migration notes for direct model users:
 
+* Scenario-case lists replace test-file lists: ``git_repos = []`` clears inherited
+  repositories. Omit the setting to inherit them. Dictionaries merge by key, so
+  ``extra_env_vars = {}`` preserves inherited environment variables.
 * ``TestRunModel`` and ``TestScenarioModel`` are removed. Use ``TestDefinition``
   and ``TestScenario``. Pass unresolved ``test_name`` or ``path`` references
   through the existing parsers, which resolve them before model validation.

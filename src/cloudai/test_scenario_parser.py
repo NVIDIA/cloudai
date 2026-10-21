@@ -157,13 +157,13 @@ class TestScenarioParser:
                 logging.error(msg)
                 raise TestScenarioParsingError(msg)
 
-        test_runs_by_id: dict[str, TestRun] = {
-            (trm.id or trm.name): self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
+        test_runs_by_id = {
+            trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
             for trm in ts_model.tests
         }
 
         for test_info in ts_model.tests:
-            tr = test_runs_by_id[test_info.id or test_info.name]
+            tr = test_runs_by_id[test_info.id]
             tr.dependencies = {
                 dep.type: TestDependency(test_run=test_runs_by_id[dep.id]) for dep in test_info.dependencies
             }
@@ -217,21 +217,12 @@ class TestScenarioParser:
         )
         return TestRun(test=prepared, pre_test=pre_test, post_test=post_test)
 
-    def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:  # noqa: C901
+    def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:
         """Resolve a scenario item into its sole, workload-specific definition model."""
         if not isinstance(data, dict):
             raise ValueError("Each Tests item must be a table")
 
         overrides = {key: value for key, value in data.items() if value is not None}
-
-        # Empty overrides preserve values from the referenced test
-        # test: [extra_env_vars] A=B
-        # scenario case: [extra_env_vars]
-        # resolved scenario case: [extra_env_vars] A=B
-        if overrides.get("extra_env_vars") == {}:
-            overrides.pop("extra_env_vars")
-        if overrides.get("git_repos") == []:
-            overrides.pop("git_repos")
 
         test_name = overrides.pop("test_name", None)
         path = overrides.pop("path", None)
