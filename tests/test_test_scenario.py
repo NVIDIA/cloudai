@@ -174,7 +174,7 @@ def test_malformed_empty_overrides_are_rejected(field: str, value: object, test_
         )
 
 
-def test_valid_empty_overrides_retain_referenced_values(test_scenario_parser: TestScenarioParser):
+def test_empty_overrides_follow_normal_merge_rules(test_scenario_parser: TestScenarioParser):
     base = test_scenario_parser.test_mapping["nccl"]
     repo = GitRepo(url="https://example.com/repo.git", commit="main")
     test_scenario_parser.test_mapping = {
@@ -184,7 +184,7 @@ def test_valid_empty_overrides_retain_referenced_values(test_scenario_parser: Te
         {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", "extra_env_vars": {}, "git_repos": []}]}
     )
     assert scenario.tests[0].extra_env_vars == {"KEEP": "value"}
-    assert scenario.tests[0].git_repos == [repo]
+    assert scenario.tests[0].git_repos == []
 
 
 def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
