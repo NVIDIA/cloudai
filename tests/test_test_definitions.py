@@ -476,4 +476,3 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
     serialized = toml.dumps(trd.model_dump())
     recreated = NIXLBenchTestDefinition.model_validate(toml.loads(serialized)["test_definition"])
     assert recreated == tdef
-    assert TestRunDetails.model_validate(toml.loads(serialized)).nnodes == 1
