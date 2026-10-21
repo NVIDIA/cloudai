@@ -77,10 +77,6 @@ class Reporter(ABC):
 
         logging.debug(f"Loaded {len(self.trs)} test runs for {self.test_scenario.name} in {self.results_root}")
         for tr in self.trs:
-            dump = tr.output_path / "test-run.toml"
-            if dump.is_file():
-                details = toml.load(dump)
-                tr.num_nodes = details.get("nnodes", tr.num_nodes)
             logging.debug(f"Test run: {tr.name} {tr.output_path}")
 
     @abstractmethod

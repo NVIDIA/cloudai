@@ -62,9 +62,6 @@ class TestLoadTestTuns:
             slurm_system.output_path,
             ReportConfig(),
         )
-        for i in range(benchmark_tr.iterations):
-            run_dir = slurm_system.output_path / benchmark_tr.name / str(i)
-            (run_dir / "test-run.toml").write_text(toml.dumps({"nnodes": i + 1}))
         reporter.load_test_runs()
 
         assert len(reporter.trs) == benchmark_tr.iterations
@@ -73,7 +70,6 @@ class TestLoadTestTuns:
             assert tr.current_iteration == i
             assert tr.step == 0
             assert tr.output_path == slurm_system.output_path / benchmark_tr.name / str(i)
-            assert tr.nnodes == i + 1
 
     def test_load_test_runs_dse_sorted(self, slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
         reporter = PerTestReporter(
