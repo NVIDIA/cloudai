@@ -14,93 +14,315 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import random
+import copy
+import json
+from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+import toml
 
-import cloudai.metrics as metrics
-from cloudai.core import TestRun
-from cloudai.models.scenario import parse_reports_spec
-from cloudai.report_generator.pareto_report import (
-    MetricSelector,
-    ParetoPlotConfig,
-    ParetoReportConfig,
-    ParetoReporter,
-    RunObservations,
-    pareto_mask,
-)
+import cloudai.core
+import cloudai.models.scenario
+import cloudai.report_generator.pareto_report as pareto_report
+import cloudai.systems.slurm
+import cloudai.workloads.sglang
+import cloudai.workloads.vllm
 
 
-@pytest.mark.parametrize("directions", list(itertools.product(metrics.OptimizationDirection, repeat=2)))
-def test_pareto_matches_dominance_definition(directions):
-    rng = random.Random(42)
-    points = [(rng.randint(-10, 10), rng.randint(-10, 10)) for _ in range(100)]
-    signs = [1 if d == metrics.OptimizationDirection.MAXIMIZE else -1 for d in directions]
-    scores = [(signs[0] * x, signs[1] * y) for x, y in points]
-    expected = [not any(a >= x and b >= y and (a > x or b > y) for a, b in scores) for x, y in scores]
-    assert pareto_mask(points, *directions) == expected
-    assert pareto_mask([], *directions) == []
-    assert pareto_mask([(0, 0), (0, 0)], *directions) == [True, True]
-    with pytest.raises(ValueError, match="finite"):
-        pareto_mask([(float("nan"), 1)], *directions)
-
-
-def plot_config(cases: list[str]) -> ParetoPlotConfig:
-    return ParetoPlotConfig.model_validate(
+@pytest.fixture(params=["vllm", "sglang"])
+def pareto_reporter(
+    slurm_system: cloudai.systems.slurm.SlurmSystem, tmp_path: Path, request: pytest.FixtureRequest
+) -> pareto_report.ParetoReporter:
+    workload = request.param
+    cls = (
+        cloudai.workloads.vllm.VllmTestDefinition
+        if workload == "vllm"
+        else cloudai.workloads.sglang.SglangTestDefinition
+    )
+    definition = cls.model_validate(
         {
-            "name": "Latency vs throughput",
-            "x": {"metric": "ttft", "match": {"statistic": "p99"}},
-            "y": {"metric": "output_token_throughput"},
-            "frontiers": [{"name": "Version A", "cases": cases}],
+            "name": "test",
+            "description": "test",
+            "test_template_name": workload,
+            "cmd_args": {"docker_image_url": "example/image:latest", "model": "example/model"},
         }
     )
-
-
-def test_configuration_and_selectors():
-    config = {"enable": True, "plots": [plot_config(["a"]).model_dump()]}
-    parsed = parse_reports_spec({"pareto": config})
-    assert parsed is not None and isinstance(parsed["pareto"], ParetoReportConfig)
-    assert plot_config(["a"]).x.resolved_direction == metrics.OptimizationDirection.MINIMIZE
-    assert (
-        MetricSelector(metric="ttft", direction=metrics.OptimizationDirection.MAXIMIZE).resolved_direction.value
-        == "maximize"
+    executed = copy.deepcopy(definition)
+    executed.bench_cmd_args.max_concurrency = 8
+    setattr(executed.cmd_args.decode, "tensor_parallel_size" if workload == "vllm" else "tp_size", 4)
+    for relative, x, y in [("ordinary/0", 2, 20), ("ordinary/1", 1, 10), ("sweep/0/1", 3, 15)]:
+        folder = tmp_path / relative
+        folder.mkdir(parents=True)
+        data = {
+            "num_prompts": 10,
+            "completed": 10,
+            "max_concurrency": 4,
+            "mean_ttft_ms": x,
+            "median_ttft_ms": x,
+            "p99_ttft_ms": x,
+            "mean_tpot_ms": 1,
+            "median_tpot_ms": 1,
+            "p99_tpot_ms": 1,
+            "request_throughput": 1,
+            "output_throughput": y,
+        }
+        (folder / ("vllm-bench.json" if workload == "vllm" else "sglang-bench.jsonl")).write_text(json.dumps(data))
+        (folder / "vllm-bench.log").write_text(
+            "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
+        )
+        if relative.startswith("sweep"):
+            resolved = cloudai.core.TestRun("sweep", executed, 2, [], output_path=folder)
+            (folder / "test-run.toml").write_text(
+                toml.dumps(cloudai.models.scenario.TestRunDetails.from_test_run(resolved, "", "").model_dump())
+            )
+    for relative in ("sweep/0/2", "sweep/controller", "empty-sweep/0/controller"):
+        (tmp_path / relative).mkdir(parents=True)
+    plot = {
+        "name": "All configurations",
+        "x": {"metric": "ttft", "match": {"statistic": "p99"}},
+        "y": {"metric": "output_token_throughput"},
+        "frontiers": [{"name": "All"}],
+    }
+    config = pareto_report.ParetoReportConfig.model_validate(
+        {
+            "enable": True,
+            "plots": [
+                plot,
+                {
+                    **plot,
+                    "name": "Per allocated GPU",
+                    "x": {"metric": "tpot", "match": {"statistic": "mean"}, "direction": "maximize"},
+                    "y": {"metric": "output_token_throughput_per_allocated_gpu"},
+                    "frontiers": [
+                        {"name": "Ordinary", "cases": ["ordinary"]},
+                        {"name": "Sweep", "cases": ["sweep", "missing", "empty-sweep"]},
+                    ],
+                },
+                {
+                    **plot,
+                    "name": "Missing accuracy",
+                    "y": {"metric": "accuracy"},
+                    "frontiers": [{"name": "All", "cases": []}],
+                },
+                {**plot, "name": "Ambiguous latency", "x": {"metric": "ttft"}},
+            ],
+        }
     )
-    for change in ({"metric": "missing"}, {"metric": "ttft", "direction": "up"}):
-        with pytest.raises(ValidationError):
-            MetricSelector.model_validate(change)
-    with pytest.raises(ValidationError, match="at least one plot"):
-        ParetoReportConfig(enable=True)
+    scenario = cloudai.core.TestScenario(
+        name="example",
+        test_runs=[
+            cloudai.core.TestRun("ordinary", definition, 1, [], iterations=2),
+            cloudai.core.TestRun("sweep", definition, [1, 2], []),
+            cloudai.core.TestRun("missing", definition, 1, []),
+            cloudai.core.TestRun("empty-sweep", definition, [1, 2], []),
+        ],
+    )
+    return pareto_report.ParetoReporter(slurm_system, scenario, tmp_path, config)
 
 
-def observations(x: float, y: float):
-    return [
-        metrics.MetricObservation(metrics.TTFT, x, {"statistic": "p99"}),
-        metrics.MetricObservation(metrics.OUTPUT_TOKEN_THROUGHPUT, y, {}),
+def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
+    definition = pareto_reporter.test_scenario.test_runs[0].test.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    sweep_definition = copy.deepcopy(definition)
+    sweep_definition["bench_cmd_args"]["max_concurrency"] = 8
+    tp_key = "tensor_parallel_size" if definition["test_template_name"] == "vllm" else "tp_size"
+    sweep_definition["cmd_args"]["decode"][tp_key] = 4
+    context = {
+        "Workload": definition["test_template_name"],
+        "Nodes": 1,
+        "Allocated GPUs": 8,
+        "Serving GPUs": 1,
+        "Model": "example/model",
+        "Input tokens": 16,
+        "Output tokens": 128,
+        "Concurrency": 16,
+        "Requests": 30,
+    }
+    points = [
+        {
+            "x": 2,
+            "y": 20,
+            "run": "ordinary · iteration=0 · step=0",
+            "group": "All",
+            "context": context,
+            "dimensions": "x.statistic=p99",
+            "config": toml.dumps({"num_nodes": 1, "test": definition}),
+            "artifact": "ordinary/0",
+            "status": "Frontier",
+            "id": "pareto-0-point-0",
+        },
+        {
+            "x": 1,
+            "y": 10,
+            "run": "ordinary · iteration=1 · step=0",
+            "group": "All",
+            "context": context,
+            "dimensions": "x.statistic=p99",
+            "config": toml.dumps({"num_nodes": 1, "test": definition}),
+            "artifact": "ordinary/1",
+            "status": "Frontier",
+            "id": "pareto-0-point-1",
+        },
+        {
+            "x": 3,
+            "y": 15,
+            "run": "sweep · iteration=0 · step=1",
+            "group": "All",
+            "context": {
+                **context,
+                "Nodes": 2,
+                "Allocated GPUs": 16,
+                "Serving GPUs": 4,
+                "Concurrency": 8,
+                "Decode / TP": 4,
+            },
+            "dimensions": "x.statistic=p99",
+            "config": toml.dumps({"num_nodes": 2, "test": sweep_definition}),
+            "artifact": "sweep/0/1",
+            "status": "Dominated",
+            "id": "pareto-0-point-2",
+        },
     ]
-
-
-def test_axis_selectors_and_frontier_filter(base_tr: TestRun):
-    plot = plot_config([base_tr.name])
-    frontier = plot.frontiers[0]
-    run = RunObservations(base_tr, observations(1, 10))
-    run.observations.append(metrics.MetricObservation(metrics.TTFT, 2, {"statistic": "mean"}))
-    plot.x.match = {}
-    with pytest.raises(ValueError, match="Ambiguous"):
-        ParetoReporter.select_pair(run, plot, frontier)
-    plot.x.match = {"statistic": "p99"}
-    assert ParetoReporter.select_pair(run, plot, frontier)[0].value == 1
-    run.observations = run.observations[:1]
-    with pytest.raises(ValueError, match="Missing"):
-        ParetoReporter.select_pair(run, plot, frontier)
-    run.observations = [
-        metrics.MetricObservation(metrics.TTFT, 1, {"statistic": "p99", "backend": "one"}),
-        metrics.MetricObservation(metrics.OUTPUT_TOKEN_THROUGHPUT, 10, {"backend": "two"}),
+    excluded = [
+        {"group": "All", "run": "sweep · iteration=0 · step=2", "reason": "Missing test-run.toml for sweep step"},
+        {"group": "All", "run": "missing · iteration=0 · step=0", "reason": "No execution results found"},
+        {"group": "All", "run": "empty-sweep · iteration=0 · step=0", "reason": "No sweep steps found in iteration 0"},
     ]
-    plot.x.match = {"statistic": "p99", "backend": "one"}
-    plot.y.match = {"backend": "two"}
-    assert ParetoReporter.select_pair(run, plot, frontier) == tuple(run.observations)
-    frontier.match = {"backend": "one"}
-    with pytest.raises(ValueError, match="Missing"):
-        ParetoReporter.select_pair(run, plot, frontier)
+    chart = {
+        "id": "pareto-0",
+        "type": "scatter",
+        "pareto": True,
+        "x_axis_type": "linear",
+        "y_axis_type": "linear",
+        "x_axis_label": "P99 Time to first token (ms)",
+        "y_axis_label": "Output token throughput (tokens/s)",
+    }
+    ordinary_data = [{k: v for k, v in point.items() if k != "config"} for point in points[:2]]
+    sweep_data = {k: v for k, v in points[2].items() if k != "config"}
+    normalized_points = [
+        {
+            **point,
+            "x": 1,
+            "y": y,
+            "group": group,
+            "status": status,
+            "dimensions": "x.statistic=mean",
+            "id": f"pareto-1-point-{i}",
+        }
+        for i, (point, y, group, status) in enumerate(
+            zip(
+                points,
+                [20 / 8, 10 / 8, 15 / 16],
+                ["Ordinary", "Ordinary", "Sweep"],
+                ["Frontier", "Dominated", "Frontier"],
+                strict=True,
+            )
+        )
+    ]
+    normalized_data = [{k: v for k, v in point.items() if k != "config"} for point in normalized_points]
+    expected = [
+        {
+            "pareto": True,
+            "title": "All configurations",
+            "summaries": [{"name": "All", "candidates": 3, "frontier": 2, "excluded": 3}],
+            "points": points,
+            "excluded": excluded,
+            "chart": {
+                **chart,
+                "datasets": [
+                    {
+                        "label": "All",
+                        "data": ordinary_data[::-1],
+                        "source_color_index": 0,
+                        "is_frontier": True,
+                        "hidden": False,
+                    },
+                    {
+                        "label": "All · dominated",
+                        "data": [sweep_data],
+                        "source_color_index": 0,
+                        "is_frontier": False,
+                        "hidden": True,
+                    },
+                ],
+            },
+        },
+        {
+            "pareto": True,
+            "title": "Per allocated GPU",
+            "summaries": [
+                {"name": "Ordinary", "candidates": 2, "frontier": 1, "excluded": 0},
+                {"name": "Sweep", "candidates": 1, "frontier": 1, "excluded": 3},
+            ],
+            "points": normalized_points,
+            "excluded": [{**item, "group": "Sweep"} for item in excluded],
+            "chart": {
+                **chart,
+                "id": "pareto-1",
+                "x_axis_label": "MEAN Time per output token (ms)",
+                "y_axis_label": "Output throughput per allocated GPU (tokens/s/GPU)",
+                "datasets": [
+                    {
+                        "label": "Ordinary",
+                        "data": [normalized_data[0]],
+                        "source_color_index": 0,
+                        "is_frontier": True,
+                        "hidden": False,
+                    },
+                    {
+                        "label": "Ordinary · dominated",
+                        "data": [normalized_data[1]],
+                        "source_color_index": 0,
+                        "is_frontier": False,
+                        "hidden": True,
+                    },
+                    {
+                        "label": "Sweep",
+                        "data": [normalized_data[2]],
+                        "source_color_index": 1,
+                        "is_frontier": True,
+                        "hidden": False,
+                    },
+                ],
+            },
+        },
+        *[
+            {
+                "pareto": True,
+                "title": title,
+                "summaries": [{"name": "All", "candidates": 0, "frontier": 0, "excluded": 6}],
+                "points": [],
+                "excluded": [{"group": "All", "run": point["run"], "reason": reason} for point in points] + excluded,
+                "chart": {
+                    **chart,
+                    "id": f"pareto-{index}",
+                    "x_axis_label": x_label,
+                    "y_axis_label": y_label,
+                    "datasets": [],
+                },
+            }
+            for index, title, reason, x_label, y_label in [
+                (
+                    2,
+                    "Missing accuracy",
+                    "Missing metric 'accuracy' matching {}",
+                    "P99 Time to first token (ms)",
+                    "Accuracy (ratio)",
+                ),
+                (
+                    3,
+                    "Ambiguous latency",
+                    "Ambiguous metric 'ttft': 3 observations; specify match dimensions",
+                    "Time to first token (ms)",
+                    "Output token throughput (tokens/s)",
+                ),
+            ]
+        ],
+    ]
+    assert pareto_reporter.build_sections(pareto_reporter.collect_runs()) == expected
+
+
+def test_generate_html(pareto_reporter: pareto_report.ParetoReporter) -> None:
+    pareto_reporter.generate()
+    assert (pareto_reporter.results_root / "pareto.html").stat().st_size > 0
