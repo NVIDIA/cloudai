@@ -642,7 +642,6 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
 
 def extract_nonfinite_training_metrics(logs: str) -> list[tuple[str, str]]:
-    """Return loss and gradient metrics whose logged values are NaN or infinity."""
     metric_re = re.compile(
         r"\b(?P<name>lm\s+loss|loss|grad(?:ient)?\s+norm)\s*:\s*"
         r"(?P<value>[+-]?(?:nan|inf(?:inity)?))\b",
