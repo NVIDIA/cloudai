@@ -20,7 +20,7 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .megatron_bridge import extract_mbridge_metrics
+from .megatron_bridge import extract_mbridge_metrics, extract_nonfinite_training_metrics
 
 
 class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
@@ -109,6 +109,15 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
             logging.error(
                 "No Megatron-Bridge launcher log file found in: %s",
                 self.test_run.output_path,
+            )
+            return METRIC_ERROR
+        log_data = log_file.read_text(encoding="utf-8", errors="ignore")
+        nonfinite_metrics = extract_nonfinite_training_metrics(log_data)
+        if nonfinite_metrics:
+            logging.error(
+                "Non-finite Megatron-Bridge training metrics found in %s: %s",
+                log_file,
+                ", ".join(f"{name}={value}" for name, value in nonfinite_metrics),
             )
             return METRIC_ERROR
         if not step_times_s:

@@ -20,6 +20,7 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import TestRun
+from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStrategy
 
@@ -55,3 +56,24 @@ def test_megatron_bridge_extract_and_generate_report(slurm_system: SlurmSystem, 
     content = report_path.read_text()
     assert "Step Time" in content
     assert "TFLOP/s per GPU" in content
+
+
+@pytest.mark.parametrize(
+    "training_metrics",
+    [
+        "lm loss: NaN | grad norm: 0.042 |",
+        "lm loss: 8.114214E+00 | grad norm: nan |",
+        "loss: +inf | gradient norm: 0.042 |",
+        "loss: 8.114214E+00 | gradient norm: -Infinity |",
+    ],
+)
+def test_megatron_bridge_rejects_nonfinite_training_metrics(
+    slurm_system: SlurmSystem, mb_tr: TestRun, training_metrics: str
+) -> None:
+    log_path = mb_tr.output_path / "cloudai_megatron_bridge_launcher.log"
+    log_path.write_text(log_path.read_text() + training_metrics)
+
+    strategy = MegatronBridgeReportGenerationStrategy(slurm_system, mb_tr)
+
+    assert strategy.get_metric("step-time") is METRIC_ERROR
+    assert strategy.get_metric("tflops-per-gpu") is METRIC_ERROR
