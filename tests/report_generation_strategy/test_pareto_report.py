@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import itertools
 import json
 from pathlib import Path
 
@@ -29,11 +30,14 @@ import cloudai.workloads.sglang
 import cloudai.workloads.vllm
 
 
-@pytest.fixture(params=["vllm", "sglang"])
+@pytest.fixture(
+    params=list(itertools.product(["vllm", "sglang"], ["minimize", "maximize"], ["minimize", "maximize"])),
+    ids=lambda values: "-".join(values),
+)
 def pareto_reporter(
     slurm_system: cloudai.systems.slurm.SlurmSystem, tmp_path: Path, request: pytest.FixtureRequest
 ) -> pareto_report.ParetoReporter:
-    workload = request.param
+    workload, x_direction, y_direction = request.param
     cls = (
         cloudai.workloads.vllm.VllmTestDefinition
         if workload == "vllm"
@@ -50,19 +54,19 @@ def pareto_reporter(
     executed = copy.deepcopy(definition)
     executed.bench_cmd_args.max_concurrency = 8
     setattr(executed.cmd_args.decode, "tensor_parallel_size" if workload == "vllm" else "tp_size", 4)
-    for relative, x, y in [("ordinary/0", 2, 20), ("ordinary/1", 1, 10), ("sweep/0/1", 3, 15)]:
+    for relative, x, y in [("ordinary/0", 2, 20), ("ordinary/1", 1, 10), ("ordinary/2", 2, 20), ("sweep/0/1", 3, 15)]:
         folder = tmp_path / relative
         folder.mkdir(parents=True)
         data = {
             "num_prompts": 10,
             "completed": 10,
             "max_concurrency": 4,
-            "mean_ttft_ms": x,
-            "median_ttft_ms": x,
+            "mean_ttft_ms": x / 2,
+            "median_ttft_ms": x * 0.75,
             "p99_ttft_ms": x,
             "mean_tpot_ms": 1,
-            "median_tpot_ms": 1,
-            "p99_tpot_ms": 1,
+            "median_tpot_ms": 2,
+            "p99_tpot_ms": 3,
             "request_throughput": 1,
             "output_throughput": y,
         }
@@ -79,8 +83,8 @@ def pareto_reporter(
         (tmp_path / relative).mkdir(parents=True)
     plot = {
         "name": "All configurations",
-        "x": {"metric": "ttft", "match": {"statistic": "p99"}},
-        "y": {"metric": "output_token_throughput"},
+        "x": {"metric": "ttft", "match": {"statistic": "p99"}, "direction": x_direction},
+        "y": {"metric": "output_token_throughput", "direction": y_direction},
         "frontiers": [{"name": "All"}],
     }
     config = pareto_report.ParetoReportConfig.model_validate(
@@ -111,7 +115,7 @@ def pareto_reporter(
     scenario = cloudai.core.TestScenario(
         name="example",
         test_runs=[
-            cloudai.core.TestRun("ordinary", definition, 1, [], iterations=2),
+            cloudai.core.TestRun("ordinary", definition, 1, [], iterations=3),
             cloudai.core.TestRun("sweep", definition, [1, 2], []),
             cloudai.core.TestRun("missing", definition, 1, []),
             cloudai.core.TestRun("empty-sweep", definition, [1, 2], []),
@@ -181,9 +185,21 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             "config": toml.dumps({"num_nodes": 2, "test": sweep_definition}),
             "artifact": "sweep/0/1",
             "status": "Dominated",
-            "id": "pareto-0-point-2",
+            "id": "pareto-0-point-3",
         },
     ]
+    points.insert(
+        2, {**points[0], "run": "ordinary · iteration=2 · step=0", "artifact": "ordinary/2", "id": "pareto-0-point-2"}
+    )
+    plot = pareto_reporter.config.plots[0]
+    expected_frontier = {
+        ("minimize", "maximize"): [True, True, True, False],
+        ("maximize", "maximize"): [True, False, True, True],
+        ("minimize", "minimize"): [False, True, False, False],
+        ("maximize", "minimize"): [False, True, False, True],
+    }[plot.x.resolved_direction.value, plot.y.resolved_direction.value]
+    for point, on_frontier in zip(points, expected_frontier, strict=True):
+        point["status"] = "Frontier" if on_frontier else "Dominated"
     excluded = [
         {"group": "All", "run": "sweep · iteration=0 · step=2", "reason": "Missing test-run.toml for sweep step"},
         {"group": "All", "run": "missing · iteration=0 · step=0", "reason": "No execution results found"},
@@ -198,8 +214,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         "x_axis_label": "P99 Time to first token (ms)",
         "y_axis_label": "Output token throughput (tokens/s)",
     }
-    ordinary_data = [{k: v for k, v in point.items() if k != "config"} for point in points[:2]]
-    sweep_data = {k: v for k, v in points[2].items() if k != "config"}
+    chart_points = [{k: v for k, v in points[i].items() if k != "config"} for i in (1, 0, 2, 3)]
     normalized_points = [
         {
             **point,
@@ -213,9 +228,9 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         for i, (point, y, group, status) in enumerate(
             zip(
                 points,
-                [20 / 8, 10 / 8, 15 / 16],
-                ["Ordinary", "Ordinary", "Sweep"],
-                ["Frontier", "Dominated", "Frontier"],
+                [20 / 8, 10 / 8, 20 / 8, 15 / 16],
+                ["Ordinary", "Ordinary", "Ordinary", "Sweep"],
+                ["Frontier", "Dominated", "Frontier", "Frontier"],
                 strict=True,
             )
         )
@@ -225,7 +240,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         {
             "pareto": True,
             "title": "All configurations",
-            "summaries": [{"name": "All", "candidates": 3, "frontier": 2, "excluded": 3}],
+            "summaries": [{"name": "All", "candidates": 4, "frontier": sum(expected_frontier), "excluded": 3}],
             "points": points,
             "excluded": excluded,
             "chart": {
@@ -233,14 +248,14 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
                 "datasets": [
                     {
                         "label": "All",
-                        "data": ordinary_data[::-1],
+                        "data": [point for point in chart_points if point["status"] == "Frontier"],
                         "source_color_index": 0,
                         "is_frontier": True,
                         "hidden": False,
                     },
                     {
                         "label": "All · dominated",
-                        "data": [sweep_data],
+                        "data": [point for point in chart_points if point["status"] == "Dominated"],
                         "source_color_index": 0,
                         "is_frontier": False,
                         "hidden": True,
@@ -252,7 +267,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             "pareto": True,
             "title": "Per allocated GPU",
             "summaries": [
-                {"name": "Ordinary", "candidates": 2, "frontier": 1, "excluded": 0},
+                {"name": "Ordinary", "candidates": 3, "frontier": 2, "excluded": 0},
                 {"name": "Sweep", "candidates": 1, "frontier": 1, "excluded": 3},
             ],
             "points": normalized_points,
@@ -265,7 +280,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
                 "datasets": [
                     {
                         "label": "Ordinary",
-                        "data": [normalized_data[0]],
+                        "data": [normalized_data[0], normalized_data[2]],
                         "source_color_index": 0,
                         "is_frontier": True,
                         "hidden": False,
@@ -279,7 +294,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
                     },
                     {
                         "label": "Sweep",
-                        "data": [normalized_data[2]],
+                        "data": [normalized_data[3]],
                         "source_color_index": 1,
                         "is_frontier": True,
                         "hidden": False,
@@ -291,7 +306,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             {
                 "pareto": True,
                 "title": title,
-                "summaries": [{"name": "All", "candidates": 0, "frontier": 0, "excluded": 6}],
+                "summaries": [{"name": "All", "candidates": 0, "frontier": 0, "excluded": 7}],
                 "points": [],
                 "excluded": [{"group": "All", "run": point["run"], "reason": reason} for point in points] + excluded,
                 "chart": {
