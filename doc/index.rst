@@ -34,6 +34,9 @@ Getting Started
 
 CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
 
+Use uv 0.13.4 or newer to install and run CloudAI. For pip-based installation, use pip 26.2.2 or newer.
+These versions include certificate trust updates for the eMudhra/emSign CA compromise.
+
 .. code-block:: bash
 
    git clone git@github.com:NVIDIA/cloudai.git
@@ -58,6 +61,14 @@ Follow these steps:
    python3.14 -m venv venv
    source venv/bin/activate
    pip install -e .
+
+.. note::
+
+   When upgrading an existing installation, also update the host's ``ca-certificates`` package and the
+   certificate bundles and installers in existing workload environments and container images.
+   Updating CloudAI does not update these environments. Endpoints relying on the distrusted emSign ECC
+   root may fail certificate verification after the update; use a certificate chain trusted by the updated
+   clients instead of disabling verification.
 
 
 .. _install-custom-python-version:
