@@ -33,8 +33,6 @@ from .trajectory import Trajectory
 if TYPE_CHECKING:
     import pandas as pd
 
-    from cloudai.core import BaseRunner, TestRun
-
 
 class CloudAIGymEnv(BaseGym):
     """
@@ -45,8 +43,8 @@ class CloudAIGymEnv(BaseGym):
 
     def __init__(
         self,
-        test_run: TestRun,
-        runner: BaseRunner,
+        test_run: cloudai.core.TestRun,
+        runner: cloudai.core.BaseRunner,
         rewards: RewardOverrides,
     ):
         """
