@@ -66,9 +66,7 @@ Follow these steps:
 
    When upgrading an existing installation, also update the host's ``ca-certificates`` package and the
    certificate bundles and installers in existing workload environments and container images.
-   Updating CloudAI does not update these environments. Endpoints relying on the distrusted emSign ECC
-   root may fail certificate verification after the update; use a certificate chain trusted by the updated
-   clients instead of disabling verification.
+   Updating CloudAI does not update these environments.
 
 
 .. _install-custom-python-version:
