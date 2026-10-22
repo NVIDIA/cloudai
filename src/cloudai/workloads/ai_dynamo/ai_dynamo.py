@@ -219,6 +219,21 @@ class AIDynamoArgs(BaseModel):
         serialization_alias="node-setup-cmd",
         validation_alias=AliasChoices("node-setup-cmd", "node_setup_cmd"),
     )
+    aiperf_phase_restart_services: bool = Field(
+        default=False,
+        serialization_alias="aiperf-phase-restart-services",
+        validation_alias=AliasChoices("aiperf-phase-restart-services", "aiperf_phase_restart_services"),
+    )
+    aiperf_phase_setup_scope: Literal["frontend", "all"] = Field(
+        default="all",
+        serialization_alias="aiperf-phase-setup-scope",
+        validation_alias=AliasChoices("aiperf-phase-setup-scope", "aiperf_phase_setup_scope"),
+    )
+    aiperf_phase_setup_cmd_scope: Literal["frontend", "all"] = Field(
+        default="frontend",
+        serialization_alias="aiperf-phase-setup-cmd-scope",
+        validation_alias=AliasChoices("aiperf-phase-setup-cmd-scope", "aiperf_phase_setup_cmd_scope"),
+    )
     port: int = Field(
         default=8000,
         description="Dynamo frontend HTTP API port",
