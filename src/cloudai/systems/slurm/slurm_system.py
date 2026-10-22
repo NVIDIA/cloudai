@@ -441,7 +441,8 @@ class SlurmSystem(System):
             return self._rest_client.is_job_completed(self._job_id(job), retry_threshold)
 
         retry_count = 0
-        command = f"sacct -j {job.id} --format=State --noheader"
+        # --parsable2 keeps sacct from cutting long states to its column width, e.g. "OUT_OF_ME+".
+        command = f"sacct -j {job.id} --format=State --noheader --parsable2"
 
         while retry_count < retry_threshold:
             stdout, stderr = self.cmd_shell.execute(command).communicate()
@@ -463,7 +464,7 @@ class SlurmSystem(System):
             if "RUNNING" in job_states:
                 return False
 
-            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "CANCELLED+"] for state in job_states):
+            if any(state in SlurmRestClient.TERMINAL_JOB_STATES for state in job_states):
                 return True
 
             break

@@ -58,7 +58,7 @@ class SlurmRestClient:
     """Translate CloudAI Slurm operations to the configured slurmrestd version."""
 
     _REQUEST_TIMEOUT_SECONDS: ClassVar[int] = 30
-    _TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
+    TERMINAL_JOB_STATES: ClassVar[frozenset[str]] = frozenset(
         {
             "BOOT_FAIL",
             "CANCELLED",
@@ -474,7 +474,7 @@ class SlurmRestClient:
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
         """Return whether Slurm reports a terminal job state."""
-        return self.get_job_state(job_id, retry_threshold) in self._TERMINAL_JOB_STATES
+        return self.get_job_state(job_id, retry_threshold) in self.TERMINAL_JOB_STATES
 
     def get_job_status(self, job_id: int, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
         job = self._get_job(job_id, retry_threshold)
