@@ -68,7 +68,7 @@ class NixlEPComparisonReport(cloudai.report_generator.comparison_report.Comparis
 
     def load_test_runs(self) -> None:
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, nixl_ep.NixlEPTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test_definition, nixl_ep.NixlEPTestDefinition)]
 
     def comparison_values(self, tr: cloudai.core.TestRun) -> dict[str, object]:
         return {"case": tr.name.removeprefix("NIXL.EP."), "NUM_NODES": tr.nnodes}

@@ -59,7 +59,9 @@ def test_gen_exec_command_writes_repro_script_and_returns_bash(tmp_path: Path, s
         ),
     )
     out_dir = tmp_path / "out"
-    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=out_dir)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=out_dir
+    )
 
     strategy = AiconfiguratorStandaloneCommandGenStrategy(standalone_system, tr)
     cmd = strategy.gen_exec_command()
@@ -103,7 +105,9 @@ def test_gen_exec_command_agg_branch(tmp_path: Path, standalone_system: Standalo
         ),
     )
     out_dir = tmp_path / "out-agg"
-    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=out_dir)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=out_dir
+    )
 
     strategy = AiconfiguratorStandaloneCommandGenStrategy(standalone_system, tr)
     cmd = strategy.gen_exec_command()

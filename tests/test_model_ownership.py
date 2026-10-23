@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,11 +49,11 @@ def test_one_sol_field_preserves_inheritance_and_snapshot_format(
         case["sol"] = case_sol
     scenario = parser._parse_data({"name": "scenario", "sol": {"bandwidth": [{"value": 110}]}, "Tests": [case]})
     run = scenario.test_runs[0]
-    assert run.sol is run.test.sol
+    assert run.sol is run.test_definition.sol
     assert not hasattr(run, "metric_sol")
-    assert "metric_sol" not in run.test.model_dump()
+    assert "metric_sol" not in run.test_definition.model_dump()
     payload = toml.loads(toml.dumps(run.model_dump()))
-    restored = TestRun.model_validate(payload).test
+    restored = TestRun.model_validate(payload).test_definition
     if isinstance(case_sol, float):
         assert run.sol == restored.sol == 42.0
     else:
@@ -62,7 +62,7 @@ def test_one_sol_field_preserves_inheritance_and_snapshot_format(
         assert run.sol["bandwidth"][0].value == (120 if case_sol else 110)
         assert run.sol["latency"][0].value == 10
         assert restored.sol == run.sol
-        assert "root" not in payload["test"]["sol"]
+        assert "root" not in payload["test_definition"]["sol"]
     assert definition.sol is None
     assert slurm_system.sol["bandwidth"][0].value == 100
     assert scenario.sol["bandwidth"][0].value == 110
@@ -86,14 +86,14 @@ def definition() -> NCCLTestDefinition:
 
 def test_run_holds_prepared_definition_and_runtime_state_only(definition: NCCLTestDefinition):
     prepared = definition.model_copy(deep=True, update={"num_nodes": 2, "time_limit": "10m", "weight": 25.0})
-    run = TestRun(test=prepared)
-    assert run.test is prepared
+    run = TestRun(test_definition=prepared)
+    assert run.test_definition is prepared
     assert run.nnodes == prepared.num_nodes == 2
     assert run.time_limit == prepared.time_limit == "10m"
-    assert run.test.weight == prepared.weight == 25.0
+    assert run.test_definition.weight == prepared.weight == 25.0
     assert all(not hasattr(run, name) for name in ("weight", "ideal_perf", "pin_nodes"))
     assert set(vars(run)) == {
-        "test",
+        "test_definition",
         "nodes",
         "output_path",
         "current_iteration",
@@ -109,20 +109,20 @@ def test_run_holds_prepared_definition_and_runtime_state_only(definition: NCCLTe
 
 
 def test_execution_mutations_are_isolated(definition: NCCLTestDefinition):
-    first = TestRun(test=definition.model_copy(deep=True, update={"id": "first"}))
-    second = TestRun(test=definition.model_copy(deep=True, update={"id": "second"}))
-    first.test.cmd_args.ngpus = 8
-    first.test.extra_env_vars["MODE"] = "selected"
-    first.test.extra_container_mounts.append("/output:/output")
+    first = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "first"}))
+    second = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "second"}))
+    first.test_definition.cmd_args.ngpus = 8
+    first.test_definition.extra_env_vars["MODE"] = "selected"
+    first.test_definition.extra_container_mounts.append("/output:/output")
     first.nodes.append("node1")
-    first.test = first.test.model_copy(update={"iterations": 1})
-    first.test = first.test.model_copy(update={"pin_nodes": True})
-    first.test = first.test.model_copy(update={"extra_srun_args": ["--exclusive"]})
-    assert first.test is not definition
-    assert type(first.test) is NCCLTestDefinition
-    assert second.test.cmd_args.ngpus == definition.cmd_args.ngpus == [1, 2]
-    assert second.test.extra_env_vars == definition.extra_env_vars == {"MODE": ["a", "b"]}
-    assert second.test.extra_container_mounts == definition.extra_container_mounts == ["/input:/input"]
+    first.test_definition = first.test_definition.model_copy(update={"iterations": 1})
+    first.test_definition = first.test_definition.model_copy(update={"pin_nodes": True})
+    first.test_definition = first.test_definition.model_copy(update={"extra_srun_args": ["--exclusive"]})
+    assert first.test_definition is not definition
+    assert type(first.test_definition) is NCCLTestDefinition
+    assert second.test_definition.cmd_args.ngpus == definition.cmd_args.ngpus == [1, 2]
+    assert second.test_definition.extra_env_vars == definition.extra_env_vars == {"MODE": ["a", "b"]}
+    assert second.test_definition.extra_container_mounts == definition.extra_container_mounts == ["/input:/input"]
     assert second.nodes == definition.nodes == []
     assert second.iterations == definition.iterations == 3
     assert not definition.pin_nodes
@@ -130,14 +130,14 @@ def test_execution_mutations_are_isolated(definition: NCCLTestDefinition):
 
 
 def test_materialized_trial_has_one_prepared_definition(definition: NCCLTestDefinition):
-    template = TestRun(test=definition.model_copy(deep=True, update={"id": "case"}))
+    template = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "case"}))
     selected = template.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
-    assert selected.test is not template.test
-    assert selected.test.num_nodes == 2
+    assert selected.test_definition is not template.test_definition
+    assert selected.test_definition.num_nodes == 2
     assert not hasattr(selected, "definition")
     assert selected.nnodes == 2
-    assert selected.test.cmd_args.ngpus == 2
-    assert selected.test.extra_env_vars["MODE"] == "b"
+    assert selected.test_definition.cmd_args.ngpus == 2
+    assert selected.test_definition.extra_env_vars["MODE"] == "b"
     assert selected.param_space == {}
     assert not selected.is_dse_job
     assert template.param_space == {"ngpus": [1, 2], "extra_env_vars.MODE": ["a", "b"], "NUM_NODES": [1, 2]}
@@ -146,7 +146,7 @@ def test_materialized_trial_has_one_prepared_definition(definition: NCCLTestDefi
 
 def test_scenario_bindings_do_not_replace_definitions(definition: NCCLTestDefinition):
     scenario = TestScenario(name="scenario", tests=[definition])
-    run = TestRun(test=definition.model_copy(deep=True, update={"id": "case"}))
+    run = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "case"}))
     scenario.test_runs = [run]
     scenario.test_runs = [run.apply_params_set({"ngpus": 1, "NUM_NODES": 1, "extra_env_vars.MODE": "a"})]
     assert scenario.tests == [definition]
@@ -166,13 +166,13 @@ def test_parser_resolves_repeated_definitions_independently(slurm_system: SlurmS
         }
     )
     first, second = scenario.test_runs
-    assert first.test is not scenario.tests[0]
-    assert second.test is not scenario.tests[1]
+    assert first.test_definition is not scenario.tests[0]
+    assert second.test_definition is not scenario.tests[1]
     assert [test.id for test in scenario.tests] == ["first", "second"]
     assert [test.weight for test in scenario.tests] == [1, 3]
-    assert [first.test.weight, second.test.weight] == [25, 75]
-    first.test.extra_env_vars["MODE"] = "a"
-    first.test = first.test.model_copy(update={"iterations": 1})
+    assert [first.test_definition.weight, second.test_definition.weight] == [25, 75]
+    first.test_definition.extra_env_vars["MODE"] = "a"
+    first.test_definition = first.test_definition.model_copy(update={"iterations": 1})
     assert scenario.tests[0].iterations == 3
     assert second.iterations == 5
     assert definition.iterations == 3
@@ -181,9 +181,9 @@ def test_parser_resolves_repeated_definitions_independently(slurm_system: SlurmS
 
 
 def test_snapshot_includes_configuration_and_preserves_subclass(definition: NCCLTestDefinition, tmp_path: Path):
-    run = TestRun(test=definition.model_copy(deep=True, update={"id": "case"}), output_path=tmp_path).apply_params_set(
-        {"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"}
-    )
+    run = TestRun(
+        test_definition=definition.model_copy(deep=True, update={"id": "case"}), output_path=tmp_path
+    ).apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
     run.current_iteration = 2
     run.step = 4
     payload = toml.loads(toml.dumps(run.model_dump(mode="json")))
@@ -192,14 +192,14 @@ def test_snapshot_includes_configuration_and_preserves_subclass(definition: NCCL
         "output_path",
         "current_iteration",
         "step",
-        "test",
+        "test_definition",
     }
-    assert payload["test"]["id"] == "case"
-    assert payload["test"]["iterations"] == 3
-    assert payload["test"]["num_nodes"] == 2
+    assert payload["test_definition"]["id"] == "case"
+    assert payload["test_definition"]["iterations"] == 3
+    assert payload["test_definition"]["num_nodes"] == 2
     loaded = TestRun.model_validate(payload)
-    assert isinstance(loaded.test, NCCLTestDefinition)
-    assert loaded.test.cmd_args.ngpus == 2
+    assert isinstance(loaded.test_definition, NCCLTestDefinition)
+    assert loaded.test_definition.cmd_args.ngpus == 2
     assert loaded.nnodes == 2
     assert loaded.current_iteration == 2
     assert loaded.step == 4
@@ -227,13 +227,13 @@ def test_canonical_scenario_validates_dependency_graph(definition: NCCLTestDefin
 
 
 def test_multiple_runtime_trials_share_one_scenario_case(definition: NCCLTestDefinition):
-    first = TestRun(test=definition.model_copy(deep=True, update={"id": None}))
+    first = TestRun(test_definition=definition.model_copy(deep=True, update={"id": None}))
     second = first.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
     scenario = TestScenario(name="scenario", test_runs=[first, second])
     assert len(scenario.tests) == 1
     assert len(scenario.test_runs) == 2
     assert scenario.tests[0].id == definition.name
-    assert first.test.id is None
+    assert first.test_definition.id is None
 
 
 @pytest.mark.parametrize("reference", ["test_name", "path"])
@@ -273,8 +273,8 @@ def test_scenario_srun_args_override_test_defaults_for_workload_and_metadata(
     scenario = parser._parse_data({"name": "scenario", "Tests": [case]})
     run = scenario.test_runs[0]
     assert run.extra_srun_args == (" ".join(expected_args) or None)
-    assert run.test.extra_srun_args == expected_args
-    assert "srun_args" not in run.test.model_dump()
+    assert run.test_definition.extra_srun_args == expected_args
+    assert "srun_args" not in run.test_definition.model_dump()
     assert definition.extra_srun_args == ["--exclusive"]
     run.output_path = tmp_path
     strategy = SlurmContainerCommandGenStrategy(slurm_system, run)
@@ -291,7 +291,7 @@ def test_scenario_srun_args_override_test_defaults_for_workload_and_metadata(
 def test_srun_args_normalization_preserves_shell_quoting(definition: NCCLTestDefinition, value: str | list[str]):
     prepared = type(definition).model_validate(definition.model_dump() | {"extra_srun_args": value})
     assert isinstance(prepared.extra_srun_args, list)
-    assert TestRun(test=prepared).extra_srun_args == "--comment='a b' --exclusive"
+    assert TestRun(test_definition=prepared).extra_srun_args == "--comment='a b' --exclusive"
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -306,7 +306,7 @@ def test_report_restore_preserves_execution_configuration(
     definition.extra_srun_args = ["--exclusive"]
     definition.exclude_nodes = ["excluded"]
     definition.ideal_perf = 2.0
-    template = TestRun(test=definition.model_copy(deep=True, update={"id": "case"}))
+    template = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "case"}))
     if not sweep:
         template = template.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
     selected = template.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
@@ -315,7 +315,7 @@ def test_report_restore_preserves_execution_configuration(
         selected.output_path /= "1"
         selected.step = 1
     selected.output_path.mkdir(parents=True)
-    selected.test = selected.test.model_copy(update={"iterations": 4})
+    selected.test_definition = selected.test_definition.model_copy(update={"iterations": 4})
     payload = selected.model_dump(mode="json")
     if legacy:
         payload = {
@@ -328,7 +328,7 @@ def test_report_restore_preserves_execution_configuration(
             "step": selected.step,
             "test_cmd": "old command",
             "full_cmd": "old launch command",
-            "test_definition": selected.test.model_dump(
+            "test_definition": selected.test_definition.model_dump(
                 include={"name", "description", "test_template_name", "cmd_args", "extra_env_vars"}
             ),
         }
@@ -340,8 +340,8 @@ def test_report_restore_preserves_execution_configuration(
     assert restored.iterations == 4
     assert restored.extra_srun_args == "--exclusive"
     assert restored.exclude_nodes == ["excluded"]
-    assert restored.test.ideal_perf == 2.0
+    assert restored.test_definition.ideal_perf == 2.0
     assert restored.nnodes == 2
-    assert restored.test.cmd_args.ngpus == 2
-    assert restored.test.extra_env_vars["MODE"] == "b"
+    assert restored.test_definition.cmd_args.ngpus == 2
+    assert restored.test_definition.extra_env_vars["MODE"] == "b"
     assert definition.num_nodes == [1, 2]

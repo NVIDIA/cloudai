@@ -274,7 +274,9 @@ def _build_trajectory_steps(
                 observation_text=", ".join(_format_scalar(value) for value in observation) if observation else "n/a",
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),
-                is_successful=step_run.test.was_run_successful(step_run).is_successful if step_run else False,
+                is_successful=step_run.test_definition.was_run_successful(step_run).is_successful
+                if step_run
+                else False,
             )
         )
 
@@ -306,7 +308,7 @@ def _build_iteration_summary(
         logging.warning(f"No test run dump found for best DSE step at {best_step_dump}")
         return None
 
-    test_run = load_test_run(best_step_dump, test_case.test)
+    test_run = load_test_run(best_step_dump, test_case.test_definition)
 
     elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
     if not elapsed_times:
@@ -339,7 +341,7 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run.test.model_dump()),
+        best_config_toml=toml.dumps(test_run.test_definition.model_dump()),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )

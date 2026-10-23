@@ -41,7 +41,7 @@ class MoEBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
     def generate_report(self) -> None:
         """Generate a report from MoE benchmark results."""
         directory_path = self.test_run.output_path
-        test_name = self.test_run.test.name
+        test_name = self.test_run.test_definition.name
 
         all_results = []
 

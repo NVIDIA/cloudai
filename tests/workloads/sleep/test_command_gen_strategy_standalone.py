@@ -31,7 +31,7 @@ def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_sys
         cmd_args=SleepCmdArgs(seconds=60),
     )
     tr = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "sleep-job", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "sleep-job", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output",
     )
@@ -44,5 +44,5 @@ def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_sys
     dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     assert dump_path.is_file()
     details = TestRun.model_validate(toml.load(dump_path))
-    assert details.test == tr.test
+    assert details.test_definition == tr.test_definition
     assert details.output_path == tr.output_path

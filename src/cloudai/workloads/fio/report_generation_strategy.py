@@ -177,7 +177,7 @@ class FioReportGenerationStrategy(ReportGenerationStrategy):
         return bool(extract_fio_data(self.results_file))
 
     def _configured_default_metric(self, rows: list[FioSummary]) -> MetricValue:
-        cmd_args = self.test_run.test.cmd_args
+        cmd_args = self.test_run.test_definition.cmd_args
         operation = str(getattr(cmd_args, "metric_operation", "all")).lower()
         metric_name = str(getattr(cmd_args, "metric_name", "bw")).lower()
         aggregate = str(getattr(cmd_args, "metric_aggregate", "sum")).lower()

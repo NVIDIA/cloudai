@@ -49,7 +49,7 @@ class TestSleepSlurmCommandGenStrategy:
         )
 
         tr = TestRun(
-            test=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "sleep-job"}),
+            test_definition=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "sleep-job"}),
             nodes=[],
             output_path=tmp_path / "output",
         )

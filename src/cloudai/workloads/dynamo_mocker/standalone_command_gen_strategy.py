@@ -153,7 +153,7 @@ class DynamoMockerStandaloneCommandGenStrategy(CommandGenStrategy):
         return cli_args
 
     def gen_exec_command(self) -> str:
-        tdef = cast(DynamoMockerTestDefinition, self.test_run.test)
+        tdef = cast(DynamoMockerTestDefinition, self.test_run.test_definition)
         args: DynamoMockerCmdArgs = tdef.cmd_args
         output_path = self.test_run.output_path
         output_path.mkdir(parents=True, exist_ok=True)

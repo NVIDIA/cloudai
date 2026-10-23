@@ -113,10 +113,10 @@ def test_single_test_case(tdef: TestDefinition, test_scenario_parser: TestScenar
     assert tr.iterations == 1
     assert tr.current_iteration == 0
     assert tr.dependencies == {}
-    assert tr.test.weight == 0
-    assert tr.test.ideal_perf == 1.0
+    assert tr.test_definition.weight == 0
+    assert tr.test_definition.ideal_perf == 1.0
     assert tr.sol is None
-    parsed_tdef = test_scenario.test_runs[0].test
+    parsed_tdef = test_scenario.test_runs[0].test_definition
     assert parsed_tdef.name == tdef.name
     assert parsed_tdef.description == tdef.description
     assert parsed_tdef.cmd_args == tdef.cmd_args
@@ -133,7 +133,7 @@ def test_with_some_props(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
     tr = test_scenario.test_runs[0]
-    assert getattr(tr.test, prop) == cfg_value
+    assert getattr(tr.test_definition, prop) == cfg_value
 
 
 def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
@@ -196,10 +196,10 @@ def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestS
     )
     assert len(test_scenario.test_runs) == 2
 
-    assert test_scenario.test_runs[0].test.name == t1.name
+    assert test_scenario.test_runs[0].test_definition.name == t1.name
     assert test_scenario.test_runs[0].dependencies == {}
 
-    assert test_scenario.test_runs[1].test.name == t2.name
+    assert test_scenario.test_runs[1].test_definition.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
 
 
@@ -235,11 +235,11 @@ def test_two_dependent_cases(tdef: TestDefinition, test_scenario_parser: TestSce
     )
     assert len(test_scenario.test_runs) == 2
 
-    assert test_scenario.test_runs[0].test.name == t1.name
+    assert test_scenario.test_runs[0].test_definition.name == t1.name
     assert "end_post_comp" in test_scenario.test_runs[0].dependencies
     assert isinstance(test_scenario.test_runs[0].dependencies["end_post_comp"].test_run, TestRun)
 
-    assert test_scenario.test_runs[1].test.name == t2.name
+    assert test_scenario.test_runs[1].test_definition.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
 
 
@@ -278,7 +278,7 @@ def test_raises_on_unknown_dependency(test_scenario_parser: TestScenarioParser) 
 def test_list_of_tests_must_not_be_empty(test_scenario_parser: TestScenarioParser) -> None:
     with pytest.raises(TestScenarioParsingError) as exc_info:
         test_scenario_parser._parse_data({"name": "name"})
-    assert exc_info.match("Tests must contain at least one test definition")
+    assert exc_info.match("Field 'Tests': Field required")
 
     with pytest.raises(TestScenarioParsingError) as exc_info:
         test_scenario_parser._parse_data({"name": "name", "Tests": []})
@@ -312,7 +312,7 @@ def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: 
         name="pre",
         test_runs=[
             TestRun(
-                test=tdef.model_copy(
+                test_definition=tdef.model_copy(
                     deep=True, update={"id": "pre1", "num_nodes": 1, "time_limit": "00:30:00", "iterations": 1}
                 ),
                 nodes=[],
@@ -323,7 +323,7 @@ def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: 
         name="post",
         test_runs=[
             TestRun(
-                test=tdef.model_copy(
+                test_definition=tdef.model_copy(
                     deep=True, update={"id": "post1", "num_nodes": 1, "time_limit": "00:20:00", "iterations": 1}
                 ),
                 nodes=[],
@@ -344,7 +344,7 @@ def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: 
     )
 
     assert test_run.time_limit == "01:50:00"  # Main + pre + post hooks
-    assert test_run.test.pin_nodes is True
+    assert test_run.test_definition.pin_nodes is True
 
 
 def test_total_time_limit_with_empty_hooks():
@@ -356,7 +356,7 @@ class TestIncrementStep:
     """``TestRun.increment_step`` is the single mutator for the trial counter."""
 
     def _make_tr(self, tdef: TestDefinition) -> TestRun:
-        return TestRun(test=tdef.model_copy(deep=True, update={"id": "incr_tr", "num_nodes": 1}), nodes=[])
+        return TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "incr_tr", "num_nodes": 1}), nodes=[])
 
     def test_starts_at_zero_and_advances_to_one(self, tdef: TestDefinition) -> None:
         tr = self._make_tr(tdef)
@@ -403,7 +403,7 @@ class TestInScenario:
             scenario_data["Tests"][0]["test_name"] = base_test.name
 
         parser = TestScenarioParser(scenario_path, slurm_system, {base_test.name: base_test}, {})
-        test = parser._parse_data(scenario_data).test_runs[0].test
+        test = parser._parse_data(scenario_data).test_runs[0].test_definition
 
         assert isinstance(test, SglangTestDefinition)
         assert isinstance(base_test, SglangTestDefinition)
@@ -1134,4 +1134,4 @@ class TestPathReference:
 
         scenario = parser.parse()
 
-        assert scenario.test_runs[0].test.name == "nccl"
+        assert scenario.test_runs[0].test_definition.name == "nccl"

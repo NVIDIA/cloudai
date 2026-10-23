@@ -40,7 +40,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         env_vars = tdef.cmd_args.executor_env_vars | super().final_env_vars
         if "enable_vboost" in tdef.cmd_args.model_fields_set:
             env_vars["ENABLE_VBOOST"] = "1" if tdef.cmd_args.enable_vboost else "0"
@@ -51,7 +51,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._final_env_vars = value
 
     def image_path(self) -> str | None:
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path) if tdef.docker_image.installed_path else None
 
     def _container_mounts(self) -> list[str]:
@@ -130,7 +130,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if existing_script:
             return existing_script
 
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         repo_path = tdef.megatron_bridge_repo.installed_path or (
             self.system.install_path / tdef.megatron_bridge_repo.repo_name
         )
@@ -193,15 +193,15 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def store_test_run(self) -> None:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         details = self.test_run.model_dump(mode="json")
-        details["test"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
-        token = cast(MegatronBridgeTestDefinition, self.test_run.test).cmd_args.hf_token
+        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
+        token = cast(MegatronBridgeTestDefinition, self.test_run.test_definition).cmd_args.hf_token
         serialized = toml.dumps(details)
         if token:
             serialized = serialized.replace(token, HF_TOKEN_REDACTION)
         (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).write_text(serialized)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         output_path = self.test_run.output_path
         if not output_path.exists():
             return

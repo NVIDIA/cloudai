@@ -39,7 +39,7 @@ class TrainingReporter(Reporter):
         self.load_test_runs()
 
         for tr in self.trs:
-            parser_cls = self.PARSERS.get(tr.test.test_template_name)
+            parser_cls = self.PARSERS.get(tr.test_definition.test_template_name)
             if parser_cls is None:
                 continue
             parser = parser_cls()

@@ -56,7 +56,9 @@ def nixl_tr(tmp_path: Path) -> TestRun:
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
     )
     tr = TestRun(
-        test=test.model_copy(deep=True, update={"id": "nixl_test", "num_nodes": 2}), nodes=[], output_path=tmp_path
+        test_definition=test.model_copy(deep=True, update={"id": "nixl_test", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
     )
     return tr
 
@@ -88,13 +90,13 @@ def test_comparison_report_contains_sol(
     test_runs = []
     for batch_size in (1, 4, 16):
         tr = copy.deepcopy(nixl_tr)
-        tr.test = tr.test.model_copy(update={"id": f"nixl_test_batch_{batch_size}"})
+        tr.test_definition = tr.test_definition.model_copy(update={"id": f"nixl_test_batch_{batch_size}"})
         tr.output_path = tmp_path / f"batch-{batch_size}"
         tr.output_path.mkdir()
         tr.output_path.joinpath("nixlbench.csv").write_text(
             f"block_size,batch_size,avg_lat,bw_gb_sec\n4096,{batch_size},3.5,1.2\n1048576,{batch_size},18.1,58.0\n"
         )
-        tr.test = tr.test.model_copy(
+        tr.test_definition = tr.test_definition.model_copy(
             update={
                 "sol": cloudai.metrics.parse_sol_spec(
                     {
@@ -166,18 +168,18 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 
 class TestWasRunSuccessful:
     def test_no_file(self, nixl_tr: TestRun):
-        assert not nixl_tr.test.was_run_successful(nixl_tr).is_successful
+        assert not nixl_tr.test_definition.was_run_successful(nixl_tr).is_successful
 
     def test_no_data(self, nixl_tr: TestRun):
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text("")
-        assert not nixl_tr.test.was_run_successful(nixl_tr).is_successful
+        assert not nixl_tr.test_definition.was_run_successful(nixl_tr).is_successful
 
     @pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
     def test_was_run_successful(self, nixl_tr: TestRun, slurm_system: SlurmSystem, sample: str):
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text(sample)
-        assert nixl_tr.test.was_run_successful(nixl_tr).is_successful
+        assert nixl_tr.test_definition.was_run_successful(nixl_tr).is_successful
 
         report = NIXLBenchReportGenerationStrategy(slurm_system, nixl_tr)
         report.generate_report()
@@ -211,13 +213,13 @@ def independent_nixl_tr(nixl_tr: TestRun) -> TestRun:
 def test_independent_tasks_reporting(independent_nixl_tr: TestRun, slurm_system: SlurmSystem) -> None:
     tr = independent_nixl_tr
     report = NIXLBenchReportGenerationStrategy(slurm_system, tr)
-    assert tr.test.was_run_successful(tr).is_successful
+    assert tr.test_definition.was_run_successful(tr).is_successful
     assert report.can_handle_directory()
     assert report.get_metric("latency") == pytest.approx(25)
     assert report.get_metric("unknown") is METRIC_ERROR
 
     # Native observations work before report generation and retain their existing semantics.
-    observations = tr.test.metric_observations(slurm_system, tr)
+    observations = tr.test_definition.metric_observations(slurm_system, tr)
     assert [item.value for item in observations if item.metric is cloudai.metrics.LATENCY] == [20, 30]
     assert [item.value for item in observations if item.metric is cloudai.metrics.BANDWIDTH] == [2, 3]
 
@@ -246,7 +248,7 @@ def test_independent_tasks_reporting(independent_nixl_tr: TestRun, slurm_system:
         "Batch size 4",
     ):
         assert label in html
-    assert tr.test.metric_observations(slurm_system, tr) == observations
+    assert tr.test_definition.metric_observations(slurm_system, tr) == observations
 
 
 @pytest.mark.parametrize(
@@ -276,12 +278,12 @@ def test_incomplete_independent_tasks_are_not_reported(
     # Stale aggregate data and legacy stdout cannot hide an incomplete independent run.
     (tr.output_path / "stdout.txt").write_text(NEW_FORMAT)
     (tr.output_path / "nixlbench.csv").write_text("block_size,batch_size,avg_lat,bw_gb_sec\n4096,1,10,1\n")
-    status = tr.test.was_run_successful(tr)
+    status = tr.test_definition.was_run_successful(tr)
     assert not status.is_successful
     assert error in status.error_message
     report = NIXLBenchReportGenerationStrategy(slurm_system, tr)
     assert not report.can_handle_directory()
     assert report.get_metric("latency") is METRIC_ERROR
-    assert tr.test.metric_observations(slurm_system, tr) == []
+    assert tr.test_definition.metric_observations(slurm_system, tr) == []
     report.generate_report()
     assert not (tr.output_path / "cloudai_nixlbench_bokeh_report.html").exists()

@@ -152,9 +152,11 @@ class Parser:
             test_scenario_path=test_scenario_path.resolve(),
         )
 
-        scenario_tests = {tr.test.name for tr in test_scenario.test_runs}
+        scenario_tests = {tr.test_definition.name for tr in test_scenario.test_runs}
         hook_scenario_tests = {
-            tr.test.name for hook_scenario in hook_test_scenario_mapping.values() for tr in hook_scenario.test_runs
+            tr.test_definition.name
+            for hook_scenario in hook_test_scenario_mapping.values()
+            for tr in hook_scenario.test_runs
         }
 
         relevant_test_names = scenario_tests.union(hook_scenario_tests)

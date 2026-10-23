@@ -166,9 +166,9 @@ def standalone_system(tmp_path: Path) -> StandaloneSystem:
 @pytest.fixture
 def base_tr(tmp_path: Path) -> TestRun:
     return TestRun(
-        test=(TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())).model_copy(
-            deep=True, update={"id": "tr-name", "num_nodes": 1}
-        ),
+        test_definition=(
+            TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "tr-name", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output" / "tr-name",
     )
@@ -184,7 +184,7 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
                 csw_writer = csv.writer(_f_csv)
                 csw_writer.writerow(["step", "action", "reward", "observation"])
 
-                for step in range(test_run.test.agent_steps):
+                for step in range(test_run.test_definition.agent_steps):
                     step_folder = folder / str(step)
                     step_folder.mkdir(exist_ok=True, parents=True)
                     csw_writer.writerow([step, {}, step * 2.1, [step]])
@@ -201,7 +201,9 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     tr = TestRun(
-        test=test_definition.model_copy(deep=True, update={"id": "benchmark", "num_nodes": 1, "iterations": 3}),
+        test_definition=test_definition.model_copy(
+            deep=True, update={"id": "benchmark", "num_nodes": 1, "iterations": 3}
+        ),
         nodes=["node1"],
     )
     create_test_directories(slurm_system, tr)
@@ -220,7 +222,7 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
     )
 
     tr = TestRun(
-        test=test_definition.model_copy(deep=True, update={"id": "dse", "num_nodes": 1, "iterations": 12}),
+        test_definition=test_definition.model_copy(deep=True, update={"id": "dse", "num_nodes": 1, "iterations": 12}),
         nodes=["node1"],
     )
     create_test_directories(slurm_system, tr)
@@ -236,7 +238,9 @@ def nccl_tr(tmp_path: Path) -> TestRun:
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     tr = TestRun(
-        test=test.model_copy(deep=True, update={"id": "nccl_test", "num_nodes": 2}), nodes=[], output_path=tmp_path
+        test_definition=test.model_copy(deep=True, update={"id": "nccl_test", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
     )
 
     stdout_content = """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100

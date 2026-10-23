@@ -29,7 +29,7 @@ def test_job_file_is_appended_without_declaring_fio_options(slurm_system: SlurmS
         cmd_args=FioCmdArgs(fio_binary="fio", job_file="/tmp/kv_emulation.fio"),
     )
     tr = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output",
     )
@@ -46,7 +46,7 @@ def test_success_check_matches_fio_summary_lines(slurm_system: SlurmSystem, tmp_
         cmd_args=FioCmdArgs(),
     )
     tr = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output",
     )
@@ -69,7 +69,7 @@ def test_nested_arg_table_repeats_same_fio_option(slurm_system: SlurmSystem, tmp
         ),
     )
     tr = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output",
     )

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,16 +52,16 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str:
-        tdef: OSUBenchTestDefinition = cast(OSUBenchTestDefinition, self.test_run.test)
+        tdef: OSUBenchTestDefinition = cast(OSUBenchTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        args: OSUBenchCmdArgs = cast(OSUBenchCmdArgs, self.test_run.test.cmd_args)
+        args: OSUBenchCmdArgs = cast(OSUBenchCmdArgs, self.test_run.test_definition.cmd_args)
 
         binary = f"{args.benchmarks_dir}/{args.benchmark}"
         srun_command_parts = [binary]
 
-        for name, value in self.test_run.test.cmd_args_dict.items():
+        for name, value in self.test_run.test_definition.cmd_args_dict.items():
             if value is None:
                 continue
 
@@ -74,7 +74,7 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
             srun_command_parts.append(argument)
 
-        if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test_definition.extra_args_str)
 
         return srun_command_parts

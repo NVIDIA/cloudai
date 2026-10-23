@@ -103,7 +103,7 @@ class TestScenario(BaseModel):
         if runs is not None and "tests" not in data and "Tests" not in data:
             # Multiple bound trials can share one configured scenario case.
             data["tests"] = list(
-                {run.name: run.test.model_copy(deep=True, update={"id": run.name}) for run in runs}.values()
+                {run.name: run.test_definition.model_copy(deep=True, update={"id": run.name}) for run in runs}.values()
             )
         super().__init__(**data)
         if runs is not None:
@@ -169,7 +169,7 @@ class TestScenario(BaseModel):
         Returns
             str: String representation of the test scenario.
         """
-        test_names = ", ".join([tr.test.name for tr in self.test_runs])
+        test_names = ", ".join([tr.test_definition.name for tr in self.test_runs])
         return f"TestScenario(name={self.name}, tests=[{test_names}])"
 
     def pretty_print(self) -> str:
@@ -177,8 +177,8 @@ class TestScenario(BaseModel):
         s = f"Test Scenario: {self.name}\n"
         for tr in self.test_runs:
             s += f"\nSection Name: {tr.name}\n"
-            s += f"  Test Name: {tr.test.name}\n"
-            s += f"  Description: {tr.test.description}\n"
+            s += f"  Test Name: {tr.test_definition.name}\n"
+            s += f"  Description: {tr.test_definition.description}\n"
             if tr.dependencies:
                 for dep_type, dependency in tr.dependencies.items():
                     if dependency:

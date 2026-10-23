@@ -37,7 +37,7 @@ class AiconfiguratorReportGenerationStrategy(ReportGenerationStrategy):
     ]
 
     def can_handle_directory(self) -> bool:
-        return isinstance(self.test_run.test, AiconfiguratorTestDefinition) and (
+        return isinstance(self.test_run.test_definition, AiconfiguratorTestDefinition) and (
             (self.test_run.output_path / "report.json").is_file()
             or (self.test_run.output_path / "stdout.txt").is_file()
         )

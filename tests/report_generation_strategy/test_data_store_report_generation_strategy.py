@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,8 +37,12 @@ def nemo_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
-    tr = TestRun(test=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}), nodes=[], output_path=tmp_path)
-    tr.test = tr.test.model_copy(update={"reporters": {NeMoRunReportGenerationStrategy}})
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
+    tr.test_definition = tr.test_definition.model_copy(update={"reporters": {NeMoRunReportGenerationStrategy}})
 
     stdout_content = (
         "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
@@ -85,7 +89,9 @@ def nemo_tr_empty_log(tmp_path: Path) -> TestRun:
         ),
     )
     return TestRun(
-        test=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}), nodes=[], output_path=tmp_path
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
 
 

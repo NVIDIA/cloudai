@@ -91,8 +91,8 @@ class BaseRunner(ABC):
             tests=[
                 cloudai.models.output.Test(
                     id=str(tr.name),
-                    name=tr.test.name,
-                    description=tr.test.description,
+                    name=tr.test_definition.name,
+                    description=tr.test_definition.description,
                     path=str(output_path / str(tr.name)),
                 )
                 for tr in self.test_scenario.test_runs
@@ -363,7 +363,7 @@ class BaseRunner(ABC):
             JobStatusResult: The result containing the job status and an optional error message.
         """
         runner_job_status_result = self.get_runner_job_status(job)
-        workload_run_results = job.test_run.test.was_run_successful(job.test_run)
+        workload_run_results = job.test_run.test_definition.was_run_successful(job.test_run)
         if not runner_job_status_result.is_successful:
             return runner_job_status_result
         if not workload_run_results.is_successful:
@@ -379,7 +379,8 @@ class BaseRunner(ABC):
         """
         logging.info(
             f"Job completed: {completed_job.test_run.name} "
-            f"(iteration {completed_job.test_run.current_iteration + 1} of {completed_job.test_run.test.iterations})"
+            f"(iteration {completed_job.test_run.current_iteration + 1} "
+            f"of {completed_job.test_run.test_definition.iterations})"
         )
 
         self.jobs.remove(completed_job)
@@ -440,9 +441,9 @@ class BaseRunner(ABC):
         self.system.kill(job)
 
     def get_cmd_gen_strategy(self, system: System, test_run: TestRun) -> CommandGenStrategy:
-        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test))
+        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test_definition))
         return strategy_cls(system, test_run)
 
     def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
-        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
+        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test_definition))
         return strategy_cls(system, test_run)

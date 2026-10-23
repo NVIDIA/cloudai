@@ -91,7 +91,7 @@ def nixl_ep() -> NixlEPTestDefinition:
 @pytest.fixture
 def nixl_ep_tr(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> TestRun:
     return TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 3}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 3}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -133,7 +133,7 @@ def test_num_processes_per_node_returns_integer(
 ) -> None:
     nixl_ep.cmd_args.num_processes_per_node = 5
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -219,7 +219,7 @@ def test_plan_rejects_non_integer_ranks() -> None:
 
 
 def test_num_processes_per_node_rejects_list(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    nixl_ep_tr.test.cmd_args.num_processes_per_node = [4, 4, 2]
+    nixl_ep_tr.test_definition.cmd_args.num_processes_per_node = [4, 4, 2]
     strategy = NixlEPSlurmCommandGenStrategy(slurm_system, nixl_ep_tr)
 
     with pytest.raises(ValueError, match="requires num_processes_per_node to be an integer"):
@@ -277,7 +277,7 @@ def test_build_benchmark_command_always_uses_generated_plan_json(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -324,7 +324,7 @@ def test_build_benchmark_command_passes_through_relative_elastic_script_path(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -349,7 +349,7 @@ def test_build_benchmark_command_omits_disable_ll_nvlink_by_default(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -381,7 +381,7 @@ def test_build_benchmark_command_passes_through_extra_flags(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -401,7 +401,7 @@ def test_wait_for_master_services_only_probes_tcpstore(
     nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem
 ) -> None:
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -419,7 +419,9 @@ def test_phase_transition_timeout_divides_job_timeout_by_plan_phases(
     nixl_ep.cmd_args.plan = SINGLE_EXPANSION_PLAN_STR
     nixl_ep.cmd_args.num_processes_per_node = 8
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1, "time_limit": "00:10:00"}),
+        test_definition=nixl_ep.model_copy(
+            deep=True, update={"id": "nixl-ep", "num_nodes": 1, "time_limit": "00:10:00"}
+        ),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -433,7 +435,7 @@ def test_phase_transition_timeout_divides_default_budget_without_job_timeout(
     nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem
 ) -> None:
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -446,7 +448,7 @@ def test_phase_transition_timeout_divides_default_budget_without_job_timeout(
 def test_gen_srun_command_single_node(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
     nixl_ep.cmd_args.num_processes_per_node = 10
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -473,7 +475,7 @@ def test_gen_srun_command_single_node_static_plan(nixl_ep: NixlEPTestDefinition,
     nixl_ep.cmd_args.num_processes_per_node = 4
     nixl_ep.cmd_args = replace_cmd_args(nixl_ep.cmd_args, disable_ll_nvlink=False)
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -492,7 +494,7 @@ def test_gen_srun_command_single_node_single_rank_plan(
     nixl_ep.cmd_args.plan = SINGLE_RANK_PLAN_STR
     nixl_ep.cmd_args.num_processes_per_node = 1
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -519,7 +521,7 @@ def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> Non
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -532,7 +534,7 @@ def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> Non
 def test_single_node_stages_cover_each_plan_phase(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
     nixl_ep.cmd_args.num_processes_per_node = 10
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -547,7 +549,7 @@ def test_single_node_stages_follow_double_expansion_public_plan(
     nixl_ep.cmd_args.plan = DOUBLE_EXPANSION_PLAN_STR
     nixl_ep.cmd_args.num_processes_per_node = 8
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -562,7 +564,7 @@ def test_single_node_stages_follow_single_expansion_public_plan(
     nixl_ep.cmd_args.plan = SINGLE_EXPANSION_PLAN_STR
     nixl_ep.cmd_args.num_processes_per_node = 8
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -575,7 +577,7 @@ def test_single_node_single_stage_plan_has_one_stage(nixl_ep: NixlEPTestDefiniti
     nixl_ep.cmd_args.plan = json.dumps([[0, 1, 2, 3]])
     nixl_ep.cmd_args.num_processes_per_node = 4
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -598,7 +600,7 @@ def test_multi_node_stages_match_public_two_node_single_expansion(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -621,7 +623,7 @@ def test_multi_node_single_stage_plan_splits_initial_launches_across_nodes(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -637,7 +639,7 @@ def test_gen_srun_command_single_node_double_expansion_omits_disable_flag(
     nixl_ep.cmd_args.num_processes_per_node = 8
     nixl_ep.cmd_args = replace_cmd_args(nixl_ep.cmd_args, disable_ll_nvlink=False)
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -665,7 +667,7 @@ def test_gen_srun_command_multi_node_public_single_expansion_waits_for_phase_bef
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -698,7 +700,7 @@ def test_gen_srun_command_planned_rank_removal_tolerates_143_after_final_phase(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -727,7 +729,7 @@ def test_gen_srun_command_without_planned_rank_removal_keeps_143_fatal(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -754,7 +756,7 @@ def test_gen_srun_command_multi_node_single_stage_starts_followers(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 2}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -774,7 +776,7 @@ def test_gen_srun_command_multi_node_single_stage_starts_followers(
 def test_single_node_stages_reject_mismatch(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:
     nixl_ep.cmd_args.num_processes_per_node = 9
     test_run = TestRun(
-        test=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=nixl_ep.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -798,7 +800,7 @@ def test_gen_srun_command_single_launch_reports_success(
         ),
     )
     test_run = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )

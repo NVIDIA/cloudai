@@ -56,7 +56,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
     def gpt_tr(self, gpt_test: GPTTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=gpt_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            test_definition=gpt_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
             nodes=["node1"],
             output_path=slurm_system.output_path,
         )
@@ -64,7 +64,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
     def grok_tr(self, grok_test: GrokTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=grok_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            test_definition=grok_test.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
             nodes=["node1"],
             output_path=slurm_system.output_path,
         )
@@ -76,7 +76,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
         test_run = TestRun(
-            test=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            test_definition=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
             nodes=["node1"],
             output_path=tmp_path / "output",
         )
@@ -169,7 +169,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cmd_gen = JaxToolboxSlurmCommandGenStrategy(
             slurm_system,
             TestRun(
-                test=grok_test.model_copy(deep=True, update={"id": "test-job", "num_nodes": 1}),
+                test_definition=grok_test.model_copy(deep=True, update={"id": "test-job", "num_nodes": 1}),
                 nodes=[],
                 output_path=tmp_path,
             ),

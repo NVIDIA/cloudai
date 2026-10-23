@@ -26,7 +26,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for Sleep on Kubernetes systems."""
 
     def gen_json(self) -> Dict[Any, Any]:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test_definition)
 
         kubernetes_system = cast(KubernetesSystem, self.system)
 

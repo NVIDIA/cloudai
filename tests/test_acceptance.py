@@ -229,7 +229,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
 
 def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition, **kwargs) -> TestRun:
     test_definition = test_definition.model_copy(deep=True, update={"id": name, **kwargs})
-    tr = partial_tr(test=test_definition)
+    tr = partial_tr(test_definition=test_definition)
     return tr
 
 
@@ -710,7 +710,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             num_nodes=2,
             time_limit="00:20:00",
-            extra_srun_args="--cpu-bind=none",
+            extra_srun_args=["--cpu-bind=none"],
         ),
         "vllm": lambda: create_test_run(
             partial_tr,
@@ -846,7 +846,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr, sbatch_file, run_script = build_special_test_run(partial_tr, request.param, test_mapping)
 
         if request.param == "nemo-run-vboost":
-            tr.test.extra_env_vars["ENABLE_VBOOST"] = "1"
+            tr.test_definition.extra_env_vars["ENABLE_VBOOST"] = "1"
 
         return tr, sbatch_file, run_script
 
@@ -854,19 +854,19 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
-            tr.test = tr.test.model_copy(update={"num_nodes": 3})
-            tr.test.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
-            tr.test.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 3})
+            tr.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
+            tr.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param in {"nixl_bench", "nixl-kvbench"}:
-            tr.test = tr.test.model_copy(update={"num_nodes": 2})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param == "nixl-ep":
-            tr.test = tr.test.model_copy(update={"num_nodes": 3})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 3})
         if request.param == "ai-dynamo":
-            tr.test = tr.test.model_copy(update={"num_nodes": 2})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param in {"moe-benchmark", "deepep-benchmark", "fio"}:
-            tr.test = tr.test.model_copy(update={"num_nodes": 2})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param in {"sglang-multinode", "sglang-disagg-2nodes", "vllm-multinode", "vllm-disagg-2nodes"}:
-            tr.test = tr.test.model_copy(update={"num_nodes": 2})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

@@ -64,7 +64,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
     @property
     def container_url(self) -> str:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         return tdef.cmd_args.docker_image_url.replace("#", "/")
 
     def _create_launcher_spec(self, cni_networks: list[str] | None) -> dict[str, Any]:
@@ -140,7 +140,7 @@ sleep infinity
 
     def _get_merged_env_vars(self) -> dict[str, str | list[str]]:
         final_env_vars = self.system.global_env_vars.copy()
-        final_env_vars.update(self.test_run.test.extra_env_vars)
+        final_env_vars.update(self.test_run.test_definition.extra_env_vars)
         return final_env_vars
 
     def _generate_env_list(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[Dict[str, str]]:
@@ -182,7 +182,7 @@ sleep infinity
         return extra_args
 
     def _generate_launcher_command(self) -> str:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         tdef_cmd_args = tdef.cmd_args
 
         cmd_args_dict = {
@@ -196,7 +196,7 @@ sleep infinity
             " ".join(self._generate_nccl_args(cmd_args_dict)),
         ]
 
-        if self.test_run.test.extra_cmd_args:
+        if self.test_run.test_definition.extra_cmd_args:
             command_parts.append(" ".join(self._generate_extra_args(tdef.extra_cmd_args)))
 
         return " \\\n".join(command_parts)

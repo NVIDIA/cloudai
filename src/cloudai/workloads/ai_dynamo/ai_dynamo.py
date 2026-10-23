@@ -677,8 +677,8 @@ class AIDynamoTestDefinition(TestDefinition):
         return JobStatusResult(workloads_successful and accuracy_successful)
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
-        prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
-        decode_worker = tr.test.cmd_args.dynamo.decode_worker
+        prefill_worker = tr.test_definition.cmd_args.dynamo.prefill_worker
+        decode_worker = tr.test_definition.cmd_args.dynamo.decode_worker
 
         prefill_parallelism = (
             (int(prefill_worker.args.tensor_parallel_size), int(prefill_worker.args.pipeline_parallel_size))
@@ -716,7 +716,7 @@ class AIDynamoTestDefinition(TestDefinition):
             nodes_per_worker = int(worker.nodes_per_worker or 1)
             world_size = tp * pp
             data_parallel_size = int(worker.args.data_parallel_size or 1)
-            backend = tr.test.cmd_args.dynamo.backend
+            backend = tr.test_definition.cmd_args.dynamo.backend
             is_vllm_multinode_dp = backend == "vllm" and nodes_per_worker > 1 and data_parallel_size > 1
 
             if (

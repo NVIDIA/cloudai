@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +87,7 @@ class TestRun(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     # Prepared definitions may already contain scalar environment-parameter draws.
-    test: pydantic.SerializeAsAny[pydantic.SkipValidation[TestDefinition]]
+    test_definition: pydantic.SerializeAsAny[pydantic.SkipValidation[TestDefinition]]
     nodes: list[str] = pydantic.Field(default_factory=list)
     output_path: pathlib.Path = pathlib.Path("")
     current_iteration: int = 0
@@ -102,10 +102,10 @@ class TestRun(pydantic.BaseModel):
     @pydantic.model_validator(mode="after")
     def inherit_nodes(self) -> TestRun:
         if "nodes" not in self.model_fields_set:
-            self.nodes = list(self.test.nodes)
+            self.nodes = list(self.test_definition.nodes)
         return self
 
-    @pydantic.field_validator("test", mode="before")
+    @pydantic.field_validator("test_definition", mode="before")
     @classmethod
     def load_definition(cls, value: Any) -> TestDefinition:
         """Keep prepared instances intact; restore dictionaries using their workload class."""
@@ -124,43 +124,54 @@ class TestRun(pydantic.BaseModel):
         return self is other
 
     @property
+    def test(self) -> TestDefinition:
+        """Alias retained for existing workloads and reporters."""
+        return self.test_definition
+
+    @test.setter
+    def test(self, value: TestDefinition) -> None:
+        self.test_definition = value
+
+    @property
     def name(self) -> str:
-        return self.test.id or self.test.name
+        return self.test_definition.id or self.test_definition.name
 
     @property
     def num_nodes(self) -> int | list[int]:
-        return self.test.num_nodes if self.test.num_nodes is not None else 1
+        return self.test_definition.num_nodes if self.test_definition.num_nodes is not None else 1
 
     @property
     def num_nodes_explicit(self) -> bool:
-        return self.test.num_nodes is not None and "num_nodes" in self.test.model_fields_set
+        return self.test_definition.num_nodes is not None and "num_nodes" in self.test_definition.model_fields_set
 
     @property
     def time_limit(self) -> str | None:
-        return self.test.time_limit
+        return self.test_definition.time_limit
 
     @property
     def sol(self) -> float | cloudai.metrics.MetricSOLConfig | None:
-        return self.test.sol
+        return self.test_definition.sol
 
     @property
     def reports(self) -> set[type[ReportGenerationStrategy]]:
-        return self.test.reporters
+        return self.test_definition.reporters
 
     @property
     def exclude_nodes(self) -> list[str]:
-        return self.test.exclude_nodes
+        return self.test_definition.exclude_nodes
 
     @property
     def iterations(self) -> int:
-        return self.test.iterations
+        return self.test_definition.iterations
 
     @property
     def extra_srun_args(self) -> str | None:
-        return " ".join(self.test.extra_srun_args) or None
+        return " ".join(self.test_definition.extra_srun_args) or None
 
     def __hash__(self) -> int:
-        return hash(self.name + self.test.name + str(self.test.iterations) + str(self.current_iteration))
+        return hash(
+            self.name + self.test_definition.name + str(self.test_definition.iterations) + str(self.current_iteration)
+        )
 
     def has_more_iterations(self) -> bool:
         """
@@ -169,7 +180,7 @@ class TestRun(pydantic.BaseModel):
         Returns
             bool: True if more iterations are pending, False otherwise.
         """
-        return self.current_iteration + 1 < self.test.iterations
+        return self.current_iteration + 1 < self.test_definition.iterations
 
     def increment_step(self) -> int:
         """Advance the trial counter and return the new value."""
@@ -178,14 +189,14 @@ class TestRun(pydantic.BaseModel):
 
     @property
     def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
-        if not self.test.reporters:
+        if not self.test_definition.reporters:
             return None
 
-        if not self.test.agent_metrics:
+        if not self.test_definition.agent_metrics:
             return None
 
-        for r in self.test.reporters:
-            if all(metric in r.metrics for metric in self.test.agent_metrics):
+        for r in self.test_definition.reporters:
+            if all(metric in r.metrics for metric in self.test_definition.agent_metrics):
                 return r
 
         return None
@@ -199,7 +210,7 @@ class TestRun(pydantic.BaseModel):
 
     @property
     def is_dse_job(self) -> bool:
-        return self.test.is_dse_job or isinstance(self.num_nodes, list)
+        return self.test_definition.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
     def is_domain_randomization_active(self) -> bool:
@@ -211,11 +222,13 @@ class TestRun(pydantic.BaseModel):
         sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
         surfaces instead of this one.
         """
-        if not self.test.is_domain_randomization_enabled:
+        if not self.test_definition.is_domain_randomization_enabled:
             return False
 
         registry = Registry()
-        agent = registry.get_agent(self.test.agent) if registry.has_agent(self.test.agent) else None
+        agent = (
+            registry.get_agent(self.test_definition.agent) if registry.has_agent(self.test_definition.agent) else None
+        )
         return self.is_dse_job and (agent is None or agent.supports_variable_environment)
 
     @property
@@ -227,16 +240,16 @@ class TestRun(pydantic.BaseModel):
 
     @property
     def param_space(self) -> dict[str, Any]:
-        cmd_args_dict = flatten_dict(self.test.cmd_args.model_dump())
-        extra_env_vars_dict = self.test.extra_env_vars
+        cmd_args_dict = flatten_dict(self.test_definition.cmd_args.model_dump())
+        extra_env_vars_dict = self.test_definition.extra_env_vars
 
         action_space: dict[str, Any] = {
             **{
                 key: value
                 for key, value in cmd_args_dict.items()
                 if isinstance(value, list)
-                and not self.test.is_dse_excluded_arg(key)
-                and not self.test.is_env_sampled(key)
+                and not self.test_definition.is_dse_excluded_arg(key)
+                and not self.test_definition.is_env_sampled(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -265,7 +278,7 @@ class TestRun(pydantic.BaseModel):
         return all_combinations
 
     def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
-        tdef = self.test.model_copy(deep=True)
+        tdef = self.test_definition.model_copy(deep=True)
 
         # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
         # action and env_params target disjoint keys, so a plain merge applies both in one pass.
@@ -293,7 +306,7 @@ class TestRun(pydantic.BaseModel):
         type(tdef)(**validation_args)  # trigger validation
 
         new_tr = copy.deepcopy(self)
-        new_tr.test = tdef
+        new_tr.test_definition = tdef
         return new_tr
 
 
@@ -303,7 +316,7 @@ def _convert_legacy_run(data: dict[str, Any], fallback: TestDefinition | None) -
     definition.update(data["test_definition"])
     definition.update(id=data["name"], num_nodes=data["nnodes"], iterations=data["iterations"])
     return {
-        "test": definition,
+        "test_definition": definition,
         "nodes": data["nodes"],
         "output_path": data["output_path"],
         "current_iteration": data["current_iteration"],
@@ -320,10 +333,10 @@ def load_test_run(path: pathlib.Path, fallback: TestDefinition | None = None) ->
     """
     with path.open() as stream:
         data = toml.load(stream)
-    if "test_definition" in data:
+    if "nnodes" in data:
         data = _convert_legacy_run(data, fallback)
     run = TestRun.model_validate(data)
     run.output_path = path.parent
     if fallback is not None:
-        run.test = run.test.model_copy(update={"reporters": fallback.reporters})
+        run.test_definition = run.test_definition.model_copy(update={"reporters": fallback.reporters})
     return run

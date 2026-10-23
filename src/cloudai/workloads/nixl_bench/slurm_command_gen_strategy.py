@@ -31,7 +31,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NIXLBenchTestDefinition:
-        return cast(NIXLBenchTestDefinition, self.test_run.test)
+        return cast(NIXLBenchTestDefinition, self.test_run.test_definition)
 
     def _gen_srun_command(self) -> str:
         self.create_env_vars_file()
@@ -121,7 +121,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         return script_path
 
     def gen_nixlbench_command(self) -> list[str]:
-        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test)
+        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test_definition)
         cmd = [tdef.cmd_args.path_to_benchmark]
 
         for k, v in tdef.cmd_args_dict.items():

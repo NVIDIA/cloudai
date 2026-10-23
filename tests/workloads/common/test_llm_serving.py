@@ -94,7 +94,7 @@ class FakeReportStrategy(LLMServingReportGenerationStrategy[FakeLLMTestDefinitio
 class FakeLLMSlurmStrategy(LLMServingSlurmCommandGenStrategy[FakeLLMCmdArgs]):
     @property
     def tdef(self) -> FakeLLMTestDefinition:
-        return cast(FakeLLMTestDefinition, self.test_run.test)
+        return cast(FakeLLMTestDefinition, self.test_run.test_definition)
 
     @property
     def workload_name(self) -> str:
@@ -269,7 +269,9 @@ class TestLLMServingSlurmHelpers:
     ) -> None:
         tdef = make_tdef()
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -285,12 +287,12 @@ class TestLLMServingSlurmHelpers:
 
     def test_cleanup_guard_is_unique_per_test_run(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         first = TestRun(
-            test=(make_tdef()).model_copy(deep=True, update={"id": "llm.first", "num_nodes": 1}),
+            test_definition=(make_tdef()).model_copy(deep=True, update={"id": "llm.first", "num_nodes": 1}),
             nodes=[],
             output_path=tmp_path / "first",
         )
         second = TestRun(
-            test=(make_tdef()).model_copy(deep=True, update={"id": "llm.second", "num_nodes": 1}),
+            test_definition=(make_tdef()).model_copy(deep=True, update={"id": "llm.second", "num_nodes": 1}),
             nodes=[],
             output_path=tmp_path / "second",
         )
@@ -305,7 +307,9 @@ class TestLLMServingSlurmHelpers:
     def test_aggregated_serving_names_and_discovers_slurm_step(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         tdef = make_tdef()
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -322,7 +326,9 @@ class TestLLMServingSlurmHelpers:
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -339,7 +345,9 @@ class TestLLMServingSlurmHelpers:
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -370,7 +378,9 @@ class TestLLMServingSlurmHelpers:
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -397,7 +407,9 @@ wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1"""
         tdef = make_tdef(create_prefill=True)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 3}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 3}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -411,7 +423,9 @@ wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1"""
         tdef.cmd_args.decode.num_nodes = 2
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 4}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 4}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -426,7 +440,9 @@ wait_for_health "http://${DECODE_NODE}:8500/health" || exit 1"""
         tdef.cmd_args.prefill.num_nodes = 2
         tdef.cmd_args.decode.num_nodes = 2
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 3}), nodes=[], output_path=tmp_path
+            test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 3}),
+            nodes=[],
+            output_path=tmp_path,
         )
         strategy = FakeLLMSlurmStrategy(slurm_system, tr)
 
@@ -438,7 +454,9 @@ def test_generate_report_uses_shared_table_builder(
     llm_tdef: FakeLLMTestDefinition, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tr = TestRun(
-        test=llm_tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}), nodes=[], output_path=tmp_path
+        test_definition=llm_tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
     strategy = FakeReportStrategy(
         SimpleNamespace(gpus_per_node=1),
@@ -472,7 +490,9 @@ def test_generate_report_uses_shared_table_builder(
 def test_used_gpus_count_counts_all_cluster_gpus_for_two_node_disaggregated_run(tmp_path: Path) -> None:
     tdef = make_tdef(create_prefill=True)
     tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}), nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "llm", "num_nodes": 2}), nodes=[], output_path=tmp_path
+    )
     strategy = FakeReportStrategy(
         SimpleNamespace(gpus_per_node=4),
         tr,
@@ -511,7 +531,9 @@ def serving_observation_run(request: pytest.FixtureRequest, tmp_path: Path) -> t
             cmd_args=SglangCmdArgs(docker_image_url="image:latest", model="test/model"),
         )
     tr = TestRun(
-        test=tdef.model_copy(deep=True, update={"id": backend, "num_nodes": 1}), nodes=[], output_path=tmp_path
+        test_definition=tdef.model_copy(deep=True, update={"id": backend, "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
     result_path = tmp_path / ("vllm-bench.json" if backend == "vllm" else "sglang-bench.jsonl")
     data = {
@@ -534,17 +556,17 @@ def serving_observation_run(request: pytest.FixtureRequest, tmp_path: Path) -> t
 @pytest.mark.parametrize("gpus_per_node", [None, 12])
 def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observation_run, gpus_per_node) -> None:
     tr, _, _ = serving_observation_run
-    tr.num_nodes = 2
+    tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
     slurm_system.gpus_per_node = gpus_per_node
     # Both engines must use output tokens/s, despite their different legacy throughput properties.
-    args = tr.test.cmd_args.decode.model_dump()
+    args = tr.test_definition.cmd_args.decode.model_dump()
     args.update(
         {"tensor_parallel_size": 2, "pipeline_parallel_size": 2, "data_parallel_size": 3}
         if tr.name == "vllm"
         else {"tp_size": 2, "pp_size": 2, "dp_size": 3}
     )
-    tr.test.cmd_args.decode = type(tr.test.cmd_args.decode).model_validate(args)
-    observations = tr.test.metric_observations(slurm_system, tr)
+    tr.test_definition.cmd_args.decode = type(tr.test_definition.cmd_args.decode).model_validate(args)
+    observations = tr.test_definition.metric_observations(slurm_system, tr)
 
     expected = {
         ("request_throughput", None): (10.0, "requests/s"),
@@ -566,17 +588,17 @@ def test_serving_metric_observations(slurm_system: SlurmSystem, serving_observat
     for observation in observations:
         assert set(observation.dimensions) == ({"statistic"} if observation.metric.key in {"ttft", "tpot"} else set())
 
-    tr.test.cmd_args.model = "other/model"
-    tr.test.bench_cmd_args.max_concurrency = 32
-    assert tr.test.metric_observations(slurm_system, tr) == observations
+    tr.test_definition.cmd_args.model = "other/model"
+    tr.test_definition.bench_cmd_args.max_concurrency = 32
+    assert tr.test_definition.metric_observations(slurm_system, tr) == observations
 
     if tr.name == "sglang":
         args["enable_dp_attention"] = True if gpus_per_node else ""
         args["dp_size"] = 2
-        tr.test.cmd_args.decode = type(tr.test.cmd_args.decode).model_validate(args)
-        assert tr.test.serving_gpu_count == 4
-    tr.test.cmd_args.prefill = tr.test.cmd_args.decode.model_copy(deep=True)
-    assert tr.test.serving_gpu_count == (8 if tr.name == "sglang" else 24)
+        tr.test_definition.cmd_args.decode = type(tr.test_definition.cmd_args.decode).model_validate(args)
+        assert tr.test_definition.serving_gpu_count == 4
+    tr.test_definition.cmd_args.prefill = tr.test_definition.cmd_args.decode.model_copy(deep=True)
+    assert tr.test_definition.serving_gpu_count == (8 if tr.name == "sglang" else 24)
 
 
 @pytest.mark.parametrize("result", ["missing", "invalid", "incomplete", "unsuccessful"])
@@ -593,7 +615,7 @@ def test_serving_metric_observations_without_results(
     else:
         result_path.write_text(json.dumps({**data, "completed": 0}))
 
-    assert tr.test.metric_observations(slurm_system, tr) == []
+    assert tr.test_definition.metric_observations(slurm_system, tr) == []
 
 
 @pytest.mark.parametrize("field", ["request_throughput", "output_throughput"])
@@ -604,7 +626,7 @@ def test_serving_metric_observations_requires_both_throughputs(
     del data[field]
     result_path.write_text(json.dumps(data))
 
-    assert tr.test.metric_observations(slurm_system, tr) == []
+    assert tr.test_definition.metric_observations(slurm_system, tr) == []
 
 
 def test_serving_metric_observations_nonfinite_values(slurm_system: SlurmSystem, serving_observation_run) -> None:
@@ -612,7 +634,7 @@ def test_serving_metric_observations_nonfinite_values(slurm_system: SlurmSystem,
     data.update(mean_ttft_ms=float("nan"), output_throughput=float("inf"), max_concurrency=0)
     result_path.write_text(json.dumps(data))
 
-    observations = tr.test.metric_observations(slurm_system, tr)
+    observations = tr.test_definition.metric_observations(slurm_system, tr)
 
     assert len(observations) == 6
     assert all("max_concurrency" not in o.dimensions for o in observations)
@@ -627,11 +649,13 @@ def test_serving_metric_observations_accuracy(
 ) -> None:
     tr, _, _ = serving_observation_run
     if evaluation != "disabled":
-        tr.test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs() if tr.name == "vllm" else SglangSemanticEvalCmdArgs()
+        tr.test_definition.semantic_eval_cmd_args = (
+            VllmSemanticEvalCmdArgs() if tr.name == "vllm" else SglangSemanticEvalCmdArgs()
+        )
     if evaluation != "missing":
         (tr.output_path / f"{tr.name}-semantic-eval.log").write_text("Accuracy: 0.875\n")
 
-    observations = tr.test.metric_observations(slurm_system, tr)
+    observations = tr.test_definition.metric_observations(slurm_system, tr)
     accuracy = [o for o in observations if o.metric.key == "accuracy"]
 
     assert len(observations) == len({(o.metric.key, tuple(o.dimensions.items())) for o in observations})

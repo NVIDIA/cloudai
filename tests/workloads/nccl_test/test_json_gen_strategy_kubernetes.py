@@ -31,7 +31,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
         tr = TestRun(
-            test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}),
+            test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}),
             nodes=["node1", "node2"],
             output_path=k8s_system.output_path / "t1",
         )
@@ -94,7 +94,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
         ]
 
     def test_env_variables(self, test_run: TestRun, k8s_system: KubernetesSystem) -> None:
-        test_run.test.extra_env_vars = {"TEST_VAR": "test_value", "LIST_VAR": ["item1", "item2"]}
+        test_run.test_definition.extra_env_vars = {"TEST_VAR": "test_value", "LIST_VAR": ["item1", "item2"]}
         json_payload = self.json_gen_strategy(k8s_system, test_run).gen_json()
         launcher_env = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]["template"]["spec"]["containers"][0]["env"]
         worker_env = json_payload["spec"]["mpiReplicaSpecs"]["Worker"]["template"]["spec"]["containers"][0]["env"]
@@ -106,7 +106,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
             assert env_dict["LIST_VAR"] == "item1,item2"
 
     def test_launcher_command_generation(self, test_run: TestRun, k8s_system: KubernetesSystem) -> None:
-        test_run.test.cmd_args = NCCLCmdArgs.model_validate(
+        test_run.test_definition.cmd_args = NCCLCmdArgs.model_validate(
             {
                 "subtest_name": "all_reduce_perf",
                 "docker_image_url": "fake_image_url",
@@ -116,13 +116,13 @@ class TestNcclTestKubernetesJsonGenStrategy:
                 "maxbytes": "64M",
             }
         )
-        test_run.test.extra_cmd_args = {"extra-flag": "value"}
+        test_run.test_definition.extra_cmd_args = {"extra-flag": "value"}
         json_gen_strategy = self.json_gen_strategy(k8s_system, test_run)
         json_payload = json_gen_strategy.gen_json()
         launcher_args = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]["template"]["spec"]["containers"][0][
             "args"
         ][0]
-        cmd_args = test_run.test.cmd_args
+        cmd_args = test_run.test_definition.cmd_args
 
         assert "mpirun" in launcher_args
         assert f"-np {test_run.nnodes * k8s_system.gpus_per_node}" in launcher_args
@@ -145,7 +145,7 @@ class TestNcclCniNetworking:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "img"})
         nccl = NCCLTestDefinition(name="n", description="d", test_template_name="NcclTest", cmd_args=cmd_args)
         tr = TestRun(
-            test=nccl.model_copy(deep=True, update={"id": "t", "num_nodes": 2}),
+            test_definition=nccl.model_copy(deep=True, update={"id": "t", "num_nodes": 2}),
             nodes=["n1", "n2"],
             output_path=k8s_system.output_path / "t",
         )

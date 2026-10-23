@@ -25,7 +25,7 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     """Command generation strategy for the Sleep test on standalone systems."""
 
     def _generate_sleep_command(self) -> str:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test_definition)
         return f"sleep {tdef.cmd_args.seconds}"
 
     def gen_exec_command(self) -> str:

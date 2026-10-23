@@ -50,7 +50,7 @@ def test_definition(tmp_path: Path) -> TestDefinition:
 @pytest.fixture
 def generator(test_definition: TestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
     test_run = TestRun(
-        test=test_definition.model_copy(deep=True, update={"id": "mock_test_run", "num_nodes": 1}),
+        test_definition=test_definition.model_copy(deep=True, update={"id": "mock_test_run", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path,
     )
