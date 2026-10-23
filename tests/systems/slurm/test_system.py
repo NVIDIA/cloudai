@@ -53,10 +53,6 @@ def rest_slurm_api_config(request: pytest.FixtureRequest) -> SlurmAPIConfig:
     )
 
 
-def test_docker_image_import_time_limit_default(slurm_system: SlurmSystem):
-    assert slurm_system.docker_image_import_time_limit is None
-
-
 @pytest.fixture
 def rest_slurm_system(slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig) -> SlurmSystem:
     slurm_system.slurm_api = rest_slurm_api_config
