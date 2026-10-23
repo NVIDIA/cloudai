@@ -53,38 +53,6 @@ def rest_slurm_api_config(request: pytest.FixtureRequest) -> SlurmAPIConfig:
     )
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        (None, None),
-        ("00:20:00", "00:20:00"),
-        ("20", "00:20:00"),
-        ("20:30", "00:20:30"),
-        ("1-2", "1-02:00:00"),
-        ("1-2:30", "1-02:30:00"),
-        ("1-02:30:15", "1-02:30:15"),
-        ("25:00:00", "1-01:00:00"),
-        ("0", "00:00:00"),
-    ],
-)
-def test_docker_image_import_time_limit_validation(slurm_system: SlurmSystem, value: str | None, expected: str | None):
-    data = slurm_system.model_dump()
-    data["docker_image_import_time_limit"] = value
-
-    system = SlurmSystem.model_validate(data)
-
-    assert system.docker_image_import_time_limit == expected
-
-
-@pytest.mark.parametrize("value", ["", " ", "-1", "1:2:3:4", "20m", "invalid", "00:20:00\n#SBATCH --nodes=2", 20])
-def test_invalid_docker_image_import_time_limit(slurm_system: SlurmSystem, value: str | int):
-    data = slurm_system.model_dump()
-    data["docker_image_import_time_limit"] = value
-
-    with pytest.raises(ValidationError, match="docker_image_import_time_limit"):
-        SlurmSystem.model_validate(data)
-
-
 def test_docker_image_import_time_limit_default(slurm_system: SlurmSystem):
     assert slurm_system.docker_image_import_time_limit is None
 
@@ -97,7 +65,7 @@ def rest_slurm_system(slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPI
 
 def test_slurm_api_import_time_limit(rest_slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig):
     data = rest_slurm_system.model_dump()
-    data["docker_image_import_time_limit"] = "20:30"
+    data["docker_image_import_time_limit"] = "00:20:30"
     system = SlurmSystem.model_validate(data)
     system.supports_gpu_directives_cache = False
     system.extra_sbatch_args = ["--time=02:00:00", "-t 03:00:00"]

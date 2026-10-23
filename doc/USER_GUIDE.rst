@@ -81,8 +81,7 @@ Field Descriptions
    * - **[optional] docker_image_import_time_limit**
      - Slurm execution time limit for each Docker image import job when ``cache_docker_images_locally = true``.
        For example, ``"00:20:00"`` allows 20 minutes per image, excluding queue wait time.
-       Accepts Slurm duration formats: minutes, minutes:seconds, hours:minutes:seconds,
-       days-hours, days-hours:minutes, or days-hours:minutes:seconds. Zero requests no time limit.
+       Use ``HH:MM:SS`` or ``D-HH:MM:SS`` for consistent CLI and REST behavior. Zero requests no time limit.
        Overrides ``--time``/``-t`` in ``extra_sbatch_args`` for imports only; benchmark time limits are unchanged.
        If omitted, existing ``extra_sbatch_args`` and Slurm defaults apply.
        Allow headroom for download and conversion; Slurm can terminate an import that exceeds its limit.
