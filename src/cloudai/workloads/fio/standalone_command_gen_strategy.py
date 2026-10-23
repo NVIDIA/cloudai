@@ -29,7 +29,7 @@ class FioStandaloneCommandGenStrategy(CommandGenStrategy):
     """Command generation strategy for fio on standalone systems."""
 
     def _generate_fio_command(self) -> str:
-        tdef = cast(FioTestDefinition, self.test_run.test)
+        tdef = cast(FioTestDefinition, self.test_run.test_definition)
         exports = [f'export {key}="{value}"' for key, value in self.final_env_vars.items()]
         prefix = [f"{'; '.join(exports)};"] if exports else []
         return build_fio_command(tdef.cmd_args, prefix=prefix)

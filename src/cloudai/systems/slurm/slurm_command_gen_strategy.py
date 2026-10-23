@@ -70,7 +70,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @final
     def container_mounts(self) -> list[str]:
         """Return the container mounts for the test run."""
-        tdef = self.test_run.test
+        tdef = self.test_run.test_definition
 
         repo_mounts = []
         for repo in tdef.git_repos:
@@ -91,7 +91,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ]
 
         merged_env = self.system.global_env_vars.copy()
-        merged_env.update(self.test_run.test.extra_env_vars)
+        merged_env.update(self.test_run.test_definition.extra_env_vars)
         if "NCCL_TOPO_FILE" in merged_env:
             nccl_topo_file = merged_env["NCCL_TOPO_FILE"]
             if isinstance(nccl_topo_file, str):
@@ -126,7 +126,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command()
 
     def job_name_prefix(self) -> str:
-        return self.test_run.test.name
+        return self.test_run.test_definition.name
 
     def job_name(self) -> str:
         job_name_prefix = self.job_name_prefix()
@@ -145,12 +145,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             CommandGenStrategy: The strategy instance.
         """
-        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test))
+        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test_definition))
         strategy = cast(SlurmCommandGenStrategy, strategy_cls(self.system, tr))
         return strategy
 
     def _set_hook_output_path(self, tr: TestRun, base_output_path: Path) -> None:
-        tr.output_path = base_output_path / tr.test.name
+        tr.output_path = base_output_path / tr.test_definition.name
         tr.output_path.mkdir(parents=True, exist_ok=True)
 
     def pre_test_srun_extra_args(self, tr: TestRun) -> list[str]:
@@ -219,7 +219,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(post_test_commands)
 
     def gen_nsys_command(self) -> list[str]:
-        nsys = self.test_run.test.nsys
+        nsys = self.test_run.test_definition.nsys
         if not nsys or not nsys.enable:
             return []
 
@@ -315,7 +315,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             metadata_srun_prefix.append(f"-N{num_nodes}")
         if self.system.extra_srun_args:
             metadata_srun_prefix.append(self.system.extra_srun_args)
-        metadata_srun_prefix.extend(self.test_run.test.extra_srun_args)
+        metadata_srun_prefix.extend(self.test_run.test_definition.extra_srun_args)
 
         metadata_srun_prefix = [
             *metadata_srun_prefix,

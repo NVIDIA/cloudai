@@ -39,7 +39,7 @@ def megatron_run_tr(tmp_path: Path) -> TestRun:
         cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
     tr = TestRun(
-        test=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
+        test_definition=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path,
     )
@@ -78,7 +78,7 @@ def megatron_run_tr_no_data(tmp_path: Path) -> TestRun:
         cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
     tr = TestRun(
-        test=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
+        test_definition=test.model_copy(deep=True, update={"id": "megatron_run_test", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path,
     )
@@ -140,7 +140,7 @@ def test_megatron_run_extract_and_generate_report(slurm_system: SlurmSystem, meg
     assert abs(float(tflops_stats["min"]) - 490.0) < 0.1
     assert abs(float(tflops_stats["max"]) - 500.6) < 0.1
 
-    observations = megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr)
+    observations = megatron_run_tr.test_definition.metric_observations(slurm_system, megatron_run_tr)
     assert [item.metric for item in observations] == [cloudai.metrics.ITERATION_TIME, cloudai.metrics.TFLOPS_PER_GPU]
     assert [item.value for item in observations] == pytest.approx([expected_iter_avg, expected_tflops_avg])
 
@@ -200,4 +200,4 @@ def test_metric_observations_without_iteration_data(
         path.unlink()
     else:
         path.write_text(stdout)
-    assert megatron_run_tr.test.metric_observations(slurm_system, megatron_run_tr) == []
+    assert megatron_run_tr.test_definition.metric_observations(slurm_system, megatron_run_tr) == []

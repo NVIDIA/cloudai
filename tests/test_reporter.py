@@ -80,10 +80,10 @@ class TestLoadTestTuns:
         )
         reporter.load_test_runs()
 
-        assert len(reporter.trs) == dse_tr.test.agent_steps * dse_tr.iterations
+        assert len(reporter.trs) == dse_tr.test_definition.agent_steps * dse_tr.iterations
         for i, tr in enumerate(reporter.trs):
-            exp_iter = i // dse_tr.test.agent_steps
-            exp_step = i % dse_tr.test.agent_steps
+            exp_iter = i // dse_tr.test_definition.agent_steps
+            exp_step = i % dse_tr.test_definition.agent_steps
             assert tr.name == dse_tr.name
             assert tr.current_iteration == exp_iter
             assert tr.step == exp_step
@@ -266,7 +266,7 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -285,7 +285,7 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -306,7 +306,7 @@ class TestSlurmReportItem:
         with open(run_dir / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -328,7 +328,7 @@ class TestSlurmReportItem:
         with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
             toml.dump(slurm_metadata.model_dump(), f)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -349,7 +349,7 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -360,7 +360,7 @@ class TestSlurmReportItem:
             nodes=["node1"],
             output_path=run_dir,
         )
-        monkeypatch.setattr(type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(True, ""))
+        monkeypatch.setattr(type(tr.test_definition), "was_run_successful", lambda self, tr: JobStatusResult(True, ""))
 
         [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
         assert report_item.is_successful is True
@@ -374,7 +374,7 @@ class TestSlurmReportItem:
         run_dir = slurm_system.output_path / "run_dir"
         run_dir.mkdir(parents=True, exist_ok=True)
         tr = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl",
                     description="NCCL test",
@@ -386,7 +386,7 @@ class TestSlurmReportItem:
             output_path=run_dir,
         )
         monkeypatch.setattr(
-            type(tr.test), "was_run_successful", lambda self, tr: JobStatusResult(False, "command failed")
+            type(tr.test_definition), "was_run_successful", lambda self, tr: JobStatusResult(False, "command failed")
         )
 
         [report_item] = ReportItem.from_test_runs([tr], slurm_system.output_path)
@@ -402,7 +402,9 @@ def test_scenario_report_shows_pass_fail_status(
     from cloudai.core import JobStatusResult
 
     monkeypatch.setattr(
-        type(benchmark_tr.test), "was_run_successful", lambda self, tr: JobStatusResult(False, "command failed")
+        type(benchmark_tr.test_definition),
+        "was_run_successful",
+        lambda self, tr: JobStatusResult(False, "command failed"),
     )
 
     reporter = StatusReporter(
@@ -426,7 +428,7 @@ def test_scenario_report_escapes_error_message(
     from cloudai.core import JobStatusResult
 
     monkeypatch.setattr(
-        type(benchmark_tr.test),
+        type(benchmark_tr.test_definition),
         "was_run_successful",
         lambda self, tr: JobStatusResult(False, "<script>alert(1)</script>"),
     )
@@ -474,7 +476,9 @@ def test_junit_reporter_generates_testcases_with_status_logs_and_duration(
 
         return JobStatusResult(successful, message)
 
-    monkeypatch.setattr(type(benchmark_tr.test), "was_run_successful", lambda self, tr: was_run_successful(tr))
+    monkeypatch.setattr(
+        type(benchmark_tr.test_definition), "was_run_successful", lambda self, tr: was_run_successful(tr)
+    )
     reporter = JUnitReporter(
         slurm_system,
         TestScenario(name="test-scenario", test_runs=[benchmark_tr]),
@@ -585,7 +589,7 @@ def test_dse_reporter(
     slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
 
     dse_case = TestRun(
-        test=(
+        test_definition=(
             NCCLTestDefinition(
                 name="nccl",
                 description="NCCL case",
@@ -656,7 +660,7 @@ def test_dse_reporter(
         "observed_runtime": "6m",
         "efficiency_ratio": "~1.3x",
         "efficiency_steps": "3 / 4 steps",
-        "best_config_toml": toml.dumps(best_tr.test.model_dump()),
+        "best_config_toml": toml.dumps(best_tr.test_definition.model_dump()),
         "parameter_rows": [
             {
                 "name": "ngpus",

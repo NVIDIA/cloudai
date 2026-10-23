@@ -60,7 +60,9 @@ class TestNcclTestSlurmCommandGenStrategy:
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             extra_env_vars=env_vars,
         )
-        tr = TestRun(test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": num_nodes}), nodes=nodes)
+        tr = TestRun(
+            test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": num_nodes}), nodes=nodes
+        )
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts()
 
@@ -75,7 +77,7 @@ class TestNcclTestSlurmCommandGenStrategy:
     def test_generate_test_command(self, slurm_system: SlurmSystem, args: dict[str, Union[str, list[str]]]) -> None:
         cmd_args: NCCLCmdArgs = NCCLCmdArgs.model_validate({**{"docker_image_url": "fake_image_url"}, **args})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
-        tr = TestRun(test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 1}), nodes=[])
+        tr = TestRun(test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 1}), nodes=[])
 
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         cmd = " ".join(cmd_gen_strategy.generate_test_command())

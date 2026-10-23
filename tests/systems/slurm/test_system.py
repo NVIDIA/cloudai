@@ -675,7 +675,7 @@ class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
 @pytest.fixture
 def test_run(slurm_system: SlurmSystem) -> TestRun:
     test_run = TestRun(
-        test=(
+        test_definition=(
             NCCLTestDefinition(
                 name="test_run",
                 description="test_run",
@@ -710,12 +710,12 @@ class TestSlurmCommandGenStrategyCache:
         assert res == (2, ["node01", "node02"])
 
         # Different node spec should call get_nodes_by_spec again
-        test_run.test = test_run.test.model_copy(update={"num_nodes": 1})
+        test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
         test_run.nodes = []
         strategy.get_cached_nodes_spec()
         assert mock_get_nodes.call_count == 2
 
-        test_run.test = test_run.test.model_copy(update={"num_nodes": 2})
+        test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 2})
         test_run.nodes = ["node01", "node03"]
         strategy.get_cached_nodes_spec()
         assert mock_get_nodes.call_count == 3
@@ -872,7 +872,7 @@ name = "p"
 """
     slurm = SlurmSystem.model_validate(toml.loads(spec))
     test_run = TestRun(
-        test=(
+        test_definition=(
             NCCLTestDefinition(
                 name="test_run",
                 description="test_run",

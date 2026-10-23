@@ -121,7 +121,7 @@ def test_osu_multi_latency_short_header_parsing(tmp_path: Path) -> None:
 def test_get_metric_returns_mean_latency(metric: str, tmp_path: Path, slurm_system: SlurmSystem) -> None:
     (tmp_path / "stdout.txt").write_text(OSU_ALLGATHER_LAT)
     tr = TestRun(
-        test=(
+        test_definition=(
             TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
         ).model_copy(deep=True, update={"id": "osu", "num_nodes": 2}),
         nodes=[],
@@ -135,7 +135,7 @@ def test_get_metric_returns_mean_latency(metric: str, tmp_path: Path, slurm_syst
 def test_get_metric_returns_error_for_unsupported_metric_or_output(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     (tmp_path / "stdout.txt").write_text(OSU_BW)
     tr = TestRun(
-        test=(
+        test_definition=(
             TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
         ).model_copy(deep=True, update={"id": "osu", "num_nodes": 2}),
         nodes=[],

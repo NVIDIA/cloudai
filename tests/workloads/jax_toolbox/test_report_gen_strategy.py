@@ -36,7 +36,9 @@ def jax_tr(tmp_path: Path) -> TestRun:
         cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
     )
     return TestRun(
-        test=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}), nodes=[], output_path=tmp_path
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
 
 

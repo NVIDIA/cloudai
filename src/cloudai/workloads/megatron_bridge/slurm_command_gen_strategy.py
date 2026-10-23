@@ -54,7 +54,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def gen_exec_command(self) -> str:
-        tdef: MegatronBridgeTestDefinition = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef: MegatronBridgeTestDefinition = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         args: MegatronBridgeCmdArgs = tdef.cmd_args
 
         mbridge_repo_path = (
@@ -151,7 +151,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         success_vars = []
         for idx, tr in enumerate(self.test_run.pre_test.test_runs):
             tr = copy.copy(tr)
-            tr.test = tr.test.model_copy(update={"num_nodes": 1})
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 1})
             strategy = self._get_cmd_gen_strategy(tr)
             self._set_hook_output_path(tr, self.test_run.output_path / "pre_test")
             tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -168,7 +168,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             success_var = f"SUCCESS_{idx}"
             success_vars.append(success_var)
 
-            min_busbw = getattr(tr.test.cmd_args, "min_busbw", None)
+            min_busbw = getattr(tr.test_definition.cmd_args, "min_busbw", None)
             if min_busbw is not None:
                 check_cmd = (
                     f"awk '/Avg bus bandwidth/ {{ if ($NF+0 >= {min_busbw}) found=1 }}"
@@ -179,7 +179,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
             sbatch_lines.extend(
                 [
-                    f"# {tr.test.name}",
+                    f"# {tr.test_definition.name}",
                     f"mkdir -p {node_out}",
                     "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
                     f"    {node_srun} &",
@@ -270,12 +270,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         sbatch_lines: list[str],
     ) -> Optional[Path]:
         allocation_run = strategy.test_run
-        original_definition = allocation_run.test
+        original_definition = allocation_run.test_definition
         original_nodes = allocation_run.nodes
         allocation_strategy = self._get_cmd_gen_strategy(allocation_run)
 
         try:
-            allocation_run.test = original_definition.model_copy(
+            allocation_run.test_definition = original_definition.model_copy(
                 update={
                     "num_nodes": self._max_post_hook_nodes(post_test.test_runs),
                     "exclude_nodes": self._aggregate_post_hook_exclude_nodes(post_test.test_runs),
@@ -287,7 +287,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 self._post_hook_time_limit(post_test.test_runs),
             )
         finally:
-            allocation_run.test = original_definition
+            allocation_run.test_definition = original_definition
             allocation_run.nodes = original_nodes
 
     @staticmethod
@@ -315,12 +315,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def store_test_run(self) -> None:
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         details = self.test_run.model_dump(mode="json")
-        details["test"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
+        details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
             toml.dump(details, f)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test_definition)
         output_path = self.test_run.output_path
         if not output_path.exists():
             return

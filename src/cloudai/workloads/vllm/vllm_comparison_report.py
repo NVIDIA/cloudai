@@ -39,12 +39,12 @@ class VLLMComparisonReport(LLMServingComparisonReport):
         self.report_file_name = "vllm_comparison.html"
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
-        return isinstance(tr.test, VllmTestDefinition)
+        return isinstance(tr.test_definition, VllmTestDefinition)
 
     def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> VllmBenchCmdArgs:
-        if not isinstance(tr.test, VllmTestDefinition):
+        if not isinstance(tr.test_definition, VllmTestDefinition):
             raise TypeError(f"{self.__class__.__name__} only supports vLLM test runs.")
-        return tr.test.bench_cmd_args
+        return tr.test_definition.bench_cmd_args
 
     def parse_results(self, tr: cloudai.core.TestRun):
         strategy = VLLMBenchReportGenerationStrategy(self.system, tr)

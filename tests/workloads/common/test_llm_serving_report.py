@@ -48,7 +48,7 @@ def _write_result(run_dir: pathlib.Path, file_name: str, content: str) -> None:
 
 def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
-        test=(
+        test_definition=(
             VllmTestDefinition(
                 name="vllm",
                 description="vLLM benchmark",
@@ -61,7 +61,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
-        test=(
+        test_definition=(
             VllmTestDefinition(
                 name="vllm",
                 description="vLLM benchmark",
@@ -151,7 +151,7 @@ def test_llm_comparison_report_generates_html(slurm_system: cloudai.systems.slur
 
 def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.slurm.SlurmSystem) -> None:
     tr1 = cloudai.core.TestRun(
-        test=(
+        test_definition=(
             SglangTestDefinition(
                 name="sglang",
                 description="SGLang benchmark",
@@ -164,7 +164,7 @@ def test_sglang_comparison_report_generates_html(slurm_system: cloudai.systems.s
         nodes=[],
     )
     tr2 = cloudai.core.TestRun(
-        test=(
+        test_definition=(
             SglangTestDefinition(
                 name="sglang",
                 description="SGLang benchmark",

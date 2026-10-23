@@ -39,12 +39,12 @@ class SGLangComparisonReport(LLMServingComparisonReport):
         self.report_file_name = "sglang_comparison.html"
 
     def can_handle(self, tr: cloudai.core.TestRun) -> bool:
-        return isinstance(tr.test, SglangTestDefinition)
+        return isinstance(tr.test_definition, SglangTestDefinition)
 
     def benchmark_cmd_args(self, tr: cloudai.core.TestRun) -> SglangBenchCmdArgs:
-        if not isinstance(tr.test, SglangTestDefinition):
+        if not isinstance(tr.test_definition, SglangTestDefinition):
             raise TypeError(f"{self.__class__.__name__} only supports SGLang test runs.")
-        return tr.test.bench_cmd_args
+        return tr.test_definition.bench_cmd_args
 
     def parse_results(self, tr: cloudai.core.TestRun):
         strategy = SGLangBenchReportGenerationStrategy(self.system, tr)

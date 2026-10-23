@@ -45,7 +45,9 @@ def _make_tr(tmp_path: Path) -> TestRun:
         ),
     )
     return TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=tmp_path / "out"
+        test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "out",
     )
 
 

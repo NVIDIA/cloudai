@@ -334,9 +334,9 @@ class KubernetesSystem(System):
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        if not isinstance(job.test_run.test, AIDynamoTestDefinition):
+        if not isinstance(job.test_run.test_definition, AIDynamoTestDefinition):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
-        tdef = cast(AIDynamoTestDefinition, job.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, job.test_run.test_definition)
 
         genai_perf_results_path = "/tmp/cloudai/genai-perf"
         frontend_pod = self._get_dynamo_pod_by_role(role="frontend")
@@ -420,7 +420,7 @@ class KubernetesSystem(System):
     def _copy_genai_perf_results(self, job: KubernetesJob, frontend_pod: str, genai_perf_results_path: str) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        tdef = cast(AIDynamoTestDefinition, job.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, job.test_run.test_definition)
         assert isinstance(tdef, AIDynamoTestDefinition)
         cmd = [
             "kubectl",

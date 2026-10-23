@@ -172,7 +172,7 @@ class Test_Parser:
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
-        fake_scenario.test_runs[0].test.name = "test-1"
+        fake_scenario.test_runs[0].test_definition.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
 
         _, tests, _ = parser.parse(tests_dir, Path())
@@ -198,12 +198,12 @@ class Test_Parser:
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
-        fake_scenario.test_runs[0].test.name = "test-1"
+        fake_scenario.test_runs[0].test_definition.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
 
         fake_hook = Mock()
         fake_hook.test_runs = [Mock()]
-        fake_hook.test_runs[0].test.name = "test-1"
+        fake_hook.test_runs[0].test_definition.name = "test-1"
         parse_hooks.return_value = {"hook-1": fake_hook}
 
         _, tests, _ = parser.parse(tests_dir, Path())
@@ -228,7 +228,7 @@ class Test_Parser:
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
-        fake_scenario.test_runs[0].test.name = "test-1"
+        fake_scenario.test_runs[0].test_definition.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
 
         _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path)

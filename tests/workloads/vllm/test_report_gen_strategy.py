@@ -60,7 +60,11 @@ def vllm_tr(tmp_path: Path) -> TestRun:
         test_template_name="vllm",
         cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest"),
     )
-    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}), nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "vllm", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     (tr.output_path / VLLM_BENCH_JSON_FILE).write_text(BENCH_DATA.model_dump_json(), encoding="utf-8")
     return tr
@@ -126,7 +130,7 @@ def test_vllm_tps_per_gpu(slurm_system: SlurmSystem, vllm_tr: TestRun, ngpus: in
 
 
 def test_vllm_accuracy_metric(slurm_system: SlurmSystem, vllm_tr: TestRun) -> None:
-    vllm_test = cast(VllmTestDefinition, vllm_tr.test)
+    vllm_test = cast(VllmTestDefinition, vllm_tr.test_definition)
     vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
     (vllm_tr.output_path / VLLM_GSM8K_JSON_FILE).write_text('{"accuracy": 0.875}', encoding="utf-8")
 

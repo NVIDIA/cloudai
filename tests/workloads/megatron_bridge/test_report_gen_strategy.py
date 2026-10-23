@@ -27,7 +27,7 @@ from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStra
 @pytest.fixture
 def mb_tr(tmp_path: Path) -> TestRun:
     tr = TestRun(
-        test=(
+        test_definition=(
             TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
         ).model_copy(deep=True, update={"id": "megatron_bridge", "num_nodes": 1}),
         nodes=[],

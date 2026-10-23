@@ -47,7 +47,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef.python_executable.venv_path = tmp_path / "venv"
 
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"num_nodes": 2, "id": "test-job"}),
+            test_definition=tdef.model_copy(deep=True, update={"num_nodes": 2, "id": "test-job"}),
             nodes=[],
             output_path=tmp_path / "output",
         )
@@ -104,14 +104,16 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         assert "extra_args" in cmd
         assert "base_results_dir=" in cmd
         assert "launcher_scripts_path=" in cmd
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test_definition)
         assert f"container={tdef.docker_image.url}" in cmd
 
     def test_tokenizer_handling(self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path) -> None:
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
 
-        cmd_gen_strategy.test_run.test.extra_cmd_args.update({f"training.model.tokenizer.model={tokenizer_path}": ""})
+        cmd_gen_strategy.test_run.test_definition.extra_cmd_args.update(
+            {f"training.model.tokenizer.model={tokenizer_path}": ""}
+        )
         cmd = cmd_gen_strategy.gen_exec_command()
 
         assert f'container_mounts=["{tokenizer_path}:{tokenizer_path}"]' in cmd
@@ -136,7 +138,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
     def test_invalid_tokenizer_path(self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy) -> None:
         invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
-        cmd_gen_strategy.test_run.test.extra_cmd_args.update(
+        cmd_gen_strategy.test_run.test_definition.extra_cmd_args.update(
             {
                 f"training.model.tokenizer.model={invalid_tokenizer_path}": "",
             }
@@ -190,7 +192,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         assert expected_gpus in cmd
 
     def test_data_prefix_validation(self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy) -> None:
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test_definition)
         tdef.cmd_args.training.model.data.data_impl = "not_mock"
         tdef.cmd_args.training.model.data.data_prefix = "[]"
 
@@ -205,7 +207,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         cmd_gen_strategy.test_run.output_path.mkdir()
 
         repo_path = (tmp_path / "repo").relative_to(tmp_path)
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, cmd_gen_strategy.test_run.test_definition)
         tdef.python_executable.git_repo.installed_path = repo_path
         tdef.python_executable.venv_path = repo_path.parent / f"{repo_path.name}-venv"
         cmd_gen_strategy.gen_exec_command()
@@ -224,7 +226,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
     def test_container_mounts_with_nccl_topo_file(self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy) -> None:
         nccl_topo_file_path = "/opt/topo.toml"
-        cmd_gen_strategy.test_run.test.extra_env_vars["NCCL_TOPO_FILE"] = nccl_topo_file_path
+        cmd_gen_strategy.test_run.test_definition.extra_env_vars["NCCL_TOPO_FILE"] = nccl_topo_file_path
 
         cmd = cmd_gen_strategy.gen_exec_command()
 

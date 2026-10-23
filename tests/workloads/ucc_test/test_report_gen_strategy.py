@@ -66,7 +66,7 @@ Iterations:
 @pytest.fixture
 def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
     ucc_tr = TestRun(
-        test=(
+        test_definition=(
             UCCTestDefinition(
                 name="ucc_test",
                 description="ucc_test",

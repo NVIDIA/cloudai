@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ class NcclTestPredictionReportGenerationStrategy(NcclTestReportGenerationStrateg
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
 
-        collective_type = self._normalize_collective_type(tr.test.cmd_args.subtest_name)
+        collective_type = self._normalize_collective_type(tr.test_definition.cmd_args.subtest_name)
         self.prediction_report = NcclTestPredictionReportGenerator(collective_type, tr)
 
     def _normalize_collective_type(self, subtest_name: str) -> str:

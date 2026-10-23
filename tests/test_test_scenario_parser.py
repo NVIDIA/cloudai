@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportC
 class DummyTestRun(TestRun):
     def __init__(self, time_limit: str) -> None:
         super().__init__(
-            test=TestDefinition(
+            test_definition=TestDefinition(
                 id="dummy_run",
                 name="dummy_test",
                 description="dummy_test",

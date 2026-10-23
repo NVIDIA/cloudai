@@ -35,10 +35,11 @@ Saved test runs
 ---------------
 
 Each execution writes ``test-run.toml`` with its prepared definition under
-``[test]`` and its allocated nodes, output path, iteration and step at top level.
+``[test_definition]`` and its allocated nodes, output path, iteration and step at top level.
 Pre/post-test scenarios and live dependency references are not saved.
 
-Reports accept both this layout and older files with ``[test_definition]``.
+Reports accept this layout and legacy files with repeated top-level definition
+settings such as ``nnodes`` and ``iterations``.
 For old files, saved top-level values take precedence over the supplied scenario;
 the scenario supplies definition settings that were never saved. Newly written
 files omit the old command strings and repeated top-level definition settings.

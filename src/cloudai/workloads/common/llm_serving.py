@@ -309,7 +309,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
         return self.parse_results() is not None
 
     def used_gpus_count(self) -> int:
-        tdef = cast(TestDefT, self.test_run.test)
+        tdef = cast(TestDefT, self.test_run.test_definition)
         gpu_ids = self.all_gpu_ids(tdef, getattr(self.system, "gpus_per_node", 1))
         num_nodes = self.test_run.nnodes
         if tdef.cmd_args.prefill is None or num_nodes <= 1:
@@ -327,7 +327,7 @@ class LLMServingReportGenerationStrategy(ReportGenerationStrategy, Generic[TestD
             return METRIC_ERROR
 
         if metric == "accuracy":
-            tdef = cast(TestDefT, self.test_run.test)
+            tdef = cast(TestDefT, self.test_run.test_definition)
             if getattr(tdef, "semantic_eval_cmd_args", None) is None:
                 return METRIC_ERROR
             accuracy = self.parse_semantic_accuracy()

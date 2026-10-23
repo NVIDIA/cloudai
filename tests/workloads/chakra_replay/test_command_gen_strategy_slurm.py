@@ -80,7 +80,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
         slurm_system: SlurmSystem,
     ) -> None:
         tr = TestRun(
-            test=(
+            test_definition=(
                 ChakraReplayTestDefinition(
                     name="n",
                     description="d",

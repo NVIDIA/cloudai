@@ -626,8 +626,8 @@ class AIDynamoTestDefinition(TestDefinition):
         return JobStatusResult(workloads_successful and accuracy_successful)
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
-        prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
-        decode_worker = tr.test.cmd_args.dynamo.decode_worker
+        prefill_worker = tr.test_definition.cmd_args.dynamo.prefill_worker
+        decode_worker = tr.test_definition.cmd_args.dynamo.decode_worker
 
         prefill_tp = prefill_worker.args.tensor_parallel_size
         prefill_pp = prefill_worker.args.pipeline_parallel_size

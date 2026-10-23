@@ -79,7 +79,7 @@ class TestUCCTestSlurmCommandGenStrategy:
         )
 
         tr = TestRun(
-            test=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            test_definition=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
             nodes=[],
             output_path=tmp_path / "output",
         )

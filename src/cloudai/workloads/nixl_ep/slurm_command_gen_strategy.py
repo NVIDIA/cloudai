@@ -51,7 +51,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @property
     def tdef(self) -> NixlEPTestDefinition:
-        return cast(NixlEPTestDefinition, self.test_run.test)
+        return cast(NixlEPTestDefinition, self.test_run.test_definition)
 
     def image_path(self) -> str | None:
         return str(self.tdef.docker_image.installed_path)

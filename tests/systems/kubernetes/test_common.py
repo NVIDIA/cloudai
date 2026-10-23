@@ -40,13 +40,13 @@ class MyJsonGenStrategy(JsonGenStrategy):
     ],
 )
 def test_job_name_sanitization(k8s_system: KubernetesSystem, base_tr: TestRun, tname: str, expected: str) -> None:
-    base_tr.test = base_tr.test.model_copy(update={"id": tname})
+    base_tr.test_definition = base_tr.test_definition.model_copy(update={"id": tname})
     json_gen = MyJsonGenStrategy(k8s_system, base_tr)
     assert json_gen.sanitize_k8s_job_name(base_tr.name) == expected
 
 
 def test_job_name_sanitization_raises(k8s_system: KubernetesSystem, base_tr: TestRun) -> None:
-    base_tr.test = base_tr.test.model_copy(update={"id": "!@#$%^&*()"})
+    base_tr.test_definition = base_tr.test_definition.model_copy(update={"id": "!@#$%^&*()"})
     json_gen = MyJsonGenStrategy(k8s_system, base_tr)
     with pytest.raises(ValueError):
         json_gen.sanitize_k8s_job_name(base_tr.name)

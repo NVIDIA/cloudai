@@ -116,16 +116,16 @@ class TestScenarioParser:
         """
         try:
             resolved = dict(data)
-            items = data.get("Tests")
-            if not isinstance(items, list) or not items:
-                raise ValueError("Tests must contain at least one test definition")
-            resolved["Tests"] = [self._prepare_tdef(item) for item in items]
+            if "Tests" in data:
+                items = data["Tests"]
+                if not isinstance(items, list) or not items:
+                    raise ValueError("Tests must contain at least one test definition")
+                resolved["Tests"] = [self._prepare_tdef(item) for item in items]
             ts_model = TestScenario.model_validate(resolved)
         except (ValidationError, ValueError) as e:
             msg = f"Failed to parse Test Scenario definition: {self.file_path}"
             if isinstance(e, ValidationError):
-                for err in e.errors(include_url=False):
-                    msg += f"\n\t{format_validation_error(err)}"
+                msg += "".join(f"\n\t{format_validation_error(err)}" for err in e.errors(include_url=False))
             else:
                 msg += f"\n\t{e}"
             logging.error(msg)
@@ -215,7 +215,7 @@ class TestScenarioParser:
                 "reporters": get_reporters(test_info),
             },
         )
-        return TestRun(test=prepared, pre_test=pre_test, post_test=post_test)
+        return TestRun(test_definition=prepared, pre_test=pre_test, post_test=post_test)
 
     def _prepare_tdef(self, data: dict[str, Any]) -> TestDefinition:
         """Resolve a scenario item into its sole, workload-specific definition model."""

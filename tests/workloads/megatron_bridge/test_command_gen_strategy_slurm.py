@@ -99,7 +99,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             )
             self._configure_fake_installs(tdef, tmp_path)
             return TestRun(
-                test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": num_nodes}),
+                test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": num_nodes}),
                 nodes=[],
                 output_path=tmp_path / output_subdir,
             )
@@ -173,7 +173,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
     def test_git_repos_can_pin_megatron_bridge_commit(self, make_test_run: Callable[..., TestRun]) -> None:
         tr = make_test_run(git_commit="abcdef1234567890")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         assert tdef.megatron_bridge_repo.commit == "abcdef1234567890"
 
     def test_defaults_not_emitted_when_not_set_in_toml(
@@ -201,7 +201,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(output_subdir="out_custom_tensorboard")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         tdef.extra_cmd_args["logger.tensorboard_dir"] = "/nemo_run/custom_tb"
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
 
@@ -227,7 +227,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         expected_packager: str | None,
     ) -> None:
         tr = make_test_run(output_subdir=f"out_packager_{expected_packager}")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         repo_path = tdef.megatron_bridge_repo.installed_path
         assert repo_path is not None
         parser_path = repo_path / "scripts" / "performance" / "argument_parser.py"
@@ -247,7 +247,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
-        tdef = cast(MegatronBridgeTestDefinition, test_run.test)
+        tdef = cast(MegatronBridgeTestDefinition, test_run.test_definition)
         local_img = Path(tdef.cmd_args.container_image)
         assert local_img.exists()
 
@@ -267,7 +267,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run()
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         tdef.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"}
 
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
@@ -303,7 +303,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             "NCCL_IB_GID_INDEX": "3",
         }
         tr = make_test_run(output_subdir="out_container_rt")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         tdef.extra_env_vars = {"NVIDIA_VISIBLE_DEVICES": "all", "NCCL_DEBUG": "INFO"}
 
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
@@ -349,7 +349,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             extra_env_vars={"HOOK_VAR": "1"},
         )
         post_run = TestRun(
-            test=hook_tdef.model_copy(deep=True, update={"id": "nccl_post", "num_nodes": 1, "time_limit": "00:05:00"}),
+            test_definition=hook_tdef.model_copy(
+                deep=True, update={"id": "nccl_post", "num_nodes": 1, "time_limit": "00:05:00"}
+            ),
             nodes=[],
             output_path=tmp_path / "unused",
         )
@@ -374,7 +376,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         tr = make_test_run(output_subdir="out_post_hook_resources")
         first_post = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="post_one",
                     description="post",
@@ -386,7 +388,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             output_path=tmp_path / "unused_one",
         )
         second_post = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="post_two",
                     description="post",
@@ -421,7 +423,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         configured_slurm_system.ntasks_per_node = 2
         tr = make_test_run(output_subdir="out_post_hook_hostfile")
         post_run = TestRun(
-            test=(
+            test_definition=(
                 NCCLTestDefinition(
                     name="nccl_post",
                     description="post",
@@ -492,7 +494,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         tr.output_path.mkdir(parents=True, exist_ok=True)
         if log_content is not None:
             (tr.output_path / "cloudai_megatron_bridge_launcher.log").write_text(log_content)
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         result = tdef.was_run_successful(tr)
         assert result.is_successful is expected_is_successful
 
@@ -515,9 +517,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
         test_run_path = test_run.output_path / "test-run.toml"
         details = toml.load(test_run_path)
-        assert details["test"]["cmd_args"]["hf_token"] == HF_TOKEN_REDACTION
+        assert details["test_definition"]["cmd_args"]["hf_token"] == HF_TOKEN_REDACTION
         assert "dummy_token" not in test_run_path.read_text()
-        assert test_run.test.cmd_args.hf_token == "dummy_token"
+        assert test_run.test_definition.cmd_args.hf_token == "dummy_token"
 
     def test_cleanup_job_artifacts_redacts_hf_token(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
@@ -587,7 +589,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun], tmp_path: Path
     ) -> None:
         tr = make_test_run(mount_as="/opt/custom-megatron", output_subdir="out_mount")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         repo_path = tdef.megatron_bridge_repo.installed_path
         assert repo_path is not None
 
@@ -599,7 +601,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(mount_as=None, output_subdir="out_no_mount")
-        tdef = cast(MegatronBridgeTestDefinition, tr.test)
+        tdef = cast(MegatronBridgeTestDefinition, tr.test_definition)
         repo_path = tdef.megatron_bridge_repo.installed_path
         assert repo_path is not None
 
@@ -654,7 +656,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         self, configured_slurm_system: SlurmSystem, make_test_run: Callable[..., TestRun]
     ) -> None:
         tr = make_test_run(output_subdir="out_tr_srun")
-        tr.test = tr.test.model_copy(update={"extra_srun_args": ["--constraint gpu"]})
+        tr.test_definition = tr.test_definition.model_copy(update={"extra_srun_args": ["--constraint gpu"]})
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(configured_slurm_system, tr)
         wrapper_content = self._wrapper_content(cmd_gen)
         assert "constraint=gpu" in wrapper_content

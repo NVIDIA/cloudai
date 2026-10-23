@@ -55,14 +55,18 @@ values and effective scheduling settings. Keep the scenario's original definitio
 unchanged. Treat prepared definitions as immutable configuration; create a new
 definition when settings change.
 
-``TestRun(test=prepared_definition)`` holds that definition directly. It stores
+``TestRun(test_definition=prepared_definition)`` holds that definition directly. It stores
 allocated nodes, iteration, step, output path and resolved dependency and hook
 bindings. Static settings, including selected node count, effective time limit,
-weight and SOL, belong to ``TestRun.test``. Existing read access through
+weight and SOL, belong to ``TestRun.test_definition``. Existing read access through
 ``test_run.nnodes``, ``iterations`` and ``extra_srun_args`` forwards to that
 definition. Compatibility properties used by workload generators and reporters
 remain available. Read ``weight``, ``ideal_perf`` and ``pin_nodes`` from
-``test_run.test``; their runtime forwarding properties are removed.
+``test_run.test_definition``; their runtime forwarding properties are removed.
+
+``TestRun.test`` remains a read/write compatibility property for existing
+workloads and reporters. The constructor takes ``test_definition=``;
+serialization writes only ``test_definition``.
 
 ``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, the existing
 ``cloudai.metrics.MetricSOLConfig`` dictionary, or ``None``. The dictionary maps
@@ -78,14 +82,14 @@ is excluded from scenario serialization.
 saved TOMLs through ``load_test_run(path, fallback=definition)`` from
 ``cloudai.core``. The fallback supplies reporter registrations and definition
 fields absent from legacy files. New files contain the complete prepared
-definition under ``[test]``, with ``nodes``, ``output_path``, ``current_iteration``
+definition under ``[test_definition]``, with ``nodes``, ``output_path``, ``current_iteration``
 and ``step`` at top level. Live dependency references and pre/post-test scenarios
 are excluded. The definition retains declared dependency IDs.
 
 The old top-level ``name``, ``nnodes`` and ``iterations`` are no longer written;
 they are available from the definition. ``test_cmd`` and ``full_cmd`` are removed.
-Reporting still loads old files containing ``[test_definition]`` through a
-separate legacy converter. The containing folder supplies the output path,
+Reporting still loads old files, identified by their top-level ``nnodes`` field,
+through a separate legacy converter. The containing folder supplies the output path,
 allowing results to be moved. Best-config exports contain only the definition.
 
 ``TestRunDetails`` is no longer a separate model. Its ``from_test_run`` method
@@ -110,8 +114,9 @@ Migration notes for direct model users:
 * ``TestRun`` takes a prepared definition and runtime state. Configuration
   arguments such as ``name``, ``num_nodes`` and ``iterations`` move to the
   definition (``name`` becomes the case ``id``). Static forwarding properties are
-  read-only. ``TestRun.definition`` is removed; ``TestRun.test`` is its sole
-  definition reference. The constructor accepts keyword arguments only and no longer copies the definition.
+  read-only. ``TestRun.definition`` is removed; ``TestRun.test_definition`` owns
+  the definition, with ``test`` retained as a compatibility alias. The constructor
+  accepts keyword arguments only and no longer copies the definition.
 * ``extra_srun_args`` accepts a string or a list of string fragments in test and
   scenario TOMLs. Definitions store a list; ``TestRun.extra_srun_args`` provides
   the joined string for existing strategies. Existing quoting is preserved.

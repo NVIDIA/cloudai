@@ -40,7 +40,7 @@ class NcclComparisonReport(MetricComparisonReport):
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test_definition, NCCLTestDefinition)]
 
     def build_sections(self, cmp_groups: list[GroupedTestRuns]) -> list[ComparisonSection]:
         sections = []

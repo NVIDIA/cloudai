@@ -27,7 +27,9 @@ class TestNcclTestRunAIJsonGenStrategy:
     def test_gen_json(self, runai_system: RunAISystem) -> None:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=cmd_args)
-        tr = TestRun(test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"])
+        tr = TestRun(
+            test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"]
+        )
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()
 
         assert json_payload["projectId"] == "test_project_id"
@@ -61,7 +63,9 @@ class TestNcclTestRunAIJsonGenStrategy:
             }
         )
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=cmd_args)
-        tr = TestRun(test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"])
+        tr = TestRun(
+            test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"]
+        )
 
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()
 
@@ -104,7 +108,9 @@ class TestNcclTestRunAIJsonGenStrategy:
             cmd_args=cmd_args,
             extra_cmd_args={"--extra-arg": "value"},
         )
-        tr = TestRun(test=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"])
+        tr = TestRun(
+            test_definition=nccl.model_copy(deep=True, update={"id": "t1", "num_nodes": 2}), nodes=["node1", "node2"]
+        )
 
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()
 

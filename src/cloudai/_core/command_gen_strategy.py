@@ -56,7 +56,7 @@ class CommandGenStrategy(ABC):
     def final_env_vars(self) -> dict[str, str | list[str]]:
         if not self._final_env_vars:
             final_env_vars = self.system.global_env_vars.copy()
-            final_env_vars.update(self.test_run.test.extra_env_vars)
+            final_env_vars.update(self.test_run.test_definition.extra_env_vars)
             self._final_env_vars = final_env_vars
         return self._final_env_vars
 

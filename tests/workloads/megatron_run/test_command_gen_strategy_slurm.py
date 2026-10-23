@@ -37,7 +37,9 @@ def _megatron_run_test_run(tmp_path: Path, command_prefix: str = "") -> TestRun:
         ),
     )
     return TestRun(
-        test=tdef.model_copy(deep=True, update={"id": "megatron-run", "num_nodes": 1}), nodes=[], output_path=tmp_path
+        test_definition=tdef.model_copy(deep=True, update={"id": "megatron-run", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
     )
 
 

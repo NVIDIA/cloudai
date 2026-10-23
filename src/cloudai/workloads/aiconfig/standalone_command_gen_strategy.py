@@ -32,7 +32,7 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
     def gen_exec_command(self) -> str:
         self.store_test_run()
 
-        tdef: AiconfiguratorTestDefinition = cast(AiconfiguratorTestDefinition, self.test_run.test)
+        tdef: AiconfiguratorTestDefinition = cast(AiconfiguratorTestDefinition, self.test_run.test_definition)
         args: AiconfiguratorCmdArgs = tdef.cmd_args
         out_dir = Path(self.test_run.output_path).resolve()
 

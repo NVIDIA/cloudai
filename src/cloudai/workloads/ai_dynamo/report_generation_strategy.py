@@ -93,7 +93,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         return None
 
     def _benchmark_csv(self) -> Path | None:
-        tdef = self.test_run.test
+        tdef = self.test_run.test_definition
         if not isinstance(tdef, AIDynamoTestDefinition):
             return None
         for workload in tdef.cmd_args.workloads_list:
@@ -106,7 +106,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         return None
 
     def _max_concurrency(self) -> int:
-        tdef = self.test_run.test
+        tdef = self.test_run.test_definition
         if not isinstance(tdef, AIDynamoTestDefinition):
             return 1
 
@@ -182,7 +182,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         logging.info(f"Getting metric: {metric}")
 
         if metric.lower() == "accuracy":
-            tdef = self.test_run.test
+            tdef = self.test_run.test_definition
             if not isinstance(tdef, AIDynamoTestDefinition):
                 return METRIC_ERROR
             if tdef.cmd_args.aiperf_accuracy is None:
@@ -201,7 +201,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             benchmark_name, metric_name, metric_type = parts
         else:
             # Derive from the configured workload script (e.g. "aiperf.sh" → "aiperf").
-            workloads_list = getattr(getattr(self.test_run.test, "cmd_args", None), "workloads_list", None)
+            workloads_list = getattr(getattr(self.test_run.test_definition, "cmd_args", None), "workloads_list", None)
             benchmark_name = Path(workloads_list[0]).stem if workloads_list else "aiperf"
 
         source_csv = self.test_run.output_path / f"{benchmark_name}_report.csv"

@@ -113,8 +113,8 @@ def prepare_installation(
 def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     installables: list[Installable] = []
     for test_run in scenario.test_runs:
-        logging.debug(f"{test_run.test.name} has {len(test_run.test.installables)} installables.")
-        installables.extend(test_run.test.installables)
+        logging.debug(f"{test_run.test_definition.name} has {len(test_run.test_definition.installables)} installables.")
+        installables.extend(test_run.test_definition.installables)
         for hook in (test_run.pre_test, test_run.post_test):
             if hook is not None:
                 installables.extend(_scenario_installables(hook))
@@ -139,7 +139,7 @@ def handle_dse_job(runner: Runner) -> int:
         for tr in runner.runner.test_scenario.test_runs:
             test_run = copy.deepcopy(tr)
 
-            agent_type = test_run.test.agent
+            agent_type = test_run.test_definition.agent
             if not registry.has_agent(agent_type):
                 logging.error(
                     f"No agent available for type: {agent_type}. Please make sure {agent_type} "
@@ -149,7 +149,7 @@ def handle_dse_job(runner: Runner) -> int:
                 continue
             agent_class = registry.get_agent(agent_type)
 
-            agent_config_data = test_run.test.agent_config or {}
+            agent_config_data = test_run.test_definition.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
             env = CloudAIGymEnv(
                 test_run=test_run,

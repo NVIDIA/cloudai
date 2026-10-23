@@ -46,7 +46,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         )
 
         tr = TestRun(
-            test=tdef.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            test_definition=tdef.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
             nodes=[],
             output_path=tmp_path / "output",
         )
@@ -67,7 +67,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             ),
             data=Data(micro_batch_size=1),
         )
-        cmd_gen_strategy.test_run.test.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test_definition.cmd_args = cmd_args
 
         recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
 
@@ -87,7 +87,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
     def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy) -> None:
         cmd_gen_strategy.test_run.nodes = ["node1"]
-        cmd_args_dict = cmd_gen_strategy.test_run.test.cmd_args.model_dump()
+        cmd_args_dict = cmd_gen_strategy.test_run.test_definition.cmd_args.model_dump()
         cmd_args_dict["trainer"]["num_nodes"] = len(cmd_gen_strategy.test_run.nodes)
 
         cmd = cmd_gen_strategy.generate_test_command()
@@ -97,14 +97,16 @@ class TestNeMoRunSlurmCommandGenStrategy:
     def test_trainer_num_nodes_greater_than_num_nodes(
         self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, caplog: pytest.LogCaptureFixture
     ) -> None:
-        cmd_gen_strategy.test_run.test = cmd_gen_strategy.test_run.test.model_copy(update={"num_nodes": 1})
+        cmd_gen_strategy.test_run.test_definition = cmd_gen_strategy.test_run.test_definition.model_copy(
+            update={"num_nodes": 1}
+        )
         cmd_args = NeMoRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
             recipe_name="llama7_13b",
             trainer=Trainer(num_nodes=4),
         )
-        cmd_gen_strategy.test_run.test.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test_definition.cmd_args = cmd_args
 
         with caplog.at_level(logging.WARNING):
             cmd_gen_strategy.generate_test_command()

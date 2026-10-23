@@ -78,6 +78,8 @@ def test_constraint_check_virtual_pipeline_and_moe_pipelining(
     tdef.cmd_args.pp = pp
     tdef.cmd_args.vp = vp
     tdef.cmd_args.moe_a2a_overlap = a2a
-    tr = TestRun(test=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
     assert tdef.constraint_check(tr, None) is res

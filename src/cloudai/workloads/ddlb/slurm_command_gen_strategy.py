@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,11 +28,11 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test)
+        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test)
+        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test_definition)
         srun_command_parts = ["python ddlb/cli/benchmark.py"]
         ddlb_test_args = tdef.cmd_args.model_dump().keys()
         for arg in ddlb_test_args:
@@ -51,8 +51,8 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 case _:
                     srun_command_parts.append(f"--{arg} {value}")
 
-        if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test_definition.extra_args_str)
 
         return srun_command_parts
 
