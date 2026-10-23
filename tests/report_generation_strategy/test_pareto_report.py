@@ -26,34 +26,62 @@ import cloudai.core
 import cloudai.models.scenario
 import cloudai.report_generator.pareto_report as pareto_report
 import cloudai.systems.slurm
+import cloudai.workloads.ai_dynamo
 import cloudai.workloads.sglang
 import cloudai.workloads.vllm
 
 
 @pytest.fixture(
-    params=list(itertools.product(["vllm", "sglang"], ["minimize", "maximize"], ["minimize", "maximize"])),
+    params=[
+        *itertools.product(["vllm", "sglang"], ["minimize", "maximize"], ["minimize", "maximize"]),
+        ("AIDynamo", "minimize", "maximize"),
+    ],
     ids=lambda values: "-".join(values),
 )
 def pareto_reporter(
     slurm_system: cloudai.systems.slurm.SlurmSystem, tmp_path: Path, request: pytest.FixtureRequest
 ) -> pareto_report.ParetoReporter:
     workload, x_direction, y_direction = request.param
-    cls = (
-        cloudai.workloads.vllm.VllmTestDefinition
-        if workload == "vllm"
-        else cloudai.workloads.sglang.SglangTestDefinition
-    )
+    cls = {
+        "vllm": cloudai.workloads.vllm.VllmTestDefinition,
+        "sglang": cloudai.workloads.sglang.SglangTestDefinition,
+        "AIDynamo": cloudai.workloads.ai_dynamo.AIDynamoTestDefinition,
+    }[workload]
+    cmd_args = {"docker_image_url": "example/image:latest", "model": "example/model"}
+    if workload == "AIDynamo":
+        cmd_args = {
+            "docker_image_url": "example/image:latest",
+            "workloads": "aiperf.sh",
+            "dynamo": {"model": "example/model", "prefill_worker": {"num_nodes": 0}},
+            "aiperf": {
+                "args": {
+                    "concurrency": 16,
+                    "request-count": 30,
+                    "synthetic-input-tokens-mean": 16,
+                    "output-tokens-mean": 128,
+                }
+            },
+        }
     definition = cls.model_validate(
         {
             "name": "test",
             "description": "test",
             "test_template_name": workload,
-            "cmd_args": {"docker_image_url": "example/image:latest", "model": "example/model"},
+            "cmd_args": cmd_args,
         }
     )
     executed = copy.deepcopy(definition)
-    executed.bench_cmd_args.max_concurrency = 8
-    setattr(executed.cmd_args.decode, "tensor_parallel_size" if workload == "vllm" else "tp_size", 4)
+    if workload == "AIDynamo":
+        executed.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 4
+        executed.cmd_args.aiperf_phases = [
+            cloudai.workloads.ai_dynamo.AIPerfPhase.model_validate({"name": "low", "args": {"concurrency": 8}}),
+            cloudai.workloads.ai_dynamo.AIPerfPhase.model_validate(
+                {"name": "high", "report-name": "custom-high.csv", "args": {"concurrency": 32}}
+            ),
+        ]
+    else:
+        executed.bench_cmd_args.max_concurrency = 8
+        setattr(executed.cmd_args.decode, "tensor_parallel_size" if workload == "vllm" else "tp_size", 4)
     for relative, x, y in [("ordinary/0", 2, 20), ("ordinary/1", 1, 10), ("ordinary/2", 2, 20), ("sweep/0/1", 3, 15)]:
         folder = tmp_path / relative
         folder.mkdir(parents=True)
@@ -74,11 +102,34 @@ def pareto_reporter(
         (folder / "vllm-bench.log").write_text(
             "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
         )
+        if workload == "AIDynamo":
+
+            def csv_content(latency, throughput, tpot):
+                return (
+                    "Metric,avg,p50,p99\n"
+                    f"Time to First Token (ms),{latency / 2},{latency * 0.75},{latency}\n"
+                    f"Inter Token Latency (ms),{tpot},2,3\n\n"
+                    f"Metric,Value\nOutput Token Throughput (tokens/sec),{throughput}\n"
+                    "Request Count,10\nRequest Throughput (requests/sec),1\n"
+                )
+
+            alias_content = csv_content(4, 30, 2) if relative.startswith("sweep") else csv_content(x, y, 1)
+            (folder / "aiperf_report.csv").write_text(alias_content)
+            (folder / "success-marker.txt").touch()
+            artifact = folder / "aiperf_artifacts" / "low"
+            artifact.mkdir(parents=True)
+            (artifact / "profile_export_aiperf.csv").write_text(csv_content(x, y, 1))
+            (folder / "aiperf_low_report.csv").write_text(csv_content(4, 30, 2))
+            (folder / "custom-high.csv").write_text(csv_content(4, 30, 2))
         if relative.startswith("sweep"):
             resolved = cloudai.core.TestRun("sweep", executed, 2, [], output_path=folder)
-            (folder / "test-run.toml").write_text(
-                toml.dumps(cloudai.models.scenario.TestRunDetails.from_test_run(resolved, "", "").model_dump())
-            )
+            dump = cloudai.models.scenario.TestRunDetails.from_test_run(resolved, "", "").model_dump()
+            if workload == "AIDynamo":
+                tdef = dump["test_definition"]
+                tdef["repo"] = {"commit": tdef["cmd_args"].pop("dynamo_version")}
+                script = tdef["cmd_args"]["aiperf"]["script"]
+                script["src"] = f"PosixPath({script['src']!r})"
+            (folder / "test-run.toml").write_text(toml.dumps(dump))
     for relative in ("sweep/0/2", "sweep/controller", "empty-sweep/0/controller"):
         (tmp_path / relative).mkdir(parents=True)
     plot = {
@@ -112,6 +163,12 @@ def pareto_reporter(
             ],
         }
     )
+    if workload == "AIDynamo":
+        config.plots.append(
+            pareto_report.ParetoPlotConfig.model_validate(
+                {**plot, "name": "Selected phase", "frontiers": [{"name": "High", "match": {"phase": "high"}}]}
+            )
+        )
     scenario = cloudai.core.TestScenario(
         name="example",
         test_runs=[
@@ -129,9 +186,17 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         mode="json", by_alias=True, exclude_none=True
     )
     sweep_definition = copy.deepcopy(definition)
-    sweep_definition["bench_cmd_args"]["max_concurrency"] = 8
-    tp_key = "tensor_parallel_size" if definition["test_template_name"] == "vllm" else "tp_size"
-    sweep_definition["cmd_args"]["decode"][tp_key] = 4
+    dynamo = definition["test_template_name"] == "AIDynamo"
+    if dynamo:
+        sweep_definition["cmd_args"]["dynamo"]["decode_worker"]["args"]["tensor-parallel-size"] = 4
+        sweep_definition["cmd_args"]["aiperf_phases"] = [
+            {"name": "low", "args": {"concurrency": 8}},
+            {"name": "high", "report-name": "custom-high.csv", "args": {"concurrency": 32}},
+        ]
+    else:
+        sweep_definition["bench_cmd_args"]["max_concurrency"] = 8
+        tp_key = "tensor_parallel_size" if definition["test_template_name"] == "vllm" else "tp_size"
+        sweep_definition["cmd_args"]["decode"][tp_key] = 4
     context = {
         "Workload": definition["test_template_name"],
         "Nodes": 1,
@@ -143,6 +208,9 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         "Concurrency": 16,
         "Requests": 30,
     }
+    if dynamo:
+        context.pop("Serving GPUs")
+        context.update({"Backend": "vllm", "Decode / Model": "example/model", "Decode / TP": 1, "Decode / PP": 1})
     points = [
         {
             "x": 2,
@@ -191,6 +259,22 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
     points.insert(
         2, {**points[0], "run": "ordinary · iteration=2 · step=0", "artifact": "ordinary/2", "id": "pareto-0-point-2"}
     )
+    if dynamo:
+        points[-1]["context"].pop("Serving GPUs")
+        for phase, concurrency, x, y in [("low", 8, 3, 15), ("high", 32, 4, 30)]:
+            point = {
+                **points[3],
+                "x": x,
+                "y": y,
+                "run": f"sweep · iteration=0 · step=1 · phase={phase}",
+                "context": {**points[3]["context"], "Phase": phase, "Concurrency": concurrency},
+                "dimensions": f"x.phase={phase}, x.statistic=p99, y.phase={phase}",
+                "id": f"pareto-0-point-{3 if phase == 'low' else 4}",
+            }
+            if phase == "low":
+                points[3] = point
+            else:
+                points.append(point)
     plot = pareto_reporter.config.plots[0]
     expected_frontier = {
         ("minimize", "maximize"): [True, True, True, False],
@@ -198,6 +282,8 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         ("minimize", "minimize"): [False, True, False, False],
         ("maximize", "minimize"): [False, True, False, True],
     }[plot.x.resolved_direction.value, plot.y.resolved_direction.value]
+    if dynamo:
+        expected_frontier = [True, True, True, False, True]
     for point, on_frontier in zip(points, expected_frontier, strict=True):
         point["status"] = "Frontier" if on_frontier else "Dominated"
     excluded = [
@@ -214,7 +300,9 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         "x_axis_label": "P99 Time to first token (ms)",
         "y_axis_label": "Output token throughput (tokens/s)",
     }
-    chart_points = [{k: v for k, v in points[i].items() if k != "config"} for i in (1, 0, 2, 3)]
+    chart_points = [
+        {k: v for k, v in points[i].items() if k != "config"} for i in ((1, 0, 2, 3, 4) if dynamo else (1, 0, 2, 3))
+    ]
     normalized_points = [
         {
             **point,
@@ -228,19 +316,31 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
         for i, (point, y, group, status) in enumerate(
             zip(
                 points,
-                [20 / 8, 10 / 8, 20 / 8, 15 / 16],
-                ["Ordinary", "Ordinary", "Ordinary", "Sweep"],
-                ["Frontier", "Dominated", "Frontier", "Frontier"],
+                [20 / 8, 10 / 8, 20 / 8, 15 / 16, *([30 / 16] if dynamo else [])],
+                ["Ordinary", "Ordinary", "Ordinary", "Sweep", *(["Sweep"] if dynamo else [])],
+                [
+                    "Frontier",
+                    "Dominated",
+                    "Frontier",
+                    "Dominated" if dynamo else "Frontier",
+                    *(["Frontier"] if dynamo else []),
+                ],
                 strict=True,
             )
         )
     ]
+    if dynamo:
+        normalized_points[3]["dimensions"] = "x.phase=low, x.statistic=mean, y.phase=low"
+        normalized_points[4]["dimensions"] = "x.phase=high, x.statistic=mean, y.phase=high"
+        normalized_points[4]["x"] = 2
     normalized_data = [{k: v for k, v in point.items() if k != "config"} for point in normalized_points]
     expected = [
         {
             "pareto": True,
             "title": "All configurations",
-            "summaries": [{"name": "All", "candidates": 4, "frontier": sum(expected_frontier), "excluded": 3}],
+            "summaries": [
+                {"name": "All", "candidates": len(points), "frontier": sum(expected_frontier), "excluded": 3}
+            ],
             "points": points,
             "excluded": excluded,
             "chart": {
@@ -268,7 +368,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             "title": "Per allocated GPU",
             "summaries": [
                 {"name": "Ordinary", "candidates": 3, "frontier": 2, "excluded": 0},
-                {"name": "Sweep", "candidates": 1, "frontier": 1, "excluded": 3},
+                {"name": "Sweep", "candidates": 2 if dynamo else 1, "frontier": 1, "excluded": 3},
             ],
             "points": normalized_points,
             "excluded": [{**item, "group": "Sweep"} for item in excluded],
@@ -294,11 +394,24 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
                     },
                     {
                         "label": "Sweep",
-                        "data": [normalized_data[3]],
+                        "data": [normalized_data[4] if dynamo else normalized_data[3]],
                         "source_color_index": 1,
                         "is_frontier": True,
                         "hidden": False,
                     },
+                    *(
+                        [
+                            {
+                                "label": "Sweep · dominated",
+                                "data": [normalized_data[3]],
+                                "source_color_index": 1,
+                                "is_frontier": False,
+                                "hidden": True,
+                            }
+                        ]
+                        if dynamo
+                        else []
+                    ),
                 ],
             },
         },
@@ -306,7 +419,7 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             {
                 "pareto": True,
                 "title": title,
-                "summaries": [{"name": "All", "candidates": 0, "frontier": 0, "excluded": 7}],
+                "summaries": [{"name": "All", "candidates": 0, "frontier": 0, "excluded": len(points) + 3}],
                 "points": [],
                 "excluded": [{"group": "All", "run": point["run"], "reason": reason} for point in points] + excluded,
                 "chart": {
@@ -335,6 +448,30 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             ]
         ],
     ]
+    if dynamo:
+        selected = {**points[-1], "group": "High", "status": "Frontier", "id": "pareto-4-point-0"}
+        expected.append(
+            {
+                "pareto": True,
+                "title": "Selected phase",
+                "summaries": [{"name": "High", "candidates": 1, "frontier": 1, "excluded": 0}],
+                "points": [selected],
+                "excluded": [],
+                "chart": {
+                    **chart,
+                    "id": "pareto-4",
+                    "datasets": [
+                        {
+                            "label": "High",
+                            "data": [{key: value for key, value in selected.items() if key != "config"}],
+                            "source_color_index": 0,
+                            "is_frontier": True,
+                            "hidden": False,
+                        }
+                    ],
+                },
+            }
+        )
     assert pareto_reporter.build_sections(pareto_reporter.collect_runs()) == expected
 
 
