@@ -83,7 +83,7 @@ Field Descriptions
        For example, ``"00:20:00"`` allows 20 minutes per image, excluding queue wait time.
        Use ``HH:MM:SS`` or ``D-HH:MM:SS`` for consistent CLI and REST behavior. Zero requests no time limit.
        Overrides ``--time``/``-t`` in ``extra_sbatch_args`` for imports only; benchmark time limits are unchanged.
-       If omitted, existing ``extra_sbatch_args`` and Slurm defaults apply.
+       If omitted or set to ``""``, existing ``extra_sbatch_args`` and Slurm defaults apply.
        Allow headroom for download and conversion; Slurm can terminate an import that exceeds its limit.
    * - **global_env_vars**
      - Lists all global environment variables that will be applied globally whenever tests are run.

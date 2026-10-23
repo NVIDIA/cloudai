@@ -119,11 +119,11 @@ class DockerImageCacheManager:
         if self.system.supports_gpu_directives:
             directives.append("#SBATCH --gres=gpu:1")
         for arg in self.system.extra_sbatch_args:
-            if self.system.docker_image_import_time_limit is not None:
+            if self.system.docker_image_import_time_limit:
                 arg = self._without_time_limit(arg)
             if arg:
                 directives.append(f"#SBATCH {arg}")
-        if self.system.docker_image_import_time_limit is not None:
+        if self.system.docker_image_import_time_limit:
             directives.append(f"#SBATCH --time={self.system.docker_image_import_time_limit}")
 
         srun = ["srun", "--export=ALL", "--ntasks=1"]

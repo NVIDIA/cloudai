@@ -114,7 +114,7 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
     assert "Failed to import Docker image" in result.message
 
 
-@pytest.mark.parametrize("time_limit", [None, "00:20:00"])
+@pytest.mark.parametrize("time_limit", [None, "", "00:20:00"])
 @pytest.mark.parametrize(
     "extra_args",
     [
@@ -141,10 +141,12 @@ def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, ex
     content = script_path.read_text()
     assert "#SBATCH --time-min=00:01:00" in content
     assert slurm_system.extra_sbatch_args == original_args
-    if time_limit is None:
+    if not time_limit:
         for arg in original_args:
             assert f"#SBATCH {arg}\n" in content
         assert "#SBATCH --time=00:20:00" not in content
+        if not extra_args:
+            assert "#SBATCH --time=" not in content
     else:
         assert content.count("--time=") == 1
         assert "#SBATCH --time=00:20:00\n" in content
