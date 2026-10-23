@@ -24,7 +24,6 @@ import toml
 import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-import cloudai.util
 from cloudai.core import File, GitRepo
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -233,16 +232,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(part for part in parts if part)
 
     def _resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
-        base_data = self.td.cmd_args.aiperf.model_dump(by_alias=True, exclude_none=True)
-        phase_data = phase.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
-        single_phase = self.td.cmd_args.aiperf_phases is None or len(self.td.cmd_args.aiperf_phases) == 1
-
-        if "artifact-dir-name" not in phase_data and not single_phase:
-            phase_data["artifact-dir-name"] = f"{self.td.cmd_args.aiperf.artifact_dir_name}/{phase.name}"
-        if "report-name" not in phase_data and not single_phase:
-            phase_data["report-name"] = f"aiperf_{phase.name}_report.csv"
-
-        return AIPerf.model_validate(cloudai.util.deep_merge(base_data, phase_data))
+        return self.td.cmd_args.resolve_aiperf_phase(phase)
 
     def _render_aiperf_setup_blocks(self, log_message: str, setup_cmd: str | None) -> list[str]:
         if not setup_cmd:

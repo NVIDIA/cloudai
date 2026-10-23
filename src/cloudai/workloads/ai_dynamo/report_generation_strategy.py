@@ -39,6 +39,7 @@ class AIDynamoBenchReport(LLMServingBenchReport):
     """Normalized AI Dynamo benchmark results used by comparison reports."""
 
     output_throughput: float
+    request_throughput: float = math.nan
 
     @property
     def throughput(self) -> float:
@@ -125,6 +126,15 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         csv_file = self._benchmark_csv()
         if csv_file is None:
             return None
+        results = self.parse_benchmark_csv(csv_file, self._max_concurrency())
+        if results is None or any(
+            math.isnan(value) for value in (results.mean_ttft_ms, results.mean_tpot_ms, results.output_throughput)
+        ):
+            return None
+        return results
+
+    def parse_benchmark_csv(self, csv_file: Path, max_concurrency: int = 1) -> AIDynamoBenchReport | None:
+        """Parse one benchmark or phase CSV without substituting another phase's output."""
         try:
             metrics = self._parse_metric_rows(csv_file)
         except (OSError, csv.Error) as e:
@@ -134,10 +144,13 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         ttft_mean = self._find_value(metrics, self._TTFT_NAMES, ("avg", "mean", "Value"))
         tpot_mean = self._find_value(metrics, self._TPOT_NAMES, ("avg", "mean", "Value"))
         throughput = self._find_value(metrics, self._THROUGHPUT_NAMES, ("avg", "Value"))
-        if ttft_mean is None or tpot_mean is None or throughput is None:
+        if ttft_mean is None and tpot_mean is None and throughput is None:
             return None
 
         request_count = self._find_value(metrics, self._REQUEST_COUNT_NAMES, ("avg", "Value"))
+        if request_count is not None and not math.isfinite(request_count):
+            return None
+        request_throughput = self._find_value(metrics, ("Request Throughput (requests/sec)",), ("avg", "Value"))
         median_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p50", "median"))
         p99_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p99",))
         median_tpot = self._find_value(metrics, self._TPOT_NAMES, ("p50", "median"))
@@ -145,14 +158,15 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         return AIDynamoBenchReport(
             num_prompts=int(request_count or 0),
             completed=int(request_count or 0),
-            mean_ttft_ms=ttft_mean,
+            mean_ttft_ms=ttft_mean if ttft_mean is not None else math.nan,
             median_ttft_ms=median_ttft if median_ttft is not None else math.nan,
             p99_ttft_ms=p99_ttft if p99_ttft is not None else math.nan,
-            mean_tpot_ms=tpot_mean,
+            mean_tpot_ms=tpot_mean if tpot_mean is not None else math.nan,
             median_tpot_ms=median_tpot if median_tpot is not None else math.nan,
             p99_tpot_ms=p99_tpot if p99_tpot is not None else math.nan,
-            output_throughput=throughput,
-            max_concurrency=self._max_concurrency(),
+            output_throughput=throughput if throughput is not None else math.nan,
+            request_throughput=request_throughput if request_throughput is not None else math.nan,
+            max_concurrency=max_concurrency,
         )
 
     def used_gpus_count(self) -> int:

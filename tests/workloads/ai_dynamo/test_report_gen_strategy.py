@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+import cloudai.metrics
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -45,6 +46,9 @@ def get_csv_content() -> str:
         "Inter Token Latency (ms),12.34,23.45,34.56,45.67,56.78,67.89,78.90,89.01,90.12\n"
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
         "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n"
+        "Output Token Throughput (tokens/sec),200\n"
+        "Request Throughput (requests/sec),4\n"
+        "Request Count (count),50\n"
     )
 
 
@@ -59,6 +63,7 @@ def get_aiperf_csv_content() -> str:
         "Output Token Throughput (tokens/sec),595.68\n"
         "Total Token Throughput (tokens/sec),954.47\n"
         "Request Count,50.00\n"
+        "Request Throughput (requests/sec),1.25\n"
     )
 
 
@@ -208,9 +213,36 @@ def test_ai_dynamo_get_metric_genai_perf(slurm_system: SlurmSystem, ai_dynamo_tr
     # Explicit prefix also works.
     assert strategy.get_metric("genai_perf:Time To First Token (ms):avg") == 111.12
     assert strategy.get_metric("genai_perf:Inter Token Latency (ms):p50") == 89.01
+    observations = ai_dynamo_tr.test.metric_observations(slurm_system, ai_dynamo_tr)
+    expected = [
+        ("request_throughput", 4, {}),
+        ("output_token_throughput", 200, {}),
+        ("output_token_throughput_per_allocated_gpu", 200 / 8, {}),
+        ("ttft", 111.12, {"statistic": "mean"}),
+        ("ttft", 888.88, {"statistic": "median"}),
+        ("ttft", 444.44, {"statistic": "p99"}),
+        ("tpot", 12.34, {"statistic": "mean"}),
+        ("tpot", 89.01, {"statistic": "median"}),
+        ("tpot", 45.67, {"statistic": "p99"}),
+    ]
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in observations] == expected
+    ai_dynamo_tr.test.cmd_args.workloads = "genai_perf.sh,aiperf.sh"
+    mixed = ai_dynamo_tr.test.metric_observations(slurm_system, ai_dynamo_tr)
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in mixed] == [
+        (key, value, {"benchmark": "genai_perf", **dimensions}) for key, value, dimensions in expected
+    ] + [
+        ("request_throughput", 1.25, {"benchmark": "aiperf"}),
+        ("output_token_throughput", 595.68, {"benchmark": "aiperf"}),
+        ("output_token_throughput_per_allocated_gpu", 595.68 / 8, {"benchmark": "aiperf"}),
+        ("ttft", 49.87, {"benchmark": "aiperf", "statistic": "mean"}),
+        ("tpot", 2.83, {"benchmark": "aiperf", "statistic": "mean"}),
+    ]
 
 
-def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun) -> None:
+@pytest.mark.parametrize(
+    "result", ["valid", "missing", "malformed", "nonfinite", "empty", "no-gpu-count", "missing-latency"]
+)
+def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun, result: str) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_tr)
 
     # aiperf fixture uses workloads="aiperf.sh" — bare names resolve to aiperf_report.csv.
@@ -222,6 +254,31 @@ def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf
     assert strategy.get_metric("aiperf:Time to First Token (ms):avg") == 49.87
     assert strategy.get_metric("aiperf:Output Token Throughput (tokens/sec):avg") == 595.68
     assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
+    path = ai_dynamo_aiperf_tr.output_path / "aiperf_report.csv"
+    if result == "missing":
+        path.unlink()
+    elif result == "malformed":
+        path.write_text("Invalid CSV\n")
+    elif result == "nonfinite":
+        path.write_text(path.read_text().replace("595.68", "nan"))
+    elif result == "empty":
+        path.write_text(path.read_text().replace("Request Count,50.00", "Request Count,0"))
+    elif result == "no-gpu-count":
+        slurm_system.gpus_per_node = None
+    elif result == "missing-latency":
+        path.write_text(path.read_text().replace("Inter Token Latency (ms),2.83,2.78,2.91\n", ""))
+        assert strategy.parse_results() is None
+    expected = []
+    if result not in {"missing", "malformed", "empty"}:
+        expected.append(("request_throughput", 1.25, {}))
+        if result != "nonfinite":
+            expected.append(("output_token_throughput", 595.68, {}))
+            if result != "no-gpu-count":
+                expected.append(("output_token_throughput_per_allocated_gpu", 595.68 / 8, {}))
+        expected.append(("ttft", 49.87, {"statistic": "mean"}))
+        expected.extend([("tpot", 2.83, {"statistic": "mean"})] if result != "missing-latency" else [])
+    observations = ai_dynamo_aiperf_tr.test.metric_observations(slurm_system, ai_dynamo_aiperf_tr)
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in observations] == expected
 
 
 def test_ai_dynamo_get_metric_split_aiperf_accuracy(
@@ -231,6 +288,11 @@ def test_ai_dynamo_get_metric_split_aiperf_accuracy(
 
     assert strategy.get_metric("accuracy") == 0.35
     assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
+    assert cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.35, {}) in (
+        ai_dynamo_aiperf_with_split_accuracy_tr.test.metric_observations(
+            slurm_system, ai_dynamo_aiperf_with_split_accuracy_tr
+        )
+    )
 
 
 def test_ai_dynamo_accuracy_metric_requires_aiperf_accuracy_config(

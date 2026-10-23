@@ -106,6 +106,8 @@ BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
 STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99"])
+PHASE = DimensionDefinition("phase", "Phase", Annotated[str, Field(strict=True, min_length=1)])
+BENCHMARK = DimensionDefinition("benchmark", "Benchmark", Annotated[str, Field(strict=True, min_length=1)])
 
 BANDWIDTH = MetricDefinition(
     key="bandwidth",
@@ -198,6 +200,8 @@ MetricCatalog.register_dimensions(
     SOURCE_MEMORY,
     TARGET_MEMORY,
     STATISTIC,
+    PHASE,
+    BENCHMARK,
 )
 
 

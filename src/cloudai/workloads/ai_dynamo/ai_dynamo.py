@@ -14,20 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import csv
+import dataclasses
 import logging
 from pathlib import Path
-from typing import Literal, Optional, cast
+from typing import Annotated, Any, Literal, Optional, cast
 
 from pydantic import (
     AliasChoices,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
+    PlainSerializer,
     field_validator,
     model_validator,
 )
 
+import cloudai.metrics
+import cloudai.util
 from cloudai.core import (
     DockerImage,
     File,
@@ -49,6 +55,26 @@ LMCACHE_CONFIG_BACKUP_FILE_NAME = "lmcache-config.original.yaml"
 HICACHE_CONFIG_FILE_NAME = "hicache-config.toml"
 
 
+def _restore_script_path(value: Any) -> Any:
+    if isinstance(value, dict):
+        value = dict(value)
+        for key in ("src", "_installed_path"):
+            path = value.get(key)
+            if isinstance(path, str) and path.startswith(("PosixPath(", "WindowsPath(")) and path.endswith(")"):
+                value[key] = ast.literal_eval(path.split("(", 1)[1][:-1])
+    return value
+
+
+def _serialize_script_path(value: File) -> dict[str, str]:
+    result = {"src": str(value.src)}
+    if value._installed_path is not None:
+        result["_installed_path"] = str(value._installed_path)
+    return result
+
+
+ScriptFile = Annotated[File, BeforeValidator(_restore_script_path), PlainSerializer(_serialize_script_path)]
+
+
 class Args(BaseModel):
     """Arguments for custom workloads."""
 
@@ -62,7 +88,7 @@ class Workload(BaseModel):
 
     name: str
     cmd: str
-    script: File
+    script: ScriptFile
     report_name: str = Field(
         default_factory=lambda self: f"{self['name']}_report.csv",
         serialization_alias="report-name",
@@ -278,7 +304,7 @@ class GenAIPerf(Workload):
 
     name: str = "genai_perf"
     cmd: str = "genai-perf profile"
-    script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf.sh")
+    script: ScriptFile = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf.sh")
 
     @property
     def installables(self) -> list[Installable]:
@@ -292,7 +318,7 @@ class AIPerf(Workload):
 
     name: str = "aiperf"
     cmd: str = "aiperf profile"
-    script: File = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
+    script: ScriptFile = File(Path(__file__).parent.parent / "ai_dynamo/aiperf.sh")
     setup_cmd: str | None = Field(
         default=None,
         serialization_alias="setup-cmd",
@@ -378,7 +404,7 @@ class AIPerfAccuracy(BaseModel):
     name: str = "aiperf_accuracy"
     entrypoint: str = "aiperf profile"
     cli: str
-    script: File = File(Path(__file__).parent.parent / "ai_dynamo/accuracy.sh")
+    script: ScriptFile = File(Path(__file__).parent.parent / "ai_dynamo/accuracy.sh")
     setup_cmd: str | None = Field(
         default=None,
         serialization_alias="setup-cmd",
@@ -435,6 +461,15 @@ class AIDynamoCmdArgs(CmdArgs):
     aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
 
+    def resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
+        """Apply phase overrides with the same artifact paths used at execution."""
+        base_data = self.aiperf.model_dump(by_alias=True, exclude_none=True)
+        phase_data = phase.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+        if self.aiperf_phases and len(self.aiperf_phases) > 1:
+            phase_data.setdefault("artifact-dir-name", f"{self.aiperf.artifact_dir_name}/{phase.name}")
+            phase_data.setdefault("report-name", f"aiperf_{phase.name}_report.csv")
+        return AIPerf.model_validate(cloudai.util.deep_merge(base_data, phase_data))
+
     @field_validator("workloads", mode="before")
     @classmethod
     def validate_workloads(cls, v: str) -> str:
@@ -483,13 +518,59 @@ class AIDynamoTestDefinition(TestDefinition):
     _docker_image: Optional[DockerImage] = None
     _dcgm_exporter_image: Optional[DockerImage] = None
     _startup_cmd_docker_image: DockerImage | None = None
-    script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
+    script: ScriptFile = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
     _repo: GitRepo | None = None
     _hf_model: HFModel | None = None
     constraints: Constraints = Constraints()
 
     success_marker: str = "success-marker.txt"
     failure_marker: str = "failure-marker.txt"
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_repository_version(cls, value: Any) -> Any:
+        """Read dumps from before the repository commit moved into cmd_args."""
+        if isinstance(value, dict) and "repo" in value:
+            value = dict(value)
+            repo = value.pop("repo")
+            value["cmd_args"] = dict(value["cmd_args"])
+            value["cmd_args"].setdefault("dynamo_version", repo["commit"])
+        return value
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
+        from cloudai.workloads.common.llm_serving import llm_serving_metric_observations
+
+        observations = []
+        strategy = AIDynamoReportGenerationStrategy(system, tr)
+        gpus_per_node = getattr(system, "gpus_per_node", None)
+        allocated_gpus = tr.nnodes * gpus_per_node if gpus_per_node else None
+        accuracy = parse_aiperf_accuracy(tr.output_path) if self.cmd_args.aiperf_accuracy else None
+        for script in self.cmd_args.workloads_list:
+            benchmark = self.get_workload_map()[script]
+            phases = self.cmd_args.aiperf_phases if benchmark is self.cmd_args.aiperf else None
+            for phase in phases or [None]:
+                resolved = self.cmd_args.resolve_aiperf_phase(phase) if phase else benchmark
+                dimensions = {}
+                if len(self.cmd_args.workloads_list) > 1:
+                    dimensions[cloudai.metrics.BENCHMARK.key] = (
+                        "aiperf" if benchmark is self.cmd_args.aiperf else "genai_perf"
+                    )
+                if phase:
+                    dimensions[cloudai.metrics.PHASE.key] = phase.name
+                csv_file = tr.output_path / resolved.report_name
+                if isinstance(resolved, AIPerf):
+                    artifact = tr.output_path / resolved.artifact_dir_name / "profile_export_aiperf.csv"
+                    if artifact.is_file():
+                        csv_file = artifact
+                results = strategy.parse_benchmark_csv(csv_file)
+                for observation in llm_serving_metric_observations(
+                    results, accuracy, allocated_gpu_count=allocated_gpus
+                ):
+                    observations.append(
+                        dataclasses.replace(observation, dimensions={**dimensions, **observation.dimensions})
+                    )
+        return observations
 
     @model_validator(mode="after")
     def workload_scripts(self) -> "AIDynamoTestDefinition":

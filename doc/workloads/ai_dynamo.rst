@@ -156,6 +156,9 @@ LLM serving tables and charts for TTFT, TPOT, successful prompts, output-token t
 GPU. When ``aiperf_accuracy`` is configured and its result is available, the report also compares model accuracy.
 Both AIPerf and GenAI-Perf CSV output are supported.
 
+The scenario-level :doc:`Pareto report <../pareto-frontiers>` uses each configured AIPerf phase as a separate
+point, with that phase's concurrency and benchmark settings. It also supports GenAI-Perf results.
+
 AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such
 as ``server-metrics-formats = "csv,json,jsonl"`` or ``gpu-telemetry = "node1:9401,node2:9401"``. ``server-metrics =
 "auto"`` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM

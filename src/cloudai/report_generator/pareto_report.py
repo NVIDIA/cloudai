@@ -162,10 +162,37 @@ class RunObservations:
     observations: list[cloudai.metrics.MetricObservation] = dataclasses.field(default_factory=list)
     error: str = ""
     config: str = ""
+    dimensions: dict[str, cloudai.metrics.MetricValue] = dataclasses.field(default_factory=dict)
 
     @property
     def label(self) -> str:
-        return f"{self.tr.name} · iteration={self.tr.current_iteration} · step={self.tr.step}"
+        label = f"{self.tr.name} · iteration={self.tr.current_iteration} · step={self.tr.step}"
+        return label + "".join(f" · {key}={value}" for key, value in self.dimensions.items())
+
+    def split_measurements(self) -> list[RunObservations]:
+        """Keep independently measured benchmarks and phases in separate points."""
+        if self.error:
+            return [self]
+        groups: dict[tuple, list[cloudai.metrics.MetricObservation]] = {}
+        for observation in self.observations:
+            identity = tuple(
+                (key, observation.dimensions[key])
+                for key in (cloudai.metrics.BENCHMARK.key, cloudai.metrics.PHASE.key)
+                if key in observation.dimensions
+            )
+            groups.setdefault(identity, []).append(observation)
+        args = self.tr.test.cmd_args
+        if "aiperf.sh" in getattr(args, "workloads_list", []):
+            for phase in getattr(args, "aiperf_phases", None) or []:
+                dimensions = {}
+                if len(args.workloads_list) > 1:
+                    dimensions[cloudai.metrics.BENCHMARK.key] = "aiperf"
+                dimensions[cloudai.metrics.PHASE.key] = phase.name
+                groups.setdefault(tuple(dimensions.items()), [])
+        return [
+            dataclasses.replace(self, observations=observations, dimensions=dict(identity))
+            for identity, observations in groups.items()
+        ] or [self]
 
 
 def numeric_directories(root: pathlib.Path) -> list[pathlib.Path]:
@@ -178,7 +205,11 @@ def format_number(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> dict[str, typing.Any]:
+def inference_context(
+    tr: cloudai.core.TestRun,
+    system: cloudai.core.System,
+    dimensions: cloudai.metrics.MetricDimensions | None = None,
+) -> dict[str, typing.Any]:
     """Summarize explicitly configured inference settings, including serving roles."""
     labels = {
         "model": "Model",
@@ -201,6 +232,11 @@ def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> 
         "quantization": "Quantization",
         "num_nodes": "Nodes",
         "gpu_ids": "GPU IDs",
+        "synthetic_input_tokens_mean": "Input tokens",
+        "output_tokens_mean": "Output tokens",
+        "input_sequence_length": "Input tokens",
+        "output_sequence_length": "Output tokens",
+        "request_count": "Requests",
     }
     context: dict[str, typing.Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
     gpus_per_node = getattr(system, "gpus_per_node", None)
@@ -213,12 +249,30 @@ def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> 
         for key, value in values.items():
             if isinstance(value, dict):
                 collect(value, f"{scope}{key.replace('_', ' ').title()} / ")
-            elif key in labels and value is not None:
-                context[f"{scope}{labels[key]}"] = value
+            elif key.replace("-", "_") in labels and value is not None:
+                context[f"{scope}{labels[key.replace('-', '_')]}"] = value
 
     definition = tr.test.model_dump(mode="json", exclude_none=True)
-    collect(definition.get("cmd_args", {}))
+    cmd_args = definition.get("cmd_args", {})
+    dimensions = dimensions or {}
+    if "dynamo" in cmd_args:
+        dynamo = cmd_args["dynamo"]
+        context["Model"] = dynamo["model"]
+        context["Backend"] = dynamo["backend"]
+        for role in ("prefill", "decode"):
+            worker = dynamo[f"{role}_worker"]
+            if worker["num_nodes"]:
+                collect(worker["args"], f"{role.title()} / ")
+        benchmark = str(dimensions.get("benchmark", "aiperf" if "aiperf.sh" in cmd_args["workloads"] else "genai_perf"))
+        args = cmd_args[benchmark].get("args", {})
+        selected_phase = next(
+            (item for item in cmd_args.get("aiperf_phases", []) if item["name"] == dimensions.get("phase")), {}
+        )
+        collect({**args, **selected_phase.get("args", {})})
+    else:
+        collect(cmd_args)
     collect(definition.get("bench_cmd_args", {}))
+    context.update({cloudai.metrics.dimension_label(key): value for key, value in dimensions.items()})
     return context
 
 
@@ -253,7 +307,7 @@ class ParetoReporter(cloudai.core.Reporter):
                     tr.current_iteration = int(iteration.name)
                     tr.step = int(path.name) if case.is_dse_job else 0
                     tr.output_path = path
-                    runs.append(self._collect_run(tr))
+                    runs.extend(self._collect_run(tr).split_measurements())
         return runs
 
     def _collect_run(self, tr: cloudai.core.TestRun) -> RunObservations:
@@ -308,6 +362,12 @@ class ParetoReporter(cloudai.core.Reporter):
                 for run in runs:
                     if frontier.cases and run.tr.name not in frontier.cases:
                         continue
+                    if any(
+                        run.dimensions.get(key) != value
+                        for key, value in frontier.match.items()
+                        if key in {cloudai.metrics.BENCHMARK.key, cloudai.metrics.PHASE.key}
+                    ):
+                        continue
                     try:
                         x, y = self.select_pair(run, plot, frontier)
                     except ValueError as exc:
@@ -324,7 +384,7 @@ class ParetoReporter(cloudai.core.Reporter):
                             "y": y.value,
                             "run": run.label,
                             "group": frontier.name,
-                            "context": inference_context(run.tr, self.system),
+                            "context": inference_context(run.tr, self.system, run.dimensions),
                             "dimensions": dimensions,
                             "config": run.config,
                             "artifact": run.tr.output_path.relative_to(self.results_root).as_posix(),
