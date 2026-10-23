@@ -251,6 +251,17 @@ def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy):
         assert f"#SBATCH {arg}" in content
 
 
+def test_import_time_limit_does_not_change_benchmark_limit(strategy_fixture: SlurmCommandGenStrategy):
+    strategy_fixture.system.docker_image_import_time_limit = "00:20:00"
+    strategy_fixture.test_run.time_limit = "01:00:00"
+    content: list[str] = []
+
+    strategy_fixture._append_sbatch_directives(content)
+
+    assert "#SBATCH --time=01:00:00" in content
+    assert "#SBATCH --time=00:20:00" not in content
+
+
 def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
     strategy_fixture.test_run.test.extra_container_mounts = ["/host:/container"]
     mounts = strategy_fixture.container_mounts()

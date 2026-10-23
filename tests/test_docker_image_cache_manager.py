@@ -114,6 +114,47 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
     assert "Failed to import Docker image" in result.message
 
 
+@pytest.mark.parametrize("time_limit", [None, "00:20:00"])
+@pytest.mark.parametrize(
+    "extra_args",
+    [
+        [],
+        ["--time=02:00:00"],
+        ["--time 02:00:00"],
+        ["-t 02:00:00"],
+        ["-t02:00:00"],
+        ["--time=02:00:00", "-t 03:00:00"],
+        ['--qos=normal --time "02:00:00" --comment="image import"'],
+    ],
+)
+def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, extra_args: list[str]):
+    slurm_system.docker_image_import_time_limit = time_limit
+    slurm_system.extra_sbatch_args = [*extra_args, "--time-min=00:01:00"]
+    original_args = slurm_system.extra_sbatch_args.copy()
+    slurm_system.supports_gpu_directives_cache = False
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+
+    script_path, _ = DockerImageCacheManager(slurm_system)._write_import_script(
+        "docker.io/hello-world", slurm_system.install_path / "image.sqsh"
+    )
+
+    content = script_path.read_text()
+    assert "#SBATCH --time-min=00:01:00" in content
+    assert slurm_system.extra_sbatch_args == original_args
+    if time_limit is None:
+        for arg in original_args:
+            assert f"#SBATCH {arg}\n" in content
+        assert "#SBATCH --time=00:20:00" not in content
+    else:
+        assert content.count("--time=") == 1
+        assert "#SBATCH --time=00:20:00\n" in content
+        assert "02:00:00" not in content
+        assert "03:00:00" not in content
+        if any("--qos" in arg for arg in extra_args):
+            assert "--qos=normal" in content
+            assert "image import" in content
+
+
 def test_cache_docker_image_reports_failed_job_with_partial_image(slurm_system: SlurmSystem):
     slurm_system.cache_docker_images_locally = True
     slurm_system.supports_gpu_directives_cache = False

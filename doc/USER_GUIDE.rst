@@ -22,6 +22,7 @@ In this section, we introduce the concept of the system schema, explain the mean
    ntasks_per_node = 8
 
    cache_docker_images_locally = true
+   docker_image_import_time_limit = "00:20:00"
 
    [[partitions]]
    name = "partition_1"
@@ -77,6 +78,14 @@ Field Descriptions
      - These are Slurm arguments passed to the ``sbatch`` script and ``srun``.
    * - **cache_docker_images_locally**
      - Specifies whether CloudAI should cache remote Docker images locally during installation. If set to ``true``, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to ``false``, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
+   * - **[optional] docker_image_import_time_limit**
+     - Slurm execution time limit for each Docker image import job when ``cache_docker_images_locally = true``.
+       For example, ``"00:20:00"`` allows 20 minutes per image, excluding queue wait time.
+       Accepts Slurm duration formats: minutes, minutes:seconds, hours:minutes:seconds,
+       days-hours, days-hours:minutes, or days-hours:minutes:seconds. Zero requests no time limit.
+       Overrides ``--time``/``-t`` in ``extra_sbatch_args`` for imports only; benchmark time limits are unchanged.
+       If omitted, existing ``extra_sbatch_args`` and Slurm defaults apply.
+       Allow headroom for download and conversion; Slurm can terminate an import that exceeds its limit.
    * - **global_env_vars**
      - Lists all global environment variables that will be applied globally whenever tests are run.
    * - **[optional] slurm_api**

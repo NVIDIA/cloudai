@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import time
 from copy import copy
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -30,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 
 from cloudai.core import BaseJob, File, Installable, JobFailureError, JobIdRetrievalError, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
-from cloudai.util import CommandShell
+from cloudai.util import CommandShell, format_time_limit
 
 from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmStepMetadata
@@ -84,6 +85,7 @@ class SlurmSystem(System):
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
+    docker_image_import_time_limit: Optional[str] = None
     scheduler: str = "slurm"
     monitor_interval: float = 60.0
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)
@@ -121,6 +123,27 @@ class SlurmSystem(System):
     @classmethod
     def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
         return parse_reports_spec(value)
+
+    @field_validator("docker_image_import_time_limit")
+    @classmethod
+    def _validate_docker_image_import_time_limit(cls, value: str | None) -> str | None:
+        """Normalize Slurm durations so CLI and REST imports use the same limit."""
+        if value is None:
+            return None
+        if not re.fullmatch(r"(?:[0-9]+-)?[0-9]+(?::[0-9]+){0,2}", value):
+            raise ValueError("docker_image_import_time_limit must be a Slurm duration, e.g. '00:20:00'")
+        days, separator, clock = value.rpartition("-")
+        parts = [int(part) for part in clock.split(":")]
+        if separator:
+            parts += [0] * (3 - len(parts))
+        else:
+            if len(parts) == 1:
+                parts.append(0)  # A bare Slurm duration is in minutes.
+            parts = [0] * (3 - len(parts)) + parts
+        hours, minutes, seconds = parts
+        return format_time_limit(
+            timedelta(days=int(days) if separator else 0, hours=hours, minutes=minutes, seconds=seconds)
+        )
 
     @field_validator("extra_transient_status_errors")
     @classmethod

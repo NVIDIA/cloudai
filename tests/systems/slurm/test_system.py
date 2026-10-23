@@ -34,6 +34,7 @@ from cloudai.systems.slurm import (
     SlurmSystem,
     parse_node_list,
 )
+from cloudai.systems.slurm.docker_image_cache_manager import DockerImageCacheManager
 from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.systems.slurm.slurm_rest_client import SlurmRestClient
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -52,10 +53,65 @@ def rest_slurm_api_config(request: pytest.FixtureRequest) -> SlurmAPIConfig:
     )
 
 
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (None, None),
+        ("00:20:00", "00:20:00"),
+        ("20", "00:20:00"),
+        ("20:30", "00:20:30"),
+        ("1-2", "1-02:00:00"),
+        ("1-2:30", "1-02:30:00"),
+        ("1-02:30:15", "1-02:30:15"),
+        ("25:00:00", "1-01:00:00"),
+        ("0", "00:00:00"),
+    ],
+)
+def test_docker_image_import_time_limit_validation(slurm_system: SlurmSystem, value: str | None, expected: str | None):
+    data = slurm_system.model_dump()
+    data["docker_image_import_time_limit"] = value
+
+    system = SlurmSystem.model_validate(data)
+
+    assert system.docker_image_import_time_limit == expected
+
+
+@pytest.mark.parametrize("value", ["", " ", "-1", "1:2:3:4", "20m", "invalid", "00:20:00\n#SBATCH --nodes=2", 20])
+def test_invalid_docker_image_import_time_limit(slurm_system: SlurmSystem, value: str | int):
+    data = slurm_system.model_dump()
+    data["docker_image_import_time_limit"] = value
+
+    with pytest.raises(ValidationError, match="docker_image_import_time_limit"):
+        SlurmSystem.model_validate(data)
+
+
+def test_docker_image_import_time_limit_default(slurm_system: SlurmSystem):
+    assert slurm_system.docker_image_import_time_limit is None
+
+
 @pytest.fixture
 def rest_slurm_system(slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig) -> SlurmSystem:
     slurm_system.slurm_api = rest_slurm_api_config
     return slurm_system
+
+
+def test_slurm_api_import_time_limit(rest_slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPIConfig):
+    data = rest_slurm_system.model_dump()
+    data["docker_image_import_time_limit"] = "20:30"
+    system = SlurmSystem.model_validate(data)
+    system.supports_gpu_directives_cache = False
+    system.extra_sbatch_args = ["--time=02:00:00", "-t 03:00:00"]
+    system.install_path.mkdir(parents=True, exist_ok=True)
+    script_path, _ = DockerImageCacheManager(system)._write_import_script(
+        "docker.io/hello-world", system.install_path / "image.sqsh"
+    )
+
+    with patch.object(SlurmRestClient, "_request", return_value={"job_id": 123}) as request:
+        assert system.submit_sbatch(script_path, "Docker image import") == 123
+
+    job = request.call_args.kwargs["payload"]["job"]
+    expected = 21 if rest_slurm_api_config.version == "v0.0.38" else {"set": True, "number": 21}
+    assert job["time_limit"] == expected
 
 
 def test_slurm_api_request_expands_headers(

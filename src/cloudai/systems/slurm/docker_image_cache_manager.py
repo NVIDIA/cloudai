@@ -118,7 +118,13 @@ class DockerImageCacheManager:
             directives.append(f"#SBATCH --account={self.system.account}")
         if self.system.supports_gpu_directives:
             directives.append("#SBATCH --gres=gpu:1")
-        directives.extend(f"#SBATCH {arg}" for arg in self.system.extra_sbatch_args)
+        for arg in self.system.extra_sbatch_args:
+            if self.system.docker_image_import_time_limit is not None:
+                arg = self._without_time_limit(arg)
+            if arg:
+                directives.append(f"#SBATCH {arg}")
+        if self.system.docker_image_import_time_limit is not None:
+            directives.append(f"#SBATCH --time={self.system.docker_image_import_time_limit}")
 
         srun = ["srun", "--export=ALL", "--ntasks=1"]
         if self.system.extra_srun_args:
@@ -132,6 +138,19 @@ class DockerImageCacheManager:
         )
         script_path.write_text("\n".join([*directives, "", " ".join(srun), ""]), encoding="utf-8")
         return script_path, stderr_path
+
+    @staticmethod
+    def _without_time_limit(arg: str) -> str:
+        """Remove --time/-t while preserving other options on the same directive."""
+        tokens = shlex.split(arg)
+        remaining = []
+        options = iter(tokens)
+        for option in options:
+            if option in ("--time", "-t"):
+                next(options, None)
+            elif not option.startswith(("--time=", "-t")):
+                remaining.append(option)
+        return arg if remaining == tokens else shlex.join(remaining)
 
     def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         docker_image_path = self.system.install_path / docker_image_filename
