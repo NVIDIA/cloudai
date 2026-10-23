@@ -256,7 +256,7 @@ class SlurmRestClient:
         else:
             raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
-    def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
+    def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:  # noqa: C901
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
         directives: dict[str, str] = {}
@@ -278,8 +278,10 @@ class SlurmRestClient:
             job["environment"] = [f"{name}={value}" for name, value in environment.items()]
             if "nodes" in job:
                 job["nodes"] = "-".join(str(count) for count in cast(list[int], job["nodes"]))
-            if "time_limit" in job:
-                job["time_limit"] = {"set": True, "number": job["time_limit"]}
+            for field in job.keys() & {"time_limit", "memory_per_node"}:
+                job[field] = {"set": True, "number": job[field]}
+            if "open_mode" in job:
+                job["open_mode"] = [str(job["open_mode"]).upper()]
             if "gres" in job:
                 job["tres_per_node"] = ",".join(f"gres:{resource}" for resource in str(job.pop("gres")).split(","))
             for field in job.keys() & {"required_nodes", "excluded_nodes"}:

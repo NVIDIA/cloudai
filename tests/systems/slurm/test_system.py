@@ -83,6 +83,7 @@ def test_slurm_api_request_expands_headers(
     "memory,megabytes", [("0", 0), ("64", 64), ("1025K", 2), ("2M", 2), ("8g", 8192), ("1T", 1048576)]
 )
 @pytest.mark.parametrize("gpus_per_node", [True, False])
+@pytest.mark.parametrize("open_mode", ["append", "truncate"])
 @pytest.mark.parametrize(
     "distribution,distribution_environment",
     [
@@ -101,6 +102,7 @@ def test_submit_job_through_slurm_api(
     distribution_environment: dict[str, str],
     memory: str,
     megabytes: int,
+    open_mode: str,
 ):
     monkeypatch.setenv("CLOUDAI_TEST_SESSION_ENV", "preserved")
     monkeypatch.setenv("SLURM_NTASKS_PER_NODE", "1")
@@ -133,6 +135,7 @@ srun --container-image=image.sqsh benchmark
     if not gpus_per_node:
         script = script.replace("#SBATCH --gpus-per-node=8\n", "")
     script = script.replace("--distribution=block", f"--distribution={distribution}")
+    script = script.replace("--open-mode=append", f"--open-mode={open_mode}")
     script_path = tmp_path / "job.sbatch"
     script_path.write_text(script)
 
@@ -161,7 +164,7 @@ srun --container-image=image.sqsh benchmark
         "tasks_per_node": 8,
         "time_limit": 21,
         "exclusive": "exclusive",
-        "open_mode": "append",
+        "open_mode": open_mode,
         "memory_per_node": megabytes,
         "current_working_directory": str(tmp_path),
         "environment": expected_environment,
@@ -172,6 +175,8 @@ srun --container-image=image.sqsh benchmark
         expected_job.update(
             nodes="2-2",
             time_limit={"set": True, "number": 21},
+            memory_per_node={"set": True, "number": megabytes},
+            open_mode=[open_mode.upper()],
             environment=[f"{name}={value}" for name, value in expected_environment.items()],
             required_nodes=["node01", "node02"],
             excluded_nodes=["node03", "node04"],
