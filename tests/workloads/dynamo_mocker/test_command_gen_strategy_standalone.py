@@ -63,9 +63,7 @@ def _make_strategy(
     # Simulate post-install state: venv_path is set on the cached instance.
     tdef.python_environment.venv_path = system.install_path / tdef.python_environment.venv_name
     tr = TestRun(
-        name="test-run",
-        test=tdef,
-        num_nodes=1,
+        test_definition=tdef.model_copy(deep=True, update={"id": "test-run", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output" / "test-run",
     )
@@ -77,7 +75,9 @@ class TestBuildScriptArgsCombined:
 
     def test_contains_required_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--model-path" in args
         assert "--disaggregation-mode" in args
         assert "none" in args
@@ -85,7 +85,9 @@ class TestBuildScriptArgsCombined:
 
     def test_no_disaggregated_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--num-prefill-workers" not in args
         assert "--num-decode-workers" not in args
         assert "--kv-transfer-bandwidth" not in args
@@ -93,7 +95,7 @@ class TestBuildScriptArgsCombined:
     def test_venv_python_is_first(self, standalone_system: StandaloneSystem, tmp_path: Path):
         result_dir = tmp_path / "result"
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, result_dir, _VENV_PYTHON)
+        args = strategy._build_script_args(strategy.test_run.test_definition.cmd_args, result_dir, _VENV_PYTHON)
         assert args[0] == "--venv-python"
         assert args[1] == str(_VENV_PYTHON)
         assert "--result-dir" in args
@@ -106,7 +108,9 @@ class TestBuildScriptArgsDisaggregated:
     def test_contains_disaggregated_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(worker=MockerWorkerConfig(disaggregation_mode="prefill_decode"))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--disaggregation-mode" in args
         assert "prefill_decode" in args
         assert "--prefill-num-nodes" in args
@@ -118,7 +122,9 @@ class TestBuildScriptArgsDisaggregated:
     def test_no_combined_flag(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(worker=MockerWorkerConfig(disaggregation_mode="prefill_decode"))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         # --num-workers is combined-mode only
         assert "--num-workers" not in args
 
@@ -128,7 +134,9 @@ class TestBuildScriptArgsBenchmarkTool:
 
     def test_default_is_genai_perf(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--benchmark-tool" in args
         idx = args.index("--benchmark-tool")
         assert args[idx + 1] == "genai_perf"
@@ -136,7 +144,9 @@ class TestBuildScriptArgsBenchmarkTool:
     def test_aiperf_sets_benchmark_tool_flag(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(benchmark_tool="aiperf")
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         idx = args.index("--benchmark-tool")
         assert args[idx + 1] == "aiperf"
 
@@ -146,7 +156,9 @@ class TestBuildScriptArgsBenchmarkTool:
             aiperf=MockerAIPerfArgs(input_tokens=1234, output_tokens=56, request_count=99),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert args[args.index("--input-tokens") + 1] == "1234"
         assert args[args.index("--output-tokens") + 1] == "56"
         assert args[args.index("--request-count") + 1] == "99"
@@ -157,7 +169,9 @@ class TestBuildScriptArgsBenchmarkTool:
             genai_perf=MockerGenAIPerfArgs(input_tokens=7777, output_tokens=88, request_count=11),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert args[args.index("--input-tokens") + 1] == "7777"
         assert args[args.index("--output-tokens") + 1] == "88"
         assert args[args.index("--request-count") + 1] == "11"
@@ -168,7 +182,9 @@ class TestBuildScriptArgsBenchmarkTool:
             aiperf=MockerAIPerfArgs.model_validate({"arrival_pattern": "poisson", "benchmark_duration": "120"}),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-arrival-pattern" in args
         assert args[args.index("--aiperf-arrival-pattern") + 1] == "poisson"
         assert "--aiperf-benchmark-duration" in args
@@ -180,7 +196,9 @@ class TestBuildScriptArgsBenchmarkTool:
             genai_perf=MockerGenAIPerfArgs.model_validate({"streaming": "true", "endpoint_type": "chat_completions"}),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-streaming" in args
         assert args[args.index("--genai-perf-streaming") + 1] == "true"
         assert "--genai-perf-endpoint-type" in args
@@ -188,13 +206,17 @@ class TestBuildScriptArgsBenchmarkTool:
 
     def test_genai_perf_no_aiperf_extra_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--aiperf-") for a in args)
 
     def test_aiperf_no_genai_perf_extra_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(benchmark_tool="aiperf")
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--genai-perf-") for a in args)
 
     def test_bool_extra_field_lowercased_aiperf(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -204,7 +226,9 @@ class TestBuildScriptArgsBenchmarkTool:
             aiperf=MockerAIPerfArgs.model_validate({"some_flag": True}),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-some-flag" in args
         assert args[args.index("--aiperf-some-flag") + 1] == "true"
 
@@ -215,7 +239,9 @@ class TestBuildScriptArgsBenchmarkTool:
             genai_perf=MockerGenAIPerfArgs.model_validate({"output_tokens_mean_deterministic": True}),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-output-tokens-mean-deterministic" in args
         assert args[args.index("--genai-perf-output-tokens-mean-deterministic") + 1] == "true"
 
@@ -225,7 +251,9 @@ class TestBuildScriptArgsBenchmarkTool:
             aiperf=MockerAIPerfArgs(cmd="aiperf profile"),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-cmd" in args
         assert args[args.index("--aiperf-cmd") + 1] == "aiperf profile"
 
@@ -233,7 +261,9 @@ class TestBuildScriptArgsBenchmarkTool:
         """Empty cmd (default) means use shell default — no --aiperf-cmd emitted."""
         cmd_args = DynamoMockerCmdArgs(benchmark_tool="aiperf")
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-cmd" not in args
 
     def test_aiperf_extra_args_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -242,7 +272,9 @@ class TestBuildScriptArgsBenchmarkTool:
             aiperf=MockerAIPerfArgs(extra_args="--streaming --verbose"),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-extra-args" in args
         assert args[args.index("--aiperf-extra-args") + 1] == "--streaming --verbose"
 
@@ -250,7 +282,9 @@ class TestBuildScriptArgsBenchmarkTool:
         """extra_args=None (default) must not emit --aiperf-extra-args."""
         cmd_args = DynamoMockerCmdArgs(benchmark_tool="aiperf")
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--aiperf-extra-args" not in args
 
     def test_genai_perf_cmd_forwarded_when_set(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -259,14 +293,18 @@ class TestBuildScriptArgsBenchmarkTool:
             genai_perf=MockerGenAIPerfArgs(cmd="genai-perf profile"),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-cmd" in args
         assert args[args.index("--genai-perf-cmd") + 1] == "genai-perf profile"
 
     def test_genai_perf_cmd_not_emitted_when_empty(self, standalone_system: StandaloneSystem, tmp_path: Path):
         """Empty cmd (default) means use shell default — no --genai-perf-cmd emitted."""
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-cmd" not in args
 
     def test_genai_perf_extra_args_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -275,14 +313,18 @@ class TestBuildScriptArgsBenchmarkTool:
             genai_perf=MockerGenAIPerfArgs(extra_args="--streaming --verbose -- -v --async"),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-extra-args" in args
         assert args[args.index("--genai-perf-extra-args") + 1] == "--streaming --verbose -- -v --async"
 
     def test_genai_perf_extra_args_not_emitted_when_none(self, standalone_system: StandaloneSystem, tmp_path: Path):
         """extra_args=None (default) must not emit --genai-perf-extra-args."""
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--genai-perf-extra-args" not in args
 
 
@@ -322,20 +364,26 @@ class TestComponentExtraArgs:
     def test_engine_extra_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(engine=MockerEngineArgs.model_validate({"extra_param": "42"}))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--engine-extra-param" in args
         assert args[args.index("--engine-extra-param") + 1] == "42"
 
     def test_engine_extra_bool_lowercased(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(engine=MockerEngineArgs.model_validate({"experimental_flag": True}))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--engine-experimental-flag" in args
         assert args[args.index("--engine-experimental-flag") + 1] == "true"
 
     def test_engine_no_extra_produces_no_engine_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--engine-") for a in args)
 
     def test_worker_extra_uses_mocker_prefix(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -344,7 +392,9 @@ class TestComponentExtraArgs:
             worker=MockerWorkerConfig.model_validate({"disaggregation_mode": "none", "extra_topo_flag": "yes"})
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--mocker-extra-topo-flag" in args
         assert args[args.index("--mocker-extra-topo-flag") + 1] == "yes"
         assert not any(a.startswith("--worker-extra") for a in args)
@@ -354,13 +404,17 @@ class TestComponentExtraArgs:
             worker=MockerWorkerConfig.model_validate({"disaggregation_mode": "none", "some_feature": True})
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--mocker-some-feature" in args
         assert args[args.index("--mocker-some-feature") + 1] == "true"
 
     def test_worker_no_extra_produces_no_mocker_extra_flags(self, standalone_system: StandaloneSystem, tmp_path: Path):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--mocker-") for a in args)
 
     def test_frontend_extra_forwarded(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -370,7 +424,9 @@ class TestComponentExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--frontend-grpc-port" in args
         assert args[args.index("--frontend-grpc-port") + 1] == "9000"
 
@@ -381,7 +437,9 @@ class TestComponentExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--frontend-enable-tls" in args
         assert args[args.index("--frontend-enable-tls") + 1] == "true"
 
@@ -389,7 +447,9 @@ class TestComponentExtraArgs:
         self, standalone_system: StandaloneSystem, tmp_path: Path
     ):
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--frontend-") for a in args)
 
     def test_all_three_extras_simultaneously(self, standalone_system: StandaloneSystem, tmp_path: Path):
@@ -401,7 +461,9 @@ class TestComponentExtraArgs:
             ),
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--engine-eng-opt" in args
         assert "--mocker-wkr-opt" in args
         assert "--frontend-frt-opt" in args
@@ -409,7 +471,9 @@ class TestComponentExtraArgs:
     def test_engine_extra_not_in_mocker_prefix(self, standalone_system: StandaloneSystem, tmp_path: Path):
         cmd_args = DynamoMockerCmdArgs(engine=MockerEngineArgs.model_validate({"shared_name": "v"}))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--engine-shared-name" in args
         assert "--mocker-shared-name" not in args
 
@@ -427,7 +491,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-args-max-num-seqs" in args
         assert args[args.index("--prefill-args-max-num-seqs") + 1] == "10"
 
@@ -441,7 +507,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-args-max-num-seqs" in args
         assert args[args.index("--decode-args-max-num-seqs") + 1] == "20"
 
@@ -459,7 +527,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-args-max-num-seqs" in args
         assert args[args.index("--prefill-args-max-num-seqs") + 1] == "10"
         assert "--decode-args-max-num-seqs" in args
@@ -475,7 +545,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-args-prefill-only-flag" in args
         assert "--decode-args-prefill-only-flag" not in args
 
@@ -489,7 +561,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-args-decode-only-flag" in args
         assert "--prefill-args-decode-only-flag" not in args
 
@@ -503,14 +577,18 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-args-enable-chunked-prefill" in args
         assert args[args.index("--prefill-args-enable-chunked-prefill") + 1] == "true"
 
     def test_no_prefill_decode_extras_by_default(self, standalone_system: StandaloneSystem, tmp_path: Path):
         """Combined mode (default) produces no --prefill-* or --decode-* flags."""
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert not any(a.startswith("--prefill-") for a in args)
         assert not any(a.startswith("--decode-") for a in args)
 
@@ -522,7 +600,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-initialized-regex" in args
         assert args[args.index("--prefill-initialized-regex") + 1] == "prefill ready"
 
@@ -534,7 +614,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-initialized-regex" in args
         assert args[args.index("--decode-initialized-regex") + 1] == "decode ready"
 
@@ -546,7 +628,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-extra-args" in args
         assert args[args.index("--prefill-extra-args") + 1] == "--no-enable-expert-parallel"
 
@@ -558,14 +642,18 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-extra-args" in args
         assert args[args.index("--decode-extra-args") + 1] == "--some-decode-flag"
 
     def test_no_extra_args_if_none(self, standalone_system: StandaloneSystem, tmp_path: Path):
         """When extra_args is None (default), --prefill-extra-args and --decode-extra-args are not emitted."""
         strategy = _make_strategy(standalone_system, tmp_path)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-extra-args" not in args
         assert "--decode-extra-args" not in args
 
@@ -577,7 +665,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-num-nodes" in args
         assert args[args.index("--prefill-num-nodes") + 1] == "3"
 
@@ -589,7 +679,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-num-nodes" in args
         assert args[args.index("--decode-num-nodes") + 1] == "2"
 
@@ -601,7 +693,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-cmd" in args
         assert args[args.index("--prefill-cmd") + 1] == "python3 -m dynamo.mocker"
 
@@ -613,7 +707,9 @@ class TestPrefillDecodeExtraArgs:
             )
         )
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--decode-cmd" in args
         assert args[args.index("--decode-cmd") + 1] == "python3 -m dynamo.mocker"
 
@@ -621,6 +717,8 @@ class TestPrefillDecodeExtraArgs:
         """Empty cmd (default) means use shell default — no --prefill-cmd/--decode-cmd emitted."""
         cmd_args = DynamoMockerCmdArgs(worker=MockerWorkerConfig(disaggregation_mode="prefill_decode"))
         strategy = _make_strategy(standalone_system, tmp_path, cmd_args)
-        args = strategy._build_script_args(strategy.test_run.test.cmd_args, tmp_path / "result", _VENV_PYTHON)
+        args = strategy._build_script_args(
+            strategy.test_run.test_definition.cmd_args, tmp_path / "result", _VENV_PYTHON
+        )
         assert "--prefill-cmd" not in args
         assert "--decode-cmd" not in args

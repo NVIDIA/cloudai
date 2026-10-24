@@ -43,7 +43,11 @@ def sglang() -> SglangTestDefinition:
 
 @pytest.fixture
 def sglang_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
-    return TestRun(test=sglang, num_nodes=1, nodes=[], output_path=tmp_path, name="sglang-job")
+    return TestRun(
+        test_definition=sglang.model_copy(deep=True, update={"num_nodes": 1, "id": "sglang-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -55,14 +59,22 @@ def sglang_cmd_gen_strategy(sglang_tr: TestRun, slurm_system: SlurmSystem) -> Sg
 def sglang_disagg_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
     sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     sglang.cmd_args.prefill = SglangArgs()
-    return TestRun(test=sglang, num_nodes=1, nodes=[], output_path=tmp_path, name="sglang-disagg-job")
+    return TestRun(
+        test_definition=sglang.model_copy(deep=True, update={"num_nodes": 1, "id": "sglang-disagg-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
 def sglang_disagg_2node_tr(sglang: SglangTestDefinition, tmp_path: Path) -> TestRun:
     sglang.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     sglang.cmd_args.prefill = SglangArgs()
-    return TestRun(test=sglang, num_nodes=2, nodes=[], output_path=tmp_path, name="sglang-disagg-2node-job")
+    return TestRun(
+        test_definition=sglang.model_copy(deep=True, update={"num_nodes": 2, "id": "sglang-disagg-2node-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy) -> None:
@@ -73,7 +85,7 @@ def test_container_mounts(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy
 
 class TestGpuDetection:
     def test_aggregated_gpu_ids_from_decode_config(self, sglang_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        tdef = cast(SglangTestDefinition, sglang_tr.test)
+        tdef = cast(SglangTestDefinition, sglang_tr.test_definition)
         tdef.extra_env_vars = {}
         tdef.cmd_args.decode.gpu_ids = "0,1,2,3"
         strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_tr)
@@ -90,7 +102,7 @@ class TestGpuDetection:
 
 
 def test_get_sglang_semantic_eval_command_defaults(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy):
-    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test_definition)
     sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
 
     command = sglang_cmd_gen_strategy.get_semantic_eval_command()
@@ -104,7 +116,7 @@ def test_get_sglang_semantic_eval_command_defaults(sglang_cmd_gen_strategy: Sgla
 def test_get_sglang_semantic_eval_command_supports_custom_entrypoint_and_cli(
     sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
 ):
-    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test_definition)
     sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs(
         entrypoint="python3 /custom/semantic_eval.py",
         cli="--num-questions 200 --data-path {result_dir}/gsm8k.jsonl --seen {url}",
@@ -121,7 +133,7 @@ def test_get_sglang_semantic_eval_command_supports_custom_entrypoint_and_cli(
 
 
 def test_gen_srun_command_contains_sglang_semantic_eval(sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy):
-    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    sglang_test = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test_definition)
     sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
 
     srun_command = sglang_cmd_gen_strategy._gen_srun_command()
@@ -138,7 +150,7 @@ def test_gen_srun_command_contains_sglang_semantic_eval(sglang_cmd_gen_strategy:
 def test_gen_srun_command_contains_sglang_semantic_eval_in_disagg(
     sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
 ) -> None:
-    sglang_test = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    sglang_test = cast(SglangTestDefinition, sglang_disagg_tr.test_definition)
     sglang_test.semantic_eval_cmd_args = SglangSemanticEvalCmdArgs()
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
@@ -161,7 +173,7 @@ def test_disaggregated_server_healthcheck_defaults_to_legacy_health_endpoint(
 
 
 def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    sglang_disagg_tr.num_nodes = 3
+    sglang_disagg_tr.test_definition = sglang_disagg_tr.test_definition.model_copy(update={"num_nodes": 3})
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
     with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
@@ -171,11 +183,11 @@ def test_disagg_more_than_two_nodes_is_rejected(sglang_disagg_tr: TestRun, slurm
 def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_launches(
     sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
 ) -> None:
-    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test_definition)
     assert tdef.cmd_args.prefill is not None
     tdef.cmd_args.prefill.num_nodes = 2
     tdef.cmd_args.decode.num_nodes = 2
-    sglang_disagg_tr.num_nodes = 4
+    sglang_disagg_tr.test_definition = sglang_disagg_tr.test_definition.model_copy(update={"num_nodes": 4})
     strategy = SglangSlurmCommandGenStrategy(slurm_system, sglang_disagg_tr)
 
     srun_command = strategy._gen_srun_command()
@@ -199,7 +211,7 @@ def test_gen_srun_command_disagg_four_nodes_uses_separate_sglang_distributed_lau
 def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
     sglang_cmd_gen_strategy: SglangSlurmCommandGenStrategy,
 ) -> None:
-    tdef = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test)
+    tdef = cast(SglangTestDefinition, sglang_cmd_gen_strategy.test_run.test_definition)
     tdef.custom_bash = "echo setup"
 
     srun_command = sglang_cmd_gen_strategy._gen_srun_command()
@@ -213,7 +225,7 @@ def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
 def test_custom_bash_regex_can_target_sglang_disaggregated_commands(
     sglang_disagg_tr: TestRun, slurm_system: SlurmSystem
 ) -> None:
-    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test)
+    tdef = cast(SglangTestDefinition, sglang_disagg_tr.test_definition)
     tdef.custom_bash = {
         "sglang.launch_server.*prefill": "echo prefill setup",
         "sglang.launch_server.*decode": "echo decode setup",

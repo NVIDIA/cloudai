@@ -32,7 +32,7 @@ class FioSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef = cast(FioTestDefinition, self.test_run.test)
+        tdef = cast(FioTestDefinition, self.test_run.test_definition)
         image = tdef.docker_image
         return str(image.installed_path) if image else None
 
@@ -41,7 +41,7 @@ class FioSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [part for part in prefix if not part.startswith("--mpi=")]
 
     def _fio_task_args(self) -> list[str]:
-        args = cast(FioCmdArgs, self.test_run.test.cmd_args)
+        args = cast(FioCmdArgs, self.test_run.test_definition.cmd_args)
         task_args: list[str] = []
         num_nodes, _ = self.get_cached_nodes_spec()
         if args.num_tasks_per_node is not None:
@@ -67,7 +67,7 @@ class FioSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(srun_command_parts) + " " + full_test_cmd
 
     def generate_test_command(self) -> list[str]:
-        args = cast(FioCmdArgs, self.test_run.test.cmd_args)
+        args = cast(FioCmdArgs, self.test_run.test_definition.cmd_args)
         return build_fio_command_parts(args)
 
     def gen_srun_success_check(self) -> str:

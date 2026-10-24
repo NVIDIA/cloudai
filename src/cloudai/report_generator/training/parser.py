@@ -160,15 +160,15 @@ class TrainingParser(ABC):
 
     def _build_config(self, tr: TestRun, system: System, test_scenario: TestScenario) -> TrainingConfig:
         """Map the framework + test config into TrainingConfig, then fill the CloudAI-computed fields."""
-        env_vars = {**getattr(system, "global_env_vars", {}), **tr.test.extra_env_vars}
+        env_vars = {**getattr(system, "global_env_vars", {}), **tr.test_definition.extra_env_vars}
         config_paths = test_scenario.config_paths
         num_nodes, nodes = self._get_used_nodes(tr)
         config = TrainingConfig(
             test_id=tr.name,
-            test_name=tr.test.name,
-            description=tr.test.description,
+            test_name=tr.test_definition.name,
+            description=tr.test_definition.description,
             test_scenario_name=test_scenario.name,
-            test_template_name=tr.test.test_template_name,
+            test_template_name=tr.test_definition.test_template_name,
             system_path=str(config_paths.system_path) if config_paths is not None else "",
             tests_dir_path=str(config_paths.tests_dir_path) if config_paths and config_paths.tests_dir_path else "",
             test_scenario_path=str(config_paths.test_scenario_path) if config_paths is not None else "",
@@ -275,7 +275,7 @@ class TrainingParser(ABC):
 
     def _resolve_test_config(self, tr: TestRun) -> dict[str, Any]:
         """Resolve TEST_CONFIG_MAPPING against the run's TestDefinition; coerce values, drop misses (keep defaults)."""
-        source = tr.test.model_dump()
+        source = tr.test_definition.model_dump()
         return {
             field: self._parse_literal(value)
             for field, path in self.TEST_CONFIG_MAPPING.items()
@@ -311,7 +311,7 @@ class NeMoRunParser(TrainingParser):
         return json.loads(self.get_config_path(tr).read_text())
 
     def get_model_name(self, tr: TestRun) -> str:
-        return tr.test.cmd_args.recipe_name
+        return tr.test_definition.cmd_args.recipe_name
 
 
 # Megatron re-logs core metrics against sample count under this suffix; both Megatron parsers drop them.
@@ -341,7 +341,7 @@ class MegatronParser(TrainingParser):
         return {tag: self._parse_literal(value) for tag, value in read_text(self.get_tb_dir(tr)).items()}
 
     def get_model_name(self, tr: TestRun) -> str:
-        return tr.test.name
+        return tr.test_definition.name
 
 
 class MegatronBridgeParser(TrainingParser):
@@ -369,4 +369,4 @@ class MegatronBridgeParser(TrainingParser):
         return yaml.safe_load(path.read_text()) if path else {}
 
     def get_model_name(self, tr: TestRun) -> str:
-        return tr.test.cmd_args.model_recipe_name
+        return tr.test_definition.cmd_args.model_recipe_name

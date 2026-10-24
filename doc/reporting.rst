@@ -31,6 +31,20 @@ Per-test reports are linked to a particular workload type (e.g. ``NcclTest``). A
 
 To list all available reports, users can use ``cloudai list-reports``. Use verbose output to also print report configurations.
 
+Saved test runs
+---------------
+
+Each execution writes ``test-run.toml`` with its prepared definition under
+``[test_definition]`` and its allocated nodes, output path, iteration and step at top level.
+Pre/post-test scenarios and live dependency references are not saved.
+
+Reports accept this layout and legacy files with repeated top-level definition
+settings such as ``nnodes`` and ``iterations``.
+For old files, saved top-level values take precedence over the supplied scenario;
+the scenario supplies definition settings that were never saved. Newly written
+files omit the old command strings and repeated top-level definition settings.
+Extensions reading saved runs should use ``cloudai.core.load_test_run``.
+
 
 Unified Experiment Output
 -------------------------
@@ -122,7 +136,7 @@ Speed-of-Light comparisons
 --------------------------
 
 CloudAI can compare NCCL and NIXL Bench measurements with configured Speed-of-Light (SOL) targets. Targets are
-validated while the system or scenario TOML is parsed. A target without ``match`` is the default; a matching target
+validated while the system, test or scenario TOML is parsed. A target without ``match`` is the default; a matching target
 with more dimensions takes precedence:
 
 .. code-block:: toml
@@ -160,8 +174,13 @@ A test case can replace the targets for a metric inherited from the scenario or 
    [[Tests.sol.bandwidth]]
    value = 120.0
 
-The precedence is test case, then scenario, then system. NCCL and NIXL comparison v2 reports include measured, SOL,
+The precedence is test case, then scenario, then system. Test TOMLs can also supply ``sol`` targets, which a
+scenario case can override. NCCL and NIXL comparison v2 reports include measured, SOL,
 and percentage-of-SOL columns and draw a shared SOL curve when every compared run resolves the same targets.
+
+A test or scenario case can instead set a numeric ``sol``, such as ``sol = 100.0``. Numeric values are reference
+lines in the existing NCCL, UCC, NeMoRun and NeMoLauncher per-test plots. A numeric value overrides inherited
+structured targets for that case; metric comparison reports use only structured targets.
 
 .. _reporting-registration:
 

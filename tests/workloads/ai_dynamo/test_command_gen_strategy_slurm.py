@@ -22,8 +22,7 @@ import pytest
 import toml
 import yaml
 
-from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai.core import GitRepo
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     HICACHE_CONFIG_FILE_NAME,
@@ -131,7 +130,11 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     )
     tdef.repo.installed_path = dynamo_repo_path
 
-    return TestRun(name="run", test=tdef, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 2}),
+        nodes=["n0", "n1"],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -142,7 +145,7 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
 def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
 
     args = strategy._gen_script_args(td)
@@ -155,7 +158,7 @@ def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
 
-    td = test_run.test
+    td = test_run.test_definition
     expected = [
         f"{strategy.system.hf_home_path.absolute()}:{strategy.CONTAINER_MOUNT_HF_HOME}",
     ]
@@ -203,7 +206,7 @@ def test_startup_cmd_image_is_installable(cmd_args: AIDynamoCmdArgs) -> None:
 
 
 def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.startup_cmd = "/mnt/discover.sh"
     td.cmd_args.startup_cmd_docker_image = "nvcr.io/test/discovery:latest"
 
@@ -225,7 +228,7 @@ def test_gen_startup_srun_command_runs_once_per_node(strategy: AIDynamoSlurmComm
 def test_gen_startup_srun_command_runs_on_bare_metal_by_default(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.startup_cmd = "/host/discover.sh"
 
     command = strategy._gen_startup_srun_command()
@@ -238,7 +241,7 @@ def test_gen_startup_srun_command_runs_on_bare_metal_by_default(
 
 
 def test_single_sbatch_includes_startup_srun_in_test_block(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.cmd_args.startup_cmd = "/mnt/discover.sh"
     scenario = TestScenario(name="scenario", test_runs=[test_run])
     runner = SingleSbatchRunner(
@@ -282,7 +285,7 @@ def test_dynamo_cmd(
 
 
 def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     setup_cmd = "python -m pip install --break-system-packages --upgrade aiperf==0.8.0"
     cli = (
@@ -330,7 +333,7 @@ def test_gen_script_args_contains_split_aiperf_accuracy_args(strategy: AIDynamoS
 
 
 def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     cli = "--model {model} --url {url} --endpoint {endpoint} --artifact-dir {artifact_dir} --prompt ping"
     td.cmd_args.aiperf_accuracy = AIPerfAccuracy.model_validate(
         {
@@ -346,7 +349,7 @@ def test_gen_script_args_contains_custom_aiperf_accuracy_args(strategy: AIDynamo
 
 
 def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
@@ -398,7 +401,7 @@ def test_gen_script_args_writes_resolved_aiperf_script(strategy: AIDynamoSlurmCo
 def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf = AIPerf.model_validate(
         {
@@ -423,7 +426,7 @@ def test_generated_aiperf_script_supports_core_overrides_and_server_metrics_auto
 
 
 def test_generated_aiperf_script_rejects_list_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf = AIPerf.model_validate({"args": {"server-metrics-formats": ["json", "csv"]}})
 
@@ -440,7 +443,7 @@ def test_aiperf_extra_args_must_be_string() -> None:
 
 
 def test_dcgm_exporter_generates_launcher_and_runtime_flags(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.dynamo.dcgm_exporter.enabled = True
     td.cmd_args.dynamo.dcgm_exporter.docker_image_url = "nvcr.io/test/dcgm:latest"
     td.cmd_args.dynamo.dcgm_exporter.port = 9501
@@ -488,12 +491,9 @@ def test_shared_node_disagg_preserves_explicit_smaller_node_count(
     )
     tdef.repo.installed_path = tmp_path
     tr = TestRun(
-        name="run",
-        test=tdef,
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 1}),
         nodes=["n0"],
-        num_nodes=1,
         output_path=tmp_path,
-        num_nodes_explicit=True,
     )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
@@ -508,8 +508,8 @@ def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
     strategy.test_run.nodes = []
-    strategy.test_run.num_nodes = 1
-    strategy.test_run.num_nodes_explicit = False
+    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": 1})
+    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": None})
 
     assert strategy.get_cached_nodes_spec()[0] == 2
 
@@ -527,7 +527,9 @@ def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
         cmd_args=cmd_args,
     )
     tdef.repo.installed_path = tmp_path
-    tr = TestRun(name="run", test=tdef, nodes=[], num_nodes=1, output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
     assert strategy.get_cached_nodes_spec() == (1, ["n0"])
@@ -550,12 +552,9 @@ def test_explicit_overlapping_worker_nodes_reject_extra_allocated_nodes(
     )
     tdef.repo.installed_path = tmp_path
     tr = TestRun(
-        name="run",
-        test=tdef,
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 2}),
         nodes=["n0", "n1"],
-        num_nodes=2,
         output_path=tmp_path,
-        num_nodes_explicit=True,
     )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
@@ -565,12 +564,12 @@ def test_explicit_overlapping_worker_nodes_reject_extra_allocated_nodes(
 
 def test_constraint_allows_shared_node_split_that_fits(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     slurm_system.gpus_per_node = 8
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 4
-    test_run.num_nodes = 1
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
     test_run.nodes = ["n0"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert td.constraint_check(test_run, slurm_system)
 
@@ -579,12 +578,12 @@ def test_constraint_rejects_shared_node_split_that_exceeds_node_gpus(
     slurm_system: SlurmSystem, test_run: TestRun
 ) -> None:
     slurm_system.gpus_per_node = 8
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
-    test_run.num_nodes = 1
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
     test_run.nodes = ["n0"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert not td.constraint_check(test_run, slurm_system)
 
@@ -593,18 +592,18 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     slurm_system: SlurmSystem, test_run: TestRun
 ) -> None:
     slurm_system.gpus_per_node = 8
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 8
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
-    test_run.num_nodes = 2
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 2})
     test_run.nodes = ["n0", "n1"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert td.constraint_check(test_run, slurm_system)
 
 
 def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf_phases = [
         AIPerfPhase.model_validate({"name": "round_1"}),
@@ -613,7 +612,7 @@ def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDy
 
     roundtripped = AIDynamoTestDefinition.model_validate(td.model_dump())
     roundtripped.repo.installed_path = td.repo.installed_path
-    strategy.test_run.test = roundtripped
+    strategy.test_run.test_definition = roundtripped
 
     assert roundtripped.cmd_args.aiperf_phases is not None
     assert [phase.report_name for phase in roundtripped.cmd_args.aiperf_phases] == [None, None]
@@ -626,7 +625,7 @@ def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDy
 
 
 def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.workloads = "aiperf.sh"
     td.cmd_args.aiperf_phases = [AIPerfPhase.model_validate({"name": "round_1", "args": {"request-count": 10}})]
 
@@ -651,7 +650,7 @@ def test_aiperf_phase_names_must_be_unique(cmd_args: AIDynamoCmdArgs) -> None:
 
 
 def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     config = '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
     td.cmd_args.dynamo.prefill_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
     td.cmd_args.dynamo.decode_worker.args = WorkerBaseArgs.model_validate({"kv-transfer-config": config})
@@ -663,7 +662,7 @@ def test_gen_script_args_quotes_worker_json_args(strategy: AIDynamoSlurmCommandG
 
 
 def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.lmcache = {
         "chunk_size": 512,
         "local_cpu": True,
@@ -700,7 +699,7 @@ def test_gen_script_args_writes_lmcache_object_as_yaml(strategy: AIDynamoSlurmCo
 
 
 def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     td.cmd_args.dynamo.backend = "sglang"
     td.cmd_args.hicache = {
         "plugin": {
@@ -724,7 +723,7 @@ def test_gen_script_args_writes_hicache_object_as_toml(strategy: AIDynamoSlurmCo
 
 
 def test_hicache_config_supports_dse(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.cmd_args.hicache = {"plugin": {"posix": {"use_uring": ["false", "true"]}}}
 
     assert test_run.is_dse_job is True
@@ -732,7 +731,7 @@ def test_hicache_config_supports_dse(test_run: TestRun) -> None:
 
     new_test_run = test_run.apply_params_set({"hicache.plugin.posix.use_uring": "true"})
 
-    new_hicache = cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.hicache
+    new_hicache = cast(AIDynamoTestDefinition, new_test_run.test_definition).cmd_args.hicache
     assert new_hicache is not None
     assert new_hicache["plugin"]["posix"]["use_uring"] == "true"
 
@@ -748,7 +747,7 @@ def test_hicache_config_is_backend_agnostic(cmd_args: AIDynamoCmdArgs) -> None:
 
 
 def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test)
+    td = cast(AIDynamoTestDefinition, test_run.test_definition)
     td.dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
     td.cmd_args.lmcache = {
         "chunk_size": [256, 512],
@@ -761,11 +760,11 @@ def test_lmcache_config_supports_dse_with_excluded_prefix(test_run: TestRun) -> 
 
     new_test_run = test_run.apply_params_set({"lmcache.chunk_size": 512})
 
-    assert cast(AIDynamoTestDefinition, new_test_run.test).cmd_args.lmcache["chunk_size"] == 512  # type: ignore
+    assert cast(AIDynamoTestDefinition, new_test_run.test_definition).cmd_args.lmcache["chunk_size"] == 512  # type: ignore
 
 
 def test_gen_script_args_passes_lmcache_controller_cmd(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
-    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test_definition)
     cmd = "lmcache_controller --host 0.0.0.0 --port 9000 --monitor-port 9001"
     td.cmd_args.lmcache_controller = LMCacheController(cmd=cmd)
 

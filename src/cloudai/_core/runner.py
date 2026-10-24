@@ -14,17 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import datetime
 import logging
 import warnings
 from types import FrameType
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from .base_runner import BaseRunner
 from .exceptions import JobFailureError
 from .registry import Registry
 from .system import System
-from .test_scenario import TestScenario
+
+if TYPE_CHECKING:
+    from ..models.scenario import TestScenario
 
 
 class Runner:

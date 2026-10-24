@@ -36,7 +36,11 @@ def _megatron_run_test_run(tmp_path: Path, command_prefix: str = "") -> TestRun:
             command_prefix=command_prefix,
         ),
     )
-    return TestRun(name="megatron-run", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "megatron-run", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 def test_megatron_run_command_has_no_prefix_by_default(slurm_system: SlurmSystem, tmp_path: Path) -> None:

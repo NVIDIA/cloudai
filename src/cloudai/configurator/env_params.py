@@ -38,7 +38,7 @@ from typing_extensions import Self
 from cloudai._core.exceptions import TestScenarioParsingError
 
 if TYPE_CHECKING:
-    from cloudai._core.test_scenario import TestScenario
+    from cloudai.models.scenario import TestScenario
     from cloudai.models.workload import TestDefinition
 
 
@@ -250,7 +250,7 @@ def validate_domain_randomization_active(test_scenario: "TestScenario") -> None:
     offenders = [
         tr.name
         for tr in test_scenario.test_runs
-        if tr.test.is_domain_randomization_enabled and not tr.is_domain_randomization_active
+        if tr.test_definition.is_domain_randomization_enabled and not tr.is_domain_randomization_active
     ]
 
     if offenders:

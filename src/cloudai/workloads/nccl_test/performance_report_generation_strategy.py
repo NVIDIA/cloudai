@@ -165,6 +165,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         csv_report_tool.finalize_report(Path("cloudai_nccl_test_csv_report.csv"))
 
     def _generate_bokeh_report(self, df: pd.DataFrame) -> None:
+        sol = self.test_run.sol
         report_tool: BokehReportTool = BokehReportTool(self.test_run.output_path)
 
         line_plots: List[Tuple[str, str, str]] = [
@@ -179,7 +180,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
-                sol=self.test_run.sol,
+                sol=sol if isinstance(sol, (float, int)) else None,
             )
 
         combined_columns: List[Tuple[str, str]] = [
@@ -193,7 +194,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
             x_axis_label="Message Size",
             y_axis_label="Bandwidth (GB/s)",
             df=df,
-            sol=self.test_run.sol,
+            sol=sol if isinstance(sol, (float, int)) else None,
         )
 
         report_tool.finalize_report(Path("cloudai_nccl_test_bokeh_report.html"))

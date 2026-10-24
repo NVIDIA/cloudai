@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,14 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import csv
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 from .registry import Registry
 from .system import System
-from .test_scenario import TestRun, TestScenario
+from .test_run import TestRun
+
+if TYPE_CHECKING:
+    from ..models.scenario import TestScenario
 
 
 class Grader:
@@ -52,18 +57,18 @@ class Grader:
         """
         weighted_perfs: List[float] = []
         test_perfs: Dict[str, List[float]] = {}
-        total_weight = sum(tr.weight for tr in test_scenario.test_runs)
+        total_weight = sum(tr.test_definition.weight for tr in test_scenario.test_runs)
 
         for tr in test_scenario.test_runs:
             section_name = str(tr.name) if tr.name else ""
             if not section_name:
-                logging.warning(f"Missing section name for test {tr.test.name}")
+                logging.warning(f"Missing section name for test {tr.test_definition.name}")
                 continue
             test_output_dir = self.output_path / section_name
             perfs = self._get_perfs_from_subdirs(test_output_dir, tr)
             avg_perf = sum(perfs) / len(perfs) if perfs else 0
-            test_perfs[tr.test.name] = [*perfs, avg_perf]
-            weighted_avg = (avg_perf * tr.weight / total_weight) if total_weight else 0
+            test_perfs[tr.test_definition.name] = [*perfs, avg_perf]
+            weighted_avg = (avg_perf * tr.test_definition.weight / total_weight) if total_weight else 0
             weighted_perfs.append(weighted_avg)
 
         overall_weighted_avg = sum(weighted_perfs)
@@ -86,8 +91,8 @@ class Grader:
 
         for subdir in directory_path.iterdir():
             if subdir.is_dir() and subdir.name.isdigit():
-                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test))()
-                perf = grading_strategy.grade(subdir, tr.ideal_perf)
+                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test_definition))()
+                perf = grading_strategy.grade(subdir, tr.test_definition.ideal_perf)
                 perfs.append(perf)
         return perfs
 

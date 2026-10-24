@@ -182,7 +182,7 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
         return mounts
 
     def _filepath_mounts(self) -> list[str]:
-        filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
+        filepath_raw: str | None = cast(str | None, self.test_run.test_definition.cmd_args_dict.get("filepath"))
         if not filepath_raw:
             return []
 
@@ -195,7 +195,7 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
         return [f"{local_dir.absolute()}:{filepath}"]
 
     def _device_list_mounts(self) -> list[str]:
-        device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
+        device_list_raw: str | None = cast(str | None, self.test_run.test_definition.cmd_args_dict.get("device_list"))
         if not device_list_raw:
             return []
 
@@ -203,8 +203,8 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
         if not file_devices:
             return []
 
-        if "total_buffer_size" in self.test_run.test.cmd_args_dict:
-            total_buffer_size = int(cast(str, self.test_run.test.cmd_args_dict["total_buffer_size"]))
+        if "total_buffer_size" in self.test_run.test_definition.cmd_args_dict:
+            total_buffer_size = int(cast(str, self.test_run.test_definition.cmd_args_dict["total_buffer_size"]))
         else:
             total_buffer_size = DEFAULT_TOTAL_BUFFER_SIZE
 
@@ -253,11 +253,11 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
     def _cleanup_targets(self) -> list[Path]:
         cleanup_targets: list[Path] = []
 
-        filepath_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("filepath"))
+        filepath_raw: str | None = cast(str | None, self.test_run.test_definition.cmd_args_dict.get("filepath"))
         if filepath_raw:
             cleanup_targets.append(self.test_run.output_path / "filepath_mount")
 
-        device_list_raw: str | None = cast(str | None, self.test_run.test.cmd_args_dict.get("device_list"))
+        device_list_raw: str | None = cast(str | None, self.test_run.test_definition.cmd_args_dict.get("device_list"))
         if device_list_raw and get_files_from_device_list(device_list_raw):
             cleanup_targets.append(self.test_run.output_path / "device_list_mounts")
 
@@ -266,7 +266,7 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = super().final_env_vars
-        tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test)
+        tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test_definition)
         if tdef.uses_etcd:
             env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
             env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
@@ -284,7 +284,7 @@ class NIXLCmdGenBase(EtcdCmdGenMixin):
     def gen_etcd_srun_command(self, etcd_path: str = "etcd") -> list[str]:
         # NIXL may run etcd from a dedicated image; the shared lifecycle builds the command from
         # gen_srun_prefix()/image_path(), so temporarily point image_path() at the etcd image.
-        tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test)
+        tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test_definition)
         curr_image = self._current_image_url
         if tdef.etcd_image:
             self._current_image_url = str(tdef.etcd_image.installed_path)

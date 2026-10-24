@@ -405,7 +405,7 @@ class MoEBenchmarkThroughputReporter(Reporter):
 
     def generate(self) -> None:
         self.load_test_runs()
-        moe_trs = [tr for tr in self.trs if isinstance(tr.test, MoEBenchmarkTestDefinition)]
+        moe_trs = [tr for tr in self.trs if isinstance(tr.test_definition, MoEBenchmarkTestDefinition)]
         if not moe_trs:
             logging.debug("Skipping moe_benchmark_throughput: no MoEBenchmark test in scenario.")
             return
@@ -433,14 +433,14 @@ class MoEBenchmarkThroughputReporter(Reporter):
         # reference). They mirror only the operations the EP backends measured: always
         # dispatch, and combine ONLY when there's real EP combine data. No NVLink/RDMA
         # split -> not added to the bottom panels.
-        ucc_trs = [tr for tr in self.trs if isinstance(tr.test, UCCTestDefinition)]
+        ucc_trs = [tr for tr in self.trs if isinstance(tr.test_definition, UCCTestDefinition)]
         if ucc_trs:
             uval = _mean_ucc_bus_bw_gb_s(ucc_trs[0].output_path)
             if uval is not None:
                 bus_dispatch.append(("UCC", uval, _BASELINE_COLOR))
                 if has_combine:
                     bus_combine.append(("UCC", uval, _BASELINE_COLOR))
-        nccl_trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
+        nccl_trs = [tr for tr in self.trs if isinstance(tr.test_definition, NCCLTestDefinition)]
         if nccl_trs:
             nval = _mean_nccl_oop_busbw_gb_s(nccl_trs[0].output_path)
             if nval is not None:
@@ -449,7 +449,7 @@ class MoEBenchmarkThroughputReporter(Reporter):
                     bus_combine.append(("NCCL", nval, _BASELINE_COLOR))
 
         # Run config for the header subtitle: tokens / hidden / top-k / cluster / nodes.
-        ca = moe_trs[0].test.cmd_args
+        ca = moe_trs[0].test_definition.cmd_args
         nn = moe_trs[0].num_nodes
         if isinstance(nn, list):
             nn = nn[0] if nn else "?"

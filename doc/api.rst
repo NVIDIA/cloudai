@@ -47,3 +47,90 @@ experiment file contents are not parsed.
 system's output directory. Pass a ``Path`` to a result directory to load it
 directly. Invalid IDs and missing, unreadable, or malformed experiment files
 raise ``ValueError``.
+
+Models for workload extensions
+------------------------------
+
+Import ``TestScenario``, ``TestDefinition`` and ``TestRun`` from ``cloudai.core``.
+Workload definitions continue to inherit ``TestDefinition`` and generation
+strategies keep receiving ``system`` and ``test_run``.
+
+``TestScenario.tests`` contains the resolved workload definitions. Each definition
+owns its workload arguments and configured scheduling, repetitions and dependency
+IDs. ``name`` identifies the reusable test; ``id`` identifies its occurrence in a
+scenario. Standalone definitions can omit ``id``.
+
+Before execution, prepare a separate ``TestDefinition`` with the selected sweep
+values and effective scheduling settings. Keep the scenario's original definition
+unchanged. Treat prepared definitions as immutable configuration; create a new
+definition when settings change.
+
+``TestRun(test_definition=prepared_definition)`` holds that definition directly. It stores
+allocated nodes, iteration, step, output path and resolved dependency and hook
+bindings. Static settings, including selected node count, effective time limit,
+weight and SOL, belong to ``TestRun.test_definition``. Existing read access through
+``test_run.nnodes``, ``iterations`` and ``extra_srun_args`` forwards to that
+definition. Compatibility properties used by workload generators and reporters
+remain available. Read ``weight``, ``ideal_perf`` and ``pin_nodes`` from
+``test_run.test_definition``; their runtime forwarding properties are removed.
+
+``TestRun.test`` remains a read/write compatibility property for existing
+workloads and reporters. The constructor takes ``test_definition=``;
+serialization writes only ``test_definition``.
+
+``TestDefinition.sol`` and ``TestRun.sol`` contain either a number, the existing
+``cloudai.metrics.MetricSOLConfig`` dictionary, or ``None``. The dictionary maps
+metric names to lists of ``SOLTarget`` objects and uses the existing metric-keyed
+``sol`` TOML tables. ``System.sol`` and ``TestScenario.sol`` use the same dictionary
+type. ``TestRun.metric_sol`` is removed.
+
+The existing runners use ``TestScenario.test_runs`` for bound executions.
+Replacing that list does not replace ``TestScenario.tests``. The execution list
+is excluded from scenario serialization.
+
+``TestRun`` is a Pydantic model. Save it with ``model_dump(mode="json")`` and load
+saved TOMLs through ``load_test_run(path, fallback=definition)`` from
+``cloudai.core``. The fallback supplies reporter registrations and definition
+fields absent from legacy files. New files contain the complete prepared
+definition under ``[test_definition]``, with ``nodes``, ``output_path``, ``current_iteration``
+and ``step`` at top level. Live dependency references and pre/post-test scenarios
+are excluded. The definition retains declared dependency IDs.
+
+The old top-level ``name``, ``nnodes`` and ``iterations`` are no longer written;
+they are available from the definition. ``test_cmd`` and ``full_cmd`` are removed.
+Reporting still loads old files, identified by their top-level ``nnodes`` field,
+through a separate legacy converter. The containing folder supplies the output path,
+allowing results to be moved. Best-config exports contain only the definition.
+
+``TestRunDetails`` is no longer a separate model. Its ``from_test_run`` method
+is deprecated and retained only for internal project compatibility until those
+projects migrate to direct ``TestRun`` serialization. It returns the actual
+``TestRun`` and will be removed. Command-string arguments are accepted but not stored. Use
+``load_test_run`` instead of the former ``TestRunDetails.model_validate`` reader.
+
+Migration notes for direct model users:
+
+* Scenario-case lists replace test-file lists: ``git_repos = []`` clears inherited
+  repositories. Omit the setting to inherit them. Dictionaries merge by key, so
+  ``extra_env_vars = {}`` preserves inherited environment variables.
+* ``TestRunModel`` and ``TestScenarioModel`` are removed. Use ``TestDefinition``
+  and ``TestScenario``. Pass unresolved ``test_name`` or ``path`` references
+  through the existing parsers, which resolve them before model validation.
+  ``TestRunDependencyModel`` now lives in ``cloudai.models.workload``.
+* ``get_reporters`` in ``cloudai.test_scenario_parser`` now takes only the
+  workload definition; its unused scenario-item argument is removed.
+* ``TestRun`` and ``TestScenario`` are no longer dataclasses. Dataclass field
+  introspection and generated structural equality are not retained.
+* ``TestRun`` takes a prepared definition and runtime state. Configuration
+  arguments such as ``name``, ``num_nodes`` and ``iterations`` move to the
+  definition (``name`` becomes the case ``id``). Static forwarding properties are
+  read-only. ``TestRun.definition`` is removed; ``TestRun.test_definition`` owns
+  the definition, with ``test`` retained as a compatibility alias. The constructor
+  accepts keyword arguments only and no longer copies the definition.
+* ``extra_srun_args`` accepts a string or a list of string fragments in test and
+  scenario TOMLs. Definitions store a list; ``TestRun.extra_srun_args`` provides
+  the joined string for existing strategies. Existing quoting is preserved.
+  Scenario-case arguments now replace test-file arguments instead of being
+  appended to them; an empty string or list clears inherited test arguments.
+  SlurmContainer test-file arguments now also apply to metadata commands.
+  See :ref:`extra-slurm-arguments` for configuration rules and examples.

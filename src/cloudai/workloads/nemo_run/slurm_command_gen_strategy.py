@@ -27,11 +27,11 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
     def image_path(self) -> str | None:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def _gen_srun_command(self) -> str:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test_definition)
         self._set_additional_env_vars(tdef)
         return super()._gen_srun_command()
 
@@ -61,7 +61,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.final_env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
     def _run_script(self) -> Path:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test_definition)
         return tdef.script.installed_path
 
     def _container_mounts(self) -> List[str]:
@@ -111,7 +111,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return recipe_name
 
     def generate_test_command(self) -> List[str]:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test_definition)
 
         tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
@@ -149,8 +149,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self.append_flattened_dict("", cmd_args_dict, command)
 
-        if self.test_run.test.extra_cmd_args:
-            command.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            command.append(self.test_run.test_definition.extra_args_str)
 
         if self.final_env_vars.get("ENABLE_NUMA_CONTROL") == "1":
             command = self._enable_numa_control_cmd().split() + command

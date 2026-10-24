@@ -806,14 +806,14 @@ class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
 @pytest.fixture
 def test_run(slurm_system: SlurmSystem) -> TestRun:
     test_run = TestRun(
-        name="test_run",
-        test=NCCLTestDefinition(
-            name="test_run",
-            description="test_run",
-            test_template_name="nccl",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        num_nodes=2,
+        test_definition=(
+            NCCLTestDefinition(
+                name="test_run",
+                description="test_run",
+                test_template_name="nccl",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            )
+        ).model_copy(deep=True, update={"id": "test_run", "num_nodes": 2}),
         nodes=["main:group1:2"],
         output_path=slurm_system.output_path,
     )
@@ -841,12 +841,12 @@ class TestSlurmCommandGenStrategyCache:
         assert res == (2, ["node01", "node02"])
 
         # Different node spec should call get_nodes_by_spec again
-        test_run.num_nodes = 1
+        test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
         test_run.nodes = []
         strategy.get_cached_nodes_spec()
         assert mock_get_nodes.call_count == 2
 
-        test_run.num_nodes = 2
+        test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 2})
         test_run.nodes = ["node01", "node03"]
         strategy.get_cached_nodes_spec()
         assert mock_get_nodes.call_count == 3
@@ -1003,14 +1003,14 @@ name = "p"
 """
     slurm = SlurmSystem.model_validate(toml.loads(spec))
     test_run = TestRun(
-        name="test_run",
-        test=NCCLTestDefinition(
-            name="test_run",
-            description="test_run",
-            test_template_name="nccl",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        num_nodes=1,
+        test_definition=(
+            NCCLTestDefinition(
+                name="test_run",
+                description="test_run",
+                test_template_name="nccl",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            )
+        ).model_copy(deep=True, update={"id": "test_run", "num_nodes": 1}),
         nodes=[],
         output_path=Path("r"),
     )

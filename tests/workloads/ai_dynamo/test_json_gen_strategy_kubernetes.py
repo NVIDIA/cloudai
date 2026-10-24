@@ -70,13 +70,13 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
 def json_gen(
     k8s_system: KubernetesSystem, base_tr: TestRun, dynamo: AIDynamoTestDefinition
 ) -> AIDynamoKubernetesJsonGenStrategy:
-    base_tr.test = dynamo
+    base_tr.test_definition = dynamo
     return AIDynamoKubernetesJsonGenStrategy(k8s_system, base_tr)
 
 
 def test_gen_frontend(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     system = cast(KubernetesSystem, json_gen.system)
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
 
     frontend = json_gen.gen_frontend_dict()
     assert frontend.get("dynamoNamespace") == system.default_namespace
@@ -91,7 +91,7 @@ def dynamo_args_dict(model: BaseModel) -> dict:
 
 def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     system = cast(KubernetesSystem, json_gen.system)
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
 
     decode = json_gen.gen_decode_dict()
     assert decode.get("dynamoNamespace") == system.default_namespace
@@ -121,7 +121,7 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 @pytest.mark.parametrize("num_nodes", [1, 2, 4])
 def test_gen_decode_num_nodes(num_nodes: int, json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
     tdef.cmd_args.dynamo.decode_worker.num_nodes = num_nodes
 
     decode = json_gen.gen_decode_dict()
@@ -135,7 +135,7 @@ def test_gen_decode_num_nodes(num_nodes: int, json_gen: AIDynamoKubernetesJsonGe
 
 def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     system = cast(KubernetesSystem, json_gen.system)
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
 
     if not tdef.cmd_args.dynamo.prefill_worker.is_enabled:
         with pytest.raises(ValueError, match=r"Prefill worker is disabled in the test definition."):
@@ -167,7 +167,7 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 @pytest.mark.parametrize("num_nodes", [1, 2, 4])
 def test_gen_prefill_num_nodes(num_nodes: int, json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
     if not tdef.cmd_args.dynamo.prefill_worker.is_enabled:
         pytest.skip("Prefill worker configuration is not defined in the test definition.")
 
@@ -196,7 +196,7 @@ def test_to_dynamo_arg(json_gen: AIDynamoKubernetesJsonGenStrategy, arg_name: st
 
 def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     k8s_system = cast(KubernetesSystem, json_gen.system)
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
     json_gen.test_run.output_path.mkdir(parents=True, exist_ok=True)
 
     deployment = json_gen.gen_json()
@@ -218,7 +218,7 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 
 def test_gen_json_omits_disabled_prefill_worker(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
-    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test_definition)
     tdef.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
     json_gen.test_run.output_path.mkdir(parents=True, exist_ok=True)
 
@@ -235,7 +235,7 @@ class TestDynamoCniNetworking:
 
     @pytest.fixture
     def disagg_tr(self, base_tr: TestRun) -> TestRun:
-        base_tr.test = AIDynamoTestDefinition(
+        base_tr.test_definition = AIDynamoTestDefinition(
             name="test_dynamo",
             description="Test AI Dynamo workload",
             test_template_name="AIDynamo",

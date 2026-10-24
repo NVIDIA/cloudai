@@ -15,19 +15,25 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
 from cloudai import TestRun
+from cloudai.core import CmdArgs, TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy
 
 
 @pytest.fixture
 def nemo_tr(tmp_path: Path) -> TestRun:
-    tr = TestRun(name="nemo_launcher", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "nemo_launcher", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     log_content = (
         "[NeMo I 2025-03-04 02:58:29 perf_metrics_utils:56] train_step_timing in s: "
@@ -47,7 +53,13 @@ def nemo_tr(tmp_path: Path) -> TestRun:
 
 @pytest.fixture
 def nemo_tr_large(tmp_path: Path) -> TestRun:
-    tr = TestRun(name="nemo_launcher_large", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=(
+            TestDefinition(name="report", description="report", test_template_name="report", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "nemo_launcher_large", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     step_timings = [float(i) for i in range(150)]
     log_content = f"[NeMo I 2025-03-04 02:58:29 perf_metrics_utils:56] train_step_timing in s: {step_timings}\n"

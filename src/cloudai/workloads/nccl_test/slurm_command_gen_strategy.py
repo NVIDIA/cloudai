@@ -58,7 +58,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
 
     def _deepep_nccl_matrix_host_path(self) -> Path | None:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
 
@@ -82,7 +82,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return matrix
 
     def _container_mounts(self) -> List[str]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         if not tdef.cmd_args.use_deepep_matrix:
             return []
 
@@ -101,7 +101,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
         env_vars = dict(super().final_env_vars)
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         if tdef.cmd_args.use_deepep_matrix and self._deepep_nccl_matrix_host_path() is not None:
             env_vars[_ALLTOALLV_MATRIX_ENV] = tdef.cmd_args.alltoallv_matrix_container_path
         return env_vars
@@ -111,7 +111,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super().final_env_vars = value
 
     def image_path(self) -> str | None:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def _alltoallv_test_command(self, tdef: NCCLTestDefinition) -> List[str]:
@@ -145,13 +145,13 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     parts.append(f"--{field_name}")
                 continue
             parts.extend([f"--{field_name}", str(value)])
-        if self.test_run.test.extra_cmd_args:
-            parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            parts.append(self.test_run.test_definition.extra_args_str)
         return parts
 
     @property
     def _is_single_process(self) -> bool:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         name = tdef.cmd_args.subtest_name
         if isinstance(name, list):
             name = name[0]
@@ -164,7 +164,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return parts
 
     def generate_test_command(self) -> List[str]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         if tdef.cmd_args.subtest_name == "alltoallv_perf_mpi":
             return self._alltoallv_test_command(tdef)
 
@@ -186,8 +186,8 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 srun_command_parts.append(f"-{arg} {value}")
 
-        if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test_definition.extra_args_str)
 
         return srun_command_parts
 

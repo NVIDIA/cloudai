@@ -26,14 +26,14 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for MegatronRun on Slurm systems."""
 
     def image_path(self) -> str | None:
-        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test)
+        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def _container_mounts(self) -> list[str]:
         return []
 
     def generate_test_command(self) -> list[str]:
-        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test)
+        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test_definition)
 
         command = [
             *([tdef.cmd_args.command_prefix] if tdef.cmd_args.command_prefix else []),
@@ -42,7 +42,7 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             *[f"{k} {v}" for k, v in tdef.cmd_args_dict.items()],
         ]
 
-        if self.test_run.test.extra_cmd_args:
-            command.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            command.append(self.test_run.test_definition.extra_args_str)
 
         return command

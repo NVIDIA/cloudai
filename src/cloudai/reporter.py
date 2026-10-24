@@ -31,8 +31,7 @@ from rich.table import Table
 from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
 from cloudai.report_generator.util import load_system_metadata
 
-from .core import CommandGenStrategy, Reporter, TestRun, case_name
-from .models.scenario import TestRunDetails
+from .core import CommandGenStrategy, Reporter, TestRun, case_name, load_test_run
 
 
 @dataclass
@@ -50,12 +49,12 @@ class ReportItem:
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
         for tr in test_runs:
-            ri = ReportItem(case_name(tr), tr.test.description)
+            ri = ReportItem(case_name(tr), tr.test_definition.description)
             if tr.output_path.exists():
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
             if metadata := load_system_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
-            status = tr.test.was_run_successful(tr)
+            status = tr.test_definition.was_run_successful(tr)
             ri.is_successful = status.is_successful
             ri.error_message = status.error_message
             report_items.append(ri)
@@ -124,7 +123,7 @@ class StatusReporter(Reporter):
             table.add_column(col, overflow="fold")
 
         for tr in self.trs:
-            tr_status = tr.test.was_run_successful(tr)
+            tr_status = tr.test_definition.was_run_successful(tr)
             sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
             display_path = str(tr.output_path.absolute())
             with contextlib.suppress(ValueError):
@@ -148,7 +147,7 @@ class JUnitReporter(Reporter):
     def generate(self) -> None:
         self.load_test_runs()
 
-        results = [(tr, tr.test.was_run_successful(tr), self._duration(tr.output_path)) for tr in self.trs]
+        results = [(tr, tr.test_definition.was_run_successful(tr), self._duration(tr.output_path)) for tr in self.trs]
         failures = sum(not status.is_successful for _, status, _ in results)
         durations = [duration for _, _, duration in results if duration is not None]
 
@@ -267,7 +266,7 @@ class DSEReporter(Reporter):
     def report_best_dse_config(self):
         """Persist the highest-reward configuration for each DSE test case iteration."""
         for tr in self.test_scenario.test_runs:
-            if not tr.test.is_dse_job:
+            if not tr.test_definition.is_dse_job:
                 continue
 
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
@@ -283,17 +282,16 @@ class DSEReporter(Reporter):
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
                 continue
 
-            with best_step_details.open() as f:
-                try:
-                    trd = TestRunDetails.model_validate(toml.load(f))
-                except Exception as exc:
-                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
-                    continue
+            try:
+                saved_run = load_test_run(best_step_details, tr.test_definition)
+            except Exception as exc:
+                logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
+                continue
 
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(), f)
+                toml.dump(saved_run.test_definition.model_dump(), f)
 
 
 class TarballReporter(Reporter):
@@ -306,7 +304,7 @@ class TarballReporter(Reporter):
             self.create_tarball(self.results_root)
 
     def is_successful(self, tr: TestRun) -> bool:
-        return tr.test.was_run_successful(tr).is_successful
+        return tr.test_definition.was_run_successful(tr).is_successful
 
     def create_tarball(self, directory: Path) -> None:
         tarball_path = Path(str(directory) + ".tgz")

@@ -40,6 +40,6 @@ class DynamoMockerReportGenerationStrategy(AIDynamoReportGenerationStrategy):
 
     def can_handle_directory(self) -> bool:
         return (
-            isinstance(self.test_run.test, DynamoMockerTestDefinition)
+            isinstance(self.test_run.test_definition, DynamoMockerTestDefinition)
             and (self.test_run.output_path / "benchmark_report.csv").exists()
         )

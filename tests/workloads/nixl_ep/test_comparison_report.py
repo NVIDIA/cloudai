@@ -24,18 +24,18 @@ from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPComparisonReport, Nix
 
 def _nixl_ep_tr(name: str, num_processes_per_node: int) -> cloudai.core.TestRun:
     return cloudai.core.TestRun(
-        name=name,
-        test=NixlEPTestDefinition(
-            name="nixl_ep",
-            description="NIXL EP benchmark",
-            test_template_name="NixlEP",
-            cmd_args=NixlEPCmdArgs(
-                docker_image_url="fake://nixl",
-                plan="[[0, 1]]",
-                num_processes_per_node=num_processes_per_node,
-            ),
-        ),
-        num_nodes=2,
+        test_definition=(
+            NixlEPTestDefinition(
+                name="nixl_ep",
+                description="NIXL EP benchmark",
+                test_template_name="NixlEP",
+                cmd_args=NixlEPCmdArgs(
+                    docker_image_url="fake://nixl",
+                    plan="[[0, 1]]",
+                    num_processes_per_node=num_processes_per_node,
+                ),
+            )
+        ).model_copy(deep=True, update={"id": name, "num_nodes": 2}),
         nodes=[],
     )
 

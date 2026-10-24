@@ -31,7 +31,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def gen_frontend_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
-        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test_definition)
         cfg: dict[str, Any] = {
             "dynamoNamespace": system.default_namespace,
             "componentType": "frontend",
@@ -47,7 +47,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         return cfg
 
     def gen_decode_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
-        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test_definition)
         decode_worker = tdef.cmd_args.dynamo.decode_worker
         if not decode_worker.is_enabled:
             raise ValueError("Decode worker must be enabled for Kubernetes deployments.")
@@ -69,7 +69,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         return decode_cfg
 
     def gen_prefill_dict(self, cni_networks: list[str] | None = None) -> dict[str, Any]:
-        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test_definition)
         prefill_worker = tdef.cmd_args.dynamo.prefill_worker
         if not prefill_worker.is_enabled:
             raise ValueError("Prefill worker is disabled in the test definition.")
@@ -91,7 +91,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         return prefill_cfg
 
     def gen_json(self) -> Dict[Any, Any]:
-        td = cast(AIDynamoTestDefinition, self.test_run.test)
+        td = cast(AIDynamoTestDefinition, self.test_run.test_definition)
         k8s_system = cast(KubernetesSystem, self.system)
         cni_networks = k8s_system.resolve_cni_networks()
 
@@ -116,7 +116,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def _get_base_service_dict(self, cni_networks: list[str] | None) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
-        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test_definition)
         cfg: dict[str, Any] = {
             "dynamoNamespace": system.default_namespace,
             "componentType": "worker",

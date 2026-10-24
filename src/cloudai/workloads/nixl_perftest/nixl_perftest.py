@@ -92,9 +92,9 @@ class NixlPerftestTestDefinition(NIXLBaseTestDefinition[NixlPerftestCmdArgs]):
     """TestDefinition for NixlPerftest."""
 
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
-        decode_tp = int(tr.test.cmd_args.decode_tp)
-        decode_nodes = int(tr.test.cmd_args.num_decode_nodes)
-        prefill_tp = int(tr.test.cmd_args.prefill_tp)
-        prefill_nodes = int(tr.test.cmd_args.num_prefill_nodes)
+        decode_tp = int(tr.test_definition.cmd_args.decode_tp)
+        decode_nodes = int(tr.test_definition.cmd_args.num_decode_nodes)
+        prefill_tp = int(tr.test_definition.cmd_args.prefill_tp)
+        prefill_nodes = int(tr.test_definition.cmd_args.num_prefill_nodes)
 
         return decode_tp / decode_nodes == prefill_tp / prefill_nodes

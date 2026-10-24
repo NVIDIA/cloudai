@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,8 +54,8 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             str: The generated LSF command.
         """
         env_vars = self.final_env_vars
-        cmd_args = flatten_dict(self.test_run.test.cmd_args)
-        lsf_args = self._parse_lsf_args(self.test_run.test.name, env_vars, cmd_args, self.test_run)
+        cmd_args = flatten_dict(self.test_run.test_definition.cmd_args)
+        lsf_args = self._parse_lsf_args(self.test_run.test_definition.name, env_vars, cmd_args, self.test_run)
 
         bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, self.test_run)
 

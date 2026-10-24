@@ -44,7 +44,7 @@ class OSUBenchComparisonReport(ComparisonReport):
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test, OSUBenchTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test_definition, OSUBenchTestDefinition)]
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
         csv_path = tr.output_path / "osu_bench.csv"

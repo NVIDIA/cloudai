@@ -42,7 +42,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
     def _deepep_ucc_matrix_host_path(self) -> Path | None:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test_definition)
         if not tdef.cmd_args.use_deepep_matrix:
             return None
 
@@ -69,7 +69,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
 
     def _container_mounts(self) -> List[str]:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test_definition)
         if not tdef.cmd_args.use_deepep_matrix:
             return []
 
@@ -84,11 +84,11 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def image_path(self) -> str | None:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test_definition)
         tdef_cmd_args: UCCCmdArgs = tdef.cmd_args
 
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
@@ -102,7 +102,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append("-m cuda")
         srun_command_parts.append("-F")
 
-        if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test_definition.extra_args_str)
 
         return srun_command_parts

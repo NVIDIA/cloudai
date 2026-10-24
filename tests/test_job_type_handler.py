@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,11 @@ def tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    return TestRun(name="test_run", test=tdef, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "test_run", "num_nodes": 1}),
+        nodes=[],
+        output_path=slurm_system.output_path,
+    )
 
 
 def test_is_dse_job_non_dse(tr: TestRun):
@@ -37,16 +41,16 @@ def test_is_dse_job_non_dse(tr: TestRun):
 
 
 def test_is_dse_job_dse_args(tr: TestRun):
-    tr.test.cmd_args.nthreads = [1, 2]
-    tr.test.extra_env_vars = {"VAR1": "singular"}
+    tr.test_definition.cmd_args.nthreads = [1, 2]
+    tr.test_definition.extra_env_vars = {"VAR1": "singular"}
     assert tr.is_dse_job is True
 
 
 def test_is_dse_job_dse_env_vars(tr: TestRun):
-    tr.test.extra_env_vars = {"VAR1": ["list-item1", "list-item2"], "VAR2": "singular3"}
+    tr.test_definition.extra_env_vars = {"VAR1": ["list-item1", "list-item2"], "VAR2": "singular3"}
     assert tr.is_dse_job is True
 
 
 def test_is_dse_job_num_nodes(tr: TestRun):
-    tr.num_nodes = [1, 2]
+    tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": [1, 2]})
     assert tr.is_dse_job is True

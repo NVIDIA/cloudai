@@ -62,8 +62,8 @@ class TestGrouping:
     def test_multiple_trs_no_group_by_fields(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test_definition.cmd_args.subtest_name = "all_reduce_perf"
         groups = _comparison_report(slurm_system, [nccl1, nccl2], group_by=[]).group_test_runs()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
@@ -73,8 +73,8 @@ class TestGrouping:
     def test_group_by_one_field(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test_definition.cmd_args.subtest_name = "all_reduce_perf"
 
         groups = _comparison_report(slurm_system, [nccl1, nccl2], group_by=["subtest_name"]).group_test_runs()
 
@@ -85,8 +85,8 @@ class TestGrouping:
         assert groups[1].items[0].name == "1.0"
 
     def test_group_by_two_fields(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
-        nccl_tr.test.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        nccl_tr.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
         groups = _comparison_report(
@@ -103,8 +103,8 @@ class TestGrouping:
         assert groups[3].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
     def test_multiple_trs_in_a_group(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
-        nccl_tr.test.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        nccl_tr.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
         groups = _comparison_report(slurm_system, trs, group_by=["subtest_name"]).group_test_runs()
@@ -124,9 +124,9 @@ class TestGrouping:
     def test_compact_name_includes_step_and_multi_iteration_v2(
         self, slurm_system: SlurmSystem, nccl_tr: TestRun
     ) -> None:
-        nccl_tr.name = "case-a"
+        nccl_tr.test_definition = nccl_tr.test_definition.model_copy(update={"id": "case-a"})
         nccl_tr.step = 3
-        nccl_tr.iterations = 2
+        nccl_tr.test_definition = nccl_tr.test_definition.model_copy(update={"iterations": 2})
         nccl_tr.current_iteration = 0
 
         item = _comparison_report(slurm_system, [nccl_tr], group_by=[]).group_test_runs()[0].items[0]
@@ -270,8 +270,8 @@ class TestComparisonValues:
     def test_default_comparison_values_include_cmd_args(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test_definition.cmd_args.subtest_name = "all_reduce_perf"
 
         report = _comparison_report(slurm_system, [nccl1, nccl2], group_by=[])
         diff = diff_comparison_values([report.comparison_values(nccl1), report.comparison_values(nccl2)])
@@ -281,8 +281,8 @@ class TestComparisonValues:
     def test_default_comparison_values_include_num_nodes(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.num_nodes = 1
-        nccl2.num_nodes = 2
+        nccl1.test_definition = nccl1.test_definition.model_copy(update={"num_nodes": 1})
+        nccl2.test_definition = nccl2.test_definition.model_copy(update={"num_nodes": 2})
 
         report = _comparison_report(slurm_system, [nccl1, nccl2], group_by=[])
         diff = diff_comparison_values([report.comparison_values(nccl1), report.comparison_values(nccl2)])
@@ -293,8 +293,8 @@ class TestComparisonValues:
     ) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
-        nccl2.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
+        nccl1.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
+        nccl2.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
 
         report = _comparison_report(slurm_system, [nccl1, nccl2], group_by=[])
         diff = diff_comparison_values([report.comparison_values(nccl1), report.comparison_values(nccl2)])

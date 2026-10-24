@@ -36,7 +36,6 @@ from cloudai.core import (
     TestScenarioParser,
     TestScenarioParsingError,
 )
-from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_parser import TestParser
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
@@ -82,7 +81,13 @@ from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGeneratio
 
 @pytest.fixture
 def test_scenario_parser(slurm_system: SlurmSystem) -> TestScenarioParser:
-    tsp = TestScenarioParser(Path(""), slurm_system, {}, {})
+    base = NCCLTestDefinition(
+        name="nccl",
+        description="desc",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+    )
+    tsp = TestScenarioParser(Path(""), slurm_system, {"nccl": base}, {})
     return tsp
 
 
@@ -108,10 +113,10 @@ def test_single_test_case(tdef: TestDefinition, test_scenario_parser: TestScenar
     assert tr.iterations == 1
     assert tr.current_iteration == 0
     assert tr.dependencies == {}
-    assert tr.weight == 0
-    assert tr.ideal_perf == 1.0
+    assert tr.test_definition.weight == 0
+    assert tr.test_definition.ideal_perf == 1.0
     assert tr.sol is None
-    parsed_tdef = test_scenario.test_runs[0].test
+    parsed_tdef = test_scenario.test_runs[0].test_definition
     assert parsed_tdef.name == tdef.name
     assert parsed_tdef.description == tdef.description
     assert parsed_tdef.cmd_args == tdef.cmd_args
@@ -128,7 +133,7 @@ def test_with_some_props(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
     tr = test_scenario.test_runs[0]
-    assert getattr(tr, prop) == cfg_value
+    assert getattr(tr.test_definition, prop) == cfg_value
 
 
 def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
@@ -137,6 +142,49 @@ def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenari
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", "time_limit": "10m"}]}
     )
     assert test_scenario.test_runs[0].time_limit == "00:10:00"
+
+
+@pytest.mark.parametrize("num_nodes", [0, [], None])
+def test_empty_node_count_defaults_to_one(num_nodes: int | list[int] | None, test_scenario_parser: TestScenarioParser):
+    case: dict = {"id": "1", "test_name": "nccl"}
+    if num_nodes is not None:
+        case["num_nodes"] = num_nodes
+    scenario = test_scenario_parser._parse_data({"name": "scenario", "Tests": [case]})
+    run = scenario.test_runs[0]
+    assert run.nnodes == 1
+    assert run.num_nodes_explicit is (num_nodes is not None)
+    assert scenario.tests[0].num_nodes == num_nodes
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("extra_env_vars", []),
+        ("extra_env_vars", ""),
+        ("extra_env_vars", False),
+        ("git_repos", {}),
+        ("git_repos", ""),
+        ("git_repos", False),
+    ],
+)
+def test_malformed_empty_overrides_are_rejected(field: str, value: object, test_scenario_parser: TestScenarioParser):
+    with pytest.raises(TestConfigParsingError, match=field):
+        test_scenario_parser._parse_data(
+            {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", field: value}]}
+        )
+
+
+def test_empty_overrides_follow_normal_merge_rules(test_scenario_parser: TestScenarioParser):
+    base = test_scenario_parser.test_mapping["nccl"]
+    repo = GitRepo(url="https://example.com/repo.git", commit="main")
+    test_scenario_parser.test_mapping = {
+        "nccl": base.model_copy(update={"extra_env_vars": {"KEEP": "value"}, "git_repos": [repo]})
+    }
+    scenario = test_scenario_parser._parse_data(
+        {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", "extra_env_vars": {}, "git_repos": []}]}
+    )
+    assert scenario.tests[0].extra_env_vars == {"KEEP": "value"}
+    assert scenario.tests[0].git_repos == []
 
 
 def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
@@ -148,16 +196,16 @@ def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestS
     )
     assert len(test_scenario.test_runs) == 2
 
-    assert test_scenario.test_runs[0].test.name == t1.name
+    assert test_scenario.test_runs[0].test_definition.name == t1.name
     assert test_scenario.test_runs[0].dependencies == {}
 
-    assert test_scenario.test_runs[1].test.name == t2.name
+    assert test_scenario.test_runs[1].test_definition.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
 
 
-def test_cant_depends_on_itself() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate(
+def test_cant_depends_on_itself(test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        test_scenario_parser._parse_data(
             {
                 "name": "nccl-test",
                 "Tests": [
@@ -187,17 +235,17 @@ def test_two_dependent_cases(tdef: TestDefinition, test_scenario_parser: TestSce
     )
     assert len(test_scenario.test_runs) == 2
 
-    assert test_scenario.test_runs[0].test.name == t1.name
+    assert test_scenario.test_runs[0].test_definition.name == t1.name
     assert "end_post_comp" in test_scenario.test_runs[0].dependencies
     assert isinstance(test_scenario.test_runs[0].dependencies["end_post_comp"].test_run, TestRun)
 
-    assert test_scenario.test_runs[1].test.name == t2.name
+    assert test_scenario.test_runs[1].test_definition.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
 
 
-def test_ids_must_be_unique() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate(
+def test_ids_must_be_unique(test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        test_scenario_parser._parse_data(
             {
                 "name": "test",
                 "Tests": [
@@ -209,9 +257,9 @@ def test_ids_must_be_unique() -> None:
     assert exc_info.match("Duplicate test id '1' found in the test scenario.")
 
 
-def test_raises_on_unknown_dependency() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate(
+def test_raises_on_unknown_dependency(test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        test_scenario_parser._parse_data(
             {
                 "name": "test",
                 "Tests": [
@@ -227,20 +275,19 @@ def test_raises_on_unknown_dependency() -> None:
     assert exc_info.match("Dependency section 'dep-id' not found for test 'test-id'.")
 
 
-def test_list_of_tests_must_not_be_empty() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate({"name": "name"})
-    assert exc_info.match("TestScenarioModel\nTests\n  Field required")
+def test_list_of_tests_must_not_be_empty(test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        test_scenario_parser._parse_data({"name": "name"})
+    assert exc_info.match("Field 'Tests': Field required")
 
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate({"name": "name", "Tests": []})
-    assert exc_info.match("TestScenarioModel\nTests\n  List should have at least 1 item after validation")
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        test_scenario_parser._parse_data({"name": "name", "Tests": []})
+    assert exc_info.match("Tests must contain at least one test definition")
 
 
-def test_test_id_must_contain_at_least_one_letter() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        TestScenarioModel.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
-    assert exc_info.match("TestScenarioModel\nTests.0.id\n  String should have at least 1 character")
+def test_test_id_must_contain_at_least_one_letter(test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(TestConfigParsingError, match="String should have at least 1 character"):
+        test_scenario_parser._parse_data({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
 
 
 @pytest.mark.parametrize(
@@ -263,24 +310,41 @@ def test_calculate_total_time_limit(time_str, expected):
 def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: TestScenarioParser):
     pre_test = TestScenario(
         name="pre",
-        test_runs=[TestRun(name="pre1", test=tdef, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)],
+        test_runs=[
+            TestRun(
+                test_definition=tdef.model_copy(
+                    deep=True, update={"id": "pre1", "num_nodes": 1, "time_limit": "00:30:00", "iterations": 1}
+                ),
+                nodes=[],
+            )
+        ],
     )
     post_test = TestScenario(
         name="post",
-        test_runs=[TestRun(name="post1", test=tdef, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
+        test_runs=[
+            TestRun(
+                test_definition=tdef.model_copy(
+                    deep=True, update={"id": "post1", "num_nodes": 1, "time_limit": "00:20:00", "iterations": 1}
+                ),
+                nodes=[],
+            )
+        ],
     )
 
-    test_info = TestRunModel(
+    test_info = dict(
         id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1, pin_nodes=True
     )
     test_scenario_parser.test_mapping = {"test1": tdef}
 
     test_run = test_scenario_parser._create_test_run(
-        test_info=test_info, normalized_weight=1.0, pre_test=pre_test, post_test=post_test
+        test_info=test_scenario_parser._prepare_tdef(test_info),
+        normalized_weight=1.0,
+        pre_test=pre_test,
+        post_test=post_test,
     )
 
     assert test_run.time_limit == "01:50:00"  # Main + pre + post hooks
-    assert test_run.pin_nodes is True
+    assert test_run.test_definition.pin_nodes is True
 
 
 def test_total_time_limit_with_empty_hooks():
@@ -292,7 +356,7 @@ class TestIncrementStep:
     """``TestRun.increment_step`` is the single mutator for the trial counter."""
 
     def _make_tr(self, tdef: TestDefinition) -> TestRun:
-        return TestRun(name="incr_tr", test=tdef, num_nodes=1, nodes=[])
+        return TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "incr_tr", "num_nodes": 1}), nodes=[])
 
     def test_starts_at_zero_and_advances_to_one(self, tdef: TestDefinition) -> None:
         tr = self._make_tr(tdef)
@@ -339,7 +403,7 @@ class TestInScenario:
             scenario_data["Tests"][0]["test_name"] = base_test.name
 
         parser = TestScenarioParser(scenario_path, slurm_system, {base_test.name: base_test}, {})
-        test = parser._parse_data(scenario_data).test_runs[0].test
+        test = parser._parse_data(scenario_data).test_runs[0].test_definition
 
         assert isinstance(test, SglangTestDefinition)
         assert isinstance(base_test, SglangTestDefinition)
@@ -353,59 +417,48 @@ class TestInScenario:
             parser._parse_data(scenario_data)
 
     @pytest.mark.parametrize("missing_arg", ["test_template_name", "name", "description"])
-    def test_without_base(self, missing_arg: str):
+    def test_without_base(self, missing_arg: str, test_scenario_parser: TestScenarioParser):
         spec = {
             "id": "1",
             "test_template_name": "NcclTest",
             "name": "nccl",
             "description": "desc",
+            "cmd_args": {"docker_image_url": "fake://url/nccl"},
         }
         spec.pop(missing_arg)
-        with pytest.raises(ValueError) as exc_info:
-            TestRunModel.model_validate(spec)
-        assert exc_info.match(
-            "When neither 'test_name' nor 'path' is set, the following fields must be set: "
-            "'test_template_name', 'name', 'description'"
-        )
+        with pytest.raises(
+            TestConfigParsingError, match=missing_arg if missing_arg != "test_template_name" else "not supported"
+        ):
+            test_scenario_parser._prepare_tdef(spec)
 
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
-        with pytest.raises(MissingTestError) as exc_info:
-            test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
-        expected_msg = (
-            "Test 'nccl' is not defined.\n"
-            "Please check:\n"
-            "1. The tests directory argument (--tests-dir) is set correctly\n"
-            "2. The test name in your test scenario matches the test name defined in the test file\n"
-            "3. The test file exists in your tests directory"
-        )
-        assert str(exc_info.value) == expected_msg
+        test_scenario_parser.test_mapping = {}
+        with pytest.raises(MissingTestError, match="Test 'nccl' is not defined"):
+            test_scenario_parser._prepare_tdef({"id": "1", "test_name": "nccl"})
 
     @pytest.mark.parametrize("override_arg", ["name", "description"])
-    def test_can_override_name_and_description(self, override_arg: str):
-        spec = {"id": "1", "test_name": "nccl", override_arg: "value"}
-        model = TestRunModel.model_validate(spec)
+    def test_can_override_name_and_description(self, override_arg: str, test_scenario_parser: TestScenarioParser):
+        definition = test_scenario_parser._prepare_tdef({"id": "1", "test_name": "nccl", override_arg: "value"})
+        assert getattr(definition, override_arg) == "value"
 
-        data = model.model_dump()
-        assert data[override_arg] == "value"
-
-    def test_cant_override_template_name(self):
+    def test_cant_override_template_name(self, test_scenario_parser: TestScenarioParser):
         spec = {"id": "1", "test_name": "nccl", "test_template_name": "NcclTest"}
         with pytest.raises(ValueError) as exc_info:
-            TestRunModel.model_validate(spec)
-        assert exc_info.match("'test_template_name' must not be set if 'test_name' or 'path' is set.")
+            test_scenario_parser._prepare_tdef(spec)
+        assert exc_info.match("'test_template_name' must not be set with 'test_name' or 'path'")
 
-    def test_spec_with_unknown_test_type(self):
-        with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", name="nccl", description="desc", test_template_name="unknown")
-        assert exc_info.match("Test type 'unknown' not found in the test definitions. Possible values are:")
+    def test_spec_with_unknown_test_type(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(TestConfigParsingError, match="not supported"):
+            test_scenario_parser._prepare_tdef(
+                {"id": "1", "name": "nccl", "description": "desc", "test_template_name": "unknown"}
+            )
 
-    def test_type_is_not_allowed_when_name_is_set(self):
-        with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", test_name="nccl", test_template_name="NcclTest")
-        assert exc_info.match("'test_template_name' must not be set if 'test_name' or 'path' is set.")
+    def test_type_is_not_allowed_when_name_is_set(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError, match="'test_template_name' must not be set"):
+            test_scenario_parser._prepare_tdef({"id": "1", "test_name": "nccl", "test_template_name": "NcclTest"})
 
     def test_spec_without_base(self, test_scenario_parser: TestScenarioParser):
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -415,6 +468,7 @@ class TestInScenario:
             name = "nccl"
             description = "desc"
             test_template_name = "NcclTest"
+            cmd_args = { docker_image_url = "fake://url/nccl" }
             """
             )
         )
@@ -433,7 +487,7 @@ class TestInScenario:
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -447,7 +501,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.cmd_args.nthreads == 42
 
     def test_spec_can_set_unknown_args(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
@@ -459,7 +513,7 @@ class TestInScenario:
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -471,11 +525,11 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.cmd_args_dict["unknown"] == 42
 
     def test_spec_can_set_unknown_args_no_base(self, test_scenario_parser: TestScenarioParser):
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -489,7 +543,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.cmd_args_dict["unknown"] == 42
         assert isinstance(tdef.cmd_args, NCCLCmdArgs)
 
@@ -502,7 +556,7 @@ class TestInScenario:
                 cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -510,16 +564,16 @@ class TestInScenario:
             [[Tests]]
             id = "1"
             test_name = "megatron"
-            cmd_args = { any = 42 }
+            cmd_args = { any = 42, docker_image_url = "fake://url/nccl" }
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
         assert tdef.cmd_args.run_script == Path("run.sh")
 
     def test_num_nodes_can_be_list(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -529,20 +583,22 @@ class TestInScenario:
             name = "nccl"
             test_template_name = "NcclTest"
             description = "desc"
-            cmd_args = { any = 42 }
+            cmd_args = { any = 42, docker_image_url = "fake://url/nccl" }
             num_nodes = [1, 2]
             """
             )
         )
         assert model.tests[0].num_nodes == [1, 2]
 
-    def test_pin_nodes_rejects_num_nodes_sweep(self) -> None:
-        with pytest.raises(ValueError, match="pin_nodes cannot be enabled when num_nodes is swept"):
-            TestRunModel(id="1", test_name="nccl", num_nodes=[1, 2], pin_nodes=True)
+    def test_pin_nodes_rejects_num_nodes_sweep(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(TestConfigParsingError, match="pin_nodes cannot be enabled when num_nodes is swept"):
+            test_scenario_parser._prepare_tdef({"id": "1", "test_name": "nccl", "num_nodes": [1, 2], "pin_nodes": True})
 
-    def test_pin_nodes_accepts_fixed_num_nodes(self) -> None:
-        model = TestRunModel(id="1", test_name="nccl", num_nodes=2, pin_nodes=True)
-        assert model.pin_nodes is True
+    def test_pin_nodes_accepts_fixed_num_nodes(self, test_scenario_parser: TestScenarioParser):
+        definition = test_scenario_parser._prepare_tdef(
+            {"id": "1", "test_name": "nccl", "num_nodes": 2, "pin_nodes": True}
+        )
+        assert definition.pin_nodes is True
 
     def test_agent_metrics_preserved_from_test_definition(
         self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
@@ -556,7 +612,7 @@ class TestInScenario:
                 agent_metrics=["tflops-per-gpu"],  # Custom value in test definition
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -567,7 +623,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.agent_metrics == ["tflops-per-gpu"]
 
     def test_agent_metrics_can_be_overridden_in_scenario(
@@ -582,7 +638,7 @@ class TestInScenario:
                 agent_metrics=["tflops-per-gpu"],  # Custom value in test definition
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -594,7 +650,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.agent_metrics == ["iteration-time"]
 
     def test_agent_config_is_none_when_not_defined(
@@ -609,7 +665,7 @@ class TestInScenario:
                 agent="grid_search",
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -620,7 +676,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.agent_config is None
 
     def test_agent_config_preserved_from_test_definition(
@@ -639,7 +695,7 @@ class TestInScenario:
                 },
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -650,7 +706,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.agent_config == {"random_seed": 101, "start_action": "first"}
 
     def test_agent_config_is_merged_with_scenario_override(
@@ -669,7 +725,7 @@ class TestInScenario:
                 },
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -685,7 +741,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
         assert tdef.agent_config == {
             "random_seed": 202,
             "start_action": "random",
@@ -702,7 +758,7 @@ class TestInScenario:
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -714,7 +770,7 @@ class TestInScenario:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
 
         assert tdef.dse_excluded_args == ["cmd_args.foo", "cmd_args.bar.baz"]
 
@@ -729,29 +785,15 @@ class TestInScenario:
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
-        model = TestScenarioModel.model_validate(
-            toml.loads(
-                """
-            name = "test"
-
-            [[Tests]]
-            id = "1"
-            test_name = "nccl"
-            dse_excluded_args = ["foo"]
-            """
+        with pytest.raises(TestConfigParsingError, match="DSE excluded arg must start with"):
+            test_scenario_parser._parse_data(
+                {"name": "test", "Tests": [{"id": "1", "test_name": "nccl", "dse_excluded_args": ["foo"]}]}
             )
-        )
-
-        with pytest.raises(TestConfigParsingError) as excinfo:
-            test_scenario_parser._prepare_tdef(model.tests[0])
-
-        assert "DSE excluded arg must start with 'cmd_args.'" in str(excinfo.value.__cause__)
 
 
 class TestReporters:
     def test_default(self):
         reporters = get_reporters(
-            TestRunModel(id="id", test_name="tn"),
             TestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
         )
         assert len(reporters) == 0
@@ -804,19 +846,18 @@ class TestReporters:
         assert Registry().reports_map[tdef] == expected_reporters
 
     def test_get_reporters_nccl(self):
-        tr_model = TestRunModel(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
         tdef = NCCLTestDefinition(
             name="nccl",
             description="desc",
             test_template_name="tt",
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         )
-        reporters = get_reporters(tr_model, tdef)
+        reporters = get_reporters(tdef)
         assert len(reporters) == 1
         assert NcclTestPerformanceReportGenerationStrategy in reporters
 
         tdef.predictor = PredictorConfig(git_repo=GitRepo(url="", commit=""))
-        reporters = get_reporters(tr_model, tdef)
+        reporters = get_reporters(tdef)
         assert len(reporters) == 2
         assert NcclTestPerformanceReportGenerationStrategy in reporters
         assert NcclTestPredictionReportGenerationStrategy in reporters
@@ -841,7 +882,7 @@ class TestNsysMerging:
                 ),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -855,7 +896,7 @@ class TestNsysMerging:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
 
         assert tdef.nsys is not None
         assert tdef.nsys.output == "/scenario/output"
@@ -880,7 +921,7 @@ class TestNsysMerging:
                 ),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -895,7 +936,7 @@ class TestNsysMerging:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
 
         assert tdef.nsys is not None
         assert tdef.nsys.output == "/new/output"
@@ -916,7 +957,7 @@ class TestNsysMerging:
                 # No nsys in base config
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -931,7 +972,7 @@ class TestNsysMerging:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
 
         assert tdef.nsys is not None
         assert tdef.nsys.output == "/scenario/output"
@@ -952,7 +993,7 @@ class TestNsysMerging:
                 ),
             )
         }
-        model = TestScenarioModel.model_validate(
+        model = test_scenario_parser._parse_data(
             toml.loads(
                 """
             name = "test"
@@ -966,7 +1007,7 @@ class TestNsysMerging:
             """
             )
         )
-        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = model.tests[0]
 
         assert tdef.nsys is not None
         assert tdef.nsys.enable is False
@@ -974,30 +1015,26 @@ class TestNsysMerging:
 
 
 class TestPathReference:
-    def test_path_and_test_name_together_is_rejected(self):
-        with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", test_name="nccl", path="nccl.toml")
-        assert exc_info.match("'test_name' and 'path' must not both be set")
+    def test_path_and_test_name_together_is_rejected(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError, match="'test_name' and 'path' must not both be set"):
+            test_scenario_parser._prepare_tdef({"id": "1", "test_name": "nccl", "path": "nccl.toml"})
 
-    def test_path_and_test_template_name_together_is_rejected(self):
-        with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", path="nccl.toml", test_template_name="NcclTest")
-        assert exc_info.match("'test_template_name' must not be set if 'test_name' or 'path' is set.")
+    def test_path_and_test_template_name_together_is_rejected(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError, match="'test_template_name' must not be set"):
+            test_scenario_parser._prepare_tdef({"id": "1", "path": "nccl.toml", "test_template_name": "NcclTest"})
 
-    def test_path_and_empty_test_template_name_together_is_rejected(self):
-        """An empty string is a truthy-looking but still explicitly-set value - it must not be
-        treated the same as unset, or 'test_template_name' could silently smuggle a value
-        through when combined with 'path'."""
-        with pytest.raises(ValueError, match="'test_template_name' must not be set if 'test_name' or 'path' is set"):
-            TestRunModel(id="1", path="nccl.toml", test_template_name="")
+    def test_path_and_empty_test_template_name_together_is_rejected(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError, match="'test_template_name' must not be set"):
+            test_scenario_parser._prepare_tdef({"id": "1", "path": "nccl.toml", "test_template_name": ""})
 
-    def test_path_alone_satisfies_the_base_requirement(self):
-        model = TestRunModel(id="1", path="nccl.toml")
-        assert model.path == "nccl.toml"
+    def test_path_alone_satisfies_the_base_requirement(self, test_scenario_parser: TestScenarioParser):
+        test_scenario_parser.file_path = Path("conf/common/test_scenario/scenario.toml")
+        definition = test_scenario_parser._prepare_tdef({"id": "1", "path": "../test/sleep.toml"})
+        assert definition.test_template_name == "Sleep"
 
-    def test_empty_path_is_rejected(self):
-        with pytest.raises(ValueError, match="String should have at least 1 character"):
-            TestRunModel(id="1", path="")
+    def test_empty_path_is_rejected(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError, match="'path' must be a non-empty string"):
+            test_scenario_parser._prepare_tdef({"id": "1", "path": ""})
 
     def test_path_is_resolved_relative_to_the_scenario_file(self, tmp_path: Path, slurm_system: SlurmSystem):
         (tmp_path / "tests").mkdir()
@@ -1015,7 +1052,7 @@ class TestPathReference:
         scenario_path.write_text("")  # only its parent directory matters for resolution
         parser = TestScenarioParser(scenario_path, slurm_system, {}, {})
 
-        test_info = TestRunModel(id="1", path="tests/nccl.toml")
+        test_info = dict(id="1", path="tests/nccl.toml")
         tdef = parser._prepare_tdef(test_info)
 
         assert tdef.name == "nccl"
@@ -1039,7 +1076,7 @@ class TestPathReference:
         scenario_path.write_text("")
         parser = TestScenarioParser(scenario_path, slurm_system, {}, {})
 
-        test_info = TestRunModel(id="1", path="nccl.toml", cmd_args=CmdArgs.model_validate({"nthreads": 42}))
+        test_info = dict(id="1", path="nccl.toml", cmd_args={"nthreads": 42})
         tdef = parser._prepare_tdef(test_info)
 
         assert tdef.cmd_args.nthreads == 42
@@ -1050,7 +1087,7 @@ class TestPathReference:
         scenario_path.write_text("")
         parser = TestScenarioParser(scenario_path, slurm_system, {}, {})
 
-        test_info = TestRunModel(id="1", path="does-not-exist.toml")
+        test_info = dict(id="1", path="does-not-exist.toml")
         with pytest.raises(TestScenarioParsingError) as exc_info:
             parser._prepare_tdef(test_info)
 
@@ -1066,7 +1103,7 @@ class TestPathReference:
         scenario_path.write_text("")
         parser = TestScenarioParser(scenario_path, slurm_system, {}, {})
 
-        test_info = TestRunModel(id="1", path="does-not-exist.toml")
+        test_info = dict(id="1", path="does-not-exist.toml")
         with caplog.at_level(logging.ERROR), pytest.raises(TestScenarioParsingError):
             parser._prepare_tdef(test_info)
 
@@ -1097,4 +1134,4 @@ class TestPathReference:
 
         scenario = parser.parse()
 
-        assert scenario.test_runs[0].test.name == "nccl"
+        assert scenario.test_runs[0].test_definition.name == "nccl"
