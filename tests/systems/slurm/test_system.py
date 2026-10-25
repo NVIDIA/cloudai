@@ -405,6 +405,26 @@ def test_nodes_from_squeue(slurm_system: SlurmSystem, squeue_output: str, expect
         assert all(n.user == "user" for n in nodes)
 
 
+@pytest.mark.parametrize(
+    "node_list,expected",
+    [
+        ("gpu[8-10]", ["gpu8", "gpu9", "gpu10"]),
+        ("node[08-10]", ["node08", "node09", "node10"]),
+        ("node0[1-3]", ["node01", "node02", "node03"]),
+        ("n[98-100,7]", ["n98", "n99", "n100", "n7"]),
+    ],
+)
+def test_parse_node_list_takes_width_from_range_start(node_list: str, expected: list[str]) -> None:
+    assert parse_node_list(node_list) == expected
+
+
+def test_parse_node_list_unpadded_range_does_not_add_zeroes() -> None:
+    nodes = parse_node_list("n[1-100]")
+    assert len(nodes) == 100
+    assert nodes[0] == "n1"
+    assert nodes[-1] == "n100"
+
+
 def test_nodes_from_sinfo(slurm_system: SlurmSystem) -> None:
     sinfo_output = """main|inval||node-036
     main|drain||node-[045-046,059,061-062]
