@@ -16,19 +16,11 @@
 
 import logging
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .base_gym import BaseGym
-
-
-class TrialStatus(str, Enum):
-    """Outcome of evaluating one agent proposal."""
-
-    SUCCESS = "success"
-    CONSTRAINT_REJECTED = "constraint_rejected"
 
 
 class RewardOverrides(BaseModel):
@@ -177,19 +169,18 @@ class BaseAgent(ABC):
             )
             prev_observation = observation
             step_observation, reward, done, info = self.env.step(action)
-            status = TrialStatus(info.get("trial_status", TrialStatus.SUCCESS))
 
-            if status is TrialStatus.CONSTRAINT_REJECTED:
+            if info.get("constraint_rejected", False):
                 self.discard_action(
                     {
                         "trial_index": trial_index,
                         "execution_step": executed_steps,
-                        "status": status,
                         "value": None,
                         "observation": None,
                         "prev_observation": prev_observation,
                         "action": action,
                         "done": done,
+                        "reason": info.get("constraint_failure_reason"),
                     }
                 )
                 logging.info("Proposal %s was rejected by the constraint check", trial_index)
@@ -199,7 +190,6 @@ class BaseAgent(ABC):
             feedback = {
                 "trial_index": trial_index,
                 "execution_step": executed_steps + 1,
-                "status": status,
                 "value": reward,
                 "observation": observation,
                 "prev_observation": prev_observation,

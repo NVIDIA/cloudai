@@ -4,14 +4,14 @@
 
 from typing import Any
 
-from cloudai.core import BaseAgent, BaseAgentConfig, TrialStatus
+from cloudai.core import BaseAgent, BaseAgentConfig
 
 
 class _SequenceEnv:
     def __init__(self) -> None:
         self.results = iter(
             [
-                ([-1.0], -1.0, False, {"trial_status": TrialStatus.CONSTRAINT_REJECTED}),
+                ([-1.0], -1.0, False, {"constraint_rejected": True}),
                 ([2.0], 2.0, False, {}),
                 ([3.0], 3.0, False, {}),
             ]
@@ -61,6 +61,6 @@ def test_run_retries_constraint_rejection_and_only_learns_from_success() -> None
     assert agent.selected_observations == [[0.0], [0.0], [2.0]]
     assert [feedback["trial_index"] for feedback in agent.updates] == [2, 3]
     assert agent.updates[0]["value"] == 2.0
-    assert [feedback["status"] for feedback in agent.discards] == [TrialStatus.CONSTRAINT_REJECTED]
+    assert len(agent.discards) == 1
     assert all(feedback["value"] is None for feedback in agent.discards)
     assert [feedback["execution_step"] for feedback in agent.discards] == [0]

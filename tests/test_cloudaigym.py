@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario, TrialStatus
+from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -222,7 +222,7 @@ def test_constraint_failure(
     assert obs == [-1.0]
     assert reward == expected_reward
     assert done is False
-    assert info["trial_status"] is TrialStatus.CONSTRAINT_REJECTED
+    assert info["constraint_rejected"] is True
     assert env.test_run.step == 0
     runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
