@@ -53,9 +53,6 @@ and the project, without extras or dependency groups. An outdated lockfile fails
 of being updated. Projects without a lockfile continue to use pip. When ``dependencies_from_pyproject=False``
 selects an existing ``requirements.txt``, that selection takes precedence over the lockfile.
 
-Existing environments are reused; recreate an installable's environment to apply this behavior to an
-earlier installation.
-
 .. mermaid::
 
    classDiagram
