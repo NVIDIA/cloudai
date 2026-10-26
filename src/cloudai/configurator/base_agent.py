@@ -160,15 +160,9 @@ class BaseAgent(ABC):
             if result is None:
                 break
             trial_index, action = result
-            logging.info(
-                "Evaluating proposal %s for execution step %s (of %s) with action %s",
-                trial_index,
-                executed_steps + 1,
-                self.max_steps,
-                action,
-            )
+            logging.info("Proposal %s for step %s/%s: %s", trial_index, executed_steps + 1, self.max_steps, action)
             prev_observation = observation
-            step_observation, reward, done, info = self.env.step(action)
+            observation, reward, done, info = self.env.step(action)
 
             if info.get("constraint_rejected", False):
                 self.discard_action(
@@ -183,9 +177,9 @@ class BaseAgent(ABC):
                     }
                 )
                 logging.info("Proposal %s was rejected by the constraint check", trial_index)
+                observation = prev_observation
                 continue
 
-            observation = step_observation
             self.update_policy(
                 {
                     "trial_index": trial_index,
