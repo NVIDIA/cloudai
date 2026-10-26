@@ -238,11 +238,15 @@ class PythonExecutable(Installable):
         install_cmd = [
             uv_bin,
             "sync",
+            # Fail if the lockfile needs updating instead of modifying it.
             "--locked",
+            # Exclude default dependency groups, such as dev.
             "--no-default-groups",
+            # Install the project normally, matching the existing pip install behavior.
             "--no-editable",
             # Keep seeded pip available for subsequent package installation.
             "--inexact",
+            # Use the interpreter already selected for this installable's environment.
             "--python",
             str(venv_dir / "bin" / "python"),
         ]
