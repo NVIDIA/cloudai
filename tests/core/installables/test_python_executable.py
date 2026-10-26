@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
@@ -330,7 +331,8 @@ def test_install_python_executable_prefers_requirements_txt(
     git: GitRepo,
     setup_repo,
 ):
-    repo_dir, *_ = setup_repo
+    repo_dir, subdir, *_ = setup_repo
+    (subdir / "uv.lock").touch()
 
     py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
     py.git_repo.installed_path = repo_dir
@@ -344,3 +346,84 @@ def test_install_python_executable_prefers_requirements_txt(
     assert res.success
     pyproject.assert_not_called()
     reqs.assert_called_once()
+
+
+@pytest.mark.parametrize("locked", [False, True])
+@pytest.mark.parametrize("project_subpath", [None, Path("subdir")])
+def test_install_project_dependencies(
+    installer: BaseInstaller,
+    git: GitRepo,
+    locked: bool,
+    project_subpath: Path | None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    git.installed_path = installer.system.install_path / git.repo_name
+    project_dir = git.installed_path / project_subpath if project_subpath else git.installed_path
+    project_dir.mkdir(parents=True)
+    (project_dir / "pyproject.toml").touch()
+    if locked:
+        (project_dir / "uv.lock").touch()
+    elif project_subpath:
+        # A parent project's lockfile must not replace the selected project's pip install.
+        (git.installed_path / "uv.lock").touch()
+    py = PythonExecutable(git, project_subpath=project_subpath)
+    venv_path = installer.system.install_path / py.venv_name
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/unrelated/environment")
+    monkeypatch.setenv("UV_CACHE_DIR", "/user/cache")
+
+    with (
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
+        patch("subprocess.run", return_value=CompletedProcess(args=[], returncode=0)) as run,
+    ):
+        res = py._install_dependencies(installer)
+
+    assert res.success
+    if locked:
+        run.assert_called_once_with(
+            [
+                "/cloudai/bin/uv",
+                "sync",
+                "--locked",
+                "--no-default-groups",
+                "--no-editable",
+                "--inexact",
+                "--python",
+                str(venv_path.resolve() / "bin" / "python"),
+            ],
+            cwd=str(project_dir),
+            env={**os.environ, "UV_PROJECT_ENVIRONMENT": str(venv_path.resolve())},
+            capture_output=True,
+            text=True,
+        )
+    else:
+        run.assert_called_once_with(
+            [str(venv_path / "bin" / "python"), "-m", "pip", "install", str(project_dir)],
+            capture_output=True,
+            text=True,
+        )
+
+
+def test_locked_install_failure_removes_venv_without_pip_fallback(installer: BaseInstaller, git: GitRepo):
+    git.installed_path = installer.system.install_path / git.repo_name
+    git.installed_path.mkdir()
+    (git.installed_path / "pyproject.toml").touch()
+    (git.installed_path / "uv.lock").touch()
+    py = PythonExecutable(git)
+    venv_path = installer.system.install_path / py.venv_name
+
+    def run(cmd, **kwargs):
+        if cmd[1] == "venv":
+            venv_path.mkdir()
+            return CompletedProcess(cmd, 0)
+        return CompletedProcess(cmd, 1, stderr="Lockfile is outdated")
+
+    with (
+        patch("cloudai._core.installables.python_executable.uv.find_uv_bin", return_value="/cloudai/bin/uv"),
+        patch("subprocess.run", side_effect=run) as mock_run,
+    ):
+        res = py._create_venv(installer)
+
+    assert not res.success
+    assert "Lockfile is outdated" in res.message
+    assert [call.args[0][1] for call in mock_run.call_args_list] == ["venv", "sync"]
+    assert not venv_path.exists()
