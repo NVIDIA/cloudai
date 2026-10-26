@@ -187,16 +187,17 @@ class BaseAgent(ABC):
                 continue
 
             observation = step_observation
-            feedback = {
-                "trial_index": trial_index,
-                "execution_step": executed_steps + 1,
-                "value": reward,
-                "observation": observation,
-                "prev_observation": prev_observation,
-                "action": action,
-                "done": done,
-            }
-            self.update_policy(feedback)
+            self.update_policy(
+                {
+                    "trial_index": trial_index,
+                    "execution_step": executed_steps + 1,
+                    "value": reward,
+                    "observation": observation,
+                    "prev_observation": prev_observation,
+                    "action": action,
+                    "done": done,
+                }
+            )
             logging.info(
                 "Execution step %s: Observation: %s, Reward: %.4f",
                 executed_steps + 1,
