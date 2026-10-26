@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
-from .base_agent import RewardOverrides, TrialStatus
+from .base_agent import RewardOverrides
 from .base_gym import BaseGym
 from .env_params import EnvParams, ObsLeafDescriptor
 from .trajectory import Trajectory
@@ -184,7 +184,7 @@ class CloudAIGymEnv(BaseGym):
         else:
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
                 logging.info("Constraint check failed. Requesting another proposal without consuming a step.")
-                info["trial_status"] = TrialStatus.CONSTRAINT_REJECTED
+                info["constraint_rejected"] = True
                 return [-1.0], self.rewards.constraint_failure, False, info
 
             self.test_run = candidate_test_run

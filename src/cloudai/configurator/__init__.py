@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_agent import BaseAgent, TrialStatus
+from .base_agent import BaseAgent
 from .base_gym import BaseGym
 from .cloudai_gym import CloudAIGymEnv
 from .grid_search import GridSearchAgent
@@ -28,5 +28,4 @@ __all__ = [
     "GridSearchAgent",
     "GymnasiumAdapter",
     "Trajectory",
-    "TrialStatus",
 ]
