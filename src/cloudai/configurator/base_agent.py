@@ -174,7 +174,6 @@ class BaseAgent(ABC):
                 self.discard_action(
                     {
                         "trial_index": trial_index,
-                        "execution_step": executed_steps,
                         "value": None,
                         "observation": None,
                         "prev_observation": prev_observation,
@@ -190,7 +189,6 @@ class BaseAgent(ABC):
             self.update_policy(
                 {
                     "trial_index": trial_index,
-                    "execution_step": executed_steps + 1,
                     "value": reward,
                     "observation": observation,
                     "prev_observation": prev_observation,
