@@ -63,4 +63,4 @@ def test_run_retries_constraint_rejection_and_only_learns_from_success() -> None
     assert agent.updates[0]["value"] == 2.0
     assert len(agent.discards) == 1
     assert all(feedback["value"] is None for feedback in agent.discards)
-    assert [feedback["execution_step"] for feedback in agent.discards] == [0]
+    assert all("execution_step" not in feedback for feedback in agent.updates + agent.discards)
