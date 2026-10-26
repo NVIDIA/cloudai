@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -199,7 +199,11 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     ],
 )
 def test_constraint_failure(
-    nemorun: NeMoRunTestDefinition, tmp_path: Path, rewards: RewardOverrides, expected_reward: float
+    nemorun: NeMoRunTestDefinition,
+    tmp_path: Path,
+    rewards: RewardOverrides,
+    expected_reward: float,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
@@ -215,6 +219,14 @@ def test_constraint_failure(
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=rewards)
+    checked_steps: list[int] = []
+    constraint_check = type(tdef).constraint_check
+
+    def record_checked_step(self, tr: TestRun, system: System | None) -> bool:
+        checked_steps.append(tr.step)
+        return constraint_check(self, tr, system)
+
+    monkeypatch.setattr(type(tdef), "constraint_check", record_checked_step)
 
     bad = {"trainer.strategy.context_parallel_size": 3}  # induce constraint failure
     obs, reward, done, info = env.step(bad)
@@ -223,6 +235,7 @@ def test_constraint_failure(
     assert reward == expected_reward
     assert done is False
     assert info["constraint_rejected"] is True
+    assert checked_steps == [1]
     assert env.test_run.step == 0
     runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
