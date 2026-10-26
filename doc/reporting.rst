@@ -9,11 +9,13 @@ This chapter describes the reporting system in CloudAI. In this chapter, we will
 - :ref:`Reporting Registration <reporting-registration>`
 - :ref:`Reporting Configuration Implementation <reporting-configuration-implementation>`
 - :ref:`Uploading Results to Object Storage <uploading-results-to-object-storage>`
+- :doc:`Pareto frontiers <pareto-frontiers>`
 - :doc:`Reports <reports>`
 
 .. toctree::
    :hidden:
 
+   pareto-frontiers
    reports
 
 .. _overview:

@@ -130,14 +130,19 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
         )
 
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
-        del system
+        gpus_per_node = getattr(system, "gpus_per_node", None)
         results = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
         accuracy = (
             parse_sglang_semantic_accuracy(tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
             if self.semantic_eval_cmd_args is not None
             else None
         )
-        return llm_serving_metric_observations(results, accuracy)
+        return llm_serving_metric_observations(
+            results,
+            accuracy,
+            allocated_gpu_count=tr.nnodes * gpus_per_node if gpus_per_node else None,
+            serving_gpu_count=self.serving_gpu_count,
+        )
 
 
 class SGLangBenchReport(LLMServingBenchReport):

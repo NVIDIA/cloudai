@@ -121,6 +121,25 @@ class LLMServingArgs(CmdArgs):
     )
 
     @property
+    def serving_gpu_count(self) -> int | None:
+        """Count GPUs in this role's global parallel layout; EP shares TP devices."""
+        args = {key.replace("-", "_"): value for key, value in self.model_dump(exclude_none=True).items()}
+        count = 1
+        for names in (
+            ("tensor_parallel_size", "tp_size", "tp"),
+            ("pipeline_parallel_size", "pp_size", "pp"),
+            ("data_parallel_size", "dp_size", "dp"),
+            ("prefill_context_parallel_size",),
+        ):
+            if names[0] == "data_parallel_size" and args.get("enable_dp_attention") in (True, ""):
+                continue  # SGLang attention DP divides the TP group, rather than adding replicas.
+            value = next((args[name] for name in names if name in args), 1)
+            if not isinstance(value, int) or value <= 0:
+                return None
+            count *= value
+        return count
+
+    @property
     def serve_args_exclude(self) -> set[str]:
         """Fields consumed internally and excluded from generic serve args."""
         return {"gpu_ids", "num_nodes"}
@@ -173,6 +192,14 @@ class LLMServingTestDefinition(TestDefinition, Generic[LLMServingCmdArgsT]):
     cmd_args: LLMServingCmdArgsT
     _docker_image: DockerImage | None = None
     _hf_model: HFModel | None = None
+
+    @property
+    def serving_gpu_count(self) -> int | None:
+        roles = [self.cmd_args.decode]
+        if self.cmd_args.prefill is not None:
+            roles.append(self.cmd_args.prefill)
+        counts = [role.serving_gpu_count for role in roles]
+        return sum(count for count in counts if count is not None) if all(counts) else None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -246,6 +273,9 @@ class LLMServingBenchReport(BaseModel, ABC):
 def llm_serving_metric_observations(
     results: LLMServingBenchReport | None,
     accuracy: float | None = None,
+    *,
+    allocated_gpu_count: int | None = None,
+    serving_gpu_count: int | None = None,
 ) -> list[cloudai.metrics.MetricObservation]:
     """Use statistics to distinguish latency results; scalar results have no dimensions."""
     observations: list[cloudai.metrics.MetricObservation] = []
@@ -261,6 +291,13 @@ def llm_serving_metric_observations(
         value = getattr(results, field)
         if math.isfinite(value):
             observations.append(cloudai.metrics.MetricObservation(metric, value, {}))
+    output_throughput = cast(Any, results).output_throughput
+    for metric, divisor in (
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU, allocated_gpu_count),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU, serving_gpu_count),
+    ):
+        if divisor is not None and divisor > 0 and math.isfinite(output_throughput):
+            observations.append(cloudai.metrics.MetricObservation(metric, output_throughput / divisor, {}))
     for metric in (cloudai.metrics.TTFT, cloudai.metrics.TPOT):
         for statistic in ("mean", "median", "p99"):
             value = getattr(results, f"{statistic}_{metric.key}_ms")
