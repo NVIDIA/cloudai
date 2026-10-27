@@ -16,18 +16,18 @@
 
 """Subprocess-only adapters for the unmodified MBridge performance CLI."""
 
-import importlib
-import json
-import os
-import runpy
-import sys
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
-
 
 def main(launcher: str, output: str) -> None:
     """Generate a job or evaluate its completed logs without submitting another job."""
+    import importlib
+    import json
+    import os
+    import runpy
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    from typing import Any
+
     run: Any = importlib.import_module("nemo_run")
 
     root = Path(output)

@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shlex
 import shutil
@@ -184,9 +183,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         status = root / "cloudai_megatron_bridge_evaluation.exitcode"
         if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
             return
-        env = os.environ.copy()
-        env.update({key: str(value) for key, value in self.final_env_vars.items() if key.startswith("WANDB_")})
-        env["NEMORUN_HOME"] = str(root.absolute())
         python = str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python")
         with (root / "cloudai_megatron_bridge_evaluation.log").open("w") as log:
             # Record failure first so interrupted evaluations cannot appear successful.
@@ -208,13 +204,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 )
                 result = subprocess.run(
                     [
+                        "/bin/bash",
+                        "-c",
+                        'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" --cloudai-evaluate',
+                        "mbridge-evaluate",
+                        str((root / "env_vars.sh").absolute()),
+                        str(root.absolute()),
                         python,
                         str((root / "cloudai_megatron_bridge_dryrun.py").absolute()),
-                        "--cloudai-evaluate",
                     ],
                     stdout=log,
                     stderr=subprocess.STDOUT,
-                    env=env,
                     timeout=600,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
