@@ -70,19 +70,26 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "job_id": self.tdef.job_id_path(self.test_run).absolute(),
         }
 
-    def write_run_script(self) -> None:
-        paths = self._paths()
-        repo = self.tdef.git_repos[0]
-        repo_path = (repo.installed_path or self.system.install_path / repo.repo_name).absolute()
-        cluster_config = self.tdef.cmd_args.cluster_config.expanduser().absolute()
+    def _prepare_recipe(self, paths: dict[str, Path]) -> tuple[Path, list[str]]:
+        """Select the original recipe with CLI overrides or write a rendered copy."""
         recipe = paths["recipe"]
         overrides = self._override_args(self.tdef.cmd_args.recipe_overrides)
+        # "render" mode is for older CLIs that don't support passing `--set` to srtctl.
+        # Apply the overrides to a generated recipe instead of passing them on the CLI.
         if self.tdef.cmd_args.recipe_override_mode == "render":
             data = self._load_recipe(recipe)
             self._overlay_recipe(data, self.tdef.cmd_args.recipe_overrides)
             recipe = paths["rendered_recipe"]
             recipe.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
             overrides = []
+        return recipe, overrides
+
+    def write_run_script(self) -> None:
+        paths = self._paths()
+        repo = self.tdef.git_repos[0]
+        repo_path = (repo.installed_path or self.system.install_path / repo.repo_name).absolute()
+        cluster_config = self.tdef.cmd_args.cluster_config.expanduser().absolute()
+        recipe, overrides = self._prepare_recipe(paths)
         apply_command = shlex.join(
             [
                 str(self.tdef.srtctl_path),
@@ -100,11 +107,15 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             [
                 "#!/usr/bin/env bash",
                 "set -euo pipefail",
+                "",
+                "# Configure submission environment",
                 *[f"export {key}={shlex.quote(str(value))}" for key, value in self.final_env_vars.items()],
                 f"export SRTSLURM_CONFIG={shlex.quote(str(cluster_config))}",
                 *(["export AGENTIC_OUTPUT_DIR=/logs/agentic"] if self.tdef.cmd_args.result_format == "agentx" else []),
-                # uv also discovers Python through PATH after VIRTUAL_ENV is
-                # unset. Strip login-node venvs before Slurm exports the PATH.
+                "",
+                "# Prevent login-node Python environments from leaking into compute jobs.",
+                "# A: uv searches PATH after VIRTUAL_ENV. Remove every virtualenv-backed",
+                "# PATH entry so it cannot select an incompatible login-node python/python3.",
                 'IFS=: read -r -a SRT_PATH_PARTS <<< "$PATH"',
                 "SRT_CLEAN_PATH=()",
                 'for SRT_PATH_PART in "${SRT_PATH_PARTS[@]}"; do',
@@ -113,20 +124,31 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "    fi",
                 "done",
                 'export PATH="$(IFS=:; printf \'%s\' "${SRT_CLEAN_PATH[*]}")"',
+                "# B: uv prioritizes the active environment. Unset VIRTUAL_ENV so it cannot",
+                "# inspect or execute CloudAI's login-node interpreter on a compute node.",
                 "unset VIRTUAL_ENV",
+                "",
+                "# Submit the recipe",
                 f"mkdir -p {shlex.quote(str(paths['nested_outputs']))}",
                 f"rm -f {shlex.quote(str(paths['job_id']))}",
-                # Slurm inherits this directory. The early Dynamo prefetch must
-                # not discover the login-node CloudAI .venv in the caller's cwd.
+                "# C: uv discovers .venv from the current directory even with --no-project.",
+                "# Submit from srt-slurm so it cannot discover CloudAI's checkout .venv.",
                 f"cd {shlex.quote(str(repo_path))}",
                 f"if ! {apply_command} > {shlex.quote(str(paths['run_log']))} 2>&1; then",
                 f"    cat {shlex.quote(str(paths['run_log']))} >&2",
                 "    exit 1",
                 "fi",
                 f"cat {shlex.quote(str(paths['run_log']))} >&2",
-                "SRT_JOB_ID=\"$(sed -nE 's/.*Job ([0-9]+) submitted.*/\\1/p; s/.*Submitted batch job ([0-9]+).*/\\1/p' "
-                f'{shlex.quote(str(paths["run_log"]))} | tail -1)"',
-                '[[ "$SRT_JOB_ID" =~ ^[0-9]+$ ]] || { echo "Unable to find submitted srt-slurm job ID"; exit 1; }',
+                "",
+                "# Record the submitted job ID for CloudAI",
+                "if ! SRT_JOB_ID=\"$(sed -nE 's/.*Job ([0-9]+) submitted.*/\\1/p; "
+                "s/.*Submitted batch job ([0-9]+).*/\\1/p' "
+                f'{shlex.quote(str(paths["run_log"]))} | tail -1)" || [[ ! "$SRT_JOB_ID" =~ ^[0-9]+$ ]]; then',
+                '    echo "Unable to find submitted srt-slurm job ID" >&2',
+                "    exit 1",
+                "fi",
+                "# Persist the result lookup ID now; slurm-job.toml is written at completion",
+                "# only when accounting is available. Stdout separately supplies the runner ID.",
                 f'printf "%s\\n" "$SRT_JOB_ID" > {shlex.quote(str(paths["job_id"]))}',
                 'echo "Submitted batch job $SRT_JOB_ID"',
                 "",

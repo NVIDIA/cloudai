@@ -131,7 +131,21 @@ def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_pa
     (active_bin.parent / "pyvenv.cfg").write_text("home = /login-node/python\n")
     retained_bin = tmp_path / "cluster tools" / "bin"
     retained_bin.mkdir(parents=True)
-    monkeypatch.setenv("PATH", f"{caller_path / '.venv' / 'bin'}:{active_bin}:{retained_bin}:{os.environ['PATH']}")
+    other_venv_bin = tmp_path / "other login-node venv" / "bin"
+    other_venv_bin.mkdir(parents=True)
+    (other_venv_bin.parent / "pyvenv.cfg").write_text("home = /other/login-node/python\n")
+    monkeypatch.setenv(
+        "PATH",
+        os.pathsep.join(
+            [
+                str(caller_path / ".venv" / "bin"),
+                str(active_bin),
+                str(other_venv_bin),
+                str(retained_bin),
+                os.environ["PATH"],
+            ]
+        ),
+    )
     tdef.extra_env_vars = {
         "SRTSLURM_CONFIG": str(tmp_path / "cluster's config" / "srtslurm.yaml"),
         "SRT_LITERAL": "$HOME; $(printf injected)",
@@ -171,6 +185,7 @@ def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_pa
     submitted_path = strategy._paths()["run_log"].read_text().splitlines()[2].split(os.pathsep)
     assert str(caller_path / ".venv" / "bin") not in submitted_path
     assert str(active_bin) not in submitted_path
+    assert str(other_venv_bin) not in submitted_path
     assert str(retained_bin) in submitted_path
     submitted_args = json.loads(strategy._paths()["run_log"].read_text().splitlines()[3])
     assert submitted_args[submitted_args.index("-f") + 1] == str(tdef.cmd_args.recipe_path)

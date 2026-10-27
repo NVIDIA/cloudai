@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -103,6 +104,35 @@ def test_single_sbatch_rejected(slurm_system: SlurmSystem, tmp_path: Path):
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
     with pytest.raises(ValueError, match="single-sbatch"):
         SRTSlurmCommandGenStrategy(slurm_system, tr).gen_srun_command()
+
+
+@pytest.mark.parametrize("extraction_fails", [False, True])
+def test_job_id_errors_are_reported_to_stderr(slurm_system: SlurmSystem, tmp_path: Path, monkeypatch, extraction_fails):
+    tdef = make_tdef(tmp_path)
+    tdef.srtctl.venv_path = tmp_path / "venv"
+    tdef.srtctl_path.parent.mkdir(parents=True)
+    repo = slurm_system.install_path / tdef.git_repos[0].repo_name
+    repo.mkdir(parents=True)
+    response = "Submitted batch job 111" if extraction_fails else "Submission completed without a job ID"
+    tdef.srtctl_path.write_text(f"#!{sys.executable}\nprint({response!r})\n")
+    tdef.srtctl_path.chmod(0o755)
+    if extraction_fails:
+        tools = tmp_path / "tools"
+        tools.mkdir()
+        sed = tools / "sed"
+        sed.write_text("#!/usr/bin/env bash\nexit 1\n")
+        sed.chmod(0o755)
+        monkeypatch.setenv("PATH", f"{tools}:{os.environ['PATH']}")
+    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
+    strategy.gen_exec_command()
+    tdef.job_id_path(tr).write_text("999\n")
+    completed = subprocess.run(["bash", strategy._paths()["run_script"]], capture_output=True, text=True)
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert response in completed.stderr
+    assert "Unable to find submitted srt-slurm job ID" in completed.stderr
+    assert not tdef.job_id_path(tr).exists()
 
 
 def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path: Path):

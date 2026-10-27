@@ -77,10 +77,12 @@ class SRTSlurmTestDefinition(TestDefinition):
 
     @staticmethod
     def job_id_path(tr: TestRun) -> Path:
+        """Locate the saved job ID used for result lookup and later report regeneration."""
         return tr.output_path / "srt_job_id.txt"
 
     def job_output_path(self, tr: TestRun) -> Path | None:
         """Return the submitted job's output directory, without guessing its identity."""
+        # TestRun has no runtime SlurmJob ID; avoid guessing among old submission directories.
         try:
             job_id = self.job_id_path(tr).read_text(encoding="utf-8").strip()
         except OSError:
