@@ -45,6 +45,11 @@ class BaseAgentConfig(BaseModel):
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
+    max_consecutive_rejected_proposals: int = Field(
+        default=100,
+        ge=1,
+        description="Maximum consecutive constraint rejections before the agent stops the DSE as infeasible.",
+    )
     rewards: RewardOverrides = Field(
         default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
@@ -155,6 +160,7 @@ class BaseAgent(ABC):
         """
         observation, _ = self.env.reset()
         executed_steps = 0
+        consecutive_rejections = 0
         while executed_steps < self.max_steps:
             result = self.select_action(observation=observation)
             if result is None:
@@ -177,6 +183,16 @@ class BaseAgent(ABC):
                     }
                 )
                 logging.info("Proposal %s was rejected by the constraint check", trial_index)
+                consecutive_rejections += 1
+                if consecutive_rejections >= self.config.max_consecutive_rejected_proposals:
+                    logging.error(
+                        "No feasible proposal found within %s consecutive constraint rejections; "
+                        "completed %s/%s execution steps",
+                        self.config.max_consecutive_rejected_proposals,
+                        executed_steps,
+                        self.max_steps,
+                    )
+                    return 1
                 observation = prev_observation
                 continue
 
@@ -197,4 +213,5 @@ class BaseAgent(ABC):
                 reward,
             )
             executed_steps += 1
+            consecutive_rejections = 0
         return 0
