@@ -178,6 +178,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--disaggregation-mode"
         )
 
+    @staticmethod
+    def _decode_disaggregation_mode(backend: str, prefill_enabled: bool) -> str | None:
+        if prefill_enabled:
+            return "decode"
+        if backend == "sglang":
+            return None
+        return "agg"
+
     def _get_worker_script_args(self, role: str, worker: WorkerConfig, mode: str | None) -> List[str]:
         prefix = f"--{role}-"
         result = self._get_nested_toml_args(worker, prefix, exclude=["nodes"])
@@ -535,7 +543,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 args.append(f"--prefill-node-list {shlex.quote(prefill_worker.nodes)}")
 
         decode_worker = td.cmd_args.dynamo.decode_worker
-        decode_mode = "decode" if prefill_worker.is_enabled else "agg"
+        decode_mode = self._decode_disaggregation_mode(td.cmd_args.dynamo.backend, prefill_worker.is_enabled)
         args.extend(self._get_worker_script_args("decode", decode_worker, decode_mode))
         if decode_worker.nodes:
             args.append(f"--decode-node-list {shlex.quote(decode_worker.nodes)}")
