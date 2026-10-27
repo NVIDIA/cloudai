@@ -695,10 +695,14 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     model_family_name="qwen3",
                     model_recipe_name="30b_a3b",
                     num_gpus=16,
+                    evaluate=True,
+                    wandb_version="0.28.1",
+                    numpy_version="1.26.4",
                     enable_vboost=True,
                     executor_env_vars={"NCCL_DEBUG": "WARN", "EXECUTOR_ONLY": "executor"},
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
+                extra_cmd_args={"--golden_values_path": "/shared/references/qwen3.json"},
                 extra_container_mounts=[],
                 git_repos=[
                     GitRepo(
@@ -906,6 +910,11 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
             upstream.replace("__OUTPUT__", str(tr.output_path)).replace("__IMAGE__", str(cmd_gen.image_path()))
         )
         cmd_gen._generate_mbridge_sbatch = Mock(return_value=upstream_script)
+        cmd_gen.store_test_run()
+        stored = toml.loads((tr.output_path / cmd_gen.TEST_RUN_DUMP_FILE_NAME).read_text())
+        expected = (Path(__file__).parent / "ref_data" / "megatron-bridge.toml").read_text()
+        expected = expected.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        assert stored["test_definition"] == toml.loads(expected)
     sbatch_script = cmd_gen.gen_exec_command().split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
