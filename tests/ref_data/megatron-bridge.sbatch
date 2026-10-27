@@ -26,6 +26,7 @@ srun --export=ALL --mpi=none -N2 --cpu-bind=none --ntasks=2 --ntasks-per-node=1 
 
 (
     source __OUTPUT_DIR__/output/env_vars.sh
+    trap 'status=$?; if [ "$status" -eq 0 ]; then touch __OUTPUT_DIR__/output/cloudai_megatron_bridge_training.success; fi' EXIT
     export HF_TOKEN=dummy_token
     export UPSTREAM_ONLY=retained
     export PYTHONPATH=/opt/Megatron-Bridge
