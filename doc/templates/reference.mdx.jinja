@@ -1,0 +1,56 @@
+<Anchor id="{{ symbol }}" />
+
+### `{{ symbol }}`
+
+{{ description | mdx }}
+{% for field in fields %}
+<Anchor id="{{ symbol }}.{{ field.name }}" />
+
+#### `{{ field.name }}`
+
+```python
+{{ field.name }}: {{ field.annotation }}{% if field.default is not none %} = {{ field.default }}{% endif %}
+```
+
+{% if field.required %}**Required.**{% elif field.factory %}**Default factory:** `{{ field.factory }}`.{% endif %}
+{% if field.alias %}
+**Alias:** `{{ field.alias }}`.
+{% endif %}
+{% if field.constraints %}
+**Constraints:** {% for constraint in field.constraints %}`{{ constraint }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+{% endif %}
+
+{{ field.description | mdx }}
+{% endfor %}
+{% for member in members %}
+<Anchor id="{{ symbol }}.{{ member.name }}" />
+
+#### `{{ member.name }}`
+
+```python
+{{ member.name }}{{ member.signature }}
+```
+{% for section in member.sections %}
+{% if section.kind.value == 'text' %}
+{{ section.value | mdx }}
+{% elif section.kind.value in ['parameters', 'other parameters', 'attributes', 'returns', 'yields', 'raises', 'warns'] %}
+**{{ section.title or section.kind.value | title }}:**
+{% for item in section.value %}
+- {% if item.name is defined and item.name %}`{{ item.name }}`{% endif %}{% if item.annotation %} (`{{ item.annotation }}`){% endif %}: {{ item.description | mdx }}
+{% endfor %}
+{% elif section.kind.value == 'examples' %}
+**Examples:**
+{% for kind, text in section.value %}
+{% if kind.value == 'examples' %}
+```python
+{{ text }}
+```
+{% else %}
+{{ text | mdx }}
+{% endif %}
+{% endfor %}
+{% elif section.kind.value == 'admonition' %}
+{{ section.value.description | mdx }}
+{% endif %}
+{% endfor %}
+{% endfor %}

@@ -1,0 +1,47 @@
+<Anchor id="workloads" />
+
+This chapter contains automatically generated documentation for all CloudAI workloads. Each workload provides specific functionality for running different types of tests and benchmarks.
+
+<Anchor id="available-workloads" />
+
+## Available Workloads
+
+| Test | Slurm | Kubernetes | RunAI | Standalone |
+|----|----|----|----|----|
+| [AIConfigurator](aiconfigurator.mdx) | ❌ | ❌ | ❌ | ✅ |
+| [AI Dynamo](ai_dynamo.mdx) | ✅ | ✅ | ❌ | ❌ |
+| [Bash Command](bash_cmd.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [Chakra Replay](chakra_replay.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [DDLB](ddlb.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [DeepEP Benchmark](deepep.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [DynamoMocker](dynamo_mocker.mdx) | ❌ | ❌ | ❌ | ✅ |
+| [fio](fio.mdx) | ✅ | ❌ | ❌ | ✅ |
+| [JaxToolbox workloads (DEPRECATED)](jax_toolbox.mdx) | ✅ | ❌ | ❌ | ❌ |
+| MegatronRun | ✅ | ❌ | ❌ | ❌ |
+| [MegatronBridge](megatron_bridge.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [NCCL](nccl.mdx) | ✅ | ✅ | ✅ | ❌ |
+| [NeMo v1.0 aka NemoLauncher (DEPRECATED)](nemo_launcher.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [Nemo Run](nemo_run.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL Bench](nixl_bench.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL EP](nixl_ep.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL KVBench](nixl_kvbench.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL CTPerf](nixl_perftest.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [Sleep](sleep.mdx) | ✅ | ✅ | ❌ | ✅ |
+| [SGLang](sglang.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [Slurm Container](slurm_container.mdx) | ✅ | ❌ | ❌ | ❌ |
+| Triton Inference | ✅ | ❌ | ❌ | ❌ |
+| [UCC](ucc.mdx) | ✅ | ❌ | ❌ | ❌ |
+| [vLLM](vllm.mdx) | ✅ | ❌ | ❌ | ❌ |
+
+<Anchor id="adding-new-workloads" />
+
+## Adding New Workloads
+
+To add documentation for a new workload:
+
+1.  Add docstrings to your Python classes and methods.
+2.  Create an MDX file in `doc/workloads/` (e.g., `my_workload.mdx`).
+3.  Add it to the table above and to `fern/docs.yml`.
+4.  Add its reference classes to `fern/reference.yml` and include the generated snippets using Fern's `Markdown` component, with `src` set to `/generated/fully.qualified.Class.mdx`.
+
+The documentation will be automatically generated during the build process.

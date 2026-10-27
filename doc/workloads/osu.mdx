@@ -1,0 +1,78 @@
+<Anchor id="osu" />
+
+This workload (`test_template_name` is `OSUBench`) allows you to execute OSU Micro Benchmarks within the CloudAI framework.
+
+<Anchor id="usage-example" />
+
+## Usage Example
+
+Test example:
+
+``` toml
+name = "osu_example"
+test_template_name = "OSUBench"
+description = "OSU Benchmark example"
+
+[cmd_args]
+"docker_image_url" = "<docker container url here>"
+"benchmarks_dir" = "/directory/with/osu/binaries/in/container"
+"benchmark" = ["osu_allreduce", "osu_allgather"]
+"iterations" = 10
+"message_size" = "1024"
+```
+
+Test Scenario example:
+
+``` toml
+name = "osu_example"
+
+[[Tests]]
+id = "Tests.1"
+test_name = "osu_example"
+num_nodes = "2"
+time_limit = "00:20:00"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "osu-test"
+
+[[Tests]]
+id = "Tests.osu_allreduce"
+num_nodes = 2
+time_limit = "00:05:00"
+
+name = "osu_example"
+description = "OSU allreduce 1KB"
+test_template_name = "OSUBench"
+
+    [Tests.cmd_args]
+    docker_image_url = "<docker container url here>"
+    benchmarks_dir = "/directory/with/osu/binaries/in/container"
+    benchmark = "osu_allreduce"
+    iterations = 10
+    message_size = "1024"
+```
+
+<Anchor id="comparison-reports" />
+
+## Comparison Reports
+
+The OSU comparison v2 report labels the X axis with the measured message sizes in bytes. Sizes are displayed at equally spaced positions, including zero-byte messages, rather than using default logarithmic ticks. When runs measure different size ranges, charts and tables use the sorted union of measured sizes. Missing measurements appear as chart gaps and `n/a` table cells.
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Markdown src="/generated/cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.mdx" />
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Markdown src="/generated/cloudai.workloads.osu_bench.osu_bench.OSUBenchTestDefinition.mdx" />

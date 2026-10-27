@@ -1,0 +1,210 @@
+<Anchor id="cloudai-benchmark-framework" />
+
+<Anchor id="overview" />
+
+## Overview
+
+CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the cloud. The primary motivation is to provide automated benchmarking on various systems.
+
+This document contains the following chapters:
+
+- [Tutorial](Tutorial.mdx)
+- [User Guide](USER_GUIDE.mdx)
+- [Python API](api.mdx)
+- [Reporting](reporting.mdx)
+- [Systems](systems.mdx)
+- [Workloads](workloads/index.mdx)
+- [Development](DEV.mdx)
+- [Troubleshooting](troubleshooting.mdx)
+
+<Anchor id="getting-started" />
+
+## Getting Started
+
+CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
+
+Use uv 0.13.4 or newer to install and run CloudAI. For pip-based installation, use pip 26.2.2 or newer. These versions include certificate trust updates for the eMudhra/emSign CA compromise.
+
+``` bash
+git clone git@github.com:NVIDIA/cloudai.git
+cd cloudai
+uv run cloudai --help
+```
+
+<Note>
+
+For more instructions on how to set up access for `enroot`, see [Installation Requirements](workloads/workloads_requirements_installation.mdx).
+
+</Note>
+
+<Anchor id="pip-based-installation" />
+
+### pip-based Installation
+
+See the preferred Python version in the `.python-version` file and make sure you have it installed (For installation, see [Custom Python Version Installation](index.mdx#install-custom-python-version)). Python 3.10 and newer remain supported. Follow these steps:
+
+``` bash
+git clone git@github.com:NVIDIA/cloudai.git
+cd cloudai
+python3.14 -m venv venv
+source venv/bin/activate
+pip install -e .
+```
+
+<Note>
+
+When upgrading an existing installation, also update the host's `ca-certificates` package and the certificate bundles and installers in existing workload environments and container images. Updating CloudAI does not update these environments.
+
+</Note>
+
+<Anchor id="install-custom-python-version" />
+
+### Custom Python Version Installation
+
+If your system Python version is not supported, you can install a custom version using the [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
+
+``` bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv venv --seed  # picks the python version from .python-version
+                # --seed installs pip and setuptools
+source .venv/bin/activate
+```
+
+<Anchor id="key-concepts" />
+
+## Key Concepts
+
+CloudAI operates on three main schemas:
+
+- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
+- **Test Schema**: An instance of a test template with custom arguments and environment variables
+- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
+
+These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
+
+<Anchor id="cloudai-modes-usage-examples" />
+
+## CloudAI Modes Usage Examples
+
+The following are the global options for the `cloudai` command:
+
+- `--log-file <path>`: specify a file to log output; by default `debug.log` in the current directory is used. Contains log entries of level `DEBUG` and higher
+- `--log-level <level>`: specify logging level for standard output; default is `INFO`
+
+<Anchor id="available-modes" />
+
+### Available Modes
+
+- [run](index.mdx#run)
+- [dry-run](index.mdx#dry-run)
+- [generate-report](index.mdx#generate-report)
+- [install](index.mdx#install)
+- [uninstall](index.mdx#uninstall)
+- [list](index.mdx#list)
+- [verify-configs](index.mdx#verify-configs)
+
+<Anchor id="usage-examples" />
+
+### Usage Examples
+
+<Anchor id="run" />
+
+#### run
+
+This mode runs workloads. It automatically installs prerequisites if they are not met.
+
+``` bash
+cloudai run\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
+
+<Anchor id="dry-run" />
+
+#### dry-run
+
+This mode simulates running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
+
+``` bash
+cloudai dry-run\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
+
+<Anchor id="generate-report" />
+
+#### generate-report
+
+This mode generates reports under the scenario directory. It automatically runs as part of the `run` mode after experiments are completed.
+
+``` bash
+cloudai generate-report\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml\
+    --result-dir /path/to/result_directory
+```
+
+<Anchor id="install" />
+
+#### install
+
+This mode installs test prerequisites. For more details, refer to the [Installation Requirements](workloads/workloads_requirements_installation.mdx) guide. It automatically runs as part of the `run` mode if prerequisites are not met.
+
+``` bash
+cloudai install\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
+
+<Anchor id="uninstall" />
+
+#### uninstall
+
+This mode is the opposite of the install mode. This mode removes installed test prerequisites.
+
+``` bash
+cloudai uninstall\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
+
+<Anchor id="list" />
+
+#### list
+
+This mode lists internal components available within CloudAI.
+
+``` bash
+cloudai list <component_type>
+```
+
+<Anchor id="verify-configs" />
+
+#### verify-configs
+
+This mode verifies the correctness of system, test, and test scenario configuration files.
+
+``` bash
+# verify all at once
+cloudai verify-configs conf
+
+# verify a single file
+cloudai verify-configs conf/common/system/example_slurm_cluster.toml
+
+# verify all scenarios using specific folder with Test TOMLs
+cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
+```
+
+<Anchor id="documentation-update-history" />
+
+## Documentation Update History
+
+| Version | Date           | Description                                    |
+|---------|----------------|------------------------------------------------|
+| v1.5.0  | April xx, 2026 | Initial release of this documentation version. |

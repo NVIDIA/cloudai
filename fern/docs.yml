@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/docs-yml.json
+instances:
+- url: ${FERN_DOCS_URL}
+title: CloudAI
+settings:
+  substitute-env-vars: true
+global-theme: nvidia
+navbar-links:
+- type: github
+  value: https://github.com/NVIDIA/cloudai
+navigation:
+- page: CloudAI Benchmark Framework
+  path: ../doc/index.mdx
+  slug: /
+- page: Tutorial
+  path: ../doc/Tutorial.mdx
+  slug: Tutorial
+- page: User Guide
+  path: ../doc/USER_GUIDE.mdx
+  slug: USER_GUIDE
+- page: Python API
+  path: ../doc/api.mdx
+  slug: api
+- section: Reporting
+  skip-slug: true
+  contents:
+  - page: Reporting
+    path: ../doc/reporting.mdx
+    slug: reporting
+  - page: Reports
+    path: ../doc/reports.mdx
+    slug: reports
+  - page: Pareto Frontiers
+    path: ../doc/pareto-frontiers.mdx
+    slug: pareto-frontiers
+  - page: Training Report Schema
+    path: ../doc/training-report-schema.mdx
+    slug: training-report-schema
+- page: Systems
+  path: ../doc/systems.mdx
+  slug: systems
+- section: Workloads
+  skip-slug: true
+  contents:
+  - page: Workloads
+    path: ../doc/workloads/index.mdx
+    slug: workloads/index
+  - page: AI Dynamo
+    path: ../doc/workloads/ai_dynamo.mdx
+    slug: workloads/ai_dynamo
+  - page: AIConfigurator
+    path: ../doc/workloads/aiconfigurator.mdx
+    slug: workloads/aiconfigurator
+  - page: Bash Command
+    path: ../doc/workloads/bash_cmd.mdx
+    slug: workloads/bash_cmd
+  - page: Chakra Replay
+    path: ../doc/workloads/chakra_replay.mdx
+    slug: workloads/chakra_replay
+  - page: DDLB
+    path: ../doc/workloads/ddlb.mdx
+    slug: workloads/ddlb
+  - page: DeepEP Benchmark
+    path: ../doc/workloads/deepep.mdx
+    slug: workloads/deepep
+  - page: DynamoMocker
+    path: ../doc/workloads/dynamo_mocker.mdx
+    slug: workloads/dynamo_mocker
+  - page: fio
+    path: ../doc/workloads/fio.mdx
+    slug: workloads/fio
+  - page: JaxToolbox workloads (DEPRECATED)
+    path: ../doc/workloads/jax_toolbox.mdx
+    slug: workloads/jax_toolbox
+  - page: MegatronBridge
+    path: ../doc/workloads/megatron_bridge.mdx
+    slug: workloads/megatron_bridge
+  - page: NCCL
+    path: ../doc/workloads/nccl.mdx
+    slug: workloads/nccl
+  - page: NeMo v1.0 aka NemoLauncher (DEPRECATED)
+    path: ../doc/workloads/nemo_launcher.mdx
+    slug: workloads/nemo_launcher
+  - page: Nemo Run
+    path: ../doc/workloads/nemo_run.mdx
+    slug: workloads/nemo_run
+  - page: NIXL Bench
+    path: ../doc/workloads/nixl_bench.mdx
+    slug: workloads/nixl_bench
+  - page: NIXL EP
+    path: ../doc/workloads/nixl_ep.mdx
+    slug: workloads/nixl_ep
+  - page: NIXL KVBench
+    path: ../doc/workloads/nixl_kvbench.mdx
+    slug: workloads/nixl_kvbench
+  - page: NIXL CTPerf
+    path: ../doc/workloads/nixl_perftest.mdx
+    slug: workloads/nixl_perftest
+  - page: OSU
+    path: ../doc/workloads/osu.mdx
+    slug: workloads/osu
+  - page: SGLang
+    path: ../doc/workloads/sglang.mdx
+    slug: workloads/sglang
+  - page: Sleep
+    path: ../doc/workloads/sleep.mdx
+    slug: workloads/sleep
+  - page: Slurm Container
+    path: ../doc/workloads/slurm_container.mdx
+    slug: workloads/slurm_container
+  - page: UCC
+    path: ../doc/workloads/ucc.mdx
+    slug: workloads/ucc
+  - page: vLLM
+    path: ../doc/workloads/vllm.mdx
+    slug: workloads/vllm
+  - page: Installation Requirements
+    path: ../doc/workloads/workloads_requirements_installation.mdx
+    slug: workloads/workloads_requirements_installation
+- page: Development
+  path: ../doc/DEV.mdx
+  slug: DEV
+- page: Troubleshooting
+  path: ../doc/troubleshooting.mdx
+  slug: troubleshooting

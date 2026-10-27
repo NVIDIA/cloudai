@@ -1,0 +1,75 @@
+<Anchor id="ddlb" />
+
+DDLB workload (`test_template_name` is `DDLB`) allows users to execute DDLB (Distributed Deep Learning Benchmarks) within the CloudAI framework. Please find the DDLB README at [https://github.com/samnordmann/ddlb](https://github.com/samnordmann/ddlb).
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+Test TOML example:
+
+``` toml
+name = "my_ddlb_test"
+description = "Example DDLB test"
+test_template_name = "DDLB"
+
+[cmd_args]
+docker_image_url = "<docker container url here>"
+primitive = "tp_columnwise"
+dtype = "float16"
+```
+
+Test Scenario example:
+
+``` toml
+name = "ddlb-test"
+
+[[Tests]]
+id = "ddlb.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+test_name = "my_ddlb_test"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "ddlb-test"
+
+[[Tests]]
+id = "ddlb.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "my_ddlb_test"
+description = "Example DDLB test"
+test_template_name = "DDLB"
+
+  [Tests.cmd_args]
+  docker_image_url = "<docker container url here>"
+  primitive = "tp_columnwise"
+  m = 1024
+  n = 128
+  k = 1024
+  dtype = "float16"
+  num_iterations = 50
+  num_warmups = 5
+  impl = "pytorch;backend=nccl;order=AG_before"
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Markdown src="/generated/cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.mdx" />
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Markdown src="/generated/cloudai.workloads.ddlb.ddlb.DDLBTestDefinition.mdx" />

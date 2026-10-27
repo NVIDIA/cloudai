@@ -1,0 +1,65 @@
+<Anchor id="chakra-replay" />
+
+Chakra Replay workload (`test_template_name` is `ChakraReplay`) replays execution traces from the Chakra execution trace format for performance analysis and debugging.
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+Test TOML example:
+
+``` toml
+name = "my_chakra_test"
+description = "Example Chakra replay test"
+test_template_name = "ChakraReplay"
+
+[cmd_args]
+trace_path = "/path/to/trace.et"
+```
+
+Test Scenario example:
+
+``` toml
+name = "chakra-replay-test"
+
+[[Tests]]
+id = "chakra.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+test_name = "my_chakra_test"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "chakra-replay-test"
+
+[[Tests]]
+id = "chakra.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "my_chakra_test"
+description = "Example Chakra replay test"
+test_template_name = "ChakraReplay"
+
+  [Tests.cmd_args]
+  trace_path = "/path/to/trace.et"
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Markdown src="/generated/cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayCmdArgs.mdx" />
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Markdown src="/generated/cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayTestDefinition.mdx" />
