@@ -315,7 +315,7 @@ _apply_multinode_role_args() {
 _apply_sglang_dsr1_section_args() {
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
-  local default_deepep_path="${dynamo_args["repo"]}/recipes/deepseek-r1/sglang/deepep.json"
+  local default_deepep_path="${dynamo_args["repo"]}/components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
   _normalize_sglang_data_parallel_size prefill
   _normalize_sglang_data_parallel_size decode
 
