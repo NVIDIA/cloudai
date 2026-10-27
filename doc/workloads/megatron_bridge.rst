@@ -43,6 +43,32 @@ The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
    - set ``cmd_args.hf_token`` either in Test or Scenario config
 
 
+Golden-Reference Evaluation
+---------------------------
+
+Enable post-training evaluation in the test TOML and supply your reference file:
+
+.. code-block:: toml
+
+   [cmd_args]
+   evaluate = true
+
+   [extra_cmd_args]
+   "--golden_values_path" = "/shared/references/model.json"
+
+Evaluation installs wandb and NumPy into the existing NeMo Run launcher
+environment using pip, with the configured ``wandb_version`` and ``numpy_version``.
+After successful training, the installed MBridge version evaluates the existing
+logs on the submit host. A failed evaluation marks the CloudAI test failed;
+details are in ``cloudai_megatron_bridge_evaluation.log``.
+
+With ``wandb_key``, ``wandb_project_name``, and ``wandb_experiment_name`` configured,
+evaluation resumes the training run's wandb ID. Without a key, evaluation uses
+offline wandb and keeps its files in the test output directory without uploading.
+The reference file must be accessible on the submit host. Evaluation covers one
+completed allocation; it does not restart training or orchestrate long-convergence
+checkpoint/resume slices. Report generation does not repeat evaluation or uploads.
+
 Usage Examples
 --------------
 

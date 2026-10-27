@@ -120,8 +120,11 @@ class SlurmRunner(BaseRunner):
                 logging.info("Pinned test case '%s' to nodes: %s", tr.name, ",".join(slurm_job.nodes))
 
         for tr in self.completed_test_runs(job):
+            cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+            if self.mode == "run" and slurm_job.metadata is not None and slurm_job.metadata.state == "COMPLETED":
+                cmd_gen.finalize_job()
             try:
-                self.get_cmd_gen_strategy(self.system, tr).cleanup_job_artifacts()
+                cmd_gen.cleanup_job_artifacts()
             except Exception:
                 logging.warning(f"Cleanup failed for test run at {tr.output_path}", exc_info=True)
 
