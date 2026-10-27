@@ -177,23 +177,19 @@ class BaseAgent(ABC):
 
             if constraint_rejected:
                 logging.info("Proposal %s was rejected by the constraint check", trial_index)
-                if consecutive_rejections >= self.config.max_consecutive_rejected_proposals:
-                    logging.warning(
-                        "Skipping DSE step %s/%s after %s consecutive constraint-rejected proposals",
-                        completed_steps + 1,
-                        self.max_steps,
-                        self.config.max_consecutive_rejected_proposals,
-                    )
-                    completed_steps += 1
-                    consecutive_rejections = 0
-                continue
+                if consecutive_rejections < self.config.max_consecutive_rejected_proposals:
+                    continue
+                logging.info(
+                    "Skipping DSE step %s/%s after repeated constraint rejections", completed_steps + 1, self.max_steps
+                )
+            else:
+                logging.info(
+                    "Step %s: Observation: %s, Reward: %.4f",
+                    completed_steps + 1,
+                    [round(obs, 4) for obs in observation],
+                    reward,
+                )
 
-            logging.info(
-                "Execution step %s: Observation: %s, Reward: %.4f",
-                completed_steps + 1,
-                [round(obs, 4) for obs in observation],
-                reward,
-            )
             completed_steps += 1
             consecutive_rejections = 0
         return 0
