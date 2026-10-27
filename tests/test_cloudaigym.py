@@ -569,7 +569,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     """Integration: two env.step() calls with the same action but different sampled env_params re-run.
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
-    full step() flow: increment_step -> sample env_params -> apply_params_set ->
+    full step() flow: sample env_params -> apply_params_set -> increment candidate ->
     cache lookup -> runner.run() -> trajectory append. With seed 42 the sampler
     draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
     cache key differs and the workload must re-run both times.
