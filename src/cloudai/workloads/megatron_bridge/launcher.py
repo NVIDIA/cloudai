@@ -39,8 +39,7 @@ def main(launcher: str, output: str) -> None:
         wandb = importlib.import_module("wandb")
 
         context = json.loads(context_path.read_text())
-        args = [a for a in context["args"] if a not in {"-d", "--dryrun"}]
-        sys.argv = [launcher, *args, "--detach", "false", "--max_retries", "0"]
+        sys.argv = [launcher, *context["args"]]
         if context["wandb_run_id"]:
             wandb.util.generate_id = lambda: os.environ.get("WANDB_RUN_ID", context["wandb_run_id"])
         submitted = False
@@ -60,6 +59,8 @@ def main(launcher: str, output: str) -> None:
             status=lambda **kwargs: {"completed": {"local_dir": job_dir, "status": "SUCCEEDED"}}
         )
     else:
+        args = sys.argv[1:]
+        sys.argv.append("-d")
         original_dryrun = run.Experiment.dryrun
         original_run = run.run
 
@@ -67,17 +68,17 @@ def main(launcher: str, output: str) -> None:
             del delete_exp_dir
             return original_dryrun(self, log=log, exist_ok=exist_ok, delete_exp_dir=False)
 
-        def generate(*args, **kwargs):
+        def generate(*run_args, **kwargs):
             context_path.write_text(
                 json.dumps(
                     {
-                        "args": sys.argv[1:],
+                        "args": args,
                         "name": kwargs["name"],
                         "wandb_run_id": kwargs["executor"].env_vars.get("WANDB_RUN_ID"),
                     }
                 )
             )
-            return original_run(*args, **kwargs)
+            return original_run(*run_args, **kwargs)
 
         run.Experiment.dryrun = keep_artifacts
         run.run = generate

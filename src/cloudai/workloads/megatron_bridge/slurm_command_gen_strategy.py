@@ -116,10 +116,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         env_vars_path = self._write_env_vars_script()
         body: list[str] = [f"source {shlex.quote(str(env_vars_path))}"]
-        if cast(MegatronBridgeTestDefinition, self.test_run.test).cmd_args.evaluate:
-            marker = shlex.quote(str(self.test_run.output_path / "cloudai_megatron_bridge_training.success"))
-            on_exit = f'status=$?; if [ "$status" -eq 0 ]; then touch {marker}; fi'
-            body.append(f"trap {shlex.quote(on_exit)} EXIT")
+        marker = shlex.quote(str(self.test_run.output_path / "cloudai_megatron_bridge_training.success"))
+        on_exit = f'status=$?; if [ "$status" -eq 0 ]; then touch {marker}; fi'
+        body.append(f"trap {shlex.quote(on_exit)} EXIT")
         for line in self._mbridge_sbatch[1].splitlines():
             # Rendezvous accepts a hostname; avoid capturing srun output redirected by SingleSbatchRunner.
             line = line.replace(
@@ -154,8 +153,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         patcher_path = self._write_dryrun_patcher(launcher_py)
         parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, patcher_path)
-        if "-d" not in parts:
-            parts.append("-d")
         launcher_cmd = " ".join(parts)
         (self.test_run.output_path / "cloudai_megatron_bridge_launcher.sh").write_text(launcher_cmd + "\n")
         log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
@@ -183,8 +180,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _evaluate(self) -> None:
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
-        if not tdef.cmd_args.evaluate:
-            return
         root = self.test_run.output_path
         status = root / "cloudai_megatron_bridge_evaluation.exitcode"
         if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
