@@ -101,8 +101,8 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
     assert agent.selected_observations == [[0.0], [-1.0], [2.0]]
     assert [feedback["trial_index"] for feedback in agent.updates] == [1, 2, 3]
     assert [feedback["value"] for feedback in agent.updates] == [-1.0, 2.0, 3.0]
-    assert agent.updates[0]["constraint_rejected"] is True
-    assert agent.updates[0]["dse_step_skipped"] is False
+    assert "constraint_rejected" not in agent.updates[0]
+    assert "dse_step_skipped" not in agent.updates[0]
     assert all("execution_step" not in feedback for feedback in agent.updates)
 
 
@@ -114,8 +114,7 @@ def test_run_skips_steps_after_rejected_proposal_limit(caplog: pytest.LogCapture
 
     assert agent.proposals == 6
     assert len(agent.updates) == 6
-    assert all(feedback["constraint_rejected"] is True for feedback in agent.updates)
-    assert [feedback["dse_step_skipped"] for feedback in agent.updates] == [False, False, True, False, False, True]
+    assert all(feedback["value"] == -1.0 for feedback in agent.updates)
     assert "Skipping DSE step 1/2 after 3 consecutive constraint-rejected proposals" in caplog.text
     assert "Skipping DSE step 2/2 after 3 consecutive constraint-rejected proposals" in caplog.text
 

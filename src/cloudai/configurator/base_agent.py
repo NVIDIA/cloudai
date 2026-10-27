@@ -160,33 +160,9 @@ class BaseAgent(ABC):
             logging.info("Proposal %s for step %s/%s: %s", trial_index, completed_steps + 1, self.max_steps, action)
             prev_observation = observation
             observation, reward, done, info = self.env.step(action)
-
-            if info.get("constraint_rejected", False):
+            constraint_rejected = info.get("constraint_rejected", False)
+            if constraint_rejected:
                 consecutive_rejections += 1
-                step_skipped = consecutive_rejections >= self.config.max_consecutive_rejected_proposals
-                self.update_policy(
-                    {
-                        "trial_index": trial_index,
-                        "value": reward,
-                        "observation": observation,
-                        "prev_observation": prev_observation,
-                        "action": action,
-                        "done": done,
-                        "constraint_rejected": True,
-                        "dse_step_skipped": step_skipped,
-                    }
-                )
-                logging.info("Proposal %s was rejected by the constraint check", trial_index)
-                if step_skipped:
-                    logging.warning(
-                        "Skipping DSE step %s/%s after %s consecutive constraint-rejected proposals",
-                        completed_steps + 1,
-                        self.max_steps,
-                        self.config.max_consecutive_rejected_proposals,
-                    )
-                    completed_steps += 1
-                    consecutive_rejections = 0
-                continue
 
             self.update_policy(
                 {
@@ -198,6 +174,20 @@ class BaseAgent(ABC):
                     "done": done,
                 }
             )
+
+            if constraint_rejected:
+                logging.info("Proposal %s was rejected by the constraint check", trial_index)
+                if consecutive_rejections >= self.config.max_consecutive_rejected_proposals:
+                    logging.warning(
+                        "Skipping DSE step %s/%s after %s consecutive constraint-rejected proposals",
+                        completed_steps + 1,
+                        self.max_steps,
+                        self.config.max_consecutive_rejected_proposals,
+                    )
+                    completed_steps += 1
+                    consecutive_rejections = 0
+                continue
+
             logging.info(
                 "Execution step %s: Observation: %s, Reward: %.4f",
                 completed_steps + 1,
