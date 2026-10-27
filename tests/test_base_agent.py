@@ -109,14 +109,14 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
 def test_run_skips_steps_after_rejected_proposal_limit(caplog: pytest.LogCaptureFixture) -> None:
     agent = _RecordingAgent(_RejectingEnv(), BaseAgentConfig(max_consecutive_rejected_proposals=3))
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("INFO"):
         assert agent.run() == 0
 
     assert agent.proposals == 6
     assert len(agent.updates) == 6
     assert all(feedback["value"] == -1.0 for feedback in agent.updates)
-    assert "Skipping DSE step 1/2 after 3 consecutive constraint-rejected proposals" in caplog.text
-    assert "Skipping DSE step 2/2 after 3 consecutive constraint-rejected proposals" in caplog.text
+    assert "Skipping DSE step 1/2 after repeated constraint rejections" in caplog.text
+    assert "Skipping DSE step 2/2 after repeated constraint rejections" in caplog.text
 
 
 def test_successful_execution_resets_rejected_proposal_limit() -> None:
