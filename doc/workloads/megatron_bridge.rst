@@ -46,33 +46,34 @@ The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
 Golden-Reference Evaluation
 ---------------------------
 
-Enable post-training evaluation in the test TOML and supply your reference file:
+Use MBridge's native options to enable post-training evaluation:
 
 .. code-block:: toml
 
-   [cmd_args]
-   evaluate = true
-
    [extra_cmd_args]
+   "--detach" = "false"
    "--golden_values_path" = "/shared/references/model.json"
 
-Evaluation installs wandb and NumPy into the existing NeMo Run launcher
-environment using pip, with the configured ``wandb_version`` and ``numpy_version``.
-After successful training, the installed MBridge version evaluates the existing
-logs on the submit host. A failed evaluation marks the CloudAI test failed;
-details are in ``cloudai_megatron_bridge_evaluation.log``.
+After successful training, CloudAI replays the MBridge launcher once on the
+submit host against the completed job, without submitting it again. The replay
+installs wandb and NumPy into the existing NeMo Run launcher environment using
+pip, with the configured ``wandb_version`` and ``numpy_version``. A failed replay
+marks the CloudAI test failed; details are in ``cloudai_megatron_bridge_evaluation.log``.
 
-Evaluation reuses the training CLI arguments, disabling dry-run and setting
-``--detach false --max_retries 0``. MBridge controls reference validation and
-wandb behavior; CloudAI does not supply credentials, project names or offline defaults.
+Replay uses the original CLI arguments, omitting only the dry-run flag CloudAI
+adds during script generation. Explicit user dry-run, detach and retry settings
+are preserved. MBridge defaults to detached mode, which skips evaluation.
+MBridge controls reference validation and wandb behavior; CloudAI does not supply
+credentials, project names or offline defaults.
 Configured ``WANDB_*`` environment variables also apply on the submit host.
 When available, the training run's wandb ID is reused.
 MBridge 0.5/0.6 skip evaluation without ``wandb_key``. For offline evaluation with
 those versions, explicitly set a placeholder ``wandb_key``, a ``wandb_project_name``
 and ``extra_env_vars.WANDB_MODE = "offline"`` in the test TOML.
 The reference file must be accessible on the submit host. Evaluation covers one
-completed allocation; it does not restart training or orchestrate long-convergence
-checkpoint/resume slices. Report generation does not repeat evaluation or uploads.
+completed allocation; requests to submit another training job fail because retries
+and long-convergence checkpoint/resume slices are not supported. Report generation
+does not repeat evaluation or uploads.
 
 Usage Examples
 --------------

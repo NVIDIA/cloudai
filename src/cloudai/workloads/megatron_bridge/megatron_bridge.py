@@ -65,7 +65,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     wandb_entity_name: Optional[str] = Field(default=None)
     wandb_experiment_name: Optional[str] = Field(default=None)
     wandb_save_dir: Optional[str] = Field(default=None)
-    evaluate: bool = Field(default=False, description="Run MBridge's golden-reference evaluation after training.")
     wandb_version: str = Field(default="0.28.1", description="W&B version installed in the launcher environment.")
     numpy_version: str = Field(default="1.26.4", description="NumPy version installed in the launcher environment.")
     nemorun_version: str = Field(
@@ -609,7 +608,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         """Check training metrics in the job log, falling back to legacy launcher logs."""
-        if self.cmd_args.evaluate:
+        if (tr.output_path / "cloudai_megatron_bridge_context.json").is_file():
             status = tr.output_path / "cloudai_megatron_bridge_evaluation.exitcode"
             if not status.is_file() or status.read_text().strip() != "0":
                 return JobStatusResult(
