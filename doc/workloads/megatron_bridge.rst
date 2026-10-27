@@ -62,9 +62,14 @@ After successful training, the installed MBridge version evaluates the existing
 logs on the submit host. A failed evaluation marks the CloudAI test failed;
 details are in ``cloudai_megatron_bridge_evaluation.log``.
 
-With ``wandb_key``, ``wandb_project_name``, and ``wandb_experiment_name`` configured,
-evaluation resumes the training run's wandb ID. Without a key, evaluation uses
-offline wandb and keeps its files in the test output directory without uploading.
+Evaluation reuses the training CLI arguments, disabling dry-run and setting
+``--detach false --max_retries 0``. MBridge controls reference validation and
+wandb behavior; CloudAI does not supply credentials, project names or offline defaults.
+Configured ``WANDB_*`` environment variables also apply on the submit host.
+When available, the training run's wandb ID is reused.
+MBridge 0.5/0.6 skip evaluation without ``wandb_key``. For offline evaluation with
+those versions, explicitly set a placeholder ``wandb_key``, a ``wandb_project_name``
+and ``extra_env_vars.WANDB_MODE = "offline"`` in the test TOML.
 The reference file must be accessible on the submit host. Evaluation covers one
 completed allocation; it does not restart training or orchestrate long-convergence
 checkpoint/resume slices. Report generation does not repeat evaluation or uploads.

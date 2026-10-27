@@ -21,7 +21,6 @@ import json
 import os
 import runpy
 import sys
-import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -40,30 +39,10 @@ def main(launcher: str, output: str) -> None:
         wandb = importlib.import_module("wandb")
 
         context = json.loads(context_path.read_text())
-        # Evaluate one completed allocation, never repeat training or its retry loop.
-        args = [a for a in context["args"] if a not in {"-d", "--dryrun", "--is_long_convergence_run"}]
+        args = [a for a in context["args"] if a not in {"-d", "--dryrun"}]
         sys.argv = [launcher, *args, "--detach", "false", "--max_retries", "0"]
-        parsed, _ = importlib.import_module("argument_parser").parse_cli_args().parse_known_args()
-        if not parsed.golden_values_path:
-            raise ValueError("MBridge evaluation requires --golden_values_path.")
-        if not parsed.wandb_key:
-            # Since 0.5, the upstream launcher gates evaluation on a wandb key.
-            # Without credentials, collect artifacts locally and never contact wandb.
-            os.environ["WANDB_MODE"] = "offline"
-            sys.argv.extend(
-                [
-                    "--wandb_key",
-                    "cloudai-offline",
-                    "--wandb_project_name",
-                    parsed.wandb_project_name or "cloudai-evaluation",
-                    "--wandb_experiment_name",
-                    context["name"],
-                ]
-            )
-        else:
-            os.environ["WANDB_API_KEY"] = parsed.wandb_key
-        os.environ["WANDB_DIR"] = str(root)
-        wandb.util.generate_id = lambda: os.environ.get("WANDB_RUN_ID", context["wandb_run_id"])
+        if context["wandb_run_id"]:
+            wandb.util.generate_id = lambda: os.environ.get("WANDB_RUN_ID", context["wandb_run_id"])
         submitted = False
 
         def completed_run(*args, **kwargs):
@@ -71,6 +50,9 @@ def main(launcher: str, output: str) -> None:
             if submitted:
                 raise RuntimeError("Evaluation attempted to submit another training job.")
             submitted = True
+            for key, value in kwargs["executor"].env_vars.items():
+                if key.startswith("WANDB_"):
+                    os.environ.setdefault(key, value)
 
         run.run = completed_run
         job_dir = str(next(root.glob("experiments/**/*_sbatch.sh")).parent / context["name"])
@@ -86,14 +68,12 @@ def main(launcher: str, output: str) -> None:
             return original_dryrun(self, log=log, exist_ok=exist_ok, delete_exp_dir=False)
 
         def generate(*args, **kwargs):
-            env = kwargs["executor"].env_vars
-            run_id = env.setdefault("WANDB_RUN_ID", uuid.uuid4().hex[:8])
             context_path.write_text(
                 json.dumps(
                     {
                         "args": sys.argv[1:],
                         "name": kwargs["name"],
-                        "wandb_run_id": run_id,
+                        "wandb_run_id": kwargs["executor"].env_vars.get("WANDB_RUN_ID"),
                     }
                 )
             )

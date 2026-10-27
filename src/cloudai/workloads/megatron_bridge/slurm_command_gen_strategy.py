@@ -116,6 +116,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         env_vars_path = self._write_env_vars_script()
         body: list[str] = [f"source {shlex.quote(str(env_vars_path))}"]
+        if cast(MegatronBridgeTestDefinition, self.test_run.test).cmd_args.evaluate:
+            marker = shlex.quote(str(self.test_run.output_path / "cloudai_megatron_bridge_training.success"))
+            on_exit = f'status=$?; if [ "$status" -eq 0 ]; then touch {marker}; fi'
+            body.append(f"trap {shlex.quote(on_exit)} EXIT")
         for line in self._mbridge_sbatch[1].splitlines():
             # Rendezvous accepts a hostname; avoid capturing srun output redirected by SingleSbatchRunner.
             line = line.replace(
@@ -177,17 +181,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         return patcher_path
 
-    def finalize_job(self) -> None:
+    def _evaluate(self) -> None:
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
         if not tdef.cmd_args.evaluate:
             return
         root = self.test_run.output_path
         status = root / "cloudai_megatron_bridge_evaluation.exitcode"
-        if status.exists():
+        if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
             return
         env = os.environ.copy()
-        env.pop("WANDB_RUN_ID", None)
         env.update({key: str(value) for key, value in self.final_env_vars.items() if key.startswith("WANDB_")})
+        env["NEMORUN_HOME"] = str(root.absolute())
         python = str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python")
         with (root / "cloudai_megatron_bridge_evaluation.log").open("w") as log:
             # Record failure first so interrupted evaluations cannot appear successful.
@@ -236,6 +240,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).write_text(serialized)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
+        self._evaluate()
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
         output_path = self.test_run.output_path
         if not output_path.exists():
