@@ -185,7 +185,7 @@ class CloudAIGymEnv(BaseGym):
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
                 logging.info("Constraint check failed. Requesting another proposal without consuming a step.")
                 info["constraint_rejected"] = True
-                return [-1.0], self.rewards.constraint_failure, False, info
+                return [-1.0], self.rewards.constraint_failure, True, info
 
             self.test_run = candidate_test_run
 

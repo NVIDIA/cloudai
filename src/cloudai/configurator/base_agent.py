@@ -46,9 +46,9 @@ class BaseAgentConfig(BaseModel):
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
     max_consecutive_rejected_proposals: int = Field(
-        default=100,
+        default=16,
         ge=1,
-        description="Maximum consecutive constraint rejections before the agent stops the DSE as infeasible.",
+        description="Maximum constraint-rejected proposals before the agent skips the current DSE step.",
     )
     rewards: RewardOverrides = Field(
         default_factory=RewardOverrides,
@@ -124,15 +124,6 @@ class BaseAgent(ABC):
         """
         pass
 
-    def discard_action(self, _feedback: Dict[str, Any]) -> None:
-        """
-        Finalize a constraint-rejected proposal without updating the objective policy.
-
-        Stateless agents need no action here. Stateful agents should override this
-        method to close any pending optimizer trial as rejected.
-        """
-        return None
-
     def run(self) -> int:
         """
         Orchestrate this agent's exploration over ``self.env``.
@@ -159,41 +150,42 @@ class BaseAgent(ABC):
             int: Process-style return code (``0`` success, non-zero recoverable failure).
         """
         observation, _ = self.env.reset()
-        executed_steps = 0
+        completed_steps = 0
         consecutive_rejections = 0
-        while executed_steps < self.max_steps:
+        while completed_steps < self.max_steps:
             result = self.select_action(observation=observation)
             if result is None:
                 break
             trial_index, action = result
-            logging.info("Proposal %s for step %s/%s: %s", trial_index, executed_steps + 1, self.max_steps, action)
+            logging.info("Proposal %s for step %s/%s: %s", trial_index, completed_steps + 1, self.max_steps, action)
             prev_observation = observation
             observation, reward, done, info = self.env.step(action)
 
             if info.get("constraint_rejected", False):
-                self.discard_action(
+                consecutive_rejections += 1
+                step_skipped = consecutive_rejections >= self.config.max_consecutive_rejected_proposals
+                self.update_policy(
                     {
                         "trial_index": trial_index,
-                        "value": None,
-                        "observation": None,
+                        "value": reward,
+                        "observation": observation,
                         "prev_observation": prev_observation,
                         "action": action,
                         "done": done,
-                        "reason": info.get("constraint_failure_reason"),
+                        "constraint_rejected": True,
+                        "dse_step_skipped": step_skipped,
                     }
                 )
                 logging.info("Proposal %s was rejected by the constraint check", trial_index)
-                consecutive_rejections += 1
-                if consecutive_rejections >= self.config.max_consecutive_rejected_proposals:
-                    logging.error(
-                        "No feasible proposal found within %s consecutive constraint rejections; "
-                        "completed %s/%s execution steps",
-                        self.config.max_consecutive_rejected_proposals,
-                        executed_steps,
+                if step_skipped:
+                    logging.warning(
+                        "Skipping DSE step %s/%s after %s consecutive constraint-rejected proposals",
+                        completed_steps + 1,
                         self.max_steps,
+                        self.config.max_consecutive_rejected_proposals,
                     )
-                    return 1
-                observation = prev_observation
+                    completed_steps += 1
+                    consecutive_rejections = 0
                 continue
 
             self.update_policy(
@@ -208,10 +200,10 @@ class BaseAgent(ABC):
             )
             logging.info(
                 "Execution step %s: Observation: %s, Reward: %.4f",
-                executed_steps + 1,
+                completed_steps + 1,
                 [round(obs, 4) for obs in observation],
                 reward,
             )
-            executed_steps += 1
+            completed_steps += 1
             consecutive_rejections = 0
         return 0
