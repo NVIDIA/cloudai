@@ -180,6 +180,16 @@ def test_gen_script_args_omits_launch_fields_for_disabled_prefill_worker(
     assert '--decode-args-disaggregation-mode "agg"' in args
 
 
+def test_sglang_aggregate_mode_uses_backend_default(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.dynamo.backend = "sglang"
+    td.cmd_args.dynamo.prefill_worker = WorkerConfig(num_nodes=0)
+
+    args = strategy._gen_script_args(td)
+
+    assert not any(arg.startswith("--decode-args-disaggregation-mode ") for arg in args)
+
+
 def test_explicit_sglang_aggregate_mode_is_preserved(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.dynamo.backend = "sglang"
