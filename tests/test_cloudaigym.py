@@ -233,7 +233,7 @@ def test_constraint_failure(
 
     assert obs == [-1.0]
     assert reward == expected_reward
-    assert done is False
+    assert done is True
     assert info["constraint_rejected"] is True
     assert checked_steps == [1]
     assert env.test_run.step == 0
