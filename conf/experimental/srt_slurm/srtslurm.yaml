@@ -1,3 +1,5 @@
+# Benchmark scheduling defaults belong here and in the recipe.
+# CloudAI system/scenario allocation settings are not forwarded to srt-slurm.
 # Adapt these paths and Slurm defaults to your shared filesystem.
 default_partition: gpu
 gpus_per_node: 8

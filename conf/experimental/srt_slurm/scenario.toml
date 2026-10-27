@@ -18,6 +18,7 @@ name = "srt_slurm"
 
 [[Tests]]
 id = "srt.sglang"
+# Benchmark node allocation is defined by recipe.yaml, not this value.
 num_nodes = 1
 
 name = "srt_sglang"
@@ -32,6 +33,7 @@ agent_metrics = ["tput_per_gpu"]
 
   [Tests.cmd_args]
   recipe_path = "conf/experimental/srt_slurm/recipe.yaml"
+  # Owns benchmark scheduling defaults; CloudAI allocation settings are not merged.
   cluster_config = "conf/experimental/srt_slurm/srtslurm.yaml"
   result_format = "sa-bench"
 

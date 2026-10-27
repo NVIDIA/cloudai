@@ -2,7 +2,9 @@ SRT-Slurm
 =========
 
 The ``SRTSlurm`` workload submits an existing recipe with ``srtctl apply`` and
-monitors the resulting Slurm job directly. The pinned srtctl version validates
+monitors the resulting Slurm job directly. CloudAI is a pass-through layer for
+benchmark submission: srt-slurm owns scheduling and resource orchestration.
+The pinned srtctl version validates
 the recipe, including recipes without a ``schema`` field. Each CloudAI trial
 passes selected ``recipe_overrides`` as typed ``--set KEY=VALUE`` arguments;
 the original YAML remains unchanged.
@@ -52,8 +54,13 @@ paths, and result format are excluded from DSE. Additional apply flags use
 ``cluster_config`` is required and takes precedence over ``SRTSLURM_CONFIG``
 in the submitting environment. Supply a complete config with the recipe's
 aliases, mounts, and cluster settings. CloudAI exports merged system and test
-environment variables, removes login-node virtual environments from ``PATH``,
-unsets ``VIRTUAL_ENV``, and submits from the installed srt-slurm checkout.
+environment variables, removes virtual-environment directories from ``PATH``,
+unsets ``VIRTUAL_ENV``, and submits from the installed srt-slurm checkout. These
+steps prevent compute-node ``uv`` from selecting login-node Python through its
+PATH search, active-environment lookup, or current-directory ``.venv`` lookup.
+Tools supplied through virtual-environment PATH entries are removed as part of
+this compatibility cleanup; supply required compute-node tools outside a Python
+virtual environment.
 
 Installation runs ``make setup`` in a single-node, 15-minute ``srun`` using the
 CloudAI system's partition, account, and extra srun arguments. This downloads
@@ -61,9 +68,43 @@ runtime tools for the compute-node architecture. A checkout-local bootstrap
 config prevents interactive setup prompts; existing checkout configs are
 preserved. Trial submission always uses the explicit ``cluster_config``.
 
-The recipe and cluster config own job resources and orchestration. Configure
-nodes, time limits, container mounts, profiling, and setup/cleanup commands
-there. CloudAI's scenario allocation directives do not rewrite the recipe.
+Scheduling ownership
+~~~~~~~~~~~~~~~~~~~~
+
+Configure benchmark scheduling in the supplied ``cluster_config``
+(``srtslurm.yaml``) and recipe. CloudAI does not translate or merge its system
+or scenario allocation settings into these files or into ``srtctl`` scheduling
+arguments. Recipe overrides explicitly selected through ``recipe_overrides``
+are still passed to srt-slurm as described above.
+
+* ``srtslurm.yaml`` supplies cluster defaults such as account, partition, time
+  limit, GPU capacity, and supported SBATCH directives.
+* The recipe specifies serving roles, nodes, workers, GPU requirements,
+  container mounts, profiling, and setup/cleanup commands, together with any
+  recipe-specific scheduling overrides. srt-slurm resolves these inputs.
+* CloudAI's ``system.toml`` selects the Slurm runner and supplies installation,
+  cache, and output locations, shared environment variables, and monitoring
+  settings. Its partition, account, and extra srun arguments are used for the
+  installation setup allocation described above, not forwarded to benchmark
+  submission.
+
+For example, changing ``default_partition`` or ``account`` in CloudAI's system
+config does not change the benchmark's partition or account. Likewise,
+``extra_sbatch_args``, ``ntasks_per_node``, and scenario allocation settings
+such as ``num_nodes``, ``nodes``, ``exclude_nodes``, and ``time_limit`` are not
+translated into the benchmark allocation. Set the corresponding values in
+srt-slurm's inputs. GPU capacity for benchmark scheduling comes from those
+inputs, not CloudAI's ``gpus_per_node``.
+
+Keep ``scheduler = "slurm"`` in the CloudAI system config: the Slurm runner
+tracks the job ID returned by srt-slurm, monitors completion, handles
+cancellation, and collects accounting information. Using this runner does not
+make CloudAI the owner of the benchmark allocation.
+
+When changing clusters, select both the target CloudAI system config and its
+matching ``cluster_config`` in the scenario, and check the recipe for explicit
+cluster-specific paths or scheduling overrides.
+
 Use normal per-trial Slurm CLI execution; single-sbatch, Slurm REST submission,
 and CloudAI pre/post-test hooks are unsupported for this workload.
 
