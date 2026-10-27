@@ -96,10 +96,10 @@ class CloudAIGymEnv(BaseGym):
         """
         Index of the next trial ``step`` will run.
 
-        ``step`` increments ``test_run.step`` before it samples/runs, so at rest the counter
-        holds the last-run trial and the next one is ``+ 1``. ``reset`` peeks this to report the
-        regime the first ``step`` will apply; ``step`` advances into it. The ``+ 1`` offset is
-        defined only here so the two paths cannot disagree.
+        At rest, ``test_run.step`` holds the last executed trial. ``step`` uses the next value
+        when sampling environment parameters, then advances only the candidate run so a rejected
+        proposal does not consume a trial number. ``reset`` peeks at the same next value to report
+        the regime the first ``step`` will apply.
         """
         return self.test_run.step + 1
 
