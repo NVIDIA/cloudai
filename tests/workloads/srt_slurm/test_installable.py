@@ -89,10 +89,22 @@ def test_installer_returns_setup_failure(runtime_installation):
     with patch(
         "cloudai.workloads.srt_slurm.installable.subprocess.run",
         return_value=subprocess.CompletedProcess(["make"], 2, "setup output", "download failed"),
-    ):
+    ) as run:
         result = executable.install(installer)
     assert not result.success
     assert "download failed" in result.message
+    assert run.call_args.kwargs["timeout"] == executable._SETUP_TIMEOUT_SECONDS
+
+
+def test_installer_returns_setup_timeout(runtime_installation):
+    executable, installer, _ = runtime_installation
+    with patch(
+        "cloudai.workloads.srt_slurm.installable.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(["srun", "make", "setup"], executable._SETUP_TIMEOUT_SECONDS),
+    ):
+        result = executable.install(installer)
+    assert not result.success
+    assert f"timed out after {executable._SETUP_TIMEOUT_SECONDS} seconds" in result.message
 
 
 def test_installable_identity_uses_revision():

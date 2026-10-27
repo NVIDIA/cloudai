@@ -29,6 +29,8 @@ from cloudai.systems.slurm import SlurmSystem
 class SRTSlurmExecutable(PythonExecutable):
     """Install srtctl and the binaries required on the compute nodes."""
 
+    _SETUP_TIMEOUT_SECONDS = 30 * 60
+
     def _runtime_status(self, installer: BaseInstaller) -> InstallStatusResult:
         repo_path = self.git_repo.installed_path or installer.system.install_path / self.git_repo.repo_name
         binaries = ["configs/nats-server", "configs/etcd", "bin/uv"]
@@ -99,6 +101,12 @@ class SRTSlurmExecutable(PythonExecutable):
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
+                timeout=self._SETUP_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return InstallStatusResult(
+                False,
+                f"srt-slurm setup timed out after {self._SETUP_TIMEOUT_SECONDS} seconds",
             )
         except OSError as error:
             return InstallStatusResult(False, f"srt-slurm setup failed: {error}")

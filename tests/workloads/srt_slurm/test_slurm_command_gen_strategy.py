@@ -93,7 +93,8 @@ def test_failed_submission_does_not_publish_a_job_id(slurm_system: SlurmSystem, 
     tdef.srtctl_path.chmod(0o755)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
     strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
-    completed = subprocess.run(strategy.gen_exec_command(), shell=True, capture_output=True, text=True)
+    strategy.gen_exec_command()
+    completed = subprocess.run(["bash", strategy._paths()["run_script"]], capture_output=True, text=True)
     assert completed.returncode != 0
     assert "Submitted batch job" not in completed.stdout
     assert not tdef.job_id_path(tr).exists()
