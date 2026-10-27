@@ -43,38 +43,6 @@ The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
    - set ``cmd_args.hf_token`` either in Test or Scenario config
 
 
-Golden-Reference Evaluation
----------------------------
-
-Use MBridge's native options to enable post-training evaluation:
-
-.. code-block:: toml
-
-   [extra_cmd_args]
-   "--detach" = "false"
-   "--golden_values_path" = "/shared/references/model.json"
-
-After successful training, CloudAI replays the MBridge launcher once on the
-submit host against the completed job, without submitting it again. The replay
-installs wandb and NumPy into the existing NeMo Run launcher environment using
-pip, with the configured ``wandb_version`` and ``numpy_version``. A failed replay
-marks the CloudAI test failed; details are in ``cloudai_megatron_bridge_evaluation.log``.
-
-Replay uses the original CLI arguments, omitting only the dry-run flag CloudAI
-adds during script generation. Explicit user dry-run, detach and retry settings
-are preserved. MBridge defaults to detached mode, which skips evaluation.
-MBridge controls reference validation and wandb behavior; CloudAI does not supply
-credentials, project names or offline defaults.
-Configured ``WANDB_*`` environment variables also apply on the submit host.
-When available, the training run's wandb ID is reused.
-MBridge 0.5/0.6 skip evaluation without ``wandb_key``. For offline evaluation with
-those versions, explicitly set a placeholder ``wandb_key``, a ``wandb_project_name``
-and ``extra_env_vars.WANDB_MODE = "offline"`` in the test TOML.
-The reference file must be accessible on the submit host. Evaluation covers one
-completed allocation; requests to submit another training job fail because retries
-and long-convergence checkpoint/resume slices are not supported. Report generation
-does not repeat evaluation or uploads.
-
 Usage Examples
 --------------
 
