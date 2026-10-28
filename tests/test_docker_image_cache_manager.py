@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -64,7 +65,7 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
     if cleanup_error:
         monkeypatch.setattr(Path, "unlink", Mock(side_effect=PermissionError("cleanup failed")))
 
-    def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
+    def submit(script_path: Path, operation_name: str, *, wait: bool, time_limit: str | None = None) -> int:
         content = script_path.read_text(encoding="utf-8")
         image_hash = sha256(b"docker.io/hello-world").hexdigest()[:8]
         assert image_hash in script_path.name
@@ -114,7 +115,7 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
     assert "Failed to import Docker image" in result.message
 
 
-@pytest.mark.parametrize("time_limit", [None, "", "00:20:00"])
+@pytest.mark.parametrize("time_limit", [None, "", "00:20:00", "0"])
 @pytest.mark.parametrize(
     "extra_args",
     [
@@ -125,6 +126,9 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
         ["-t02:00:00"],
         ["--time=02:00:00", "-t 03:00:00"],
         ['--qos=normal --time "02:00:00" --comment="image import"'],
+        ['--comment "-training-run"'],
+        ['--comment "--time=02:00:00"'],
+        ['--comment "-t" --qos=normal'],
     ],
 )
 def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, extra_args: list[str]):
@@ -133,28 +137,26 @@ def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, ex
     original_args = slurm_system.extra_sbatch_args.copy()
     slurm_system.supports_gpu_directives_cache = False
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+    image_path = slurm_system.install_path / "image.sqsh"
 
-    script_path, _ = DockerImageCacheManager(slurm_system)._write_import_script(
-        "docker.io/hello-world", slurm_system.install_path / "image.sqsh"
-    )
-
-    content = script_path.read_text()
-    assert "#SBATCH --time-min=00:01:00" in content
-    assert slurm_system.extra_sbatch_args == original_args
-    if not time_limit:
+    def submit(command: str, operation_name: str, *, check_return_code: bool) -> int:
+        args = shlex.split(command)
+        expected_options = ["sbatch", "--wait"]
+        if time_limit:
+            expected_options.append(f"--time={time_limit}")
+        assert args[:-1] == expected_options
+        content = Path(args[-1]).read_text()
         for arg in original_args:
             assert f"#SBATCH {arg}\n" in content
-        assert "#SBATCH --time=00:20:00" not in content
-        if not extra_args:
-            assert "#SBATCH --time=" not in content
-    else:
-        assert content.count("--time=") == 1
-        assert "#SBATCH --time=00:20:00\n" in content
-        assert "02:00:00" not in content
-        assert "03:00:00" not in content
-        if any("--qos" in arg for arg in extra_args):
-            assert "--qos=normal" in content
-            assert "image import" in content
+        image_path.touch()
+        return 123
+
+    with patch.object(SlurmSystem, "submit_job", side_effect=submit) as submit_job:
+        result = DockerImageCacheManager(slurm_system).cache_docker_image("docker.io/hello-world", "image.sqsh")
+
+    assert result.success
+    submit_job.assert_called_once()
+    assert slurm_system.extra_sbatch_args == original_args
 
 
 def test_cache_docker_image_reports_failed_job_with_partial_image(slurm_system: SlurmSystem):
@@ -190,7 +192,7 @@ def test_cache_docker_image_reports_missing_image(slurm_system: SlurmSystem, std
     slurm_system.supports_gpu_directives_cache = False
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
-    def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
+    def submit(script_path: Path, operation_name: str, *, wait: bool, time_limit: str | None = None) -> int:
         script_path.with_suffix(".out").touch()
         script_path.with_suffix(".err").write_text(stderr, encoding="utf-8")
         return 123

@@ -118,13 +118,7 @@ class DockerImageCacheManager:
             directives.append(f"#SBATCH --account={self.system.account}")
         if self.system.supports_gpu_directives:
             directives.append("#SBATCH --gres=gpu:1")
-        for arg in self.system.extra_sbatch_args:
-            if self.system.docker_image_import_time_limit:
-                arg = self._without_time_limit(arg)
-            if arg:
-                directives.append(f"#SBATCH {arg}")
-        if self.system.docker_image_import_time_limit:
-            directives.append(f"#SBATCH --time={self.system.docker_image_import_time_limit}")
+        directives.extend(f"#SBATCH {arg}" for arg in self.system.extra_sbatch_args)
 
         srun = ["srun", "--export=ALL", "--ntasks=1"]
         if self.system.extra_srun_args:
@@ -138,19 +132,6 @@ class DockerImageCacheManager:
         )
         script_path.write_text("\n".join([*directives, "", " ".join(srun), ""]), encoding="utf-8")
         return script_path, stderr_path
-
-    @staticmethod
-    def _without_time_limit(arg: str) -> str:
-        """Remove --time/-t while preserving other options on the same directive."""
-        tokens = shlex.split(arg)
-        remaining = []
-        options = iter(tokens)
-        for option in options:
-            if option in ("--time", "-t"):
-                next(options, None)
-            elif not option.startswith(("--time=", "-t")):
-                remaining.append(option)
-        return arg if remaining == tokens else shlex.join(remaining)
 
     def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         docker_image_path = self.system.install_path / docker_image_filename
@@ -170,7 +151,9 @@ class DockerImageCacheManager:
 
         script_path, stderr_path = self._write_import_script(docker_image_url, docker_image_path)
         try:
-            self.system.submit_sbatch(script_path, "Docker image import", wait=True)
+            self.system.submit_sbatch(
+                script_path, "Docker image import", wait=True, time_limit=self.system.docker_image_import_time_limit
+            )
         except (JobFailureError, JobIdRetrievalError) as error:
             message = f"Failed to import Docker image {docker_image_url}: {error}"
             logging.error(message)

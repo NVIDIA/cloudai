@@ -90,7 +90,7 @@ class SlurmRestClient:
         "--exclude": "excluded_nodes",
         "--chdir": "current_working_directory",
     }
-    _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
+    _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:t:"
     _LONG_DIRECTIVES: ClassVar[list[str]] = [
         "job-name=",
         "output=",
@@ -200,6 +200,19 @@ class SlurmRestClient:
             raise ValueError(f"Unexpected SBATCH value(s): {' '.join(values)}.")
         return directives
 
+    @classmethod
+    def _parse_sbatch_script(cls, script: str) -> list[tuple[str, str]]:
+        """Read directives before the first command in an SBATCH script."""
+        directives: list[tuple[str, str]] = []
+        for line in script.splitlines():
+            stripped = line.strip()
+            if not stripped or (stripped.startswith("#") and not stripped.startswith("#SBATCH")):
+                continue
+            if not stripped.startswith("#SBATCH"):
+                break
+            directives.extend(cls._parse_sbatch_line(stripped.removeprefix("#SBATCH").strip()))
+        return directives
+
     @staticmethod
     def _set_directive(job: dict[str, object], field: str, value: object, option: str) -> None:
         """Merge directives mapped to one REST field; e.g. `--gres=gpu:8` and `--gpus-per-node=8` must agree."""
@@ -213,7 +226,7 @@ class SlurmRestClient:
 
     def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:
         """Map one SBATCH directive to a job field; e.g. `--ntasks=2` sets `tasks=2`."""
-        option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
+        option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir", "-t": "--time"}.get(option, option)
 
         if option in self._DIRECTIVE_FIELDS:
             self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
@@ -237,19 +250,18 @@ class SlurmRestClient:
         else:
             raise ValueError(f"SBATCH directive '{option}' is not supported by CloudAI's Slurm REST transport.")
 
-    def _make_job(self, script: str, script_path: pathlib.Path) -> dict[str, object]:
+    def _make_job(self, script: str, script_path: pathlib.Path, *, time_limit: str | None = None) -> dict[str, object]:
         """Build REST job properties from leading `#SBATCH` lines; script body remains unchanged."""
         job: dict[str, object] = {}
         directives: dict[str, str] = {}
-        for line in script.splitlines():
-            stripped = line.strip()
-            if not stripped or (stripped.startswith("#") and not stripped.startswith("#SBATCH")):
+        for option, value in self._parse_sbatch_script(script):
+            if time_limit and option in {"--time", "-t"}:
                 continue
-            if not stripped.startswith("#SBATCH"):
-                break
-            for option, value in self._parse_sbatch_line(stripped.removeprefix("#SBATCH").strip()):
-                self._apply_sbatch_directive(job, option, value)
-                directives[option] = value
+            self._apply_sbatch_directive(job, option, value)
+            directives[option] = value
+
+        if time_limit:
+            self._apply_sbatch_directive(job, "--time", time_limit)
 
         job.setdefault("current_working_directory", str(script_path.parent.absolute()))
         environment = self._job_environment(directives)
@@ -286,12 +298,18 @@ class SlurmRestClient:
         return environment
 
     def submit_sbatch(
-        self, script_path: pathlib.Path, operation_name: str, *, wait: bool = False, monitor_interval: float = 1.0
+        self,
+        script_path: pathlib.Path,
+        operation_name: str,
+        *,
+        wait: bool = False,
+        monitor_interval: float = 1.0,
+        time_limit: str | None = None,
     ) -> int:
         """Submit an SBATCH file and optionally wait for a terminal job state."""
         try:
             script = script_path.read_text(encoding="utf-8")
-            job = self._make_job(script, script_path)
+            job = self._make_job(script, script_path, time_limit=time_limit)
             payload: dict[str, object] = {"job": job}
             if self._config.version == "v0.0.38":
                 payload["script"] = script
