@@ -26,7 +26,6 @@
 ## Contribution
 
 - Do not commit, push, open or modify pull requests, or run remote jobs unless explicitly asked to do so.
-- Create PRs as drafts (`gh pr create --draft`). Leave marking PRs ready for review to humans unless asked to do so.
 - Follow PR requirements in `CONTRIBUTING.md` and use `.github/PULL_REQUEST_TEMPLATE.md`.
 - Keep public configs reusable (no internal resources). Never commit credentials, private artifacts, or internal
   hostnames.
