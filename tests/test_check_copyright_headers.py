@@ -96,63 +96,49 @@ def run_git(cmd: list[str]) -> str:
 
 
 def collect_years_same_file(path: Path) -> list[int]:
-    """
-    Using --follow but only following file movements (not copying) with more than 92% similarity.
+    """Follow high-similarity renames explicitly; copied files start their own history.
 
-    92% appears when one moves an empty __init__.py to another folder and updates years in the license header.
+    Restart history tracking at each rename so Git's merge traversal cannot
+    switch to an unrelated path. A 92% threshold allows moving an empty __init__.py and
+    updating its copyright year without following larger rewrites.
     """
-    git_output = run_git(
-        [
-            "log",
-            "--follow",
-            "--name-status",
-            "--find-renames=92%",
-            "--format=%x1e%ad",
-            "--date=format:%Y",
-            "--",
-            path.as_posix(),
-        ],
-    )
-
     years: set[int] = set()
-    current_path = path.as_posix()
-
-    for rec in git_output.split(_REC_SEP):
-        rec = rec.strip()
-        if not rec:
-            continue
-
-        lines = [ln.strip() for ln in rec.splitlines() if ln.strip()]
-
-        year = int(lines[0])
-        parts = lines[1].split("\t")
-        commit_status = parts[0]
-
-        # A copied file starts its own history; record its creation year without following the source.
-        if len(commit_status) == 4 and commit_status[0] == "C" and len(parts) == 3 and parts[2] == current_path:
-            years.add(year)
-            break
-
-        # Follow only exact rename hops for the currently tracked path.
-        if len(commit_status) == 4 and commit_status[0] == "R" and len(parts) == 3:
-            percentage = int(commit_status[1:])
-            old_path, new_path = parts[1], parts[2]
-            if percentage >= 92 and new_path == current_path:
-                current_path = old_path
-                years.add(year)
+    current_path: str | None = path.as_posix()
+    revision = "HEAD"
+    while current_path is not None:
+        git_output = run_git(
+            [
+                "log",
+                "--follow",
+                "--name-status",
+                "--find-renames=92%",
+                "--format=%x1e%H %ad",
+                "--date=format:%Y",
+                revision,
+                "--",
+                current_path,
+            ]
+        )
+        next_path = None
+        for rec in git_output.split(_REC_SEP):
+            lines = [line.strip() for line in rec.splitlines() if line.strip()]
+            if not lines:
                 continue
-
-        # Normal touch of current path.
-        elif len(parts) >= 2 and parts[1] == current_path:
-            years.add(year)
-            continue
-
-        break
-
-    git_status = run_git(["status", "--porcelain", "--", path.as_posix()])
-    if git_status.strip():
+            commit, year = lines[0].split()
+            changes = [line.split("\t") for line in lines[1:]]
+            change = next((parts for parts in changes if len(parts) >= 2 and parts[-1] == current_path), None)
+            if change is None:
+                continue
+            years.add(int(year))
+            if change[0].startswith("R"):
+                next_path = change[1]
+                revision = f"{commit}^"
+                break
+            if change[0].startswith("C"):
+                break
+        current_path = next_path
+    if run_git(["status", "--porcelain", "--", path.as_posix()]).strip():
         years.add(CURRENT_YEAR)
-
     return sorted(years)
 
 
