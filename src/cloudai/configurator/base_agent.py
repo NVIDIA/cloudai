@@ -182,6 +182,7 @@ class BaseAgent(ABC):
                 logging.info(
                     "Skipping DSE step %s/%s after repeated constraint rejections", completed_steps + 1, self.max_steps
                 )
+                self.env.skip_step()
             else:
                 logging.info(
                     "Step %s: Observation: %s, Reward: %.4f",

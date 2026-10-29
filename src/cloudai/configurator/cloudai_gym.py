@@ -222,6 +222,10 @@ class CloudAIGymEnv(BaseGym):
 
         return list(observation.values()), reward, False, info
 
+    def skip_step(self) -> None:
+        """Advance the trial counter after the agent abandons an unexecutable step."""
+        self.test_run.increment_step()
+
     def render(self, mode: str = "human"):
         """
         Render the current state of the TestRun.

@@ -83,6 +83,10 @@ class BaseGym(ABC):
         """
         pass
 
+    def skip_step(self) -> None:
+        """Advance past a step that the agent could not execute."""
+        return
+
     @abstractmethod
     def render(self, mode: str = "human"):
         """
