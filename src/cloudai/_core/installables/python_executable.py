@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -215,12 +216,42 @@ class PythonExecutable(Installable):
         return InstallStatusResult(False, "No pyproject.toml or requirements.txt found for installation.")
 
     def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
+        if (project_dir / "uv.lock").is_file():
+            return self._install_uv_lock(venv_dir, project_dir)
+
         install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", str(project_dir)]
         logging.debug(f"Installing dependencies using: {' '.join(install_cmd)}")
         result = subprocess.run(install_cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to install {project_dir} using pip: {result.stderr}")
+
+        return InstallStatusResult(True)
+
+    def _install_uv_lock(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
+        try:
+            uv_bin = uv.find_uv_bin()
+        except OSError as e:
+            return InstallStatusResult(False, f"Cannot install dependencies from uv.lock: {e}")
+
+        venv_dir = venv_dir.resolve()
+        install_cmd = [
+            uv_bin,
+            "sync",
+            "--locked",
+            "--no-default-groups",
+            "--no-editable",
+            # Keep seeded pip available for subsequent package installation.
+            "--inexact",
+            "--python",
+            str(venv_dir / "bin" / "python"),
+        ]
+        env = os.environ.copy()
+        env["UV_PROJECT_ENVIRONMENT"] = str(venv_dir)
+        logging.debug(f"Installing locked dependencies using: {' '.join(install_cmd)}")
+        result = subprocess.run(install_cmd, cwd=str(project_dir), env=env, capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to install {project_dir} using uv.lock: {result.stderr}")
 
         return InstallStatusResult(True)
 

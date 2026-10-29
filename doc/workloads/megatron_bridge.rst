@@ -3,6 +3,38 @@ MegatronBridge
 
 This workload (`test_template_name` is ``MegatronBridge``) submits training and finetuning tasks based on Megatron-Bridge framework.
 
+Megatron-Bridge and NeMo Run generate the training script in dry-run mode on the
+submit host. CloudAI retains and parses their sbatch, then writes
+``cloudai_sbatch_script.sh`` with its standard environment setup, metadata,
+rank mapping, and pre/post tests. These tests run inside the training allocation.
+Without the installed MBridge launcher or NeMo Run Python environment,
+``cloudai dry-run`` produces a placeholder instead of the training commands and
+logs a warning. The placeholder exits with an error if executed. Install the
+dependencies and repeat the dry-run to generate the complete training script.
+
+CloudAI owns the job name, output/error paths, and node placement. Configured
+CloudAI allocation directives override matching NeMo Run directives; other
+NeMo Run directives and training artifact paths are retained. Set scenario
+``num_nodes`` and system GPU/task counts to match the training configuration.
+``enable_vboost`` uses CloudAI's standard VBoost setup in both normal and single-sbatch execution.
+An explicitly configured value takes precedence over the ``ENABLE_VBOOST`` environment setting.
+The rendezvous address uses NeMo's selected head-node hostname, which must resolve inside the training containers.
+
+Additional launcher options can be passed through ``[extra_cmd_args]``. For example:
+
+.. code-block:: toml
+
+   [extra_cmd_args]
+   "--custom_srun_args" = "--cpu-bind=none,--kill-on-bad-exit=1"
+
+CloudAI combines ``-cs`` and ``--custom_srun_args`` from this table, then appends
+system and test-run ``extra_srun_args`` and pre-test-provided arguments. The result
+is passed through Megatron-Bridge's native ``-cs`` option without deduplication.
+
+For Nsight profiling, use Megatron-Bridge's ``cmd_args.enable_nsys`` and
+``profiling_start_step``, ``profiling_stop_step``, and ``profiling_ranks`` options.
+The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
+
 .. note::
 
    This workload has a hard requirement for the HuggingFace Hub token. There are two options:
@@ -87,23 +119,21 @@ Test-in-Scenario example:
 Executor Environment Variables
 ------------------------------
 
-By default, CloudAI forwards ``extra_env_vars`` as ``-cb export KEY=VALUE``
-commands. This preserves compatibility with Megatron-Bridge releases such as
-v0.3.0 that do not support ``-E/--env`` and allows values to reference job-shell
-variables such as ``$SLURM_PROCID``.
+CloudAI applies ``global_env_vars`` and ``extra_env_vars`` through its standard
+job environment setup. These values override matching exports in the generated
+NeMo Run script. CloudAI's ``env_vars.sh`` is also sourced inside each training
+task, so configured values can reference task-local Slurm variables.
 
-For a newer Megatron-Bridge version, variables that must be registered in the
-NeMo-Run executor's ``env_vars`` and ``container_env`` can be explicitly set
-under ``cmd_args.executor_env_vars``:
+Existing ``cmd_args.executor_env_vars`` entries are also accepted as job
+environment variables:
 
 .. code-block:: toml
 
    [cmd_args.executor_env_vars]
    GPU_METRICS_NODES = "0,1"
 
-Each entry is passed to Megatron-Bridge as a repeated ``-E KEY=VALUE`` argument.
-Values are forwarded literally and may contain commas. Do not use this option
-with a Megatron-Bridge version that predates ``-E/--env``.
+``global_env_vars`` and ``extra_env_vars`` take precedence over these entries.
+This does not require Megatron-Bridge's ``-E/--env`` support.
 
 Chakra / Kineto Tracing
 -----------------------

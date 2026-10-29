@@ -144,6 +144,18 @@ OUTPUT_TOKEN_THROUGHPUT = MetricDefinition(
     unit="tokens/s",
     direction=OptimizationDirection.MAXIMIZE,
 )
+OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU = MetricDefinition(
+    key="output_token_throughput_per_allocated_gpu",
+    display_name="Output throughput per allocated GPU",
+    unit="tokens/s/GPU",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU = MetricDefinition(
+    key="output_token_throughput_per_serving_gpu",
+    display_name="Output throughput per serving GPU",
+    unit="tokens/s/GPU",
+    direction=OptimizationDirection.MAXIMIZE,
+)
 TTFT = MetricDefinition(
     key="ttft",
     display_name="Time to first token",
@@ -168,6 +180,8 @@ MetricCatalog.register_metrics(
     LATENCY,
     REQUEST_THROUGHPUT,
     OUTPUT_TOKEN_THROUGHPUT,
+    OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU,
+    OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU,
     TTFT,
     TPOT,
     ACCURACY,

@@ -17,305 +17,191 @@
 from __future__ import annotations
 
 import logging
+import re
 import shlex
 import shutil
-import stat
+import subprocess
+import textwrap
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Optional, cast
 
 import toml
 
-from cloudai.core import TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy
-from cloudai.util import format_time_limit, parse_time_limit
 
 from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Slurm strategy (like `nemo_launcher`): execute the Megatron-Bridge launcher on the submit node.
+    """Compose a NeMo Run generated job with CloudAI's standard Slurm features."""
 
-    The launcher submits the actual training sbatch job; CloudAI tracks that job ID via SlurmRunner parsing.
-    """
-
-    CONTAINER_RUNTIME_ENV_VARS: frozenset[str] = frozenset(
-        {
-            "MELLANOX_VISIBLE_DEVICES",
-            "NVIDIA_VISIBLE_DEVICES",
-            "NVIDIA_DRIVER_CAPABILITIES",
-        }
-    )
     HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".stderr", ".toml", ".yaml"})
 
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        env_vars = tdef.cmd_args.executor_env_vars | super().final_env_vars
+        if "enable_vboost" in tdef.cmd_args.model_fields_set:
+            env_vars["ENABLE_VBOOST"] = "1" if tdef.cmd_args.enable_vboost else "0"
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value
+
+    def image_path(self) -> str | None:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        return str(tdef.docker_image.installed_path) if tdef.docker_image.installed_path else None
+
     def _container_mounts(self) -> list[str]:
-        # This workload submits its own sbatch job and passes mounts via `-cm`.
         return []
 
-    def gen_exec_command(self) -> str:
-        tdef: MegatronBridgeTestDefinition = cast(MegatronBridgeTestDefinition, self.test_run.test)
-        args: MegatronBridgeCmdArgs = tdef.cmd_args
-
-        mbridge_repo_path = (
-            tdef.megatron_bridge_repo.installed_path.absolute() if tdef.megatron_bridge_repo.installed_path else None
-        )
-        if not mbridge_repo_path:
-            logging.warning(
-                f"Local clone of git repo {tdef.megatron_bridge_repo} does not exist. "
-                "Please ensure to run installation before running the test."
+    @cached_property
+    def _mbridge_sbatch(self) -> tuple[list[str], str]:
+        script = self._generate_mbridge_sbatch()
+        if script is None:
+            return [], (
+                "# MBridge script generation skipped: launcher dependencies are missing.\n"
+                'echo "Install MBridge and NeMo Run, then regenerate this script." >&2\n'
+                "exit 1"
             )
-            mbridge_repo_path = self.system.install_path / tdef.megatron_bridge_repo.repo_name  # dry-run compatibility
-
-        venv_path = tdef.python_executable.venv_path
-        if not venv_path:
-            logging.warning(
-                f"The virtual environment for git repo {tdef.python_executable.git_repo} does not exist. "
-                "Please ensure to run installation before running the test."
-            )
-            venv_path = self.system.install_path / tdef.python_executable.venv_name  # dry-run compatibility
-
-        launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
-
-        pre_hook_sbatch_path: Optional[Path] = None
-        base_slurm_params: str = ""
-        capture_nodelist: bool = False
-        if self.test_run.pre_test:
-            pre_hook_sbatch_path = self._gen_pre_hook_sbatch()
-            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py, include_slurm_params=False)
-            base_slurm_params = ";".join(self._collect_additional_slurm_params())
-            _, node_list = self.get_cached_nodes_spec()
-            capture_nodelist = not node_list
-        else:
-            parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
-
-        launcher_python = str((venv_path / "bin" / "python").absolute())
-        post_hook_sbatch_path = self._gen_post_hook_sbatch() if self.test_run.post_test else None
-        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(
-            " ".join(parts),
-            launcher_python,
-            args.wandb_version,
-            args.numpy_version,
-            pre_hook_sbatch_path=pre_hook_sbatch_path,
-            post_hook_sbatch_path=post_hook_sbatch_path,
-            base_slurm_params=base_slurm_params,
-            capture_nodelist=capture_nodelist,
-        )
-
-        self._write_command_to_file(full_cmd, self.test_run.output_path)
-        return full_cmd
-
-    def _collect_additional_slurm_params(self) -> list[str]:
-        """Return the additional_slurm_params list (without dependency)."""
-        params: list[str] = []
-        if self.system.gpus_per_node and self.system.supports_gpu_directives:
-            params.append(f"gpus-per-node={self.system.gpus_per_node}")
-            params.append(f"gres=gpu:{self.system.gpus_per_node}")
-        _, node_list = self.get_cached_nodes_spec()
-        if node_list:
-            params.append(f"nodelist={','.join(node_list)}")
-        elif self.test_run.exclude_nodes:
-            params.append(f"exclude={','.join(self.test_run.exclude_nodes)}")
-        for source in (self.system.extra_srun_args, self.test_run.extra_srun_args):
-            if source:
-                params.extend(self._parse_srun_args_as_slurm_params(source))
-        return params
-
-    def _gen_pre_hook_sbatch(self) -> Path:
-        """
-        Generate a standalone sbatch script running per-node independent pre-hook tests.
-
-        Each node runs its own alltoall among its local GPUs (1 srun per node in parallel),
-        so the tests are truly independent — no cross-node NCCL communicator is formed.
-        """
-        pre_hook_output = self.test_run.output_path / "pre_hook"
-        pre_hook_output.mkdir(parents=True, exist_ok=True)
-
-        sbatch_lines = [
-            "#!/bin/bash",
-            f"#SBATCH --job-name=pre_hook_{self.job_name()}",
-            f"#SBATCH --output={pre_hook_output.absolute() / 'stdout.txt'}",
-            f"#SBATCH --error={pre_hook_output.absolute() / 'stderr.txt'}",
-            f"#SBATCH --partition={self.system.default_partition}",
-        ]
-        if self.system.account:
-            sbatch_lines.append(f"#SBATCH --account={self.system.account}")
-        self._append_resource_directives(sbatch_lines, self.test_run.time_limit)
-        if self.test_run.extra_srun_args:
-            for param in self._parse_srun_args_as_slurm_params(self.test_run.extra_srun_args):
-                key, _, val = param.partition("=")
-                sbatch_lines.append(f"#SBATCH --{key}={val}" if val else f"#SBATCH --{key}")
-        sbatch_lines.append("")
-
-        assert self.test_run.pre_test is not None
-        success_vars = []
-        for idx, tr in enumerate(self.test_run.pre_test.test_runs):
-            tr.num_nodes = 1
-            strategy = self._get_cmd_gen_strategy(tr)
-            self._set_hook_output_path(tr, self.test_run.output_path / "pre_test")
-            tr.output_path.mkdir(parents=True, exist_ok=True)
-
-            node_out = tr.output_path.absolute()
-            srun_cmd = strategy.gen_srun_command()
-            # Inject per-node output paths and --nodelist so each node runs independently
-            node_srun = srun_cmd.replace(
-                "srun ",
-                f"srun --nodelist=$_node --output={node_out}/stdout_$_node.txt --error={node_out}/stderr_$_node.txt ",
-                1,
-            )
-
-            success_var = f"SUCCESS_{idx}"
-            success_vars.append(success_var)
-
-            min_busbw = getattr(tr.test.cmd_args, "min_busbw", None)
-            if min_busbw is not None:
-                check_cmd = (
-                    f"awk '/Avg bus bandwidth/ {{ if ($NF+0 >= {min_busbw}) found=1 }}"
-                    f" END {{ exit !found }}' {node_out}/stdout_$_node.txt 2>/dev/null"
-                )
+        directives: list[str] = []
+        body: list[str] = []
+        in_header = True
+        for line in script.read_text().splitlines():
+            if in_header and line.startswith("#SBATCH"):
+                directives.append(line)
+            elif in_header and (not line.strip() or line.startswith("#")):
+                continue
             else:
-                check_cmd = f'grep -q "Avg bus bandwidth" {node_out}/stdout_$_node.txt 2>/dev/null'
+                in_header = False
+                body.append(line)
+        return directives, "\n".join(body)
 
-            sbatch_lines.extend(
+    @staticmethod
+    def _directive_name(line: str) -> str:
+        option = shlex.split(line.removeprefix("#SBATCH").strip())[0].split("=", 1)[0]
+        aliases = {
+            "-A": "--account",
+            "-p": "--partition",
+            "-J": "--job-name",
+            "-N": "--nodes",
+            "-n": "--ntasks",
+            "-o": "--output",
+            "-e": "--error",
+            "-t": "--time",
+            "-w": "--nodelist",
+            "-x": "--exclude",
+            "-D": "--chdir",
+        }
+        return aliases.get(option[:2], option) if not option.startswith("--") else option
+
+    def _append_sbatch_directives(self, batch_script_content: list[str]) -> None:
+        cloudai_directives: list[str] = []
+        super()._append_sbatch_directives(cloudai_directives)
+        owned = {"--job-name", "--output", "--error", "--nodes", "--nodelist", "--exclude"}
+        owned.update(self._directive_name(line) for line in cloudai_directives if line.startswith("#SBATCH"))
+        batch_script_content.extend(line for line in self._mbridge_sbatch[0] if self._directive_name(line) not in owned)
+        batch_script_content.extend(cloudai_directives)
+
+    def generate_test_command(self) -> list[str]:
+        return [self._mbridge_sbatch[1]]
+
+    def _gen_srun_command(self) -> str:
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        env_vars_path = self._write_env_vars_script()
+        body: list[str] = [f"source {shlex.quote(str(env_vars_path))}"]
+        for line in self._mbridge_sbatch[1].splitlines():
+            # Rendezvous accepts a hostname; avoid capturing srun output redirected by SingleSbatchRunner.
+            line = line.replace(
+                'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
+                'head_node_ip="$head_node"',
+            )
+            export = re.match(r"\s*export ([A-Za-z_][A-Za-z0-9_]*)=", line)
+            if export and export[1] in self.final_env_vars:
+                continue
+            body.append(line)
+        # NeMo's shell options and exit must not escape into CloudAI's post-hook block.
+        return "(\n" + textwrap.indent("\n".join(body), "    ") + "\n)"
+
+    def _generate_mbridge_sbatch(self) -> Path | None:
+        existing_script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
+        if existing_script:
+            return existing_script
+
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        repo_path = tdef.megatron_bridge_repo.installed_path or (
+            self.system.install_path / tdef.megatron_bridge_repo.repo_name
+        )
+        launcher_py = (repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
+        venv_path = tdef.python_executable.venv_path
+        if venv_path is None or not launcher_py.is_file() or not (venv_path / "bin" / "python").is_file():
+            logging.warning(
+                "MBridge launcher dependencies are missing; generating a placeholder script. "
+                "Install MBridge and NeMo Run, then regenerate this script."
+            )
+            return None
+
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        patcher_path = self._write_dryrun_patcher(launcher_py)
+        parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, patcher_path)
+        if "-d" not in parts:
+            parts.append("-d")
+        launcher_cmd = " ".join(parts)
+        (self.test_run.output_path / "cloudai_megatron_bridge_launcher.sh").write_text(launcher_cmd + "\n")
+        log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
+        with log_path.open("w") as log:
+            result = subprocess.run(
+                ["/bin/bash", "-c", launcher_cmd],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        if result.returncode:
+            raise RuntimeError(f"Megatron-Bridge dry-run failed. See {log_path}.")
+
+        script = next(self.test_run.output_path.glob("experiments/**/*_sbatch.sh"), None)
+        if script is None:
+            raise RuntimeError(f"Megatron-Bridge dry-run did not generate an sbatch script. See {log_path}.")
+        return script
+
+    def _write_dryrun_patcher(self, launcher_py: Path) -> Path:
+        patcher_path = self.test_run.output_path / "cloudai_megatron_bridge_dryrun.py"
+        patcher_path.write_text(
+            "\n".join(
                 [
-                    f"# {tr.test.name}",
-                    f"mkdir -p {node_out}",
-                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
-                    f"    {node_srun} &",
-                    "done",
-                    "wait",
-                    f"{success_var}=1",
-                    "for _node in $(scontrol show hostnames $SLURM_JOB_NODELIST); do",
-                    f"    if ! {check_cmd}; then",
-                    f"        {success_var}=0",
-                    "    fi",
-                    "done",
+                    "import runpy",
+                    "import sys",
+                    "from pathlib import Path",
+                    "from nemo_run.run.experiment import Experiment",
+                    "",
+                    "original_dryrun = Experiment.dryrun",
+                    "",
+                    "def keep_dryrun_artifacts(self, log=True, exist_ok=False, delete_exp_dir=True):",
+                    "    return original_dryrun(self, log=log, exist_ok=exist_ok, delete_exp_dir=False)",
+                    "",
+                    "Experiment.dryrun = keep_dryrun_artifacts",
+                    f"launcher = Path({str(launcher_py)!r})",
+                    "sys.path.insert(0, str(launcher.parent))",
+                    'runpy.run_path(str(launcher), run_name="__main__")',
                     "",
                 ]
             )
-
-        combined = " && ".join([f"[ ${v} -eq 1 ]" for v in success_vars])
-        sbatch_lines.extend(
-            [
-                f"PRE_TEST_SUCCESS=$( {combined} && echo 1 || echo 0 )",
-                'if [ "$PRE_TEST_SUCCESS" -ne 1 ]; then',
-                '  echo "Pre-hook tests failed. Blocking training job." >&2',
-                "  exit 1",
-                "fi",
-            ]
         )
-
-        sbatch_path = self.test_run.output_path / "pre_hook_sbatch_script.sh"
-        sbatch_path.write_text("\n".join(sbatch_lines))
-        sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
-        return sbatch_path
-
-    def _gen_post_hook_sbatch(self) -> Path:
-        """Generate a standalone sbatch script running post-hook tests."""
-        post_test = self.test_run.post_test
-        if post_test is None:
-            raise RuntimeError("post_test sbatch requested but post_test is not configured.")
-        if not post_test.test_runs:
-            raise RuntimeError("post_test is configured but contains no test runs.")
-
-        post_hook_output = self.test_run.output_path / "post_hook"
-        post_hook_output.mkdir(parents=True, exist_ok=True)
-
-        first_tr = post_test.test_runs[0]
-        first_strategy = self._get_cmd_gen_strategy(first_tr)
-        self._set_hook_output_path(first_tr, self.test_run.output_path / "post_test")
-        first_tr.output_path.mkdir(parents=True, exist_ok=True)
-
-        sbatch_lines = [
-            "#!/bin/bash",
-            f"#SBATCH --job-name=post_hook_{self.job_name()}",
-            f"#SBATCH --output={post_hook_output.absolute() / 'stdout.txt'}",
-            f"#SBATCH --error={post_hook_output.absolute() / 'stderr.txt'}",
-            f"#SBATCH --partition={self.system.default_partition}",
-        ]
-        if self.system.account:
-            sbatch_lines.append(f"#SBATCH --account={self.system.account}")
-        hostfile = self._append_post_hook_resource_directives(first_strategy, post_test, sbatch_lines)
-        if hostfile is not None:
-            sbatch_lines.append(f"export SLURM_HOSTFILE={hostfile}")
-        sbatch_lines.extend(
-            [
-                "",
-                "export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)",
-                "",
-            ]
-        )
-
-        for tr in post_test.test_runs:
-            strategy = first_strategy if tr is first_tr else self._get_cmd_gen_strategy(tr)
-            if tr is not first_tr:
-                self._set_hook_output_path(tr, self.test_run.output_path / "post_test")
-                tr.output_path.mkdir(parents=True, exist_ok=True)
-            srun_command = strategy.gen_srun_command()
-            srun_command_with_output = srun_command.replace(
-                "srun ", f"srun --output={tr.output_path / 'stdout.txt'} --error={tr.output_path / 'stderr.txt'} ", 1
-            )
-            sbatch_lines.append(srun_command_with_output)
-
-        sbatch_path = self.test_run.output_path / "post_hook_sbatch_script.sh"
-        sbatch_path.write_text("\n".join(sbatch_lines))
-        sbatch_path.chmod(sbatch_path.stat().st_mode | stat.S_IXUSR)
-        return sbatch_path
-
-    def _append_post_hook_resource_directives(
-        self,
-        strategy: SlurmCommandGenStrategy,
-        post_test: TestScenario,
-        sbatch_lines: list[str],
-    ) -> Optional[Path]:
-        allocation_run = strategy.test_run
-        original_num_nodes = allocation_run.num_nodes
-        original_nodes = allocation_run.nodes
-        original_exclude_nodes = allocation_run.exclude_nodes
-        allocation_strategy = self._get_cmd_gen_strategy(allocation_run)
-
-        try:
-            allocation_run.num_nodes = self._max_post_hook_nodes(post_test.test_runs)
-            allocation_run.nodes = self._aggregate_post_hook_nodes(post_test.test_runs)
-            allocation_run.exclude_nodes = self._aggregate_post_hook_exclude_nodes(post_test.test_runs)
-            return allocation_strategy._append_resource_directives(
-                sbatch_lines,
-                self._post_hook_time_limit(post_test.test_runs),
-            )
-        finally:
-            allocation_run.num_nodes = original_num_nodes
-            allocation_run.nodes = original_nodes
-            allocation_run.exclude_nodes = original_exclude_nodes
-
-    @staticmethod
-    def _max_post_hook_nodes(test_runs: list[TestRun]) -> int:
-        return max(max(tr.num_nodes) if isinstance(tr.num_nodes, list) else tr.num_nodes for tr in test_runs)
-
-    @staticmethod
-    def _aggregate_post_hook_nodes(test_runs: list[TestRun]) -> list[str]:
-        return list(dict.fromkeys(node for tr in test_runs for node in tr.nodes))
-
-    @staticmethod
-    def _aggregate_post_hook_exclude_nodes(test_runs: list[TestRun]) -> list[str]:
-        return list(dict.fromkeys(node for tr in test_runs for node in tr.exclude_nodes))
-
-    @staticmethod
-    def _post_hook_time_limit(test_runs: list[TestRun]) -> Optional[str]:
-        time_limits = [tr.time_limit for tr in test_runs if tr.time_limit]
-        if not time_limits:
-            return None
-        total_time_limit = parse_time_limit(time_limits[0])
-        for time_limit in time_limits[1:]:
-            total_time_limit += parse_time_limit(time_limit)
-        return format_time_limit(total_time_limit)
+        return patcher_path
 
     def store_test_run(self) -> None:
-        test_cmd = self.gen_exec_command()
-        trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
+        trd = TestRunDetails.from_test_run(
+            self.test_run, test_cmd=" ".join(self.generate_test_command()), full_cmd=self.gen_srun_command()
+        )
         details = trd.model_dump()
         details["test_definition"]["cmd_args"]["hf_token"] = HF_TOKEN_REDACTION
-        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            toml.dump(details, f)
+        token = cast(MegatronBridgeTestDefinition, self.test_run.test).cmd_args.hf_token
+        serialized = toml.dumps(details)
+        if token:
+            serialized = serialized.replace(token, HF_TOKEN_REDACTION)
+        (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).write_text(serialized)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
@@ -371,51 +257,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if cleanup_failures:
             raise RuntimeError(f"Failed to clean {len(cleanup_failures)} job artifact(s).")
 
-    def _write_command_to_file(self, command: str, output_path: Path) -> None:
-        log_file = output_path / "cloudai_generated_command.sh"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        with log_file.open("w") as f:
-            f.write(f"{command}\n")
-
-    def _build_custom_bash_env_exports(self) -> list[str]:
-        """
-        Build repeated -cb entries that export env vars inside the launched Slurm job shell.
-
-        We quote each full `export KEY=value` command so `$SLURM_*` and commas survive
-        argument parsing on the submit node and are expanded/interpreted in the job shell.
-        """
-        exports: list[str] = []
-        for key, value in sorted(self.final_env_vars.items()):
-            exports.extend(["-cb", shlex.quote(f"export {key}={value}")])
-        return exports
-
-    @staticmethod
-    def _build_executor_env_args(executor_env_vars: dict[str, str]) -> list[str]:
-        """Build repeated ``-E KEY=VALUE`` entries for NeMo-Run executor environment variables."""
-        parts: list[str] = []
-        for key, value in sorted(executor_env_vars.items()):
-            parts.extend(["-E", shlex.quote(f"{key}={value}")])
-        return parts
-
-    def _container_runtime_env_exports(self) -> list[str]:
-        """
-        Build ``export`` lines for container-runtime env vars.
-
-        Variables like ``MELLANOX_VISIBLE_DEVICES`` and ``NVIDIA_VISIBLE_DEVICES``
-        are consumed by the NVIDIA container toolkit / enroot at container-creation
-        time to decide which devices to mount.  They must be present in the process
-        environment **before** the Megatron-Bridge launcher calls ``sbatch`` so that
-        Slurm inherits them into the job and ``srun`` passes them to the container
-        runtime.  Exporting them in the wrapper script (which runs on the submit
-        node) achieves this.  The same variables are still passed via ``-cb`` as
-        well, so they are also set inside the container for any runtime readers.
-        """
-        lines: list[str] = []
-        for key, value in sorted(self.final_env_vars.items()):
-            if key in self.CONTAINER_RUNTIME_ENV_VARS:
-                lines.append(f"export {key}={shlex.quote(str(value))}")
-        return lines
-
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
             items = [str(x).strip().strip("\"'") for x in val if str(x).strip()]
@@ -428,186 +269,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         joined = ",".join(items)
         return f'"{joined}"'
 
-    @staticmethod
-    def _parse_srun_args_as_slurm_params(srun_args: str) -> list[str]:
-        """
-        Convert ``--key value`` pairs from extra_srun_args into ``key=value`` for --additional_slurm_params.
-
-        Standalone boolean flags (e.g. ``--exclusive``) are emitted as bare
-        key names without a ``=value`` suffix.
-        """
-        params: list[str] = []
-        tokens = shlex.split(srun_args)
-        i = 0
-        while i < len(tokens):
-            tok = tokens[i]
-            if tok.startswith("--") and "=" in tok:
-                key, val = tok[2:].split("=", 1)
-                params.append(f"{key}={val}")
-            elif tok.startswith("--") and i + 1 < len(tokens) and not tokens[i + 1].startswith("--"):
-                params.append(f"{tok[2:]}={tokens[i + 1]}")
-                i += 1
-            elif tok.startswith("--"):
-                params.append(tok[2:])
-            i += 1
-        return params
-
     def _normalize_cuda_graph_scope_arg(self, val: Any) -> str:
         s = str(val).strip().strip("\"'")
         if s.startswith("[") and s.endswith("]"):
             s = s[1:-1]
         parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
         return ",".join(parts)
-
-    def _wrap_launcher_for_job_id_and_quiet_output(
-        self,
-        launcher_cmd: str,
-        launcher_python: str,
-        wandb_version: str,
-        numpy_version: str,
-        pre_hook_sbatch_path: Optional[Path] = None,
-        post_hook_sbatch_path: Optional[Path] = None,
-        base_slurm_params: str = "",
-        capture_nodelist: bool = False,
-    ) -> str:
-        """
-        Run the Megatron-Bridge launcher quietly and ensure CloudAI can parse a job ID.
-
-        CloudAI's SlurmRunner expects stdout to include "Submitted batch job <id>".
-        This writes a readable wrapper script (with section breaks) into the test output directory, then runs it.
-
-        If pre_hook_sbatch_path is provided, the pre-hook sbatch is submitted first and its job ID is used as
-        a Slurm dependency (afterok) for the main training job, so training only starts if the pre-hook passed.
-
-        If post_hook_sbatch_path is provided, the post-hook sbatch is submitted with an afterany dependency on
-        the main training job, and CloudAI tracks the post-hook job ID.
-        """
-        output_dir = self.test_run.output_path.absolute()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        wrapper_path = output_dir / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
-        log_path = output_dir / "cloudai_megatron_bridge_launcher.log"
-
-        container_runtime_exports = self._container_runtime_env_exports()
-
-        pre_hook_lines: list[str] = []
-        launch_line: str
-        if pre_hook_sbatch_path is not None:
-            nodelist_lines: list[str] = []
-            if capture_nodelist:
-                nodelist_lines = [
-                    "# Wait for pre-hook to reach RUNNING; exit on terminal state or timeout (1 h)",
-                    "PRE_HOOK_NODES=''",
-                    "_NODELIST_WAIT=0",
-                    "_NODELIST_TIMEOUT=3600",
-                    "while true; do",
-                    '    _state=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%T" 2>/dev/null || true)',
-                    '    if [ "$_state" = "RUNNING" ]; then',
-                    '        PRE_HOOK_NODES=$(squeue -j "$PRE_HOOK_JOB_ID" -h -o "%N" 2>/dev/null | head -1 || true)',
-                    "        break",
-                    '    elif [ -z "$_state" ] || [ "$_state" = "FAILED" ] || [ "$_state" = "CANCELLED" ] || [ "$_state" = "COMPLETED" ] || [ "$_state" = "TIMEOUT" ]; then',  # noqa: E501
-                    "        echo \"Pre-hook job $PRE_HOOK_JOB_ID ended in state '${_state:-gone}' before reaching RUNNING.\" >&2",  # noqa: E501
-                    "        exit 1",
-                    '    elif [ "$_NODELIST_WAIT" -ge "$_NODELIST_TIMEOUT" ]; then',
-                    '        echo "Timed out after ${_NODELIST_TIMEOUT}s waiting for pre-hook job $PRE_HOOK_JOB_ID to reach RUNNING (last state: ${_state})." >&2',  # noqa: E501
-                    "        exit 1",
-                    "    fi",
-                    "    sleep 10",
-                    "    _NODELIST_WAIT=$((_NODELIST_WAIT + 10))",
-                    "done",
-                    'ADDITIONAL_SLURM_PARAMS="${ADDITIONAL_SLURM_PARAMS};nodelist=${PRE_HOOK_NODES}"',
-                    "",
-                ]
-            pre_hook_lines = [
-                f'PRE_HOOK_SBATCH="{pre_hook_sbatch_path.absolute()}"',
-                'PRE_HOOK_OUTPUT=$(sbatch "$PRE_HOOK_SBATCH" 2>&1)',
-                'PRE_HOOK_JOB_ID=$(echo "$PRE_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
-                'if [ -z "$PRE_HOOK_JOB_ID" ]; then',
-                '  echo "Failed to submit pre-hook job: $PRE_HOOK_OUTPUT" >&2',
-                "  exit 1",
-                "fi",
-                'echo "Submitted pre-hook batch job $PRE_HOOK_JOB_ID"',
-                f'ADDITIONAL_SLURM_PARAMS="{base_slurm_params}"',
-                'ADDITIONAL_SLURM_PARAMS="${ADDITIONAL_SLURM_PARAMS};dependency=afterok:${PRE_HOOK_JOB_ID}"',
-                "",
-                *nodelist_lines,
-            ]
-            launch_line = (
-                f'{launcher_cmd} --additional_slurm_params "$ADDITIONAL_SLURM_PARAMS" >>"$LOG" 2>&1 || LAUNCH_RC=$?'
-            )
-        else:
-            launch_line = f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?'
-
-        post_hook_lines: list[str] = ['  echo "Submitted batch job ${JOB_ID}"']
-        if post_hook_sbatch_path is not None:
-            post_hook_lines = [
-                '  echo "Submitted batch job ${JOB_ID}"',
-                f'  POST_HOOK_SBATCH="{post_hook_sbatch_path.absolute()}"',
-                '  POST_HOOK_OUTPUT=$(sbatch --dependency=afterany:${JOB_ID} "$POST_HOOK_SBATCH" 2>&1)',
-                '  POST_HOOK_JOB_ID=$(echo "$POST_HOOK_OUTPUT" | grep -Eo "Submitted batch job [0-9]+" | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
-                '  if [ -z "$POST_HOOK_JOB_ID" ]; then',
-                '    echo "Failed to submit post-hook job: $POST_HOOK_OUTPUT" >&2',
-                "    exit 1",
-                "  fi",
-                '  echo "Submitted post-hook batch job ${POST_HOOK_JOB_ID}"',
-            ]
-
-        script_lines = [
-            "#!/usr/bin/env bash",
-            "set -o pipefail",
-            "",
-            f'export NEMORUN_HOME="{output_dir}"',
-            'mkdir -p "$NEMORUN_HOME"',
-            f'LOG="{log_path}"',
-            f'WRAPPER_STDOUT="{output_dir / "cloudai_megatron_bridge_wrapper.stdout"}"',
-            f'WRAPPER_STDERR="{output_dir / "cloudai_megatron_bridge_wrapper.stderr"}"',
-            # Mirror wrapper stdout/stderr to files for debugging while still emitting to the parent process.
-            'exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)',
-            "",
-            *container_runtime_exports,
-            "",
-            *pre_hook_lines,
-            ': >"$LOG"',
-            "WANDB_INSTALL_RC=0",
-            f'{shlex.quote(launcher_python)} -m pip install wandb=={wandb_version} numpy=={numpy_version} >>"$LOG" 2>&1 || WANDB_INSTALL_RC=$?',  # noqa: E501
-            'if [ "${WANDB_INSTALL_RC}" -ne 0 ]; then',
-            f'  echo "Failed to install runtime deps (wandb=={wandb_version}, numpy=={numpy_version}) in launcher venv (exit ${{WANDB_INSTALL_RC}})." >&2',  # noqa: E501
-            '  tail -n 40 "$LOG" >&2 || true',
-            '  exit "${WANDB_INSTALL_RC}"',
-            "fi",
-            "",
-            "LAUNCH_RC=0",
-            launch_line,
-            "",
-            # Parse job id from Megatron-Bridge output (multiple possible formats)
-            # Patterns: "Submitted batch job 694112", "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
-            "",
-            'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "(Submitted batch job[ ]+[0-9]+|Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+|Job ID[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',  # noqa: E501
-            "",
-            # Emit a canonical line for CloudAI to parse
-            "",
-            'if [ -n "${JOB_ID}" ]; then',
-            '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
-            '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
-            '    tail -n 40 "$LOG" >&2 || true',
-            "  fi",
-            *post_hook_lines,
-            "else",
-            '  echo "Failed to retrieve job ID." >&2',
-            '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
-            '    echo "Launcher exit code: ${LAUNCH_RC}" >&2',
-            "  fi",
-            '  tail -n 40 "$LOG" >&2 || true',
-            "  exit 1",
-            "fi",
-            "",
-        ]
-
-        wrapper_path.write_text("\n".join(script_lines))
-        wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IXUSR)
-
-        return f"bash {wrapper_path}"
 
     def _list_or_comma_str(self, val: str | list[str] | None) -> Optional[str]:
         """Normalize list or comma-separated string; return None if `val` is empty or None."""
@@ -628,6 +295,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         }
         overrides.update(extra_cmd_args)
         return [shlex.quote(f"{key}={value}" if value else key) for key, value in overrides.items()]
+
+    def _build_custom_srun_args(self, extra_cmd_args: dict[str, str]) -> list[str]:
+        """Consume native srun options and combine them with CloudAI arguments."""
+        srun_args = [extra_cmd_args.pop(flag) for flag in ("-cs", "--custom_srun_args") if flag in extra_cmd_args]
+        srun_args.extend(arg for arg in (self.system.extra_srun_args, self.test_run.extra_srun_args) if arg)
+        if self.test_run.pre_test:
+            for tr in self.test_run.pre_test.test_runs:
+                srun_args.extend(self._get_cmd_gen_strategy(tr).pre_test_srun_extra_args(self.test_run))
+        if custom_srun_args := ",".join(arg for arg in srun_args if arg):
+            return [shlex.quote(f"-cs={custom_srun_args}")]
+        return []
 
     @staticmethod
     def _with_default_packager(repo_path: Path, extra_cmd_args: dict[str, str]) -> dict[str, str]:
@@ -651,7 +329,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: MegatronBridgeTestDefinition,
         repo_path: Path,
         launcher_py: Path,
-        include_slurm_params: bool = True,
     ) -> list[str]:
         fields_set = args.model_fields_set
         force_fields = {
@@ -663,36 +340,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "save_config_filepath",
         }
 
-        container_path = ""
-        if args.container_image and "container_image" in fields_set:
-            installed = tdef.docker_image.installed_path
+        mounts = self.container_mounts()
 
-            def _installed_container_path() -> str:
-                if not installed:
-                    raise RuntimeError(
-                        "cmd_args.container_image was provided, but CloudAI has no installed/cached image path "
-                        "(docker_image.installed_path is empty). Please run `cloudai install` first, or provide "
-                        "a valid local .sqsh path in cmd_args.container_image."
-                    )
-                return str(Path(installed).absolute())
-
-            ci = str(args.container_image).strip()
-            if ci.startswith("/") or ci.startswith("."):
-                ci_path = Path(ci).expanduser()
-                container_path = str(ci_path.absolute()) if ci_path.exists() else _installed_container_path()
-            else:
-                container_path = _installed_container_path()
-
-        mounts: list[str] = [str(m).strip() for m in (tdef.extra_container_mounts or []) if str(m).strip()]
-
-        # When the user sets mount_as on the Megatron-Bridge git repo, bind-mount the
-        # installed clone into the container to override the image's built-in copy.
-        mb_repo = tdef.megatron_bridge_repo
-        if mb_repo.mount_as:
-            mb_host = mb_repo.installed_path.absolute() if mb_repo.installed_path else repo_path
-            mounts.append(f"{mb_host}:{mb_repo.mount_as}")
-
-        venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
+        venv_path = tdef.python_executable.venv_path
+        if venv_path is None:
+            raise RuntimeError("NeMo Run Python environment path is not set.")
         python_bin = (venv_path / "bin" / "python").absolute()
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
@@ -731,8 +383,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("gpu_type", "-g", args.gpu_type)
         add_field("log_dir", "-l", args.log_dir)
         add("-t", self.test_run.time_limit)
-        if container_path:
-            add_field("container_image", "-i", container_path)
+        if args.container_image:
+            add_field("container_image", "-i", self.image_path())
         add_field("compute_dtype", "-c", args.compute_dtype)
         add_field("task", "--task", args.task)
         add_field("hf_token", "-hf", args.hf_token)
@@ -749,23 +401,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("gpus_per_node", "-gn", self.system.gpus_per_node)
         if mounts:
             add("-cm", ",".join(mounts))
-
-        # Preserve extra_env_vars compatibility with Megatron-Bridge versions that
-        # predate -E/--env by forwarding them as job-shell exports.
-        if self.final_env_vars:
-            parts.extend(self._build_custom_bash_env_exports())
-
-        # Explicit opt-in for variables that must be registered in NeMo-Run's
-        # executor env_vars/container_env. Requires Megatron-Bridge -E support.
-        if args.executor_env_vars:
-            parts.extend(self._build_executor_env_args(args.executor_env_vars))
+        parts.extend(["-cb", shlex.quote(f"source {self.CONTAINER_MOUNT_OUTPUT}/env_vars.sh")])
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)
         if args.use_recipes and "use_recipes" in fields_set:
             parts.append("--use_recipes")
-        if "enable_vboost" in fields_set:
-            add_field("enable_vboost", "-vb", bool(args.enable_vboost))
+        add("-vb", False)
         if not args.model_family_name:
             raise RuntimeError("Missing required cmd_args.model_family_name (maps to -m/--model_family_name).")
         if not args.model_recipe_name:
@@ -825,9 +467,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.recompute_modules and "recompute_modules" in fields_set:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
 
-        # The workload is implemented to work only with non-detached MBridge run to obtain perf metrics
-        parts.extend(["--detach", "false"])
-
         # Optimizer
         add_field("lr", "--lr", args.lr)
         add_field("min_lr", "--min_lr", args.min_lr)
@@ -866,11 +505,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("nsys_trace", "--nsys_trace", self._list_or_comma_str(args.nsys_trace))
         add_field("nsys_extra_args", "--nsys_extra_args", self._list_or_comma_str(args.nsys_extra_args))
 
-        if include_slurm_params:
-            additional_slurm_params = self._collect_additional_slurm_params()
-            if additional_slurm_params:
-                parts.extend(["--additional_slurm_params", shlex.quote(";".join(additional_slurm_params))])
-
         # Config variant
         add_field("config_variant", "-cv", args.config_variant)
         if args.list_config_variants and "list_config_variants" in fields_set:
@@ -878,6 +512,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Extra args (dict -> Hydra overrides): defaults first, then user values which take precedence.
         extra_cmd_args = self._with_default_packager(repo_path, tdef.extra_cmd_args)
+        parts.extend(self._build_custom_srun_args(extra_cmd_args))
         parts.extend(self._add_extra_cmd_args(extra_cmd_args))
 
         return parts

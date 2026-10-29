@@ -121,7 +121,11 @@ def test_slurm_api_request_expands_headers(
     )
 
 
+@pytest.mark.parametrize(
+    "memory,megabytes", [("0", 0), ("64", 64), ("1025K", 2), ("2M", 2), ("8g", 8192), ("1T", 1048576)]
+)
 @pytest.mark.parametrize("gpus_per_node", [True, False])
+@pytest.mark.parametrize("open_mode", ["append", "truncate"])
 @pytest.mark.parametrize(
     "distribution,distribution_environment",
     [
@@ -138,6 +142,9 @@ def test_submit_job_through_slurm_api(
     gpus_per_node: bool,
     distribution: str,
     distribution_environment: dict[str, str],
+    memory: str,
+    megabytes: int,
+    open_mode: str,
 ):
     monkeypatch.setenv("CLOUDAI_TEST_SESSION_ENV", "preserved")
     monkeypatch.setenv("SLURM_NTASKS_PER_NODE", "1")
@@ -161,12 +168,16 @@ def test_submit_job_through_slurm_api(
 #SBATCH --gres=gpu:8
 #SBATCH --ntasks-per-node=8
 #SBATCH --time=00:20:30
+#SBATCH --exclusive
+#SBATCH --open-mode=append
+#SBATCH --mem=MEMORY
 
 srun --container-image=image.sqsh benchmark
-"""
+""".replace("MEMORY", memory)
     if not gpus_per_node:
         script = script.replace("#SBATCH --gpus-per-node=8\n", "")
     script = script.replace("--distribution=block", f"--distribution={distribution}")
+    script = script.replace("--open-mode=append", f"--open-mode={open_mode}")
     script_path = tmp_path / "job.sbatch"
     script_path.write_text(script)
 
@@ -194,6 +205,9 @@ srun --container-image=image.sqsh benchmark
         "gres": "gpu:8",
         "tasks_per_node": 8,
         "time_limit": 21,
+        "exclusive": "exclusive",
+        "open_mode": open_mode,
+        "memory_per_node": megabytes,
         "current_working_directory": str(tmp_path),
         "environment": expected_environment,
     }
@@ -203,6 +217,8 @@ srun --container-image=image.sqsh benchmark
         expected_job.update(
             nodes="2-2",
             time_limit={"set": True, "number": 21},
+            memory_per_node={"set": True, "number": megabytes},
+            open_mode=[open_mode.upper()],
             environment=[f"{name}={value}" for name, value in expected_environment.items()],
             required_nodes=["node01", "node02"],
             excluded_nodes=["node03", "node04"],
@@ -214,9 +230,10 @@ srun --container-image=image.sqsh benchmark
     assert payload == expected_payload
 
 
-def test_slurm_api_rejects_unsupported_sbatch_directive(rest_slurm_system: SlurmSystem, tmp_path: Path):
+@pytest.mark.parametrize("directive", ["--qos=high", "--mem=1.5G", "--mem=-1"])
+def test_slurm_api_rejects_unsupported_sbatch_directive(rest_slurm_system: SlurmSystem, tmp_path: Path, directive: str):
     script_path = tmp_path / "job.sbatch"
-    script_path.write_text("#!/bin/bash\n#SBATCH --qos=high\nsrun true\n")
+    script_path.write_text(f"#!/bin/bash\n#SBATCH {directive}\nsrun true\n")
 
     with (
         patch.object(SlurmRestClient, "_request") as request,

@@ -47,6 +47,12 @@ Docker images, git repos with executable scripts, etc. All such "installables" a
 
 Installables are shared among all tests. Therefore, if any number of tests use the same installable, it is installed only once for a particular system TOML.
 
+``PythonExecutable`` installs a Python project into its own virtual environment. When the selected
+``pyproject.toml`` has an adjacent ``uv.lock``, it uses bundled uv to install the locked base dependencies
+and the project, without extras or dependency groups. An outdated lockfile fails installation instead
+of being updated. Projects without a lockfile continue to use pip. When ``dependencies_from_pyproject=False``
+selects an existing ``requirements.txt``, that selection takes precedence over the lockfile.
+
 .. mermaid::
 
    classDiagram

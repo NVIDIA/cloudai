@@ -16,6 +16,7 @@
 
 
 from cloudai.core import Registry
+from cloudai.report_generator.pareto_report import ParetoReporter
 from cloudai.report_generator.training import TrainingReporter
 from cloudai.reporter import DSEReporter, JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
 from cloudai.s3_reporter import S3UploadReporter
@@ -287,6 +288,7 @@ def test_scenario_reports():
         "status",
         "junit",
         "dse",
+        "pareto",
         "tarball",
         "s3",
         "nixl_bench_summary",
@@ -304,6 +306,7 @@ def test_scenario_reports():
         StatusReporter,
         JUnitReporter,
         DSEReporter,
+        ParetoReporter,
         TarballReporter,
         S3UploadReporter,
         NIXLBenchComparisonReport,
@@ -325,6 +328,7 @@ def test_report_configs():
         "status",
         "junit",
         "dse",
+        "pareto",
         "tarball",
         "s3",
         "nixl_bench_summary",
@@ -335,7 +339,7 @@ def test_report_configs():
         "vllm_comparison",
         "sglang_comparison",
     ]
-    disabled_configs = {"junit", "s3"}  # uploading off-box must be opt-in
+    disabled_configs = {"junit", "s3", "pareto"}
     for name, rep_config in configs.items():
         expected_be_enabled = name not in disabled_configs
         assert rep_config.enable is expected_be_enabled, f"Report {name} has an unexpected default state"
