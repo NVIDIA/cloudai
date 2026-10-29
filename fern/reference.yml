@@ -1,214 +1,214 @@
 references:
-- symbol: cloudai.systems.slurm.slurm_system.SlurmSystem
-  exclude:
-  - cmd_shell
-  - group_allocated
-  - supports_gpu_directives_cache
-  fields_only: true
-- symbol: cloudai.systems.slurm.slurm_system.SlurmPartition
-  exclude:
-  - slurm_nodes
-  fields_only: true
-- symbol: cloudai.systems.slurm.slurm_system.SlurmGroup
-  exclude: []
-  fields_only: true
-- symbol: cloudai.systems.slurm.slurm_system.DataRepositoryConfig
-  exclude: []
-  fields_only: true
-- symbol: cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem
-  exclude: []
-  fields_only: true
-- symbol: cloudai.systems.runai.runai_system.RunAISystem
-  exclude:
-  - nodes
-  fields_only: true
-- symbol: cloudai.systems.runai.runai_node.RunAINode
-  exclude: []
-  fields_only: true
-- symbol: cloudai.systems.lsf.lsf_system.LSFSystem
-  exclude:
-  - cmd_shell
-  fields_only: true
-- symbol: cloudai.systems.lsf.lsf_system.LSFQueue
-  exclude:
-  - lsf_nodes
-  fields_only: true
-- symbol: cloudai.systems.lsf.lsf_system.LSFGroup
-  exclude: []
-  fields_only: true
-- symbol: cloudai.systems.standalone.standalone_system.StandaloneSystem
-  exclude:
-  - cmd_shell
-  fields_only: true
-- symbol: cloudai.report_generator.training.models.TrainingResults
-  exclude:
-  - __init__
-  fields_only: false
-- symbol: cloudai.report_generator.training.models.TrainingConfig
-  exclude:
-  - __init__
-  fields_only: false
-- symbol: cloudai.report_generator.training.models.TrainingStep
-  exclude:
-  - __init__
-  fields_only: false
-- symbol: cloudai.report_generator.training.models.StepAggregation
-  exclude:
-  - __init__
-  - from_steps
-  fields_only: false
-- symbol: cloudai.report_generator.training.models.MetricStats
-  exclude:
-  - __init__
-  - from_values
-  fields_only: false
-- symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.aiconfig.standalone_command_gen_strategy.AiconfiguratorStandaloneCommandGenStrategy
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.aiconfig.report_generation_strategy.AiconfiguratorReportGenerationStrategy
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.ddlb.ddlb.DDLBCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.ddlb.ddlb.DDLBTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.deepep.deepep.DeepEPCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.deepep.deepep.DeepEPTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.fio.fio.FioCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.fio.fio.FioTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nccl_test.nccl.NCCLCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nccl_test.nccl.NCCLTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sglang.sglang.SglangArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sglang.sglang.SglangCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sglang.sglang.SglangBenchCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sglang.sglang.SglangSemanticEvalCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sglang.sglang.SglangTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sleep.sleep.SleepCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.sleep.sleep.SleepTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.ucc_test.ucc.UCCCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.ucc_test.ucc.UCCTestDefinition
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.vllm.vllm.VllmArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.vllm.vllm.VllmCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.vllm.vllm.VllmBenchCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.vllm.vllm.VllmSemanticEvalCmdArgs
-  exclude: []
-  fields_only: false
-- symbol: cloudai.workloads.vllm.vllm.VllmTestDefinition
-  exclude: []
-  fields_only: false
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmSystem
+    exclude:
+      - cmd_shell
+      - group_allocated
+      - supports_gpu_directives_cache
+    fields_only: true
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmPartition
+    exclude:
+      - slurm_nodes
+    fields_only: true
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmGroup
+    exclude: []
+    fields_only: true
+  - symbol: cloudai.systems.slurm.slurm_system.DataRepositoryConfig
+    exclude: []
+    fields_only: true
+  - symbol: cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem
+    exclude: []
+    fields_only: true
+  - symbol: cloudai.systems.runai.runai_system.RunAISystem
+    exclude:
+      - nodes
+    fields_only: true
+  - symbol: cloudai.systems.runai.runai_node.RunAINode
+    exclude: []
+    fields_only: true
+  - symbol: cloudai.systems.lsf.lsf_system.LSFSystem
+    exclude:
+      - cmd_shell
+    fields_only: true
+  - symbol: cloudai.systems.lsf.lsf_system.LSFQueue
+    exclude:
+      - lsf_nodes
+    fields_only: true
+  - symbol: cloudai.systems.lsf.lsf_system.LSFGroup
+    exclude: []
+    fields_only: true
+  - symbol: cloudai.systems.standalone.standalone_system.StandaloneSystem
+    exclude:
+      - cmd_shell
+    fields_only: true
+  - symbol: cloudai.report_generator.training.models.TrainingResults
+    exclude:
+      - __init__
+    fields_only: false
+  - symbol: cloudai.report_generator.training.models.TrainingConfig
+    exclude:
+      - __init__
+    fields_only: false
+  - symbol: cloudai.report_generator.training.models.TrainingStep
+    exclude:
+      - __init__
+    fields_only: false
+  - symbol: cloudai.report_generator.training.models.StepAggregation
+    exclude:
+      - __init__
+      - from_steps
+    fields_only: false
+  - symbol: cloudai.report_generator.training.models.MetricStats
+    exclude:
+      - __init__
+      - from_values
+    fields_only: false
+  - symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.aiconfig.standalone_command_gen_strategy.AiconfiguratorStandaloneCommandGenStrategy
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.aiconfig.report_generation_strategy.AiconfiguratorReportGenerationStrategy
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.ddlb.ddlb.DDLBCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.ddlb.ddlb.DDLBTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.deepep.deepep.DeepEPCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.deepep.deepep.DeepEPTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.fio.fio.FioCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.fio.fio.FioTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nccl_test.nccl.NCCLCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nccl_test.nccl.NCCLTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sglang.sglang.SglangArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sglang.sglang.SglangCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sglang.sglang.SglangBenchCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sglang.sglang.SglangSemanticEvalCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sglang.sglang.SglangTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sleep.sleep.SleepCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.sleep.sleep.SleepTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.ucc_test.ucc.UCCCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.ucc_test.ucc.UCCTestDefinition
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.vllm.vllm.VllmArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.vllm.vllm.VllmCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.vllm.vllm.VllmBenchCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.vllm.vllm.VllmSemanticEvalCmdArgs
+    exclude: []
+    fields_only: false
+  - symbol: cloudai.workloads.vllm.vllm.VllmTestDefinition
+    exclude: []
+    fields_only: false

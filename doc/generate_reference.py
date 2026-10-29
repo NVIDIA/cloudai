@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generate Fern snippets from Python objects; authored MDX is never rewritten."""
-
 import dataclasses
 import html
 import importlib
