@@ -237,6 +237,9 @@ def test_constraint_failure(
     assert info["constraint_rejected"] is True
     assert checked_steps == [1]
     assert env.test_run.step == 0
+    env.skip_step()
+    assert env.test_run.step == 1
+    assert env.upcoming_trial == 2
     runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
 
