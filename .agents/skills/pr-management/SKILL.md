@@ -1,12 +1,18 @@
 ---
 name: pr-management
-description: Drafts or revises concise PR titles and descriptions; maintains labels and author assignment during authorized PR creation or updates.
+description: Use after every push to a branch with an open PR, and when creating or updating PRs. Maintain title, description, labels, and assignee.
 ---
 
 # PR management
 
 Honor existing authorization. Text-only request: draft text, suggest metadata, no GitHub writes.
 Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; preserve existing PR status.
+
+## After every push
+
+- After each successful authorized push, find the open PR matching the pushed repository and head branch. Apply this skill before reporting completion, including for commit-and-push requests.
+- Push authorization includes maintaining that PR's title, description, labels, and assignee. No separate approval needed. No open PR: stop; do not create one unless asked.
+- Read current PR and final diff. Update stale metadata; preserve accurate user edits. Check CI for the new head; never carry forward an older commit's passing status. Already current: no write needed.
 
 ## Description
 
