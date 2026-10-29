@@ -27,5 +27,6 @@
 
 - Do not commit, push, open or modify pull requests, or run remote jobs unless explicitly asked to do so.
 - Follow PR requirements in `CONTRIBUTING.md` and use `.github/PULL_REQUEST_TEMPLATE.md`.
+- Use `.agents/skills/pr-management/SKILL.md` for PR descriptions, draft status, labels, and assignment.
 - Keep public configs reusable (no internal resources). Never commit credentials, private artifacts, or internal
   hostnames.
