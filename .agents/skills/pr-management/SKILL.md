@@ -5,7 +5,6 @@ description: Use after every push to a branch with an open PR, and when creating
 
 # PR management
 
-Honor existing authorization. Text-only request: draft text, suggest metadata, no GitHub writes.
 Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; preserve existing PR status.
 
 ## After every push
@@ -18,7 +17,7 @@ Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; prese
 
 - Follow repository template; match user's edited descriptions. PR prose: normal sentences, concise.
 - Short title: component + change, e.g. `[MegatronRun] Metric observations`.
-- Summary: usually one sentence covering user-visible result and affected interface/artifact.
+- Summary: state what changed and why, as briefly as possible. Add context only when needed to understand the change; keep it short. Use bullets for distinct points or numbered lists when order matters.
 - Explain final behavior. Skip supporting-change inventories: helpers, tests, configs, docs, refactors unless essential to review.
 - Match current diff. Remove abandoned approaches, stale claims, reassurance about unchanged behavior.
 - Additional Notes: `N/A` unless compatibility change, material limitation, or reviewer action.
