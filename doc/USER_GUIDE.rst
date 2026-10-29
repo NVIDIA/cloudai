@@ -574,12 +574,6 @@ Each import uses one node and one task, the system's account and default partiti
 and the arguments in ``docker_image_import_extra_sbatch_args``. In this example,
 ``--segment 2`` and ``--cpu-bind=cores`` apply only to workloads; imports request 20 minutes.
 
-.. note::
-
-   Image imports no longer inherit ``extra_sbatch_args`` or ``extra_srun_args``.
-   If imports require a reservation, QoS, or constraint previously supplied through
-   those fields, also specify it in ``docker_image_import_extra_sbatch_args``.
-
 Container Mounts
 ~~~~~~~~~~~~~~~~
 
