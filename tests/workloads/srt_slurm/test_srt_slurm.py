@@ -32,89 +32,7 @@ from cloudai.workloads.srt_slurm import (
 )
 
 
-def make_tdef(tmp_path: Path) -> SRTSlurmTestDefinition:
-    recipe_path = tmp_path / "source_recipe.yaml"
-    recipe_path.write_text(
-        """\
-schema: 2
-name: demo
-model:
-  path: model
-  container: image
-resources:
-  gpu_type: h100
-  gpus_per_node: 8
-frontend:
-  type: sglang
-engine: sglang
-roles:
-  agg:
-    nodes: 1
-    workers: 1
-    gpus: 1
-benchmark:
-  type: sa-bench
-  isl: 128
-  osl: 128
-  concurrencies: "4"
-""",
-        encoding="utf-8",
-    )
-    (tmp_path / "cluster.yaml").write_text("default_partition: main\n")
-    return SRTSlurmTestDefinition.model_validate(
-        {
-            "name": "srt",
-            "description": "srt-slurm test",
-            "test_template_name": "SRTSlurm",
-            "git_repos": [{"url": "git@github.com:NVIDIA/srt-slurm.git", "commit": "test-revision"}],
-            "cmd_args": {
-                "recipe_path": recipe_path,
-                "cluster_config": tmp_path / "cluster.yaml",
-                "recipe_overrides": {"roles": {"agg": {"gpus": 4}}},
-            },
-            "extra_cmd_args": {"no-preflight": ""},
-        }
-    )
-
-
-def write_job_metadata(tdef: SRTSlurmTestDefinition, tr: TestRun, **resources) -> Path:
-    path = tdef.metadata_path(tr)
-    assert path is not None
-    path.parent.mkdir(parents=True, exist_ok=True)
-    defaults = {
-        "gpus_per_node": 8,
-        "agg_nodes": 1,
-        "agg_workers": 1,
-        "gpus_per_agg": 4,
-        "prefill_workers": 0,
-        "decode_workers": 0,
-    }
-    path.write_text(json.dumps({"job_id": path.stem, "resources": defaults | resources}))
-    return path
-
-
-def test_command_generation_returns_srt_slurm_job(slurm_system: SlurmSystem, tmp_path: Path):
-    tdef = make_tdef(tmp_path)
-    tdef.srtctl.venv_path = tmp_path / "venv"
-    test_run = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-    strategy = SRTSlurmCommandGenStrategy(slurm_system, test_run)
-
-    command = strategy.gen_exec_command()
-    run_script = test_run.output_path / "run_srtctl.sh"
-    script = run_script.read_text(encoding="utf-8")
-
-    subprocess.run(["bash", "-n", run_script], check=True)
-    assert command == f"bash {run_script}"
-    assert str(tdef.cmd_args.recipe_path) in script
-    assert "--set roles.agg.gpus=4" in script
-    assert not (run_script.parent / "recipe.yaml").exists()
-    assert "--no-preflight" in run_script.read_text(encoding="utf-8")
-    assert "srt_job_id.txt" in run_script.read_text(encoding="utf-8")
-    assert 'echo "Submitted batch job $SRT_JOB_ID"' in run_script.read_text(encoding="utf-8")
-    assert "--dependency" not in run_script.read_text(encoding="utf-8")
-
-
-def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_path: Path, monkeypatch):
+def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_path: Path, monkeypatch, make_tdef):
     monkeypatch.delenv("SRTSLURM_CONFIG", raising=False)
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "login-node-venv"))
     slurm_system.global_env_vars = {"SRTSLURM_CONFIG": "system.yaml", "SRT_GLOBAL_ONLY": "global value"}
@@ -252,7 +170,7 @@ benchmark:
     assert "cmd_args.recipe_overrides" not in tdef.dse_excluded_args
 
 
-def test_standard_git_repos_controls_srtctl_revision(tmp_path: Path):
+def test_standard_git_repos_controls_srtctl_revision(tmp_path: Path, make_tdef):
     config = make_tdef(tmp_path).model_dump()
     config["extra_env_vars"] = {"SRTSLURM_CONFIG": str(tmp_path / "cluster.yaml")}
     config["git_repos"][0]["commit"] = "updated-revision"
@@ -267,7 +185,7 @@ def test_standard_git_repos_controls_srtctl_revision(tmp_path: Path):
 
 
 @pytest.mark.parametrize("git_repos", [None, []])
-def test_srtctl_requires_a_configured_git_repo(tmp_path: Path, git_repos):
+def test_srtctl_requires_a_configured_git_repo(tmp_path: Path, git_repos, make_tdef):
     config = make_tdef(tmp_path).model_dump()
     if git_repos is None:
         config.pop("git_repos")

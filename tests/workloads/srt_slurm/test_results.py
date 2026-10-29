@@ -31,8 +31,6 @@ from cloudai.workloads.srt_slurm.results import (
     sa_bench_metrics,
 )
 
-from .test_srt_slurm import make_tdef, write_job_metadata
-
 
 def test_fixed_sequence_uses_serving_gpu_counts(tmp_path: Path):
     gpus = JobGPUCounts(aggregate=0, prefill=24, decode=8)
@@ -71,7 +69,7 @@ def test_agentx_recomputes_normalization_from_job_counts():
     "runs",
     [None, [], [{"throughput_toks": "bad"}], [{"throughput_toks": float("nan")}], [{"throughput_toks": {"bad": 1}}]],
 )
-def test_bad_rollup_is_unsuccessful(slurm_system: SlurmSystem, tmp_path: Path, runs):
+def test_bad_rollup_is_unsuccessful(slurm_system: SlurmSystem, tmp_path: Path, runs, make_tdef, write_job_metadata):
     tdef = make_tdef(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tdef.job_id_path(tr).write_text("123")
@@ -84,7 +82,9 @@ def test_bad_rollup_is_unsuccessful(slurm_system: SlurmSystem, tmp_path: Path, r
     assert SRTSlurmReportGenerationStrategy(slurm_system, tr).get_metric("default") == METRIC_ERROR
 
 
-def test_agentx_requires_job_local_profiles_and_preserves_concurrencies(slurm_system: SlurmSystem, tmp_path: Path):
+def test_agentx_requires_job_local_profiles_and_preserves_concurrencies(
+    slurm_system: SlurmSystem, tmp_path: Path, make_tdef, write_job_metadata
+):
     tdef = make_tdef(tmp_path)
     tdef.cmd_args.result_format = "agentx"
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
@@ -149,7 +149,9 @@ def test_agentx_requires_job_local_profiles_and_preserves_concurrencies(slurm_sy
         ),
     ],
 )
-def test_job_metadata_resolves_worker_gpu_totals(tmp_path: Path, resources: dict, expected: JobGPUCounts):
+def test_job_metadata_resolves_worker_gpu_totals(
+    tmp_path: Path, resources: dict, expected: JobGPUCounts, make_tdef, write_job_metadata
+):
     tdef = make_tdef(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tdef.job_id_path(tr).write_text("123")
@@ -158,7 +160,7 @@ def test_job_metadata_resolves_worker_gpu_totals(tmp_path: Path, resources: dict
 
 
 @pytest.mark.parametrize("agentic", [False, True])
-def test_missing_metadata_fails_even_with_results(slurm_system: SlurmSystem, tmp_path: Path, agentic: bool):
+def test_missing_metadata_fails_even_with_results(slurm_system: SlurmSystem, tmp_path: Path, agentic: bool, make_tdef):
     tdef = make_tdef(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tdef.job_id_path(tr).write_text("123")
@@ -211,7 +213,9 @@ def test_missing_metadata_fails_even_with_results(slurm_system: SlurmSystem, tmp
         {"job_id": "123", "resources": {"agg_workers": 0, "prefill_workers": 0, "decode_workers": 0}},
     ],
 )
-def test_invalid_metadata_is_unsuccessful(slurm_system: SlurmSystem, tmp_path: Path, invalid):
+def test_invalid_metadata_is_unsuccessful(
+    slurm_system: SlurmSystem, tmp_path: Path, invalid, make_tdef, write_job_metadata
+):
     tdef = make_tdef(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tdef.job_id_path(tr).write_text("123")
@@ -227,7 +231,7 @@ def test_invalid_metadata_is_unsuccessful(slurm_system: SlurmSystem, tmp_path: P
     assert not SRTSlurmReportGenerationStrategy(slurm_system, tr).can_handle_directory()
 
 
-def test_malformed_metadata_is_unsuccessful(tmp_path: Path):
+def test_malformed_metadata_is_unsuccessful(tmp_path: Path, make_tdef, write_job_metadata):
     tdef = make_tdef(tmp_path)
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tdef.job_id_path(tr).write_text("123")
@@ -239,7 +243,9 @@ def test_malformed_metadata_is_unsuccessful(tmp_path: Path):
 
 
 @pytest.mark.parametrize("workers, per_worker", [(1, 1), (2, 2), (1, 16)])
-def test_dse_reporting_uses_each_jobs_metadata(tmp_path: Path, workers: int, per_worker: int):
+def test_dse_reporting_uses_each_jobs_metadata(
+    tmp_path: Path, workers: int, per_worker: int, make_tdef, write_job_metadata
+):
     tdef = make_tdef(tmp_path)
     base = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
     tr = base.apply_params_set(

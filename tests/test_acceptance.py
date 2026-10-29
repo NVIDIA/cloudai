@@ -29,7 +29,7 @@ import toml
 import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
-from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
+from cloudai.core import BaseInstaller, CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -83,6 +83,7 @@ from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
     SlurmContainerTestDefinition,
 )
+from cloudai.workloads.srt_slurm import SRTSlurmCmdArgs, SRTSlurmTestDefinition
 from cloudai.workloads.triton_inference import (
     TritonInferenceCmdArgs,
     TritonInferenceTestDefinition,
@@ -239,6 +240,12 @@ def with_installed_dynamo_repo(test_definition: AIDynamoTestDefinition, installe
     return test_definition
 
 
+def with_installed_srt_repo(test_definition: SRTSlurmTestDefinition, system: SlurmSystem) -> SRTSlurmTestDefinition:
+    """Set the installation paths used by acceptance command generation."""
+    BaseInstaller(system).mark_as_installed(test_definition.installables)
+    return test_definition
+
+
 def build_special_test_run(
     partial_tr: partial[TestRun], param: str, test_mapping: Dict[str, Callable[[], TestRun]]
 ) -> Tuple[TestRun, str, Optional[str]]:
@@ -312,6 +319,7 @@ def build_special_test_run(
 
 @pytest.fixture(
     params=[
+        "srt-slurm",
         "ucc",
         "ddlb",
         "nccl",
@@ -351,6 +359,26 @@ def build_special_test_run(
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
     test_mapping: Dict[str, Callable[[], TestRun]] = {
+        "srt-slurm": lambda: create_test_run(
+            partial_tr,
+            "srt-slurm",
+            with_installed_srt_repo(
+                SRTSlurmTestDefinition(
+                    name="srt-slurm",
+                    description="SRT Slurm recipe submission",
+                    test_template_name="SRTSlurm",
+                    git_repos=[GitRepo(url="https://github.com/NVIDIA/srt-slurm.git", commit="v2.2.1")],
+                    cmd_args=SRTSlurmCmdArgs(
+                        recipe_path=Path("conf/experimental/srt_slurm/recipe.yaml"),
+                        cluster_config=Path("conf/experimental/srt_slurm/srtslurm.yaml"),
+                        recipe_overrides={"benchmark": {"concurrencies": "4"}},
+                    ),
+                    extra_env_vars={"TEST_VAR": "value with spaces"},
+                    extra_cmd_args={"no-preflight": ""},
+                ),
+                slurm_system,
+            ),
+        ),
         "ucc": lambda: create_test_run(
             partial_tr,
             "ucc",
@@ -951,25 +979,3 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_aiperf = aiperf_script.read_text().strip()
         ref_aiperf = (Path(__file__).parent / "ref_data" / "ai-dynamo-aiperf.sh").read_text().strip()
         assert curr_aiperf == ref_aiperf, "aiperf.sh does not match reference"
-
-
-def test_srt_slurm_example_dry_run(slurm_system: SlurmSystem, tmp_path: Path):
-    from cloudai.core import BaseInstaller
-    from cloudai.test_scenario_parser import TestScenarioParser
-    from cloudai.workloads.srt_slurm import SRTSlurmTestDefinition
-
-    scenario = TestScenarioParser(Path("conf/experimental/srt_slurm/scenario.toml"), slurm_system, {}, {}).parse()
-    tr = scenario.test_runs[0].apply_params_set({"recipe_overrides.benchmark.concurrencies": "4"})
-    assert isinstance(tr.test, SRTSlurmTestDefinition)
-    tr.output_path = tmp_path / "trial"
-    BaseInstaller(slurm_system).mark_as_installed(tr.test.installables)
-    runner = SlurmRunner("dry-run", slurm_system, TestScenario(name="srt", test_runs=[tr]), tmp_path)
-    job = runner._submit_test(tr)
-    runner.on_job_submit(tr)
-    assert job.id == 0
-    script = tr.output_path / "run_srtctl.sh"
-    assert script.is_file()
-    assert not (tr.output_path / "cloudai_generated").exists()
-    assert not (tr.output_path / "srt_slurm_recipe.yaml").exists()
-    assert "--set" in script.read_text()
-    assert (tr.output_path / "test-run.toml").is_file()

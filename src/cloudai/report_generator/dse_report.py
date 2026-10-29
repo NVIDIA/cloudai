@@ -341,7 +341,7 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump(mode="json")),
+        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )

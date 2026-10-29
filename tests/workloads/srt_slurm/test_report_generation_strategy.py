@@ -21,10 +21,10 @@ from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.srt_slurm import SRTSlurmReportGenerationStrategy
 
-from .test_srt_slurm import make_tdef, write_job_metadata
 
-
-def test_report_reads_best_run_directly_from_srt_rollup(slurm_system: SlurmSystem, tmp_path: Path):
+def test_report_reads_best_run_directly_from_srt_rollup(
+    slurm_system: SlurmSystem, tmp_path: Path, make_tdef, write_job_metadata
+):
     tdef = make_tdef(tmp_path)
     test_run = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
     test_run.output_path.mkdir(parents=True)

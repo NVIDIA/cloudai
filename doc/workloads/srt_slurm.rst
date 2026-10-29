@@ -62,9 +62,11 @@ Tools supplied through virtual-environment PATH entries are removed as part of
 this compatibility cleanup; supply required compute-node tools outside a Python
 virtual environment.
 
-Installation runs ``make setup`` in a single-node, 15-minute ``srun`` using the
-CloudAI system's partition, account, and extra srun arguments. This downloads
-runtime tools for the compute-node architecture. A checkout-local bootstrap
+Installation runs ``make setup`` in a single-node, 15-minute ``srun`` using
+``system.toml``'s ``default_partition``, ``account``, and ``extra_srun_args``.
+These settings apply only to the installation allocation; benchmark scheduling
+uses the supplied srt-slurm cluster config and recipe. Setup downloads runtime
+tools for the compute-node architecture. A checkout-local bootstrap
 config prevents interactive setup prompts; existing checkout configs are
 preserved. Trial submission always uses the explicit ``cluster_config``.
 
@@ -124,19 +126,20 @@ commit ``7858d3091d5e278ab56ebf0246df9ea913bc2477``, first released in ``v1.0.0`
 
 CloudAI calculates each role's GPU total as workers times GPUs per worker and sums
 those totals for the serving count. This automatically follows each trial's effective
-DSE topology. ``serving_gpus``, ``prefill_gpus`` and ``decode_gpus`` are no longer
-scenario fields; remove them from existing configs. Resolved counts appear in each
-CSV result row as ``serving_gpus``, ``aggregate_gpus``, ``prefill_gpus`` and ``decode_gpus``.
+DSE topology. CSV result rows include ``serving_gpus``, ``aggregate_gpus``,
+``prefill_gpus``, and ``decode_gpus``.
 
-``default`` and ``output_throughput`` expose output tokens/s;
-``total_token_throughput`` exposes input plus output tokens/s.
-``tput_per_gpu`` divides total throughput by the metadata-derived serving count.
-Disaggregated input/output per-GPU metrics use their respective prefill/decode pools;
-aggregated metrics share the aggregate pool, counted once. Producer-normalized
-rollup fields are ignored. A rollup lacking raw total throughput cannot provide
-``tput_per_gpu``. Latency aliases such as ``median_ttft`` use seconds;
-``ttft_median_ms`` uses milliseconds. ``median_intvty`` and ``p90_intvty``
-use the reciprocal of the corresponding TPOT, in tokens/s/user.
+* ``default`` and ``output_throughput`` expose output tokens/s.
+* ``total_token_throughput`` exposes input plus output tokens/s.
+* ``tput_per_gpu`` divides total throughput by the metadata-derived serving count.
+  Disaggregated input/output per-GPU metrics use their respective prefill/decode
+  pools; aggregated metrics share the aggregate pool, counted once.
+* Producer-normalized rollup fields are ignored. A rollup lacking raw total
+  throughput cannot provide ``tput_per_gpu``.
+* Latency aliases such as ``median_ttft`` use seconds; ``ttft_median_ms`` uses
+  milliseconds.
+* ``median_intvty`` and ``p90_intvty`` use the reciprocal of the corresponding
+  TPOT, in tokens/s/user.
 
 ``result_format = "agentx"`` reads InferenceX aggregate JSON from the submitted
 job's ``logs/agentic`` directory. Each aggregate must have its corresponding

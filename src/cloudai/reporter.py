@@ -293,7 +293,7 @@ class DSEReporter(Reporter):
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(mode="json"), f)
+                toml.dump(trd.test_definition.model_dump(), f)
 
 
 class TarballReporter(Reporter):
