@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+default_partition: gpu
+gpus_per_node: 4
+srtctl_root: /shared/cloudai/install/srt-slurm__098e15aca8504d4747c6f62c7a845e178b7f4b10
+model_paths: {qwen: /shared/models/Qwen3-0.6B}
+containers: {sglang: /shared/images/sglang.sqsh}
+default_mounts:
+  /shared/cloudai/install/InferenceX__f8dff19a6898e3ee0dd95232f867151d4d2d6392: /infmax-workspace
+  /shared/cloudai/example: /agentx-test
+  /shared/models/Qwen3-0.6B: /model
