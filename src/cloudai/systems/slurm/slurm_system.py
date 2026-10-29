@@ -65,18 +65,15 @@ class SlurmPartition(BaseModel):
 class SlurmSystem(System):
     """Represents a Slurm system."""
 
-    def submit_sbatch(
-        self, script_path: Path, operation_name: str, *, wait: bool = False, time_limit: str | None = None
-    ) -> int:
-        """Submit an sbatch script, optionally overriding its time limit at submission."""
+    def submit_sbatch(self, script_path: Path, operation_name: str, *, wait: bool = False) -> int:
+        """Submit an sbatch script without exposing the CLI transport to callers."""
         if self.uses_slurm_api:
             return self._rest_client.submit_sbatch(
-                script_path, operation_name, wait=wait, monitor_interval=self.monitor_interval, time_limit=time_limit
+                script_path, operation_name, wait=wait, monitor_interval=self.monitor_interval
             )
 
         wait_arg = " --wait" if wait else ""
-        time_arg = f" --time={shlex.quote(time_limit)}" if time_limit else ""
-        command = f"sbatch{wait_arg}{time_arg} {shlex.quote(str(script_path))}"
+        command = f"sbatch{wait_arg} {shlex.quote(str(script_path))}"
         return self.submit_job(command, operation_name, check_return_code=wait)
 
     default_partition: str
@@ -87,7 +84,7 @@ class SlurmSystem(System):
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
-    docker_image_import_time_limit: Optional[str] = None
+    docker_image_import_extra_sbatch_args: list[str] = Field(default_factory=list)
     scheduler: str = "slurm"
     monitor_interval: float = 60.0
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)

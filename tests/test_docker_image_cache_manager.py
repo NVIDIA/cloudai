@@ -59,20 +59,21 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
     slurm_system.cache_docker_images_locally = True
     slurm_system.account = account
     slurm_system.supports_gpu_directives_cache = supports_gpu
-    slurm_system.extra_srun_args = "--reservation test-reservation"
+    slurm_system.docker_image_import_extra_sbatch_args = ["--reservation=test-reservation"]
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
     image_path = slurm_system.install_path / "image.sqsh"
     if cleanup_error:
         monkeypatch.setattr(Path, "unlink", Mock(side_effect=PermissionError("cleanup failed")))
 
-    def submit(script_path: Path, operation_name: str, *, wait: bool, time_limit: str | None = None) -> int:
+    def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
         content = script_path.read_text(encoding="utf-8")
         image_hash = sha256(b"docker.io/hello-world").hexdigest()[:8]
         assert image_hash in script_path.name
         assert "#SBATCH --partition=" + slurm_system.default_partition in content
         assert "#SBATCH -N1" in content
         assert "#SBATCH --ntasks=1" in content
-        assert "srun --export=ALL --ntasks=1 --reservation test-reservation enroot import -o" in content
+        assert "#SBATCH --reservation=test-reservation" in content
+        assert "srun --export=ALL --ntasks=1 enroot import -o" in content
         assert "docker://docker.io/hello-world" in content
         if account:
             assert f"#SBATCH --account={account}" in content
@@ -115,39 +116,31 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
     assert "Failed to import Docker image" in result.message
 
 
-@pytest.mark.parametrize("time_limit", [None, "", "00:20:00", "0"])
 @pytest.mark.parametrize(
-    "extra_args",
+    "import_args",
     [
         [],
-        ["--time=02:00:00"],
-        ["--time 02:00:00"],
-        ["-t 02:00:00"],
-        ["-t02:00:00"],
-        ["--time=02:00:00", "-t 03:00:00"],
-        ['--qos=normal --time "02:00:00" --comment="image import"'],
-        ['--comment "-training-run"'],
-        ['--comment "--time=02:00:00"'],
-        ['--comment "-t" --qos=normal'],
+        ["--time=00:20:00", "--reservation=import-reservation"],
+        ['-t 20 --comment "--time=02:00:00"'],
     ],
 )
-def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, extra_args: list[str]):
-    slurm_system.docker_image_import_time_limit = time_limit
-    slurm_system.extra_sbatch_args = [*extra_args, "--time-min=00:01:00"]
-    original_args = slurm_system.extra_sbatch_args.copy()
+def test_import_uses_dedicated_sbatch_args(slurm_system: SlurmSystem, import_args: list[str]):
+    slurm_system.docker_image_import_extra_sbatch_args = import_args
+    slurm_system.extra_sbatch_args = ["--segment 2", "--time=02:00:00", "--time-min=01:00:00"]
+    slurm_system.extra_srun_args = "--ntasks=16 --cpu-bind=cores"
     slurm_system.supports_gpu_directives_cache = False
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
     image_path = slurm_system.install_path / "image.sqsh"
 
     def submit(command: str, operation_name: str, *, check_return_code: bool) -> int:
         args = shlex.split(command)
-        expected_options = ["sbatch", "--wait"]
-        if time_limit:
-            expected_options.append(f"--time={time_limit}")
-        assert args[:-1] == expected_options
+        assert args[:-1] == ["sbatch", "--wait"]
         content = Path(args[-1]).read_text()
-        for arg in original_args:
+        for arg in slurm_system.extra_sbatch_args:
+            assert f"#SBATCH {arg}\n" not in content
+        for arg in import_args:
             assert f"#SBATCH {arg}\n" in content
+        assert "srun --export=ALL --ntasks=1 enroot import -o" in content
         image_path.touch()
         return 123
 
@@ -156,7 +149,6 @@ def test_import_time_limit(slurm_system: SlurmSystem, time_limit: str | None, ex
 
     assert result.success
     submit_job.assert_called_once()
-    assert slurm_system.extra_sbatch_args == original_args
 
 
 def test_cache_docker_image_reports_failed_job_with_partial_image(slurm_system: SlurmSystem):
@@ -192,7 +184,7 @@ def test_cache_docker_image_reports_missing_image(slurm_system: SlurmSystem, std
     slurm_system.supports_gpu_directives_cache = False
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
-    def submit(script_path: Path, operation_name: str, *, wait: bool, time_limit: str | None = None) -> int:
+    def submit(script_path: Path, operation_name: str, *, wait: bool) -> int:
         script_path.with_suffix(".out").touch()
         script_path.with_suffix(".err").write_text(stderr, encoding="utf-8")
         return 123

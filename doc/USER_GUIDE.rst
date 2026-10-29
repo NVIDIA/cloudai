@@ -22,7 +22,7 @@ In this section, we introduce the concept of the system schema, explain the mean
    ntasks_per_node = 8
 
    cache_docker_images_locally = true
-   docker_image_import_time_limit = "00:20:00"
+   docker_image_import_extra_sbatch_args = ["--time=00:20:00"]
 
    [[partitions]]
    name = "partition_1"
@@ -78,11 +78,11 @@ Field Descriptions
      - These are Slurm arguments passed to the ``sbatch`` script and ``srun``.
    * - **cache_docker_images_locally**
      - Specifies whether CloudAI should cache remote Docker images locally during installation. If set to ``true``, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to ``false``, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
-   * - **[optional] docker_image_import_time_limit**
-     - Slurm execution time limit for each Docker image import job when ``cache_docker_images_locally = true``.
-       For example, ``"00:20:00"`` allows 20 minutes per image, excluding queue wait time.
-       Overrides ``--time``/``-t`` in ``extra_sbatch_args`` for imports only; benchmark time limits are unchanged.
-       If omitted or set to ``""``, existing ``extra_sbatch_args`` and Slurm defaults apply.
+   * - **[optional] docker_image_import_extra_sbatch_args**
+     - Extra Slurm allocation arguments for Docker image import jobs when ``cache_docker_images_locally = true``.
+       For example, ``["--time=00:20:00"]`` allows 20 minutes per image, excluding queue wait time.
+       Defaults to ``[]``; without a time argument, Slurm's default time limit applies.
+       See :ref:`docker-image-import-arguments` for configuration and migration details.
    * - **global_env_vars**
      - Lists all global environment variables that will be applied globally whenever tests are run.
    * - **[optional] slurm_api**
@@ -556,6 +556,29 @@ Will result in srun command inside sbatch script like this:
 .. code-block:: bash
 
    srun ... --arg=val --other-arg=other-val ...
+
+.. _docker-image-import-arguments:
+
+Docker Image Import Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Configure image import allocations separately from workload arguments:
+
+.. code-block:: toml
+
+   extra_sbatch_args = ["--segment 2"]
+   extra_srun_args = "--cpu-bind=cores"
+   docker_image_import_extra_sbatch_args = ["--time=00:20:00"]
+
+Each import uses one node and one task, the system's account and default partition,
+and the arguments in ``docker_image_import_extra_sbatch_args``. In this example,
+``--segment 2`` and ``--cpu-bind=cores`` apply only to workloads; imports request 20 minutes.
+
+.. note::
+
+   Image imports no longer inherit ``extra_sbatch_args`` or ``extra_srun_args``.
+   If imports require a reservation, QoS, or constraint previously supplied through
+   those fields, also specify it in ``docker_image_import_extra_sbatch_args``.
 
 Container Mounts
 ~~~~~~~~~~~~~~~~

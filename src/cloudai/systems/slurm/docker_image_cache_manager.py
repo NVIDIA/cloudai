@@ -118,11 +118,9 @@ class DockerImageCacheManager:
             directives.append(f"#SBATCH --account={self.system.account}")
         if self.system.supports_gpu_directives:
             directives.append("#SBATCH --gres=gpu:1")
-        directives.extend(f"#SBATCH {arg}" for arg in self.system.extra_sbatch_args)
+        directives.extend(f"#SBATCH {arg}" for arg in self.system.docker_image_import_extra_sbatch_args)
 
         srun = ["srun", "--export=ALL", "--ntasks=1"]
-        if self.system.extra_srun_args:
-            srun.append(self.system.extra_srun_args)
         srun.extend(
             [
                 "enroot import -o",
@@ -151,9 +149,7 @@ class DockerImageCacheManager:
 
         script_path, stderr_path = self._write_import_script(docker_image_url, docker_image_path)
         try:
-            self.system.submit_sbatch(
-                script_path, "Docker image import", wait=True, time_limit=self.system.docker_image_import_time_limit
-            )
+            self.system.submit_sbatch(script_path, "Docker image import", wait=True)
         except (JobFailureError, JobIdRetrievalError) as error:
             message = f"Failed to import Docker image {docker_image_url}: {error}"
             logging.error(message)

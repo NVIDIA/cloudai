@@ -60,33 +60,32 @@ def rest_slurm_system(slurm_system: SlurmSystem, rest_slurm_api_config: SlurmAPI
 
 
 @pytest.mark.parametrize(
-    "time_limit,extra_args,expected_minutes",
+    "import_args,expected_minutes",
     [
-        ("00:20:30", ["--time=02:00:00", "-t 03:00:00"], 21),
-        ("0", ["-t120"], 0),
-        (None, [], None),
-        ("", [], None),
-        (None, ["-t120"], 120),
-        ("", ["--time=02:00:00"], 120),
+        ([], None),
+        (["--time=00:20:30"], 21),
+        (["-t 20"], 20),
+        (["-t20"], 20),
+        (["--time=0"], 0),
     ],
 )
 def test_slurm_api_import_time_limit(
     rest_slurm_system: SlurmSystem,
     rest_slurm_api_config: SlurmAPIConfig,
-    time_limit: str | None,
-    extra_args: list[str],
+    import_args: list[str],
     expected_minutes: int | None,
 ):
     system = rest_slurm_system
     system.supports_gpu_directives_cache = False
-    system.extra_sbatch_args = [*extra_args, '--reservation "-t"']
+    system.extra_sbatch_args = ["--segment 2", "--time=02:00:00"]
+    system.docker_image_import_extra_sbatch_args = [*import_args, '--reservation "-t"']
     system.install_path.mkdir(parents=True, exist_ok=True)
     script_path, _ = DockerImageCacheManager(system)._write_import_script(
         "docker.io/hello-world", system.install_path / "image.sqsh"
     )
 
     with patch.object(SlurmRestClient, "_request", return_value={"job_id": 123}) as request:
-        assert system.submit_sbatch(script_path, "Docker image import", time_limit=time_limit) == 123
+        assert system.submit_sbatch(script_path, "Docker image import") == 123
 
     job = request.call_args.kwargs["payload"]["job"]
     assert job["reservation"] == "-t"
