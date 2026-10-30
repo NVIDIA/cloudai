@@ -54,7 +54,7 @@ classifiers = [
     "pre-commit~=4.0",
     "ruff~=0.15",
     "pandas-stubs~=2.3",
-    "pyright~=1.1",
+    "pyright[nodejs]~=1.1",
     "build~=1.4",
     "vulture==2.14",
     "pytest~=9.0",
