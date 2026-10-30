@@ -1,7 +1,7 @@
 schema: 2
 name: sglang-example
 model:
-  path: Qwen/Qwen3-0.6B
+  path: hf:Qwen/Qwen3-0.6B
   container: docker.io/lmsysorg/sglang:v0.5.9
 resources:
   gpu_type: h100

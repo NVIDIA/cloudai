@@ -87,6 +87,12 @@ installer. The default empty list preserves support for pre-staged weights.
 ``<install_path>/huggingface``. Downloads are stored under
 ``<hf_home_path>/hub/models--<owner>--<model>/snapshots/<revision>``.
 
+HF cache snapshots contain relative links to ``../../blobs``. When SRT mounts a
+snapshot at ``/model``, also mount that model cache's ``blobs`` directory at
+``/blobs`` through ``srtslurm.yaml``'s ``default_mounts``. The snapshot and blob
+mount sources must use the same ``hf_home_path`` cache root. See the AgentX DSE
+example for a complete configuration.
+
 Set the corresponding ``model_paths`` alias in ``srtslurm.yaml`` to that snapshot
 directory. Its cache root must match ``hf_home_path`` and be accessible on the
 submission and compute nodes. CloudAI does not infer models from recipes or

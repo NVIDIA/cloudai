@@ -28,9 +28,11 @@ All `/shared/...` paths and the `gpu` partition are placeholders:
   declares Qwen3-0.6B and its commit in `hf_models`; `cloudai install` downloads that revision
   into that cache. In `srtslurm.yaml`, `model_paths.qwen` must point to the
   snapshot under the same cache root (`hf_home_path/hub/models--Qwen--Qwen3-0.6B/snapshots/<revision>`).
-  The snapshot revision must match the scenario's model revision. CloudAI does not
-  synchronize these paths. The cache must be
-  accessible on the submission and compute nodes.
+  The snapshot revision must match the scenario's model revision. Keep the
+  accompanying `blobs` directory mounted at `/blobs`: SRT mounts the snapshot at
+  `/model`, where its `../../blobs` symlinks need that target. Both YAML paths must
+  use the same `hf_home_path` cache root. CloudAI does not synchronize these paths;
+  the cache must be accessible on the submission and compute nodes.
 - Provide a compatible SGLang container at `/shared/images/sglang.sqsh`. SRT
   mounts the model snapshot at `/model`; the client uses its tokenizer offline.
 - Choose your partition in both system and SRT cluster configs. CloudAI uses
