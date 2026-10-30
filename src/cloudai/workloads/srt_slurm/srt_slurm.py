@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from cloudai.core import GitRepo, Installable, JobStatusResult, TestRun
+from cloudai.core import Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .installable import SRTSlurmExecutable
@@ -49,9 +49,6 @@ class SRTSlurmTestDefinition(TestDefinition):
     """Run one declarative srt-slurm recipe as one CloudAI trial."""
 
     cmd_args: SRTSlurmCmdArgs
-    git_repos: list[GitRepo] = Field(
-        default_factory=list, min_length=1, validate_default=True, description="The first repository supplies srtctl."
-    )
     _srtctl: SRTSlurmExecutable | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
@@ -62,7 +59,17 @@ class SRTSlurmTestDefinition(TestDefinition):
     @property
     def srtctl(self) -> SRTSlurmExecutable:
         if self._srtctl is None:
-            self._srtctl = SRTSlurmExecutable(git_repo=self.git_repos[0])
+            repo = next(
+                (
+                    repo
+                    for repo in self.git_repos
+                    if repo.url.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git") == "srt-slurm"
+                ),
+                None,
+            )
+            if repo is None:
+                raise ValueError("SRTSlurm requires a repository named 'srt-slurm' in git_repos.")
+            self._srtctl = SRTSlurmExecutable(git_repo=repo)
         return self._srtctl
 
     @property
@@ -73,7 +80,8 @@ class SRTSlurmTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.srtctl, *self.git_repos[1:]]
+        srtctl = self.srtctl
+        return [srtctl, *(repo for repo in self.git_repos if repo is not srtctl.git_repo)]
 
     @staticmethod
     def job_id_path(tr: TestRun) -> Path:

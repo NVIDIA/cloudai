@@ -36,8 +36,9 @@ and must be accessible on the shared filesystem.
    [cmd_args.recipe_overrides.benchmark]
    concurrencies = [[1, 4], [8, 16]]
 
-The first ``git_repos`` entry supplies srtctl; additional entries use ordinary
-CloudAI installation. Pin a revision supporting ``srtctl apply --set``.
+The repository named ``srt-slurm`` in ``git_repos`` supplies srtctl, regardless
+of entry order. Forks with that repository name are supported; other entries use
+ordinary CloudAI installation. Pin a revision supporting ``srtctl apply --set``.
 For older revisions without ``--set``, set ``cmd_args.recipe_override_mode = "render"``.
 This overlays existing mapping keys in a concrete recipe, preserves YAML value types,
 and submits a trial-local ``srt_slurm_recipe.yaml``. It rejects missing keys

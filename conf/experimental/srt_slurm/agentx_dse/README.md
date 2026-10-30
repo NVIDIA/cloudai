@@ -31,8 +31,8 @@ All `/shared/...` paths and the `gpu` partition are placeholders:
   Dependencies require network access. uv caches and managed Python downloads
   use node-local `/tmp`; other application caches still need writable storage.
 
-The first repository entry installs SRT Slurm. The second installs InferenceX
-with its pinned submodules. `INFMAX_WORKSPACE` and the `/infmax-workspace` mount
+The `srt-slurm` repository entry supplies srtctl, regardless of entry order.
+The InferenceX entry installs its pinned submodules. `INFMAX_WORKSPACE` and the `/infmax-workspace` mount
 connect that checkout to the custom benchmark client.
 
 ## Run

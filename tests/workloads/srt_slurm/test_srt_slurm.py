@@ -22,7 +22,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic import ValidationError
 
 from cloudai.core import GitRepo, TestRun
 from cloudai.systems.slurm import SlurmSystem
@@ -40,6 +39,7 @@ def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_pa
     repo_path = tmp_path / "installed srt-slurm"
     repo_path.mkdir()
     tdef.git_repos[0].installed_path = repo_path
+    tdef.git_repos.insert(0, GitRepo(url="https://github.com/example/recipes.git", commit="main"))
     caller_path = tmp_path / "cloudaix"
     (caller_path / ".venv" / "bin").mkdir(parents=True)
     (caller_path / ".venv" / "bin" / "python").write_bytes(b"invalid login-node interpreter")
@@ -170,21 +170,28 @@ benchmark:
     assert "cmd_args.recipe_overrides" not in tdef.dse_excluded_args
 
 
-def test_standard_git_repos_controls_srtctl_revision(tmp_path: Path, make_tdef):
+@pytest.mark.parametrize("srt_first", [True, False])
+@pytest.mark.parametrize("url", ["https://github.com/example/srt-slurm.git", "git@github.com:example/srt-slurm"])
+def test_standard_git_repos_controls_srtctl_revision(tmp_path: Path, make_tdef, srt_first: bool, url: str):
     config = make_tdef(tmp_path).model_dump()
     config["extra_env_vars"] = {"SRTSLURM_CONFIG": str(tmp_path / "cluster.yaml")}
     config["git_repos"][0]["commit"] = "updated-revision"
+    config["git_repos"][0]["url"] = url
     config["git_repos"].append({"url": "https://github.com/example/recipes.git", "commit": "main"})
+    if not srt_first:
+        config["git_repos"].reverse()
     tdef = SRTSlurmTestDefinition.model_validate(config)
+    srt_repo = tdef.git_repos[0 if srt_first else 1]
+    other_repo = tdef.git_repos[1 if srt_first else 0]
 
-    assert tdef.srtctl.git_repo is tdef.git_repos[0]
+    assert tdef.srtctl.git_repo is srt_repo
     assert tdef.srtctl.git_repo.commit == "updated-revision"
     assert "updated-revision" in tdef.srtctl.venv_name
-    assert tdef.installables == [tdef.srtctl, tdef.git_repos[1]]
+    assert tdef.installables == [tdef.srtctl, other_repo]
     assert isinstance(tdef.installables[1], GitRepo)
 
 
-@pytest.mark.parametrize("git_repos", [None, []])
+@pytest.mark.parametrize("git_repos", [None, [], [{"url": "https://github.com/example/recipes.git", "commit": "main"}]])
 def test_srtctl_requires_a_configured_git_repo(tmp_path: Path, git_repos, make_tdef):
     config = make_tdef(tmp_path).model_dump()
     if git_repos is None:
@@ -192,8 +199,9 @@ def test_srtctl_requires_a_configured_git_repo(tmp_path: Path, git_repos, make_t
     else:
         config["git_repos"] = git_repos
 
-    with pytest.raises(ValidationError, match="git_repos"):
-        SRTSlurmTestDefinition.model_validate(config)
+    tdef = SRTSlurmTestDefinition.model_validate(config)
+    with pytest.raises(ValueError, match="requires a repository named 'srt-slurm' in git_repos"):
+        _ = tdef.installables
 
 
 @pytest.mark.parametrize("value", [4, 0.75, True, False, None, [32, 64], "true", "720", "", "$HOME; $(id)"])

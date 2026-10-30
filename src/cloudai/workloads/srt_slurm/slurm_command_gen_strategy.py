@@ -86,7 +86,7 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def write_run_script(self) -> None:
         paths = self._paths()
-        repo = self.tdef.git_repos[0]
+        repo = self.tdef.srtctl.git_repo
         repo_path = (repo.installed_path or self.system.install_path / repo.repo_name).absolute()
         cluster_config = self.tdef.cmd_args.cluster_config.expanduser().absolute()
         recipe, overrides = self._prepare_recipe(paths)
