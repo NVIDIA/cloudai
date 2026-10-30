@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import importlib.util
 from pathlib import Path
 
@@ -85,7 +86,8 @@ def test_dataclass_fields(loader):
     symbol = "cloudai.report_generator.training.models.TrainingConfig"
     result = reference.describe_class(symbol, loader.modules_collection[symbol], ["__init__"])
     fields = {field["name"]: field for field in result["fields"]}
-    assert len(fields) == 47
+    expected = {field.name for field in dataclasses.fields(reference.load_class(symbol))}
+    assert set(fields) == expected
     assert fields["test_id"]["required"]
     assert fields["container_image"]["default"] == "''"
     assert all(member["name"] != "__init__" for member in result["members"])
