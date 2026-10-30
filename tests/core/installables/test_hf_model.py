@@ -103,6 +103,8 @@ def test_uninstall_revision_preserves_other_revisions_and_repositories(installer
     cache = installer.system.hf_home_path / "hub"
     repo = make_cached_model(cache, "model")
     other_repo = make_cached_model(cache, "other")
+    if revision == "a" * 40:
+        (repo / "refs" / "main").unlink()
     result = HFModel("example/model", revision=revision).uninstall(installer)
     assert result.success, result.message
     assert not (repo / "snapshots" / ("a" * 40)).exists()
@@ -131,3 +133,20 @@ def test_uninstall_unpinned_keeps_whole_model_removal(installer: BaseInstaller):
         run.return_value.returncode = 0
         assert HFModel("example/model").uninstall(installer).success
     assert run.call_args.args[0] == ["hf", "cache", "rm", "-y", "model/example/model"]
+
+
+@pytest.mark.parametrize("revision", ["main", "stable", "a" * 40])
+def test_uninstall_preserves_snapshot_with_other_refs(installer: BaseInstaller, revision: str):
+    repo = make_cached_model(installer.system.hf_home_path / "hub", "model")
+    (repo / "refs" / "stable").write_text("a" * 40)
+
+    result = HFModel("example/model", revision=revision).uninstall(installer)
+
+    assert not result.success
+    assert "also referenced by" in result.message
+    for ref in {"main", "stable"} - {revision}:
+        assert ref in result.message
+    for ref in ("main", "stable"):
+        assert (repo / "refs" / ref).read_text() == "a" * 40
+    assert (repo / "snapshots" / ("a" * 40) / "weights").read_text() == "shared weights"
+    assert (repo / "snapshots" / ("b" * 40) / "weights").read_text() == "shared weights"

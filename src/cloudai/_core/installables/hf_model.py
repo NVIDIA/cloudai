@@ -126,6 +126,13 @@ class HFModel(Installable):
                     continue
                 for revision in repo.revisions:
                     if self.revision == revision.commit_hash or self.revision in revision.refs:
+                        other_refs = {ref for ref in revision.refs if ref != self.revision}
+                        if other_refs:
+                            return InstallStatusResult(
+                                False,
+                                f"Cannot remove {self.model_name}@{self.revision}: snapshot is also referenced by "
+                                f"{', '.join(sorted(other_refs))}. No cached files were removed.",
+                            )
                         # Restrict deletion to this model, even if another repo shares the hash.
                         replace(cache, repos=frozenset({repo})).delete_revisions(revision.commit_hash).execute()
                         self._installed_path = None

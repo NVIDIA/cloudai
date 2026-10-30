@@ -40,8 +40,9 @@ Downloads and local checks use the requested revision, and different revisions
 are treated as distinct installables. Configuration support depends on the workload.
 
 Explicit uninstallation of a revision removes only its cached snapshot, preserving
-other revisions and their shared files. An unpinned model uninstall removes the
-entire cached model. Shared scenarios using the same revision share that dependency.
+other revisions and their shared files. If another cached branch or tag references
+the same snapshot, removal fails without deleting files. An unpinned model uninstall
+removes the entire cached model. Shared scenarios using the same revision share that dependency.
 
 Authentication with Hugging Face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
