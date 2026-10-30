@@ -192,7 +192,7 @@ def add_agentx_latencies(latency: Any, metrics: dict[str, float]) -> None:
                     metrics[f"{stat}_intvty"] = 1 / value
 
 
-def load_results(tdef: "SRTSlurmTestDefinition", tr: TestRun) -> list[dict[str, float]]:
+def load_srt_slurm_results(tdef: "SRTSlurmTestDefinition", tr: TestRun) -> list[dict[str, float]]:
     """Read only the current job's outputs, retaining each concurrency."""
     logs = tdef.logs_path(tr)
     if logs is None:

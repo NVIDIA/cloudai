@@ -20,7 +20,7 @@ from typing import ClassVar, cast
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 
-from .results import load_results
+from .results import load_srt_slurm_results
 from .srt_slurm import SRTSlurmTestDefinition
 
 
@@ -51,7 +51,7 @@ class SRTSlurmReportGenerationStrategy(ReportGenerationStrategy):
 
     def results(self) -> list[dict[str, float]]:
         try:
-            return load_results(cast(SRTSlurmTestDefinition, self.test_run.test), self.test_run)
+            return load_srt_slurm_results(cast(SRTSlurmTestDefinition, self.test_run.test), self.test_run)
         except ValueError as error:
             logging.warning("Unable to read srt-slurm results: %s", error)
             return []

@@ -27,7 +27,7 @@ from cloudai.workloads.srt_slurm.results import (
     JobGPUCounts,
     agentx_metrics,
     load_gpu_counts,
-    load_results,
+    load_srt_slurm_results,
     sa_bench_metrics,
 )
 
@@ -116,7 +116,7 @@ def test_agentx_requires_job_local_profiles_and_preserves_concurrencies(
         profile.parent.mkdir(parents=True)
         profile.write_text('{"metrics": {}}\n')
     assert tdef.was_run_successful(tr).is_successful
-    assert len(load_results(tdef, tr)) == 2
+    assert len(load_srt_slurm_results(tdef, tr)) == 2
     report = SRTSlurmReportGenerationStrategy(slurm_system, tr)
     assert report.get_metric("tput_per_gpu") == 88086
     assert report.get_metric("default") == 176172
@@ -186,7 +186,7 @@ def test_missing_metadata_fails_even_with_results(slurm_system: SlurmSystem, tmp
         profile.parent.mkdir(parents=True)
         profile.write_text("{}\n")
     with pytest.raises(ValueError, match="Missing required srt-slurm job metadata"):
-        load_results(tdef, tr)
+        load_srt_slurm_results(tdef, tr)
     status = tdef.was_run_successful(tr)
     assert not status.is_successful
     assert "123.json" in status.error_message
@@ -226,7 +226,7 @@ def test_invalid_metadata_is_unsuccessful(
         invalid = {**invalid, "resources": complete["resources"]}
     path.write_text(json.dumps(invalid))
     with pytest.raises(ValueError):
-        load_results(tdef, tr)
+        load_srt_slurm_results(tdef, tr)
     assert not tdef.was_run_successful(tr).is_successful
     assert not SRTSlurmReportGenerationStrategy(slurm_system, tr).can_handle_directory()
 
@@ -261,7 +261,7 @@ def test_dse_reporting_uses_each_jobs_metadata(
     raw = logs / "sa-bench_one" / "results_concurrency_1_gpus_999.json"
     raw.parent.mkdir(parents=True)
     raw.write_text(json.dumps({"total_token_throughput": 1600, "output_throughput": 800, "max_concurrency": 1}))
-    result = load_results(tr.test, tr)[0]
+    result = load_srt_slurm_results(tr.test, tr)[0]
     assert result["serving_gpus"] == workers * per_worker
     assert result["tput_per_gpu"] == 1600 / (workers * per_worker)
     assert tdef.cmd_args.recipe_overrides == {"roles": {"agg": {"gpus": 4}}}

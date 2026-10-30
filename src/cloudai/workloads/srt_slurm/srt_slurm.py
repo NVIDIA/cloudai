@@ -23,6 +23,7 @@ from cloudai.core import Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .installable import SRTSlurmExecutable
+from .results import load_srt_slurm_results
 
 
 class SRTSlurmCmdArgs(CmdArgs):
@@ -108,10 +109,8 @@ class SRTSlurmTestDefinition(TestDefinition):
         return logs / "benchmark-rollup.json" if logs else None
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        from .results import load_results
-
         try:
-            results = load_results(self, tr)
+            results = load_srt_slurm_results(self, tr)
         except ValueError as error:
             return JobStatusResult(is_successful=False, error_message=str(error))
         if not results:
