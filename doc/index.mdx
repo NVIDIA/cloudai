@@ -8,14 +8,14 @@ CloudAI benchmark framework aims to develop an industry standard benchmark focus
 
 This document contains the following chapters:
 
-- [Tutorial](Tutorial.mdx)
-- [User Guide](USER_GUIDE.mdx)
-- [Python API](api.mdx)
-- [Reporting](reporting.mdx)
-- [Systems](systems.mdx)
-- [Workloads](workloads/index.mdx)
-- [Development](DEV.mdx)
-- [Troubleshooting](troubleshooting.mdx)
+- [Tutorial](/Tutorial)
+- [User Guide](/USER_GUIDE)
+- [Python API](/api)
+- [Reporting](/reporting)
+- [Systems](/systems)
+- [Workloads](/workloads/index)
+- [Development](/DEV)
+- [Troubleshooting](/troubleshooting)
 
 <Anchor id="getting-started" />
 
@@ -33,7 +33,7 @@ uv run cloudai --help
 
 <Note>
 
-For more instructions on how to set up access for `enroot`, see [Installation Requirements](workloads/workloads_requirements_installation.mdx).
+For more instructions on how to set up access for `enroot`, see [Installation Requirements](/workloads/workloads_requirements_installation).
 
 </Note>
 
@@ -41,7 +41,7 @@ For more instructions on how to set up access for `enroot`, see [Installation Re
 
 ### pip-based Installation
 
-See the preferred Python version in the `.python-version` file and make sure you have it installed (For installation, see [Custom Python Version Installation](index.mdx#install-custom-python-version)). Python 3.10 and newer remain supported. Follow these steps:
+See the preferred Python version in the `.python-version` file and make sure you have it installed (For installation, see [Custom Python Version Installation](#install-custom-python-version)). Python 3.10 and newer remain supported. Follow these steps:
 
 ``` bash
 git clone git@github.com:NVIDIA/cloudai.git
@@ -96,13 +96,13 @@ The following are the global options for the `cloudai` command:
 
 ### Available Modes
 
-- [run](index.mdx#run)
-- [dry-run](index.mdx#dry-run)
-- [generate-report](index.mdx#generate-report)
-- [install](index.mdx#install)
-- [uninstall](index.mdx#uninstall)
-- [list](index.mdx#list)
-- [verify-configs](index.mdx#verify-configs)
+- [run](#run)
+- [dry-run](#dry-run)
+- [generate-report](#generate-report)
+- [install](#install)
+- [uninstall](#uninstall)
+- [list](#list)
+- [verify-configs](#verify-configs)
 
 <Anchor id="usage-examples" />
 
@@ -152,7 +152,7 @@ cloudai generate-report\
 
 #### install
 
-This mode installs test prerequisites. For more details, refer to the [Installation Requirements](workloads/workloads_requirements_installation.mdx) guide. It automatically runs as part of the `run` mode if prerequisites are not met.
+This mode installs test prerequisites. For more details, refer to the [Installation Requirements](/workloads/workloads_requirements_installation) guide. It automatically runs as part of the `run` mode if prerequisites are not met.
 
 ``` bash
 cloudai install\

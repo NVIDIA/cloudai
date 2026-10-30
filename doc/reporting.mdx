@@ -2,14 +2,14 @@
 
 This chapter describes the reporting system in CloudAI. In this chapter, we will cover the following topics:
 
-- [Overview](reporting.mdx#overview)
-- [General Flow](reporting.mdx#general-flow)
-- [Enabling, Disabling and Configuring Reports](reporting.mdx#enabling-disabling-and-configuring-reports)
-- [Reporting Registration](reporting.mdx#reporting-registration)
-- [Reporting Configuration Implementation](reporting.mdx#reporting-configuration-implementation)
-- [Uploading Results to Object Storage](reporting.mdx#uploading-results-to-object-storage)
-- [Pareto frontiers](pareto-frontiers.mdx)
-- [Reports](reports.mdx)
+- [Overview](#overview)
+- [General Flow](#general-flow)
+- [Enabling, Disabling and Configuring Reports](#enabling-disabling-and-configuring-reports)
+- [Reporting Registration](#reporting-registration)
+- [Reporting Configuration Implementation](#reporting-configuration-implementation)
+- [Uploading Results to Object Storage](#uploading-results-to-object-storage)
+- [Pareto frontiers](/pareto-frontiers)
+- [Reports](/reports)
 
 <Anchor id="overview" />
 
@@ -22,7 +22,7 @@ CloudAI has two reporting levels:
 
 All reports are generated after the test scenario is completed as part of the main CloudAI process. For Slurm, this means that the login node is used to generate reports.
 
-Per-test reports are linked to a particular workload type (e.g. `NcclTest`). All per-test reports are implemented as part of the `per_test` scenario report and can be enabled or disabled via a single configuration option; see [Enabling, Disabling and Configuring Reports](reporting.mdx#enabling-disabling-and-configuring-reports).
+Per-test reports are linked to a particular workload type (e.g. `NcclTest`). All per-test reports are implemented as part of the `per_test` scenario report and can be enabled or disabled via a single configuration option; see [Enabling, Disabling and Configuring Reports](#enabling-disabling-and-configuring-reports).
 
 To list all available reports, users can use `cloudai list-reports`. Use verbose output to also print report configurations.
 
