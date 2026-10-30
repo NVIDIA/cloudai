@@ -1,0 +1,65 @@
+<Anchor id="sleep" />
+
+This workload (`test_template_name` is `Sleep`) executes a simple sleep command for testing and timing purposes. Useful for testing schedulers and system behavior.
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+Test TOML example:
+
+``` toml
+name = "my_sleep_test"
+description = "Example Sleep test"
+test_template_name = "Sleep"
+
+[cmd_args]
+seconds = 30
+```
+
+Test Scenario example:
+
+``` toml
+name = "sleep-test"
+
+[[Tests]]
+id = "sleep.1"
+num_nodes = 1
+time_limit = "00:02:00"
+
+test_name = "my_sleep_test"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "sleep-test"
+
+[[Tests]]
+id = "sleep.1"
+num_nodes = 1
+time_limit = "00:02:00"
+
+name = "my_sleep_test"
+description = "Example Sleep test"
+test_template_name = "Sleep"
+
+  [Tests.cmd_args]
+  seconds = 30
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Markdown src="/generated/cloudai.workloads.sleep.sleep.SleepCmdArgs.mdx" />
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Markdown src="/generated/cloudai.workloads.sleep.sleep.SleepTestDefinition.mdx" />

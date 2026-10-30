@@ -1,0 +1,11 @@
+{
+  "name": "cloudai-docs",
+  "private": true,
+  "scripts": {
+    "check": "fern check && fern docs md check && fern docs broken-links --strict",
+    "dev": "fern docs dev --legacy"
+  },
+  "devDependencies": {
+    "fern-api": "5.176.0"
+  }
+}

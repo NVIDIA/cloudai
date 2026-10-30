@@ -1,6 +1,10 @@
 # CloudAI OSS Contribution Guidelines
 Welcome to the CloudAI project! This document outlines the procedures and standards for contributing to the CloudAI source code. Adherence to these guidelines ensures code quality, readability, and maintainability. We look forward to your contributions!
 
+## Documentation
+
+See [Documentation](doc/README.md) for authoring, validation, and local preview instructions.
+
 ## Contribution Process
 ### Identifying the Feature or Fix
 Contributors looking to add features or fixes are encouraged to reach out to the team by creating issues on the project's issue tracker. This step ensures that efforts are not duplicated and that the proposed changes align with the project's goals. Please communicate with the main developers before starting work to avoid the potential for your PR not being accepted.

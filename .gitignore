@@ -18,7 +18,8 @@ wheels/
 share/python-wheels/
 *.egg-info/
 *.egg
-doc/_build
+fern/generated/
+fern/node_modules/
 
 # PyInstaller
 # Usually these files are written by a python script from a template
