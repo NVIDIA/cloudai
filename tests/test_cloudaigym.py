@@ -176,13 +176,13 @@ def test_compute_reward_invalid(base_tr: TestRun):
 def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     test_run.test.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
+    test_run.step = 41
     env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
     agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
     result = agent.select_action()
     assert result is not None
     _, action = result
-    env.test_run.step = 41
     env.step(action)
 
     assert env.test_run.output_path.name == "42", (
@@ -235,13 +235,93 @@ def test_constraint_failure(
     assert reward == expected_reward
     assert done is True
     assert info["constraint_rejected"] is True
+    assert info["step_skipped"] is False
+    assert info["sweep_progress"] == 0
     assert checked_steps == [1]
     assert env.test_run.step == 0
-    env.skip_step()
-    assert env.test_run.step == 1
-    assert env.upcoming_trial == 2
+    assert env.progress == 0
+    assert env.upcoming_trial == 1
     runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
+
+
+def test_custom_loop_advances_after_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("gymnasium")
+    from cloudai.configurator.gymnasium_adapter import GymnasiumAdapter
+
+    test_run, runner = setup_env
+    test_run.test.agent_config = {"max_consecutive_rejected_proposals": 2}
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides())
+    adapter = GymnasiumAdapter(env)
+    action = cast(dict[str, object], adapter.action_space.sample())
+    info: dict[str, object] = {}
+
+    for _ in range(2):
+        adapter.reset()
+        _, _, terminated, _, info = adapter.step(action)
+        assert terminated is True
+        assert info["constraint_rejected"] is True
+
+    assert info["step_skipped"] is True
+    assert env.progress == 1
+    assert env.test_run.step == 0
+    assert env.upcoming_trial == 2
+
+
+def test_successful_execution_resets_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    outcomes = iter([False, True, False, False])
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: next(outcomes))
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
+    actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
+
+    assert env.step(actions[0])[3]["step_skipped"] is False
+    assert env.progress == 0
+    assert env.step(actions[1])[3]["sweep_progress"] == 1
+    assert env.step(actions[2])[3]["step_skipped"] is False
+    assert env.progress == 1
+    assert env.step(actions[3])[3]["step_skipped"] is True
+    assert env.progress == 2
+
+
+def test_failed_workload_consumes_sweep_step(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides())
+    monkeypatch.setattr(runner, "run", MagicMock(side_effect=RuntimeError("workload failed")))
+    monkeypatch.setattr(env, "get_observation", MagicMock(return_value={"default": -1.0}))
+
+    _, _, _, info = env.step(env.first_sweep)
+
+    assert env.progress == 1
+    assert env.test_run.step == 1
+    assert info["sweep_progress"] == 1
+
+
+def test_cache_hit_resets_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.step = 1
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
+    actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
+    cached_action = actions[0]
+    env.trajectory.append(step=1, action=cached_action, reward=1.0, observation={"default": 1.0})
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
+
+    assert env.step(actions[1])[3]["step_skipped"] is False
+    assert env.step(cached_action)[3]["sweep_progress"] == 2
+    assert env.step(actions[2])[3]["step_skipped"] is False
+    assert env.step(actions[3])[3]["step_skipped"] is True
+    assert env.progress == 3
 
 
 def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
@@ -456,6 +536,7 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
         nodes=[],
         reports={NeMoRunReportGenerationStrategy},
     )
+    test_run.step = 4
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
@@ -466,13 +547,13 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     env.test_run.current_iteration = 0
     env.trajectory.append(step=1, action=cached_action, reward=0.42, observation={"default": 0.84})
 
-    env.test_run.step = 4
     obs, reward, done, _info = env.step(cached_action)
 
     runner.run.assert_not_called()
     assert reward == 0.42
     assert obs == [0.84]
     assert done is False
+    assert env.progress == 5
     rows = env.trajectory.dataframe
     assert len(rows) == 2
     assert rows.iloc[-1]["step"] == 5, (
@@ -609,7 +690,6 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}])
 
     with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
-        env.test_run.step = 0
         *_, info1 = env.step(action)  # samples ball_speed=3
         *_, info2 = env.step(action)  # samples ball_speed=1
 
@@ -655,7 +735,6 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}, {"default": 25.0}])
 
     with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
-        env.test_run.step = 0
         for action in (action_a, action_b, action_a):
             env.step(action)
 
@@ -704,7 +783,6 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
         patch.object(EnvVarTestDefinition, "constraint_check", side_effect=[True, False, True]),
         patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)),
     ):
-        env.test_run.step = 0
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
 
@@ -748,6 +826,7 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
+    test_run.step = 1
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
@@ -768,13 +847,12 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         observation={"default": 0.84},
         env_params=expected_sample,
     )
-    env.test_run.step = 1
-
     with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
         obs, reward, _done, info = env.step(action)
 
     runner.run.assert_not_called()
     assert reward == 0.42
+    assert env.progress == 2
     assert obs == [0.84], "flat obs stays the cached metrics; the regime is not mixed into it"
     assert info["env_params"] == expected_sample, (
         "the per-trial regime behind this observation is reported on info['env_params']"
@@ -831,7 +909,6 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     expected = _random.Random("42:ball_speed:1").choice([1, 2])
 
     with patch.object(env, "get_observation", side_effect=lambda: {"default": 1.0}):
-        env.test_run.step = 0
         env.step({"paddle_width": 4})
 
     ran_cmd_args = runner.test_scenario.test_runs[0].test.cmd_args
@@ -947,7 +1024,6 @@ class TestStructuredObservationProducer:
         import random as _random
 
         env = _dr_env(tmp_path, [1, 2, 3])
-        env.test_run.step = 0
 
         obs, info = env.reset()
         upcoming = _random.Random("42:ball_speed:1").choice([1, 2, 3])

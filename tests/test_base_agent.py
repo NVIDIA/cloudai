@@ -23,6 +23,7 @@ from cloudai.core import BaseAgent, BaseAgentConfig
 
 class _SequenceEnv:
     def __init__(self) -> None:
+        self._progress = 0
         self.results = iter(
             [
                 ([-1.0], -1.0, False, {"constraint_rejected": True}),
@@ -35,25 +36,43 @@ class _SequenceEnv:
         return [0.0], {}
 
     def step(self, _action: dict[str, Any]) -> tuple[list[float], float, bool, dict[str, Any]]:
-        return next(self.results)
+        result = next(self.results)
+        if not result[3].get("constraint_rejected", False):
+            self._progress += 1
+        return result
+
+    @property
+    def progress(self) -> int:
+        return self._progress
 
 
 class _RejectingEnv:
-    def __init__(self) -> None:
+    def __init__(self, rejection_limit: int = 3) -> None:
+        self._progress = 0
+        self._consecutive_rejections = 0
+        self.rejection_limit = rejection_limit
         self.skipped_steps = 0
 
     def reset(self) -> tuple[list[float], dict[str, Any]]:
         return [0.0], {}
 
     def step(self, _action: dict[str, Any]) -> tuple[list[float], float, bool, dict[str, Any]]:
-        return [-1.0], -1.0, False, {"constraint_rejected": True}
+        self._consecutive_rejections += 1
+        skipped = self._consecutive_rejections >= self.rejection_limit
+        if skipped:
+            self._progress += 1
+            self._consecutive_rejections = 0
+            self.skipped_steps += 1
+        return [-1.0], -1.0, False, {"constraint_rejected": True, "step_skipped": skipped}
 
-    def skip_step(self) -> None:
-        self.skipped_steps += 1
+    @property
+    def progress(self) -> int:
+        return self._progress
 
 
 class _SeparatedRejectionEnv:
     def __init__(self) -> None:
+        self._progress = 0
         self.results = iter(
             [
                 ([-1.0], -1.0, False, {"constraint_rejected": True}),
@@ -67,7 +86,14 @@ class _SeparatedRejectionEnv:
         return [0.0], {}
 
     def step(self, _action: dict[str, Any]) -> tuple[list[float], float, bool, dict[str, Any]]:
-        return next(self.results)
+        result = next(self.results)
+        if not result[3].get("constraint_rejected", False):
+            self._progress += 1
+        return result
+
+    @property
+    def progress(self) -> int:
+        return self._progress
 
 
 class _RecordingAgent(BaseAgent):
@@ -113,7 +139,7 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
 
 
 def test_run_skips_steps_after_rejected_proposal_limit(caplog: pytest.LogCaptureFixture) -> None:
-    env = _RejectingEnv()
+    env = _RejectingEnv(rejection_limit=3)
     agent = _RecordingAgent(env, BaseAgentConfig(max_consecutive_rejected_proposals=3))
 
     with caplog.at_level("INFO"):

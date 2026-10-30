@@ -22,13 +22,12 @@ that RLlib-based agents (e.g. PPO / DQN) and external training loops expect.
 ``gymnasium`` is an optional dependency (the ``[rl]`` extra), so it is imported
 lazily and only required when an adapter is actually instantiated.
 
-Design invariant — adapter is a pure pass-through over ``test_run.step``.
-The trial counter is owned by ``TestRun`` and advanced exclusively by
-``CloudAIGymEnv.step()``. Adapters that wrote ``test_run.step`` themselves —
-mirroring a Gym-protocol episode-local counter — collapsed every
+Design invariant — adapter is a pure pass-through over environment progress.
+``CloudAIGymEnv`` owns sweep progress across Gym episode resets and assigns
+``test_run.step`` only to accepted trials. Adapters that wrote ``test_run.step``
+themselves — mirroring a Gym-protocol episode-local counter — collapsed every
 contextual-bandit rollout onto ``step=1`` because RLlib calls ``reset()`` per
-trial. This adapter never mutates ``test_run.step``; contract tests pin that
-property.
+trial. This adapter never mutates either value; contract tests pin that property.
 """
 
 from __future__ import annotations

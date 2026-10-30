@@ -155,6 +155,7 @@ def handle_dse_job(runner: Runner) -> int:
                 test_run=test_run,
                 runner=runner.runner,
                 rewards=agent_config.rewards,
+                max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
