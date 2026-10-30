@@ -1,6 +1,7 @@
 # AgentX DSE smoke test
 
-This example provisions pinned SRT Slurm and InferenceX repositories, then runs
+This example provisions pinned SRT Slurm and InferenceX repositories, downloads
+Qwen3-0.6B through CloudAI's model installer, then runs
 SGLang with Qwen3-0.6B on one serving GPU of a four-GPU GB200 node. Grid search
 tries context lengths 2048 and 4096 and maximizes `p90_intvty`.
 
@@ -22,9 +23,15 @@ All `/shared/...` paths and the `gpu` partition are placeholders:
   `output_path = "/shared/cloudai/results"` in your system config. If you change
   the installation root, update `srtctl_root` and both InferenceX paths in
   `srtslurm.yaml` and `scenario.toml` as well.
-- Provide a Qwen3-0.6B model directory at `/shared/models/Qwen3-0.6B` and a
-  compatible SGLang container at `/shared/images/sglang.sqsh`. The client uses
-  the model's mounted tokenizer without downloading it from Hugging Face.
+- Set `hf_home_path = "/shared/huggingface"` in your system config. The scenario
+  declares Qwen3-0.6B and its commit in `hf_models`; `cloudai install` downloads that revision
+  into that cache. In `srtslurm.yaml`, `model_paths.qwen` must point to the
+  snapshot under the same cache root (`hf_home_path/hub/models--Qwen--Qwen3-0.6B/snapshots/<revision>`).
+  The snapshot revision must match the scenario's model revision. CloudAI does not
+  synchronize these paths. The cache must be
+  accessible on the submission and compute nodes.
+- Provide a compatible SGLang container at `/shared/images/sglang.sqsh`. SRT
+  mounts the model snapshot at `/model`; the client uses its tokenizer offline.
 - Choose your partition in both system and SRT cluster configs. CloudAI uses
   its partition for the setup allocation; SRT Slurm owns benchmark scheduling.
 - Configure the Slurm CLI environment and any site-required container settings.
@@ -41,7 +48,7 @@ After adapting the paths, run from the directory containing the input files.
 Pass the path to your adapted copy of the common system template:
 
 ```bash
-mkdir -p /shared/cloudai/install /shared/cloudai/results
+mkdir -p /shared/cloudai/install /shared/cloudai/results /shared/huggingface
 cloudai install --system-config /path/to/system.toml --test-scenario scenario.toml
 cloudai run --system-config /path/to/system.toml --test-scenario scenario.toml
 ```

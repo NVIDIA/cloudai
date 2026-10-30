@@ -17,9 +17,9 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from cloudai.core import Installable, JobStatusResult, TestRun
+from cloudai.core import HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .installable import SRTSlurmExecutable
@@ -46,10 +46,20 @@ class SRTSlurmCmdArgs(CmdArgs):
         ]
 
 
+class SRTSlurmHFModel(BaseModel):
+    """An optional model prerequisite, independently configured from the SRT recipe."""
+
+    model_name: str
+    revision: str | None = None
+
+
 class SRTSlurmTestDefinition(TestDefinition):
     """Run one declarative srt-slurm recipe as one CloudAI trial."""
 
     cmd_args: SRTSlurmCmdArgs
+    hf_models: list[str | SRTSlurmHFModel] = Field(
+        default_factory=list, description="Optional Hugging Face models to install."
+    )
     _srtctl: SRTSlurmExecutable | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
@@ -82,7 +92,14 @@ class SRTSlurmTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         srtctl = self.srtctl
-        return [srtctl, *(repo for repo in self.git_repos if repo is not srtctl.git_repo)]
+        return [
+            srtctl,
+            *(repo for repo in self.git_repos if repo is not srtctl.git_repo),
+            *(
+                HFModel(model_name=model) if isinstance(model, str) else HFModel(**model.model_dump())
+                for model in self.hf_models
+            ),
+        ]
 
     @staticmethod
     def job_id_path(tr: TestRun) -> Path:

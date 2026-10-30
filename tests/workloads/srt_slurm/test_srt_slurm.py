@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cloudai.core import GitRepo, TestRun
+from cloudai.core import GitRepo, HFModel, TestRun
 from cloudai.workloads.srt_slurm import (
     SRTSlurmCommandGenStrategy,
     SRTSlurmTestDefinition,
@@ -135,3 +135,27 @@ def test_set_arguments_quote_literal_dotted_keys():
         "--set",
         'container_mounts."/models/model.v1"="/model"',
     ]
+
+
+@pytest.mark.parametrize("models", [[], ["Qwen/Qwen3-0.6B"], ["Qwen/Qwen3-0.6B", "example/another-model"]])
+def test_optional_hf_model_installables(tmp_path: Path, make_tdef, models: list[str]):
+    config = make_tdef(tmp_path).model_dump()
+    config["hf_models"] = models
+    tdef = SRTSlurmTestDefinition.model_validate(config)
+
+    assert tdef.installables == [tdef.srtctl, *(HFModel(model_name=name) for name in models)]
+    assert tdef.hf_models == models
+    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[])
+    assert not any("hf_models" in name for name in tr.param_space)
+
+
+def test_pinned_hf_model_installable(tmp_path: Path, make_tdef):
+    config = make_tdef(tmp_path).model_dump()
+    config["hf_models"] = [{"model_name": "Qwen/Qwen3-0.6B", "revision": "a" * 40}, "example/unpinned"]
+    tdef = SRTSlurmTestDefinition.model_validate(config)
+    assert tdef.installables == [
+        tdef.srtctl,
+        HFModel("Qwen/Qwen3-0.6B", revision="a" * 40),
+        HFModel("example/unpinned"),
+    ]
+    assert SRTSlurmTestDefinition.model_validate(tdef.model_dump()).installables == tdef.installables

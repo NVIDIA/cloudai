@@ -71,6 +71,27 @@ tools for the compute-node architecture. A checkout-local bootstrap
 config prevents interactive setup prompts; existing checkout configs are
 preserved. Trial submission always uses the explicit ``cluster_config``.
 
+Model installation
+~~~~~~~~~~~~~~~~~~
+
+Optionally set ``hf_models = ["Qwen/Qwen3-0.6B"]`` on the CloudAI test definition
+(outside ``cmd_args``) to download models through the existing ``HFModel``
+installer. The default empty list preserves support for pre-staged weights.
+``system.toml``'s ``hf_home_path`` controls the cache root; it defaults to
+``<install_path>/huggingface``. Downloads are stored under
+``<hf_home_path>/hub/models--<owner>--<model>/snapshots/<revision>``.
+
+Set the corresponding ``model_paths`` alias in ``srtslurm.yaml`` to that snapshot
+directory. Its cache root must match ``hf_home_path`` and be accessible on the
+submission and compute nodes. CloudAI does not infer models from recipes or
+synchronize these paths. To pin a model commit, use
+``hf_models = [{model_name = "Qwen/Qwen3-0.6B", revision = "<commit>"}]`` and put
+the same commit in the SRT snapshot path. String entries remain unpinned.
+Pinned models are checked and uninstalled by revision; uninstalling an unpinned
+model retains the existing behavior of removing the entire cached model. If the HF
+cache is inaccessible locally, the installer assumes models are already available
+on execution nodes instead of downloading them.
+
 Scheduling ownership
 ~~~~~~~~~~~~~~~~~~~~
 
