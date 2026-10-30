@@ -3,7 +3,7 @@ Pareto Frontiers
 
 The ``pareto`` scenario report writes ``pareto.html`` in the scenario results directory. Each plot compares two
 metrics. Successful iterations and sweep steps supply the points: one test case can contribute several points,
-and several cases can contribute to one frontier.
+and several cases can contribute to one frontier. Each configured Dynamo AIPerf phase contributes separately.
 
 Point details show serving instances, nodes per instance, and TP/PP/DP within each instance. Disaggregated
 runs show separate prefill and decode layouts and whether they share nodes; combined serving uses the
@@ -12,7 +12,8 @@ runs show separate prefill and decode layouts and whether they share nodes; comb
 Usage Example
 -------------
 
-For :doc:`vLLM <workloads/vllm>` or :doc:`SGLang <workloads/sglang>`, add this block to your scenario TOML:
+For :doc:`vLLM <workloads/vllm>`, :doc:`SGLang <workloads/sglang>`, or
+:doc:`Dynamo <workloads/ai_dynamo>`, add this block to your scenario TOML:
 
 .. code-block:: toml
 
@@ -35,7 +36,7 @@ Available Metrics
 -----------------
 
 Use the metric keys below in either ``x.metric`` or ``y.metric``. Each axis must select exactly one measurement
-from each execution. ``match`` selects among measurements of the same metric, such as different statistics or
+for each point. ``match`` selects among measurements of the same metric, such as different statistics or
 message sizes. Missing or ambiguous measurements are listed as exclusions in the report.
 
 Both ``vllm`` and ``sglang`` expose these metrics:
@@ -74,6 +75,32 @@ For either metric, select ``mean``, ``median``, or ``p99`` with ``match = { stat
 metrics have no statistic selector. ``accuracy`` is available when semantic validation is configured and its
 result is present; see the workload's Semantic Validation section.
 
+Dynamo exposes the same metrics except ``output_token_throughput_per_serving_gpu``. It reads each phase's
+``profile_export_aiperf.json``, with CSV support for older AIPerf and GenAI-Perf results. Its ``tpot`` measurements
+use Inter Token Latency. Missing statistics are omitted.
+
+AIPerf JSON exports also provide these Dynamo metrics, all maximized by default:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 65 35
+
+   * - Metric
+     - Unit
+   * - ``total_token_throughput``
+     - tokens/s
+   * - ``total_token_throughput_per_user``
+     - tokens/s/user
+   * - ``total_token_throughput_per_serving_gpu``
+     - tokens/s/GPU
+
+Total throughput includes input and output tokens, using AIPerf's ``total_token_throughput.avg``. Per-user
+throughput divides it by the phase's configured ``args.users``, falling back to ``args.concurrency``. Per-serving-GPU
+throughput divides it by the configured GPU count across prefill and decode, including worker replicas and
+multi-node groups. SGLang attention DP shares TP devices. Omitted settings follow CloudAI's standard launcher
+defaults; custom commands that change GPU placement are outside this calculation. Packing and hardware-derived
+defaults use the system's ``gpus_per_node``, or ``CUDA_VISIBLE_DEVICES`` when configured for the test.
+
 The two GPU-normalized metrics divide total output tokens/s by different counts:
 
 - ``output_token_throughput_per_allocated_gpu`` uses the execution's ``num_nodes`` times the system's
@@ -94,6 +121,7 @@ For inference, start with one of these comparisons:
 - **Streaming latency vs serving efficiency:** ``tpot`` on X, ``output_token_throughput_per_serving_gpu`` on Y.
 - **Streaming latency vs allocated GPU efficiency:** ``tpot`` on X,
   ``output_token_throughput_per_allocated_gpu`` on Y.
+- **Dynamo total-token efficiency:** ``ttft`` on X, ``total_token_throughput_per_serving_gpu`` on Y.
 
 Keep the model, input/output token lengths, precision, and traffic pattern comparable. Vary concurrency or
 serving parameters to measure the tradeoff. Use P99 for tail latency, or select mean or median when that is
@@ -113,6 +141,31 @@ latency plot alongside the streaming-latency example above:
    x = { metric = "ttft", match = { statistic = "p99" } }
    y = { metric = "output_token_throughput" }
    frontiers = [{ name = "All configurations" }]
+
+Dynamo Phases
+~~~~~~~~~~~~~
+
+Each AIPerf phase with recorded metrics contributes separately. For example, phases with concurrency ``2``
+and ``4`` produce two independent points per successful iteration or sweep step. Point details show all X and Y
+metric dimensions alongside the phase's benchmark settings. Phases without observations contribute no points.
+The final-phase copy in ``aiperf_report.csv`` is not an extra point.
+
+To compare phases separately, select their configured names with ``match.phase``:
+
+.. code-block:: toml
+
+   [[reports.pareto.plots]]
+   name = "Throughput by phase"
+   x = { metric = "ttft", match = { statistic = "p99" } }
+   y = { metric = "output_token_throughput" }
+   frontiers = [
+     { name = "Round 1", match = { phase = "round_1" } },
+     { name = "Round 2", match = { phase = "round_2" } },
+   ]
+
+When an execution runs both AIPerf and GenAI-Perf, their points also have a ``benchmark`` dimension
+(``aiperf`` or ``genai_perf``). Use ``match.benchmark`` to select one. Optional accuracy results describe the
+separate accuracy evaluation and are shared across that execution's phases.
 
 Comparing Versions or Configurations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

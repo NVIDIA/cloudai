@@ -14,12 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
+import copy
 import csv
+import dataclasses
+import json
 import logging
 import math
 import shlex
 from pathlib import Path
-from typing import ClassVar, Literal, Mapping, Optional, cast
+from typing import Any, ClassVar, Literal, Mapping, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -30,6 +34,8 @@ from pydantic import (
     model_validator,
 )
 
+import cloudai.metrics
+import cloudai.report_generator.inference_report as inference_report
 import cloudai.util
 from cloudai.core import (
     DockerImage,
@@ -43,7 +49,7 @@ from cloudai.core import (
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.common.llm_serving import LLMServingBenchReport
+from cloudai.workloads.common import llm_serving
 
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
@@ -186,6 +192,22 @@ class WorkerConfig(BaseModel):
         return any(
             token == option or token.startswith(f"{option}=") for value in values for token in shlex.split(value)
         )
+
+    def inference_args(self) -> dict[str, Any]:
+        """Include numeric parallelism overrides appended to the backend command."""
+        values = {key.replace("-", "_"): value for key, value in self.args.model_dump(exclude_none=True).items()}
+        extra = [self.extra_args] if isinstance(self.extra_args, str) else self.extra_args or []
+        tokens = [token for value in extra for token in shlex.split(value)]
+        aliases = {"tp": "tensor_parallel_size", "pp": "pipeline_parallel_size", "dp": "data_parallel_size"}
+        values.update({full: values[f"{short}_size"] for short, full in aliases.items() if f"{short}_size" in values})
+        for token, following in zip(tokens, [*tokens[1:], ""], strict=False):
+            name, separator, value = token.partition("=")
+            key = name.removeprefix("--").replace("-", "_")
+            if key in (*aliases, "tp_size", "pp_size", "dp_size", *aliases.values()):
+                value = value if separator else following
+                values[aliases.get(key.removesuffix("_size"), key)] = int(value)
+                values[key] = int(value)
+        return values
 
     @model_validator(mode="after")
     def validate_worker_topology(self) -> "WorkerConfig":
@@ -533,17 +555,19 @@ class AIDynamoCmdArgs(CmdArgs):
         ]
 
 
-class AIDynamoBenchReport(LLMServingBenchReport):
+class AIDynamoBenchReport(llm_serving.LLMServingBenchReport):
     """Normalized AI Dynamo benchmark results used by comparison reports."""
 
     output_throughput: float
+    request_throughput: float = math.nan
+    total_token_throughput: float = math.nan
 
     @property
     def throughput(self) -> float:
         return self.output_throughput
 
 
-class AIDynamoTestDefinition(TestDefinition):
+class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportProvider):
     """Test definition for AI Dynamo."""
 
     model_config = ConfigDict(extra="forbid")
@@ -563,6 +587,37 @@ class AIDynamoTestDefinition(TestDefinition):
     _TPOT_NAMES: ClassVar[tuple[str, ...]] = ("Inter Token Latency (ms)",)
     _THROUGHPUT_NAMES: ClassVar[tuple[str, ...]] = ("Output Token Throughput (tokens/sec)",)
     _REQUEST_COUNT_NAMES: ClassVar[tuple[str, ...]] = ("Request Count (count)", "Request Count", "Request count")
+
+    @staticmethod
+    def _json_metric(data: Mapping[str, Any], name: str, statistic: str = "avg") -> float:
+        try:
+            return float(data.get(name, {}).get(statistic, math.nan))
+        except (TypeError, ValueError, AttributeError):
+            return math.nan
+
+    @classmethod
+    def parse_aiperf_json(cls, path: Path) -> AIDynamoBenchReport | None:
+        """Read one phase's native export; absent statistics remain unavailable."""
+        try:
+            data = json.loads(path.read_text())
+            count = int(cls._json_metric(data, "request_count"))
+            latencies = {
+                f"{statistic}_{metric}_ms": cls._json_metric(data, source, field)
+                for metric, source in (("ttft", "time_to_first_token"), ("tpot", "inter_token_latency"))
+                for statistic, field in (("mean", "avg"), ("median", "p50"), ("p99", "p99"))
+            }
+            return AIDynamoBenchReport(
+                num_prompts=count,
+                completed=count,
+                max_concurrency=1,
+                request_throughput=cls._json_metric(data, "request_throughput"),
+                output_throughput=cls._json_metric(data, "output_token_throughput"),
+                total_token_throughput=cls._json_metric(data, "total_token_throughput"),
+                **latencies,
+            )
+        except (OSError, ValueError, OverflowError):
+            logging.debug("Cannot parse AIPerf export at %s", path, exc_info=True)
+            return None
 
     @staticmethod
     def _parse_metric_rows(csv_file: Path) -> dict[str, dict[str, str]]:
@@ -602,7 +657,7 @@ class AIDynamoTestDefinition(TestDefinition):
 
     @classmethod
     def parse_benchmark_csv(cls, csv_file: Path, max_concurrency: int = 1) -> AIDynamoBenchReport | None:
-        """Normalize a benchmark CSV into the shared LLM serving result shape."""
+        """Parse one benchmark or phase CSV without substituting another phase's output."""
         try:
             metrics = cls._parse_metric_rows(csv_file)
         except (OSError, csv.Error) as e:
@@ -612,10 +667,13 @@ class AIDynamoTestDefinition(TestDefinition):
         ttft_mean = cls._find_value(metrics, cls._TTFT_NAMES, ("avg", "mean", "Value"))
         tpot_mean = cls._find_value(metrics, cls._TPOT_NAMES, ("avg", "mean", "Value"))
         throughput = cls._find_value(metrics, cls._THROUGHPUT_NAMES, ("avg", "Value"))
-        if ttft_mean is None or tpot_mean is None or throughput is None:
+        if ttft_mean is None and tpot_mean is None and throughput is None:
             return None
 
         request_count = cls._find_value(metrics, cls._REQUEST_COUNT_NAMES, ("avg", "Value"))
+        if request_count is not None and not math.isfinite(request_count):
+            return None
+        request_throughput = cls._find_value(metrics, ("Request Throughput (requests/sec)",), ("avg", "Value"))
         median_ttft = cls._find_value(metrics, cls._TTFT_NAMES, ("p50", "median"))
         p99_ttft = cls._find_value(metrics, cls._TTFT_NAMES, ("p99",))
         median_tpot = cls._find_value(metrics, cls._TPOT_NAMES, ("p50", "median"))
@@ -623,15 +681,207 @@ class AIDynamoTestDefinition(TestDefinition):
         return AIDynamoBenchReport(
             num_prompts=int(request_count or 0),
             completed=int(request_count or 0),
-            mean_ttft_ms=ttft_mean,
+            mean_ttft_ms=ttft_mean if ttft_mean is not None else math.nan,
             median_ttft_ms=median_ttft if median_ttft is not None else math.nan,
             p99_ttft_ms=p99_ttft if p99_ttft is not None else math.nan,
-            mean_tpot_ms=tpot_mean,
+            mean_tpot_ms=tpot_mean if tpot_mean is not None else math.nan,
             median_tpot_ms=median_tpot if median_tpot is not None else math.nan,
             p99_tpot_ms=p99_tpot if p99_tpot is not None else math.nan,
-            output_throughput=throughput,
+            output_throughput=throughput if throughput is not None else math.nan,
+            request_throughput=request_throughput if request_throughput is not None else math.nan,
             max_concurrency=max_concurrency,
         )
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_script_paths(cls, value: Any) -> Any:
+        """Unwrap script paths in saved TOMLs until the shared serialization fix (#5006455)."""
+        if not isinstance(value, dict):
+            return value
+        value = copy.deepcopy(value)
+        configs = [value]
+        cmd_args = value.get("cmd_args")
+        if isinstance(cmd_args, dict):
+            configs.extend(cmd_args.get(name) for name in ("genai_perf", "aiperf", "aiperf_accuracy"))
+        for config in configs:
+            script = config.get("script") if isinstance(config, dict) else None
+            if not isinstance(script, dict):
+                continue
+            for key in ("src", "_installed_path"):
+                path = script.get(key)
+                if isinstance(path, str) and path.startswith(("PosixPath(", "WindowsPath(")) and path.endswith(")"):
+                    script[key] = ast.literal_eval(path.split("(", 1)[1][:-1])
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_repository_version(cls, value: Any) -> Any:
+        """Read dumps from before the repository commit moved into cmd_args."""
+        if isinstance(value, dict) and "repo" in value:
+            value = dict(value)
+            repo = value.pop("repo")
+            value["cmd_args"] = dict(value["cmd_args"])
+            value["cmd_args"].setdefault("dynamo_version", repo["commit"])
+        return value
+
+    def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        return [obs for report in self.inference_reports(system, tr) for obs in report.observations]
+
+    def inference_role_configs(
+        self, tr: TestRun, gpus_per_node: int | None
+    ) -> tuple[inference_report.InferenceRoleConfig | None, inference_report.InferenceRoleConfig | None, bool | None]:
+        prefill = self.cmd_args.dynamo.prefill_worker
+        decode = self.cmd_args.dynamo.decode_worker
+        shared_nodes = None
+        if prefill.num_nodes and decode.num_nodes:
+            shared_nodes = bool(
+                set((prefill.nodes or "").split(",")) & set((decode.nodes or "").split(",")) - {""}
+            ) or tr.nnodes < cast(int, prefill.num_nodes) + cast(int, decode.num_nodes)
+        distributed = self.cmd_args.dynamo.backend == "sglang_dsr1"
+        roles = []
+        for worker in (prefill, decode):
+            if not worker.num_nodes:
+                roles.append(None)
+                continue
+            values = worker.inference_args()
+            nodes = cast(int, worker.num_nodes)
+            if distributed:
+                default_size = nodes * gpus_per_node if gpus_per_node else None
+                values["tensor_parallel_size"] = values.get("tp_size", default_size)
+                values["data_parallel_size"] = values.get("data_parallel_size", values.get("dp_size", default_size))
+            values.setdefault("data_parallel_size", values.get("dp_size", 1))
+            role = llm_serving.inference_role_config(values)
+            footprint = (role.tensor_parallel_size or 0) * (role.pipeline_parallel_size or 1)
+            count: int | None = 1
+            if worker.multiple_workers_per_node and not shared_nodes and not distributed:
+                count = gpus_per_node // footprint if gpus_per_node and footprint else None
+            nodes_per_instance = nodes if distributed else cast(int, worker.nodes_per_worker or 1)
+            multinode = nodes_per_instance > 1
+            roles.append(
+                dataclasses.replace(
+                    role,
+                    num_nodes=nodes,
+                    nodes_per_instance=nodes_per_instance,
+                    instances_per_node=None if multinode else count,
+                    num_instances=nodes // nodes_per_instance
+                    if multinode
+                    else (nodes * count if count is not None else None),
+                )
+            )
+        return roles[0], roles[1], shared_nodes
+
+    def serving_gpu_count(self, roles: tuple[inference_report.InferenceRoleConfig | None, ...]) -> int | None:
+        """Count configured engine devices, including replicas; attention DP shares TP GPUs."""
+        total = 0
+        for role, worker in zip(
+            roles, (self.cmd_args.dynamo.prefill_worker, self.cmd_args.dynamo.decode_worker), strict=True
+        ):
+            if role is None:
+                continue
+            if role.tensor_parallel_size is None or role.num_instances is None:
+                return None
+            dp_attention = (
+                self.cmd_args.dynamo.backend == "sglang_dsr1"
+                or worker.has_extra_arg("--enable-dp-attention")
+                or worker.inference_args().get("enable_dp_attention", False) in (True, "")
+            )
+            dp = 1 if self.cmd_args.dynamo.backend != "vllm" and dp_attention else role.data_parallel_size or 1
+            total += role.tensor_parallel_size * (role.pipeline_parallel_size or 1) * dp * role.num_instances
+        return total or None
+
+    def parse_benchmark(self, benchmark: Workload, output_path: Path) -> AIDynamoBenchReport | None:
+        csv_file = output_path / benchmark.report_name
+        if isinstance(benchmark, AIPerf):
+            artifacts = output_path / benchmark.artifact_dir_name
+            results = self.parse_aiperf_json(artifacts / "profile_export_aiperf.json")
+            if results is not None:
+                return results
+            if (artifacts / "profile_export_aiperf.csv").is_file():
+                csv_file = artifacts / "profile_export_aiperf.csv"
+        return self.parse_benchmark_csv(csv_file)
+
+    @staticmethod
+    def benchmark_observations(
+        results: AIDynamoBenchReport | None,
+        accuracy: float | None,
+        allocated_gpus: int | None,
+        serving_gpus: int | None,
+        users: Any,
+    ) -> list[cloudai.metrics.MetricObservation]:
+        observations = llm_serving.llm_serving_metric_observations(
+            results, accuracy, allocated_gpu_count=allocated_gpus
+        )
+        if results is None or results.completed <= 0 or not math.isfinite(results.total_token_throughput):
+            return observations
+        for metric, divisor in (
+            (cloudai.metrics.TOTAL_TOKEN_THROUGHPUT, 1),
+            (cloudai.metrics.TOTAL_TOKEN_THROUGHPUT_PER_USER, users),
+            (cloudai.metrics.TOTAL_TOKEN_THROUGHPUT_PER_SERVING_GPU, serving_gpus),
+        ):
+            try:
+                divisor = float(divisor) if divisor is not None else math.nan
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(divisor) and divisor > 0:
+                observations.append(
+                    cloudai.metrics.MetricObservation(metric, results.total_token_throughput / divisor, {})
+                )
+        return observations
+
+    def inference_reports(self, system: System, tr: TestRun) -> list[inference_report.InferenceReport]:
+        reports = []
+        gpus_per_node = getattr(system, "gpus_per_node", None)
+        allocated_gpus = tr.nnodes * gpus_per_node if gpus_per_node else None
+        accuracy = parse_aiperf_accuracy(tr.output_path) if self.cmd_args.aiperf_accuracy else None
+        visible_gpus = self.extra_env_vars.get("CUDA_VISIBLE_DEVICES")
+        available_gpus = len(str(visible_gpus).split(",")) if visible_gpus is not None else gpus_per_node
+        prefill, decode, shared_nodes = self.inference_role_configs(tr, available_gpus)
+        serving_gpus = self.serving_gpu_count((prefill, decode))
+        for script in self.cmd_args.workloads_list:
+            benchmark = self.get_workload_map()[script]
+            phases = self.cmd_args.aiperf_phases if benchmark is self.cmd_args.aiperf else None
+            for phase in phases or [None]:
+                resolved = self.cmd_args.resolve_aiperf_phase(phase) if phase else benchmark
+                dimensions = {}
+                if len(self.cmd_args.workloads_list) > 1:
+                    dimensions[cloudai.metrics.BENCHMARK.key] = (
+                        "aiperf" if benchmark is self.cmd_args.aiperf else "genai_perf"
+                    )
+                if phase:
+                    dimensions[cloudai.metrics.PHASE.key] = phase.name
+                results = self.parse_benchmark(resolved, tr.output_path)
+                args = {
+                    key.replace("-", "_"): value for key, value in resolved.args.model_dump(exclude_none=True).items()
+                }
+                users = args.get("users", args.get("concurrency"))
+                measured = self.benchmark_observations(results, accuracy, allocated_gpus, serving_gpus, users)
+                observations = [
+                    dataclasses.replace(observation, dimensions={**dimensions, **observation.dimensions})
+                    for observation in measured
+                ]
+                if not observations:
+                    continue
+                config = inference_report.InferenceConfig(
+                    model=self.cmd_args.dynamo.model,
+                    backend=self.cmd_args.dynamo.backend,
+                    benchmark="aiperf" if isinstance(resolved, AIPerf) else "genai_perf",
+                    phase=phase.name if phase else None,
+                    num_nodes=tr.nnodes,
+                    gpus_per_node=gpus_per_node,
+                    serving_gpu_count=serving_gpus,
+                    container_image=self.cmd_args.docker_image_url,
+                    input_tokens=args.get("synthetic_input_tokens_mean", args.get("input_sequence_length")),
+                    output_tokens=args.get("output_tokens_mean", args.get("output_sequence_length")),
+                    concurrency=args.get("concurrency"),
+                    users=args.get("users"),
+                    request_count=args.get("request_count"),
+                    request_rate=args.get("request_rate"),
+                    prefill=prefill,
+                    decode=decode,
+                    shared_nodes=shared_nodes,
+                )
+                reports.append(inference_report.InferenceReport(config=config, observations=observations))
+        return reports
 
     @model_validator(mode="after")
     def workload_scripts(self) -> "AIDynamoTestDefinition":
