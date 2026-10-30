@@ -118,11 +118,9 @@ class DockerImageCacheManager:
             directives.append(f"#SBATCH --account={self.system.account}")
         if self.system.supports_gpu_directives:
             directives.append("#SBATCH --gres=gpu:1")
-        directives.extend(f"#SBATCH {arg}" for arg in self.system.extra_sbatch_args)
+        directives.extend(f"#SBATCH {arg}" for arg in self.system.docker_image_import_extra_sbatch_args)
 
         srun = ["srun", "--export=ALL", "--ntasks=1"]
-        if self.system.extra_srun_args:
-            srun.append(self.system.extra_srun_args)
         srun.extend(
             [
                 "enroot import -o",

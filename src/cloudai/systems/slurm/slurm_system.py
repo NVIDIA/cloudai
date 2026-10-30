@@ -84,6 +84,7 @@ class SlurmSystem(System):
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
+    docker_image_import_extra_sbatch_args: list[str] = Field(default_factory=list)
     scheduler: str = "slurm"
     monitor_interval: float = 60.0
     cmd_shell: CommandShell = Field(default_factory=CommandShell, exclude=True)

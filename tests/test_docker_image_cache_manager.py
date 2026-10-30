@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shlex
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -58,7 +59,7 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
     slurm_system.cache_docker_images_locally = True
     slurm_system.account = account
     slurm_system.supports_gpu_directives_cache = supports_gpu
-    slurm_system.extra_srun_args = "--reservation test-reservation"
+    slurm_system.docker_image_import_extra_sbatch_args = ["--reservation=test-reservation"]
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
     image_path = slurm_system.install_path / "image.sqsh"
     if cleanup_error:
@@ -71,7 +72,8 @@ def test_cache_docker_image_submits_one_node_sbatch_job(
         assert "#SBATCH --partition=" + slurm_system.default_partition in content
         assert "#SBATCH -N1" in content
         assert "#SBATCH --ntasks=1" in content
-        assert "srun --export=ALL --ntasks=1 --reservation test-reservation enroot import -o" in content
+        assert "#SBATCH --reservation=test-reservation" in content
+        assert "srun --export=ALL --ntasks=1 enroot import -o" in content
         assert "docker://docker.io/hello-world" in content
         if account:
             assert f"#SBATCH --account={account}" in content
@@ -112,6 +114,41 @@ def test_cache_docker_image_reports_submission_failure(slurm_system: SlurmSystem
 
     assert not result.success
     assert "Failed to import Docker image" in result.message
+
+
+@pytest.mark.parametrize(
+    "import_args",
+    [
+        [],
+        ["--time=00:20:00", "--reservation=import-reservation"],
+        ['-t 20 --comment "--time=02:00:00"'],
+    ],
+)
+def test_import_uses_dedicated_sbatch_args(slurm_system: SlurmSystem, import_args: list[str]):
+    slurm_system.docker_image_import_extra_sbatch_args = import_args
+    slurm_system.extra_sbatch_args = ["--segment 2", "--time=02:00:00", "--time-min=01:00:00"]
+    slurm_system.extra_srun_args = "--ntasks=16 --cpu-bind=cores"
+    slurm_system.supports_gpu_directives_cache = False
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+    image_path = slurm_system.install_path / "image.sqsh"
+
+    def submit(command: str, operation_name: str, *, check_return_code: bool) -> int:
+        args = shlex.split(command)
+        assert args[:-1] == ["sbatch", "--wait"]
+        content = Path(args[-1]).read_text()
+        for arg in slurm_system.extra_sbatch_args:
+            assert f"#SBATCH {arg}\n" not in content
+        for arg in import_args:
+            assert f"#SBATCH {arg}\n" in content
+        assert "srun --export=ALL --ntasks=1 enroot import -o" in content
+        image_path.touch()
+        return 123
+
+    with patch.object(SlurmSystem, "submit_job", side_effect=submit) as submit_job:
+        result = DockerImageCacheManager(slurm_system).cache_docker_image("docker.io/hello-world", "image.sqsh")
+
+    assert result.success
+    submit_job.assert_called_once()
 
 
 def test_cache_docker_image_reports_failed_job_with_partial_image(slurm_system: SlurmSystem):
