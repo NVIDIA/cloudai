@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseRunner, JobIdRetrievalError, RewardOverrides, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -934,3 +934,19 @@ class TestStructuredObservationProducer:
         assert obs == env.define_observation_space(), "reset's flat obs stays the metrics placeholder"
         assert info["env_params"] == {"ball_speed": upcoming}, "reset peeks step+1 and reports the regime"
         assert env.encode_env_params(info["env_params"]) == {"ball_speed": [1, 2, 3].index(upcoming)}
+
+
+def test_step_propagates_submission_error(setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch):
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
+    _, action = agent.select_action()
+    error = JobIdRetrievalError(test_run.name, "sbatch test.sh", "", "timeout", "No job ID")
+    monkeypatch.setattr(runner, "run", MagicMock(side_effect=error))
+    observation = MagicMock()
+    monkeypatch.setattr(env, "get_observation", observation)
+    with pytest.raises(JobIdRetrievalError) as caught:
+        env.step(action)
+    assert caught.value is error
+    observation.assert_not_called()
