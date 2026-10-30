@@ -546,7 +546,7 @@ INFERENCE_ROLE = dict(
             id="visible-gpus",
         ),
         pytest.param(
-            {"extra_args": "--pipeline-parallel-size=1 --data-parallel-size 2"},
+            {"extra_args": "--served-model-name tp --pipeline-parallel-size=1 --data-parallel-size 2"},
             "vllm",
             4,
             8,
@@ -556,6 +556,18 @@ INFERENCE_ROLE = dict(
             16,
             False,
             id="argument-overrides",
+        ),
+        pytest.param(
+            {"extra_args": "--tensor-parallel-size ${TP} --pipeline-parallel-size ${PP} --data-parallel-size"},
+            "vllm",
+            4,
+            8,
+            {},
+            {"tensor_parallel_size": None, "pipeline_parallel_size": None, "data_parallel_size": None},
+            {"tensor_parallel_size": None, "pipeline_parallel_size": None, "data_parallel_size": None},
+            None,
+            False,
+            id="unresolved-parallelism-overrides",
         ),
     ],
 )

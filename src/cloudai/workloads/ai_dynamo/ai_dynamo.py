@@ -201,12 +201,19 @@ class WorkerConfig(BaseModel):
         aliases = {"tp": "tensor_parallel_size", "pp": "pipeline_parallel_size", "dp": "data_parallel_size"}
         values.update({full: values[f"{short}_size"] for short, full in aliases.items() if f"{short}_size" in values})
         for token, following in zip(tokens, [*tokens[1:], ""], strict=False):
+            if not token.startswith("--"):
+                continue
             name, separator, value = token.partition("=")
             key = name.removeprefix("--").replace("-", "_")
             if key in (*aliases, "tp_size", "pp_size", "dp_size", *aliases.values()):
                 value = value if separator else following
-                values[aliases.get(key.removesuffix("_size"), key)] = int(value)
-                values[key] = int(value)
+                canonical = aliases.get(key.removesuffix("_size"), key)
+                try:
+                    number = int(value)
+                except ValueError:
+                    number = None
+                short = next(short for short, full in aliases.items() if full == canonical)
+                values.update({canonical: number, key: number, f"{short}_size": number})
         return values
 
     @model_validator(mode="after")
@@ -751,7 +758,7 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
                 values["data_parallel_size"] = values.get("data_parallel_size", values.get("dp_size", default_size))
             values.setdefault("data_parallel_size", values.get("dp_size", 1))
             role = llm_serving.inference_role_config(values)
-            footprint = (role.tensor_parallel_size or 0) * (role.pipeline_parallel_size or 1)
+            footprint = (role.tensor_parallel_size or 0) * (role.pipeline_parallel_size or 0)
             count: int | None = 1
             if worker.multiple_workers_per_node and not shared_nodes and not distributed:
                 count = gpus_per_node // footprint if gpus_per_node and footprint else None
@@ -778,7 +785,12 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
         ):
             if role is None:
                 continue
-            if role.tensor_parallel_size is None or role.num_instances is None:
+            if (
+                role.tensor_parallel_size is None
+                or role.pipeline_parallel_size is None
+                or role.data_parallel_size is None
+                or role.num_instances is None
+            ):
                 return None
             dp_attention = (
                 self.cmd_args.dynamo.backend == "sglang_dsr1"
