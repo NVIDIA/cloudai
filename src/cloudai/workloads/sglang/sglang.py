@@ -24,6 +24,7 @@ from pathlib import Path
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 import cloudai.metrics
+import cloudai.report_generator.inference_report as inference_report
 from cloudai.core import JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs
 from cloudai.workloads.common.llm_serving import (
@@ -100,7 +101,7 @@ class SglangSemanticEvalCmdArgs(CmdArgs):
     cli: str = "--host {host} --port {port} --eval-name gsm8k --num-examples 200 --num-threads 128 --model {model}"
 
 
-class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
+class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs], inference_report.InferenceReportProvider):
     """Test object for SGLang."""
 
     bench_cmd_args: SglangBenchCmdArgs = SglangBenchCmdArgs()
@@ -113,7 +114,7 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
         return validate_custom_bash_patterns(custom_bash)
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        res = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
+        res = self.parse_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
         if res and res.completed > 0:
             if self.semantic_eval_cmd_args is not None:
                 accuracy = parse_sglang_semantic_accuracy(tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
@@ -129,20 +130,66 @@ class SglangTestDefinition(LLMServingTestDefinition[SglangCmdArgs]):
             error_message=f"SGLang bench jsonl does not contain successful requests in {tr.output_path}.",
         )
 
+    @staticmethod
+    @cache
+    def parse_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
+        """Parse SGLang benchmark output from JSONL file."""
+        if not jsonl_file.is_file():
+            return None
+
+        with jsonl_file.open(encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                try:
+                    parsed = SGLangBenchReport.model_validate_json(line)
+                    if parsed.completed <= 0:
+                        return None
+                    return parsed
+                except Exception as e:
+                    logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
+                    continue
+
+        return None
+
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
+        return [obs for report in self.inference_reports(system, tr) for obs in report.observations]
+
+    def inference_reports(self, system: System, tr: TestRun) -> list[inference_report.InferenceReport]:
         gpus_per_node = getattr(system, "gpus_per_node", None)
-        results = parse_sglang_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
+        results = self.parse_bench_output(tr.output_path / SGLANG_BENCH_JSONL_FILE)
         accuracy = (
             parse_sglang_semantic_accuracy(tr.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)
             if self.semantic_eval_cmd_args is not None
             else None
         )
-        return llm_serving_metric_observations(
+        observations = llm_serving_metric_observations(
             results,
             accuracy,
             allocated_gpu_count=tr.nnodes * gpus_per_node if gpus_per_node else None,
             serving_gpu_count=self.serving_gpu_count,
         )
+        if not observations:
+            return []
+        prefill, decode = self.inference_role_configs(tr)
+        config = inference_report.InferenceConfig(
+            model=self.cmd_args.model,
+            backend="sglang",
+            benchmark="sglang",
+            num_nodes=tr.nnodes,
+            container_image=self.cmd_args.docker_image_url,
+            gpus_per_node=gpus_per_node,
+            serving_gpu_count=self.serving_gpu_count,
+            input_tokens=self.bench_cmd_args.random_input,
+            output_tokens=self.bench_cmd_args.random_output,
+            concurrency=self.bench_cmd_args.max_concurrency,
+            request_count=self.bench_cmd_args.num_prompts,
+            request_rate=getattr(self.bench_cmd_args, "request_rate", None),
+            prefill=prefill,
+            decode=decode,
+            shared_nodes=tr.nnodes == 1
+            if prefill is not None and prefill.num_nodes is not None and decode.num_nodes is not None
+            else None,
+        )
+        return [inference_report.InferenceReport(config=config, observations=observations)]
 
 
 class SGLangBenchReport(LLMServingBenchReport):
@@ -164,26 +211,6 @@ class SGLangBenchReport(LLMServingBenchReport):
                 data = dict(data)
                 data["num_prompts"] = len(input_lens)
         return data
-
-
-@cache
-def parse_sglang_bench_output(jsonl_file: Path) -> SGLangBenchReport | None:
-    """Parse SGLang benchmark output from JSONL file."""
-    if not jsonl_file.is_file():
-        return None
-
-    with jsonl_file.open(encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            try:
-                parsed = SGLangBenchReport.model_validate_json(line)
-                if parsed.completed <= 0:
-                    return None
-                return parsed
-            except Exception as e:
-                logging.debug(f"Skipping invalid JSONL record in SGLang benchmark output: {e}")
-                continue
-
-    return None
 
 
 @cache

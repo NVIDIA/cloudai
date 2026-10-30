@@ -14,39 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import logging
-from functools import cache
 from pathlib import Path
 
-from cloudai.workloads.common.llm_serving import LLMServingBenchReport, LLMServingReportGenerationStrategy, all_gpu_ids
-
-from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition, parse_vllm_semantic_accuracy
-
-
-class VLLMBenchReport(LLMServingBenchReport):
-    """Report for vLLM benchmark results."""
-
-    output_throughput: float
-    request_throughput: float
-
-    @property
-    def throughput(self) -> float:
-        return self.output_throughput
-
-
-@cache
-def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
-    """Parse the vLLM benchmark output file and return a VLLMBenchReport object."""
-    if not res_file.is_file():
-        return None
-
-    try:
-        data = json.loads(res_file.read_text())
-        return VLLMBenchReport.model_validate(data)
-    except Exception as e:
-        logging.debug(f"Error parsing vLLM benchmark output: {e}")
-        return None
+from cloudai.workloads.common.llm_serving import LLMServingReportGenerationStrategy, all_gpu_ids
+from cloudai.workloads.vllm.vllm import (
+    VLLM_BENCH_JSON_FILE,
+    VLLMBenchReport,
+    VllmTestDefinition,
+    parse_vllm_semantic_accuracy,
+)
 
 
 class VLLMBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[VllmTestDefinition, VLLMBenchReport]):
@@ -61,7 +37,7 @@ class VLLMBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[VllmT
         return "vLLM Benchmark Results"
 
     def parse_output(self, path: Path) -> VLLMBenchReport | None:
-        return parse_vllm_bench_output(path)
+        return VllmTestDefinition.parse_bench_output(path)
 
     def parse_semantic_accuracy(self) -> float | None:
         return parse_vllm_semantic_accuracy(self.test_run.output_path)

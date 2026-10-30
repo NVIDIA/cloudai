@@ -14,11 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from typing import cast
 
 import pytest
 
+import cloudai.core
+import cloudai.metrics
+import cloudai.report_generator.inference_report as inference_report
+import cloudai.systems.slurm
+import cloudai.util
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm import SlurmSystem
@@ -29,7 +35,6 @@ from cloudai.workloads.vllm import (
     VllmSemanticEvalCmdArgs,
     VllmTestDefinition,
 )
-from cloudai.workloads.vllm.report_generation_strategy import parse_vllm_bench_output
 from cloudai.workloads.vllm.vllm import (
     VLLM_BENCH_JSON_FILE,
     VLLM_GSM8K_JSON_FILE,
@@ -72,14 +77,14 @@ def test_vllm_can_handle_directory(slurm_system: SlurmSystem, vllm_tr: TestRun) 
 
 
 def test_parse_vllm_bench_output_missing_file(tmp_path: Path) -> None:
-    assert parse_vllm_bench_output(tmp_path / VLLM_BENCH_JSON_FILE) is None
+    assert VllmTestDefinition.parse_bench_output(tmp_path / VLLM_BENCH_JSON_FILE) is None
 
 
 def test_parse_vllm_bench_output_invalid_json(tmp_path: Path) -> None:
     report_path = tmp_path / VLLM_BENCH_JSON_FILE
     report_path.write_text("{invalid", encoding="utf-8")
 
-    assert parse_vllm_bench_output(report_path) is None
+    assert VllmTestDefinition.parse_bench_output(report_path) is None
 
 
 @pytest.mark.parametrize(
@@ -152,3 +157,134 @@ def test_parse_vllm_semantic_accuracy_missing_or_invalid(tmp_path: Path) -> None
     (tmp_path / VLLM_SEMANTIC_EVAL_LOG_FILE).write_text("no accuracy here\n", encoding="utf-8")
 
     assert parse_vllm_semantic_accuracy(tmp_path) is None
+
+
+INFERENCE_DEFINITION = {
+    "name": "vllm",
+    "description": "Inference report",
+    "test_template_name": "vllm",
+    "cmd_args": {
+        "docker_image_url": "example/image:latest",
+        "model": "example/model",
+        "decode": {
+            "tensor_parallel_size": 2,
+            "pipeline_parallel_size": 2,
+            "data_parallel_size": 1,
+            "enable_expert_parallel": True,
+            "dtype": "float16",
+            "quantization": "fp8",
+        },
+    },
+    "bench_cmd_args": {
+        "num_prompts": 20,
+        "max_concurrency": 8,
+        "request_rate": 12.5,
+        "random_input_len": 128,
+        "random_output_len": 64,
+    },
+}
+INFERENCE_PREFILL = {
+    "tensor_parallel_size": 2,
+    "pipeline_parallel_size": 1,
+    "data_parallel_size": 1,
+    "enable_expert_parallel": True,
+    "dtype": "float16",
+    "quantization": "fp8",
+}
+
+
+@pytest.mark.parametrize(
+    "overrides,nodes,role_nodes,serving_gpus,shared_nodes",
+    [
+        pytest.param({}, 2, 2, 4, None, id="combined"),
+        pytest.param(
+            {"cmd_args": {"prefill": {**INFERENCE_PREFILL, "num_nodes": 2}, "decode": {"num_nodes": 2}}},
+            4,
+            2,
+            6,
+            False,
+            id="separate-nodes",
+        ),
+        pytest.param({"cmd_args": {"prefill": INFERENCE_PREFILL}}, 1, 1, 6, True, id="shared-node"),
+        pytest.param({"cmd_args": {"prefill": INFERENCE_PREFILL}}, 4, None, 6, None, id="unresolved-topology"),
+    ],
+)
+def test_inference_reports(
+    slurm_system: SlurmSystem,
+    tmp_path: Path,
+    overrides: dict,
+    nodes: int,
+    role_nodes: int | None,
+    serving_gpus: int,
+    shared_nodes: bool | None,
+) -> None:
+    definition = cloudai.util.deep_merge(INFERENCE_DEFINITION, overrides)
+    test = VllmTestDefinition.model_validate(definition)
+    tr = TestRun("vllm", test, nodes, [], output_path=tmp_path)
+    (tmp_path / "vllm-bench.json").write_text(
+        json.dumps(
+            {
+                "num_prompts": 20,
+                "completed": 20,
+                "max_concurrency": 8,
+                "request_throughput": 10,
+                "output_throughput": 1000,
+                "mean_ttft_ms": 10,
+                "median_ttft_ms": 11,
+                "p99_ttft_ms": 12,
+                "mean_tpot_ms": 1,
+                "median_tpot_ms": 2,
+                "p99_tpot_ms": 3,
+            }
+        )
+    )
+    role: dict = dict(
+        num_nodes=role_nodes,
+        num_instances=1 if role_nodes else None,
+        nodes_per_instance=role_nodes,
+        instances_per_node=1 if role_nodes == 1 else None,
+        tensor_parallel_size=2,
+        data_parallel_size=1,
+        expert_parallel=True,
+        precision="float16",
+        quantization="fp8",
+    )
+    metrics = [
+        (cloudai.metrics.REQUEST_THROUGHPUT, 10, {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, 1000, {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU, 1000 / (nodes * 8), {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU, 1000 / serving_gpus, {}),
+    ]
+    metrics.extend(
+        (metric, value, {"statistic": statistic})
+        for metric, values in ((cloudai.metrics.TTFT, (10, 11, 12)), (cloudai.metrics.TPOT, (1, 2, 3)))
+        for statistic, value in zip(("mean", "median", "p99"), values, strict=True)
+    )
+    expected = [
+        inference_report.InferenceReport(
+            config=inference_report.InferenceConfig(
+                model="example/model",
+                num_nodes=nodes,
+                backend="vllm",
+                benchmark="vllm",
+                container_image="example/image:latest",
+                gpus_per_node=8,
+                serving_gpu_count=serving_gpus,
+                input_tokens=128,
+                output_tokens=64,
+                concurrency=8,
+                request_count=20,
+                request_rate=12.5,
+                prefill=inference_report.InferenceRoleConfig(**role, pipeline_parallel_size=1)
+                if "prefill" in definition["cmd_args"]
+                else None,
+                decode=inference_report.InferenceRoleConfig(**role, pipeline_parallel_size=2),
+                shared_nodes=shared_nodes,
+            ),
+            observations=[
+                cloudai.metrics.MetricObservation(metric, value, dimensions) for metric, value, dimensions in metrics
+            ],
+        )
+    ]
+    assert test.inference_reports(slurm_system, tr) == expected
+    assert test.metric_observations(slurm_system, tr) == expected[0].observations

@@ -32,6 +32,7 @@ import typing_extensions
 import cloudai.core
 import cloudai.metrics
 import cloudai.models.scenario
+import cloudai.report_generator.inference_report as inference_report
 
 
 class MetricSelector(pydantic.BaseModel):
@@ -162,6 +163,7 @@ class RunObservations:
     observations: list[cloudai.metrics.MetricObservation] = dataclasses.field(default_factory=list)
     error: str = ""
     config: str = ""
+    inference_config: inference_report.InferenceConfig | None = None
 
     @property
     def label(self) -> str:
@@ -176,50 +178,6 @@ def format_number(value: float) -> str:
     if value != 0 and abs(value) < 0.01:
         return f"{value:.3g}"
     return f"{value:,.2f}".rstrip("0").rstrip(".")
-
-
-def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> dict[str, typing.Any]:
-    """Summarize explicitly configured inference settings, including serving roles."""
-    labels = {
-        "model": "Model",
-        "max_concurrency": "Concurrency",
-        "concurrency": "Concurrency",
-        "random_input_len": "Input tokens",
-        "random_input": "Input tokens",
-        "random_output_len": "Output tokens",
-        "random_output": "Output tokens",
-        "num_prompts": "Requests",
-        "request_rate": "Request rate",
-        "tensor_parallel_size": "TP",
-        "tp_size": "TP",
-        "pipeline_parallel_size": "PP",
-        "pp_size": "PP",
-        "data_parallel_size": "DP",
-        "dp_size": "DP",
-        "enable_expert_parallel": "Expert parallel",
-        "dtype": "Precision",
-        "quantization": "Quantization",
-        "num_nodes": "Nodes",
-        "gpu_ids": "GPU IDs",
-    }
-    context: dict[str, typing.Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
-    gpus_per_node = getattr(system, "gpus_per_node", None)
-    if gpus_per_node is not None and gpus_per_node > 0:
-        context["Allocated GPUs"] = tr.nnodes * gpus_per_node
-    if serving_gpus := getattr(tr.test, "serving_gpu_count", None):
-        context["Serving GPUs"] = serving_gpus
-
-    def collect(values: dict[str, typing.Any], scope: str = "") -> None:
-        for key, value in values.items():
-            if isinstance(value, dict):
-                collect(value, f"{scope}{key.replace('_', ' ').title()} / ")
-            elif key in labels and value is not None:
-                context[f"{scope}{labels[key]}"] = value
-
-    definition = tr.test.model_dump(mode="json", exclude_none=True)
-    collect(definition.get("cmd_args", {}))
-    collect(definition.get("bench_cmd_args", {}))
-    return context
 
 
 class ParetoReporter(cloudai.core.Reporter):
@@ -253,10 +211,10 @@ class ParetoReporter(cloudai.core.Reporter):
                     tr.current_iteration = int(iteration.name)
                     tr.step = int(path.name) if case.is_dse_job else 0
                     tr.output_path = path
-                    runs.append(self._collect_run(tr))
+                    runs.extend(self._collect_run(tr))
         return runs
 
-    def _collect_run(self, tr: cloudai.core.TestRun) -> RunObservations:
+    def _collect_run(self, tr: cloudai.core.TestRun) -> list[RunObservations]:
         run = RunObservations(tr)
         try:
             dump = tr.output_path / "test-run.toml"
@@ -278,11 +236,31 @@ class ParetoReporter(cloudai.core.Reporter):
             status = tr.test.was_run_successful(tr)
             if not status.is_successful:
                 raise ValueError(status.error_message or "Execution failed or incomplete")
+            if isinstance(tr.test, inference_report.InferenceReportProvider):
+                reports = tr.test.inference_reports(self.system, tr)
+                return [
+                    dataclasses.replace(
+                        run,
+                        observations=report.observations,
+                        inference_config=report.config,
+                    )
+                    for report in reports
+                ] or [dataclasses.replace(run, error="No inference measurements found")]
             run.observations = tr.test.metric_observations(self.system, tr)
         except Exception as exc:
             run.error = str(exc)
             logging.debug("Cannot collect Pareto results at %s: %s", tr.output_path, exc)
-        return run
+        return [run]
+
+    def point_context(self, run: RunObservations) -> dict[str, typing.Any]:
+        context: dict[str, typing.Any] = {"Workload": run.tr.test.test_template_name}
+        if run.inference_config is not None:
+            return {**context, **run.inference_config.context()}
+        context["Nodes"] = run.tr.nnodes
+        gpus_per_node = getattr(self.system, "gpus_per_node", None)
+        if gpus_per_node is not None and gpus_per_node > 0:
+            context["Allocated GPUs"] = run.tr.nnodes * gpus_per_node
+        return context
 
     @staticmethod
     def select_pair(
@@ -308,6 +286,15 @@ class ParetoReporter(cloudai.core.Reporter):
                 for run in runs:
                     if frontier.cases and run.tr.name not in frontier.cases:
                         continue
+                    if (
+                        frontier.match
+                        and not run.error
+                        and not any(
+                            all(obs.dimensions.get(key) == value for key, value in frontier.match.items())
+                            for obs in run.observations
+                        )
+                    ):
+                        continue
                     try:
                         x, y = self.select_pair(run, plot, frontier)
                     except ValueError as exc:
@@ -324,7 +311,7 @@ class ParetoReporter(cloudai.core.Reporter):
                             "y": y.value,
                             "run": run.label,
                             "group": frontier.name,
-                            "context": inference_context(run.tr, self.system),
+                            "context": self.point_context(run),
                             "dimensions": dimensions,
                             "config": run.config,
                             "artifact": run.tr.output_path.relative_to(self.results_root).as_posix(),
