@@ -83,6 +83,12 @@ class BaseGym(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def progress(self) -> int:
+        """Number of logical sweep steps consumed by this environment."""
+        pass
+
     @abstractmethod
     def render(self, mode: str = "human"):
         """

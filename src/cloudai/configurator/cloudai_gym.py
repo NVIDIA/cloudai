@@ -44,6 +44,7 @@ class CloudAIGymEnv(BaseGym):
         test_run: TestRun,
         runner: BaseRunner,
         rewards: RewardOverrides,
+        max_consecutive_rejected_proposals: int | None = None,
     ):
         """
         Initialize the Gym environment using the TestRun object.
@@ -52,12 +53,21 @@ class CloudAIGymEnv(BaseGym):
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
+            max_consecutive_rejected_proposals: Rejections allowed before consuming the current sweep step.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
+        configured_limit = (test_run.test.agent_config or {}).get("max_consecutive_rejected_proposals", 16)
+        self.max_consecutive_rejected_proposals = int(
+            configured_limit if max_consecutive_rejected_proposals is None else max_consecutive_rejected_proposals
+        )
+        if self.max_consecutive_rejected_proposals < 1:
+            raise ValueError("max_consecutive_rejected_proposals must be at least 1")
+        self._progress = test_run.step
+        self._consecutive_rejections = 0
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
@@ -96,12 +106,21 @@ class CloudAIGymEnv(BaseGym):
         """
         Index of the next trial ``step`` will run.
 
-        ``step`` increments ``test_run.step`` before it samples/runs, so at rest the counter
-        holds the last-run trial and the next one is ``+ 1``. ``reset`` peeks this to report the
-        regime the first ``step`` will apply; ``step`` advances into it. The ``+ 1`` offset is
-        defined only here so the two paths cannot disagree.
+        Logical progress includes executed, cached, failed, and skipped steps. ``TestRun.step`` is
+        assigned this index only for accepted candidates, so rejected proposals below the retry
+        limit do not consume a trial number. ``reset`` peeks at the same next value to report the
+        regime the first ``step`` will apply.
         """
-        return self.test_run.step + 1
+        return self.progress + 1
+
+    @property
+    def progress(self) -> int:
+        """Number of logical sweep steps consumed, including skipped steps."""
+        return self._progress
+
+    def _advance_progress(self) -> None:
+        self._progress += 1
+        self._consecutive_rejections = 0
 
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
@@ -162,15 +181,16 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         trial = self.upcoming_trial
-        self.test_run.increment_step()
         # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
         sampled_env_params = self.params.sample(trial) if self.params else {}
         info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
-        self.test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
+        candidate_test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
+        candidate_test_run.step = trial
 
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
 
         if cached_result is not None:
+            self.test_run = candidate_test_run
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
                 cached_result["reward"],
@@ -181,9 +201,17 @@ class CloudAIGymEnv(BaseGym):
             }
             reward = cast(float, cached_result["reward"])
         else:
-            if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
-                logging.info("Constraint check failed. Skipping step.")
+            if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
+                logging.info("Constraint check failed. Requesting another proposal without consuming a step.")
+                self._consecutive_rejections += 1
+                info["constraint_rejected"] = True
+                info["step_skipped"] = self._consecutive_rejections >= self.max_consecutive_rejected_proposals
+                if info["step_skipped"]:
+                    self._advance_progress()
+                info["sweep_progress"] = self.progress
                 return [-1.0], self.rewards.constraint_failure, True, info
+
+            self.test_run = candidate_test_run
 
             new_tr = copy.deepcopy(self.test_run)
             new_tr.output_path = self.runner.get_job_output_path(new_tr)
@@ -215,6 +243,9 @@ class CloudAIGymEnv(BaseGym):
             observation=observation,
             env_params=sampled_env_params,
         )
+
+        self._advance_progress()
+        info["sweep_progress"] = self.progress
 
         return list(observation.values()), reward, False, info
 

@@ -17,7 +17,7 @@
 """
 Caller-contract tests for ``GymnasiumAdapter``.
 
-The single invariant every consumer assumes:
+The trial-label invariant every consumer assumes:
 
     ``test_run.step`` is a **monotonic trial index** across the entire run.
 
@@ -28,8 +28,8 @@ collapsed every trial onto step 1 — silently overwriting output dirs and
 producing duplicate-step trajectory records.
 
 These tests pin the negative invariant: the adapter must not mutate
-``test_run.step``. That counter is owned by ``TestRun`` and advanced
-exclusively by ``CloudAIGymEnv.step()``.
+``test_run.step``. ``CloudAIGymEnv`` owns logical sweep progress and assigns
+that label to accepted trials.
 """
 
 from __future__ import annotations
@@ -68,6 +68,10 @@ class _StubBaseGym(BaseGym):
 
     def define_observation_space(self) -> list:
         return self._observation_space
+
+    @property
+    def progress(self) -> int:
+        return self.test_run.step
 
     def reset(
         self,
@@ -159,6 +163,10 @@ class _ContextualStubBaseGym(BaseGym):
 
     def define_observation_space(self) -> list:
         return [0.0, 0.0]
+
+    @property
+    def progress(self) -> int:
+        return self.test_run.step
 
     def reset(
         self,
@@ -288,6 +296,10 @@ class _StructuredStubBaseGym(BaseGym):
 
     def define_observation_space(self) -> list:
         return [0.0] * self._obs_dim
+
+    @property
+    def progress(self) -> int:
+        return self.test_run.step
 
     def structured_observation_descriptors(self) -> Optional[dict[str, ObsLeafDescriptor]]:
         return self._descriptors
