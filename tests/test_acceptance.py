@@ -367,7 +367,10 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     name="srt-slurm",
                     description="SRT Slurm recipe submission",
                     test_template_name="SRTSlurm",
-                    git_repos=[GitRepo(url="https://github.com/NVIDIA/srt-slurm.git", commit="v2.2.1")],
+                    git_repos=[
+                        GitRepo(url="https://github.com/example/recipes.git", commit="main"),
+                        GitRepo(url="https://github.com/NVIDIA/srt-slurm.git", commit="v2.2.1"),
+                    ],
                     cmd_args=SRTSlurmCmdArgs(
                         recipe_path=Path("conf/experimental/srt_slurm/recipe.yaml"),
                         cluster_config=Path("conf/experimental/srt_slurm/srtslurm.yaml"),

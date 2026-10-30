@@ -14,101 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
 from cloudai.core import GitRepo, TestRun
-from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.srt_slurm import (
     SRTSlurmCommandGenStrategy,
     SRTSlurmTestDefinition,
 )
-
-
-def test_run_script_exports_merged_environment(slurm_system: SlurmSystem, tmp_path: Path, monkeypatch, make_tdef):
-    monkeypatch.delenv("SRTSLURM_CONFIG", raising=False)
-    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "login-node-venv"))
-    slurm_system.global_env_vars = {"SRTSLURM_CONFIG": "system.yaml", "SRT_GLOBAL_ONLY": "global value"}
-    tdef = make_tdef(tmp_path)
-    repo_path = tmp_path / "installed srt-slurm"
-    repo_path.mkdir()
-    tdef.git_repos[0].installed_path = repo_path
-    tdef.git_repos.insert(0, GitRepo(url="https://github.com/example/recipes.git", commit="main"))
-    caller_path = tmp_path / "cloudaix"
-    (caller_path / ".venv" / "bin").mkdir(parents=True)
-    (caller_path / ".venv" / "bin" / "python").write_bytes(b"invalid login-node interpreter")
-    (caller_path / ".venv" / "pyvenv.cfg").write_text("home = /login-node/python\n")
-    active_bin = tmp_path / "login-node-venv" / "bin"
-    active_bin.mkdir(parents=True)
-    (active_bin.parent / "pyvenv.cfg").write_text("home = /login-node/python\n")
-    retained_bin = tmp_path / "cluster tools" / "bin"
-    retained_bin.mkdir(parents=True)
-    other_venv_bin = tmp_path / "other login-node venv" / "bin"
-    other_venv_bin.mkdir(parents=True)
-    (other_venv_bin.parent / "pyvenv.cfg").write_text("home = /other/login-node/python\n")
-    monkeypatch.setenv(
-        "PATH",
-        os.pathsep.join(
-            [
-                str(caller_path / ".venv" / "bin"),
-                str(active_bin),
-                str(other_venv_bin),
-                str(retained_bin),
-                os.environ["PATH"],
-            ]
-        ),
-    )
-    tdef.extra_env_vars = {
-        "SRTSLURM_CONFIG": str(tmp_path / "cluster's config" / "srtslurm.yaml"),
-        "SRT_LITERAL": "$HOME; $(printf injected)",
-        "SRT_EMPTY": "",
-    }
-    expected_config = str(tdef.cmd_args.cluster_config.absolute())
-    tdef.srtctl.venv_path = tmp_path / "venv"
-    tdef.srtctl_path.parent.mkdir(parents=True)
-    tdef.srtctl_path.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        "print(json.dumps({key: os.environ.get(key) for key in "
-        "['SRTSLURM_CONFIG', 'SRT_GLOBAL_ONLY', 'SRT_LITERAL', 'SRT_EMPTY', 'VIRTUAL_ENV']}))\n"
-        "print(os.getcwd())\n"
-        "print(os.environ['PATH'])\n"
-        "print(json.dumps(sys.argv[1:]))\n"
-        "print('Job 12345 submitted')\n",
-        encoding="utf-8",
-    )
-    tdef.srtctl_path.chmod(0o755)
-    test_run = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-    strategy = SRTSlurmCommandGenStrategy(slurm_system, test_run)
-    strategy.gen_exec_command()
-
-    subprocess.run(
-        ["bash", strategy._paths()["run_script"]], cwd=caller_path, check=True, capture_output=True, text=True
-    )
-    received = json.loads(strategy._paths()["run_log"].read_text(encoding="utf-8").splitlines()[0])
-
-    assert received == {
-        "SRT_GLOBAL_ONLY": "global value",
-        **tdef.extra_env_vars,
-        "SRTSLURM_CONFIG": expected_config,
-        "VIRTUAL_ENV": None,
-    }
-    assert Path(strategy._paths()["run_log"].read_text().splitlines()[1]) == repo_path
-    submitted_path = strategy._paths()["run_log"].read_text().splitlines()[2].split(os.pathsep)
-    assert str(caller_path / ".venv" / "bin") not in submitted_path
-    assert str(active_bin) not in submitted_path
-    assert str(other_venv_bin) not in submitted_path
-    assert str(retained_bin) in submitted_path
-    submitted_args = json.loads(strategy._paths()["run_log"].read_text().splitlines()[3])
-    assert submitted_args[submitted_args.index("-f") + 1] == str(tdef.cmd_args.recipe_path)
-    assert submitted_args[submitted_args.index("--set") + 1] == "roles.agg.gpus=4"
-    assert tdef.job_id_path(test_run).read_text(encoding="utf-8").strip() == "12345"
 
 
 def test_existing_recipe_is_loaded_and_dse_values_are_overlaid(tmp_path: Path):

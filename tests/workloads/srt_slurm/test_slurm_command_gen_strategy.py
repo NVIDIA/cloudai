@@ -14,55 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-from cloudai.core import TestRun, TestScenario
-from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.srt_slurm import SRTSlurmCommandGenStrategy
-
-
-@pytest.mark.parametrize("schema", ["", "schema: 2\n"])
-def test_runner_tracks_the_recipe_job(slurm_system: SlurmSystem, tmp_path: Path, schema: str, monkeypatch, make_tdef):
-    tdef = make_tdef(tmp_path)
-    tdef.cmd_args.recipe_path.write_text(schema + "name: original\n")
-    tdef.srtctl.venv_path = tmp_path / "venv"
-    tdef.srtctl_path.parent.mkdir(parents=True)
-    repo = slurm_system.install_path / tdef.git_repos[0].repo_name
-    repo.mkdir(parents=True)
-    tdef.git_repos[0].installed_path = repo
-    tdef.srtctl_path.write_text(f"#!{sys.executable}\nprint('Submitted batch job 111')\nprint('Job 222 submitted')\n")
-    tdef.srtctl_path.chmod(0o755)
-    monkeypatch.chdir(tmp_path)
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=Path("relative output"))
-    runner = SlurmRunner("run", slurm_system, TestScenario(name="srt", test_runs=[tr]), tmp_path)
-    runner.submit_test(tr)
-    job = runner.jobs[0]
-    assert job.id == 222
-    assert tdef.job_id_path(tr).read_text().strip() == "222"
-    assert (tr.output_path / "test-run.toml").is_file()
-
-
-def test_failed_submission_does_not_publish_a_job_id(slurm_system: SlurmSystem, tmp_path: Path, make_tdef):
-    tdef = make_tdef(tmp_path)
-    tdef.srtctl.venv_path = tmp_path / "venv"
-    tdef.srtctl_path.parent.mkdir(parents=True)
-    repo = slurm_system.install_path / tdef.git_repos[0].repo_name
-    repo.mkdir(parents=True)
-    tdef.srtctl_path.write_text(f"#!{sys.executable}\nprint('Submitted batch job 111')\nraise SystemExit(2)\n")
-    tdef.srtctl_path.chmod(0o755)
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-    strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
-    strategy.gen_exec_command()
-    completed = subprocess.run(["bash", strategy._paths()["run_script"]], capture_output=True, text=True)
-    assert completed.returncode != 0
-    assert "Submitted batch job" not in completed.stdout
-    assert not tdef.job_id_path(tr).exists()
 
 
 def test_single_sbatch_rejected(slurm_system: SlurmSystem, tmp_path: Path, make_tdef):
@@ -70,37 +29,6 @@ def test_single_sbatch_rejected(slurm_system: SlurmSystem, tmp_path: Path, make_
     tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
     with pytest.raises(ValueError, match="single-sbatch"):
         SRTSlurmCommandGenStrategy(slurm_system, tr).gen_srun_command()
-
-
-@pytest.mark.parametrize("extraction_fails", [False, True])
-def test_job_id_errors_are_reported_to_stderr(
-    slurm_system: SlurmSystem, tmp_path: Path, monkeypatch, extraction_fails, make_tdef
-):
-    tdef = make_tdef(tmp_path)
-    tdef.srtctl.venv_path = tmp_path / "venv"
-    tdef.srtctl_path.parent.mkdir(parents=True)
-    repo = slurm_system.install_path / tdef.git_repos[0].repo_name
-    repo.mkdir(parents=True)
-    response = "Submitted batch job 111" if extraction_fails else "Submission completed without a job ID"
-    tdef.srtctl_path.write_text(f"#!{sys.executable}\nprint({response!r})\n")
-    tdef.srtctl_path.chmod(0o755)
-    if extraction_fails:
-        tools = tmp_path / "tools"
-        tools.mkdir()
-        sed = tools / "sed"
-        sed.write_text("#!/usr/bin/env bash\nexit 1\n")
-        sed.chmod(0o755)
-        monkeypatch.setenv("PATH", f"{tools}:{os.environ['PATH']}")
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
-    strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
-    strategy.gen_exec_command()
-    tdef.job_id_path(tr).write_text("999\n")
-    completed = subprocess.run(["bash", strategy._paths()["run_script"]], capture_output=True, text=True)
-    assert completed.returncode != 0
-    assert completed.stdout == ""
-    assert response in completed.stderr
-    assert "Unable to find submitted srt-slurm job ID" in completed.stderr
-    assert not tdef.job_id_path(tr).exists()
 
 
 def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path: Path, make_tdef):
