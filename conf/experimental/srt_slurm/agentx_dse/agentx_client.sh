@@ -15,6 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# AgentX/DSE smoke-test client: replay two pinned AIPerf fixtures for 60 seconds
+# using InferenceX benchmark helpers, avoiding the full dataset download.
+# The resulting AgentX artifacts validate CloudAI result extraction and DSE.
 set -euo pipefail
 export INFMAX_CONTAINER_WORKSPACE=/infmax-workspace
 source "$INFMAX_CONTAINER_WORKSPACE/benchmarks/benchmark_lib.sh"
