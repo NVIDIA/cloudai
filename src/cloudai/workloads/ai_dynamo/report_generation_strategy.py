@@ -16,16 +16,17 @@
 
 from __future__ import annotations
 
-import csv
 import logging
-import math
 from pathlib import Path
-from typing import ClassVar, Mapping
+from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, MetricValue, ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition, parse_aiperf_accuracy
-from cloudai.workloads.common.llm_serving import LLMServingBenchReport
+from cloudai.workloads.ai_dynamo.ai_dynamo import (
+    AIDynamoBenchReport,
+    AIDynamoTestDefinition,
+    parse_aiperf_accuracy,
+)
 
 
 class _AnyMetricSet(list):
@@ -35,62 +36,11 @@ class _AnyMetricSet(list):
         return True
 
 
-class AIDynamoBenchReport(LLMServingBenchReport):
-    """Normalized AI Dynamo benchmark results used by comparison reports."""
-
-    output_throughput: float
-
-    @property
-    def throughput(self) -> float:
-        return self.output_throughput
-
-
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from AI Dynamo run directories."""
 
     # Accepts any metric string — get_metric parses "benchmark:metric_name:column" dynamically.
     metrics: ClassVar[list[str]] = _AnyMetricSet()
-
-    _TTFT_NAMES = ("Time To First Token (ms)", "Time to First Token (ms)")
-    _TPOT_NAMES = ("Inter Token Latency (ms)",)
-    _THROUGHPUT_NAMES = ("Output Token Throughput (tokens/sec)",)
-    _REQUEST_COUNT_NAMES = ("Request Count (count)", "Request Count", "Request count")
-
-    @staticmethod
-    def _parse_metric_rows(csv_file: Path) -> dict[str, dict[str, str]]:
-        """Parse both single-table GenAI-Perf and multi-table AIPerf CSV output."""
-        metrics: dict[str, dict[str, str]] = {}
-        header: list[str] | None = None
-        with csv_file.open(newline="", encoding="utf-8-sig") as f:
-            for row in csv.reader(f):
-                if not row or not any(cell.strip() for cell in row):
-                    continue
-                row = [cell.strip() for cell in row]
-                if row[0] == "Metric":
-                    header = row
-                    continue
-                if header is None:
-                    continue
-                metrics[row[0]] = {column: value for column, value in zip(header[1:], row[1:], strict=False) if value}
-        return metrics
-
-    @staticmethod
-    def _find_value(
-        metrics: Mapping[str, Mapping[str, str]], metric_names: tuple[str, ...], value_names: tuple[str, ...]
-    ) -> float | None:
-        for metric_name in metric_names:
-            row = metrics.get(metric_name)
-            if row is None:
-                continue
-            for value_name in value_names:
-                value = row.get(value_name)
-                if value is None:
-                    continue
-                try:
-                    return float(value.replace(",", ""))
-                except ValueError:
-                    continue
-        return None
 
     def _benchmark_csv(self) -> Path | None:
         tdef = self.test_run.test
@@ -125,35 +75,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         csv_file = self._benchmark_csv()
         if csv_file is None:
             return None
-        try:
-            metrics = self._parse_metric_rows(csv_file)
-        except (OSError, csv.Error) as e:
-            logging.debug(f"Error parsing AI Dynamo benchmark output {csv_file}: {e}")
-            return None
-
-        ttft_mean = self._find_value(metrics, self._TTFT_NAMES, ("avg", "mean", "Value"))
-        tpot_mean = self._find_value(metrics, self._TPOT_NAMES, ("avg", "mean", "Value"))
-        throughput = self._find_value(metrics, self._THROUGHPUT_NAMES, ("avg", "Value"))
-        if ttft_mean is None or tpot_mean is None or throughput is None:
-            return None
-
-        request_count = self._find_value(metrics, self._REQUEST_COUNT_NAMES, ("avg", "Value"))
-        median_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p50", "median"))
-        p99_ttft = self._find_value(metrics, self._TTFT_NAMES, ("p99",))
-        median_tpot = self._find_value(metrics, self._TPOT_NAMES, ("p50", "median"))
-        p99_tpot = self._find_value(metrics, self._TPOT_NAMES, ("p99",))
-        return AIDynamoBenchReport(
-            num_prompts=int(request_count or 0),
-            completed=int(request_count or 0),
-            mean_ttft_ms=ttft_mean,
-            median_ttft_ms=median_ttft if median_ttft is not None else math.nan,
-            p99_ttft_ms=p99_ttft if p99_ttft is not None else math.nan,
-            mean_tpot_ms=tpot_mean,
-            median_tpot_ms=median_tpot if median_tpot is not None else math.nan,
-            p99_tpot_ms=p99_tpot if p99_tpot is not None else math.nan,
-            output_throughput=throughput,
-            max_concurrency=self._max_concurrency(),
-        )
+        return AIDynamoTestDefinition.parse_benchmark_csv(csv_file, self._max_concurrency())
 
     def used_gpus_count(self) -> int:
         """Match the GPU accounting used when AI Dynamo produces its result CSV."""
