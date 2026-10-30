@@ -3,7 +3,7 @@
     <p class="js-point-run"></p>
     <p class="js-point-hint">Hover to inspect. Click a point to pin its details for selection and copying.</p>
     <div class="js-point-content" hidden>
-        <dl class="pareto-properties js-point-properties"></dl>
+        <div class="js-point-properties"></div>
         <details>
             <summary>Executed configuration</summary>
             <p>Results: <code class="js-point-artifact"></code></p>
@@ -36,7 +36,7 @@
             <tbody>
                 {% for point in section.points %}
                 <tr>
-                    <td>{{ point.group }}<br><button type="button" class="pareto-point-button js-inspect-point" data-point-id="{{ point.id }}">{{ point.run }}</button><br><small>{{ point.dimensions }}</small></td>
+                    <td>{{ point.group }}<br><button type="button" class="pareto-point-button js-inspect-point" data-point-id="{{ point.id }}">{{ point.run }}</button><br>{{ point.dimensions }}</td>
                     <td>{{ point.status }}</td>
                     <td>{{ format_number(point.x) }}</td><td>{{ format_number(point.y) }}</td>
                     <td><details><summary>View configuration</summary>

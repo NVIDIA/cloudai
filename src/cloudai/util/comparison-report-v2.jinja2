@@ -254,6 +254,7 @@
         background: var(--nv-surface-alt);
         user-select: text;
         overflow-wrap: anywhere;
+        container-type: inline-size;
     }
     .pareto-inspector h3, .pareto-inspector p {
         margin: 0 0 0.5rem;
@@ -261,11 +262,37 @@
     .pareto-inspector .js-point-clear {
         margin-top: 0.75rem;
     }
+    .js-point-properties {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem 1.25rem;
+        margin: 0.6rem 0;
+    }
+    .pareto-property-group {
+        min-width: 0;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--nv-border);
+    }
+    .pareto-property-group[data-group="Measurements"],
+    .pareto-property-group[data-group="Workload"],
+    .pareto-property-group[data-group="Serving"] {
+        grid-column: 1 / -1;
+    }
+    .pareto-property-group h4 {
+        margin: 0;
+        font-size: 0.9rem;
+    }
     .pareto-properties {
         display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+        gap: 0.35rem 0.85rem;
+        margin: 0.4rem 0 0.15rem;
+    }
+    .pareto-property-group[data-group="Measurements"] .pareto-properties {
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-        gap: 0.6rem 1.25rem;
-        margin: 0.75rem 0;
+    }
+    .pareto-property-group[data-group="Workload"] .pareto-properties {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .pareto-properties dt {
         color: var(--nv-muted);
@@ -275,6 +302,12 @@
         margin: 0.1rem 0 0;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
+    }
+    @container (max-width: 37.25rem) {
+        .js-point-properties,
+        .pareto-property-group[data-group="Workload"] .pareto-properties {
+            grid-template-columns: minmax(0, 1fr);
+        }
     }
     .pareto-point-button {
         padding: 0;
@@ -415,6 +448,43 @@
             }
             let pinnedPoint = false;
             const inspector = isPareto ? card.querySelector(".pareto-inspector") : null;
+            function pointPropertyGroups(point) {
+                const groups = {Measurements: {
+                    [payload.x_axis_label]: point.x,
+                    [payload.y_axis_label]: point.y,
+                    ...(point.dimensions ? {"Metric dimensions": point.dimensions} : {})
+                }};
+                const remaining = {...point.context};
+                const settings = {
+                    Workload: ["Model", "Container image", "Workload", "Backend"],
+                    "Request settings": ["Concurrency", "Users", "Input tokens", "Output tokens", "Requests", "Request rate"],
+                    Resources: ["Nodes", "Allocated GPUs", "Serving GPUs", "Prefill and decode share nodes"]
+                };
+                Object.entries(settings).forEach(([group, labels]) => {
+                    groups[group] = {};
+                    labels.forEach((label) => {
+                        if (Object.hasOwn(remaining, label)) {
+                            groups[group][label] = remaining[label];
+                            delete remaining[label];
+                        }
+                    });
+                });
+                ["Serving", "Prefill", "Decode"].forEach((role) => {
+                    groups[role] = {};
+                    const orderedLabels = ["Model", "Nodes", "Instances", "Nodes per instance", "Instances per node",
+                        "GPU IDs", "TP", "PP", "DP", "Expert parallel", "Precision", "Quantization"];
+                    const labels = [...new Set([...orderedLabels.map((label) => `${role} / ${label}`),
+                        ...Object.keys(remaining)])];
+                    labels.forEach((label) => {
+                        if (label.startsWith(`${role} / `) && Object.hasOwn(remaining, label)) {
+                            groups[role][label.slice(role.length + 3)] = remaining[label];
+                            delete remaining[label];
+                        }
+                    });
+                });
+                groups["Other settings"] = remaining;
+                return Object.entries(groups).filter(([, values]) => Object.keys(values).length);
+            }
             function inspectPoint(point, pin = false) {
                 if (!inspector || (pinnedPoint && !pin)) {
                     return;
@@ -427,18 +497,25 @@
                 inspector.querySelector(".js-point-clear").textContent = pin ? "Unpin point" : "Clear selection";
                 const fields = inspector.querySelector(".js-point-properties");
                 fields.replaceChildren();
-                Object.entries({
-                    [payload.x_axis_label]: point.x,
-                    [payload.y_axis_label]: point.y,
-                    ...point.context
-                }).forEach(([label, value]) => {
-                    const item = document.createElement("div");
-                    const name = document.createElement("dt");
-                    const content = document.createElement("dd");
-                    name.textContent = label;
-                    content.textContent = formatValue(value);
-                    item.append(name, content);
-                    fields.append(item);
+                pointPropertyGroups(point).forEach(([title, properties]) => {
+                    const group = document.createElement("section");
+                    group.className = "pareto-property-group";
+                    group.dataset.group = title;
+                    const heading = document.createElement("h4");
+                    heading.textContent = title;
+                    const list = document.createElement("dl");
+                    list.className = "pareto-properties";
+                    Object.entries(properties).forEach(([label, value]) => {
+                        const item = document.createElement("div");
+                        const name = document.createElement("dt");
+                        const content = document.createElement("dd");
+                        name.textContent = label;
+                        content.textContent = formatValue(value);
+                        item.append(name, content);
+                        list.append(item);
+                    });
+                    group.append(heading, list);
+                    fields.append(group);
                 });
                 inspector.querySelector(".js-point-artifact").textContent = point.artifact;
                 const config = document.getElementById(`${point.id}-config`);

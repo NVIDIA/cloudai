@@ -5,6 +5,10 @@ The ``pareto`` scenario report writes ``pareto.html`` in the scenario results di
 metrics. Successful iterations and sweep steps supply the points: one test case can contribute several points,
 and several cases can contribute to one frontier.
 
+Point details show serving instances, nodes per instance, and TP/PP/DP within each instance. Disaggregated
+runs show separate prefill and decode layouts and whether they share nodes; combined serving uses the
+``Serving`` label.
+
 Usage Example
 -------------
 
