@@ -12,9 +12,14 @@ not a canonical SemiAnalysis submission or a performance comparison.
 
 All `/shared/...` paths and the `gpu` partition are placeholders:
 
-- Put these five input files in `/shared/cloudai/example`, or update the
-  scenario paths and the corresponding `/agentx-test` mount together.
-- Set the installation and results locations in `system.toml`. If you change
+- Copy the common [Slurm system template](../../../common/system/example_slurm_cluster.toml)
+  to your own `system.toml`. Adapt its partition, node groups, GPU counts, and
+  environment variables to your cluster.
+- Put `scenario.toml`, `srtslurm.yaml`, `recipe.yaml`, and `agentx_client.sh` in
+  `/shared/cloudai/example`, or update the scenario paths and the corresponding
+  `/agentx-test` mount together.
+- Set `install_path = "/shared/cloudai/install"` and
+  `output_path = "/shared/cloudai/results"` in your system config. If you change
   the installation root, update `srtctl_root` and both InferenceX paths in
   `srtslurm.yaml` and `scenario.toml` as well.
 - Provide a Qwen3-0.6B model directory at `/shared/models/Qwen3-0.6B` and a
@@ -32,12 +37,13 @@ connect that checkout to the custom benchmark client.
 
 ## Run
 
-After adapting the paths, run from the directory containing the input files:
+After adapting the paths, run from the directory containing the input files.
+Pass the path to your adapted copy of the common system template:
 
 ```bash
 mkdir -p /shared/cloudai/install /shared/cloudai/results
-cloudai install --system-config system.toml --test-scenario scenario.toml
-cloudai run --system-config system.toml --test-scenario scenario.toml
+cloudai install --system-config /path/to/system.toml --test-scenario scenario.toml
+cloudai run --system-config /path/to/system.toml --test-scenario scenario.toml
 ```
 
 Each trial writes its SRT job artifacts and `srt_slurm_results.csv`. The DSE
