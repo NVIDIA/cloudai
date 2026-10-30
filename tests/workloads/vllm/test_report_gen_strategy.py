@@ -20,10 +20,8 @@ from typing import cast
 
 import pytest
 
-import cloudai.core
 import cloudai.metrics
 import cloudai.report_generator.inference_report as inference_report
-import cloudai.systems.slurm
 import cloudai.util
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
