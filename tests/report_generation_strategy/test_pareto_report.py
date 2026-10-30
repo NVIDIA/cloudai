@@ -23,7 +23,6 @@ import pytest
 import toml
 
 import cloudai.core
-import cloudai.models.scenario
 import cloudai.report_generator.pareto_report as pareto_report
 import cloudai.systems.slurm
 import cloudai.workloads.sglang
@@ -75,10 +74,10 @@ def pareto_reporter(
             "============ Serving Benchmark Result ============\nSuccessful requests: 10\n"
         )
         if relative.startswith("sweep"):
-            resolved = cloudai.core.TestRun("sweep", executed, 2, [], output_path=folder)
-            (folder / "test-run.toml").write_text(
-                toml.dumps(cloudai.models.scenario.TestRunDetails.from_test_run(resolved, "", "").model_dump())
+            resolved = cloudai.core.TestRun(
+                test_definition=executed.model_copy(update={"id": "sweep", "num_nodes": 2}), output_path=folder
             )
+            (folder / "test-run.toml").write_text(toml.dumps(resolved.model_dump(mode="json")))
     for relative in ("sweep/0/2", "sweep/controller", "empty-sweep/0/controller"):
         (tmp_path / relative).mkdir(parents=True)
     plot = {
@@ -115,20 +114,25 @@ def pareto_reporter(
     scenario = cloudai.core.TestScenario(
         name="example",
         test_runs=[
-            cloudai.core.TestRun("ordinary", definition, 1, [], iterations=3),
-            cloudai.core.TestRun("sweep", definition, [1, 2], []),
-            cloudai.core.TestRun("missing", definition, 1, []),
-            cloudai.core.TestRun("empty-sweep", definition, [1, 2], []),
+            cloudai.core.TestRun(
+                test_definition=definition.model_copy(update={"id": "ordinary", "num_nodes": 1, "iterations": 3})
+            ),
+            cloudai.core.TestRun(test_definition=definition.model_copy(update={"id": "sweep", "num_nodes": [1, 2]})),
+            cloudai.core.TestRun(test_definition=definition.model_copy(update={"id": "missing", "num_nodes": 1})),
+            cloudai.core.TestRun(
+                test_definition=definition.model_copy(update={"id": "empty-sweep", "num_nodes": [1, 2]})
+            ),
         ],
     )
     return pareto_report.ParetoReporter(slurm_system, scenario, tmp_path, config)
 
 
 def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
-    definition = pareto_reporter.test_scenario.test_runs[0].test.model_dump(
+    definition = pareto_reporter.test_scenario.test_runs[0].test_definition.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
     sweep_definition = copy.deepcopy(definition)
+    sweep_definition.update(id="sweep", num_nodes=2, iterations=1)
     sweep_definition["bench_cmd_args"]["max_concurrency"] = 8
     tp_key = "tensor_parallel_size" if definition["test_template_name"] == "vllm" else "tp_size"
     sweep_definition["cmd_args"]["decode"][tp_key] = 4

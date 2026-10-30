@@ -103,16 +103,16 @@ class ComparisonReport(Reporter, ABC):
         """Return TestRun values used to label differences between compared runs."""
         return {
             "NUM_NODES": tr.num_nodes,
-            **tr.test.cmd_args.model_dump(exclude_none=True),
-            **{f"extra_env_vars.{key}": value for key, value in tr.test.extra_env_vars.items()},
+            **tr.test_definition.cmd_args.model_dump(exclude_none=True),
+            **{f"extra_env_vars.{key}": value for key, value in tr.test_definition.extra_env_vars.items()},
         }
 
     def get_group_value(self, tr: TestRun, field: str) -> str:
         """Get grouping field value for a TestRun's cmd_args or extra_env_vars."""
         if field.startswith("extra_env_vars."):
             field_name = field[len("extra_env_vars.") :]
-            return str(tr.test.extra_env_vars.get(field_name))
-        return getattr(tr.test.cmd_args, field)
+            return str(tr.test_definition.extra_env_vars.get(field_name))
+        return getattr(tr.test_definition.cmd_args, field)
 
     def group_name(self, trs: list[TestRun]) -> str:
         """Return display name for a group of TestRuns."""

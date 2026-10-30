@@ -45,7 +45,11 @@ def vllm() -> VllmTestDefinition:
 
 @pytest.fixture
 def vllm_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
-    return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-job")
+    return TestRun(
+        test_definition=vllm.model_copy(deep=True, update={"num_nodes": 1, "id": "vllm-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -58,7 +62,11 @@ def vllm_disagg_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     """TestRun for disaggregated mode with 4 GPUs."""
     vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     vllm.cmd_args.prefill = VllmArgs()
-    return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-disagg-job")
+    return TestRun(
+        test_definition=vllm.model_copy(deep=True, update={"num_nodes": 1, "id": "vllm-disagg-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -66,7 +74,11 @@ def vllm_disagg_2node_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     """TestRun for disaggregated mode with 2 nodes and a shared local GPU view."""
     vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
     vllm.cmd_args.prefill = VllmArgs()
-    return TestRun(test=vllm, num_nodes=2, nodes=[], output_path=tmp_path, name="vllm-disagg-2node-job")
+    return TestRun(
+        test_definition=vllm.model_copy(deep=True, update={"num_nodes": 2, "id": "vllm-disagg-2node-job"}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
@@ -86,15 +98,15 @@ class TestGpuDetection:
 
     def test_prefill_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
-        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.prefill = VllmArgs(gpu_ids="0,3")
+        vllm_tr.test_definition.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        vllm_tr.test_definition.cmd_args.prefill = VllmArgs(gpu_ids="0,3")
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.prefill_gpu_ids == [0, 3]
 
     def test_decode_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
-        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.decode.gpu_ids = "1,2"
+        vllm_tr.test_definition.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        vllm_tr.test_definition.cmd_args.decode.gpu_ids = "1,2"
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.decode_gpu_ids == [1, 2]
 
@@ -122,7 +134,7 @@ class TestVllmServeCommand:
         prefill_nthreads: int | None,
         vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy,
     ) -> None:
-        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         tdef.cmd_args.prefill = VllmArgs(nixl_threads=prefill_nthreads)
         tdef.cmd_args.decode.nixl_threads = decode_nthreads
 
@@ -152,7 +164,7 @@ class TestVllmBenchCommand:
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
         vllm.bench_cmd_args = VllmBenchCmdArgs.model_validate({"extra1": 1, "extra-2": 2, "extra_3": 3})
-        vllm_tr.test = vllm
+        vllm_tr.test_definition = vllm
         vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
 
         cmd = vllm_cmd_gen_strategy.get_bench_command()
@@ -164,7 +176,7 @@ class TestVllmBenchCommand:
 
 class TestVllmSemanticEvalCommand:
     def test_get_vllm_semantic_eval_command_defaults(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy):
-        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
 
         command = vllm_cmd_gen_strategy.get_semantic_eval_command()
@@ -179,7 +191,7 @@ class TestVllmSemanticEvalCommand:
     def test_get_vllm_semantic_eval_command_supports_custom_entrypoint_and_cli(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
     ) -> None:
-        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs(
             entrypoint="python3 /custom/eval.py",
             cli="--model {model} --api {url} --out {result_dir}/vllm-gsm8k.json",
@@ -196,7 +208,7 @@ class TestVllmSemanticEvalCommand:
     def test_gen_srun_command_contains_vllm_semantic_eval(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
     ) -> None:
-        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        vllm_test = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         vllm_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
 
         srun_command = vllm_cmd_gen_strategy._gen_srun_command()
@@ -212,7 +224,7 @@ class TestVllmSemanticEvalCommand:
     def test_gen_srun_command_contains_vllm_semantic_eval_in_disagg(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
-        vllm_disagg_test = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        vllm_disagg_test = cast(VllmTestDefinition, vllm_disagg_tr.test_definition)
         vllm_disagg_test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
@@ -232,7 +244,7 @@ class TestVllmAggregatedMode:
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
         vllm.cmd_args.decode = VllmArgs.model_validate({"enable_expert_parallel": True})
-        vllm_tr.test = vllm
+        vllm_tr.test_definition = vllm
         vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
 
         commands = vllm_cmd_gen_strategy.get_serve_commands()
@@ -249,7 +261,7 @@ class TestVllmAggregatedMode:
         ]
 
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
+        cmd_args = vllm_cmd_gen_strategy.test_run.test_definition.cmd_args
 
         func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
 
@@ -277,7 +289,7 @@ wait_for_health() {{
     def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
     ) -> None:
-        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         tdef.custom_bash = "echo setup"
 
         srun_command = vllm_cmd_gen_strategy._gen_srun_command()
@@ -289,7 +301,7 @@ wait_for_health() {{
     def test_custom_bash_regex_can_target_only_aggregated_benchmark(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
     ):
-        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test_definition)
         tdef.custom_bash = {"vllm bench serve": "echo bench setup"}
 
         srun_command = vllm_cmd_gen_strategy._gen_srun_command()
@@ -302,14 +314,14 @@ wait_for_health() {{
         self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
         vllm.cmd_args.healthcheck = "/ready"
-        vllm_tr.test = vllm
+        vllm_tr.test_definition = vllm
         aggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
         assert 'wait_for_health "http://${NODE}:8000/ready"' in aggregated
         assert 'wait_for_health "http://${NODE}:8000/ready" "http://${NODE}:8000/healthcheck"' not in aggregated
 
         vllm.cmd_args.prefill = VllmArgs()
         vllm.cmd_args.proxy_healthcheck = "/router-ready"
-        vllm_tr.num_nodes = 2
+        vllm_tr.test_definition = vllm_tr.test_definition.model_copy(update={"num_nodes": 2})
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
         assert 'wait_for_health "http://${PREFILL_NODE}:8100/health"' in disaggregated
         assert 'wait_for_health "http://${DECODE_NODE}:8200/health"' in disaggregated
@@ -332,8 +344,8 @@ wait_for_health() {{
     ) -> None:
         vllm.cmd_args.healthcheck = "/legacy-ready"
         vllm.cmd_args.prefill = VllmArgs()
-        vllm_tr.test = vllm
-        vllm_tr.num_nodes = 2
+        vllm_tr.test_definition = vllm
+        vllm_tr.test_definition = vllm_tr.test_definition.model_copy(update={"num_nodes": 2})
 
         disaggregated = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)._gen_srun_command()
 
@@ -348,7 +360,7 @@ class TestVllmDisaggregatedMode:
     def test_custom_bash_regex_can_target_disaggregated_commands(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
-        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test_definition)
         tdef.custom_bash = {
             r'CUDA_VISIBLE_DEVICES="0,1".*vllm serve': "echo prefill setup",
             r'CUDA_VISIBLE_DEVICES="2,3".*vllm serve': "echo decode setup",
@@ -366,7 +378,7 @@ class TestVllmDisaggregatedMode:
         assert "echo bench setup; exec vllm bench serve" in srun_command
 
     def test_disagg_more_than_two_nodes_is_rejected(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        vllm_disagg_tr.num_nodes = 3
+        vllm_disagg_tr.test_definition = vllm_disagg_tr.test_definition.model_copy(update={"num_nodes": 3})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         with pytest.raises(ValueError, match=r"requires both prefill\.num_nodes and decode\.num_nodes"):
@@ -375,11 +387,11 @@ class TestVllmDisaggregatedMode:
     def test_gen_srun_command_disagg_four_nodes_uses_role_ray_clusters(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
-        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test_definition)
         assert tdef.cmd_args.prefill is not None
         tdef.cmd_args.prefill.num_nodes = 2
         tdef.cmd_args.decode.num_nodes = 2
-        vllm_disagg_tr.num_nodes = 4
+        vllm_disagg_tr.test_definition = vllm_disagg_tr.test_definition.model_copy(update={"num_nodes": 4})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         srun_command = strategy._gen_srun_command()
@@ -411,7 +423,7 @@ class TestVllmDisaggregatedMode:
     def test_ray_head_and_worker_topology_args_can_be_overridden(
         self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem
     ) -> None:
-        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test)
+        tdef = cast(VllmTestDefinition, vllm_disagg_tr.test_definition)
         assert tdef.cmd_args.prefill is not None
         tdef.cmd_args.prefill.num_nodes = 2
         tdef.cmd_args.decode.num_nodes = 2
@@ -431,7 +443,7 @@ class TestVllmDisaggregatedMode:
                 "num_gpus": 4,
             }
         )
-        vllm_disagg_tr.num_nodes = 4
+        vllm_disagg_tr.test_definition = vllm_disagg_tr.test_definition.model_copy(update={"num_nodes": 4})
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_disagg_tr)
 
         srun_command = strategy._gen_srun_command()

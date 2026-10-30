@@ -51,7 +51,7 @@ class StandaloneRunner(BaseRunner):
                 status = "cancelled"
             if result.is_successful:
                 try:
-                    observations = tr.test.metric_observations(self.system, tr)
+                    observations = tr.test_definition.metric_observations(self.system, tr)
                     metrics = [cloudai.output.metric_output(observation) for observation in observations]
                 except Exception as exc:
                     logging.warning("Cannot extract output metrics for standalone job %s: %s", job.id, exc)

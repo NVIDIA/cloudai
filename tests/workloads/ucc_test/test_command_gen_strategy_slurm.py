@@ -78,7 +78,11 @@ class TestUCCTestSlurmCommandGenStrategy:
             extra_cmd_args=extra_cmd_args,
         )
 
-        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
+        tr = TestRun(
+            test_definition=test_def.model_copy(deep=True, update={"num_nodes": 1, "id": "test-job"}),
+            nodes=[],
+            output_path=tmp_path / "output",
+        )
 
         cmd_gen_strategy = UCCTestSlurmCommandGenStrategy(slurm_system, tr)
         command = cmd_gen_strategy.generate_test_command()

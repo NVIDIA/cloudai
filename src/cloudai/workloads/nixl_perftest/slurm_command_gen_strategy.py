@@ -36,7 +36,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NixlPerftestTestDefinition:
-        return cast(NixlPerftestTestDefinition, self.test_run.test)
+        return cast(NixlPerftestTestDefinition, self.test_run.test_definition)
 
     def image_path(self) -> str | None:
         if self._current_image_url is not None:

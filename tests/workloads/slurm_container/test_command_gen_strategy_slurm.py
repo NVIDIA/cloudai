@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import shlex
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -47,7 +48,7 @@ def test_run() -> TestRun:
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd", check_exit_code=True),
     )
-    tr = TestRun(name="name", test=tdef, num_nodes=1, nodes=[])
+    tr = TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "name", "num_nodes": 1}), nodes=[])
     return tr
 
 
@@ -56,7 +57,7 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cmd = cgs.gen_srun_command()
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} -N{test_run.num_nodes} "
-        f"--container-image={test_run.test.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test_definition.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
@@ -70,7 +71,7 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 
 
 def test_exit_code_check_disabled_does_not_capture_status(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    tdef = cast(SlurmContainerTestDefinition, test_run.test)
+    tdef = cast(SlurmContainerTestDefinition, test_run.test_definition)
     tdef.cmd_args.check_exit_code = False
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
 
@@ -82,12 +83,12 @@ def test_exit_code_check_disabled_does_not_capture_status(slurm_system: SlurmSys
 def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
     nsys = NsysConfiguration()
-    test_run.test.nsys = nsys
+    test_run.test_definition.nsys = nsys
     cmd = cgs.gen_srun_command()
 
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} -N{test_run.num_nodes} "
-        f"--container-image={test_run.test.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test_definition.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
@@ -100,9 +101,10 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     )
 
 
-def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    extra_args = ["--ntasks=1", "--ntasks-per-node=1"]
-    tdef = cast(SlurmContainerTestDefinition, test_run.test)
+def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun, tmp_path: Path) -> None:
+    test_run.output_path = tmp_path
+    extra_args = ["--exclusive", "--comment='a b'"]
+    tdef = cast(SlurmContainerTestDefinition, test_run.test_definition)
     tdef.extra_srun_args = extra_args
 
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
@@ -110,7 +112,7 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
 
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} -N{test_run.num_nodes} "
-        f"--container-image={test_run.test.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test_definition.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
@@ -122,6 +124,9 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
         f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; cmd"'
         f"{_status_capture(test_run)}"
     )
+    for metadata_command in cgs._metadata_cmd().splitlines():
+        for arg in extra_args:
+            assert metadata_command.count(arg) == 1
 
 
 def test_single_sbatch_writes_exit_code_to_per_test_output(slurm_system: SlurmSystem, test_run: TestRun) -> None:
@@ -143,7 +148,7 @@ def test_single_sbatch_writes_exit_code_to_per_test_output(slurm_system: SlurmSy
 
 
 def test_multi_task_run_records_one_aggregate_srun_status(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    tdef = cast(SlurmContainerTestDefinition, test_run.test)
+    tdef = cast(SlurmContainerTestDefinition, test_run.test_definition)
     tdef.extra_srun_args = ["--ntasks=2"]
     tdef.cmd_args.cmd = r"bash -c 'exit \$SLURM_PROCID'"
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)

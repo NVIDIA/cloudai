@@ -26,7 +26,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NIXLKVBenchTestDefinition:
-        return cast(NIXLKVBenchTestDefinition, self.test_run.test)
+        return cast(NIXLKVBenchTestDefinition, self.test_run.test_definition)
 
     def image_path(self) -> str | None:
         if self._current_image_url is not None:
@@ -60,7 +60,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             self.tdef.cmd_args.command,
         ]
 
-        for k, v in self.test_run.test.cmd_args_dict.items():
+        for k, v in self.test_run.test_definition.cmd_args_dict.items():
             if v is None:
                 continue
 

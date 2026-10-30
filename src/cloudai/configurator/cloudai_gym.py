@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import logging
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
-from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+import cloudai.core
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -41,8 +43,8 @@ class CloudAIGymEnv(BaseGym):
 
     def __init__(
         self,
-        test_run: TestRun,
-        runner: BaseRunner,
+        test_run: cloudai.core.TestRun,
+        runner: cloudai.core.BaseRunner,
         rewards: RewardOverrides,
     ):
         """
@@ -57,9 +59,11 @@ class CloudAIGymEnv(BaseGym):
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
         self.rewards = rewards
-        self.max_steps = test_run.test.agent_steps
-        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
-        self.params: EnvParams | None = EnvParams.from_test(test_run.test)
+        self.max_steps = test_run.test_definition.agent_steps
+        self.reward_function = cloudai.core.Registry().get_reward_function(
+            test_run.test_definition.agent_reward_function
+        )
+        self.params: EnvParams | None = EnvParams.from_test(test_run.test_definition)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
 
@@ -73,7 +77,7 @@ class CloudAIGymEnv(BaseGym):
             and all(
                 math.isfinite(row[f"observation.{metric}"])
                 and row[f"observation.{metric}"] != self.rewards.metric_failure
-                for metric in tr.test.agent_metrics
+                for metric in tr.test_definition.agent_metrics
             )
         ]
         return [
@@ -119,7 +123,7 @@ class CloudAIGymEnv(BaseGym):
             list: One float slot per agent metric (at least one), giving the correct shape
             for adapters that derive ``gymnasium.spaces.Box`` from this output.
         """
-        return [0.0] * max(len(self.test_run.test.agent_metrics), 1)
+        return [0.0] * max(len(self.test_run.test_definition.agent_metrics), 1)
 
     def reset(
         self,
@@ -177,11 +181,11 @@ class CloudAIGymEnv(BaseGym):
                 cached_result["step"],
             )
             observation = {
-                metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
+                metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test_definition.agent_metrics
             }
             reward = cast(float, cached_result["reward"])
         else:
-            if not self.test_run.test.constraint_check(self.test_run, self.runner.system):
+            if not self.test_run.test_definition.constraint_check(self.test_run, self.runner.system):
                 logging.info("Constraint check failed. Skipping step.")
                 return [-1.0], self.rewards.constraint_failure, True, info
 
@@ -225,7 +229,7 @@ class CloudAIGymEnv(BaseGym):
         Args:
             mode (str): The mode to render with. Default is "human".
         """
-        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
+        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test_definition.cmd_args}")
 
     def seed(self, seed: Optional[int] = None):
         """
@@ -256,14 +260,14 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Metric values keyed by configured metric name.
         """
-        all_metrics = self.test_run.test.agent_metrics
+        all_metrics = self.test_run.test_definition.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
 
         observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v is METRIC_ERROR:
+            if v is cloudai.core.METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v
         return observation

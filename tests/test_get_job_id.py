@@ -32,11 +32,11 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
         name="Test Scenario",
         test_runs=[
             TestRun(
-                "tr-name",
-                SleepTestDefinition(name="n", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs()),
-                1,
-                [],
+                test_definition=(
+                    SleepTestDefinition(name="n", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs())
+                ).model_copy(deep=True, update={"id": "tr-name", "num_nodes": 1}),
                 output_path=slurm_system.output_path / "tr-name",
+                nodes=[],
             )
         ],
     )
@@ -128,7 +128,7 @@ def test_slurm_runner_on_job_completion_calls_cleanup(slurm_runner: SlurmRunner)
 
 def test_slurm_runner_records_and_reuses_nodes_per_case(slurm_runner: SlurmRunner, caplog: pytest.LogCaptureFixture):
     tr = slurm_runner.test_scenario.test_runs[0]
-    tr.pin_nodes = True
+    tr.test_definition = tr.test_definition.model_copy(update={"pin_nodes": True})
     first_job = SlurmJob(tr, id=1)
     slurm_runner.store_job_metadata = Mock()
     slurm_runner.get_cmd_gen_strategy = Mock(return_value=Mock(cleanup_job_artifacts=Mock()))
@@ -138,7 +138,12 @@ def test_slurm_runner_records_and_reuses_nodes_per_case(slurm_runner: SlurmRunne
 
     assert slurm_runner.pinned_nodes == {tr.name: ["node01", "node02"]}
 
-    next_tr = TestRun(name=tr.name, test=tr.test, num_nodes=2, nodes=["bla1", "bla2"], pin_nodes=True)
+    next_tr = TestRun(
+        test_definition=(tr.test_definition).model_copy(
+            deep=True, update={"id": tr.name, "num_nodes": 2, "pin_nodes": True}
+        ),
+        nodes=["bla1", "bla2"],
+    )
     slurm_runner.on_job_submit = Mock()
     slurm_runner._submit_test = Mock(return_value=SlurmJob(next_tr, id=2))
 
@@ -154,7 +159,7 @@ def test_slurm_runner_continues_when_pinned_case_has_no_recorded_nodes(
     slurm_runner: SlurmRunner, caplog: pytest.LogCaptureFixture
 ) -> None:
     tr = slurm_runner.test_scenario.test_runs[0]
-    tr.pin_nodes = True
+    tr.test_definition = tr.test_definition.model_copy(update={"pin_nodes": True})
     job = SlurmJob(tr, id=1)
     slurm_runner.store_job_metadata = Mock()
     cleanup = Mock()

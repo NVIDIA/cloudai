@@ -41,11 +41,15 @@ def kvbench() -> NIXLKVBenchTestDefinition:
 def kvbench_tr(kvbench: NIXLKVBenchTestDefinition, tmp_path) -> TestRun:
     output_path = tmp_path / "nixl-kvbench"
     output_path.mkdir(parents=True, exist_ok=True)
-    return TestRun(name="nixl-bench", num_nodes=2, nodes=[], test=kvbench, output_path=output_path)
+    return TestRun(
+        test_definition=kvbench.model_copy(deep=True, update={"id": "nixl-bench", "num_nodes": 2}),
+        nodes=[],
+        output_path=output_path,
+    )
 
 
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "model": "./model.yaml",
@@ -55,7 +59,7 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
             "op_type": "READ",
         }
     )
-    kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test)
+    kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test_definition)
     cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
     cmd = cmd_gen.gen_kvbench_command()
     assert cmd == [
@@ -72,7 +76,7 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
 
 
 def test_gen_kvbench_model_cfg_maps_to_model_config(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "model_cfg": "./cfg.yaml",
@@ -87,7 +91,7 @@ def test_gen_kvbench_model_cfg_maps_to_model_config(kvbench_tr: TestRun, slurm_s
 
 
 def test_gen_kvbench_omits_none_values(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "model": "./model.yaml",
@@ -104,7 +108,7 @@ def test_gen_kvbench_omits_none_values(kvbench_tr: TestRun, slurm_system: SlurmS
 
 
 def test_gen_kvbench_command_includes_etcd_endpoints(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "etcd_image_url": "docker://etcd/url",
@@ -120,7 +124,7 @@ def test_gen_kvbench_command_includes_etcd_endpoints(kvbench_tr: TestRun, slurm_
 
 def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-    tdef: NIXLKVBenchTestDefinition = cast(NIXLKVBenchTestDefinition, kvbench_tr.test)
+    tdef: NIXLKVBenchTestDefinition = cast(NIXLKVBenchTestDefinition, kvbench_tr.test_definition)
     tdef.cmd_args.etcd_image_url = "docker.io/library/etcd:latest"
 
     cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
@@ -129,7 +133,7 @@ def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system
 
 
 def test_kvbench_cleanup_job_artifacts(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "backend": "GUSLI",

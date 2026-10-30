@@ -34,7 +34,7 @@ class SglangSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[SglangCmdA
 
     @property
     def tdef(self) -> SglangTestDefinition:
-        return cast(SglangTestDefinition, self.test_run.test)
+        return cast(SglangTestDefinition, self.test_run.test_definition)
 
     @property
     def workload_name(self) -> str:

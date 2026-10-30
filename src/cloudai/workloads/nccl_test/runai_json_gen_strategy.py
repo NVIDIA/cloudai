@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,7 @@ class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
 
     def gen_json(self) -> Dict[Any, Any]:
         runai_system = cast(RunAISystem, self.system)
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test_definition)
         project_id = runai_system.project_id
         cluster_id = runai_system.cluster_id
 
@@ -41,14 +41,18 @@ class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
             "projectId": project_id,
             "clusterId": cluster_id,
             "spec": {
-                "command": self.test_run.test.cmd_args.subtest_name,
+                "command": self.test_run.test_definition.cmd_args.subtest_name,
                 "args": " ".join(
                     [
-                        f"--{arg} {getattr(self.test_run.test.cmd_args, arg)}"
-                        for arg in self.test_run.test.cmd_args.model_dump()
+                        f"--{arg} {getattr(self.test_run.test_definition.cmd_args, arg)}"
+                        for arg in self.test_run.test_definition.cmd_args.model_dump()
                         if arg not in {"docker_image_url", "subtest_name"}
                     ]
-                    + ([self.test_run.test.extra_args_str] if self.test_run.test.extra_cmd_args else [])
+                    + (
+                        [self.test_run.test_definition.extra_args_str]
+                        if self.test_run.test_definition.extra_cmd_args
+                        else []
+                    )
                 ),
                 "image": tdef.docker_image.installed_path,
                 "compute": {"gpuDevicesRequest": 8},

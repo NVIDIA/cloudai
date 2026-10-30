@@ -26,14 +26,14 @@ from cloudai.workloads.bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, B
 @pytest.fixture
 def bash_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
-        name="bash",
-        test=BashCmdTestDefinition(
-            name="bash",
-            description="desc",
-            test_template_name="t",
-            cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
-        ),
-        num_nodes=1,
+        test_definition=(
+            BashCmdTestDefinition(
+                name="bash",
+                description="desc",
+                test_template_name="t",
+                cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
+            )
+        ).model_copy(deep=True, update={"id": "bash", "num_nodes": 1}),
         nodes=[],
         output_path=slurm_system.output_path,
     )
@@ -71,9 +71,9 @@ def test_gen_container_mounts(bash_cmd_gen: BashCmdCommandGenStrategy):
 
 
 def test_installables(bash_tr: TestRun):
-    res = bash_tr.test.installables
+    res = bash_tr.test_definition.installables
     assert res == []
 
-    bash_tr.test.git_repos = [Mock()]
-    res = bash_tr.test.installables
+    bash_tr.test_definition.git_repos = [Mock()]
+    res = bash_tr.test_definition.installables
     assert len(res) == 1

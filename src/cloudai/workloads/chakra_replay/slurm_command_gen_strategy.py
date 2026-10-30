@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,17 +24,17 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
     def _container_mounts(self) -> list[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test_definition)
         if tdef.cmd_args.trace_path:
             return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
         return []
 
     def image_path(self) -> str | None:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test_definition)
 
         additional_cmd_args_dict = tdef.cmd_args.model_extra or {}
 
@@ -44,6 +44,6 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--trace-path {tdef.cmd_args.trace_path}",
             f"--num-replays {tdef.cmd_args.num_replays}",
             *[f"--{k.replace('_', '-')} {v}" for k, v in additional_cmd_args_dict.items()],
-            self.test_run.test.extra_args_str,
+            self.test_run.test_definition.extra_args_str,
         ]
         return srun_command_parts

@@ -89,7 +89,11 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             genai_perf=GenAIPerf(),
         ),
     )
-    tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "ai_dynamo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     csv_content = get_csv_content()
     (tr.output_path / "genai_perf_report.csv").write_text(csv_content)
@@ -120,7 +124,11 @@ def ai_dynamo_aiperf_tr(tmp_path: Path) -> TestRun:
             aiperf=AIPerf(),
         ),
     )
-    tr = TestRun(name="ai_dynamo_aiperf", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "ai_dynamo_aiperf", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / test.success_marker).touch()
     return tr
@@ -146,7 +154,13 @@ def ai_dynamo_aiperf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
             aiperf_accuracy=AIPerfAccuracy.model_validate({"cli": get_aiperf_accuracy_cli()}),
         ),
     )
-    tr = TestRun(name="ai_dynamo_aiperf_with_split_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(
+            deep=True, update={"id": "ai_dynamo_aiperf_with_split_accuracy", "num_nodes": 1}
+        ),
+        nodes=[],
+        output_path=tmp_path,
+    )
     (tr.output_path / "aiperf_report.csv").write_text(get_aiperf_csv_content())
     (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())
     (tr.output_path / test.success_marker).touch()
@@ -174,7 +188,11 @@ def ai_dynamo_genai_perf_with_split_accuracy_tr(tmp_path: Path) -> TestRun:
         ),
     )
     tr = TestRun(
-        name="ai_dynamo_genai_perf_with_split_accuracy", test=test, num_nodes=1, nodes=[], output_path=tmp_path
+        test_definition=test.model_copy(
+            deep=True, update={"id": "ai_dynamo_genai_perf_with_split_accuracy", "num_nodes": 1}
+        ),
+        nodes=[],
+        output_path=tmp_path,
     )
     (tr.output_path / "genai_perf_report.csv").write_text(get_csv_content())
     (tr.output_path / "accuracy_results.csv").write_text(get_aiperf_accuracy_csv_content())
@@ -251,7 +269,7 @@ def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: T
 
 
 def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
-    test_def = ai_dynamo_tr.test
+    test_def = ai_dynamo_tr.test_definition
     result = test_def.was_run_successful(ai_dynamo_tr)
     assert result.is_successful is True
 
@@ -259,13 +277,13 @@ def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
 def test_was_run_successful_with_split_aiperf_accuracy(
     ai_dynamo_aiperf_with_split_accuracy_tr: TestRun,
 ) -> None:
-    test_def = ai_dynamo_aiperf_with_split_accuracy_tr.test
+    test_def = ai_dynamo_aiperf_with_split_accuracy_tr.test_definition
     result = test_def.was_run_successful(ai_dynamo_aiperf_with_split_accuracy_tr)
     assert result.is_successful is True
 
 
 def test_was_run_successful_rejects_aiperf_report_with_only_errors(ai_dynamo_aiperf_tr: TestRun) -> None:
-    test_def = ai_dynamo_aiperf_tr.test
+    test_def = ai_dynamo_aiperf_tr.test_definition
     (ai_dynamo_aiperf_tr.output_path / "aiperf_report.csv").write_text(
         "Metric,Value\nError Request Count,4.00\nTotal Error Input Sequence Length (tokens),1200.00\n"
     )
@@ -278,7 +296,7 @@ def test_was_run_successful_rejects_aiperf_report_with_only_errors(ai_dynamo_aip
 def test_was_run_successful_with_genai_perf_and_split_aiperf_accuracy(
     ai_dynamo_genai_perf_with_split_accuracy_tr: TestRun,
 ) -> None:
-    test_def = ai_dynamo_genai_perf_with_split_accuracy_tr.test
+    test_def = ai_dynamo_genai_perf_with_split_accuracy_tr.test_definition
     result = test_def.was_run_successful(ai_dynamo_genai_perf_with_split_accuracy_tr)
     assert result.is_successful is True
 
@@ -286,14 +304,14 @@ def test_was_run_successful_with_genai_perf_and_split_aiperf_accuracy(
 def test_was_run_successful_requires_split_aiperf_accuracy(
     ai_dynamo_aiperf_with_split_accuracy_tr: TestRun,
 ) -> None:
-    test_def = ai_dynamo_aiperf_with_split_accuracy_tr.test
+    test_def = ai_dynamo_aiperf_with_split_accuracy_tr.test_definition
     (ai_dynamo_aiperf_with_split_accuracy_tr.output_path / "accuracy_results.csv").unlink()
     result = test_def.was_run_successful(ai_dynamo_aiperf_with_split_accuracy_tr)
     assert result.is_successful is False
 
 
 def test_was_run_successful_no_results(ai_dynamo_tr: TestRun, tmp_path: Path) -> None:
-    test_def = ai_dynamo_tr.test
+    test_def = ai_dynamo_tr.test_definition
     ai_dynamo_tr.output_path = tmp_path / "empty_output"
     ai_dynamo_tr.output_path.mkdir(parents=True, exist_ok=True)
     result = test_def.was_run_successful(ai_dynamo_tr)

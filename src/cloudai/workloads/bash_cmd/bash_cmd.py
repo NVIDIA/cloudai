@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,7 +50,7 @@ class BashCmdCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def generate_test_command(self) -> list[str]:
-        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test)
+        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test_definition)
         srun_command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         return [" ".join(srun_command_parts)]
 

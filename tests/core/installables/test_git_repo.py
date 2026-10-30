@@ -22,7 +22,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cloudai.core import BaseInstaller, GitRepo, InstallStatusResult, TestDefinition
-from cloudai.models.scenario import TestRunModel
 
 
 @pytest.fixture
@@ -98,10 +97,13 @@ def test_test_definition_git_repo_accepts_python_version() -> None:
 
 
 def test_scenario_git_repo_accepts_and_preserves_python_version() -> None:
-    model = TestRunModel.model_validate(
+    model = TestDefinition.model_validate(
         {
             "id": "case",
-            "test_name": "base-test",
+            "name": "base-test",
+            "description": "base test",
+            "test_template_name": "Example",
+            "cmd_args": {},
             "git_repos": [{"url": "./repo", "commit": "main", "python_version": "3.11.9"}],
         }
     )

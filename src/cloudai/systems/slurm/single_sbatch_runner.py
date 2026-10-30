@@ -110,7 +110,7 @@ class SingleSbatchRunner(SlurmRunner):
         tr = copy.deepcopy(next(self.all_trs))
         tr.output_path = self.scenario_root
         max_nodes, _ = self.extract_sbatch_nodes_spec()
-        tr.num_nodes = max_nodes
+        tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": max_nodes})
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
         return [cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
 
@@ -130,14 +130,14 @@ class SingleSbatchRunner(SlurmRunner):
         return srun_cmd
 
     def unroll_dse(self, tr: TestRun) -> Generator[TestRun, None, None]:
-        params = EnvParams.from_test(tr.test)
+        params = EnvParams.from_test(tr.test_definition)
         for idx, combination in enumerate(tr.all_combinations, start=1):
             sampled_env_params = params.sample(idx) if params is not None else {}
             next_tr = tr.apply_params_set(combination, env_params=sampled_env_params)
             next_tr.step = idx
             next_tr.output_path = self.get_job_output_path(next_tr)
 
-            if next_tr.test.constraint_check(next_tr, self.system):
+            if next_tr.test_definition.constraint_check(next_tr, self.system):
                 yield next_tr
 
     def get_global_env_vars(self) -> str:
@@ -221,8 +221,8 @@ class SingleSbatchRunner(SlurmRunner):
             if not tr.is_dse_job:
                 continue
 
-            agent_class = registry.get_agent(tr.test.agent)
-            agent_config_data = tr.test.agent_config or {}
+            agent_class = registry.get_agent(tr.test_definition.agent)
+            agent_config_data = tr.test_definition.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
             gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
 
@@ -233,7 +233,7 @@ class SingleSbatchRunner(SlurmRunner):
                     next_tr.step = idx
                     next_tr.output_path = self.get_job_output_path(next_tr)
 
-                    if not next_tr.test.constraint_check(next_tr, self.system):
+                    if not next_tr.test_definition.constraint_check(next_tr, self.system):
                         continue
 
                     gym.test_run = next_tr
@@ -269,7 +269,7 @@ class SingleSbatchRunner(SlurmRunner):
                 result = None
             else:
                 try:
-                    result = tr.test.was_run_successful(tr)
+                    result = tr.test_definition.was_run_successful(tr)
                 except Exception as exc:
                     logging.warning("Cannot determine output status for %s: %s", tr.output_path, exc)
                     return None

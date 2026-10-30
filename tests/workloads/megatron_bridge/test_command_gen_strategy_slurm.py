@@ -44,7 +44,11 @@ def strategy(slurm_system: SlurmSystem, tmp_path: Path) -> MegatronBridgeSlurmCo
     tdef.python_executable.venv_path = tmp_path / "nemo-run-venv"
     return MegatronBridgeSlurmCommandGenStrategy(
         slurm_system,
-        TestRun(name="bridge", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path / "job"),
+        TestRun(
+            test_definition=tdef.model_copy(update={"id": "bridge", "num_nodes": 2}),
+            nodes=[],
+            output_path=tmp_path / "job",
+        ),
     )
 
 
@@ -54,7 +58,7 @@ def strategy(slurm_system: SlurmSystem, tmp_path: Path) -> MegatronBridgeSlurmCo
 def test_launcher_dependencies(
     strategy: MegatronBridgeSlurmCommandGenStrategy, launcher_present: bool, python_present: bool | None
 ):
-    tdef = strategy.test_run.test
+    tdef = strategy.test_run.test_definition
     assert isinstance(tdef, MegatronBridgeTestDefinition)
     tdef.git_repos = [GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="v0.4.0")]
     repo = strategy.system.install_path / tdef.megatron_bridge_repo.repo_name
@@ -160,7 +164,7 @@ def test_launcher_argument_translation(
     expected: list[str],
     absent: list[str],
 ) -> None:
-    tdef = strategy.test_run.test
+    tdef = strategy.test_run.test_definition
     assert isinstance(tdef, MegatronBridgeTestDefinition)
     tdef.cmd_args = MegatronBridgeCmdArgs.model_validate(tdef.cmd_args.model_dump(exclude_unset=True) | overrides)
     tdef.extra_cmd_args = {"logger.tensorboard_dir": "/custom tensorboard", "logger.log_memory_to_tensorboard": "false"}
@@ -187,13 +191,15 @@ def test_launcher_argument_translation(
 def test_custom_srun_args(
     strategy: MegatronBridgeSlurmCommandGenStrategy, native_args: dict[str, str], expected_native: str
 ) -> None:
-    tdef = strategy.test_run.test
+    tdef = strategy.test_run.test_definition
     assert isinstance(tdef, MegatronBridgeTestDefinition)
     tdef.extra_cmd_args = native_args.copy()
     strategy.system.extra_srun_args = "--comment='smoke test' --kill-on-bad-exit=1"
-    strategy.test_run.extra_srun_args = "--cpu-bind=none"
+    tdef = tdef.model_copy(update={"extra_srun_args": ["--cpu-bind=none"]})
+    strategy.test_run.test_definition = tdef
     strategy.test_run.pre_test = TestScenario(
-        name="pre", test_runs=[TestRun(name="hook", test=tdef, num_nodes=2, nodes=[])]
+        name="pre",
+        test_runs=[TestRun(test_definition=tdef.model_copy(update={"id": "hook", "num_nodes": 2}), nodes=[])],
     )
     with patch.object(SlurmCommandGenStrategy, "pre_test_srun_extra_args", return_value=["--overlap"]):
         parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))
@@ -232,7 +238,7 @@ def test_version_dependent_packager(
 def test_launcher_container_resolution(
     strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_path: Path, image_kind: str
 ) -> None:
-    tdef = strategy.test_run.test
+    tdef = strategy.test_run.test_definition
     assert isinstance(tdef, MegatronBridgeTestDefinition)
     image = tmp_path / "nemo.sqsh"
     tdef.cmd_args.container_image = str(image) if image_kind == "local" else "nvcr.io/nvidia/nemo:26.04.00"

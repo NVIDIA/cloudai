@@ -30,7 +30,6 @@ import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
 from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
@@ -187,7 +186,7 @@ class TestInDryRun:
         assert len(details_tomls) == num_cases, "Details files number is not as expected"
 
         for details_toml in details_tomls:
-            TestRunDetails.model_validate(toml.load(details_toml))
+            TestRun.model_validate(toml.load(details_toml))
 
     def test_experiment_output_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
         tmp_path, scenario = do_dry_run
@@ -225,11 +224,12 @@ class TestInDryRun:
 
 @pytest.fixture
 def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
-    return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+    return partial(TestRun, nodes=[], output_path=slurm_system.output_path)
 
 
 def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition, **kwargs) -> TestRun:
-    tr = partial_tr(name=name, test=test_definition, **kwargs)
+    test_definition = test_definition.model_copy(deep=True, update={"id": name, **kwargs})
+    tr = partial_tr(test_definition=test_definition)
     return tr
 
 
@@ -710,7 +710,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             num_nodes=2,
             time_limit="00:20:00",
-            extra_srun_args="--cpu-bind=none",
+            extra_srun_args=["--cpu-bind=none"],
         ),
         "vllm": lambda: create_test_run(
             partial_tr,
@@ -846,7 +846,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr, sbatch_file, run_script = build_special_test_run(partial_tr, request.param, test_mapping)
 
         if request.param == "nemo-run-vboost":
-            tr.test.extra_env_vars["ENABLE_VBOOST"] = "1"
+            tr.test_definition.extra_env_vars["ENABLE_VBOOST"] = "1"
 
         return tr, sbatch_file, run_script
 
@@ -854,19 +854,19 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
-            tr.num_nodes = 3
-            tr.test.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
-            tr.test.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 3})
+            tr.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
+            tr.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param in {"nixl_bench", "nixl-kvbench"}:
-            tr.num_nodes = 2
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param == "nixl-ep":
-            tr.num_nodes = 3
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 3})
         if request.param == "ai-dynamo":
-            tr.num_nodes = 2
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param in {"moe-benchmark", "deepep-benchmark", "fio"}:
-            tr.num_nodes = 2
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         if request.param in {"sglang-multinode", "sglang-disagg-2nodes", "vllm-multinode", "vllm-disagg-2nodes"}:
-            tr.num_nodes = 2
+            tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": 2})
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

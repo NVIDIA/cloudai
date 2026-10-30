@@ -44,7 +44,7 @@ def write_successful_node_logs(test_run: TestRun) -> None:
 
 
 def set_plan(test_run: TestRun, plan: str) -> None:
-    test_def = cast(NixlEPTestDefinition, test_run.test)
+    test_def = cast(NixlEPTestDefinition, test_run.test_definition)
     test_def.cmd_args = NixlEPCmdArgs(
         docker_image_url="docker.io/nvidia/nixl-ep:latest",
         elastic_script="/workspace/nixl/examples/device/ep/tests/elastic/elastic.py",
@@ -66,7 +66,11 @@ def nixl_ep_tr(tmp_path) -> TestRun:
             num_processes_per_node=4,
         ),
     )
-    return TestRun(name="nixl-ep", test=tdef, num_nodes=3, nodes=[], output_path=tmp_path / "output")
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "nixl-ep", "num_nodes": 3}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
 
 
 class TestNixlEPStatusCheck:
@@ -130,7 +134,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         if expected_fragment is None:
             assert result.is_successful
@@ -149,7 +153,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "entrypoint could not be opened" in result.error_message
@@ -159,7 +163,7 @@ class TestNixlEPStatusCheck:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(SUCCESSFUL_BANDWIDTH_LINE, encoding="utf-8")
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "nixl-ep-node-1.log, nixl-ep-node-2.log" in result.error_message
@@ -175,7 +179,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "never appears in the plan" in result.error_message
@@ -191,7 +195,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "lost its TCPStore connection" in result.error_message
@@ -207,7 +211,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "primary NIXL EP launch exited before phase 1 completed" in result.error_message
@@ -223,7 +227,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "initial NIXL EP launch exited before phase 0 completed" in result.error_message
@@ -242,7 +246,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "failed to initialize its UCX remote memory view" in result.error_message
@@ -278,7 +282,7 @@ class TestNixlEPStatusCheck:
         nixl_ep_tr.output_path.mkdir(parents=True, exist_ok=True)
         (nixl_ep_tr.output_path / "nixl-ep-node-0.log").write_text(log_content, encoding="utf-8")
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert expected_fragment in result.error_message
@@ -292,7 +296,7 @@ class TestNixlEPStatusCheck:
             encoding="utf-8",
         )
 
-        result = nixl_ep_tr.test.was_run_successful(nixl_ep_tr)
+        result = nixl_ep_tr.test_definition.was_run_successful(nixl_ep_tr)
 
         assert not result.is_successful
         assert "benchmark summary lines were missing from" in result.error_message

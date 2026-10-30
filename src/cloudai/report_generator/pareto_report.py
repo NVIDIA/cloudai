@@ -202,11 +202,11 @@ def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> 
         "num_nodes": "Nodes",
         "gpu_ids": "GPU IDs",
     }
-    context: dict[str, typing.Any] = {"Workload": tr.test.test_template_name, "Nodes": tr.nnodes}
+    context: dict[str, typing.Any] = {"Workload": tr.test_definition.test_template_name, "Nodes": tr.nnodes}
     gpus_per_node = getattr(system, "gpus_per_node", None)
     if gpus_per_node is not None and gpus_per_node > 0:
         context["Allocated GPUs"] = tr.nnodes * gpus_per_node
-    if serving_gpus := getattr(tr.test, "serving_gpu_count", None):
+    if serving_gpus := getattr(tr.test_definition, "serving_gpu_count", None):
         context["Serving GPUs"] = serving_gpus
 
     def collect(values: dict[str, typing.Any], scope: str = "") -> None:
@@ -216,7 +216,7 @@ def inference_context(tr: cloudai.core.TestRun, system: cloudai.core.System) -> 
             elif key in labels and value is not None:
                 context[f"{scope}{labels[key]}"] = value
 
-    definition = tr.test.model_dump(mode="json", exclude_none=True)
+    definition = tr.test_definition.model_dump(mode="json", exclude_none=True)
     collect(definition.get("cmd_args", {}))
     collect(definition.get("bench_cmd_args", {}))
     return context
@@ -261,24 +261,23 @@ class ParetoReporter(cloudai.core.Reporter):
         try:
             dump = tr.output_path / "test-run.toml"
             if dump.exists():
-                details = cloudai.models.scenario.TestRunDetails.model_validate(toml.load(dump))
-                if details.test_definition is None:
-                    raise ValueError("Missing executed test definition")
-                tr.test = details.test_definition
-                tr.num_nodes = details.nnodes
-                tr.nodes = details.nodes
+                loaded = cloudai.core.load_test_run(dump, tr.test_definition)
+                loaded.current_iteration = tr.current_iteration
+                loaded.step = tr.step
+                tr = loaded
+                run.tr = loaded
             elif tr.is_dse_job:
                 raise ValueError("Missing test-run.toml for sweep step")
             run.config = toml.dumps(
                 {
                     "num_nodes": tr.nnodes,
-                    "test": tr.test.model_dump(mode="json", by_alias=True, exclude_none=True),
+                    "test": tr.test_definition.model_dump(mode="json", by_alias=True, exclude_none=True),
                 }
             )
-            status = tr.test.was_run_successful(tr)
+            status = tr.test_definition.was_run_successful(tr)
             if not status.is_successful:
                 raise ValueError(status.error_message or "Execution failed or incomplete")
-            run.observations = tr.test.metric_observations(self.system, tr)
+            run.observations = tr.test_definition.metric_observations(self.system, tr)
         except Exception as exc:
             run.error = str(exc)
             logging.debug("Cannot collect Pareto results at %s: %s", tr.output_path, exc)

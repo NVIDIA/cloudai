@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,7 +59,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
         step_timings: List[float] = extract_timings(self.results_file)
         if not step_timings:
             return {}
-        tdef = cast(NeMoRunTestDefinition, self.test_run.test)
+        tdef = cast(NeMoRunTestDefinition, self.test_run.test_definition)
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)

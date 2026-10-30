@@ -16,8 +16,10 @@
 
 from abc import ABC, abstractmethod
 
+import toml
+
 from .system import System
-from .test_scenario import TestRun
+from .test_run import TestRun
 
 
 class CommandGenStrategy(ABC):
@@ -40,14 +42,11 @@ class CommandGenStrategy(ABC):
         """
         pass
 
-    @abstractmethod
     def store_test_run(self) -> None:
-        """
-        Store the test run information in output folder.
-
-        Only at command generation time, CloudAI has all the information to store the test run.
-        """
-        pass
+        """Save this execution's definition and runtime fields."""
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
+        with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as stream:
+            toml.dump(self.test_run.model_dump(mode="json"), stream)
 
     def cleanup_job_artifacts(self) -> None:
         """Best-effort cleanup hook run after the job has fully completed."""
@@ -57,7 +56,7 @@ class CommandGenStrategy(ABC):
     def final_env_vars(self) -> dict[str, str | list[str]]:
         if not self._final_env_vars:
             final_env_vars = self.system.global_env_vars.copy()
-            final_env_vars.update(self.test_run.test.extra_env_vars)
+            final_env_vars.update(self.test_run.test_definition.extra_env_vars)
             self._final_env_vars = final_env_vars
         return self._final_env_vars
 

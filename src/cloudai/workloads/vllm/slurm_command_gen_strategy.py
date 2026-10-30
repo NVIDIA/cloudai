@@ -35,7 +35,7 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
 
     @property
     def tdef(self) -> VllmTestDefinition:
-        return cast(VllmTestDefinition, self.test_run.test)
+        return cast(VllmTestDefinition, self.test_run.test_definition)
 
     @property
     def workload_name(self) -> str:
@@ -102,7 +102,7 @@ class VllmSlurmCommandGenStrategy(LLMServingSlurmCommandGenStrategy[VllmCmdArgs]
         )
 
     def get_serve_commands(self) -> list[list[str]]:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test_definition)
         cmd_args: VllmCmdArgs = tdef.cmd_args
 
         base_cmd = ["vllm", "serve", cmd_args.model, "--host", self.bind_host]

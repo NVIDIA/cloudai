@@ -72,7 +72,13 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
     test = MyWorkload(name="n", description="d", test_template_name="wrk", cmd_args=CmdArgs())
     test_scenario = TestScenario(
         name="Test Scenario",
-        test_runs=[TestRun("tr-name", test, 1, [], output_path=slurm_system.output_path / "tr-name")],
+        test_runs=[
+            TestRun(
+                test_definition=test.model_copy(deep=True, update={"id": "tr-name", "num_nodes": 1}),
+                output_path=slurm_system.output_path / "tr-name",
+                nodes=[],
+            )
+        ],
     )
     return test_scenario
 
@@ -120,7 +126,7 @@ class TestGetJobStatus:
     def test_workload_job_failed(self, runner: MyRunner):
         tr = runner.test_scenario.test_runs[0]
         job = BaseJob(tr, 0)
-        tdef = cast(MyWorkload, tr.test)
+        tdef = cast(MyWorkload, tr.test_definition)
         tdef.workload_status_result = JobStatusResult(is_successful=False, error_message="workload job failed")
         res = runner.get_job_status(job)
         assert not res.is_successful
@@ -129,7 +135,7 @@ class TestGetJobStatus:
     def test_both_failed_runner_status_reported(self, runner: MyRunner):
         tr = runner.test_scenario.test_runs[0]
         job = BaseJob(tr, 0)
-        tdef = cast(MyWorkload, tr.test)
+        tdef = cast(MyWorkload, tr.test_definition)
         tdef.workload_status_result = JobStatusResult(is_successful=False, error_message="workload job failed")
         runner.runner_job_status_result = JobStatusResult(is_successful=False, error_message="runner job failed")
         res = runner.get_job_status(job)

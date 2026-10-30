@@ -95,7 +95,7 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @property
     def tdef(self) -> DeepEPTestDefinition:
-        return cast(DeepEPTestDefinition, self.test_run.test)
+        return cast(DeepEPTestDefinition, self.test_run.test_definition)
 
     def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
         batch_script_content.extend(
@@ -188,8 +188,8 @@ class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for field_name in _CLI_FIELDS_BY_SUBTEST[cmd_args.subtest_name]:
             self._append_cli_field(parts, field_name, getattr(cmd_args, field_name))
 
-        if self.test_run.test.extra_cmd_args:
-            parts.append(self.test_run.test.extra_args_str)
+        if self.test_run.test_definition.extra_cmd_args:
+            parts.append(self.test_run.test_definition.extra_args_str)
 
         return parts
 

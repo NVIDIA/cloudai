@@ -23,7 +23,6 @@ import toml
 import yaml
 
 from cloudai.core import CommandGenStrategy, TestRun
-from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
@@ -167,9 +166,9 @@ def standalone_system(tmp_path: Path) -> StandaloneSystem:
 @pytest.fixture
 def base_tr(tmp_path: Path) -> TestRun:
     return TestRun(
-        name="tr-name",
-        test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
-        num_nodes=1,
+        test_definition=(
+            TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())
+        ).model_copy(deep=True, update={"id": "tr-name", "num_nodes": 1}),
         nodes=[],
         output_path=tmp_path / "output" / "tr-name",
     )
@@ -185,13 +184,12 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
                 csw_writer = csv.writer(_f_csv)
                 csw_writer.writerow(["step", "action", "reward", "observation"])
 
-                for step in range(test_run.test.agent_steps):
+                for step in range(test_run.test_definition.agent_steps):
                     step_folder = folder / str(step)
                     step_folder.mkdir(exist_ok=True, parents=True)
-                    trd = TestRunDetails.from_test_run(test_run, "", "")
                     csw_writer.writerow([step, {}, step * 2.1, [step]])
                     with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
-                        toml.dump(trd.model_dump(), _f_trd)
+                        toml.dump(test_run.model_dump(mode="json"), _f_trd)
 
 
 @pytest.fixture
@@ -202,7 +200,12 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    tr = TestRun(name="benchmark", test=test_definition, num_nodes=1, nodes=["node1"], iterations=3)
+    tr = TestRun(
+        test_definition=test_definition.model_copy(
+            deep=True, update={"id": "benchmark", "num_nodes": 1, "iterations": 3}
+        ),
+        nodes=["node1"],
+    )
     create_test_directories(slurm_system, tr)
     return tr
 
@@ -218,7 +221,10 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         agent_steps=12,
     )
 
-    tr = TestRun(name="dse", test=test_definition, num_nodes=1, nodes=["node1"], iterations=12)
+    tr = TestRun(
+        test_definition=test_definition.model_copy(deep=True, update={"id": "dse", "num_nodes": 1, "iterations": 12}),
+        nodes=["node1"],
+    )
     create_test_directories(slurm_system, tr)
     return tr
 
@@ -231,7 +237,11 @@ def nccl_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nccl_test", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     stdout_content = """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100
 # Rank  1 Group  0 Pid 1001 on node1 device  1 [0xbb] NVIDIA H100

@@ -83,7 +83,9 @@ def _tr(
         description=description,
         extra_env_vars=extra_env_vars or {},
     )
-    return types.SimpleNamespace(output_path=Path(output_path), nnodes=nnodes, name=name, nodes=nodes or [], test=test)
+    return types.SimpleNamespace(
+        output_path=Path(output_path), nnodes=nnodes, name=name, nodes=nodes or [], test_definition=test
+    )
 
 
 def _nsys(enable: bool) -> Any:

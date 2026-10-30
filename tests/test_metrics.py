@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import SimpleNamespace
+
 import pytest
 
 import cloudai.metrics
@@ -73,3 +75,19 @@ def test_merge_sol_configs() -> None:
         "bandwidth": test["bandwidth"],
         "latency": system["latency"],
     }
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_metric_assessment_only_uses_metric_keyed_targets(structured: bool) -> None:
+    observations = [
+        cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 50, {}),
+        cloudai.metrics.MetricObservation(cloudai.metrics.LATENCY, 5, {}),
+    ]
+    sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}], "latency": [{"value": 10}]})
+    run = SimpleNamespace(
+        test_definition=SimpleNamespace(
+            metric_observations=lambda system, run: observations, sol=sol if structured else 100.0
+        )
+    )
+    assessments = cloudai.metrics.assess_test_run_metrics(None, run)
+    assert [assessment.sol for assessment in assessments] == ([100, 10] if structured else [None, None])

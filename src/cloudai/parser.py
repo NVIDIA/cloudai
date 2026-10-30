@@ -32,7 +32,7 @@ from ._core.exceptions import (
 )
 from ._core.registry import Registry
 from ._core.system import System
-from ._core.test_scenario import ConfigPaths, TestScenario
+from .models.scenario import ConfigPaths, TestScenario
 from .test_parser import TestConfigFailure, TestParser, failure_declaring, raise_on_any_failure
 from .test_scenario_parser import TestScenarioParser
 from .toml_utils import format_toml_decode_error
@@ -152,9 +152,11 @@ class Parser:
             test_scenario_path=test_scenario_path.resolve(),
         )
 
-        scenario_tests = {tr.test.name for tr in test_scenario.test_runs}
+        scenario_tests = {tr.test_definition.name for tr in test_scenario.test_runs}
         hook_scenario_tests = {
-            tr.test.name for hook_scenario in hook_test_scenario_mapping.values() for tr in hook_scenario.test_runs
+            tr.test_definition.name
+            for hook_scenario in hook_test_scenario_mapping.values()
+            for tr in hook_scenario.test_runs
         }
 
         relevant_test_names = scenario_tests.union(hook_scenario_tests)

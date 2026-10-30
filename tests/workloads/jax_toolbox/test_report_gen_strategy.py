@@ -35,7 +35,11 @@ def jax_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
     )
-    return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    return TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
 
 class TestJaxExtractTime:
