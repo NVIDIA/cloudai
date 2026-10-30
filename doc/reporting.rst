@@ -176,6 +176,26 @@ Report registration is done via ``Registry`` class:
 
    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
 
+Inference Report Providers
+--------------------------
+
+Test definitions can implement ``InferenceReportProvider.inference_reports(system, tr)`` from
+``cloudai.report_generator.inference_report``. It returns a ``list[InferenceReport]`` with one entry per
+independent benchmark measurement, or an empty list when no results are available.
+
+Each report contains an ``InferenceConfig`` with resolved model, benchmark, load, hardware, and serving-role
+settings, plus ``MetricObservation`` outputs with their units and dimensions. Multiple measurements from the
+same execution have separate reports, even when their metric names are identical. Unknown optional settings
+remain ``None``.
+
+vLLM and SGLang return one report per execution.
+The Pareto reporter treats each returned report as one candidate point and applies ``match`` to its metric
+observations. ``metric_observations()`` remains available and returns the combined observations from these reports.
+
+Each serving role records its instance count and assigned nodes per instance. An instance is one serving launch,
+which can span nodes; TP, PP, and DP describe parallelism within it. ``shared_nodes`` identifies overlapping
+prefill/decode placement. A combined prefill/decode instance is displayed as ``Serving``.
+
 .. _reporting-configuration-implementation:
 
 Reporting Configuration Implementation
