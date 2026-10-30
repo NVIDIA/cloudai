@@ -17,7 +17,7 @@
 import logging
 import os
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -35,6 +35,7 @@ class HFModel(Installable):
     """HuggingFace Model object."""
 
     model_name: str
+    revision: str | None = field(default=None, kw_only=True)
     _installed_path: Path | None = field(default=None, repr=False)
 
     @property
@@ -48,10 +49,10 @@ class HFModel(Installable):
         self._installed_path = value
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, HFModel) and other.model_name == self.model_name
+        return isinstance(other, HFModel) and (other.model_name, other.revision) == (self.model_name, self.revision)
 
     def __hash__(self) -> int:
-        return hash(self.model_name)
+        return hash((self.model_name, self.revision))
 
     @staticmethod
     def _is_hf_home_accessible(installer: "BaseInstaller") -> bool:
@@ -80,6 +81,7 @@ class HFModel(Installable):
         try:
             local_path: str = huggingface_hub.snapshot_download(
                 repo_id=self.model_name,
+                revision=self.revision,
                 cache_dir=hf_home_path.absolute() / "hub",
             )
             self.installed_path = Path(local_path)
@@ -91,6 +93,9 @@ class HFModel(Installable):
     def uninstall(self, installer: "BaseInstaller") -> InstallStatusResult:
         if not self._is_hf_home_accessible(installer):
             return self._assume_available_on_execution_nodes(installer, "removal")
+
+        if self.revision is not None:
+            return self._uninstall_revision(installer)
 
         hf_home_path = installer.system.hf_home_path
         logging.debug(f"Removing HF model {self.model_name} from {hf_home_path / 'hub'}")
@@ -110,6 +115,27 @@ class HFModel(Installable):
 
         return InstallStatusResult(True)
 
+    def _uninstall_revision(self, installer: "BaseInstaller") -> InstallStatusResult:
+        cache_dir = installer.system.hf_home_path / "hub"
+        if not cache_dir.exists():
+            return InstallStatusResult(True, "Model revision is not cached.")
+        try:
+            cache = huggingface_hub.scan_cache_dir(cache_dir)
+            for repo in cache.repos:
+                if repo.repo_type != "model" or repo.repo_id != self.model_name:
+                    continue
+                for revision in repo.revisions:
+                    if self.revision == revision.commit_hash or self.revision in revision.refs:
+                        # Restrict deletion to this model, even if another repo shares the hash.
+                        replace(cache, repos=frozenset({repo})).delete_revisions(revision.commit_hash).execute()
+                        self._installed_path = None
+                        return InstallStatusResult(True)
+            if cache.warnings:
+                return InstallStatusResult(False, f"Cannot resolve cached model revision: {cache.warnings}")
+            return InstallStatusResult(True, "Model revision is not cached.")
+        except Exception as error:
+            return InstallStatusResult(False, f"Failed to remove HF model {self.model_name}@{self.revision}: {error}")
+
     def is_installed(self, installer: "BaseInstaller") -> InstallStatusResult:
         if not self._is_hf_home_accessible(installer):
             self.installed_path = installer.system.hf_home_path
@@ -121,6 +147,7 @@ class HFModel(Installable):
         try:
             local_path: str = huggingface_hub.snapshot_download(
                 repo_id=self.model_name,
+                revision=self.revision,
                 cache_dir=hf_home_path.absolute() / "hub",
                 local_files_only=True,
             )

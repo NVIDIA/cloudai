@@ -67,3 +67,67 @@ def test_is_downloaded_raises(hf_model: HFModel, installer: BaseInstaller) -> No
     assert not result.success
     assert "some error message" in result.message
     assert hf_model._installed_path is None
+
+
+@pytest.mark.parametrize("revision", [None, "a" * 40])
+def test_revision_used_for_download_and_local_check(installer: BaseInstaller, revision: str | None):
+    model = HFModel(model_name="example/model", revision=revision)
+    with patch("huggingface_hub.snapshot_download", return_value="/snapshot") as download:
+        assert model.install(installer).success
+        assert model.is_installed(installer).success
+    for call in download.call_args_list:
+        assert call.kwargs["revision"] == revision
+    assert download.call_args_list[1].kwargs["local_files_only"] is True
+
+
+def test_revisions_are_distinct_installables():
+    assert len({HFModel("model"), HFModel("model", revision="a"), HFModel("model", revision="b")}) == 3
+    assert HFModel("model", revision="a") == HFModel("model", revision="a")
+
+
+def make_cached_model(cache: Path, name: str) -> Path:
+    repo = cache / f"models--example--{name}"
+    (repo / "blobs").mkdir(parents=True)
+    (repo / "blobs" / "shared").write_text("shared weights")
+    (repo / "refs").mkdir()
+    for revision, ref in [("a" * 40, "main"), ("b" * 40, "other")]:
+        snapshot = repo / "snapshots" / revision
+        snapshot.mkdir(parents=True)
+        (snapshot / "weights").symlink_to("../../blobs/shared")
+        (repo / "refs" / ref).write_text(revision)
+    return repo
+
+
+@pytest.mark.parametrize("revision", ["a" * 40, "main"])
+def test_uninstall_revision_preserves_other_revisions_and_repositories(installer: BaseInstaller, revision: str):
+    cache = installer.system.hf_home_path / "hub"
+    repo = make_cached_model(cache, "model")
+    other_repo = make_cached_model(cache, "other")
+    result = HFModel("example/model", revision=revision).uninstall(installer)
+    assert result.success, result.message
+    assert not (repo / "snapshots" / ("a" * 40)).exists()
+    assert (repo / "snapshots" / ("b" * 40) / "weights").read_text() == "shared weights"
+    assert not (repo / "refs" / "main").exists()
+    assert (other_repo / "snapshots" / ("a" * 40) / "weights").exists()
+
+
+def test_uninstall_missing_revision_preserves_model(installer: BaseInstaller):
+    repo = make_cached_model(installer.system.hf_home_path / "hub", "model")
+    assert HFModel("example/model", revision="missing").uninstall(installer).success
+    assert (repo / "snapshots" / ("a" * 40) / "weights").exists()
+
+
+def test_uninstall_revision_failure_does_not_delete_model(installer: BaseInstaller):
+    make_cached_model(installer.system.hf_home_path / "hub", "model")
+    with patch("huggingface_hub.scan_cache_dir", side_effect=OSError("unreadable")), patch("subprocess.run") as run:
+        result = HFModel("example/model", revision="main").uninstall(installer)
+    assert not result.success
+    assert "unreadable" in result.message
+    run.assert_not_called()
+
+
+def test_uninstall_unpinned_keeps_whole_model_removal(installer: BaseInstaller):
+    with patch("huggingface_hub.snapshot_download", return_value="/snapshot"), patch("subprocess.run") as run:
+        run.return_value.returncode = 0
+        assert HFModel("example/model").uninstall(installer).success
+    assert run.call_args.args[0] == ["hf", "cache", "rm", "-y", "model/example/model"]

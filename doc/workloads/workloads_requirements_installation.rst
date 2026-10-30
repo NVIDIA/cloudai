@@ -33,6 +33,16 @@ Hugging Face Models
 
 Some workloads require Hugging Face models. CloudAI will download the models from Hugging Face and cache them in the location specified by System's ``hf_home_path`` field. By default, it is set to ``<INSTALL_DIR>/huggingface``, but any other location can be specified. When Slurm is used, this location will be mounted to the container.
 
+Workload authors can request a specific model commit, tag, or branch with
+``HFModel(model_name="owner/model", revision="<revision>")``. Use a commit hash
+for reproducibility. Omitting ``revision`` preserves the default model behavior.
+Downloads and local checks use the requested revision, and different revisions
+are treated as distinct installables. Configuration support depends on the workload.
+
+Explicit uninstallation of a revision removes only its cached snapshot, preserving
+other revisions and their shared files. An unpinned model uninstall removes the
+entire cached model. Shared scenarios using the same revision share that dependency.
+
 Authentication with Hugging Face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
