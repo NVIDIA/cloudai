@@ -14,10 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 
 import pytest
 
+import cloudai.metrics
+import cloudai.report_generator.inference_report as inference_report
+import cloudai.util
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -45,6 +49,9 @@ def get_csv_content() -> str:
         "Inter Token Latency (ms),12.34,23.45,34.56,45.67,56.78,67.89,78.90,89.01,90.12\n"
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
         "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n"
+        "Output Token Throughput (tokens/sec),200\n"
+        "Request Throughput (requests/sec),4\n"
+        "Request Count (count),50\n"
     )
 
 
@@ -59,6 +66,7 @@ def get_aiperf_csv_content() -> str:
         "Output Token Throughput (tokens/sec),595.68\n"
         "Total Token Throughput (tokens/sec),954.47\n"
         "Request Count,50.00\n"
+        "Request Throughput (requests/sec),1.25\n"
     )
 
 
@@ -208,9 +216,36 @@ def test_ai_dynamo_get_metric_genai_perf(slurm_system: SlurmSystem, ai_dynamo_tr
     # Explicit prefix also works.
     assert strategy.get_metric("genai_perf:Time To First Token (ms):avg") == 111.12
     assert strategy.get_metric("genai_perf:Inter Token Latency (ms):p50") == 89.01
+    observations = ai_dynamo_tr.test.metric_observations(slurm_system, ai_dynamo_tr)
+    expected = [
+        ("request_throughput", 4, {}),
+        ("output_token_throughput", 200, {}),
+        ("output_token_throughput_per_allocated_gpu", 200 / 8, {}),
+        ("ttft", 111.12, {"statistic": "mean"}),
+        ("ttft", 888.88, {"statistic": "median"}),
+        ("ttft", 444.44, {"statistic": "p99"}),
+        ("tpot", 12.34, {"statistic": "mean"}),
+        ("tpot", 89.01, {"statistic": "median"}),
+        ("tpot", 45.67, {"statistic": "p99"}),
+    ]
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in observations] == expected
+    ai_dynamo_tr.test.cmd_args.workloads = "genai_perf.sh,aiperf.sh"
+    mixed = ai_dynamo_tr.test.metric_observations(slurm_system, ai_dynamo_tr)
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in mixed] == [
+        (key, value, {"benchmark": "genai_perf", **dimensions}) for key, value, dimensions in expected
+    ] + [
+        ("request_throughput", 1.25, {"benchmark": "aiperf"}),
+        ("output_token_throughput", 595.68, {"benchmark": "aiperf"}),
+        ("output_token_throughput_per_allocated_gpu", 595.68 / 8, {"benchmark": "aiperf"}),
+        ("ttft", 49.87, {"benchmark": "aiperf", "statistic": "mean"}),
+        ("tpot", 2.83, {"benchmark": "aiperf", "statistic": "mean"}),
+    ]
 
 
-def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun) -> None:
+@pytest.mark.parametrize(
+    "result", ["valid", "missing", "malformed", "nonfinite", "empty", "no-gpu-count", "missing-latency"]
+)
+def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf_tr: TestRun, result: str) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_tr)
 
     # aiperf fixture uses workloads="aiperf.sh" — bare names resolve to aiperf_report.csv.
@@ -222,6 +257,31 @@ def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf
     assert strategy.get_metric("aiperf:Time to First Token (ms):avg") == 49.87
     assert strategy.get_metric("aiperf:Output Token Throughput (tokens/sec):avg") == 595.68
     assert strategy.get_metric("aiperf:Total Token Throughput (tokens/sec):avg") == 954.47
+    path = ai_dynamo_aiperf_tr.output_path / "aiperf_report.csv"
+    if result == "missing":
+        path.unlink()
+    elif result == "malformed":
+        path.write_text("Invalid CSV\n")
+    elif result == "nonfinite":
+        path.write_text(path.read_text().replace("595.68", "nan"))
+    elif result == "empty":
+        path.write_text(path.read_text().replace("Request Count,50.00", "Request Count,0"))
+    elif result == "no-gpu-count":
+        slurm_system.gpus_per_node = None
+    elif result == "missing-latency":
+        path.write_text(path.read_text().replace("Inter Token Latency (ms),2.83,2.78,2.91\n", ""))
+        assert strategy.parse_results() is None
+    expected = []
+    if result not in {"missing", "malformed", "empty"}:
+        expected.append(("request_throughput", 1.25, {}))
+        if result != "nonfinite":
+            expected.append(("output_token_throughput", 595.68, {}))
+            if result != "no-gpu-count":
+                expected.append(("output_token_throughput_per_allocated_gpu", 595.68 / 8, {}))
+        expected.append(("ttft", 49.87, {"statistic": "mean"}))
+        expected.extend([("tpot", 2.83, {"statistic": "mean"})] if result != "missing-latency" else [])
+    observations = ai_dynamo_aiperf_tr.test.metric_observations(slurm_system, ai_dynamo_aiperf_tr)
+    assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in observations] == expected
 
 
 def test_ai_dynamo_get_metric_split_aiperf_accuracy(
@@ -231,6 +291,11 @@ def test_ai_dynamo_get_metric_split_aiperf_accuracy(
 
     assert strategy.get_metric("accuracy") == 0.35
     assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
+    assert cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.35, {}) in (
+        ai_dynamo_aiperf_with_split_accuracy_tr.test.metric_observations(
+            slurm_system, ai_dynamo_aiperf_with_split_accuracy_tr
+        )
+    )
 
 
 def test_ai_dynamo_accuracy_metric_requires_aiperf_accuracy_config(
@@ -330,3 +395,269 @@ def test_parse_aiperf_accuracy_missing_or_invalid(tmp_path: Path) -> None:
     (tmp_path / "accuracy_results.csv").write_text("Task,Correct,Total,Accuracy\nOVERALL,n/a,100,n/a\n")
 
     assert parse_aiperf_accuracy(tmp_path) is None
+
+
+INFERENCE_WORKER = {
+    "num_nodes": 2,
+    "cmd": "python -m dynamo.vllm",
+    "worker_initialized_regex": "ready",
+    "args": {
+        "tensor_parallel_size": 2,
+        "pipeline_parallel_size": 1,
+        "data_parallel_size": 1,
+        "enable_expert_parallel": True,
+        "dtype": "float16",
+        "quantization": "fp8",
+    },
+}
+INFERENCE_DEFINITION = {
+    "name": "inference",
+    "description": "Inference report",
+    "test_template_name": "AIDynamo",
+    "cmd_args": {
+        "docker_image_url": "example/image:latest",
+        "workloads": "aiperf.sh",
+        "dynamo": {
+            "model": "example/model",
+            "backend": "vllm",
+            "prefill_worker": INFERENCE_WORKER,
+            "decode_worker": cloudai.util.deep_merge(INFERENCE_WORKER, {"args": {"pipeline_parallel_size": 2}}),
+        },
+        "aiperf": {
+            "args": {
+                "synthetic-input-tokens-mean": 128,
+                "output-tokens-mean": 64,
+                "request-count": 20,
+                "concurrency": 4,
+                "request-rate": 12.5,
+            }
+        },
+        "aiperf_phases": [
+            {"name": "low", "args": {"concurrency": 8}},
+            {"name": "high", "args": {"concurrency": 32, "users": 16}},
+        ],
+    },
+}
+INFERENCE_ROLE = dict(
+    model="example/model",
+    num_nodes=2,
+    num_instances=2,
+    nodes_per_instance=1,
+    instances_per_node=1,
+    tensor_parallel_size=2,
+    pipeline_parallel_size=1,
+    data_parallel_size=1,
+    expert_parallel=True,
+    precision="float16",
+    quantization="fp8",
+)
+
+
+@pytest.mark.parametrize(
+    "worker_overrides,backend,nodes,hardware,environment,role_overrides,decode_overrides,serving_gpus,shared_nodes",
+    [
+        pytest.param({}, "vllm", 4, 8, {}, {}, {}, 12, False, id="replicas"),
+        pytest.param(
+            {"multiple_workers_per_node": True},
+            "vllm",
+            4,
+            8,
+            {},
+            {"num_instances": 8, "instances_per_node": 4},
+            {"num_instances": 4, "instances_per_node": 2},
+            32,
+            False,
+            id="packing",
+        ),
+        pytest.param({"multiple_workers_per_node": True}, "vllm", 2, 8, {}, {}, {}, 12, True, id="shared-nodes"),
+        pytest.param(
+            {"nodes_per_worker": 2},
+            "vllm",
+            4,
+            8,
+            {},
+            {"num_instances": 1, "nodes_per_instance": 2, "instances_per_node": None},
+            {"num_instances": 1, "nodes_per_instance": 2, "instances_per_node": None},
+            6,
+            False,
+            id="multi-node-workers",
+        ),
+        pytest.param(
+            {"args": {"data_parallel_size": 2}, "extra_args": "--enable-dp-attention"},
+            "sglang",
+            4,
+            8,
+            {},
+            {"data_parallel_size": 2},
+            {"data_parallel_size": 2},
+            12,
+            False,
+            id="attention-dp",
+        ),
+        pytest.param(
+            {"args": {"data_parallel_size": None, "pipeline_parallel_size": 1}},
+            "sglang_dsr1",
+            4,
+            8,
+            {},
+            {
+                "tensor_parallel_size": 16,
+                "data_parallel_size": 16,
+                "num_instances": 1,
+                "nodes_per_instance": 2,
+                "instances_per_node": None,
+            },
+            {
+                "tensor_parallel_size": 16,
+                "pipeline_parallel_size": 1,
+                "data_parallel_size": 16,
+                "num_instances": 1,
+                "nodes_per_instance": 2,
+                "instances_per_node": None,
+            },
+            32,
+            False,
+            id="distributed-defaults",
+        ),
+        pytest.param(
+            {"multiple_workers_per_node": True},
+            "vllm",
+            4,
+            None,
+            {},
+            {"num_instances": None, "instances_per_node": None},
+            {"num_instances": None, "instances_per_node": None},
+            None,
+            False,
+            id="unknown-hardware",
+        ),
+        pytest.param(
+            {"multiple_workers_per_node": True},
+            "vllm",
+            4,
+            8,
+            {"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
+            {"num_instances": 4, "instances_per_node": 2},
+            {},
+            16,
+            False,
+            id="visible-gpus",
+        ),
+        pytest.param(
+            {"extra_args": "--served-model-name tp --pipeline-parallel-size=1 --data-parallel-size 2"},
+            "vllm",
+            4,
+            8,
+            {},
+            {"data_parallel_size": 2},
+            {"pipeline_parallel_size": 1, "data_parallel_size": 2},
+            16,
+            False,
+            id="argument-overrides",
+        ),
+        pytest.param(
+            {"extra_args": "--tensor-parallel-size ${TP} --pipeline-parallel-size ${PP} --data-parallel-size"},
+            "vllm",
+            4,
+            8,
+            {},
+            {"tensor_parallel_size": None, "pipeline_parallel_size": None, "data_parallel_size": None},
+            {"tensor_parallel_size": None, "pipeline_parallel_size": None, "data_parallel_size": None},
+            None,
+            False,
+            id="unresolved-parallelism-overrides",
+        ),
+    ],
+)
+def test_inference_reports(
+    slurm_system: SlurmSystem,
+    tmp_path: Path,
+    worker_overrides: dict,
+    backend: str,
+    nodes: int,
+    hardware: int | None,
+    environment: dict,
+    role_overrides: dict,
+    decode_overrides: dict,
+    serving_gpus: int | None,
+    shared_nodes: bool,
+) -> None:
+    definition = cloudai.util.deep_merge(
+        INFERENCE_DEFINITION,
+        {
+            "cmd_args": {
+                "dynamo": {"backend": backend, "prefill_worker": worker_overrides, "decode_worker": worker_overrides}
+            },
+            "extra_env_vars": environment,
+        },
+    )
+    test = AIDynamoTestDefinition.model_validate(definition)
+    tr = TestRun("inference", test, nodes, [], output_path=tmp_path)
+    slurm_system.gpus_per_node = hardware
+    expected = []
+    for phase, concurrency, users, total in [("low", 8, None, 1500), ("high", 32, 16, 3000)]:
+        artifact = tmp_path / "aiperf_artifacts" / phase
+        artifact.mkdir(parents=True)
+        (artifact / "profile_export_aiperf.json").write_text(
+            json.dumps(
+                {
+                    "request_count": {"avg": 20},
+                    "request_throughput": {"avg": 10},
+                    "output_token_throughput": {"avg": 1000},
+                    "total_token_throughput": {"avg": total},
+                    "time_to_first_token": {"avg": 10, "p50": 11, "p99": 12},
+                    "inter_token_latency": {"avg": 1, "p50": 2, "p99": 3},
+                }
+            )
+        )
+        (tmp_path / f"aiperf_{phase}_report.csv").write_text(get_aiperf_csv_content())
+        metrics: list[tuple[cloudai.metrics.MetricDefinition, float, dict[str, str]]] = [
+            (cloudai.metrics.REQUEST_THROUGHPUT, 10, {}),
+            (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, 1000, {}),
+        ]
+        if hardware is not None:
+            metrics.append((cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU, 1000 / (nodes * 8), {}))
+        metrics.extend(
+            (metric, value, {"statistic": statistic})
+            for metric, values in ((cloudai.metrics.TTFT, (10, 11, 12)), (cloudai.metrics.TPOT, (1, 2, 3)))
+            for statistic, value in zip(("mean", "median", "p99"), values, strict=True)
+        )
+        metrics.extend(
+            [
+                (cloudai.metrics.TOTAL_TOKEN_THROUGHPUT, total, {}),
+                (cloudai.metrics.TOTAL_TOKEN_THROUGHPUT_PER_USER, total / (users or concurrency), {}),
+            ]
+        )
+        if serving_gpus is not None:
+            metrics.append((cloudai.metrics.TOTAL_TOKEN_THROUGHPUT_PER_SERVING_GPU, total / serving_gpus, {}))
+        expected.append(
+            inference_report.InferenceReport(
+                config=inference_report.InferenceConfig(
+                    model="example/model",
+                    num_nodes=nodes,
+                    backend=backend,
+                    benchmark="aiperf",
+                    phase=phase,
+                    container_image="example/image:latest",
+                    gpus_per_node=hardware,
+                    serving_gpu_count=serving_gpus,
+                    input_tokens=128,
+                    output_tokens=64,
+                    concurrency=concurrency,
+                    users=users,
+                    request_count=20,
+                    request_rate=12.5,
+                    prefill=inference_report.InferenceRoleConfig(**{**INFERENCE_ROLE, **role_overrides}),
+                    decode=inference_report.InferenceRoleConfig(
+                        **{**INFERENCE_ROLE, "pipeline_parallel_size": 2, **decode_overrides}
+                    ),
+                    shared_nodes=shared_nodes,
+                ),
+                observations=[
+                    cloudai.metrics.MetricObservation(metric, value, {"phase": phase, **dimensions})
+                    for metric, value, dimensions in metrics
+                ],
+            )
+        )
+    assert test.inference_reports(slurm_system, tr) == expected
+    assert test.metric_observations(slurm_system, tr) == [obs for report in expected for obs in report.observations]

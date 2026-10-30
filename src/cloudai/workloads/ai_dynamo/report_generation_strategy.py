@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import ClassVar
 
@@ -75,7 +76,12 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         csv_file = self._benchmark_csv()
         if csv_file is None:
             return None
-        return AIDynamoTestDefinition.parse_benchmark_csv(csv_file, self._max_concurrency())
+        results = AIDynamoTestDefinition.parse_benchmark_csv(csv_file, self._max_concurrency())
+        if results is None or any(
+            math.isnan(value) for value in (results.mean_ttft_ms, results.mean_tpot_ms, results.output_throughput)
+        ):
+            return None
+        return results
 
     def used_gpus_count(self) -> int:
         """Match the GPU accounting used when AI Dynamo produces its result CSV."""
