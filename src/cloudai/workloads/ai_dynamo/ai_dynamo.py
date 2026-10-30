@@ -16,9 +16,10 @@
 
 import csv
 import logging
+import math
 import shlex
 from pathlib import Path
-from typing import Literal, Optional, cast
+from typing import ClassVar, Literal, Mapping, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -29,6 +30,7 @@ from pydantic import (
     model_validator,
 )
 
+import cloudai.util
 from cloudai.core import (
     DockerImage,
     File,
@@ -41,6 +43,7 @@ from cloudai.core import (
 )
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.common.llm_serving import LLMServingBenchReport
 
 AIPERF_ARTIFACTS_DIR = "aiperf_artifacts"
 AIPERF_ACCURACY_ARTIFACTS_DIR = "aiperf_accuracy_artifacts"
@@ -477,6 +480,19 @@ class AIDynamoCmdArgs(CmdArgs):
     aiperf_accuracy: AIPerfAccuracy | None = None
     workloads: str = "genai_perf.sh"
 
+    def resolve_aiperf_phase(self, phase: AIPerfPhase) -> AIPerf:
+        """Apply phase overrides using the execution artifact paths."""
+        base_data = self.aiperf.model_dump(by_alias=True, exclude_none=True)
+        phase_data = phase.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+        single_phase = self.aiperf_phases is None or len(self.aiperf_phases) == 1
+
+        if "artifact-dir-name" not in phase_data and not single_phase:
+            phase_data["artifact-dir-name"] = f"{self.aiperf.artifact_dir_name}/{phase.name}"
+        if "report-name" not in phase_data and not single_phase:
+            phase_data["report-name"] = f"aiperf_{phase.name}_report.csv"
+
+        return AIPerf.model_validate(cloudai.util.deep_merge(base_data, phase_data))
+
     @field_validator("workloads", mode="before")
     @classmethod
     def validate_workloads(cls, v: str) -> str:
@@ -517,6 +533,16 @@ class AIDynamoCmdArgs(CmdArgs):
         ]
 
 
+class AIDynamoBenchReport(LLMServingBenchReport):
+    """Normalized AI Dynamo benchmark results used by comparison reports."""
+
+    output_throughput: float
+
+    @property
+    def throughput(self) -> float:
+        return self.output_throughput
+
+
 class AIDynamoTestDefinition(TestDefinition):
     """Test definition for AI Dynamo."""
 
@@ -532,6 +558,80 @@ class AIDynamoTestDefinition(TestDefinition):
 
     success_marker: str = "success-marker.txt"
     failure_marker: str = "failure-marker.txt"
+
+    _TTFT_NAMES: ClassVar[tuple[str, ...]] = ("Time To First Token (ms)", "Time to First Token (ms)")
+    _TPOT_NAMES: ClassVar[tuple[str, ...]] = ("Inter Token Latency (ms)",)
+    _THROUGHPUT_NAMES: ClassVar[tuple[str, ...]] = ("Output Token Throughput (tokens/sec)",)
+    _REQUEST_COUNT_NAMES: ClassVar[tuple[str, ...]] = ("Request Count (count)", "Request Count", "Request count")
+
+    @staticmethod
+    def _parse_metric_rows(csv_file: Path) -> dict[str, dict[str, str]]:
+        """Parse both single-table GenAI-Perf and multi-table AIPerf CSV output."""
+        metrics: dict[str, dict[str, str]] = {}
+        header: list[str] | None = None
+        with csv_file.open(newline="", encoding="utf-8-sig") as f:
+            for row in csv.reader(f):
+                if not row or not any(cell.strip() for cell in row):
+                    continue
+                row = [cell.strip() for cell in row]
+                if row[0] == "Metric":
+                    header = row
+                    continue
+                if header is None:
+                    continue
+                metrics[row[0]] = {column: value for column, value in zip(header[1:], row[1:], strict=False) if value}
+        return metrics
+
+    @staticmethod
+    def _find_value(
+        metrics: Mapping[str, Mapping[str, str]], metric_names: tuple[str, ...], value_names: tuple[str, ...]
+    ) -> float | None:
+        for metric_name in metric_names:
+            row = metrics.get(metric_name)
+            if row is None:
+                continue
+            for value_name in value_names:
+                value = row.get(value_name)
+                if value is None:
+                    continue
+                try:
+                    return float(value.replace(",", ""))
+                except ValueError:
+                    continue
+        return None
+
+    @classmethod
+    def parse_benchmark_csv(cls, csv_file: Path, max_concurrency: int = 1) -> AIDynamoBenchReport | None:
+        """Normalize a benchmark CSV into the shared LLM serving result shape."""
+        try:
+            metrics = cls._parse_metric_rows(csv_file)
+        except (OSError, csv.Error) as e:
+            logging.debug(f"Error parsing AI Dynamo benchmark output {csv_file}: {e}")
+            return None
+
+        ttft_mean = cls._find_value(metrics, cls._TTFT_NAMES, ("avg", "mean", "Value"))
+        tpot_mean = cls._find_value(metrics, cls._TPOT_NAMES, ("avg", "mean", "Value"))
+        throughput = cls._find_value(metrics, cls._THROUGHPUT_NAMES, ("avg", "Value"))
+        if ttft_mean is None or tpot_mean is None or throughput is None:
+            return None
+
+        request_count = cls._find_value(metrics, cls._REQUEST_COUNT_NAMES, ("avg", "Value"))
+        median_ttft = cls._find_value(metrics, cls._TTFT_NAMES, ("p50", "median"))
+        p99_ttft = cls._find_value(metrics, cls._TTFT_NAMES, ("p99",))
+        median_tpot = cls._find_value(metrics, cls._TPOT_NAMES, ("p50", "median"))
+        p99_tpot = cls._find_value(metrics, cls._TPOT_NAMES, ("p99",))
+        return AIDynamoBenchReport(
+            num_prompts=int(request_count or 0),
+            completed=int(request_count or 0),
+            mean_ttft_ms=ttft_mean,
+            median_ttft_ms=median_ttft if median_ttft is not None else math.nan,
+            p99_ttft_ms=p99_ttft if p99_ttft is not None else math.nan,
+            mean_tpot_ms=tpot_mean,
+            median_tpot_ms=median_tpot if median_tpot is not None else math.nan,
+            p99_tpot_ms=p99_tpot if p99_tpot is not None else math.nan,
+            output_throughput=throughput,
+            max_concurrency=max_concurrency,
+        )
 
     @model_validator(mode="after")
     def workload_scripts(self) -> "AIDynamoTestDefinition":
