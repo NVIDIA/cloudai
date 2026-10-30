@@ -22,9 +22,10 @@ unset VIRTUAL_ENV
 
 # Submit the recipe
 mkdir -p __OUTPUT_DIR__/output/srt_slurm_outputs
+# Clear the old result lookup ID in case this wrapper is manually rerun and submission fails.
 rm -f __OUTPUT_DIR__/output/srt_job_id.txt
-# C: uv discovers .venv from the current directory even with --no-project.
-# Submit from srt-slurm so it cannot discover CloudAI's checkout .venv.
+# C: Slurm inherits this working directory. Leave CloudAI's checkout so
+# compute-side uv does not discover its login-node .venv, even with --no-project.
 cd __INSTALL_DIR__/srt-slurm__v2.2.1
 if ! __INSTALL_DIR__/srt-slurm__v2.2.1-venv/bin/srtctl apply -f __CLOUDAI_DIR__/conf/experimental/srt_slurm/recipe.yaml -o __OUTPUT_DIR__/output/srt_slurm_outputs -y --set 'benchmark.concurrencies="4"' --no-preflight > __OUTPUT_DIR__/output/run_srtctl.log 2>&1; then
     cat __OUTPUT_DIR__/output/run_srtctl.log >&2
