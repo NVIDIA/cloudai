@@ -22,7 +22,7 @@ repos:
     rev: v1.1.408
     hooks:
     - id: pyright
-      entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off pyright
+      entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off PYRIGHT_PYTHON_NODE_VERSION=26.13.0 pyright
       language: system
 
   # https://docs.astral.sh/ruff/integrations/#pre-commit
