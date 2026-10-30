@@ -203,8 +203,9 @@ For DSE workloads, you can pass agent configuration via ``agent_config`` in the 
 - ``random_seed``: controls deterministic random behavior in agents.
 - ``start_action``: controls the very first action strategy (``"random"`` or ``"first"``).
 - ``max_consecutive_rejected_proposals``: skips the current DSE step after this many consecutive
-  constraint-rejected proposals and continues with the next step. A successfully executed proposal or skipped step
-  resets the counter. Rejected proposals still update the agent with ``constraint_failure``. The default is ``16``.
+  constraint-rejected proposals and continues with the next step. The environment owns this counter across episode
+  resets; an execution, cache hit, or skipped step resets it. Rejected proposals still update the agent with
+  ``constraint_failure``. The default is ``16``.
 - ``rewards`` (optional): nested table mapped to ``RewardOverrides``. When present, ``CloudAIGymEnv`` uses it for
   constraint failures and for substituting failed-metric values in observations.
 

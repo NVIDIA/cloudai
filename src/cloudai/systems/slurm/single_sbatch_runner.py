@@ -224,7 +224,12 @@ class SingleSbatchRunner(SlurmRunner):
             agent_class = registry.get_agent(tr.test.agent)
             agent_config_data = tr.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
-            gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
+            gym = CloudAIGymEnv(
+                tr,
+                self,
+                rewards=agent_config.rewards,
+                max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
+            )
 
             try:
                 for idx, combination in enumerate(tr.all_combinations, start=1):
