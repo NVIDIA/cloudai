@@ -47,7 +47,6 @@ agent_reward_function = "identity"
     context-length = [2048, 4096]
 
   [Tests.extra_env_vars]
-  INFMAX_WORKSPACE = "/shared/cloudai/install/InferenceX__f8dff19a6898e3ee0dd95232f867151d4d2d6392"
 
   # Keep host-side uv work off shared home storage.
   UV_CACHE_DIR = "/tmp/cloudai-agentx-uv-cache"

@@ -20,9 +20,10 @@ All `/shared/...` paths and the `gpu` partition are placeholders:
   `/shared/cloudai/example`, or update the scenario paths and the corresponding
   `/agentx-test` mount together.
 - Set `install_path = "/shared/cloudai/install"` and
-  `output_path = "/shared/cloudai/results"` in your system config. If you change
-  the installation root, update `srtctl_root` and both InferenceX paths in
-  `srtslurm.yaml` and `scenario.toml` as well.
+  `output_path = "/shared/cloudai/results"` in your system config. CloudAI exports
+  its absolute installation root as `CLOUDAI_INSTALL_FOLDER`; SRT expands that
+  variable in the InferenceX mount in `srtslurm.yaml`. SRT derives its own checkout
+  root, so changing `install_path` does not require editing either repo path.
 - Set `hf_home_path = "/shared/huggingface"` in your system config. The scenario
   declares Qwen3-0.6B and its commit in `hf_models`; `cloudai install` downloads that revision
   into that cache. In `srtslurm.yaml`, `model_paths.qwen` must point to the
@@ -33,14 +34,16 @@ All `/shared/...` paths and the `gpu` partition are placeholders:
 - Provide a compatible SGLang container at `/shared/images/sglang.sqsh`. SRT
   mounts the model snapshot at `/model`; the client uses its tokenizer offline.
 - Choose your partition in both system and SRT cluster configs. CloudAI uses
-  its partition for the setup allocation; SRT Slurm owns benchmark scheduling.
+  its partition for the setup allocation; SRT generates and submits benchmark
+  jobs using its recipe and cluster config, and Slurm schedules them.
 - Configure the Slurm CLI environment and any site-required container settings.
   Dependencies require network access. uv caches and managed Python downloads
   use node-local `/tmp`; other application caches still need writable storage.
 
 The `srt-slurm` repository entry supplies srtctl, regardless of entry order.
-The InferenceX entry installs its pinned submodules. `INFMAX_WORKSPACE` and the `/infmax-workspace` mount
-connect that checkout to the custom benchmark client.
+The InferenceX entry installs its pinned submodules. The `/infmax-workspace` mount
+connects that checkout to the custom benchmark client. If the InferenceX commit
+changes, update the checkout basename in `srtslurm.yaml` to match.
 
 ## Run
 

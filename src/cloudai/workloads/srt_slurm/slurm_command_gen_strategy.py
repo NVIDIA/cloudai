@@ -111,6 +111,7 @@ class SRTSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "# Configure submission environment",
                 *[f"export {key}={shlex.quote(str(value))}" for key, value in self.final_env_vars.items()],
                 f"export SRTSLURM_CONFIG={shlex.quote(str(cluster_config))}",
+                f"export CLOUDAI_INSTALL_FOLDER={shlex.quote(str(self.system.install_path.absolute()))}",
                 *(["export AGENTIC_OUTPUT_DIR=/logs/agentic"] if self.tdef.cmd_args.result_format == "agentx" else []),
                 "",
                 "# Prevent login-node Python environments from leaking into compute jobs.",

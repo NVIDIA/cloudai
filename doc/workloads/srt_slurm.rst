@@ -1,11 +1,11 @@
 SRT-Slurm
 =========
 
-The ``SRTSlurm`` workload submits an existing recipe with ``srtctl apply`` and
-monitors the resulting Slurm job directly. CloudAI is a pass-through layer for
-benchmark submission: srt-slurm owns scheduling and resource orchestration.
-The pinned srtctl version validates
-the recipe, including recipes without a ``schema`` field. Each CloudAI trial
+The ``SRTSlurm`` workload delegates benchmark job generation and submission to
+srt-slurm through ``srtctl apply``, using its recipe and cluster configuration.
+Slurm schedules the job, while CloudAI monitors completion and processes results.
+The pinned srtctl version validates the recipe, including recipes without a
+``schema`` field. Each CloudAI trial
 passes selected ``recipe_overrides`` as typed ``--set KEY=VALUE`` arguments;
 the original YAML remains unchanged.
 
@@ -13,8 +13,8 @@ Configuration
 -------------
 
 Use ``conf/experimental/srt_slurm/scenario.toml`` as a starting point. Adapt
-its cluster configuration to your system, including ``srtctl_root`` pointing
-to the installed checkout. Paths are resolved from the CloudAI working directory
+its cluster configuration to your system. Omit ``srtctl_root`` to let SRT derive
+the installed checkout path. Paths are resolved from the CloudAI working directory
 and must be accessible on the shared filesystem.
 
 .. code-block:: toml
@@ -62,6 +62,12 @@ PATH search, active-environment lookup, or current-directory ``.venv`` lookup.
 Tools supplied through virtual-environment PATH entries are removed as part of
 this compatibility cleanup; supply required compute-node tools outside a Python
 virtual environment.
+
+CloudAI also exports ``CLOUDAI_INSTALL_FOLDER`` as its absolute ``install_path``.
+SRT cluster configs can use its existing environment expansion in mount sources,
+for example ``${CLOUDAI_INSTALL_FOLDER}/InferenceX__<commit>: /infmax-workspace``.
+This keeps the scenario independent of the installation root; the checkout name
+must still match the configured repository and commit.
 
 Installation runs ``make setup`` in a single-node, 15-minute ``srun`` using
 ``system.toml``'s ``default_partition``, ``account``, and ``extra_srun_args``.

@@ -4,6 +4,7 @@ set -euo pipefail
 # Configure submission environment
 export TEST_VAR='value with spaces'
 export SRTSLURM_CONFIG=__CLOUDAI_DIR__/conf/experimental/srt_slurm/srtslurm.yaml
+export CLOUDAI_INSTALL_FOLDER=__INSTALL_DIR__
 
 # Prevent login-node Python environments from leaking into compute jobs.
 # A: uv searches PATH after VIRTUAL_ENV. Remove every virtualenv-backed
