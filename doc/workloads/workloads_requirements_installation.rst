@@ -42,7 +42,8 @@ are treated as distinct installables. Configuration support depends on the workl
 Explicit uninstallation of a revision removes only its cached snapshot, preserving
 other revisions and their shared files. If another cached branch or tag references
 the same snapshot, removal fails without deleting files. An unpinned model uninstall
-removes the entire cached model. Shared scenarios using the same revision share that dependency.
+removes the entire cached model. Uninstalling a snapshot can affect other scenarios using the same commit.
+CloudAI does not track per-scenario ownership.
 
 Authentication with Hugging Face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

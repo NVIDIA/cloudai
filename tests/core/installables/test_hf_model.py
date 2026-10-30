@@ -14,11 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event, Lock
 from unittest.mock import patch
 
+import huggingface_hub
 import pytest
 
+import cloudai._core.installables.hf_model as hf_model_module
 from cloudai.core import BaseInstaller, HFModel
 
 
@@ -150,3 +156,77 @@ def test_uninstall_preserves_snapshot_with_other_refs(installer: BaseInstaller, 
         assert (repo / "refs" / ref).read_text() == "a" * 40
     assert (repo / "snapshots" / ("a" * 40) / "weights").read_text() == "shared weights"
     assert (repo / "snapshots" / ("b" * 40) / "weights").read_text() == "shared weights"
+
+
+def test_concurrent_revision_uninstalls_remove_shared_blobs(installer: BaseInstaller, monkeypatch):
+    repo = make_cached_model(installer.system.hf_home_path / "hub", "model")
+    second_waiting = Event()
+    lock = Lock()
+
+    class ObservedLock:
+        def __enter__(self):
+            if not lock.acquire(blocking=False):
+                second_waiting.set()
+                lock.acquire()
+
+        def __exit__(self, *_):
+            lock.release()
+
+    monkeypatch.setattr(hf_model_module, "_HF_UNINSTALL_LOCK", ObservedLock())
+    scan = huggingface_hub.scan_cache_dir
+    snapshot_counts = []
+
+    def scan_with_wait(cache_dir):
+        cache = scan(cache_dir)
+        snapshot_counts.append(sum(len(repo.revisions) for repo in cache.repos))
+        if len(snapshot_counts) == 1:
+            assert second_waiting.wait(timeout=5), "Second uninstall did not wait for the cache lock"
+        return cache
+
+    with patch("huggingface_hub.scan_cache_dir", side_effect=scan_with_wait), ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(HFModel("example/model", revision=ref).uninstall, installer) for ref in ("main", "other")
+        ]
+        results = [future.result(timeout=10) for future in futures]
+
+    assert all(result.success for result in results), results
+    assert snapshot_counts == [2, 1]
+    assert not repo.exists()
+
+
+@pytest.mark.parametrize("blocked", ["snapshot", "ref", "blob", "repo"])
+def test_uninstall_reports_swallowed_permission_errors(installer: BaseInstaller, monkeypatch, blocked: str):
+    repo = make_cached_model(installer.system.hf_home_path / "hub", "model")
+    unique_blob = repo / "blobs" / "unique"
+    unique_blob.write_text("unique weights")
+    (repo / "snapshots" / ("a" * 40) / "unique").symlink_to("../../blobs/unique")
+    if blocked == "repo":
+        huggingface_hub.scan_cache_dir(repo.parent).delete_revisions("b" * 40).execute()
+    target = {
+        "snapshot": repo / "snapshots" / ("a" * 40),
+        "ref": repo / "refs" / "main",
+        "blob": unique_blob,
+        "repo": repo,
+    }[blocked]
+    remove = os.remove
+    rmtree = shutil.rmtree
+
+    def deny_remove(path, *args, **kwargs):
+        if Path(path) == target:
+            raise PermissionError("denied")
+        return remove(path, *args, **kwargs)
+
+    def deny_rmtree(path, *args, **kwargs):
+        if Path(path) == target:
+            raise PermissionError("denied")
+        return rmtree(path, *args, **kwargs)
+
+    with monkeypatch.context() as context:
+        context.setattr(os, "remove", deny_remove)
+        context.setattr(shutil, "rmtree", deny_rmtree)
+        result = HFModel("example/model", revision="main").uninstall(installer)
+
+    assert not result.success
+    assert "Incomplete removal" in result.message
+    assert str(target) in result.message
+    assert target.exists() or target.is_symlink()

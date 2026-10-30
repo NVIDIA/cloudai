@@ -19,6 +19,7 @@ import os
 import subprocess
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING
 
 import huggingface_hub
@@ -28,6 +29,10 @@ from .base import Installable, InstallStatusResult
 
 if TYPE_CHECKING:
     from ..base_installer import BaseInstaller
+
+
+# Cache deletion plans must not race across the installer's worker threads.
+_HF_UNINSTALL_LOCK = Lock()
 
 
 @dataclass
@@ -91,6 +96,10 @@ class HFModel(Installable):
         return InstallStatusResult(True)
 
     def uninstall(self, installer: "BaseInstaller") -> InstallStatusResult:
+        with _HF_UNINSTALL_LOCK:
+            return self._uninstall(installer)
+
+    def _uninstall(self, installer: "BaseInstaller") -> InstallStatusResult:
         if not self._is_hf_home_accessible(installer):
             return self._assume_available_on_execution_nodes(installer, "removal")
 
@@ -134,7 +143,20 @@ class HFModel(Installable):
                                 f"{', '.join(sorted(other_refs))}. No cached files were removed.",
                             )
                         # Restrict deletion to this model, even if another repo shares the hash.
-                        replace(cache, repos=frozenset({repo})).delete_revisions(revision.commit_hash).execute()
+                        plan = replace(cache, repos=frozenset({repo})).delete_revisions(revision.commit_hash)
+                        plan.execute()
+                        # HF logs permission errors without raising; confirm every planned removal.
+                        remaining = [
+                            str(path)
+                            for path in plan.blobs | plan.refs | plan.repos | plan.snapshots
+                            if path.exists() or path.is_symlink()
+                        ]
+                        if remaining:
+                            return InstallStatusResult(
+                                False,
+                                f"Incomplete removal of {self.model_name}@{self.revision}: "
+                                f"paths remain: {', '.join(sorted(remaining))}",
+                            )
                         self._installed_path = None
                         return InstallStatusResult(True)
             if cache.warnings:
