@@ -608,6 +608,18 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         """Check training metrics in the job log, falling back to legacy launcher logs."""
+        status = tr.output_path / "cloudai_megatron_bridge_evaluation.exitcode"
+        if not status.is_file():
+            logging.warning(
+                "MBridge evaluation result is missing in %s. This warning can be ignored if "
+                "CloudAI 1.8.1 or older was used for this run.",
+                tr.output_path,
+            )
+        elif status.read_text().strip() != "0":
+            return JobStatusResult(
+                is_successful=False,
+                error_message="MBridge evaluation failed. See cloudai_megatron_bridge_evaluation.log.",
+            )
         log_path = find_mbridge_log(tr.output_path)
         if log_path is None:
             return JobStatusResult(

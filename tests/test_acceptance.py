@@ -730,6 +730,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     executor_env_vars={"NCCL_DEBUG": "WARN", "EXECUTOR_ONLY": "executor"},
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3", "NCCL_DEBUG": "INFO"},
+                extra_cmd_args={"--detach": "false", "--golden_values_path": "/shared/references/qwen3.json"},
                 extra_container_mounts=[],
                 git_repos=[
                     GitRepo(
