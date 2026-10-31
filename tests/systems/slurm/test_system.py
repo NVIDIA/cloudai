@@ -597,7 +597,13 @@ def test_allocate_nodes_exceeding_limit(
         ("COMPLETED", "", True),
         ("FAILED", "", True),
         ("CANCELLED", "", True),
+        ("CANCELLED by 1000", "", True),
         ("TIMEOUT", "", True),
+        ("BOOT_FAIL", "", True),
+        ("DEADLINE", "", True),
+        ("NODE_FAIL", "", True),
+        ("OUT_OF_MEMORY", "", True),
+        ("PREEMPTED", "", True),
         ("RUNNING", "", False),
         ("PENDING", "", False),
         ("COMPLETED RUNNING", "", False),
@@ -617,6 +623,16 @@ def test_is_job_completed(stdout: str, stderr: str, is_completed: bool, slurm_sy
             slurm_system.is_job_completed(job)
     else:
         assert slurm_system.is_job_completed(job) is is_completed
+
+
+def test_is_job_completed_reads_untruncated_states(slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=("OUT_OF_MEMORY\n", ""))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    assert slurm_system.is_job_completed(job) is True
+    slurm_system.cmd_shell.execute.assert_called_once_with(f"sacct -j {job.id} --format=State --noheader --parsable2")
 
 
 @pytest.mark.parametrize(
