@@ -76,6 +76,10 @@ from cloudai.workloads.nixl_ep import NixlEPReportGenerationStrategy, NixlEPTest
 from cloudai.workloads.nixl_perftest import NIXLKVBenchDummyReport, NixlPerftestTestDefinition
 from cloudai.workloads.osu_bench import OSUBenchReportGenerationStrategy, OSUBenchTestDefinition
 from cloudai.workloads.sglang import SGLangBenchReportGenerationStrategy, SglangTestDefinition
+from cloudai.workloads.srt_slurm import (
+    SRTSlurmReportGenerationStrategy,
+    SRTSlurmTestDefinition,
+)
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
@@ -757,7 +761,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 22
+        assert len(Registry().reports_map) == 23
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -798,6 +802,7 @@ class TestReporters:
             (FioTestDefinition, {FioReportGenerationStrategy}),
             (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
             (AiconfiguratorTestDefinition, {AiconfiguratorReportGenerationStrategy}),
+            (SRTSlurmTestDefinition, {SRTSlurmReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):

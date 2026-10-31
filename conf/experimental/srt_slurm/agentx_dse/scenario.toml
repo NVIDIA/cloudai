@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "agentx-dse"
+
+[[Tests]]
+id = "agentx"
+name = "qwen_agentx"
+description = "Two-step AgentX DSE correctness smoke test"
+test_template_name = "SRTSlurm"
+hf_models = [
+  { model_name = "Qwen/Qwen3-0.6B", revision = "c1899de289a04d12100db370d81485cdf75e47ca" },
+]
+agent = "grid_search"
+agent_steps = 2
+agent_metrics = ["p90_intvty"]
+agent_reward_function = "identity"
+
+  [[Tests.git_repos]]
+  url = "https://github.com/NVIDIA/srt-slurm.git"
+  commit = "098e15aca8504d4747c6f62c7a845e178b7f4b10"
+
+  [[Tests.git_repos]]
+  url = "https://github.com/SemiAnalysisAI/InferenceX.git"
+  commit = "f8dff19a6898e3ee0dd95232f867151d4d2d6392"
+  init_submodules = true
+
+  [Tests.cmd_args]
+  recipe_path = "/shared/cloudai/example/recipe.yaml"
+  cluster_config = "/shared/cloudai/example/srtslurm.yaml"
+  result_format = "agentx"
+
+    [Tests.cmd_args.recipe_overrides.roles.agg.args]
+    context-length = [2048, 4096]
+
+  [Tests.extra_env_vars]
+
+  # Keep host-side uv work off shared home storage.
+  UV_CACHE_DIR = "/tmp/cloudai-agentx-uv-cache"
+  UV_PYTHON_INSTALL_DIR = "/tmp/cloudai-agentx-python"

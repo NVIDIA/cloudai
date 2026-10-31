@@ -1,0 +1,6 @@
+# Benchmark scheduling defaults belong here and in the recipe.
+# CloudAI system/scenario allocation settings are not forwarded to srt-slurm.
+# Adapt these Slurm defaults to your cluster. srtctl_root is omitted so the
+# pinned srtctl installation derives its own checkout path.
+default_partition: gpu
+gpus_per_node: 8

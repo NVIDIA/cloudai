@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+default_partition: gpu
+gpus_per_node: 4
+# Match system.toml hf_home_path and the model revision pinned in scenario.toml.
+model_paths:
+  qwen: /shared/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
+containers: {sglang: /shared/images/sglang.sqsh}
+default_mounts:
+  # Snapshot links under /model resolve ../../blobs to /blobs inside the container.
+  /shared/huggingface/hub/models--Qwen--Qwen3-0.6B/blobs: /blobs
+  ${CLOUDAI_INSTALL_FOLDER}/InferenceX__f8dff19a6898e3ee0dd95232f867151d4d2d6392: /infmax-workspace
+  /shared/cloudai/example: /agentx-test

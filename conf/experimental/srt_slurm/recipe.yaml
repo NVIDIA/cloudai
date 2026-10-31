@@ -1,0 +1,23 @@
+schema: 2
+name: sglang-example
+model:
+  path: hf:Qwen/Qwen3-0.6B
+  container: docker.io/lmsysorg/sglang:v0.5.9
+resources:
+  gpu_type: h100
+  gpus_per_node: 8
+frontend:
+  type: sglang
+engine: sglang
+roles:
+  agg:
+    nodes: 1
+    workers: 1
+    gpus: 1
+    args:
+      tensor-parallel-size: 1
+benchmark:
+  type: sa-bench
+  isl: 128
+  osl: 128
+  concurrencies: "1"

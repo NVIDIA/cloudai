@@ -29,7 +29,7 @@ import toml
 import cloudai.cli.cli
 import cloudai.models.output
 from cloudai.cli import setup_logging
-from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
+from cloudai.core import BaseInstaller, CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -83,6 +83,7 @@ from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
     SlurmContainerTestDefinition,
 )
+from cloudai.workloads.srt_slurm import SRTSlurmCmdArgs, SRTSlurmTestDefinition
 from cloudai.workloads.triton_inference import (
     TritonInferenceCmdArgs,
     TritonInferenceTestDefinition,
@@ -239,6 +240,12 @@ def with_installed_dynamo_repo(test_definition: AIDynamoTestDefinition, installe
     return test_definition
 
 
+def with_installed_srt_repo(test_definition: SRTSlurmTestDefinition, system: SlurmSystem) -> SRTSlurmTestDefinition:
+    """Set the installation paths used by acceptance command generation."""
+    BaseInstaller(system).mark_as_installed(test_definition.installables)
+    return test_definition
+
+
 def build_special_test_run(
     partial_tr: partial[TestRun], param: str, test_mapping: Dict[str, Callable[[], TestRun]]
 ) -> Tuple[TestRun, str, Optional[str]]:
@@ -312,6 +319,7 @@ def build_special_test_run(
 
 @pytest.fixture(
     params=[
+        "srt-slurm",
         "ucc",
         "ddlb",
         "nccl",
@@ -351,6 +359,29 @@ def build_special_test_run(
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
     test_mapping: Dict[str, Callable[[], TestRun]] = {
+        "srt-slurm": lambda: create_test_run(
+            partial_tr,
+            "srt-slurm",
+            with_installed_srt_repo(
+                SRTSlurmTestDefinition(
+                    name="srt-slurm",
+                    description="SRT Slurm recipe submission",
+                    test_template_name="SRTSlurm",
+                    git_repos=[
+                        GitRepo(url="https://github.com/example/recipes.git", commit="main"),
+                        GitRepo(url="https://github.com/NVIDIA/srt-slurm.git", commit="v2.2.1"),
+                    ],
+                    cmd_args=SRTSlurmCmdArgs(
+                        recipe_path=Path("conf/experimental/srt_slurm/recipe.yaml"),
+                        cluster_config=Path("conf/experimental/srt_slurm/srtslurm.yaml"),
+                        recipe_overrides={"benchmark": {"concurrencies": "4"}},
+                    ),
+                    extra_env_vars={"TEST_VAR": "value with spaces"},
+                    extra_cmd_args={"no-preflight": ""},
+                ),
+                slurm_system,
+            ),
+        ),
         "ucc": lambda: create_test_run(
             partial_tr,
             "ucc",

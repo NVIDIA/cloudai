@@ -108,6 +108,7 @@ from cloudai.workloads.sleep import (
     SleepTestDefinition,
 )
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.srt_slurm import SRTSlurmCommandGenStrategy, SRTSlurmTestDefinition
 from cloudai.workloads.triton_inference import (
     TritonInferenceSlurmCommandGenStrategy,
     TritonInferenceTestDefinition,
@@ -171,6 +172,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
     (SlurmSystem, FioTestDefinition): FioSlurmCommandGenStrategy,
     (SlurmSystem, SglangTestDefinition): SglangSlurmCommandGenStrategy,
+    (SlurmSystem, SRTSlurmTestDefinition): SRTSlurmCommandGenStrategy,
     (SlurmSystem, VllmTestDefinition): VllmSlurmCommandGenStrategy,
 }
 JSON_GEN_STRATEGIES = {
@@ -245,7 +247,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 28
+    assert len(test_defs) == 29
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -275,6 +277,7 @@ def test_definitions():
         ("sglang", SglangTestDefinition),
         ("vllm", VllmTestDefinition),
         ("DynamoMocker", DynamoMockerTestDefinition),
+        ("SRTSlurm", SRTSlurmTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

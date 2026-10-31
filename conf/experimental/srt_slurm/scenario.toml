@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "srt_slurm"
+
+[[Tests]]
+id = "srt.sglang"
+# Benchmark node allocation is defined by recipe.yaml, not this value.
+num_nodes = 1
+
+name = "srt_sglang"
+description = "SGLang through an existing srt-slurm recipe"
+test_template_name = "SRTSlurm"
+agent = "grid_search"
+agent_metrics = ["tput_per_gpu"]
+
+  [[Tests.git_repos]]
+  url = "https://github.com/NVIDIA/srt-slurm.git"
+  commit = "v2.2.1"
+
+  [Tests.cmd_args]
+  recipe_path = "conf/experimental/srt_slurm/recipe.yaml"
+  # Owns benchmark scheduling defaults; CloudAI allocation settings are not merged.
+  cluster_config = "conf/experimental/srt_slurm/srtslurm.yaml"
+  result_format = "sa-bench"
+
+    [Tests.cmd_args.recipe_overrides.benchmark]
+    concurrencies = ["1", "4", "16"]

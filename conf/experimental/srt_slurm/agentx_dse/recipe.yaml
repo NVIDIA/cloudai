@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema: 2
+name: qwen-agentx
+model: {path: qwen, container: sglang, precision: bf16}
+resources: {gpu_type: gb200, gpus_per_node: 4}
+slurm: {time_limit: '00:20:00'}
+frontend: {type: sglang, enable_multiple_frontends: false}
+engine: sglang
+roles:
+  agg:
+    nodes: 1
+    workers: 1
+    gpus: 1
+    args:
+      tensor-parallel-size: 1
+      context-length: 2048
+      mem-fraction-static: 0.2
+      disable-cuda-graph: true
+      served-model-name: Qwen/Qwen3-0.6B
+health_check: {max_attempts: 60, interval_seconds: 5}
+benchmark:
+  type: custom
+  command: bash /agentx-test/agentx_client.sh
