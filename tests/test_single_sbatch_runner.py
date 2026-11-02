@@ -340,6 +340,25 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("agent", "config", "message"),
+    [
+        ("bo_gp", {}, "supports only grid_search"),
+        ("grid_search", {"max_consecutive_rejected_proposals": 2}, "unsupported for single-sbatch DSE"),
+    ],
+)
+def test_single_sbatch_rejects_adaptive_retry_settings(
+    nccl_tr: TestRun, slurm_system: SlurmSystem, agent: str, config: dict, message: str
+) -> None:
+    nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+    nccl_tr.test.agent = agent
+    nccl_tr.test.agent_config = config
+    tc = TestScenario(name="tc", test_runs=[nccl_tr])
+
+    with pytest.raises(ValueError, match=message):
+        SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+
+
 def test_unroll_dse(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
