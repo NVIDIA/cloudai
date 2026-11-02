@@ -156,6 +156,20 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / "cloudai_megatron_bridge_launcher.sh").write_text(launcher_cmd + "\n")
         log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
         with log_path.open("w") as log:
+            subprocess.run(
+                [
+                    str(venv_path / "bin" / "python"),
+                    "-m",
+                    "pip",
+                    "install",
+                    f"wandb=={tdef.cmd_args.wandb_version}",
+                    f"numpy=={tdef.cmd_args.numpy_version}",
+                ],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                check=True,
+                timeout=600,
+            )
             result = subprocess.run(
                 ["/bin/bash", "-c", launcher_cmd],
                 stdout=log,
@@ -172,7 +186,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _write_dryrun_patcher(self, launcher_py: Path) -> Path:
         patcher_path = self.test_run.output_path / "cloudai_megatron_bridge_dryrun.py"
         patcher_path.write_text(
-            Path(__file__).with_name("launcher.py").read_text()
+            (Path(__file__).parent / "runtime" / "launcher.py").read_text()
             + f"\nmain({str(launcher_py)!r}, {str(self.test_run.output_path.absolute())!r})\n"
         )
         return patcher_path
@@ -188,20 +202,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Record failure first so interrupted evaluations cannot appear successful.
             status.write_text("1\n")
             try:
-                subprocess.run(
-                    [
-                        python,
-                        "-m",
-                        "pip",
-                        "install",
-                        f"wandb=={tdef.cmd_args.wandb_version}",
-                        f"numpy=={tdef.cmd_args.numpy_version}",
-                    ],
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    check=True,
-                    timeout=600,
-                )
                 result = subprocess.run(
                     [
                         "/bin/bash",
