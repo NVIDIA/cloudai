@@ -74,7 +74,7 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
 ### Pull Request (PR) Creation
 - Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
 - Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
-- Use bullet points in the summary to clearly outline your contributions. In the test plan section, detail the experiments and commands run, attaching stdout of your command to demonstrate the effectiveness of your code and to help other contributors understand how to validate and run your code.
+- Keep the summary focused on the resulting behavior. In the test plan, passing CI is sufficient for routine automated checks; omit duplicate test inventories, commands, and output. Briefly describe distinctive manual experiments and their results, plus any material coverage gaps or failures. Include reproduction details when needed to assess the change.
 - Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
 - Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
 

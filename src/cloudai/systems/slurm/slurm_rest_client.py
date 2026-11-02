@@ -91,7 +91,7 @@ class SlurmRestClient:
         "--chdir": "current_working_directory",
         "--open-mode": "open_mode",
     }
-    _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:"
+    _SHORT_DIRECTIVES: ClassVar[str] = "J:o:e:p:A:N:n:D:t:"
     _LONG_DIRECTIVES: ClassVar[list[str]] = [
         "job-name=",
         "output=",
@@ -227,7 +227,7 @@ class SlurmRestClient:
 
     def _apply_sbatch_directive(self, job: dict[str, object], option: str, value: str) -> None:
         """Map one SBATCH directive to a job field; e.g. `--ntasks=2` sets `tasks=2`."""
-        option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir"}.get(option, option)
+        option = {"-N": "--nodes", "-n": "--ntasks", "-D": "--chdir", "-t": "--time"}.get(option, option)
 
         if option in self._DIRECTIVE_FIELDS:
             self._set_directive(job, self._DIRECTIVE_FIELDS[option], value, option)
