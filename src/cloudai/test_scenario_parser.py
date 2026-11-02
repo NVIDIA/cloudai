@@ -151,6 +151,13 @@ class TestScenarioParser:
                 logging.error(msg)
                 raise TestScenarioParsingError(msg)
 
+        if (pre_test is not None or post_test is not None) and self.system.scheduler.lower() != "slurm":
+            logging.warning(
+                f"Scenario '{ts_model.name}' sets pre_test/post_test hooks, but hook execution is only "
+                f"implemented for the Slurm scheduler. The '{self.system.scheduler}' scheduler will run "
+                "the scenario's own tests normally and silently skip the configured hooks."
+            )
+
         test_runs_by_id: dict[str, TestRun] = {
             trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test, ts_model.sol)
             for trm in ts_model.tests
