@@ -68,7 +68,6 @@ def main(launcher: str, output: str) -> None:
         )
     else:
         args = sys.argv[1:]
-        sys.argv.append("-d")
         original_dryrun = run.Experiment.dryrun
         original_run = run.run
 
@@ -86,7 +85,10 @@ def main(launcher: str, output: str) -> None:
                     }
                 )
             )
-            return original_run(*run_args, **kwargs)
+            kwargs["dryrun"] = True
+            original_run(*run_args, **kwargs)
+            # Stop before the native launcher monitors or evaluates the generated job.
+            raise SystemExit(0)
 
         run.Experiment.dryrun = keep_artifacts
         run.run = generate
