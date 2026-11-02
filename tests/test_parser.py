@@ -194,6 +194,8 @@ class Test_Parser:
         parser.parse(tests_dir, test_scenario_path)
 
         assert "hook execution is only implemented for the Slurm scheduler" in caplog.text
+        assert "The 'standalone' scheduler" in caplog.text
+        assert "silently skip the configured hooks" in caplog.text
 
     @pytest.mark.parametrize("hook_field", ["pre_test", "post_test"])
     def test_hook_does_not_warn_on_slurm_scheduler(
