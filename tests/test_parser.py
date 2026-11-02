@@ -148,6 +148,63 @@ class Test_Parser:
         assert pre_test is not None
         assert pre_test.name == "custom_hook"
 
+    def _write_hook_and_scenario(self, tmp_path: Path, hook_root: Path) -> tuple[Path, Path]:
+        """Write a minimal pre_test hook plus a scenario that references it. Returns
+        (tests_dir, test_scenario_path) for Parser.parse()."""
+        hook_test_root = hook_root / "test"
+        hook_test_root.mkdir(parents=True)
+        (hook_test_root / "custom_hook_test.toml").write_text(
+            'name = "custom_hook_test"\n'
+            'description = "custom hook test"\n'
+            'test_template_name = "Sleep"\n'
+            "\n"
+            "[cmd_args]\n"
+            "seconds = 1\n"
+        )
+        (hook_root / "custom_hook_scenario.toml").write_text(
+            'name = "custom_hook"\n\n[[Tests]]\nid = "Tests.hook"\ntest_name = "custom_hook_test"\n'
+        )
+
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "main_test.toml").write_text(
+            'name = "main_test"\ndescription = "main test"\ntest_template_name = "Sleep"\n\n[cmd_args]\nseconds = 1\n'
+        )
+        test_scenario_path = tmp_path / "test_scenario.toml"
+        test_scenario_path.write_text(
+            'name = "main-scenario"\n'
+            'pre_test = "custom_hook"\n\n'
+            "[[Tests]]\n"
+            'id = "Tests.main"\n'
+            'test_name = "main_test"\n'
+        )
+        return tests_dir, test_scenario_path
+
+    def test_pre_test_hook_warns_on_non_slurm_scheduler(
+        self, parser: Parser, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        """Hook execution is only implemented for Slurm; a scenario setting pre_test/post_test on any
+        other scheduler (the `parser` fixture here is Standalone) should warn, not silently no-op."""
+        hook_root = tmp_path / "hooks"
+        tests_dir, test_scenario_path = self._write_hook_and_scenario(tmp_path, hook_root)
+
+        parser = Parser(parser.system_config_path, hook_root)
+        caplog.set_level(logging.WARNING)
+        parser.parse(tests_dir, test_scenario_path)
+
+        assert "hook execution is only implemented for the Slurm scheduler" in caplog.text
+
+    def test_pre_test_hook_does_not_warn_on_slurm_scheduler(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        hook_root = tmp_path / "hooks"
+        tests_dir, test_scenario_path = self._write_hook_and_scenario(tmp_path, hook_root)
+
+        slurm_system_config = Path.cwd() / "conf" / "common" / "system" / "example_slurm_cluster.toml"
+        parser = Parser(slurm_system_config, hook_root)
+        caplog.set_level(logging.WARNING)
+        parser.parse(tests_dir, test_scenario_path)
+
+        assert "hook execution is only implemented for the Slurm scheduler" not in caplog.text
+
     @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
