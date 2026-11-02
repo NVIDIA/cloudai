@@ -1,12 +1,33 @@
-CloudAI Benchmark Framework
-===========================
+.. _cloudai-benchmark-framework:
+
+CloudAI
+========
+
+**Benchmark and optimize AI systems.**
+
+CloudAI is an open-source framework for benchmarking and optimizing AI systems. Run training, inference,
+communication, and storage workloads through one experiment workflow. Use built-in grid search or connect custom
+optimization agents to explore configurations and identify the best results observed for your objective.
+
+:ref:`Get started <getting-started>` · :ref:`Choose a workflow <choose-a-workflow>` ·
+:doc:`Workload compatibility <workloads/index>`
 
 Overview
 --------
 
-CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the cloud. The primary motivation is to provide automated benchmarking on various systems.
+.. topic:: Run different benchmarks
 
-This document contains the following chapters:
+   Use a common CLI, Python API, and configuration model for workloads such as NCCL, NeMo, vLLM, SGLang, and Fio.
+
+.. topic:: Search configurations
+
+   Define configuration choices and a performance objective. Use grid search for small spaces or integrate your own
+   search policy.
+
+.. topic:: Compare and reuse results
+
+   Inspect performance trade-offs, read structured experiment results, and reuse the best configuration discovered
+   during a search.
 
 .. toctree::
    :hidden:
@@ -20,14 +41,57 @@ This document contains the following chapters:
    DEV
    troubleshooting
 
-- :doc:`Tutorial`
-- :doc:`USER_GUIDE`
-- :doc:`api`
-- :doc:`reporting`
-- :doc:`systems`
-- :doc:`workloads/index`
-- :doc:`DEV`
-- :doc:`troubleshooting`
+.. _choose-a-workflow:
+
+Choose a workflow
+-----------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - I want to…
+     - Start here
+   * - Measure communication or storage performance
+     - :doc:`NCCL <workloads/nccl>`, :doc:`NIXL <workloads/nixl_bench>`, or :doc:`Fio <workloads/fio>`
+   * - Benchmark training configurations
+     - :doc:`Megatron Bridge <workloads/megatron_bridge>` or :doc:`NeMo Run <workloads/nemo_run>`
+   * - Compare inference configurations
+     - :doc:`vLLM <workloads/vllm>`, :doc:`SGLang <workloads/sglang>`, and :doc:`latency–throughput trade-offs <pareto-frontiers>`
+   * - Explore a configuration space
+     - :ref:`configuration-search` and `agent configuration <USER_GUIDE.html#agents-configuration>`_
+   * - Automate experiments and consume their results
+     - :doc:`Python API <api>` and `experiment output <reporting.html#unified-experiment-output>`_
+
+Workload availability depends on the execution environment. Check the :doc:`support matrix <workloads/index>`
+before selecting a workload.
+
+.. _configuration-search:
+
+Configuration search
+--------------------
+
+CloudAI connects configuration choices, workload execution, and measured results in a design space exploration
+(DSE) workflow. An optimization agent is the policy that selects configurations to evaluate and receives workload
+measurements as feedback.
+
+1. **Establish a baseline.** Measure the workload with fixed settings on your target system.
+2. **Define the search space and objective.** Choose the settings to vary and the metric or reward to compare.
+3. **Evaluate configurations.** Use the built-in ``grid_search`` agent or integrate a custom optimization agent
+   through the public agent interface.
+4. **Inspect and reuse the result.** Review the search history and best observed configuration in the DSE report.
+   Use :doc:`Pareto frontiers <pareto-frontiers>` to compare measured trade-offs between metrics.
+
+.. admonition:: Plan around your compute budget
+
+   The built-in grid-search agent evaluates every combination in the configured search space. Estimate the number
+   and cost of evaluations before launching, and keep the initial search small. Custom agents can implement adaptive
+   selection and stopping policies through the public agent interface.
+
+See `agent configuration <USER_GUIDE.html#agents-configuration>`_ for search settings and
+:ref:`generate-report` for the resulting report and selected test configuration.
+
+.. _getting-started:
 
 Getting Started
 ---------------
@@ -39,13 +103,18 @@ These versions include certificate trust updates for the eMudhra/emSign CA compr
 
 .. code-block:: bash
 
-   git clone git@github.com:NVIDIA/cloudai.git
+   git clone https://github.com/NVIDIA/cloudai.git
    cd cloudai
    uv run cloudai --help
 
 .. note::
 
-   For more instructions on how to set up access for ``enroot``, see :doc:`workloads/workloads_requirements_installation`.
+   Choose a workload from the table above, configure :doc:`where it will run <systems>`, and prepare its
+   :doc:`prerequisites <workloads/workloads_requirements_installation>` before executing an experiment.
+
+Use :ref:`dry-run` to inspect generated workload commands before execution. After an experiment, open its HTML
+reports or read ``experiment.json`` in the results directory. See :doc:`reporting` for result interpretation and
+:doc:`api` for programmatic access.
 
 pip-based Installation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,7 +125,7 @@ Follow these steps:
 
 .. code-block:: bash
 
-   git clone git@github.com:NVIDIA/cloudai.git
+   git clone https://github.com/NVIDIA/cloudai.git
    cd cloudai
    python3.14 -m venv venv
    source venv/bin/activate
@@ -87,13 +156,13 @@ If your system Python version is not supported, you can install a custom version
 Key Concepts
 ------------
 
-CloudAI operates on three main schemas:
+CloudAI separates where an experiment runs from what it executes:
 
-- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
-- **Test Schema**: An instance of a test template with custom arguments and environment variables
-- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
+- **System**: The execution environment, including the scheduler, available resources, and shared environment settings.
+- **Test definition**: The workload and its command arguments, environment variables, and configuration choices.
+- **Scenario**: The test cases to execute, with resource requirements and dependencies where supported.
 
-These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
+See :doc:`USER_GUIDE` for configuration details and :doc:`Tutorial` for configuration examples.
 
 CloudAI Modes Usage Examples
 -----------------------------
@@ -159,6 +228,16 @@ This mode generates reports under the scenario directory. It automatically runs 
        --tests-dir conf/common/test\
        --test-scenario conf/common/test_scenario/sleep.toml\
        --result-dir /path/to/result_directory
+
+Generated artifacts depend on the scenario contents:
+
+- ``<scenario>.html`` summarizes scenario status.
+- ``<scenario>-dse-report.html`` describes configuration searches when the scenario contains DSE test cases.
+- ``<dse-case>/<iteration>/<dse-case>.toml`` contains the best discovered test configuration for a DSE case.
+- Workload and custom reporters may produce additional artifacts.
+
+The :doc:`reporting` guide describes ``experiment.json``, which records execution status and workload metrics
+independently of reporter settings.
 
 .. _install:
 
