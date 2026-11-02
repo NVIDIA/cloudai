@@ -102,6 +102,14 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     return test_run, runner.runner
 
 
+def test_constructor_preserves_three_argument_call(setup_env: tuple[TestRun, BaseRunner]) -> None:
+    test_run, runner = setup_env
+
+    env = CloudAIGymEnv(test_run, runner, RewardOverrides())
+
+    assert env.max_consecutive_rejected_proposals == BaseAgentConfig().max_consecutive_rejected_proposals
+
+
 def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     env = CloudAIGymEnv(

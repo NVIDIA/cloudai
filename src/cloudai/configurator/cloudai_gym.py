@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
-from .base_agent import RewardOverrides
+from .base_agent import BaseAgentConfig, RewardOverrides
 from .base_gym import BaseGym
 from .env_params import EnvParams, ObsLeafDescriptor
 from .trajectory import Trajectory
@@ -44,7 +44,7 @@ class CloudAIGymEnv(BaseGym):
         test_run: TestRun,
         runner: BaseRunner,
         rewards: RewardOverrides,
-        max_consecutive_rejected_proposals: int,
+        max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
     ):
         """
         Initialize the Gym environment using the TestRun object.
