@@ -80,16 +80,16 @@ class TestChakraReplaySlurmCommandGenStrategy:
         slurm_system: SlurmSystem,
     ) -> None:
         tr = TestRun(
-            name="t1",
-            nodes=["node1", "node2"],
-            num_nodes=2,
-            test=ChakraReplayTestDefinition(
+            test_definition=ChakraReplayTestDefinition(
                 name="n",
                 description="d",
                 test_template_name="tt",
                 cmd_args=ChakraReplayCmdArgs(docker_image_url="", **cmd_args),
                 extra_cmd_args=extra_cmd_args,
+                id="t1",
+                num_nodes=2,
             ),
+            nodes=["node1", "node2"],
         )
         cmd_gen_strategy = ChakraReplaySlurmCommandGenStrategy(slurm_system, tr)
         command = cmd_gen_strategy.generate_test_command()

@@ -22,8 +22,7 @@ import pytest
 import toml
 import yaml
 
-from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai.core import GitRepo
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     HICACHE_CONFIG_FILE_NAME,
@@ -144,7 +143,11 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     )
     tdef.repo.installed_path = dynamo_repo_path
 
-    return TestRun(name="run", test=tdef, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 2}),
+        nodes=["n0", "n1"],
+        output_path=tmp_path,
+    )
 
 
 @pytest.fixture
@@ -573,12 +576,9 @@ def test_shared_node_disagg_preserves_explicit_smaller_node_count(
     )
     tdef.repo.installed_path = tmp_path
     tr = TestRun(
-        name="run",
-        test=tdef,
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 1}),
         nodes=["n0"],
-        num_nodes=1,
         output_path=tmp_path,
-        num_nodes_explicit=True,
     )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
@@ -593,8 +593,8 @@ def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
     strategy: AIDynamoSlurmCommandGenStrategy,
 ) -> None:
     strategy.test_run.nodes = []
-    strategy.test_run.num_nodes = 1
-    strategy.test_run.num_nodes_explicit = False
+    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": 1})
+    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": None})
 
     assert strategy.get_cached_nodes_spec()[0] == 2
 
@@ -612,7 +612,9 @@ def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
         cmd_args=cmd_args,
     )
     tdef.repo.installed_path = tmp_path
-    tr = TestRun(name="run", test=tdef, nodes=[], num_nodes=1, output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
     assert strategy.get_cached_nodes_spec() == (1, ["n0"])
@@ -635,12 +637,9 @@ def test_explicit_overlapping_worker_nodes_reject_extra_allocated_nodes(
     )
     tdef.repo.installed_path = tmp_path
     tr = TestRun(
-        name="run",
-        test=tdef,
+        test_definition=tdef.model_copy(deep=True, update={"id": "run", "num_nodes": 2}),
         nodes=["n0", "n1"],
-        num_nodes=2,
         output_path=tmp_path,
-        num_nodes_explicit=True,
     )
     strategy = AIDynamoSlurmCommandGenStrategy(slurm_system, tr)
 
@@ -653,9 +652,9 @@ def test_constraint_allows_shared_node_split_that_fits(slurm_system: SlurmSystem
     td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 4
-    test_run.num_nodes = 1
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
     test_run.nodes = ["n0"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert td.constraint_check(test_run, slurm_system)
 
@@ -667,9 +666,9 @@ def test_constraint_rejects_shared_node_split_that_exceeds_node_gpus(
     td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 4
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
-    test_run.num_nodes = 1
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 1})
     test_run.nodes = ["n0"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert not td.constraint_check(test_run, slurm_system)
 
@@ -681,9 +680,9 @@ def test_constraint_allows_separate_node_roles_using_all_node_gpus(
     td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.dynamo.prefill_worker.args.tensor_parallel_size = 8
     td.cmd_args.dynamo.decode_worker.args.tensor_parallel_size = 8
-    test_run.num_nodes = 2
+    test_run.test_definition = test_run.test_definition.model_copy(update={"num_nodes": 2})
     test_run.nodes = ["n0", "n1"]
-    test_run.num_nodes_explicit = True
+    test_run.test_definition.model_fields_set.add("num_nodes")
 
     assert td.constraint_check(test_run, slurm_system)
 
@@ -717,9 +716,9 @@ def test_constraint_allows_multinode_worker_using_group_capacity(slurm_system: S
         worker.nodes_per_worker = 2
         worker.args.tensor_parallel_size = 8
         worker.args.pipeline_parallel_size = 1
-    test_run.num_nodes = 4
+    td = td.model_copy(update={"num_nodes": 4})
+    test_run.test_definition = td
     test_run.nodes = ["n0", "n1", "n2", "n3"]
-    test_run.num_nodes_explicit = True
 
     assert td.constraint_check(test_run, slurm_system)
 
@@ -735,9 +734,9 @@ def test_constraint_allows_vllm_multinode_dp_using_local_rank_capacity(
         worker.args.tensor_parallel_size = 1
         worker.args.pipeline_parallel_size = 1
         worker.args.data_parallel_size = 8
-    test_run.num_nodes = 4
+    td = td.model_copy(update={"num_nodes": 4})
+    test_run.test_definition = td
     test_run.nodes = ["n0", "n1", "n2", "n3"]
-    test_run.num_nodes_explicit = True
 
     assert td.constraint_check(test_run, slurm_system)
 

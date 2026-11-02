@@ -39,7 +39,6 @@ class SlurmContainerTestDefinition(TestDefinition):
     """Test definition for a generic Slurm container test."""
 
     cmd_args: SlurmContainerCmdArgs
-    extra_srun_args: list[str] = Field(default_factory=list)
     scripts: list[File] = Field(default_factory=list)
     _docker_image: Optional[DockerImage] = None
 

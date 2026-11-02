@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,19 +18,22 @@ from __future__ import annotations
 
 import copy
 import itertools
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, TypeAlias, Union
+import pathlib
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
+
+import pydantic
+import pydantic.json_schema
+import toml
 
 import cloudai.metrics
 
+from ..models.scenario import TestScenario
+from ..models.workload import TestDefinition
 from ..util import flatten_dict
 from .registry import Registry
 from .system import System
 
 if TYPE_CHECKING:
-    from ..models.scenario import ReportConfig
-    from ..models.workload import TestDefinition
     from .report_generation_strategy import ReportGenerationStrategy
 
 
@@ -77,34 +80,98 @@ class TestDependency:
         self.test_run = test_run
 
 
-@dataclass
-class TestRun:
-    __test__ = False
+class TestRun(pydantic.BaseModel):
+    """Mutable execution state bound to one prepared test definition."""
 
-    name: str
-    test: TestDefinition
-    num_nodes: Union[int, list[int]]
-    nodes: List[str]
-    exclude_nodes: List[str] = field(default_factory=list)
-    output_path: Path = Path("")
-    iterations: int = 1
+    __test__ = False
+    model_config = pydantic.ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    # Prepared definitions may already contain scalar environment-parameter draws.
+    test_definition: pydantic.SerializeAsAny[pydantic.SkipValidation[TestDefinition]]
+    nodes: list[str] = pydantic.Field(default_factory=list)
+    output_path: pathlib.Path = pathlib.Path("")
     current_iteration: int = 0
     step: int = 0
-    time_limit: Optional[str] = None
-    sol: Optional[float] = None
-    metric_sol: cloudai.metrics.MetricSOLConfig = field(default_factory=dict)
-    weight: float = 0.0
-    ideal_perf: float = 1.0
-    dependencies: dict[str, TestDependency] = field(default_factory=dict)
-    pre_test: Optional[TestScenario] = None
-    post_test: Optional[TestScenario] = None
-    reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
-    extra_srun_args: str | None = None
-    num_nodes_explicit: bool = False
-    pin_nodes: bool = False
+    # These references connect live executions; the definition already stores dependency IDs.
+    dependencies: pydantic.json_schema.SkipJsonSchema[dict[str, TestDependency]] = pydantic.Field(
+        default_factory=dict, exclude=True, repr=False
+    )
+    pre_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
+    post_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
+
+    @pydantic.model_validator(mode="after")
+    def inherit_nodes(self) -> TestRun:
+        if "nodes" not in self.model_fields_set:
+            self.nodes = list(self.test_definition.nodes)
+        return self
+
+    @pydantic.field_validator("test_definition", mode="before")
+    @classmethod
+    def load_definition(cls, value: Any) -> TestDefinition:
+        """Keep prepared instances intact; restore dictionaries using their workload class."""
+        if isinstance(value, TestDefinition):
+            return value
+        workload_type = value["test_template_name"]
+        # Temporary workaround: saved runs have chosen values but retain exploration rules.
+        # Remove this flag once parsing extracts the exploration space from TestDefinition.
+        return Registry().test_definitions_map[workload_type].model_validate(value, context={"materialized": True})
+
+    @pydantic.field_serializer("output_path")
+    def dump_output_path(self, value: pathlib.Path) -> str:
+        return str(value.absolute())
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    @property
+    def test(self) -> TestDefinition:
+        """Alias retained for existing workloads and reporters."""
+        return self.test_definition
+
+    @test.setter
+    def test(self, value: TestDefinition) -> None:
+        self.test_definition = value
+
+    @property
+    def name(self) -> str:
+        return self.test_definition.id or self.test_definition.name
+
+    @property
+    def num_nodes(self) -> int | list[int]:
+        return self.test_definition.num_nodes if self.test_definition.num_nodes is not None else 1
+
+    @property
+    def num_nodes_explicit(self) -> bool:
+        return self.test_definition.num_nodes is not None and "num_nodes" in self.test_definition.model_fields_set
+
+    @property
+    def time_limit(self) -> str | None:
+        return self.test_definition.time_limit
+
+    @property
+    def sol(self) -> float | cloudai.metrics.MetricSOLConfig | None:
+        return self.test_definition.sol
+
+    @property
+    def reports(self) -> set[type[ReportGenerationStrategy]]:
+        return self.test_definition.reporters
+
+    @property
+    def exclude_nodes(self) -> list[str]:
+        return self.test_definition.exclude_nodes
+
+    @property
+    def iterations(self) -> int:
+        return self.test_definition.iterations
+
+    @property
+    def extra_srun_args(self) -> str | None:
+        return " ".join(self.test_definition.extra_srun_args) or None
 
     def __hash__(self) -> int:
-        return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
+        return hash(
+            self.name + self.test_definition.name + str(self.test_definition.iterations) + str(self.current_iteration)
+        )
 
     def has_more_iterations(self) -> bool:
         """
@@ -113,7 +180,7 @@ class TestRun:
         Returns
             bool: True if more iterations are pending, False otherwise.
         """
-        return self.current_iteration + 1 < self.iterations
+        return self.current_iteration + 1 < self.test_definition.iterations
 
     def increment_step(self) -> int:
         """Advance the trial counter and return the new value."""
@@ -122,14 +189,14 @@ class TestRun:
 
     @property
     def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
-        if not self.reports:
+        if not self.test_definition.reporters:
             return None
 
-        if not self.test.agent_metrics:
+        if not self.test_definition.agent_metrics:
             return None
 
-        for r in self.reports:
-            if all(metric in r.metrics for metric in self.test.agent_metrics):
+        for r in self.test_definition.reporters:
+            if all(metric in r.metrics for metric in self.test_definition.agent_metrics):
                 return r
 
         return None
@@ -143,7 +210,7 @@ class TestRun:
 
     @property
     def is_dse_job(self) -> bool:
-        return self.test.is_dse_job or isinstance(self.num_nodes, list)
+        return self.test_definition.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
     def is_domain_randomization_active(self) -> bool:
@@ -155,11 +222,13 @@ class TestRun:
         sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
         surfaces instead of this one.
         """
-        if not self.test.is_domain_randomization_enabled:
+        if not self.test_definition.is_domain_randomization_enabled:
             return False
 
         registry = Registry()
-        agent = registry.get_agent(self.test.agent) if registry.has_agent(self.test.agent) else None
+        agent = (
+            registry.get_agent(self.test_definition.agent) if registry.has_agent(self.test_definition.agent) else None
+        )
         return self.is_dse_job and (agent is None or agent.supports_variable_environment)
 
     @property
@@ -171,16 +240,16 @@ class TestRun:
 
     @property
     def param_space(self) -> dict[str, Any]:
-        cmd_args_dict = flatten_dict(self.test.cmd_args.model_dump())
-        extra_env_vars_dict = self.test.extra_env_vars
+        cmd_args_dict = flatten_dict(self.test_definition.cmd_args.model_dump())
+        extra_env_vars_dict = self.test_definition.extra_env_vars
 
         action_space: dict[str, Any] = {
             **{
                 key: value
                 for key, value in cmd_args_dict.items()
                 if isinstance(value, list)
-                and not self.test.is_dse_excluded_arg(key)
-                and not self.test.is_env_sampled(key)
+                and not self.test_definition.is_dse_excluded_arg(key)
+                and not self.test_definition.is_env_sampled(key)
             },
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
@@ -209,7 +278,7 @@ class TestRun:
         return all_combinations
 
     def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
-        tdef = self.test.model_copy(deep=True)
+        tdef = self.test_definition.model_copy(deep=True)
 
         # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
         # action and env_params target disjoint keys, so a plain merge applies both in one pass.
@@ -218,9 +287,7 @@ class TestRun:
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
             elif key == "NUM_NODES":
-                # Handled below via new_tr.num_nodes; cmd_args has no such field, and CmdArgs'
-                # extra="allow" would otherwise let this create a phantom attribute on it.
-                continue
+                tdef.num_nodes = value
             else:
                 attrs = key.split(".")
                 obj = tdef.cmd_args
@@ -239,63 +306,37 @@ class TestRun:
         type(tdef)(**validation_args)  # trigger validation
 
         new_tr = copy.deepcopy(self)
-        new_tr.test = tdef
-        if "NUM_NODES" in action:
-            new_tr.num_nodes = action["NUM_NODES"]
+        new_tr.test_definition = tdef
         return new_tr
 
 
-@dataclass(frozen=True)
-class ConfigPaths:
-    """Source paths used to build a system and test scenario."""
+def _convert_legacy_run(data: dict[str, Any], fallback: TestDefinition | None) -> dict[str, Any]:
+    """Translate the old TestRunDetails layout into TestRun fields."""
+    definition = fallback.model_dump() if fallback is not None else {}
+    definition.update(data["test_definition"])
+    definition.update(id=data["name"], num_nodes=data["nnodes"], iterations=data["iterations"])
+    return {
+        "test_definition": definition,
+        "nodes": data["nodes"],
+        "output_path": data["output_path"],
+        "current_iteration": data["current_iteration"],
+        "step": data["step"],
+    }
 
-    system_path: Path
-    tests_dir_path: Optional[Path]
-    test_scenario_path: Path
 
-
-@dataclass
-class TestScenario:
+def load_test_run(path: pathlib.Path, fallback: TestDefinition | None = None) -> TestRun:
     """
-    Represents a test scenario, comprising a set of tests.
+    Read a saved execution; use scenario defaults only for incomplete legacy definitions.
 
-    Attributes
-        name (str): Unique name of the test scenario.
-        tests (List[Test]): Tests in the scenario.
-        job_status_check (bool): Flag indicating whether to check the job status or not.
-        reports (dict[str, ReportConfig] | None): Report configurations for the scenario.
-        config_paths (Optional[ConfigPaths]): Source configuration paths, when parsed from files.
+    The containing folder determines the output path so copied result folders remain usable.
+    Reporter registrations come from the supplied definition, never from the saved file.
     """
-
-    __test__ = False
-
-    name: str
-    test_runs: list[TestRun]
-    job_status_check: bool = True
-    reports: dict[str, ReportConfig] = field(default_factory=dict)
-    config_paths: Optional[ConfigPaths] = None
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the TestScenario instance.
-
-        Returns
-            str: String representation of the test scenario.
-        """
-        test_names = ", ".join([tr.test.name for tr in self.test_runs])
-        return f"TestScenario(name={self.name}, tests=[{test_names}])"
-
-    def pretty_print(self) -> str:
-        """Print each test in the scenario along with its section name, description, and visualized dependencies."""
-        s = f"Test Scenario: {self.name}\n"
-        for tr in self.test_runs:
-            s += f"\nSection Name: {tr.name}\n"
-            s += f"  Test Name: {tr.test.name}\n"
-            s += f"  Description: {tr.test.description}\n"
-            if tr.dependencies:
-                for dep_type, dependency in tr.dependencies.items():
-                    if dependency:
-                        s += f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}"
-            else:
-                s += "  No dependencies"
-        return s
+    with path.open() as stream:
+        data = toml.load(stream)
+    if "nnodes" in data:
+        data = _convert_legacy_run(data, fallback)
+    run = TestRun.model_validate(data)
+    run.output_path = path.parent
+    if fallback is not None:
+        run.test_definition = run.test_definition.model_copy(update={"reporters": fallback.reporters})
+    return run

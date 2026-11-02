@@ -19,7 +19,6 @@ from pathlib import Path
 import toml
 
 from cloudai.core import CommandGenStrategy, TestRun
-from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.standalone import StandaloneSystem
 from cloudai.workloads.sleep import SleepCmdArgs, SleepStandaloneCommandGenStrategy, SleepTestDefinition
 
@@ -31,7 +30,11 @@ def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_sys
         test_template_name="Sleep",
         cmd_args=SleepCmdArgs(seconds=60),
     )
-    tr = TestRun(name="sleep-job", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "sleep-job", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
 
     strategy = SleepStandaloneCommandGenStrategy(standalone_system, tr)
     command = strategy.gen_exec_command()
@@ -40,6 +43,6 @@ def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_sys
 
     dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     assert dump_path.is_file()
-    details = TestRunDetails.model_validate(toml.load(dump_path))
-    assert details.test_cmd == "sleep 60"
-    assert details.full_cmd == "sleep 60"
+    details = TestRun.model_validate(toml.load(dump_path))
+    assert details.test_definition == tr.test_definition
+    assert details.output_path == tr.output_path

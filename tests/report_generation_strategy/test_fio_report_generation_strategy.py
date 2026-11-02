@@ -42,7 +42,9 @@ def test_fio_report_happy_path(standalone_system: StandaloneSystem, tmp_path: Pa
         test_template_name="Fio",
         cmd_args=FioCmdArgs(args={"name": "smoke"}),
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
     (tmp_path / "stdout.txt").write_text(FIO_STDOUT)
     strategy = FioReportGenerationStrategy(standalone_system, tr)
 
@@ -80,7 +82,9 @@ def _strategy_for_metric(
             metric_aggregate=metric_aggregate,
         ),
     )
-    tr = TestRun(name="fio", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "fio", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
     (tmp_path / "stdout.txt").write_text(FIO_STDOUT)
     return FioReportGenerationStrategy(standalone_system, tr)
 

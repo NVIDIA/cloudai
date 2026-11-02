@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import datetime
 import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 import cloudai.models.output
 import cloudai.output
@@ -32,7 +34,10 @@ from .job_status_result import JobStatusResult
 from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .system import System
-from .test_scenario import TestRun, TestScenario
+from .test_run import TestRun
+
+if TYPE_CHECKING:
+    from ..models.scenario import TestScenario
 
 
 class BaseRunner(ABC):

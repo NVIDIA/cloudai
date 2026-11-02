@@ -78,7 +78,7 @@ class SlurmRunner(BaseRunner):
         return timestamp.astimezone(datetime.timezone.utc) if timestamp.utcoffset() is not None else None
 
     def submit_test(self, tr: TestRun) -> None:
-        if tr.pin_nodes and tr.name in self.pinned_nodes:
+        if tr.test.pin_nodes and tr.name in self.pinned_nodes:
             tr.nodes = self.pinned_nodes[tr.name].copy()
             logging.info("Forcing test case '%s' to use pinned nodes: %s", tr.name, ",".join(tr.nodes))
         super().submit_test(tr)
@@ -112,7 +112,7 @@ class SlurmRunner(BaseRunner):
         self.store_job_metadata(slurm_job)
 
         tr = slurm_job.test_run
-        if self.mode == "run" and tr.pin_nodes and tr.name not in self.pinned_nodes:
+        if self.mode == "run" and tr.test.pin_nodes and tr.name not in self.pinned_nodes:
             if not slurm_job.nodes:
                 logging.error("Cannot pin test case '%s': the job has no recorded node allocation", tr.name)
             else:

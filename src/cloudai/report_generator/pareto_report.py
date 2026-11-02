@@ -261,12 +261,11 @@ class ParetoReporter(cloudai.core.Reporter):
         try:
             dump = tr.output_path / "test-run.toml"
             if dump.exists():
-                details = cloudai.models.scenario.TestRunDetails.model_validate(toml.load(dump))
-                if details.test_definition is None:
-                    raise ValueError("Missing executed test definition")
-                tr.test = details.test_definition
-                tr.num_nodes = details.nnodes
-                tr.nodes = details.nodes
+                loaded = cloudai.core.load_test_run(dump, tr.test)
+                loaded.current_iteration = tr.current_iteration
+                loaded.step = tr.step
+                tr = loaded
+                run.tr = loaded
             elif tr.is_dse_job:
                 raise ValueError("Missing test-run.toml for sweep step")
             run.config = toml.dumps(

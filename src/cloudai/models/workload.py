@@ -14,17 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationInfo, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 from typing_extensions import Self
 
 import cloudai.metrics
-from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, Registry, System, TestRun
+from cloudai._core.installables import GitRepo, Installable, PythonExecutable
+from cloudai._core.job_status_result import JobStatusResult
+from cloudai._core.registry import Registry
+from cloudai.configurator.env_params import EnvParamSpec
 
-from ..configurator.env_params import EnvParamSpec
+if TYPE_CHECKING:
+    from cloudai.core import System, TestRun
 
 
 class CmdArgs(BaseModel):
@@ -99,12 +106,38 @@ class TrainingReportConfig(BaseModel):
     exclude_post_profiling_steps: int = Field(default=2, ge=0)
 
 
+class TestRunDependencyModel(BaseModel):
+    """Model for test dependency in test scenario."""
+
+    __test__ = False
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
+    id: str
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
     __test__ = False
 
     model_config = ConfigDict(extra="forbid")
+
+    id: str | None = Field(default=None, min_length=1)
+    num_nodes: int | list[int] | None = None
+    nodes: list[str] = Field(default_factory=list)
+    pin_nodes: bool = False
+    exclude_nodes: list[str] = Field(default_factory=list)
+    weight: float = 0.0
+    iterations: int = 1
+    sol: float | cloudai.metrics.MetricSOLConfig | None = None
+    reporters: SkipJsonSchema[set[type]] = Field(default_factory=set, exclude=True, repr=False)
+    ideal_perf: float = 1.0
+    time_limit: str | None = None
+    dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
+    extra_srun_args: list[str] = Field(default_factory=list)
+
     name: str
     description: str
     test_template_name: str
@@ -131,6 +164,25 @@ class TestDefinition(BaseModel, ABC):
             "persists them in the trajectory output, and includes them in the trajectory cache key."
         ),
     )
+
+    @field_validator("sol", mode="before")
+    @classmethod
+    def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:
+        return cloudai.metrics.parse_sol_spec(value) if isinstance(value, dict) else value
+
+    @field_validator("extra_srun_args", mode="before")
+    @classmethod
+    def parse_extra_srun_args(cls, value: Any) -> list[str]:
+        """Accept legacy string fragments and lists without changing shell quoting."""
+        if isinstance(value, str):
+            return [value] if value else []
+        return TypeAdapter(list[str]).validate_python([] if value is None else value)
+
+    @model_validator(mode="after")
+    def validate_pin_nodes(self) -> Self:
+        if self.pin_nodes and isinstance(self.num_nodes, list):
+            raise ValueError("pin_nodes cannot be enabled when num_nodes is swept")
+        return self
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
@@ -231,7 +283,7 @@ class TestDefinition(BaseModel, ABC):
         return self
 
     @model_validator(mode="after")
-    def validate_env_params(self) -> Self:
+    def validate_env_params(self, info: ValidationInfo) -> Self:
         """
         Validate env_params annotations against cmd_args.
 
@@ -245,7 +297,10 @@ class TestDefinition(BaseModel, ABC):
         live in ``CloudAIGymEnv``; keeping this shape check in core lets the overlay stay
         agent- and workload-agnostic rather than re-implemented per workload.
         """
-        if not self.env_params:
+        # Saved executions contain scalar draws rather than the original candidate lists.
+        # Temporary workaround until parsing extracts the exploration space from TestDefinition;
+        # then saved runs will no longer need this validation exception.
+        if not self.env_params or (info.context and info.context.get("materialized")):
             return self
 
         cmd_args_fields = getattr(type(self.cmd_args), "model_fields", None)

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,9 @@ def megatron_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
-    tr = TestRun(name="n", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "n", "num_nodes": 1}), nodes=[], output_path=tmp_path
+    )
 
     stdout_content = """
         save-checkpoint ................................: (1.1, 10.2)

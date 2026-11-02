@@ -22,7 +22,9 @@ from cloudai.workloads.sleep import SleepCmdArgs, SleepKubernetesJsonGenStrategy
 
 def test_job_name_sanitization(k8s_system: KubernetesSystem) -> None:
     tdef = SleepTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=SleepCmdArgs())
-    tr = TestRun(name="t!e@st#-n$am%e^", test=tdef, nodes=["node1"], num_nodes=1)
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "t!e@st#-n$am%e^", "num_nodes": 1}), nodes=["node1"]
+    )
     json_gen = SleepKubernetesJsonGenStrategy(k8s_system, tr)
 
     assert json_gen.gen_json()["metadata"]["name"] == json_gen.sanitize_k8s_job_name(tr.name)

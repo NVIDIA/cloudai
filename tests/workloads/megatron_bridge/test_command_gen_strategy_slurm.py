@@ -44,7 +44,11 @@ def strategy(slurm_system: SlurmSystem, tmp_path: Path) -> MegatronBridgeSlurmCo
     tdef.python_executable.venv_path = tmp_path / "nemo-run-venv"
     return MegatronBridgeSlurmCommandGenStrategy(
         slurm_system,
-        TestRun(name="bridge", test=tdef, num_nodes=2, nodes=[], output_path=tmp_path / "job"),
+        TestRun(
+            test_definition=tdef.model_copy(update={"id": "bridge", "num_nodes": 2}),
+            nodes=[],
+            output_path=tmp_path / "job",
+        ),
     )
 
 
@@ -237,9 +241,11 @@ def test_custom_srun_args(
     assert isinstance(tdef, MegatronBridgeTestDefinition)
     tdef.extra_cmd_args = native_args.copy()
     strategy.system.extra_srun_args = "--comment='smoke test' --kill-on-bad-exit=1"
-    strategy.test_run.extra_srun_args = "--cpu-bind=none"
+    tdef = tdef.model_copy(update={"extra_srun_args": ["--cpu-bind=none"]})
+    strategy.test_run.test_definition = tdef
     strategy.test_run.pre_test = TestScenario(
-        name="pre", test_runs=[TestRun(name="hook", test=tdef, num_nodes=2, nodes=[])]
+        name="pre",
+        test_runs=[TestRun(test_definition=tdef.model_copy(update={"id": "hook", "num_nodes": 2}), nodes=[])],
     )
     with patch.object(SlurmCommandGenStrategy, "pre_test_srun_extra_args", return_value=["--overlap"]):
         parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))

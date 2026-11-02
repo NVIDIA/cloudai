@@ -49,14 +49,13 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test_scenario import (
+from ._core.test_run import (
     METRIC_ERROR,
-    ConfigPaths,
     MetricErrorSentinel,
     MetricValue,
     TestDependency,
     TestRun,
-    TestScenario,
+    load_test_run,
 )
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
 from .configurator.cloudai_gym import CloudAIGymEnv
@@ -68,6 +67,7 @@ from .configurator.env_params import (
 )
 from .configurator.grid_search import GridSearchAgent
 from .configurator.gymnasium_adapter import GymnasiumAdapter
+from .models.scenario import ConfigPaths, TestScenario
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
@@ -140,4 +140,5 @@ __all__ = [
     "UploadStats",
     "case_name",
     "format_validation_error",
+    "load_test_run",
 ]

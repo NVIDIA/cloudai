@@ -26,7 +26,11 @@ from cloudai.workloads.srt_slurm import SRTSlurmCommandGenStrategy
 
 def test_single_sbatch_rejected(slurm_system: SlurmSystem, tmp_path: Path, make_tdef):
     tdef = make_tdef(tmp_path)
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output")
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "srt", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "output",
+    )
     with pytest.raises(ValueError, match="single-sbatch"):
         SRTSlurmCommandGenStrategy(slurm_system, tr).gen_srun_command()
 
@@ -36,7 +40,11 @@ def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path:
     original = tdef.cmd_args.recipe_path.read_text()
     tdef.cmd_args.recipe_override_mode = "render"
     tdef.srtctl.venv_path = tmp_path / "venv"
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "results")
+    tr = TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "srt", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "results",
+    )
     strategy = SRTSlurmCommandGenStrategy(slurm_system, tr)
     strategy.gen_exec_command()
     rendered = tr.output_path / "srt_slurm_recipe.yaml"
@@ -47,5 +55,6 @@ def test_rendered_overrides_support_old_cli(slurm_system: SlurmSystem, tmp_path:
     assert str(rendered) in strategy._paths()["run_script"].read_text()
     assert "--set" not in strategy._paths()["run_script"].read_text()
     tdef.cmd_args.recipe_overrides = {"roles": {"agg": {"typo": 1}}}
+    invalid_run = TestRun(test_definition=tdef, nodes=[], output_path=tr.output_path)
     with pytest.raises(ValueError, match=r"absent key: roles\.agg\.typo"):
-        strategy.gen_exec_command()
+        SRTSlurmCommandGenStrategy(slurm_system, invalid_run).gen_exec_command()

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -85,6 +85,7 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
             {"Step": range(1, len(train_step_timings) + 1), "train_step_timing in s": train_step_timings}
         )
 
+        sol = self.test_run.sol
         report_tool = BokehReportTool(self.test_run.output_path)
         report_tool.add_linear_xy_line_plot(
             title="Train Step Timing over Steps",
@@ -92,7 +93,7 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
             y_column="train_step_timing in s",
             x_axis_label="Step",
             df=df,
-            sol=self.test_run.sol,
+            sol=sol if isinstance(sol, (float, int)) else None,
             color="black",
         )
         report_tool.finalize_report(Path("cloudai_nemo_launcher_bokeh_report.html"))

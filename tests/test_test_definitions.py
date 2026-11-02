@@ -31,7 +31,6 @@ from cloudai.core import (
     TestParser,
     TestRun,
 )
-from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import TrainingReportConfig
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
@@ -459,20 +458,16 @@ def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_tr
     assert test_def.cmd_args.data.num_train_samples == expected_num_train_samples
 
 
-def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSystem):
+def test_workload_can_be_restored_from_saved_run(slurm_system: SlurmSystem):
     tdef = NIXLBenchTestDefinition(
         name="n",
         description="d",
         test_template_name="NIXLBench",
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", path_to_benchmark="./nixlbench"),
     )
-    trd = TestRunDetails.from_test_run(
-        TestRun(name="test", test=tdef, num_nodes=1, nodes=[]),
-        "test cmd",
-        "full cmd",
-    )
+    run = TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "test", "num_nodes": 1}), nodes=[])
 
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
-    serialized = toml.dumps(trd.model_dump())
+    serialized = toml.dumps(run.model_dump(mode="json"))
     recreated = NIXLBenchTestDefinition.model_validate(toml.loads(serialized)["test_definition"])
-    assert recreated == tdef
+    assert recreated == run.test_definition

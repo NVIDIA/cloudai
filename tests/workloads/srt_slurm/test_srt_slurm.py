@@ -57,7 +57,7 @@ benchmark:
         }
     )
 
-    test_run = TestRun(name="dse", test=tdef, num_nodes=1, nodes=[])
+    test_run = TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "dse", "num_nodes": 1}), nodes=[])
     assert test_run.param_space == {
         "recipe_overrides.roles.agg.gpus": [1, 2, 4],
         "recipe_overrides.benchmark.concurrencies": [[32, 64], [64, 128]],
@@ -145,7 +145,7 @@ def test_optional_hf_model_installables(tmp_path: Path, make_tdef, models: list[
 
     assert tdef.installables == [tdef.srtctl, *(HFModel(model_name=name) for name in models)]
     assert tdef.hf_models == models
-    tr = TestRun(name="srt", test=tdef, num_nodes=1, nodes=[])
+    tr = TestRun(test_definition=tdef.model_copy(deep=True, update={"id": "srt", "num_nodes": 1}), nodes=[])
     assert not any("hf_models" in name for name in tr.param_space)
 
 
