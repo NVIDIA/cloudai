@@ -154,15 +154,14 @@ class BaseAgent(ABC):
             result = self.select_action(observation=observation)
             if result is None:
                 break
-            trial_index, action = result
-            sweep_step = self.env.progress + 1
-            logging.info("Proposal %s for step %s/%s: %s", trial_index, sweep_step, self.max_steps, action)
+            step, action = result
+            logging.info("Proposal %s for step %s/%s: %s", step, self.env.progress + 1, self.max_steps, action)
             prev_observation = observation
-            observation, reward, done, _ = self.env.step(action)
+            observation, reward, done, *_ = self.env.step(action)
 
             self.update_policy(
                 {
-                    "trial_index": trial_index,
+                    "trial_index": step,
                     "value": reward,
                     "observation": observation,
                     "prev_observation": prev_observation,

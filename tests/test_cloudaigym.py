@@ -259,7 +259,6 @@ def test_constraint_failure(
     assert obs == [-1.0]
     assert reward == expected_reward
     assert done is True
-    assert info["constraint_rejected"] is True
     assert checked_steps == [1]
     assert env.test_run.step == 0
     assert env.progress == 0
@@ -279,14 +278,12 @@ def test_custom_loop_advances_after_rejection_limit(
     env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
     adapter = GymnasiumAdapter(env)
     action = cast(dict[str, object], adapter.action_space.sample())
-    info: dict[str, object] = {}
 
     with caplog.at_level("INFO"):
         for _ in range(2):
             adapter.reset()
-            _, _, terminated, _, info = adapter.step(action)
+            _, _, terminated, _, _ = adapter.step(action)
             assert terminated is True
-            assert info["constraint_rejected"] is True
 
     assert "Skipping DSE step 1 after repeated constraint rejections" in caplog.text
     assert env.progress == 1

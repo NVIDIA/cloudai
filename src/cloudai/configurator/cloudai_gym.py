@@ -61,8 +61,6 @@ class CloudAIGymEnv(BaseGym):
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
         self.max_consecutive_rejected_proposals = max_consecutive_rejected_proposals
-        if self.max_consecutive_rejected_proposals < 1:
-            raise ValueError("max_consecutive_rejected_proposals must be at least 1")
         self._progress = test_run.step
         self._consecutive_rejections = 0
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
@@ -201,7 +199,6 @@ class CloudAIGymEnv(BaseGym):
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
                 logging.info("Constraint check failed for step %s", trial)
                 self._consecutive_rejections += 1
-                info["constraint_rejected"] = True
                 if self._consecutive_rejections >= self.max_consecutive_rejected_proposals:
                     logging.info("Skipping DSE step %s after repeated constraint rejections", trial)
                     self._advance_progress()
