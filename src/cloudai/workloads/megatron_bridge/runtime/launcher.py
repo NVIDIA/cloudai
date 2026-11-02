@@ -24,6 +24,14 @@ from types import SimpleNamespace
 from typing import Any
 
 
+def _reuse_wandb_run_id(run_id: str) -> None:
+    runid: Any = importlib.import_module("wandb.sdk.lib.runid")
+    runid.generate_id = lambda: run_id
+    wandb = importlib.import_module("wandb")
+    if hasattr(wandb.util, "generate_id"):
+        wandb.util.generate_id = lambda: run_id
+
+
 def main(launcher: str, output: str) -> None:
     """Generate a job or evaluate its completed logs without submitting another job."""
     run: Any = importlib.import_module("nemo_run")
@@ -34,18 +42,20 @@ def main(launcher: str, output: str) -> None:
     evaluate = sys.argv[1:2] == ["--cloudai-evaluate"]
 
     if evaluate:
-        wandb = importlib.import_module("wandb")
-
         context = json.loads(context_path.read_text())
         sys.argv = [launcher, *context["args"]]
-        if context["wandb_run_id"]:
-            wandb.util.generate_id = lambda: os.environ.get("WANDB_RUN_ID", context["wandb_run_id"])
+        run_id: str | None = context["wandb_run_id"]
+        if run_id:
+            run_id = os.environ.get("WANDB_RUN_ID", run_id)
+            _reuse_wandb_run_id(run_id)
         submitted = False
 
         def completed_run(*args, **kwargs):
             nonlocal submitted
             if submitted:
                 raise RuntimeError("Evaluation attempted to submit another training job.")
+            if run_id and kwargs["executor"].env_vars.get("WANDB_RUN_ID") != run_id:
+                raise RuntimeError("Evaluation did not preserve the training wandb run ID.")
             submitted = True
             for key, value in kwargs["executor"].env_vars.items():
                 if key.startswith("WANDB_"):
