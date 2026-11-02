@@ -143,3 +143,7 @@ Please feel free to contribute to the CloudAI project and share your insights. Y
 
 ## License
 This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
+
+## External Materials
+
+See the [Notice and Disclaimer](https://nvidia.github.io/cloudai/#external-materials-notice) in the CloudAI documentation before using external materials retrieved by CloudAI.
