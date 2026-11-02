@@ -44,7 +44,7 @@ class CloudAIGymEnv(BaseGym):
         test_run: TestRun,
         runner: BaseRunner,
         rewards: RewardOverrides,
-        max_consecutive_rejected_proposals: int | None = None,
+        max_consecutive_rejected_proposals: int,
     ):
         """
         Initialize the Gym environment using the TestRun object.
@@ -60,10 +60,7 @@ class CloudAIGymEnv(BaseGym):
         self.runner = runner
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
-        configured_limit = (test_run.test.agent_config or {}).get("max_consecutive_rejected_proposals", 16)
-        self.max_consecutive_rejected_proposals = int(
-            configured_limit if max_consecutive_rejected_proposals is None else max_consecutive_rejected_proposals
-        )
+        self.max_consecutive_rejected_proposals = max_consecutive_rejected_proposals
         if self.max_consecutive_rejected_proposals < 1:
             raise ValueError("max_consecutive_rejected_proposals must be at least 1")
         self._progress = test_run.step
@@ -202,13 +199,12 @@ class CloudAIGymEnv(BaseGym):
             reward = cast(float, cached_result["reward"])
         else:
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
-                logging.info("Constraint check failed. Requesting another proposal without consuming a step.")
+                logging.info("Constraint check failed for step %s", trial)
                 self._consecutive_rejections += 1
                 info["constraint_rejected"] = True
-                info["step_skipped"] = self._consecutive_rejections >= self.max_consecutive_rejected_proposals
-                if info["step_skipped"]:
+                if self._consecutive_rejections >= self.max_consecutive_rejected_proposals:
+                    logging.info("Skipping DSE step %s after repeated constraint rejections", trial)
                     self._advance_progress()
-                info["sweep_progress"] = self.progress
                 return [-1.0], self.rewards.constraint_failure, True, info
 
             self.test_run = candidate_test_run
@@ -245,7 +241,9 @@ class CloudAIGymEnv(BaseGym):
         )
 
         self._advance_progress()
-        info["sweep_progress"] = self.progress
+        logging.info(
+            "Step %s: Observation: %s, Reward: %.4f", trial, [round(obs, 4) for obs in observation.values()], reward
+        )
 
         return list(observation.values()), reward, False, info
 

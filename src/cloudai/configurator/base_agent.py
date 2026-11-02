@@ -47,7 +47,6 @@ class BaseAgentConfig(BaseModel):
     start_action: Literal["random", "first"] = "random"
     max_consecutive_rejected_proposals: int = Field(
         default=16,
-        ge=1,
         description="Maximum constraint-rejected proposals before the environment skips the current DSE step.",
     )
     rewards: RewardOverrides = Field(
@@ -159,8 +158,7 @@ class BaseAgent(ABC):
             sweep_step = self.env.progress + 1
             logging.info("Proposal %s for step %s/%s: %s", trial_index, sweep_step, self.max_steps, action)
             prev_observation = observation
-            observation, reward, done, info = self.env.step(action)
-            constraint_rejected = info.get("constraint_rejected", False)
+            observation, reward, done, _ = self.env.step(action)
 
             self.update_policy(
                 {
@@ -173,17 +171,4 @@ class BaseAgent(ABC):
                 }
             )
 
-            if constraint_rejected:
-                logging.info("Proposal %s was rejected by the constraint check", trial_index)
-                if info.get("step_skipped", False):
-                    logging.info(
-                        "Skipping DSE step %s/%s after repeated constraint rejections", sweep_step, self.max_steps
-                    )
-            else:
-                logging.info(
-                    "Step %s: Observation: %s, Reward: %.4f",
-                    sweep_step,
-                    [round(obs, 4) for obs in observation],
-                    reward,
-                )
         return 0

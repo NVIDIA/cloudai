@@ -16,8 +16,6 @@
 
 from typing import Any
 
-import pytest
-
 from cloudai.core import BaseAgent, BaseAgentConfig
 
 
@@ -63,7 +61,7 @@ class _RejectingEnv:
             self._progress += 1
             self._consecutive_rejections = 0
             self.skipped_steps += 1
-        return [-1.0], -1.0, False, {"constraint_rejected": True, "step_skipped": skipped}
+        return [-1.0], -1.0, False, {"constraint_rejected": True}
 
     @property
     def progress(self) -> int:
@@ -138,19 +136,16 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
     assert all("execution_step" not in feedback for feedback in agent.updates)
 
 
-def test_run_skips_steps_after_rejected_proposal_limit(caplog: pytest.LogCaptureFixture) -> None:
+def test_run_skips_steps_after_rejected_proposal_limit() -> None:
     env = _RejectingEnv(rejection_limit=3)
     agent = _RecordingAgent(env, BaseAgentConfig(max_consecutive_rejected_proposals=3))
 
-    with caplog.at_level("INFO"):
-        assert agent.run() == 0
+    assert agent.run() == 0
 
     assert agent.proposals == 6
     assert env.skipped_steps == 2
     assert len(agent.updates) == 6
     assert all(feedback["value"] == -1.0 for feedback in agent.updates)
-    assert "Skipping DSE step 1/2 after repeated constraint rejections" in caplog.text
-    assert "Skipping DSE step 2/2 after repeated constraint rejections" in caplog.text
 
 
 def test_successful_execution_resets_rejected_proposal_limit() -> None:

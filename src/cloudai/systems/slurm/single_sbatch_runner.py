@@ -235,6 +235,7 @@ class SingleSbatchRunner(SlurmRunner):
                 tr,
                 self,
                 rewards=agent_config.rewards,
+                max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
             )
 
             try:
