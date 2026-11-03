@@ -43,11 +43,6 @@ v0.7.0, explicitly disable detach in the test configuration:
    [extra_cmd_args]
    "--detach" = "false"
 
-These versions default to detached execution, which skips native post-training
-finalization. CloudAI passes this option through without overriding its default.
-Disabling detach does not change the training computation; native evaluation
-options determine which comparisons run.
-
 .. note::
 
    This workload has a hard requirement for the HuggingFace Hub token. There are two options:
