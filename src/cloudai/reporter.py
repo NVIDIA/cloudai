@@ -32,7 +32,7 @@ from cloudai.report_generator.dse_report import build_dse_summaries, load_trajec
 from cloudai.report_generator.util import load_system_metadata
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
-from .models.scenario import TestRunDetails
+from .models.scenario import ExecutionError, TestRunDetails
 
 
 @dataclass
@@ -148,15 +148,24 @@ class JUnitReporter(Reporter):
     def generate(self) -> None:
         self.load_test_runs()
 
-        results = [(tr, tr.test.was_run_successful(tr), self._duration(tr.output_path)) for tr in self.trs]
-        failures = sum(not status.is_successful for _, status, _ in results)
-        durations = [duration for _, _, duration in results if duration is not None]
+        results = []
+        for tr in self.trs:
+            dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+            details = toml.load(dump_path) if dump_path.is_file() else {}
+            error = (
+                ExecutionError.model_validate(details["execution_error"]) if details.get("execution_error") else None
+            )
+            status = tr.test.was_run_successful(tr) if error is None else None
+            results.append((tr, status, self._duration(tr.output_path), error))
+        failures = sum(status is not None and not status.is_successful for _, status, _, _ in results)
+        errors = sum(error is not None for _, _, _, error in results)
+        durations = [duration for _, _, duration, _ in results if duration is not None]
 
         suite_attributes = {
             "name": self.test_scenario.name,
             "tests": str(len(results)),
             "failures": str(failures),
-            "errors": "0",
+            "errors": str(errors),
             "skipped": "0",
         }
         if durations:
@@ -164,13 +173,19 @@ class JUnitReporter(Reporter):
 
         root = ET.Element("testsuites", suite_attributes)
         suite = ET.SubElement(root, "testsuite", suite_attributes)
-        for tr, status, duration in results:
+        for tr, status, duration, error in results:
             attributes = {"name": case_name(tr), "classname": self.test_scenario.name}
             if duration is not None:
                 attributes["time"] = self._format_duration(duration)
 
             testcase = ET.SubElement(suite, "testcase", attributes)
-            if not status.is_successful:
+            if error is not None:
+                message = self._xml_text(f"{error.type}: {error.message}")
+                error_element = ET.SubElement(
+                    testcase, "error", {"type": self._xml_text(error.type), "message": message}
+                )
+                error_element.text = message
+            elif status is not None and not status.is_successful:
                 message = status.error_message or "Test run failed"
                 failure = ET.SubElement(testcase, "failure", {"message": self._xml_text(message)})
                 failure.text = self._xml_text(message)

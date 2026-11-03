@@ -20,7 +20,7 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
-from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+from cloudai.core import METRIC_ERROR, BaseRunner, JobSubmissionError, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import RewardOverrides
@@ -195,6 +195,8 @@ class CloudAIGymEnv(BaseGym):
 
             try:
                 self.runner.run()
+            except JobSubmissionError:
+                raise
             except Exception as e:
                 logging.error(f"Error running step {self.test_run.step}: {e}")
 
