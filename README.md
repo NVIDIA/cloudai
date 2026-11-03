@@ -52,10 +52,10 @@ its [prerequisites](https://nvidia.github.io/cloudai/workloads/workloads_require
 CloudAI uses three configuration types: a **system** describes where to run, a **test definition** describes the
 workload and its settings, and a **scenario** selects the test cases to execute.
 
-Use [`dry-run`](https://nvidia.github.io/cloudai/#dry-run) to inspect generated workload commands before execution.
+Use [`dry-run`](https://nvidia.github.io/cloudai/getting-started.html#dry-run) to inspect generated workload commands before execution.
 After an experiment, open its HTML reports or read `experiment.json` in the results directory. Configuration searches
 also produce a DSE report and a selected test configuration; see
-[report generation](https://nvidia.github.io/cloudai/#generate-report).
+[report generation](https://nvidia.github.io/cloudai/getting-started.html#generate-report).
 
 For installation alternatives and CLI examples, see the [documentation](https://nvidia.github.io/cloudai/#getting-started).
 

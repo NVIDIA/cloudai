@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "quickstart-nccl"
+
+[[Tests]]
+id = "all-reduce"
+name = "all-reduce"
+description = "Two-node NCCL all-reduce benchmark"
+test_template_name = "NcclTest"
+num_nodes = 2
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "128M"
+  iters = 20
+  warmup_iters = 5
+  stepfactor = 2
