@@ -265,7 +265,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         items: list[Installable] = [
-            File(Path(__file__).parent / "runtime" / "launcher.py"),
+            File(Path(__file__).parent / "runtime" / "mbridge_launcher.py"),
             self.python_executable,
             self.megatron_bridge_repo,
         ]
