@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "quickstart-vllm"
+
+[[Tests]]
+id = "vllm"
+name = "vllm"
+description = "Single-node Qwen inference benchmark"
+test_template_name = "vllm"
+num_nodes = 1
+time_limit = "00:10:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  model = "Qwen/Qwen3-0.6B"
+  serve_healthcheck = "/health"
+
+    [Tests.cmd_args.decode]
+    gpu_ids = "0"
+    tensor_parallel_size = 1
+
+  [Tests.bench_cmd_args]
+  random_input_len = 16
+  random_output_len = 128
+  max_concurrency = 16
+  num_prompts = 30

@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "quickstart-fio"
+
+[[Tests]]
+id = "fio"
+name = "fio"
+description = "Small local-file random-write benchmark"
+test_template_name = "Fio"
+num_nodes = 1
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  fio_binary = "fio"
+
+    [Tests.cmd_args.args]
+    name = "cloudai-quickstart"
+    filename = "/tmp/cloudai-fio-quickstart"
+    rw = "randwrite"
+    bs = "128k"
+    size = "80m"
+    iodepth = 1
+    numjobs = 1
+    group_reporting = true
+    thread = true
