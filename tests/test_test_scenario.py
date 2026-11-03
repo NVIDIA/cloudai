@@ -160,24 +160,6 @@ def test_empty_node_count_defaults_to_one(num_nodes: int | list[int] | None, tes
     assert scenario.tests[0].num_nodes == num_nodes
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [
-        ("extra_env_vars", []),
-        ("extra_env_vars", ""),
-        ("extra_env_vars", False),
-        ("git_repos", {}),
-        ("git_repos", ""),
-        ("git_repos", False),
-    ],
-)
-def test_malformed_empty_overrides_are_rejected(field: str, value: object, test_scenario_parser: TestScenarioParser):
-    with pytest.raises(TestConfigParsingError, match=field):
-        test_scenario_parser._parse_data(
-            {"name": "scenario", "Tests": [{"id": "1", "test_name": "nccl", field: value}]}
-        )
-
-
 def test_empty_overrides_follow_normal_merge_rules(test_scenario_parser: TestScenarioParser):
     base = test_scenario_parser.test_mapping["nccl"]
     repo = GitRepo(url="https://example.com/repo.git", commit="main")

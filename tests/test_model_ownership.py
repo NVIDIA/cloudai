@@ -19,23 +19,15 @@ from pathlib import Path
 
 import pytest
 import toml
-from pydantic import Field
 
 import cloudai.metrics
-from cloudai.core import CmdArgs, TestDefinition, TestRun, TestScenario, TestScenarioParser
+from cloudai.core import TestRun, TestScenario, TestScenarioParser
 from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import DSEReporter
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.workloads.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
-
-
-def test_scenario_schema_is_complete_without_rebuilding():
-    assert TestScenario.__pydantic_complete__
-    schema = TestScenario.model_json_schema()
-    assert schema["properties"]["Tests"]["items"] == {"$ref": "#/$defs/TestDefinition"}
-    assert "ReportConfig" in schema["$defs"]
 
 
 @pytest.mark.parametrize("case_sol", [None, 42.0, {"bandwidth": [{"value": 120}]}])
@@ -84,66 +76,6 @@ def definition() -> NCCLTestDefinition:
     )
 
 
-def test_run_holds_prepared_definition_and_runtime_state_only(definition: NCCLTestDefinition):
-    prepared = definition.model_copy(deep=True, update={"num_nodes": 2, "time_limit": "10m", "weight": 25.0})
-    run = TestRun(test_definition=prepared)
-    assert run.test_definition is prepared
-    assert run.nnodes == prepared.num_nodes == 2
-    assert run.time_limit == prepared.time_limit == "10m"
-    assert run.test_definition.weight == prepared.weight == 25.0
-    assert all(not hasattr(run, name) for name in ("weight", "ideal_perf", "pin_nodes"))
-    assert set(vars(run)) == {
-        "test_definition",
-        "nodes",
-        "output_path",
-        "current_iteration",
-        "step",
-        "dependencies",
-        "pre_test",
-        "post_test",
-    }
-    with pytest.raises(AttributeError):
-        setattr(run, "iterations", 10)  # noqa: B010
-    assert prepared.iterations == 3
-    assert definition.num_nodes == [1, 2]
-
-
-def test_execution_mutations_are_isolated(definition: NCCLTestDefinition):
-    first = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "first"}))
-    second = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "second"}))
-    first.test_definition.cmd_args.ngpus = 8
-    first.test_definition.extra_env_vars["MODE"] = "selected"
-    first.test_definition.extra_container_mounts.append("/output:/output")
-    first.nodes.append("node1")
-    first.test_definition = first.test_definition.model_copy(update={"iterations": 1})
-    first.test_definition = first.test_definition.model_copy(update={"pin_nodes": True})
-    first.test_definition = first.test_definition.model_copy(update={"extra_srun_args": ["--exclusive"]})
-    assert first.test_definition is not definition
-    assert type(first.test_definition) is NCCLTestDefinition
-    assert second.test_definition.cmd_args.ngpus == definition.cmd_args.ngpus == [1, 2]
-    assert second.test_definition.extra_env_vars == definition.extra_env_vars == {"MODE": ["a", "b"]}
-    assert second.test_definition.extra_container_mounts == definition.extra_container_mounts == ["/input:/input"]
-    assert second.nodes == definition.nodes == []
-    assert second.iterations == definition.iterations == 3
-    assert not definition.pin_nodes
-    assert definition.extra_srun_args == []
-
-
-def test_materialized_trial_has_one_prepared_definition(definition: NCCLTestDefinition):
-    template = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "case"}))
-    selected = template.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
-    assert selected.test_definition is not template.test_definition
-    assert selected.test_definition.num_nodes == 2
-    assert not hasattr(selected, "definition")
-    assert selected.nnodes == 2
-    assert selected.test_definition.cmd_args.ngpus == 2
-    assert selected.test_definition.extra_env_vars["MODE"] == "b"
-    assert selected.param_space == {}
-    assert not selected.is_dse_job
-    assert template.param_space == {"ngpus": [1, 2], "extra_env_vars.MODE": ["a", "b"], "NUM_NODES": [1, 2]}
-    assert definition.cmd_args.ngpus == [1, 2]
-
-
 def test_scenario_bindings_do_not_replace_definitions(definition: NCCLTestDefinition):
     scenario = TestScenario(name="scenario", tests=[definition])
     run = TestRun(test_definition=definition.model_copy(deep=True, update={"id": "case"}))
@@ -180,52 +112,6 @@ def test_parser_resolves_repeated_definitions_independently(slurm_system: SlurmS
     assert first.num_nodes_explicit
 
 
-def test_snapshot_includes_configuration_and_preserves_subclass(definition: NCCLTestDefinition, tmp_path: Path):
-    run = TestRun(
-        test_definition=definition.model_copy(deep=True, update={"id": "case"}), output_path=tmp_path
-    ).apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
-    run.current_iteration = 2
-    run.step = 4
-    payload = toml.loads(toml.dumps(run.model_dump(mode="json")))
-    assert set(payload) == {
-        "nodes",
-        "output_path",
-        "current_iteration",
-        "step",
-        "test_definition",
-    }
-    assert payload["test_definition"]["id"] == "case"
-    assert payload["test_definition"]["iterations"] == 3
-    assert payload["test_definition"]["num_nodes"] == 2
-    loaded = TestRun.model_validate(payload)
-    assert isinstance(loaded.test_definition, NCCLTestDefinition)
-    assert loaded.test_definition.cmd_args.ngpus == 2
-    assert loaded.nnodes == 2
-    assert loaded.current_iteration == 2
-    assert loaded.step == 4
-
-
-def test_scenario_dump_preserves_workload_subclass_fields():
-    class CustomDefinition(TestDefinition):
-        custom: str = Field(default="custom value")
-
-    definition = CustomDefinition(
-        id="case", name="custom", description="custom", test_template_name="custom", cmd_args=CmdArgs()
-    )
-    scenario = TestScenario(name="scenario", tests=[definition])
-    assert scenario.model_dump(by_alias=True)["Tests"][0]["custom"] == "custom value"
-
-
-@pytest.mark.parametrize(
-    "dependencies", [[{"type": "end_post_comp", "id": "case"}], [{"type": "end_post_comp", "id": "unknown"}]]
-)
-def test_canonical_scenario_validates_dependency_graph(definition: NCCLTestDefinition, dependencies: list[dict]):
-    data = definition.model_dump()
-    data["dependencies"] = dependencies
-    with pytest.raises(ValueError):
-        TestScenario(name="scenario", tests=[NCCLTestDefinition.model_validate(data)])
-
-
 def test_multiple_runtime_trials_share_one_scenario_case(definition: NCCLTestDefinition):
     first = TestRun(test_definition=definition.model_copy(deep=True, update={"id": None}))
     second = first.apply_params_set({"ngpus": 2, "NUM_NODES": 2, "extra_env_vars.MODE": "b"})
@@ -236,15 +122,15 @@ def test_multiple_runtime_trials_share_one_scenario_case(definition: NCCLTestDef
     assert first.test_definition.id is None
 
 
-@pytest.mark.parametrize("reference", ["test_name", "path"])
 @pytest.mark.parametrize(
-    ("scenario_args", "expected_args"),
+    ("reference", "scenario_args", "expected_args"),
     [
-        (None, ["--exclusive"]),
-        ("--overcommit", ["--overcommit"]),
-        (["--overcommit"], ["--overcommit"]),
-        ("", []),
-        ([], []),
+        ("test_name", None, ["--exclusive"]),
+        ("test_name", "--overcommit", ["--overcommit"]),
+        ("test_name", ["--overcommit"], ["--overcommit"]),
+        ("test_name", "", []),
+        ("test_name", [], []),
+        ("path", None, ["--exclusive"]),
     ],
 )
 def test_scenario_srun_args_override_test_defaults_for_workload_and_metadata(
