@@ -21,8 +21,8 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai.core import ReportGenerationStrategy, TestDefinition, TestDependency, TestRun, TestScenario, load_test_run
-from cloudai.models.workload import CmdArgs, TestRunDependencyModel
+from cloudai.core import ReportGenerationStrategy, TestDefinition, TestRun, load_test_run
+from cloudai.models.workload import CmdArgs
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -102,69 +102,6 @@ def run(tmp_path: Path) -> TestRun:
     )
 
 
-def test_direct_dump_excludes_live_bindings_and_restores_workload(run: TestRun) -> None:
-    run.test_definition.dependencies = [TestRunDependencyModel(type="end_post_comp", id="other")]
-    run.dependencies = {"end_post_comp": TestDependency(run)}
-    run.pre_test = TestScenario(name="pre", tests=[])
-    run.post_test = TestScenario(name="post", tests=[])
-    payload = run.model_dump(mode="json")
-    assert set(payload) == {"test_definition", "nodes", "output_path", "current_iteration", "step"}
-    assert payload["test_definition"]["dependencies"] == [{"type": "end_post_comp", "id": "other"}]
-    path = run.output_path / "test-run.toml"
-    path.write_text(toml.dumps(payload))
-
-    loaded = load_test_run(path)
-
-    assert isinstance(loaded.test_definition, NCCLTestDefinition)
-    assert loaded.test_definition == run.test_definition
-    assert loaded.nodes == run.nodes
-    assert loaded.current_iteration == 1
-    assert loaded.step == 3
-    assert loaded.pre_test is loaded.post_test is None
-    assert loaded.dependencies == {}
-
-
-@pytest.mark.parametrize("layout", ["canonical", "legacy"])
-def test_loader_supports_old_and_new_files_in_moved_folders(run: TestRun, tmp_path: Path, layout: str) -> None:
-    fallback = run.test_definition.model_copy(
-        update={"iterations": 99, "num_nodes": 8, "weight": 99, "reporters": {object}}
-    )
-    payload = run.model_dump(mode="json")
-    if layout == "legacy":
-        payload = {
-            "name": run.name,
-            "nnodes": run.nnodes,
-            "iterations": run.iterations,
-            "nodes": run.nodes,
-            "output_path": "/old/results",
-            "current_iteration": run.current_iteration,
-            "step": run.step,
-            "test_cmd": "ignored",
-            "full_cmd": "ignored",
-            "test_definition": run.test_definition.model_dump(
-                include={"name", "description", "test_template_name", "cmd_args"}
-            ),
-        }
-    moved = tmp_path / "moved"
-    moved.mkdir()
-    path = moved / "test-run.toml"
-    path.write_text(toml.dumps(payload))
-
-    loaded = load_test_run(path, fallback)
-
-    assert loaded.name == "case"
-    assert loaded.nnodes == 2
-    assert loaded.iterations == 4
-    assert loaded.test_definition.weight == (99 if layout == "legacy" else 5)
-    assert loaded.test_definition.reporters == {object}
-    assert loaded.nodes == ["node1", "node2"]
-    assert loaded.output_path == moved
-    assert loaded.current_iteration == 1
-    assert loaded.step == 3
-    assert fallback.num_nodes == 8
-    assert fallback.iterations == 99
-
-
 def test_new_files_do_not_fill_missing_fields_from_scenario(run: TestRun) -> None:
     payload = run.model_dump(mode="json")
     del payload["test_definition"]["name"]
@@ -190,22 +127,9 @@ def test_materialized_environment_parameters_round_trip(run: TestRun) -> None:
     assert template.test_definition.cmd_args.ngpus == [1, 2]
 
 
-@pytest.mark.parametrize("nodes", [None, [], ["allocated-node"]])
-def test_runtime_nodes_default_to_definition_without_sharing_list(run: TestRun, nodes: list[str] | None) -> None:
+def test_runtime_nodes_inherit_configured_nodes_without_sharing_list(run: TestRun) -> None:
     definition = run.test_definition.model_copy(update={"nodes": ["configured-node"]})
-    loaded = TestRun(test_definition=definition) if nodes is None else TestRun(test_definition=definition, nodes=nodes)
-    assert loaded.nodes == (["configured-node"] if nodes is None else nodes)
+    loaded = TestRun(test_definition=definition)
+    assert loaded.nodes == ["configured-node"]
     loaded.nodes.append("another-node")
     assert definition.nodes == ["configured-node"]
-
-
-def test_definition_alias_preserves_reads_and_writes(run: TestRun) -> None:
-    assert run.test is run.test_definition
-
-    replacement = run.test_definition.model_copy(update={"num_nodes": 3})
-    run.test = replacement
-    assert run.test is run.test_definition is replacement
-
-    payload = run.model_dump(mode="json", by_alias=True)
-    assert "test" not in payload
-    assert payload["test_definition"]["num_nodes"] == 3

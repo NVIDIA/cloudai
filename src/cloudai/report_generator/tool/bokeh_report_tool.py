@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,7 +107,7 @@ class BokehReportTool:
             sol (Optional[float]): The SOL value to be plotted, if provided.
         """
         if sol is not None:  # Only add the SOL line if a value is provided
-            sol_df = pd.DataFrame({x_column: df[x_column], y_column: [sol] * len(df)})
+            sol_df = lazy.pd.DataFrame({x_column: df[x_column], y_column: [sol] * len(df)})
             sol_source = lazy.bokeh_models.ColumnDataSource(sol_df)
             plot.line(
                 x=x_column,

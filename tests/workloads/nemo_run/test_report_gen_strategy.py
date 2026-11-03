@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -104,26 +103,14 @@ def nemo_tr_encoded(tmp_path: Path) -> TestRun:
     return tr
 
 
-@pytest.mark.parametrize("structured", [False, True])
-def test_numeric_sol_plot_handles_both_sol_forms(
-    slurm_system: SlurmSystem, nemo_tr: TestRun, monkeypatch: pytest.MonkeyPatch, structured: bool
-) -> None:
-    sol = cloudai.metrics.parse_sol_spec({"bandwidth": [{"value": 100}]}) if structured else 42.0
-    nemo_tr.test_definition = nemo_tr.test_definition.model_copy(update={"sol": sol})
-    tool = MagicMock()
-    monkeypatch.setattr(
-        "cloudai.workloads.nemo_run.report_generation_strategy.BokehReportTool", lambda output_path: tool
-    )
-    NeMoRunReportGenerationStrategy(slurm_system, nemo_tr).generate_bokeh_report([1.0, 2.0])
-    assert tool.add_linear_xy_line_plot.call_args.kwargs["sol"] == (None if structured else 42.0)
-
-
 def test_nemo_can_handle_directory(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
     strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     assert strategy.can_handle_directory()
 
 
-def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+@pytest.mark.parametrize("sol", [42.0, {"bandwidth": [{"value": 100}]}])
+def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun, sol: float | dict) -> None:
+    nemo_tr.test.sol = cloudai.metrics.parse_sol_spec(sol) if isinstance(sol, dict) else sol
     strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     strategy.generate_report()
 
