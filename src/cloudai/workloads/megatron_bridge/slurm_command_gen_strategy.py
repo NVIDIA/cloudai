@@ -196,7 +196,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str((root / "env_vars.sh").absolute()),
             str(root.absolute()),
             str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python"),
-            str((self.system.install_path / tdef.script.src.name).absolute()),
+            str((self.system.install_path / "launcher.py").absolute()),
             str(repo / "scripts/performance/setup_experiment.py"),
         ]
 
@@ -379,7 +379,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
             str(python_bin),
-            shlex.quote(str((self.system.install_path / tdef.script.src.name).absolute())),
+            shlex.quote(str((self.system.install_path / "launcher.py").absolute())),
             "generate",
             "--launcher",
             shlex.quote(str(launcher_py.absolute())),

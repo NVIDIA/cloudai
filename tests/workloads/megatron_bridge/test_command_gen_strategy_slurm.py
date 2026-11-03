@@ -177,7 +177,7 @@ def test_launcher_argument_translation(
     parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))
     command = " ".join(shlex.split(" ".join(parts)))
     assert shlex.split(" ".join(parts))[2:9] == [
-        str((strategy.system.install_path / tdef.script.src.name).absolute()),
+        str((strategy.system.install_path / "launcher.py").absolute()),
         "generate",
         "--launcher",
         str(Path("launcher.py").absolute()),
@@ -216,7 +216,7 @@ def test_evaluation_command(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp
         str(root / "env_vars.sh"),
         str(root),
         str(tmp_path / "python env/bin/python"),
-        str((strategy.system.install_path / tdef.script.src.name).absolute()),
+        str((strategy.system.install_path / "launcher.py").absolute()),
         str(repo / "scripts/performance/setup_experiment.py"),
     ]
 

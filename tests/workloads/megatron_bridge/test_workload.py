@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.core import GitRepo, TestRun
+from cloudai.core import File, GitRepo, TestRun
 from cloudai.workloads.megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 from cloudai.workloads.megatron_bridge.megatron_bridge import find_mbridge_log
 
@@ -96,7 +96,8 @@ def test_constraint_check_virtual_pipeline_and_moe_pipelining(
     tmp_path: Path,
 ) -> None:
     tdef = _megatron_bridge_tdef()
-    assert tdef.script in tdef.installables
+    assert any(isinstance(item, File) and item.src.name == "launcher.py" for item in tdef.installables)
+    assert "script" not in tdef.model_dump()
     tdef.cmd_args.ep = ep
     tdef.cmd_args.pp = pp
     tdef.cmd_args.vp = vp
