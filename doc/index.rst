@@ -9,27 +9,18 @@ Run training, inference, communication, and storage benchmarks through one frame
 Explore configurations with optimization agents, compare measured results, and add the integrations your systems need.
 
 .. _overview:
-
-.. topic:: Run different benchmarks
-
-   Use a common configuration model, CLI, and Python API across workloads and supported execution environments.
-
 .. _configuration-search:
 
-.. topic:: Find better configurations
+.. image:: _static/cloudai-workflow.svg
+   :alt: CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.
+   :target: _static/cloudai-workflow.svg
+   :width: 100%
 
-   Define a search space and performance objective. Use built-in grid search or integrate a custom optimization agent.
-   Plan the number and cost of evaluations around your compute budget; grid search evaluates every combination.
-
-.. topic:: Extend the framework
-
-   Add workloads, reporters, execution systems, and optimization agents through CloudAI's interfaces and registry.
-   Start with the :doc:`development guide <DEV>` and `reporter integration <reporting.html#reporting-registration>`_.
-
-.. topic:: Compare and reuse results
-
-   Inspect performance trade-offs and reuse the best configuration observed during a search.
-   See :doc:`reporting` and :doc:`Pareto frontiers <pareto-frontiers>`.
+Start with fixed settings or built-in grid search, which evaluates every combination in the search space.
+Custom agents can use measured feedback to select configurations and stop according to their policy.
+Estimate evaluation costs before launching. Extend CloudAI with :doc:`workloads and execution systems <DEV>`,
+`reporters <reporting.html#reporting-registration>`_, or your own optimization agents.
+See :doc:`reporting` and :doc:`Pareto frontiers <pareto-frontiers>` to interpret and compare results.
 
 .. _getting-started:
 
