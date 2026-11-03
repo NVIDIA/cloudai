@@ -150,8 +150,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return None
 
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        patcher_path = self._write_dryrun_patcher(launcher_py)
-        parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, patcher_path)
+        parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, launcher_py)
         launcher_cmd = " ".join(parts)
         (self.test_run.output_path / "cloudai_megatron_bridge_launcher.sh").write_text(launcher_cmd + "\n")
         log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
@@ -183,36 +182,35 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise RuntimeError(f"Megatron-Bridge dry-run did not generate an sbatch script. See {log_path}.")
         return script
 
-    def _write_dryrun_patcher(self, launcher_py: Path) -> Path:
-        patcher_path = self.test_run.output_path / "cloudai_megatron_bridge_dryrun.py"
-        patcher_path.write_text(
-            (Path(__file__).parent / "runtime" / "launcher.py").read_text()
-            + f"\nmain({str(launcher_py)!r}, {str(self.test_run.output_path.absolute())!r})\n"
+    def _build_evaluation_command(self) -> list[str]:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        root = self.test_run.output_path
+        repo = (
+            tdef.megatron_bridge_repo.installed_path or self.system.install_path / tdef.megatron_bridge_repo.repo_name
         )
-        return patcher_path
+        return [
+            "/bin/bash",
+            "-c",
+            'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" evaluate --launcher "$5" --output "$2"',
+            "mbridge-evaluate",
+            str((root / "env_vars.sh").absolute()),
+            str(root.absolute()),
+            str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python"),
+            str((self.system.install_path / tdef.script.src.name).absolute()),
+            str(repo / "scripts/performance/setup_experiment.py"),
+        ]
 
     def _evaluate(self) -> None:
-        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
         root = self.test_run.output_path
         status = root / "cloudai_megatron_bridge_evaluation.exitcode"
         if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
             return
-        python = str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python")
         with (root / "cloudai_megatron_bridge_evaluation.log").open("w") as log:
             # Record failure first so interrupted evaluations cannot appear successful.
             status.write_text("1\n")
             try:
                 result = subprocess.run(
-                    [
-                        "/bin/bash",
-                        "-c",
-                        'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" --cloudai-evaluate',
-                        "mbridge-evaluate",
-                        str((root / "env_vars.sh").absolute()),
-                        str(root.absolute()),
-                        python,
-                        str((root / "cloudai_megatron_bridge_dryrun.py").absolute()),
-                    ],
+                    self._build_evaluation_command(),
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     timeout=600,
@@ -381,7 +379,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
             str(python_bin),
-            str(Path(launcher_py).absolute()),
+            shlex.quote(str((self.system.install_path / tdef.script.src.name).absolute())),
+            "generate",
+            "--launcher",
+            shlex.quote(str(launcher_py.absolute())),
+            "--output",
+            shlex.quote(str(self.test_run.output_path.absolute())),
+            "--",
         ]
 
         def add(flag: str, value: Any) -> None:

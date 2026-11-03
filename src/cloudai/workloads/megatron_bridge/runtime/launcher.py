@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import importlib
 import json
 import os
@@ -32,16 +33,16 @@ def _reuse_wandb_run_id(run_id: str) -> None:
         wandb.util.generate_id = lambda: run_id
 
 
-def main(launcher: str, output: str) -> None:
+def main(mode: str, launcher: str, output: str, args: list[str]) -> None:
     """Generate a job or evaluate its completed logs without submitting another job."""
     run: Any = importlib.import_module("nemo_run")
 
     root = Path(output)
     context_path = root / "cloudai_megatron_bridge_context.json"
     sys.path.insert(0, str(Path(launcher).parent))
-    evaluate = sys.argv[1:2] == ["--cloudai-evaluate"]
+    sys.argv = [launcher, *args]
 
-    if evaluate:
+    if mode == "evaluate":
         context = json.loads(context_path.read_text())
         sys.argv = [launcher, *context["args"]]
         run_id: str | None = context["wandb_run_id"]
@@ -67,7 +68,6 @@ def main(launcher: str, output: str) -> None:
             status=lambda **kwargs: {"completed": {"local_dir": job_dir, "status": "SUCCEEDED"}}
         )
     else:
-        args = sys.argv[1:]
         original_dryrun = run.Experiment.dryrun
         original_run = run.run
 
@@ -94,3 +94,12 @@ def main(launcher: str, output: str) -> None:
         run.run = generate
 
     runpy.run_path(launcher, run_name="__main__")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("mode", choices=["generate", "evaluate"])
+    parser.add_argument("--launcher", required=True)
+    parser.add_argument("--output", required=True)
+    options, native_args = parser.parse_known_args()
+    main(options.mode, options.launcher, options.output, native_args[1:])

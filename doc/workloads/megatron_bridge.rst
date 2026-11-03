@@ -12,6 +12,12 @@ Without the installed MBridge launcher or NeMo Run Python environment,
 logs a warning. The placeholder exits with an error if executed. Install the
 dependencies and repeat the dry-run to generate the complete training script.
 
+CloudAI installs ``runtime/launcher.py`` as a ``File`` installable. The same
+script handles generation and evaluation through explicit ``generate`` and
+``evaluate`` modes, with ``--launcher`` and ``--output`` arguments. Generation
+passes native Megatron-Bridge arguments after ``--``; no per-run Python source
+is generated. Run ``cloudai install`` when updating the runtime script.
+
 CloudAI owns the job name, output/error paths, and node placement. Configured
 CloudAI allocation directives override matching NeMo Run directives; other
 NeMo Run directives and training artifact paths are retained. Set scenario

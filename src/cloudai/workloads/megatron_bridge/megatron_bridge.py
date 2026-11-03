@@ -22,7 +22,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
+from cloudai.core import DockerImage, File, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 HF_TOKEN_REDACTION = "<REDACTED>"
@@ -192,6 +192,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
     """Megatron-Bridge test definition (CloudAI-managed install + Slurm submission via launcher)."""
 
     cmd_args: MegatronBridgeCmdArgs
+    script: File = File(Path(__file__).parent / "runtime" / "launcher.py")
 
     _docker_image: Optional[DockerImage] = None
     _python_executable: Optional[PythonExecutable] = None
@@ -264,7 +265,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        items: list[Installable] = [self.python_executable, self.megatron_bridge_repo]
+        items: list[Installable] = [self.script, self.python_executable, self.megatron_bridge_repo]
         if self.cmd_args.container_image:
             items.insert(0, self.docker_image)
         return items

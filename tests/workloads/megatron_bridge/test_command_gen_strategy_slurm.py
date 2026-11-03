@@ -176,6 +176,15 @@ def test_launcher_argument_translation(
     tdef.extra_cmd_args = {"logger.tensorboard_dir": "/custom tensorboard", "logger.log_memory_to_tensorboard": "false"}
     parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))
     command = " ".join(shlex.split(" ".join(parts)))
+    assert shlex.split(" ".join(parts))[2:9] == [
+        str((strategy.system.install_path / tdef.script.src.name).absolute()),
+        "generate",
+        "--launcher",
+        str(Path("launcher.py").absolute()),
+        "--output",
+        str(strategy.test_run.output_path.absolute()),
+        "--",
+    ]
     for fragment in expected:
         assert fragment in command
     for flag in absent:
@@ -183,6 +192,33 @@ def test_launcher_argument_translation(
     assert "logger.tensorboard_dir=/custom tensorboard" in shlex.split(" ".join(parts))
     assert "logger.log_memory_to_tensorboard=false" in command
     assert "logger.tensorboard_dir=/nemo_run/tb_logs" not in command
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_evaluation_command(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_path: Path, installed: bool) -> None:
+    tdef = strategy.test_run.test
+    assert isinstance(tdef, MegatronBridgeTestDefinition)
+    tdef.git_repos = [GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="v0.4.0")]
+    repo = (
+        tmp_path / "installed repo" if installed else strategy.system.install_path / tdef.megatron_bridge_repo.repo_name
+    )
+    if installed:
+        tdef.megatron_bridge_repo.installed_path = repo
+    root = tmp_path / "run output"
+    strategy.test_run.output_path = root
+    tdef.python_executable.venv_path = tmp_path / "python env"
+
+    assert strategy._build_evaluation_command() == [
+        "/bin/bash",
+        "-c",
+        'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" evaluate --launcher "$5" --output "$2"',
+        "mbridge-evaluate",
+        str(root / "env_vars.sh"),
+        str(root),
+        str(tmp_path / "python env/bin/python"),
+        str((strategy.system.install_path / tdef.script.src.name).absolute()),
+        str(repo / "scripts/performance/setup_experiment.py"),
+    ]
 
 
 @pytest.mark.parametrize(

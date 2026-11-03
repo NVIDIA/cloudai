@@ -96,6 +96,7 @@ def test_constraint_check_virtual_pipeline_and_moe_pipelining(
     tmp_path: Path,
 ) -> None:
     tdef = _megatron_bridge_tdef()
+    assert tdef.script in tdef.installables
     tdef.cmd_args.ep = ep
     tdef.cmd_args.pp = pp
     tdef.cmd_args.vp = vp
