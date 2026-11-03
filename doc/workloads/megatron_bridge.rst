@@ -35,6 +35,19 @@ For Nsight profiling, use Megatron-Bridge's ``cmd_args.enable_nsys`` and
 ``profiling_start_step``, ``profiling_stop_step``, and ``profiling_ranks`` options.
 The generic CloudAI ``[nsys]`` configuration is not applied to this workload.
 
+To enable native post-training evaluation with Megatron-Bridge v0.3.0 through
+v0.7.0, explicitly disable detach in the test configuration:
+
+.. code-block:: toml
+
+   [extra_cmd_args]
+   "--detach" = "false"
+
+These versions default to detached execution, which skips native post-training
+finalization. CloudAI passes this option through without overriding its default.
+Disabling detach does not change the training computation; native evaluation
+options determine which comparisons run.
+
 .. note::
 
    This workload has a hard requirement for the HuggingFace Hub token. There are two options:

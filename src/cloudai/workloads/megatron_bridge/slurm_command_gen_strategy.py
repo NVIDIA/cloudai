@@ -233,7 +233,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).write_text(serialized)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
-        self._evaluate()
+        try:
+            self._evaluate()
+        except Exception:
+            logging.warning("MBridge evaluation failed unexpectedly.", exc_info=True)
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
         output_path = self.test_run.output_path
         if not output_path.exists():

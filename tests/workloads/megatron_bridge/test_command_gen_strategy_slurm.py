@@ -291,11 +291,24 @@ def test_launcher_container_resolution(
 
 
 @pytest.mark.parametrize("cleanup_error", [False, True])
-def test_artifact_cleanup(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_path: Path, cleanup_error: bool) -> None:
+@pytest.mark.parametrize("evaluation_state", ["missing", "error", "completed"])
+def test_artifact_cleanup(
+    strategy: MegatronBridgeSlurmCommandGenStrategy,
+    tmp_path: Path,
+    cleanup_error: bool,
+    evaluation_state: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     strategy.cleanup_job_artifacts()
     root = strategy.test_run.output_path
     code = root / "experiments/run/code"
     code.mkdir(parents=True)
+    if evaluation_state != "missing":
+        (root / "cloudai_megatron_bridge_training.success").touch()
+        # A directory at the log path makes evaluation fail before starting a subprocess.
+        (root / "cloudai_megatron_bridge_evaluation.log").mkdir()
+    if evaluation_state == "completed":
+        (root / "cloudai_megatron_bridge_evaluation.exitcode").write_text("0\n")
     (code / "source.py").write_text("packaged source")
     external = tmp_path / "external.log"
     external.write_text("dummy_token")
@@ -321,3 +334,6 @@ def test_artifact_cleanup(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_p
     assert artifact.read_bytes() == contents.replace(b"dummy_token", b"XXXXXXXXXXX")
     assert untouched.read_bytes() == b"dummy_token"
     assert external.read_text() == "dummy_token"
+    assert ("MBridge evaluation failed unexpectedly." in caplog.text) == (evaluation_state == "error")
+    if evaluation_state == "completed":
+        assert (root / "cloudai_megatron_bridge_evaluation.exitcode").read_text() == "0\n"
