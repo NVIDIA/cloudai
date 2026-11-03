@@ -74,7 +74,17 @@ def test_launcher_dependencies(
         if launcher_present and python_present:
             with pytest.raises(RuntimeError, match="Megatron-Bridge dry-run failed"):
                 strategy._generate_mbridge_sbatch()
-            run.assert_called_once()
+            assert run.call_count == 2
+            assert run.call_args_list[0].args[0] == [
+                str(venv / "bin/python"),
+                "-m",
+                "pip",
+                "install",
+                f"wandb=={tdef.cmd_args.wandb_version}",
+                f"numpy=={tdef.cmd_args.numpy_version}",
+            ]
+            assert run.call_args_list[0].kwargs["check"] is True
+            assert run.call_args_list[1].args[0][:2] == ["/bin/bash", "-c"]
         else:
             assert strategy._generate_mbridge_sbatch() is None
             run.assert_not_called()

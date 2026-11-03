@@ -419,7 +419,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             add_field("container_image", "-i", self.image_path())
         add_field("compute_dtype", "-c", args.compute_dtype)
         add_field("task", "--task", args.task)
-        add_field("hf_token", "-hf", args.hf_token)
+        add_field("hf_token", "--hf_token", args.hf_token)
         add_field("nemo_home", "-nh", args.nemo_home)
         add_field("wandb_key", "-wdk", args.wandb_key)
         add_field("wandb_project_name", "-wdp", args.wandb_project_name)
