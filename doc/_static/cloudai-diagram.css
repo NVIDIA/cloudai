@@ -1,0 +1,12 @@
+/* SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+ * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+img.cloudai-workflow {
+  color-scheme: light;
+  background: transparent;
+}
+
+html[data-theme="dark"] img.cloudai-workflow {
+  color-scheme: dark;
+}
