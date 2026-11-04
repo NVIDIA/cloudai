@@ -161,8 +161,8 @@ A test case can replace the targets for a metric inherited from the scenario or 
    [[Tests.sol.bandwidth]]
    value = 120.0
 
-The precedence is test case, then test TOML, then scenario, then system. A more specific level replaces the
-structured targets for that metric. NCCL and NIXL comparison v2 reports include measured, SOL,
+The precedence is test case, then scenario, then system. Test TOMLs can also supply ``sol`` targets, which a
+scenario case can override. NCCL and NIXL comparison v2 reports include measured, SOL,
 and percentage-of-SOL columns and draw a shared SOL curve when every compared run resolves the same targets.
 
 A test or scenario case can instead set a numeric ``sol``, such as ``sol = 100.0``. Numeric values are reference
