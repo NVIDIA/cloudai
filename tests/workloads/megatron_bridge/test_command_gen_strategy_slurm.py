@@ -303,6 +303,7 @@ def test_artifact_cleanup(
     root = strategy.test_run.output_path
     code = root / "experiments/run/code"
     code.mkdir(parents=True)
+    (root / "cloudai_megatron_bridge_launcher.log").write_text("Step Time: 1.0 s | GPU utilization: 100 TFLOP/s/GPU\n")
     if evaluation_state != "missing":
         (root / "cloudai_megatron_bridge_training.success").touch()
         # A directory at the log path makes evaluation fail before starting a subprocess.
@@ -337,3 +338,6 @@ def test_artifact_cleanup(
     assert ("MBridge evaluation failed unexpectedly." in caplog.text) == (evaluation_state == "error")
     if evaluation_state == "completed":
         assert (root / "cloudai_megatron_bridge_evaluation.exitcode").read_text() == "0\n"
+    if evaluation_state == "error":
+        assert (root / "cloudai_megatron_bridge_evaluation.exitcode").read_text() == "1\n"
+        assert not strategy.test_run.test.was_run_successful(strategy.test_run).is_successful

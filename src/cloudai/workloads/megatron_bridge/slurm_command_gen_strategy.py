@@ -205,9 +205,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         status = root / "cloudai_megatron_bridge_evaluation.exitcode"
         if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
             return
+        # Record failure before opening the log so log-open errors cannot appear successful.
+        status.write_text("1\n")
         with (root / "cloudai_megatron_bridge_evaluation.log").open("w") as log:
-            # Record failure first so interrupted evaluations cannot appear successful.
-            status.write_text("1\n")
             try:
                 result = subprocess.run(
                     self._build_evaluation_command(),
