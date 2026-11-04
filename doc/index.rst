@@ -45,9 +45,6 @@ See :doc:`getting-started` for installation alternatives and :doc:`systems` for 
 Choose a benchmark
 ~~~~~~~~~~~~~~~~~~
 
-Each example is a self-contained scenario; a separate test-definition directory is not needed.
-Select a workload tab. Expand **View configuration** to inspect or copy its scenario.
-
 .. tab-set::
 
    .. tab-item:: Inference
