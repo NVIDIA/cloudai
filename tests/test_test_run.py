@@ -102,12 +102,25 @@ def run(tmp_path: Path) -> TestRun:
     )
 
 
-def test_new_files_do_not_fill_missing_fields_from_scenario(run: TestRun) -> None:
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("name", None, "name"),
+        ("test_template_name", None, "test_template_name"),
+        ("test_template_name", "NotRegistered", "Unknown test_template_name"),
+    ],
+)
+def test_invalid_saved_definition_is_not_filled_from_scenario(
+    run: TestRun, field: str, value: str | None, message: str
+) -> None:
     payload = run.model_dump(mode="json")
-    del payload["test_definition"]["name"]
+    if value is None:
+        del payload["test_definition"][field]
+    else:
+        payload["test_definition"][field] = value
     path = run.output_path / "test-run.toml"
     path.write_text(toml.dumps(payload))
-    with pytest.raises(ValidationError, match="name"):
+    with pytest.raises(ValidationError, match=message):
         load_test_run(path, run.test_definition)
 
 

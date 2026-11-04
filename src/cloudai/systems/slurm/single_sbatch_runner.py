@@ -134,6 +134,7 @@ class SingleSbatchRunner(SlurmRunner):
             vboost_cmd = cmd_gen._enable_vboost_cmd().replace("srun ", f"srun {node_arg} ", 1)
             srun_cmd = f"{vboost_cmd}\n{srun_cmd}"
 
+        cmd_gen.store_test_run()
         return srun_cmd
 
     def unroll_dse(self, tr: TestRun) -> Generator[TestRun, None, None]:

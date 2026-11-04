@@ -88,6 +88,7 @@ class SlurmRunner(BaseRunner):
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
         try:
             exec_cmd = cmd_gen.gen_exec_command()
+            cmd_gen.store_test_run()
             logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
             job_id = 0
             if self.mode == "run":
@@ -100,10 +101,6 @@ class SlurmRunner(BaseRunner):
             except Exception:
                 logging.warning(f"Cleanup failed for test run at {tr.output_path}", exc_info=True)
             raise
-
-    def on_job_submit(self, tr: TestRun) -> None:
-        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
-        cmd_gen.store_test_run()
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")

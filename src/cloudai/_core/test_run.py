@@ -111,10 +111,15 @@ class TestRun(pydantic.BaseModel):
         """Keep prepared instances intact; restore dictionaries using their workload class."""
         if isinstance(value, TestDefinition):
             return value
+        if not isinstance(value, dict) or not isinstance(value.get("test_template_name"), str):
+            raise ValueError("test_definition requires a string 'test_template_name'")
         workload_type = value["test_template_name"]
+        definition_class = Registry().test_definitions_map.get(workload_type)
+        if definition_class is None:
+            raise ValueError(f"Unknown test_template_name '{workload_type}'")
         # Temporary workaround: saved runs have chosen values but retain exploration rules.
         # Remove this flag once parsing extracts the exploration space from TestDefinition.
-        return Registry().test_definitions_map[workload_type].model_validate(value, context={"materialized": True})
+        return definition_class.model_validate(value, context={"materialized": True})
 
     @pydantic.field_serializer("output_path")
     def dump_output_path(self, value: pathlib.Path) -> str:

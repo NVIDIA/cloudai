@@ -30,7 +30,9 @@ class KubernetesRunner(BaseRunner):
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         job_name = tr.name.replace(".", "-").lower()
-        job_spec = self.get_json_gen_strategy(self.system, tr).gen_json()
+        json_gen = self.get_json_gen_strategy(self.system, tr)
+        job_spec = json_gen.gen_json()
+        json_gen.store_test_run()
         job_kind = job_spec.get("kind", "").lower()
         logging.debug(f"Generated JSON string for test {tr.name}: {job_spec}")
 
@@ -41,10 +43,6 @@ class KubernetesRunner(BaseRunner):
         job = KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
 
         return job
-
-    def on_job_submit(self, tr: TestRun) -> None:
-        json_gen = self.get_json_gen_strategy(self.system, tr)
-        json_gen.store_test_run()
 
     def on_job_completion(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)

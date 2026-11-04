@@ -22,8 +22,8 @@ import pytest
 import toml
 import yaml
 
-from cloudai.core import GitRepo, TestRun, TestScenario
-from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
+from cloudai.core import GitRepo, TestRun, TestScenario, load_test_run
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     HICACHE_CONFIG_FILE_NAME,
     LMCACHE_CONFIG_BACKUP_FILE_NAME,
@@ -590,13 +590,21 @@ def test_shared_node_disagg_preserves_explicit_smaller_node_count(
 
 
 def test_separate_node_disagg_keeps_role_sum_when_num_nodes_is_omitted(
-    strategy: AIDynamoSlurmCommandGenStrategy,
+    strategy: AIDynamoSlurmCommandGenStrategy, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    strategy.test_run.nodes = []
-    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": 1})
-    strategy.test_run.test_definition = strategy.test_run.test_definition.model_copy(update={"num_nodes": None})
+    tr = strategy.test_run
+    tr.nodes = []
+    tr.test_definition = tr.test_definition.model_copy(update={"num_nodes": None, "test_template_name": "AIDynamo"})
+    runner = SlurmRunner("run", strategy.system, TestScenario(name="scenario", test_runs=[tr]), tr.output_path)
 
-    assert strategy.get_cached_nodes_spec()[0] == 2
+    def submit_job(system: SlurmSystem, command: str, name: str) -> int:
+        assert tr.nnodes == 2
+        assert load_test_run(tr.output_path / "test-run.toml").nnodes == 2
+        assert "--nodes=2" in (tr.output_path / "cloudai_sbatch_script.sh").read_text()
+        return 123
+
+    monkeypatch.setattr(SlurmSystem, "submit_job", submit_job)
+    runner.submit_test(tr)
 
 
 def test_explicit_overlapping_worker_nodes_are_allowed_for_shared_node(
