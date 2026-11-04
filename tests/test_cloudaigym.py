@@ -27,7 +27,7 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseRunner, RewardOverrides, Runner, TestRun, TestScenario
+from cloudai.core import BaseAgentConfig, BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -102,9 +102,22 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     return test_run, runner.runner
 
 
+def test_constructor_preserves_three_argument_call(setup_env: tuple[TestRun, BaseRunner]) -> None:
+    test_run, runner = setup_env
+
+    env = CloudAIGymEnv(test_run, runner, RewardOverrides())
+
+    assert env.max_consecutive_rejected_proposals == BaseAgentConfig().max_consecutive_rejected_proposals
+
+
 def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     observation_space = env.define_observation_space()
 
     expected_observation_space = [0.0]
@@ -146,7 +159,12 @@ def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
 )
 def test_compute_reward(reward_function, test_cases, base_tr: TestRun):
     base_tr.test.agent_reward_function = reward_function
-    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock(), rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=base_tr,
+        runner=MagicMock(),
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
 
     for input_value, expected_reward in test_cases:
         observation = {f"metric_{index}": value for index, value in enumerate(input_value)}
@@ -158,7 +176,12 @@ def test_compute_reward_invalid(base_tr: TestRun):
     base_tr.test.agent_reward_function = "nonexistent"
 
     with pytest.raises(KeyError) as exc_info:
-        CloudAIGymEnv(test_run=base_tr, runner=MagicMock(), rewards=RewardOverrides())
+        CloudAIGymEnv(
+            test_run=base_tr,
+            runner=MagicMock(),
+            rewards=RewardOverrides(),
+            max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+        )
 
     assert "Reward function 'nonexistent' not found" in str(exc_info.value)
     error = str(exc_info.value)
@@ -176,11 +199,18 @@ def test_compute_reward_invalid(base_tr: TestRun):
 def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     test_run.test.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    test_run.step = 41
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     agent = GridSearchAgent(env, GridSearchAgent.get_config_class()())
 
-    _, action = agent.select_action()
-    env.test_run.step = 41
+    result = agent.select_action()
+    assert result is not None
+    _, action = result
     env.step(action)
 
     assert env.test_run.output_path.name == "42", (
@@ -197,7 +227,11 @@ def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     ],
 )
 def test_constraint_failure(
-    nemorun: NeMoRunTestDefinition, tmp_path: Path, rewards: RewardOverrides, expected_reward: float
+    nemorun: NeMoRunTestDefinition,
+    tmp_path: Path,
+    rewards: RewardOverrides,
+    expected_reward: float,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
@@ -212,7 +246,20 @@ def test_constraint_failure(
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=rewards)
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=rewards,
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
+    checked_steps: list[int] = []
+    constraint_check = type(tdef).constraint_check
+
+    def record_checked_step(self, tr: TestRun, system: System | None) -> bool:
+        checked_steps.append(tr.step)
+        return constraint_check(self, tr, system)
+
+    monkeypatch.setattr(type(tdef), "constraint_check", record_checked_step)
 
     bad = {"trainer.strategy.context_parallel_size": 3}  # induce constraint failure
     obs, reward, done, info = env.step(bad)
@@ -220,7 +267,97 @@ def test_constraint_failure(
     assert obs == [-1.0]
     assert reward == expected_reward
     assert done is True
+    assert checked_steps == [1]
+    assert env.test_run.step == 0
+    assert env.progress == 0
+    assert env.upcoming_trial == 1
+    runner.run.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
+
+
+def test_custom_loop_advances_after_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    pytest.importorskip("gymnasium")
+    from cloudai.configurator.gymnasium_adapter import GymnasiumAdapter
+
+    test_run, runner = setup_env
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
+    adapter = GymnasiumAdapter(env)
+    action = cast(dict[str, object], adapter.action_space.sample())
+
+    with caplog.at_level("INFO"):
+        for _ in range(2):
+            adapter.reset()
+            _, _, terminated, _, _ = adapter.step(action)
+            assert terminated is True
+
+    assert "Skipping DSE step 1 after repeated constraint rejections" in caplog.text
+    assert env.progress == 1
+    assert env.test_run.step == 0
+    assert env.upcoming_trial == 2
+
+
+def test_successful_execution_resets_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    outcomes = iter([False, True, False, False])
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: next(outcomes))
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
+    actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
+
+    env.step(actions[0])
+    assert env.progress == 0
+    env.step(actions[1])
+    assert env.progress == 1
+    env.step(actions[2])
+    assert env.progress == 1
+    env.step(actions[3])
+    assert env.progress == 2
+
+
+def test_failed_workload_consumes_sweep_step(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    env = CloudAIGymEnv(
+        test_run,
+        runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
+    monkeypatch.setattr(runner, "run", MagicMock(side_effect=RuntimeError("workload failed")))
+    monkeypatch.setattr(env, "get_observation", MagicMock(return_value={"default": -1.0}))
+
+    env.step(env.first_sweep)
+
+    assert env.progress == 1
+    assert env.test_run.step == 1
+
+
+def test_cache_hit_resets_rejection_limit(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.step = 1
+    env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
+    actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
+    cached_action = actions[0]
+    env.trajectory.append(step=1, action=cached_action, reward=1.0, observation={"default": 1.0})
+    monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
+
+    env.step(actions[1])
+    assert env.progress == 1
+    env.step(cached_action)
+    assert env.progress == 2
+    env.step(actions[2])
+    assert env.progress == 2
+    env.step(actions[3])
+    assert env.progress == 3
 
 
 def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
@@ -413,7 +550,12 @@ def test_get_cached_trajectory_result(
     runner.testrun_to_job_map = {}
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
-    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=base_tr,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     env.trajectory = Trajectory(iteration_dir=env.iteration_dir, dataframe=pd.DataFrame(entries, dtype=object))
 
     actual = env.get_cached_trajectory_result(action, {})
@@ -435,23 +577,29 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
         nodes=[],
         reports={NeMoRunReportGenerationStrategy},
     )
+    test_run.step = 4
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     cached_action = {"trainer.max_steps": 1000}
     env.test_run.current_iteration = 0
     env.trajectory.append(step=1, action=cached_action, reward=0.42, observation={"default": 0.84})
 
-    env.test_run.step = 4
     obs, reward, done, _info = env.step(cached_action)
 
     runner.run.assert_not_called()
     assert reward == 0.42
     assert obs == [0.84]
     assert done is False
+    assert env.progress == 5
     rows = env.trajectory.dataframe
     assert len(rows) == 2
     assert rows.iloc[-1]["step"] == 5, (
@@ -498,7 +646,12 @@ def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> 
     runner.jobs = {}
     runner.testrun_to_job_map = {}
 
-    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=base_tr,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 1})
 
     assert env.get_cached_trajectory_result({"x": 10}, {"ball_speed": 2}) is None, (
@@ -517,7 +670,12 @@ def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: 
     runner.jobs = {}
     runner.testrun_to_job_map = {}
 
-    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=base_tr,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     _seed_cached_entry_with_env_params(env, {"x": 10}, env_params={"ball_speed": 2})
 
     result = env.get_cached_trajectory_result({"x": 10}, {"ball_speed": 2})
@@ -534,7 +692,12 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     runner.jobs = {}
     runner.testrun_to_job_map = {}
 
-    env = CloudAIGymEnv(test_run=base_tr, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=base_tr,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     env.test_run.current_iteration = 0
     env.trajectory = Trajectory(
         iteration_dir=env.iteration_dir,
@@ -551,7 +714,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     """Integration: two env.step() calls with the same action but different sampled env_params re-run.
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
-    full step() flow: increment_step -> sample env_params -> apply_params_set ->
+    full step() flow: sample env_params -> apply_params_set -> increment candidate ->
     cache lookup -> runner.run() -> trajectory append. With seed 42 the sampler
     draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
     cache key differs and the workload must re-run both times.
@@ -583,12 +746,16 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     runner.shutting_down = False
     runner.get_job_output_path.return_value = test_run.output_path
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     action = {"paddle_width": 4}
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}])
 
     with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
-        env.test_run.step = 0
         *_, info1 = env.step(action)  # samples ball_speed=3
         *_, info2 = env.step(action)  # samples ball_speed=1
 
@@ -629,12 +796,16 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     action_a, action_b = {"paddle_width": 4}, {"paddle_width": 8}
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}, {"default": 25.0}])
 
     with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
-        env.test_run.step = 0
         for action in (action_a, action_b, action_a):
             env.step(action)
 
@@ -674,16 +845,20 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
 
-    # Step 2 fails the constraint; steps 1 and 3 survive. get_observation is only
+    # The second proposal fails the constraint; execution steps 1 and 2 survive. get_observation is only
     # reached on the surviving steps, so it yields exactly two values.
     fake_obs = iter([{"default": 100.0}, {"default": 25.0}])
     with (
         patch.object(EnvVarTestDefinition, "constraint_check", side_effect=[True, False, True]),
         patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)),
     ):
-        env.test_run.step = 0
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
 
@@ -699,7 +874,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
         if metadata_path.exists()
         else []
     )
-    assert traj_steps == metadata_steps == [1, 3]
+    assert traj_steps == metadata_steps == [1, 2]
 
 
 def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(tmp_path: Path) -> None:
@@ -727,6 +902,7 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         nodes=[],
         output_path=tmp_path / "out" / "dr_tr" / "0",
     )
+    test_run.step = 1
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
@@ -734,7 +910,12 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     assert env.params is not None, "TestDefinition.env_params declared -> EnvParams must be built"
 
     expected_sample = {"ball_speed": _random.Random("42:ball_speed:2").choice([1, 2, 3])}  # noqa: S311, RUF100
@@ -747,13 +928,12 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         observation={"default": 0.84},
         env_params=expected_sample,
     )
-    env.test_run.step = 1
-
     with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
         obs, reward, _done, info = env.step(action)
 
     runner.run.assert_not_called()
     assert reward == 0.42
+    assert env.progress == 2
     assert obs == [0.84], "flat obs stays the cached metrics; the regime is not mixed into it"
     assert info["env_params"] == expected_sample, (
         "the per-trial regime behind this observation is reported on info['env_params']"
@@ -806,11 +986,15 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    env = CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
     expected = _random.Random("42:ball_speed:1").choice([1, 2])
 
     with patch.object(env, "get_observation", side_effect=lambda: {"default": 1.0}):
-        env.test_run.step = 0
         env.step({"paddle_width": 4})
 
     ran_cmd_args = runner.test_scenario.test_runs[0].test.cmd_args
@@ -863,6 +1047,7 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
         test_run=test_run,
         runner=runner,
         rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
 
     assert env.params is None, "no env_params declared -> no EnvParams object"
@@ -886,7 +1071,12 @@ def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEn
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
-    return CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+    return CloudAIGymEnv(
+        test_run=test_run,
+        runner=runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
 
 
 class TestStructuredObservationProducer:
@@ -908,7 +1098,12 @@ class TestStructuredObservationProducer:
         runner = MagicMock(spec=BaseRunner)
         runner.scenario_root = tmp_path / "scenario"
         runner.system = MagicMock()
-        env = CloudAIGymEnv(test_run=test_run, runner=runner, rewards=RewardOverrides())
+        env = CloudAIGymEnv(
+            test_run=test_run,
+            runner=runner,
+            rewards=RewardOverrides(),
+            max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+        )
 
         assert env.structured_observation_descriptors() is None
         assert env.encode_env_params({}) == {}
@@ -926,7 +1121,6 @@ class TestStructuredObservationProducer:
         import random as _random
 
         env = _dr_env(tmp_path, [1, 2, 3])
-        env.test_run.step = 0
 
         obs, info = env.reset()
         upcoming = _random.Random("42:ball_speed:1").choice([1, 2, 3])

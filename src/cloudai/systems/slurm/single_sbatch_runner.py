@@ -41,6 +41,13 @@ class SingleSbatchRunner(SlurmRunner):
         super().__init__(mode, system, test_scenario, output_path)
         self.system = cast(SlurmSystem, system)
         self.job_name = "cloudai-single-sbatch"
+        for tr in test_scenario.test_runs:
+            if not tr.is_dse_job:
+                continue
+            if tr.test.agent != "grid_search":
+                raise ValueError("Single-sbatch DSE supports only grid_search")
+            if "max_consecutive_rejected_proposals" in (tr.test.agent_config or {}):
+                raise ValueError("max_consecutive_rejected_proposals is unsupported for single-sbatch DSE")
 
     def get_sbatch_directives(self) -> list[str]:
         max_nodes, node_list = self.extract_sbatch_nodes_spec()
@@ -224,7 +231,12 @@ class SingleSbatchRunner(SlurmRunner):
             agent_class = registry.get_agent(tr.test.agent)
             agent_config_data = tr.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
-            gym = CloudAIGymEnv(tr, self, rewards=agent_config.rewards)
+            gym = CloudAIGymEnv(
+                tr,
+                self,
+                rewards=agent_config.rewards,
+                max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
+            )
 
             try:
                 for idx, combination in enumerate(tr.all_combinations, start=1):
