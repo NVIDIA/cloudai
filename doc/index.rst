@@ -17,33 +17,12 @@ Explore configurations with optimization agents, compare measured results, and a
    :width: 100%
    :class: cloudai-workflow dark-light
 
-Start with fixed settings or built-in grid search, which evaluates every combination in the search space.
-Custom agents can use measured feedback to select configurations and stop according to their policy.
-Estimate evaluation costs before launching. Extend CloudAI with :doc:`workloads and execution systems <DEV>`,
-`reporters <reporting.html#reporting-registration>`_, or your own optimization agents.
-See :doc:`reporting` and :doc:`Pareto frontiers <pareto-frontiers>` to interpret and compare results.
-
-.. _getting-started:
-
-Get started
------------
-
-Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`_ 0.13.4 or newer, then clone CloudAI:
-
-.. code-block:: bash
-
-   git clone https://github.com/NVIDIA/cloudai.git
-   cd cloudai
-
-For Slurm examples, run from a submit host with Slurm and the workload's container runtime available.
-Copy ``conf/common/system/example_slurm_cluster.toml`` to ``system.toml`` and adapt its partitions, nodes, GPU counts,
-and environment settings to your cluster. Prepare the :doc:`workload prerequisites <workloads/workloads_requirements_installation>`.
-See :doc:`getting-started` for installation alternatives and :doc:`systems` for execution environments.
+:doc:`Extend CloudAI <DEV>` · `Configure optimization agents <USER_GUIDE.html#agents-configuration>`_
 
 .. _choose-a-workflow:
 
 Choose a benchmark
-~~~~~~~~~~~~~~~~~~
+------------------
 
 .. tab-set::
 
@@ -52,14 +31,10 @@ Choose a benchmark
 
       .. _inference-with-vllm:
 
-      Serve Qwen3-0.6B on one GPU on one Slurm node and benchmark 30 requests.
-      The node allocation follows your system configuration; the serving process uses GPU 0.
-      Inspect the generated commands with ``dry-run``, then submit with ``run``:
+      Benchmark Qwen3-0.6B on one GPU on a Slurm node.
 
       .. code-block:: bash
 
-         uv run cloudai dry-run --system-config system.toml \
-             --test-scenario conf/experimental/quickstart/vllm.toml
          uv run cloudai run --system-config system.toml \
              --test-scenario conf/experimental/quickstart/vllm.toml
 
@@ -75,7 +50,7 @@ Choose a benchmark
 
       .. _networking-with-nccl:
 
-      Measure all-reduce latency and bandwidth on two Slurm nodes. Match the system's GPU and task counts to your hardware.
+      Benchmark all-reduce on two Slurm nodes.
 
       .. code-block:: bash
 
@@ -94,8 +69,8 @@ Choose a benchmark
 
       .. _storage-with-fio:
 
-      Run locally with ``fio`` installed. This example writes an 80 MiB file at ``/tmp/cloudai-fio-quickstart``;
-      change ``filename`` to a disposable file on the storage you want to measure.
+      Install ``fio`` locally. Set ``filename`` to a disposable file on the storage to benchmark
+      (default: ``/tmp/cloudai-fio-quickstart``, 80 MiB).
 
       .. code-block:: bash
 
@@ -115,8 +90,7 @@ Choose a benchmark
       .. _training-with-megatron-bridge:
 
       Run ten Qwen3-30B-A3B training steps on two eight-GPU H100 Slurm nodes.
-      Set ``HF_TOKEN`` in your environment and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
-      Adapt the recipe and precision when using different hardware.
+      Set ``HF_TOKEN`` and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
 
       .. code-block:: bash
 
@@ -131,13 +105,26 @@ Choose a benchmark
 
       :doc:`Megatron Bridge guide <workloads/megatron_bridge>`
 
-Read your results
-~~~~~~~~~~~~~~~~~
+.. _getting-started:
 
-CloudAI prints the results directory when the scenario starts. After it finishes, open the HTML report or read
-``experiment.json`` for execution status and workload metrics. See :doc:`reporting` for artifact details,
-`agent configuration <USER_GUIDE.html#agents-configuration>`_ to explore configuration choices, and :doc:`api`
-to automate experiments.
+Get started
+-----------
+
+Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`_ 0.13.4 or newer, then clone CloudAI:
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/cloudai.git
+   cd cloudai
+
+For Slurm, copy ``conf/common/system/example_slurm_cluster.toml`` to ``system.toml`` and set your partitions,
+nodes, and GPU counts. Prepare the :doc:`workload prerequisites <workloads/workloads_requirements_installation>`.
+See :doc:`getting-started` for installation alternatives.
+
+Read your results
+-----------------
+
+Open the results directory printed by CloudAI. See :doc:`reporting` for HTML reports and ``experiment.json``.
 
 .. toctree::
    :hidden:
