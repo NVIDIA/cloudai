@@ -112,3 +112,7 @@ if is_cms_build:
 root_doc = "index"
 
 source_suffix = [".rst"]
+
+# Embedded SVG media queries follow the selected documentation theme.
+html_static_path = ["_static"]
+html_css_files = ["cloudai-diagram.css"]

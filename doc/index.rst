@@ -15,6 +15,7 @@ Explore configurations with optimization agents, compare measured results, and a
    :alt: CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.
    :target: _static/cloudai-workflow.svg
    :width: 100%
+   :class: cloudai-workflow dark-light
 
 Start with fixed settings or built-in grid search, which evaluates every combination in the search space.
 Custom agents can use measured feedback to select configurations and stop according to their policy.
