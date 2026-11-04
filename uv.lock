@@ -351,6 +351,8 @@ docs-cms = [
     { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "sphinx-copybutton" },
+    { name = "sphinx-design", version = "0.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "sphinx-design", version = "0.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "sphinx-rtd-theme" },
     { name = "sphinxcontrib-mermaid" },
 ]
@@ -397,6 +399,7 @@ requires-dist = [
     { name = "sphinx-copybutton", marker = "extra == 'docs'", specifier = "~=0.5" },
     { name = "sphinx-copybutton", marker = "extra == 'docs-cms'", specifier = "~=0.5" },
     { name = "sphinx-design", marker = "extra == 'docs'", specifier = "~=0.6" },
+    { name = "sphinx-design", marker = "extra == 'docs-cms'", specifier = "~=0.6" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs-cms'", specifier = "~=3.1" },
     { name = "sphinxcontrib-mermaid", marker = "extra == 'docs'", specifier = "~=2.0" },
     { name = "sphinxcontrib-mermaid", marker = "extra == 'docs-cms'", specifier = "~=2.0" },
