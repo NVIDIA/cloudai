@@ -46,62 +46,93 @@ Choose a benchmark
 ~~~~~~~~~~~~~~~~~~
 
 Each example is a self-contained scenario; a separate test-definition directory is not needed.
-Start with vLLM, or select another workload below.
+Select a workload tab. Expand **View configuration** to inspect or copy its scenario.
 
-Inference with vLLM
-^^^^^^^^^^^^^^^^^^^
+.. tab-set::
 
-Serve Qwen3-0.6B on one GPU on one Slurm node and benchmark 30 requests.
-The node allocation follows your system configuration; the serving process uses GPU 0.
-Inspect the generated commands with ``dry-run``, then submit with ``run``:
+   .. tab-item:: Inference
+      :selected:
 
-.. code-block:: bash
+      .. _inference-with-vllm:
 
-   uv run cloudai dry-run --system-config system.toml \
-       --test-scenario conf/experimental/quickstart/vllm.toml
-   uv run cloudai run --system-config system.toml \
-       --test-scenario conf/experimental/quickstart/vllm.toml
+      Serve Qwen3-0.6B on one GPU on one Slurm node and benchmark 30 requests.
+      The node allocation follows your system configuration; the serving process uses GPU 0.
+      Inspect the generated commands with ``dry-run``, then submit with ``run``:
 
-:download:`View the scenario <../conf/experimental/quickstart/vllm.toml>` · :doc:`vLLM guide <workloads/vllm>`
+      .. code-block:: bash
 
-Networking with NCCL
-^^^^^^^^^^^^^^^^^^^^
+         uv run cloudai dry-run --system-config system.toml \
+             --test-scenario conf/experimental/quickstart/vllm.toml
+         uv run cloudai run --system-config system.toml \
+             --test-scenario conf/experimental/quickstart/vllm.toml
 
-Measure all-reduce latency and bandwidth on two Slurm nodes. Match the system's GPU and task counts to your hardware.
+      .. dropdown:: View configuration
 
-.. code-block:: bash
+         .. literalinclude:: ../conf/experimental/quickstart/vllm.toml
+            :language: toml
+            :start-at: name =
 
-   uv run cloudai run --system-config system.toml \
-       --test-scenario conf/experimental/quickstart/nccl.toml
+      :doc:`vLLM guide <workloads/vllm>`
 
-:download:`View the scenario <../conf/experimental/quickstart/nccl.toml>` · :doc:`NCCL guide <workloads/nccl>`
+   .. tab-item:: Networking
 
-Storage with Fio
-^^^^^^^^^^^^^^^^
+      .. _networking-with-nccl:
 
-Run locally with ``fio`` installed. This example writes an 80 MiB file at ``/tmp/cloudai-fio-quickstart``;
-change ``filename`` to a disposable file on the storage you want to measure.
+      Measure all-reduce latency and bandwidth on two Slurm nodes. Match the system's GPU and task counts to your hardware.
 
-.. code-block:: bash
+      .. code-block:: bash
 
-   uv run cloudai run --system-config conf/common/system/standalone_system.toml \
-       --test-scenario conf/experimental/quickstart/fio.toml
+         uv run cloudai run --system-config system.toml \
+             --test-scenario conf/experimental/quickstart/nccl.toml
 
-:download:`View the scenario <../conf/experimental/quickstart/fio.toml>` · :doc:`Fio guide <workloads/fio>`
+      .. dropdown:: View configuration
 
-Training with Megatron Bridge
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         .. literalinclude:: ../conf/experimental/quickstart/nccl.toml
+            :language: toml
+            :start-at: name =
 
-Run ten Qwen3-30B-A3B training steps on two eight-GPU H100 Slurm nodes.
-Set ``HF_TOKEN`` in your environment and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
-Adapt the recipe and precision when using different hardware.
+      :doc:`NCCL guide <workloads/nccl>`
 
-.. code-block:: bash
+   .. tab-item:: Storage
 
-   uv run cloudai run --system-config system.toml \
-       --test-scenario conf/experimental/quickstart/mbridge.toml
+      .. _storage-with-fio:
 
-:download:`View the scenario <../conf/experimental/quickstart/mbridge.toml>` · :doc:`Megatron Bridge guide <workloads/megatron_bridge>`
+      Run locally with ``fio`` installed. This example writes an 80 MiB file at ``/tmp/cloudai-fio-quickstart``;
+      change ``filename`` to a disposable file on the storage you want to measure.
+
+      .. code-block:: bash
+
+         uv run cloudai run --system-config conf/common/system/standalone_system.toml \
+             --test-scenario conf/experimental/quickstart/fio.toml
+
+      .. dropdown:: View configuration
+
+         .. literalinclude:: ../conf/experimental/quickstart/fio.toml
+            :language: toml
+            :start-at: name =
+
+      :doc:`Fio guide <workloads/fio>`
+
+   .. tab-item:: Training
+
+      .. _training-with-megatron-bridge:
+
+      Run ten Qwen3-30B-A3B training steps on two eight-GPU H100 Slurm nodes.
+      Set ``HF_TOKEN`` in your environment and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
+      Adapt the recipe and precision when using different hardware.
+
+      .. code-block:: bash
+
+         uv run cloudai run --system-config system.toml \
+             --test-scenario conf/experimental/quickstart/mbridge.toml
+
+      .. dropdown:: View configuration
+
+         .. literalinclude:: ../conf/experimental/quickstart/mbridge.toml
+            :language: toml
+            :start-at: name =
+
+      :doc:`Megatron Bridge guide <workloads/megatron_bridge>`
 
 Read your results
 ~~~~~~~~~~~~~~~~~

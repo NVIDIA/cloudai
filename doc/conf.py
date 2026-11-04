@@ -74,6 +74,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinxcontrib.mermaid",
     "sphinx_copybutton",
+    "sphinx_design",
     "sphinxcontrib.autodoc_pydantic",
 ]
 
