@@ -37,7 +37,9 @@ from .megatron_bridge import HF_TOKEN_REDACTION, MegatronBridgeCmdArgs, Megatron
 class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Compose a NeMo Run generated job with CloudAI's standard Slurm features."""
 
-    HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".log", ".out", ".sh", ".stderr", ".toml", ".yaml"})
+    HF_TOKEN_ARTIFACT_SUFFIXES: frozenset[str] = frozenset(
+        {".log", ".out", ".sh", ".stderr", ".toml", ".yaml", ".json"}
+    )
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
@@ -113,6 +115,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         env_vars_path = self._write_env_vars_script()
         body: list[str] = [f"source {shlex.quote(str(env_vars_path))}"]
+        marker = shlex.quote(str(self.test_run.output_path / "cloudai_megatron_bridge_training.success"))
+        on_exit = f'status=$?; if [ "$status" -eq 0 ]; then touch {marker}; fi'
+        body.append(f"trap {shlex.quote(on_exit)} EXIT")
         for line in self._mbridge_sbatch[1].splitlines():
             # Rendezvous accepts a hostname; avoid capturing srun output redirected by SingleSbatchRunner.
             line = line.replace(
@@ -145,14 +150,25 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return None
 
         self.test_run.output_path.mkdir(parents=True, exist_ok=True)
-        patcher_path = self._write_dryrun_patcher(launcher_py)
-        parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, patcher_path)
-        if "-d" not in parts:
-            parts.append("-d")
+        parts = self._build_launcher_parts(tdef.cmd_args, tdef, repo_path, launcher_py)
         launcher_cmd = " ".join(parts)
         (self.test_run.output_path / "cloudai_megatron_bridge_launcher.sh").write_text(launcher_cmd + "\n")
         log_path = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
         with log_path.open("w") as log:
+            subprocess.run(
+                [
+                    str(venv_path / "bin" / "python"),
+                    "-m",
+                    "pip",
+                    "install",
+                    f"wandb=={tdef.cmd_args.wandb_version}",
+                    f"numpy=={tdef.cmd_args.numpy_version}",
+                ],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                check=True,
+                timeout=600,
+            )
             result = subprocess.run(
                 ["/bin/bash", "-c", launcher_cmd],
                 stdout=log,
@@ -166,30 +182,43 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise RuntimeError(f"Megatron-Bridge dry-run did not generate an sbatch script. See {log_path}.")
         return script
 
-    def _write_dryrun_patcher(self, launcher_py: Path) -> Path:
-        patcher_path = self.test_run.output_path / "cloudai_megatron_bridge_dryrun.py"
-        patcher_path.write_text(
-            "\n".join(
-                [
-                    "import runpy",
-                    "import sys",
-                    "from pathlib import Path",
-                    "from nemo_run.run.experiment import Experiment",
-                    "",
-                    "original_dryrun = Experiment.dryrun",
-                    "",
-                    "def keep_dryrun_artifacts(self, log=True, exist_ok=False, delete_exp_dir=True):",
-                    "    return original_dryrun(self, log=log, exist_ok=exist_ok, delete_exp_dir=False)",
-                    "",
-                    "Experiment.dryrun = keep_dryrun_artifacts",
-                    f"launcher = Path({str(launcher_py)!r})",
-                    "sys.path.insert(0, str(launcher.parent))",
-                    'runpy.run_path(str(launcher), run_name="__main__")',
-                    "",
-                ]
-            )
+    def _build_evaluation_command(self) -> list[str]:
+        tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
+        root = self.test_run.output_path
+        repo = (
+            tdef.megatron_bridge_repo.installed_path or self.system.install_path / tdef.megatron_bridge_repo.repo_name
         )
-        return patcher_path
+        return [
+            "/bin/bash",
+            "-c",
+            'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" evaluate --launcher "$5" --output "$2"',
+            "mbridge-evaluate",
+            str((root / "env_vars.sh").absolute()),
+            str(root.absolute()),
+            str(cast(Path, tdef.python_executable.venv_path) / "bin" / "python"),
+            str((self.system.install_path / "mbridge_launcher.py").absolute()),
+            str(repo / "scripts/performance/setup_experiment.py"),
+        ]
+
+    def _evaluate(self) -> None:
+        root = self.test_run.output_path
+        status = root / "cloudai_megatron_bridge_evaluation.exitcode"
+        if status.exists() or not (root / "cloudai_megatron_bridge_training.success").is_file():
+            return
+        # Record failure before opening the log so log-open errors cannot appear successful.
+        status.write_text("1\n")
+        with (root / "cloudai_megatron_bridge_evaluation.log").open("w") as log:
+            try:
+                result = subprocess.run(
+                    self._build_evaluation_command(),
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=600,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                log.write(f"Evaluation could not complete: {exc}\n")
+                return
+            status.write_text(f"{result.returncode}\n")
 
     def store_test_run(self) -> None:
         trd = TestRunDetails.from_test_run(
@@ -204,6 +233,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).write_text(serialized)
 
     def cleanup_job_artifacts(self) -> None:  # noqa: C901
+        try:
+            self._evaluate()
+        except Exception:
+            logging.warning("MBridge evaluation failed unexpectedly.", exc_info=True)
         tdef = cast(MegatronBridgeTestDefinition, self.test_run.test)
         output_path = self.test_run.output_path
         if not output_path.exists():
@@ -349,7 +382,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
             str(python_bin),
-            str(Path(launcher_py).absolute()),
+            shlex.quote(str((self.system.install_path / "mbridge_launcher.py").absolute())),
+            "generate",
+            "--launcher",
+            shlex.quote(str(launcher_py.absolute())),
+            "--output",
+            shlex.quote(str(self.test_run.output_path.absolute())),
+            "--",
         ]
 
         def add(flag: str, value: Any) -> None:
@@ -387,7 +426,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             add_field("container_image", "-i", self.image_path())
         add_field("compute_dtype", "-c", args.compute_dtype)
         add_field("task", "--task", args.task)
-        add_field("hf_token", "-hf", args.hf_token)
+        add_field("hf_token", "--hf_token", args.hf_token)
         add_field("nemo_home", "-nh", args.nemo_home)
         add_field("wandb_key", "-wdk", args.wandb_key)
         add_field("wandb_project_name", "-wdp", args.wandb_project_name)

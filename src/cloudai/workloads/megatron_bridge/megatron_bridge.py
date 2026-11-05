@@ -22,7 +22,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
+from cloudai.core import DockerImage, File, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 HF_TOKEN_REDACTION = "<REDACTED>"
@@ -264,7 +264,11 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        items: list[Installable] = [self.python_executable, self.megatron_bridge_repo]
+        items: list[Installable] = [
+            File(Path(__file__).parent / "runtime" / "mbridge_launcher.py"),
+            self.python_executable,
+            self.megatron_bridge_repo,
+        ]
         if self.cmd_args.container_image:
             items.insert(0, self.docker_image)
         return items
@@ -608,6 +612,18 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         """Check training metrics in the job log, falling back to legacy launcher logs."""
+        status = tr.output_path / "cloudai_megatron_bridge_evaluation.exitcode"
+        if not status.is_file():
+            logging.warning(
+                "MBridge evaluation result is missing in %s. This warning can be ignored if "
+                "CloudAI 1.8.1 or older was used for this run.",
+                tr.output_path,
+            )
+        elif status.read_text().strip() != "0":
+            return JobStatusResult(
+                is_successful=False,
+                error_message="MBridge evaluation failed. See cloudai_megatron_bridge_evaluation.log.",
+            )
         log_path = find_mbridge_log(tr.output_path)
         if log_path is None:
             return JobStatusResult(
