@@ -62,7 +62,11 @@ class Reporter(ABC):
                     )
                 for output_path in paths:
                     snapshot = output_path / "test-run.toml"
-                    run = load_test_run(snapshot, template.test) if snapshot.is_file() else copy.deepcopy(template)
+                    try:
+                        run = load_test_run(snapshot, template.test) if snapshot.is_file() else copy.deepcopy(template)
+                    except (OSError, ValueError, KeyError, TypeError) as exc:
+                        logging.warning("Skipping run with unreadable snapshot %s: %s", snapshot, exc)
+                        continue
                     run.current_iteration = int(iteration.name)
                     run.step = int(output_path.name) if template.is_dse_job else 0
                     run.output_path = output_path

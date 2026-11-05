@@ -394,12 +394,20 @@ class TestSlurmReportItem:
         assert report_item.error_message == "command failed"
 
 
-def test_scenario_report_shows_pass_fail_status(
-    slurm_system: SlurmSystem, benchmark_tr: TestRun, monkeypatch: pytest.MonkeyPatch
+def test_scenario_report_shows_status_despite_invalid_snapshot(
+    slurm_system: SlurmSystem,
+    benchmark_tr: TestRun,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Regression test for the bug where the saved HTML report never recorded pass/fail,
     only the terminal summary did."""
     from cloudai.core import JobStatusResult
+
+    run_root = slurm_system.output_path / benchmark_tr.name
+    (run_root / "0" / "test-run.toml").write_text(toml.dumps(benchmark_tr.model_dump(mode="json")))
+    invalid_snapshot = run_root / "1" / "test-run.toml"
+    invalid_snapshot.write_text("")
 
     monkeypatch.setattr(
         type(benchmark_tr.test),
@@ -418,6 +426,9 @@ def test_scenario_report_shows_pass_fail_status(
     report_html = (slurm_system.output_path / "test-scenario.html").read_text()
     assert "FAILED" in report_html
     assert "command failed" in report_html
+    assert "benchmark iter=1" not in report_html
+    assert "benchmark iter=2" in report_html
+    assert str(invalid_snapshot) in caplog.text
 
 
 def test_scenario_report_escapes_error_message(

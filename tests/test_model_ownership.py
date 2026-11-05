@@ -171,7 +171,6 @@ def test_report_restore_uses_saved_settings_after_moving_results(
             "name": selected.name,
             "nnodes": selected.nnodes,
             "iterations": selected.iterations,
-            "nodes": selected.nodes,
             "output_path": str(selected.output_path),
             "current_iteration": selected.current_iteration,
             "step": selected.step,
@@ -191,6 +190,7 @@ def test_report_restore_uses_saved_settings_after_moving_results(
     reporter.load_test_runs()
     restored = reporter.trs[0]
     assert restored.output_path == selected.output_path
+    assert restored.nodes == []
     assert restored.test.weight == (99 if legacy else 5)
     assert restored.iterations == 4
     assert restored.extra_srun_args == "--exclusive"

@@ -320,7 +320,7 @@ def _convert_legacy_run(data: dict[str, Any], fallback: TestDefinition | None) -
     definition.update(id=data["name"], num_nodes=data["nnodes"], iterations=data["iterations"])
     return {
         "test_definition": definition,
-        "nodes": data["nodes"],
+        "nodes": data.get("nodes", []),
         "output_path": data["output_path"],
         "current_iteration": data["current_iteration"],
         "step": data["step"],
