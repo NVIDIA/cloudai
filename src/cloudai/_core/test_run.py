@@ -1,0 +1,345 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+import copy
+import itertools
+import pathlib
+from typing import TYPE_CHECKING, Any, Optional, Type, TypeAlias
+
+import pydantic
+import pydantic.json_schema
+import toml
+
+import cloudai.metrics
+
+from ..models.scenario import TestScenario
+from ..models.workload import TestDefinition
+from ..util import flatten_dict
+from .registry import Registry
+from .system import System
+
+if TYPE_CHECKING:
+    from .report_generation_strategy import ReportGenerationStrategy
+
+
+class MetricErrorSentinel:
+    """Singleton returned by report strategies on failure; use ``v is METRIC_ERROR`` to detect errors."""
+
+    __slots__ = ()
+    _instance: MetricErrorSentinel | None = None
+
+    def __new__(cls) -> MetricErrorSentinel:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "METRIC_ERROR"
+
+    def __float__(self) -> float:
+        return -1.0
+
+
+METRIC_ERROR = MetricErrorSentinel()
+
+MetricValue: TypeAlias = float | MetricErrorSentinel
+
+
+class TestDependency:
+    """
+    Represents a dependency for a test.
+
+    Attributes
+        test_run (TestRun): TestRun object it depends on.
+    """
+
+    __test__ = False
+
+    def __init__(self, test_run: "TestRun") -> None:
+        """
+        Initialize a TestDependency instance.
+
+        Args:
+            test_run (TestRun): TestRun object it depends on.
+        """
+        self.test_run = test_run
+
+
+class TestRun(pydantic.BaseModel):
+    """Mutable execution state bound to one prepared test definition."""
+
+    __test__ = False
+    model_config = pydantic.ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    # Prepared definitions may already contain scalar environment-parameter draws.
+    test_definition: pydantic.SerializeAsAny[pydantic.SkipValidation[TestDefinition]]
+    nodes: list[str] = pydantic.Field(default_factory=list)
+    output_path: pathlib.Path = pathlib.Path("")
+    current_iteration: int = 0
+    step: int = 0
+    # These references connect live executions; the definition already stores dependency IDs.
+    dependencies: pydantic.json_schema.SkipJsonSchema[dict[str, TestDependency]] = pydantic.Field(
+        default_factory=dict, exclude=True, repr=False
+    )
+    pre_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
+    post_test: TestScenario | None = pydantic.Field(default=None, exclude=True, repr=False)
+
+    @pydantic.model_validator(mode="after")
+    def inherit_nodes(self) -> TestRun:
+        if "nodes" not in self.model_fields_set:
+            self.nodes = list(self.test_definition.nodes)
+        return self
+
+    @pydantic.field_validator("test_definition", mode="before")
+    @classmethod
+    def load_definition(cls, value: Any) -> TestDefinition:
+        """Keep prepared instances intact; restore dictionaries using their workload class."""
+        if isinstance(value, TestDefinition):
+            return value
+        try:
+            definition_class = Registry().test_definitions_map[value["test_template_name"]]
+        except (KeyError, TypeError) as exc:
+            raise ValueError(f"Unknown test_template_name or missing definition: {exc}") from exc
+        # Temporary workaround: saved runs have chosen values but retain exploration rules.
+        # Remove this flag once parsing extracts the exploration space from TestDefinition.
+        return definition_class.model_validate(value, context={"materialized": True})
+
+    @pydantic.field_serializer("output_path")
+    def dump_output_path(self, value: pathlib.Path) -> str:
+        return str(value.absolute())
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    @property
+    def test(self) -> TestDefinition:
+        """Alias retained for existing workloads and reporters."""
+        return self.test_definition
+
+    @test.setter
+    def test(self, value: TestDefinition) -> None:
+        self.test_definition = value
+
+    @property
+    def name(self) -> str:
+        return self.test_definition.id or self.test_definition.name
+
+    @property
+    def num_nodes(self) -> int | list[int]:
+        return self.test_definition.num_nodes if self.test_definition.num_nodes is not None else 1
+
+    @property
+    def num_nodes_explicit(self) -> bool:
+        return self.test_definition.num_nodes is not None and "num_nodes" in self.test_definition.model_fields_set
+
+    @property
+    def time_limit(self) -> str | None:
+        return self.test_definition.time_limit
+
+    @property
+    def sol(self) -> float | cloudai.metrics.MetricSOLConfig | None:
+        return self.test_definition.sol
+
+    @property
+    def reports(self) -> set[type[ReportGenerationStrategy]]:
+        return self.test_definition.reporters
+
+    @property
+    def exclude_nodes(self) -> list[str]:
+        return self.test_definition.exclude_nodes
+
+    @property
+    def iterations(self) -> int:
+        return self.test_definition.iterations
+
+    @property
+    def extra_srun_args(self) -> str | None:
+        return " ".join(self.test_definition.extra_srun_args) or None
+
+    def __hash__(self) -> int:
+        return hash(
+            self.name + self.test_definition.name + str(self.test_definition.iterations) + str(self.current_iteration)
+        )
+
+    def has_more_iterations(self) -> bool:
+        """
+        Check if the test has more iterations to run.
+
+        Returns
+            bool: True if more iterations are pending, False otherwise.
+        """
+        return self.current_iteration + 1 < self.test_definition.iterations
+
+    def increment_step(self) -> int:
+        """Advance the trial counter and return the new value."""
+        self.step += 1
+        return self.step
+
+    @property
+    def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
+        if not self.test_definition.reporters:
+            return None
+
+        if not self.test_definition.agent_metrics:
+            return None
+
+        for r in self.test_definition.reporters:
+            if all(metric in r.metrics for metric in self.test_definition.agent_metrics):
+                return r
+
+        return None
+
+    def get_metric_value(self, system: System, metric: str) -> MetricValue:
+        report = self.metric_reporter
+        if report is None:
+            return METRIC_ERROR
+
+        return report(system, self).get_metric(metric)
+
+    @property
+    def is_dse_job(self) -> bool:
+        return self.test_definition.is_dse_job or isinstance(self.num_nodes, list)
+
+    @property
+    def is_domain_randomization_active(self) -> bool:
+        """
+        Whether this run will actually env-sample (domain-randomize) per trial.
+
+        True only when domain randomization is declared (``env_params`` present), the run is a DSE
+        job (so a per-trial loop exists - including a ``num_nodes`` sweep), and the agent opts into
+        sampling. An unknown agent is treated as opted-in so the dedicated agent-resolution error
+        surfaces instead of this one.
+        """
+        if not self.test_definition.is_domain_randomization_enabled:
+            return False
+
+        registry = Registry()
+        agent = (
+            registry.get_agent(self.test_definition.agent) if registry.has_agent(self.test_definition.agent) else None
+        )
+        return self.is_dse_job and (agent is None or agent.supports_variable_environment)
+
+    @property
+    def nnodes(self) -> int:
+        """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
+        if isinstance(self.num_nodes, list):
+            raise TypeError("num_nodes is a list, cannot be used as a scalar.")
+        return self.num_nodes
+
+    @property
+    def param_space(self) -> dict[str, Any]:
+        cmd_args_dict = flatten_dict(self.test_definition.cmd_args.model_dump())
+        extra_env_vars_dict = self.test_definition.extra_env_vars
+
+        action_space: dict[str, Any] = {
+            **{
+                key: value
+                for key, value in cmd_args_dict.items()
+                if isinstance(value, list)
+                and not self.test_definition.is_dse_excluded_arg(key)
+                and not self.test_definition.is_env_sampled(key)
+            },
+            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
+        }
+        if isinstance(self.num_nodes, list):
+            action_space["NUM_NODES"] = self.num_nodes
+
+        return action_space
+
+    @property
+    def all_combinations(self) -> list[dict[str, Any]]:
+        if not self.is_dse_job:
+            return []
+
+        param_space: dict[str, Any] = self.param_space
+        if not param_space:
+            return []
+
+        parameter_values: list[Any] = []
+        for _, values in param_space.items():
+            parameter_values.append(values)
+        action_combinations = list(itertools.product(*parameter_values))
+
+        keys = list(param_space.keys())
+        all_combinations = [dict(zip(keys, combination, strict=True)) for combination in action_combinations]
+
+        return all_combinations
+
+    def apply_params_set(self, action: dict[str, Any], env_params: dict[str, Any] | None = None) -> "TestRun":
+        tdef = self.test_definition.model_copy(deep=True)
+
+        # RNG runs in the env before this call; applying only concrete values keeps this deterministic.
+        # action and env_params target disjoint keys, so a plain merge applies both in one pass.
+        full_action = action | (env_params or {})
+        for key, value in full_action.items():
+            if key.startswith("extra_env_vars."):
+                tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
+            elif key == "NUM_NODES":
+                tdef.num_nodes = value
+            else:
+                attrs = key.split(".")
+                obj = tdef.cmd_args
+                for attr in attrs[:-1]:
+                    obj = obj[attr] if isinstance(obj, dict) else getattr(obj, attr)
+                if isinstance(obj, dict):
+                    obj[attrs[-1]] = value
+                else:
+                    setattr(obj, attrs[-1], value)
+
+        # env_params is validated at parse time; after the overlay its target cmd_args fields hold
+        # concrete scalar draws, so re-validating it here would reject weighted specs. Drop it for
+        # this validation-only pass, which exists to validate the applied action values.
+        validation_args = tdef.model_dump()
+        validation_args.pop("env_params", None)
+        type(tdef)(**validation_args)  # trigger validation
+
+        new_tr = copy.deepcopy(self)
+        new_tr.test_definition = tdef
+        return new_tr
+
+
+def _convert_legacy_run(data: dict[str, Any], fallback: TestDefinition | None) -> dict[str, Any]:
+    """Translate the old TestRunDetails layout into TestRun fields."""
+    definition = fallback.model_dump() if fallback is not None else {}
+    definition.update(data["test_definition"])
+    definition.update(id=data["name"], num_nodes=data["nnodes"], iterations=data["iterations"])
+    return {
+        "test_definition": definition,
+        "nodes": data.get("nodes", []),
+        "output_path": data["output_path"],
+        "current_iteration": data["current_iteration"],
+        "step": data["step"],
+    }
+
+
+def load_test_run(path: pathlib.Path, fallback: TestDefinition | None = None) -> TestRun:
+    """
+    Read a saved execution; use scenario defaults only for incomplete legacy definitions.
+
+    The containing folder determines the output path so copied result folders remain usable.
+    Reporter registrations come from the supplied definition, never from the saved file.
+    """
+    with path.open() as stream:
+        data = toml.load(stream)
+    if "nnodes" in data:
+        data = _convert_legacy_run(data, fallback)
+    run = TestRun.model_validate(data)
+    run.output_path = path.parent
+    if fallback is not None:
+        run.test_definition = run.test_definition.model_copy(update={"reporters": fallback.reporters})
+    return run

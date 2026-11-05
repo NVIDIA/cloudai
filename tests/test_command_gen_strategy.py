@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,10 +32,10 @@ class MyCmdGen(CommandGenStrategy):
 @pytest.fixture
 def test_run() -> TestRun:
     return TestRun(
-        name="test_a",
-        num_nodes=1,
+        test_definition=TestDefinition(
+            name="n", description="d", test_template_name="tt", cmd_args=CmdArgs(), id="test_a", num_nodes=1
+        ),
         nodes=["node1"],
-        test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
     )
 
 

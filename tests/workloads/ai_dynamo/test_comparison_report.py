@@ -42,7 +42,9 @@ def test_ai_dynamo_comparison_report_generates_html(slurm_system: SlurmSystem) -
             ),
         ),
     )
-    tr = cloudai.core.TestRun(name="ai-dynamo", test=test, num_nodes=2, nodes=[])
+    tr = cloudai.core.TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "ai-dynamo", "num_nodes": 2}), nodes=[]
+    )
     run_dir = slurm_system.output_path / tr.name / "0"
     run_dir.mkdir(parents=True)
     (run_dir / "aiperf_report.csv").write_text(

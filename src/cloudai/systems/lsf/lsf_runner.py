@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,7 +54,9 @@ class LSFRunner(BaseRunner):
     def _submit_test(self, tr: TestRun) -> LSFJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        exec_cmd = cmd_gen.gen_exec_command()
+        cmd_gen.store_test_run()
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":

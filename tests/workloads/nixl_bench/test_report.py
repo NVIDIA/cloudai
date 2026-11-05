@@ -55,7 +55,11 @@ def nixl_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
     )
-    tr = TestRun(name="nixl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nixl_test", "num_nodes": 2}),
+        nodes=[],
+        output_path=tmp_path,
+    )
     return tr
 
 
@@ -86,16 +90,20 @@ def test_comparison_report_contains_sol(
     test_runs = []
     for batch_size in (1, 4, 16):
         tr = copy.deepcopy(nixl_tr)
-        tr.name = f"nixl_test_batch_{batch_size}"
+        tr.test_definition = tr.test_definition.model_copy(update={"id": f"nixl_test_batch_{batch_size}"})
         tr.output_path = tmp_path / f"batch-{batch_size}"
         tr.output_path.mkdir()
         tr.output_path.joinpath("nixlbench.csv").write_text(
             f"block_size,batch_size,avg_lat,bw_gb_sec\n4096,{batch_size},3.5,1.2\n1048576,{batch_size},18.1,58.0\n"
         )
-        tr.metric_sol = cloudai.metrics.parse_sol_spec(
-            {
-                "bandwidth": [{"value": 100}],
-                "latency": [{"value": 10}],
+        tr.test_definition = tr.test_definition.model_copy(
+            update={
+                "sol": cloudai.metrics.parse_sol_spec(
+                    {
+                        "bandwidth": [{"value": 100}],
+                        "latency": [{"value": 10}],
+                    }
+                )
             }
         )
         test_runs.append(tr)

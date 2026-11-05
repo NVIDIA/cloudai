@@ -24,8 +24,7 @@ from cloudai.workloads.nixl_ep import NixlEPCmdArgs, NixlEPComparisonReport, Nix
 
 def _nixl_ep_tr(name: str, num_processes_per_node: int) -> cloudai.core.TestRun:
     return cloudai.core.TestRun(
-        name=name,
-        test=NixlEPTestDefinition(
+        test_definition=NixlEPTestDefinition(
             name="nixl_ep",
             description="NIXL EP benchmark",
             test_template_name="NixlEP",
@@ -34,8 +33,9 @@ def _nixl_ep_tr(name: str, num_processes_per_node: int) -> cloudai.core.TestRun:
                 plan="[[0, 1]]",
                 num_processes_per_node=num_processes_per_node,
             ),
+            id=name,
+            num_nodes=2,
         ),
-        num_nodes=2,
         nodes=[],
     )
 

@@ -20,8 +20,7 @@ from unittest.mock import patch
 import pytest
 import toml
 
-from cloudai.core import Parser
-from cloudai.models.scenario import TestScenarioModel
+from cloudai.core import CmdArgs, Parser, Registry, TestDefinition, TestScenario
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -84,4 +83,20 @@ def test_test_scenarios(test_scenario_file: Path):
     """
     with test_scenario_file.open("r") as f:
         d = toml.load(f)
-        TestScenarioModel.model_validate(d)
+        # Workload/reference resolution has dedicated parser tests. Here validate the
+        # scenario graph and scheduling fields for every public configuration.
+        tests = []
+        known = {"test_name", "path"}.union(*(cls.model_fields for cls in Registry().test_definitions_map.values()))
+        for item in d["Tests"]:
+            unknown = set(item) - known
+            assert not unknown, f"Unknown Tests keys in {test_scenario_file}: {sorted(unknown)}"
+            config = {key: value for key, value in item.items() if key in TestDefinition.model_fields}
+            config.update(
+                name=item.get("name", "test"),
+                description=item.get("description", "test"),
+                test_template_name=item.get("test_template_name", "test"),
+                cmd_args=CmdArgs(),
+            )
+            tests.append(TestDefinition.model_validate(config))
+        d["Tests"] = tests
+        TestScenario.model_validate(d)

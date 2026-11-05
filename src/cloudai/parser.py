@@ -32,7 +32,7 @@ from ._core.exceptions import (
 )
 from ._core.registry import Registry
 from ._core.system import System
-from ._core.test_scenario import ConfigPaths, TestScenario
+from .models.scenario import ConfigPaths, TestScenario
 from .test_parser import TestConfigFailure, TestParser, failure_declaring, raise_on_any_failure
 from .test_scenario_parser import TestScenarioParser
 from .toml_utils import format_toml_decode_error

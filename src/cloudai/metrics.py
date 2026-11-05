@@ -310,7 +310,9 @@ def assess_observation(observation: MetricObservation, sol_config: MetricSOLConf
 def assess_test_run_metrics(system: Any, test_run: Any) -> list[MetricAssessment]:
     """Collect and assess every metric produced by a completed test run."""
     observations = test_run.test.metric_observations(system, test_run)
-    return [assess_observation(observation, test_run.metric_sol) for observation in observations]
+    sol = test_run.test.sol
+    targets = sol if isinstance(sol, dict) else {}
+    return [assess_observation(observation, targets) for observation in observations]
 
 
 def dimension_label(key: str) -> str:

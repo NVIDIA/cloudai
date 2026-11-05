@@ -78,7 +78,7 @@ class SlurmRunner(BaseRunner):
         return timestamp.astimezone(datetime.timezone.utc) if timestamp.utcoffset() is not None else None
 
     def submit_test(self, tr: TestRun) -> None:
-        if tr.pin_nodes and tr.name in self.pinned_nodes:
+        if tr.test.pin_nodes and tr.name in self.pinned_nodes:
             tr.nodes = self.pinned_nodes[tr.name].copy()
             logging.info("Forcing test case '%s' to use pinned nodes: %s", tr.name, ",".join(tr.nodes))
         super().submit_test(tr)
@@ -88,6 +88,7 @@ class SlurmRunner(BaseRunner):
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
         try:
             exec_cmd = cmd_gen.gen_exec_command()
+            cmd_gen.store_test_run()
             logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
             job_id = 0
             if self.mode == "run":
@@ -101,10 +102,6 @@ class SlurmRunner(BaseRunner):
                 logging.warning(f"Cleanup failed for test run at {tr.output_path}", exc_info=True)
             raise
 
-    def on_job_submit(self, tr: TestRun) -> None:
-        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
-        cmd_gen.store_test_run()
-
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
         slurm_job = cast(SlurmJob, job)
@@ -112,7 +109,7 @@ class SlurmRunner(BaseRunner):
         self.store_job_metadata(slurm_job)
 
         tr = slurm_job.test_run
-        if self.mode == "run" and tr.pin_nodes and tr.name not in self.pinned_nodes:
+        if self.mode == "run" and tr.test.pin_nodes and tr.name not in self.pinned_nodes:
             if not slurm_job.nodes:
                 logging.error("Cannot pin test case '%s': the job has no recorded node allocation", tr.name)
             else:

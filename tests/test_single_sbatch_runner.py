@@ -45,14 +45,14 @@ class MyNCCL(NCCLTestDefinition):
 @pytest.fixture
 def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
     tr = TestRun(
-        name="nccl_test",
-        test=MyNCCL(
+        test_definition=MyNCCL(
             name="nccl",
             description="desc",
             test_template_name="NcclTest",
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            id="nccl_test",
+            num_nodes=2,
         ),
-        num_nodes=2,
         nodes=[],
         output_path=slurm_system.output_path / "nccl_test",
     )
@@ -64,9 +64,14 @@ def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
 @pytest.fixture
 def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
-        name="sleep_test",
-        test=SleepTestDefinition(name="sleep", description="desc", test_template_name="t", cmd_args=SleepCmdArgs()),
-        num_nodes=1,
+        test_definition=SleepTestDefinition(
+            name="sleep",
+            description="desc",
+            test_template_name="t",
+            cmd_args=SleepCmdArgs(),
+            id="sleep_test",
+            num_nodes=1,
+        ),
         nodes=[],
         output_path=slurm_system.output_path / "sleep_test",
     )
@@ -101,7 +106,7 @@ def test_sbatch_default(sleep_tr: TestRun, slurm_system: SlurmSystem, gres_suppo
 
 
 def test_sbatch_system_fields(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    sleep_tr.time_limit = "00:00:10"
+    sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"time_limit": "00:00:10"})
     tc = TestScenario(name="tc", test_runs=[sleep_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
@@ -132,7 +137,7 @@ def test_sbatch_system_fields(sleep_tr: TestRun, slurm_system: SlurmSystem) -> N
 class TestNodeSpec:
     def test_max_nodes(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
-        another_tr.num_nodes = 3
+        another_tr.test_definition = another_tr.test_definition.model_copy(update={"num_nodes": 3})
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -143,7 +148,7 @@ class TestNodeSpec:
     def test_nodes_list_covers_max(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
         sleep_tr.nodes = []
-        sleep_tr.num_nodes = 1
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"num_nodes": 1})
         another_tr.nodes = ["node-[030-035]"]
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
@@ -156,10 +161,10 @@ class TestNodeSpec:
     def test_nodes_list_does_not_cover_max(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
         sleep_tr.nodes = []
-        sleep_tr.num_nodes = 1
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"num_nodes": 1})
         another_tr.nodes = ["node-[030-035]"]
         nnodes, _ = slurm_system.get_nodes_by_spec(1, another_tr.nodes)
-        sleep_tr.num_nodes = nnodes + 1
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"num_nodes": nnodes + 1})
 
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
@@ -177,7 +182,7 @@ class TestNodeSpec:
     def test_mixed_spec(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
         sleep_tr.nodes = []
-        sleep_tr.num_nodes = 1
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"num_nodes": 1})
         another_tr.nodes = ["node-[030-035]"]
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
@@ -195,7 +200,7 @@ class TestNodeSpec:
 
 class TestTimeLimit:
     def test_simple(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        sleep_tr.time_limit = "00:00:10"
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"time_limit": "00:00:10"})
         tc = TestScenario(name="tc", test_runs=[sleep_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -204,8 +209,8 @@ class TestTimeLimit:
 
     def test_no_limits(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
-        another_tr.time_limit = None
-        sleep_tr.time_limit = None
+        another_tr.test_definition = another_tr.test_definition.model_copy(update={"time_limit": None})
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"time_limit": None})
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -214,8 +219,8 @@ class TestTimeLimit:
 
     def test_mixed_limits(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(sleep_tr)
-        another_tr.time_limit = None
-        sleep_tr.time_limit = "00:00:10"
+        another_tr.test_definition = another_tr.test_definition.model_copy(update={"time_limit": None})
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"time_limit": "00:00:10"})
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -227,9 +232,9 @@ class TestTimeLimit:
         assert str(exc_info.value) == "All tests must have a time limit or none of them must have a time limit"
 
     def test_sum_limits(self, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        sleep_tr.time_limit = "00:00:10"
+        sleep_tr.test_definition = sleep_tr.test_definition.model_copy(update={"time_limit": "00:00:10"})
         another_tr = copy.deepcopy(sleep_tr)
-        another_tr.time_limit = "1-00:10:20"
+        another_tr.test_definition = another_tr.test_definition.model_copy(update={"time_limit": "1-00:10:20"})
         tc = TestScenario(name="tc", test_runs=[sleep_tr, another_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -300,7 +305,7 @@ class TestAuxCommands:
 
     def test_max_nodes_used_for_metadata(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
         another_tr = copy.deepcopy(nccl_tr)
-        another_tr.num_nodes = nccl_tr.nnodes + 1
+        another_tr.test_definition = another_tr.test_definition.model_copy(update={"num_nodes": nccl_tr.nnodes + 1})
         tc = TestScenario(name="tc", test_runs=[nccl_tr, another_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -311,7 +316,7 @@ class TestAuxCommands:
         assert f"--ntasks={another_tr.nnodes}" in metadata_cmd
 
     def test_max_nodes_used_for_metadata_dse(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        nccl_tr.num_nodes = [1, 2]
+        nccl_tr.test_definition = nccl_tr.test_definition.model_copy(update={"num_nodes": [1, 2]})
         tc = TestScenario(name="tc", test_runs=[nccl_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -319,7 +324,7 @@ class TestAuxCommands:
         aux_cmds = runner.aux_commands()
 
         metadata_cmd = aux_cmds[0]
-        assert f"--ntasks={max(nccl_tr.num_nodes)}" in metadata_cmd
+        assert "--ntasks=2" in metadata_cmd
 
 
 def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
@@ -351,9 +356,9 @@ def test_single_sbatch_rejects_adaptive_retry_settings(
     nccl_tr: TestRun, slurm_system: SlurmSystem, agent: str, config: dict, message: str
 ) -> None:
     nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+    tc = TestScenario(name="tc", test_runs=[nccl_tr])
     nccl_tr.test.agent = agent
     nccl_tr.test.agent_config = config
-    tc = TestScenario(name="tc", test_runs=[nccl_tr])
 
     with pytest.raises(ValueError, match=message):
         SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
@@ -609,7 +614,7 @@ def test_run_cancels_job_when_shutdown_occurs_during_submission(sleep_tr: TestRu
 @pytest.mark.parametrize("status", ["completed", "failed", "cancelled", "unknown"])
 def test_run_removes_completed_job_from_tracking(sleep_tr: TestRun, slurm_system: SlurmSystem, status: str) -> None:
     second_tr = copy.deepcopy(sleep_tr)
-    second_tr.name = "second"
+    second_tr.test_definition = second_tr.test_definition.model_copy(update={"id": "second"})
     tc = TestScenario(name="tc", test_runs=[sleep_tr, second_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
     runs = list(runner.all_trs)
@@ -804,7 +809,9 @@ def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slur
     expected_samples = [params.sample(step) for step in range(1, len(dse_tr.all_combinations) + 1)]
 
     unrolled = list(runner.unroll_dse(dse_tr))
-    assert [tr.test.cmd_args.nthreads for tr in unrolled] == [sample["nthreads"] for sample in expected_samples]
+    assert [tr.test_definition.cmd_args.nthreads for tr in unrolled] == [
+        sample["nthreads"] for sample in expected_samples
+    ]
 
     runner.handle_dse()
 

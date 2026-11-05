@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import SimpleNamespace
+
 import pytest
 
 import cloudai.metrics
@@ -73,3 +75,13 @@ def test_merge_sol_configs() -> None:
         "bandwidth": test["bandwidth"],
         "latency": system["latency"],
     }
+
+
+def test_numeric_sol_is_not_applied_as_a_metric_keyed_target() -> None:
+    observations = [
+        cloudai.metrics.MetricObservation(cloudai.metrics.BANDWIDTH, 50, {}),
+        cloudai.metrics.MetricObservation(cloudai.metrics.LATENCY, 5, {}),
+    ]
+    run = SimpleNamespace(test=SimpleNamespace(metric_observations=lambda system, run: observations, sol=100.0))
+    assessments = cloudai.metrics.assess_test_run_metrics(None, run)
+    assert [assessment.sol for assessment in assessments] == [None, None]

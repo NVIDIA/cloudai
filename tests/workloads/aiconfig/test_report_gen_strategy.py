@@ -44,7 +44,11 @@ def _make_tr(tmp_path: Path) -> TestRun:
             agg=Agg(batch_size=1, ctx_tokens=16),
         ),
     )
-    return TestRun(name="tr", test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "out")
+    return TestRun(
+        test_definition=tdef.model_copy(deep=True, update={"id": "tr", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path / "out",
+    )
 
 
 def test_can_handle_directory_when_report_exists(tmp_path: Path, standalone_system: StandaloneSystem) -> None:

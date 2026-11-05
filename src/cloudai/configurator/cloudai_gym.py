@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import logging
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
-from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+import cloudai.core
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import BaseAgentConfig, RewardOverrides
@@ -41,8 +43,8 @@ class CloudAIGymEnv(BaseGym):
 
     def __init__(
         self,
-        test_run: TestRun,
-        runner: BaseRunner,
+        test_run: cloudai.core.TestRun,
+        runner: cloudai.core.BaseRunner,
         rewards: RewardOverrides,
         max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
     ):
@@ -63,7 +65,7 @@ class CloudAIGymEnv(BaseGym):
         self.max_consecutive_rejected_proposals = max_consecutive_rejected_proposals
         self._progress = test_run.step
         self._consecutive_rejections = 0
-        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
+        self.reward_function = cloudai.core.Registry().get_reward_function(test_run.test.agent_reward_function)
         self.params: EnvParams | None = EnvParams.from_test(test_run.test)
         self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
@@ -289,7 +291,7 @@ class CloudAIGymEnv(BaseGym):
         observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v is METRIC_ERROR:
+            if v is cloudai.core.METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v
         return observation

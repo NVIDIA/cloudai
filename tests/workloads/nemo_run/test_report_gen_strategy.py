@@ -18,7 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import TestRun
+import cloudai.metrics
+from cloudai.core import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.nemo_run.report_generation_strategy import extract_timings
@@ -32,8 +33,12 @@ def nemo_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
-    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
-    tr.reports = {NeMoRunReportGenerationStrategy}
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
+    tr.test_definition = tr.test_definition.model_copy(update={"reporters": {NeMoRunReportGenerationStrategy}})
 
     stdout_content = (
         "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
@@ -75,7 +80,11 @@ def nemo_tr_encoded(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
-    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(
+        test_definition=test.model_copy(deep=True, update={"id": "nemo", "num_nodes": 1}),
+        nodes=[],
+        output_path=tmp_path,
+    )
 
     stdout_content = (
         "┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
@@ -99,7 +108,9 @@ def test_nemo_can_handle_directory(slurm_system: SlurmSystem, nemo_tr: TestRun) 
     assert strategy.can_handle_directory()
 
 
-def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+@pytest.mark.parametrize("sol", [42.0, {"bandwidth": [{"value": 100}]}])
+def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun, sol: float | dict) -> None:
+    nemo_tr.test.sol = cloudai.metrics.parse_sol_spec(sol) if isinstance(sol, dict) else sol
     strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     strategy.generate_report()
 
