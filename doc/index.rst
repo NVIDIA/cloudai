@@ -3,10 +3,10 @@
 CloudAI
 ========
 
-**Benchmark, optimize, and extend.**
+**The execution framework for AI-driven research.**
 
-Run training, inference, communication, and storage benchmarks through one framework.
-Explore configurations with optimization agents, compare measured results, and add the integrations your systems need.
+Run the workloads your task requires, collect evidence, and use the results to guide the next experiment.
+Combine experiments into a broader investigation using existing workloads or your own.
 
 .. _overview:
 .. _configuration-search:
