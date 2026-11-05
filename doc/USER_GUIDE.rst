@@ -640,3 +640,60 @@ The configuration fields are:
    extra_args: list[str] = []
 
 Fields with ``None`` value are not passed to ``nsys`` command.
+
+Reading DSE Trajectories
+------------------------
+
+Load a completed iteration through the same ``Trajectory`` class that writes it:
+
+.. code-block:: python
+
+   from pathlib import Path
+
+   from cloudai.configurator import Trajectory
+
+   trajectory = Trajectory.load(Path("results/scenario/Tests.1/0"))
+   for trial in trajectory.records():
+       action = trial.domain("action")
+       reward = trial.domain("reward")
+       observation = trial.domain("observation")
+       metadata = trial.metadata
+
+``load`` also accepts an explicit CSV path. It automatically loads sibling
+``metadata.csv`` when present; ``metadata_path`` selects another sidecar.
+Every core step must have exactly one metadata row when a sidecar exists.
+Duplicate headers, invalid or repeated steps, malformed CSV and mismatched
+step sets raise ``TrajectoryLoadError`` with the source and failure location.
+No partial trajectory is returned. Loading does not modify the source files.
+``trial.source`` identifies the CSV file, and ``trial.row`` is its logical CSV
+record number, counting the header as record 1. Live records have no CSV row.
+Legacy files may start at step 0; loaded step identities are preserved and must
+remain nonnegative, unique and increasing. Newly appended trials retain the
+existing positive-step requirement.
+
+Legacy files containing only ``step``, ``action`` and ``reward`` remain valid.
+When the observation column is absent, ``trial.domain("observation")`` raises
+``KeyError`` rather than inventing a measurement. If a header declares an
+observation column, every row must still contain its corresponding cell.
+
+``trial.domain("env_params")`` returns environment parameters when that domain
+is present. A missing domain raises ``KeyError``. Legacy metadata cells remain
+strings because CSV does not preserve original scalar types. A caller with a
+known producer schema can supply explicit converters keyed by flattened name:
+
+.. code-block:: python
+
+   trajectory = Trajectory.load(
+       Path("results/scenario/Tests.1/0"),
+       schema={"env_params.drop_rate": float},
+   )
+
+``trial.domain("env_params", decode_numbers=True)`` explicitly projects numeric
+strings to integers or floats while retaining other strings. It does not change
+stored metadata or establish the original producer types.
+
+``dataframe`` retains flattened domain columns, and ``find`` retains exact-value
+and exact-type matching. ``csv_dataframe`` returns a copy of the original parsed
+CSV view for report consumers. Observation vectors loaded from CSV remain
+anonymous; the loader does not fabricate metric names. Failed workload results
+remain data, with training eligibility decided by the consuming agent.

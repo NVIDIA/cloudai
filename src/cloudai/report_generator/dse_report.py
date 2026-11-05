@@ -16,8 +16,6 @@
 
 from __future__ import annotations
 
-import ast
-import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,10 +23,10 @@ from typing import Any
 
 import toml
 
+from cloudai.configurator import Trajectory
 from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
-from cloudai.util.lazy_imports import lazy
 
 from .util import load_system_metadata
 
@@ -121,19 +119,9 @@ def format_money(value: float | None) -> str:
     return f"${value:,.2f}"
 
 
-def _safe_literal_eval(raw: Any, default: Any) -> Any:
-    if isinstance(raw, str):
-        with contextlib.suppress(SyntaxError, ValueError):
-            return ast.literal_eval(raw)
-    return default
-
-
 def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
-    """Load a trajectory CSV as a DataFrame."""
-    trajectory_file = iteration_dir / "trajectory.csv"
-    if not trajectory_file.is_file():
-        return None
-    return trajectory_file, lazy.pd.read_csv(trajectory_file)
+    trajectory = Trajectory.load(iteration_dir)
+    return trajectory.output_path, trajectory.csv_dataframe
 
 
 def _format_scalar(value: Any) -> str:
@@ -247,32 +235,26 @@ def _build_trajectory_steps(
     test_case: TestRun,
     test_runs: list[TestRun],
 ) -> list[TrajectoryStep] | None:
-    loaded_trajectory = load_trajectory_dataframe(iteration_dir)
-    if loaded_trajectory is None:
-        logging.warning(f"No trajectory file found for {test_case.name} in {iteration_dir}")
-        return None
-
-    trajectory_file, df = loaded_trajectory
-    if df.empty:
-        logging.warning(f"No trajectory data found for {test_case.name} at {trajectory_file}")
+    trajectory = Trajectory.load(iteration_dir)
+    records = trajectory.records()
+    if not records:
+        logging.warning(f"No trajectory data found for {test_case.name} at {trajectory.output_path}")
         return None
 
     runs_by_step = {test_run.step: test_run for test_run in test_runs}
     steps: list[TrajectoryStep] = []
-    for row in df.to_dict(orient="records"):
-        step_no = int(row["step"])
-        action = _safe_literal_eval(row.get("action"), {})
+    for record in records:
+        step_no = record.step
+        action = record.domain("action")
         if not isinstance(action, dict):
             action = {}
-        observation = _safe_literal_eval(row.get("observation"), [])
-        if not isinstance(observation, list):
-            observation = [observation]
+
         step_run = runs_by_step.get(step_no)
         steps.append(
             TrajectoryStep(
                 step=step_no,
-                reward=float(row["reward"]),
-                observation_text=", ".join(_format_scalar(value) for value in observation) if observation else "n/a",
+                reward=float(record.domain("reward")),
+                observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),
                 is_successful=step_run.test.was_run_successful(step_run).is_successful if step_run else False,

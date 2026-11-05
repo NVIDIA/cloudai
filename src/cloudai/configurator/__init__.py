@@ -19,7 +19,7 @@ from .base_gym import BaseGym
 from .cloudai_gym import CloudAIGymEnv
 from .grid_search import GridSearchAgent
 from .gymnasium_adapter import GymnasiumAdapter
-from .trajectory import Trajectory
+from .trajectory import Trajectory, TrajectoryLoadError, TrajectoryRecord
 
 __all__ = [
     "BaseAgent",
@@ -28,4 +28,6 @@ __all__ = [
     "GridSearchAgent",
     "GymnasiumAdapter",
     "Trajectory",
+    "TrajectoryLoadError",
+    "TrajectoryRecord",
 ]
