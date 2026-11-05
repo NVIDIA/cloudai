@@ -2,8 +2,8 @@
 <!-- SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
      Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
      SPDX-License-Identifier: Apache-2.0 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title description">
-  <title id="title">CloudAI benchmark and optimization workflow</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="588" viewBox="0 132 1200 588" role="img" aria-labelledby="title description">
+  <title id="title">CloudAI experiment execution workflow</title>
   <desc id="description">Define workloads, an execution system, and a scenario. Select a fixed configuration, grid search, or a custom agent. Execute workloads and inspect metrics, reports, and saved configurations. Custom agents can use measured feedback to choose subsequent configurations. Public interfaces and the registry support additional workloads, systems and runners, reporters, and agents.</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
@@ -38,7 +38,6 @@
       }
     }
     text { font-family: Arial, Helvetica, sans-serif; fill: var(--ink); }
-    .heading { font-size: 30px; font-weight: 600; }
     .label { font-size: 22px; font-weight: 600; }
     .body { font-size: 19px; fill: var(--muted); }
     .small { font-size: 17px; fill: var(--muted); }
@@ -46,9 +45,6 @@
     .wire { fill: none; stroke: var(--accent); stroke-width: 2; }
     .extension { fill: var(--node); stroke: var(--line); stroke-width: 1.5; }
   </style>
-  <path d="M40 37H84" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
-  <text x="40" y="83" class="heading">One framework. From experiments to better configurations.</text>
-  <text x="40" y="114" class="body">Benchmark different workloads. Search configurations. Extend the workflow.</text>
 
   <!-- Inputs share the same configuration model. -->
   <rect x="40" y="148" width="1120" height="94" rx="14" fill="var(--input)" stroke="var(--line)"/>
