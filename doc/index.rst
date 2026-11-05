@@ -11,9 +11,9 @@ Combine experiments into a broader investigation using existing workloads or you
 .. _overview:
 .. _configuration-search:
 
-.. image:: _static/cloudai-workflow.svg
+.. image:: _static/cloudai-experiments.svg
    :alt: CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.
-   :target: _static/cloudai-workflow.svg
+   :target: _static/cloudai-experiments.svg
    :width: 100%
    :class: cloudai-workflow dark-light
 
