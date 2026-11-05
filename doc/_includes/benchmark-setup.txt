@@ -1,0 +1,10 @@
+On your Slurm submit host, install `uv <https://docs.astral.sh/uv/getting-started/installation/>`_ 0.13.4 or newer
+and prepare the :doc:`workload prerequisites <workloads/workloads_requirements_installation>`.
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/cloudai.git
+   cd cloudai
+   cp conf/common/system/example_slurm_cluster.toml system.toml
+
+Set your partitions, nodes, and GPU counts in ``system.toml``.

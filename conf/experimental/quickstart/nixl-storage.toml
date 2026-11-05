@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "quickstart-nixl-storage"
+
+[[Tests]]
+id = "storage"
+name = "storage"
+description = "Single-node NIXL POSIX storage write benchmark"
+test_template_name = "NIXLBench"
+num_nodes = 1
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/cuda-dl-base:26.06-cuda13.3-inference-devel-ubuntu24.04"
+  path_to_benchmark = "nixlbench"
+  backend = "POSIX"
+  etcd_endpoints = ""
+  filepath = "/data"
+  posix_api_type = "AIO"
+  op_type = "WRITE"
+  total_buffer_size = "64mb"
+  start_block_size = 4096
+  max_block_size = 1048576
+  start_batch_size = 1
+  max_batch_size = 1
+  warmup_iter = 5
+  num_iter = 20
