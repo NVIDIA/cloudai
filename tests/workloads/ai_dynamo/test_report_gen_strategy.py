@@ -284,18 +284,23 @@ def test_ai_dynamo_get_metric_aiperf(slurm_system: SlurmSystem, ai_dynamo_aiperf
     assert [(obs.metric.key, obs.value, dict(obs.dimensions)) for obs in observations] == expected
 
 
+@pytest.mark.parametrize("missing_benchmark", [False, True])
 def test_ai_dynamo_get_metric_split_aiperf_accuracy(
-    slurm_system: SlurmSystem, ai_dynamo_aiperf_with_split_accuracy_tr: TestRun
+    slurm_system: SlurmSystem, ai_dynamo_aiperf_with_split_accuracy_tr: TestRun, missing_benchmark: bool
 ) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_aiperf_with_split_accuracy_tr)
 
+    if missing_benchmark:
+        (ai_dynamo_aiperf_with_split_accuracy_tr.output_path / "aiperf_report.csv").unlink()
     assert strategy.get_metric("accuracy") == 0.35
-    assert strategy.get_metric("Inter Token Latency (ms)") == 2.83
-    assert cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.35, {}) in (
-        ai_dynamo_aiperf_with_split_accuracy_tr.test.metric_observations(
-            slurm_system, ai_dynamo_aiperf_with_split_accuracy_tr
-        )
-    )
+    assert strategy.get_metric("Inter Token Latency (ms)") == (METRIC_ERROR if missing_benchmark else 2.83)
+    test = ai_dynamo_aiperf_with_split_accuracy_tr.test
+    assert isinstance(test, AIDynamoTestDefinition)
+    reports = test.inference_reports(slurm_system, ai_dynamo_aiperf_with_split_accuracy_tr)
+    if missing_benchmark:
+        assert reports == []
+    else:
+        assert cloudai.metrics.MetricObservation(cloudai.metrics.ACCURACY, 0.35, {}) in reports[0].observations
 
 
 def test_ai_dynamo_accuracy_metric_requires_aiperf_accuracy_config(
@@ -611,6 +616,16 @@ def test_inference_reports(
             )
         )
         (tmp_path / f"aiperf_{phase}_report.csv").write_text(get_aiperf_csv_content())
+        assert test.cmd_args.aiperf_phases is not None
+        resolved = test.cmd_args.resolve_aiperf_phase(next(p for p in test.cmd_args.aiperf_phases if p.name == phase))
+        results = test.parse_benchmark(resolved, tmp_path)
+        assert results is not None and results.max_concurrency == concurrency
+        export = artifact / "profile_export_aiperf.json"
+        content = export.read_text()
+        export.unlink()
+        results = test.parse_benchmark(resolved, tmp_path)
+        assert results is not None and results.max_concurrency == concurrency
+        export.write_text(content)
         metrics: list[tuple[cloudai.metrics.MetricDefinition, float, dict[str, str]]] = [
             (cloudai.metrics.REQUEST_THROUGHPUT, 10, {}),
             (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, 1000, {}),
@@ -661,3 +676,15 @@ def test_inference_reports(
         )
     assert test.inference_reports(slurm_system, tr) == expected
     assert test.metric_observations(slurm_system, tr) == [obs for report in expected for obs in report.observations]
+
+
+@pytest.mark.parametrize("cmd_args", [{}, {"dynamo_version": "configured-version"}])
+def test_legacy_repository_is_ignored(cmd_args: dict, caplog: pytest.LogCaptureFixture) -> None:
+    definition = cloudai.util.deep_merge(INFERENCE_DEFINITION, {"cmd_args": cmd_args})
+    expected = AIDynamoTestDefinition.model_validate(definition)
+    legacy = {**definition, "repo": {"url": "https://example.com/fork.git", "commit": "legacy-commit"}}
+
+    restored = AIDynamoTestDefinition.model_validate(legacy)
+
+    assert restored.model_dump() == expected.model_dump()
+    assert "Ignoring legacy Dynamo 'repo' field" in caplog.text

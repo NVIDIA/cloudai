@@ -603,7 +603,7 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
             return math.nan
 
     @classmethod
-    def parse_aiperf_json(cls, path: Path) -> AIDynamoBenchReport | None:
+    def parse_aiperf_json(cls, path: Path, max_concurrency: int = 1) -> AIDynamoBenchReport | None:
         """Read one phase's native export; absent statistics remain unavailable."""
         try:
             data = json.loads(path.read_text())
@@ -616,7 +616,7 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
             return AIDynamoBenchReport(
                 num_prompts=count,
                 completed=count,
-                max_concurrency=1,
+                max_concurrency=max_concurrency,
                 request_throughput=cls._json_metric(data, "request_throughput"),
                 output_throughput=cls._json_metric(data, "output_token_throughput"),
                 total_token_throughput=cls._json_metric(data, "total_token_throughput"),
@@ -722,13 +722,15 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
 
     @model_validator(mode="before")
     @classmethod
-    def restore_repository_version(cls, value: Any) -> Any:
-        """Read dumps from before the repository commit moved into cmd_args."""
+    def ignore_legacy_repository(cls, value: Any) -> Any:
+        """Allow historical dumps containing the removed repository field."""
         if isinstance(value, dict) and "repo" in value:
             value = dict(value)
-            repo = value.pop("repo")
-            value["cmd_args"] = dict(value["cmd_args"])
-            value["cmd_args"].setdefault("dynamo_version", repo["commit"])
+            value.pop("repo")
+            logging.warning(
+                "Ignoring legacy Dynamo 'repo' field. Reporting does not require it; "
+                "execution uses the upstream repository and cmd_args.dynamo_version."
+            )
         return value
 
     def metric_observations(self, system: System, tr: TestRun) -> list[cloudai.metrics.MetricObservation]:
@@ -802,15 +804,19 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
         return total or None
 
     def parse_benchmark(self, benchmark: Workload, output_path: Path) -> AIDynamoBenchReport | None:
+        try:
+            concurrency = int(benchmark.args.model_dump().get("concurrency", 1))
+        except (TypeError, ValueError):
+            concurrency = 1
         csv_file = output_path / benchmark.report_name
         if isinstance(benchmark, AIPerf):
             artifacts = output_path / benchmark.artifact_dir_name
-            results = self.parse_aiperf_json(artifacts / "profile_export_aiperf.json")
+            results = self.parse_aiperf_json(artifacts / "profile_export_aiperf.json", concurrency)
             if results is not None:
                 return results
             if (artifacts / "profile_export_aiperf.csv").is_file():
                 csv_file = artifacts / "profile_export_aiperf.csv"
-        return self.parse_benchmark_csv(csv_file)
+        return self.parse_benchmark_csv(csv_file, concurrency)
 
     @staticmethod
     def benchmark_observations(
@@ -862,6 +868,8 @@ class AIDynamoTestDefinition(TestDefinition, inference_report.InferenceReportPro
                 if phase:
                     dimensions[cloudai.metrics.PHASE.key] = phase.name
                 results = self.parse_benchmark(resolved, tr.output_path)
+                if results is None:
+                    continue
                 args = {
                     key.replace("-", "_"): value for key, value in resolved.args.model_dump(exclude_none=True).items()
                 }
