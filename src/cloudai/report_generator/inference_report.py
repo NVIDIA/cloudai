@@ -30,6 +30,21 @@ if typing.TYPE_CHECKING:
 class InferenceRoleConfig:
     """Configured serving layout for one role, such as prefill or decode."""
 
+    labels: typing.ClassVar[dict[str, str]] = {
+        "model": "Model",
+        "num_nodes": "Nodes",
+        "num_instances": "Instances",
+        "nodes_per_instance": "Nodes per instance",
+        "instances_per_node": "Instances per node",
+        "gpu_ids": "GPU IDs",
+        "tensor_parallel_size": "TP",
+        "pipeline_parallel_size": "PP",
+        "data_parallel_size": "DP",
+        "expert_parallel": "Expert parallel",
+        "precision": "Precision",
+        "quantization": "Quantization",
+    }
+
     model: str | None = None
     num_nodes: int | None = None
     num_instances: int | None = None
@@ -47,6 +62,22 @@ class InferenceRoleConfig:
 @dataclasses.dataclass(kw_only=True)
 class InferenceConfig:
     """Resolved input settings for one measurement; unknown settings remain None."""
+
+    labels: typing.ClassVar[dict[str, str]] = {
+        "model": "Model",
+        "num_nodes": "Nodes",
+        "backend": "Backend",
+        "container_image": "Container image",
+        "serving_gpu_count": "Serving GPUs",
+        "input_tokens": "Input tokens",
+        "output_tokens": "Output tokens",
+        "concurrency": "Concurrency",
+        "users": "Users",
+        "request_count": "Requests",
+        "request_rate": "Request rate",
+        "shared_nodes": "Prefill and decode share nodes",
+        "allocated_gpu_count": "Allocated GPUs",
+    }
 
     model: str
     num_nodes: int
@@ -66,46 +97,23 @@ class InferenceConfig:
     decode: InferenceRoleConfig | None = None
     shared_nodes: bool | None = None
 
+    @property
+    def allocated_gpu_count(self) -> int | None:
+        """Return the allocation implied by the configured nodes and GPUs per node."""
+        if self.gpus_per_node is not None and self.gpus_per_node > 0:
+            return self.num_nodes * self.gpus_per_node
+        return None
+
     def context(self) -> dict[str, typing.Any]:
         """Display resolved input settings without inspecting workload-specific configurations."""
-        labels = {
-            "model": "Model",
-            "num_nodes": "Nodes",
-            "backend": "Backend",
-            "container_image": "Container image",
-            "serving_gpu_count": "Serving GPUs",
-            "input_tokens": "Input tokens",
-            "output_tokens": "Output tokens",
-            "concurrency": "Concurrency",
-            "users": "Users",
-            "request_count": "Requests",
-            "request_rate": "Request rate",
-            "shared_nodes": "Prefill and decode share nodes",
-        }
-        context = {label: getattr(self, key) for key, label in labels.items() if getattr(self, key) is not None}
-        if self.gpus_per_node is not None and self.gpus_per_node > 0:
-            context["Allocated GPUs"] = self.num_nodes * self.gpus_per_node
-        role_labels = {
-            "model": "Model",
-            "num_nodes": "Nodes",
-            "num_instances": "Instances",
-            "nodes_per_instance": "Nodes per instance",
-            "instances_per_node": "Instances per node",
-            "gpu_ids": "GPU IDs",
-            "tensor_parallel_size": "TP",
-            "pipeline_parallel_size": "PP",
-            "data_parallel_size": "DP",
-            "expert_parallel": "Expert parallel",
-            "precision": "Precision",
-            "quantization": "Quantization",
-        }
+        context = {label: getattr(self, key) for key, label in self.labels.items() if getattr(self, key) is not None}
         decode_label = "Decode" if self.prefill is not None else "Serving"
         for name, role in (("Prefill", self.prefill), (decode_label, self.decode)):
             if role is not None:
                 context.update(
                     {
                         f"{name} / {label}": getattr(role, key)
-                        for key, label in role_labels.items()
+                        for key, label in role.labels.items()
                         if getattr(role, key) is not None
                     }
                 )

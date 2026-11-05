@@ -117,6 +117,7 @@ def pareto_reporter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> pareto_report.ParetoReporter:
     monkeypatch.setitem(cloudai.core.Registry().test_definitions_map, "dummy", DummyInferenceDefinition)
+    monkeypatch.setitem(inference_report.InferenceConfig.labels, "input_tokens", "Prompt tokens")
     monkeypatch.setitem(
         cloudai.metrics.MetricCatalog._dimensions,
         "phase",
@@ -202,39 +203,42 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
     sweep_definition = copy.deepcopy(definition)
     sweep_definition["cmd_args"]["concurrency"] = 8
     context = {
-        "Workload": "dummy",
-        "Model": "example/model",
-        "Nodes": 1,
-        "Allocated GPUs": 8,
-        "Concurrency": 16,
-        "Backend": "example-backend",
-        "Container image": "example/image:latest",
-        "Serving GPUs": 4,
-        "Input tokens": 128,
-        "Output tokens": 64,
-        "Users": 8,
-        "Requests": 32,
-        "Request rate": 0,
-        "Prefill and decode share nodes": False,
-        "Serving / Model": "example/role-model",
-        "Serving / Nodes": 1,
-        "Serving / Instances": 1,
-        "Serving / Nodes per instance": 1,
-        "Serving / Instances per node": 1,
-        "Serving / GPU IDs": [0, 1],
-        "Serving / TP": 2,
-        "Serving / PP": 1,
-        "Serving / DP": 1,
-        "Serving / Expert parallel": False,
-        "Serving / Precision": "bfloat16",
-        "Serving / Quantization": "fp8",
+        "Workload": {
+            "Model": "example/model",
+            "Container image": "example/image:latest",
+            "Backend": "example-backend",
+            "Workload": "dummy",
+        },
+        "Request settings": {
+            "Concurrency": 16,
+            "Users": 8,
+            "Prompt tokens": 128,
+            "Output tokens": 64,
+            "Requests": 32,
+            "Request rate": 0,
+        },
+        "Resources": {"Nodes": 1, "Allocated GPUs": 8, "Serving GPUs": 4, "Prefill and decode share nodes": False},
+        "Serving": {
+            "Model": "example/role-model",
+            "Nodes": 1,
+            "Instances": 1,
+            "Nodes per instance": 1,
+            "Instances per node": 1,
+            "GPU IDs": [0, 1],
+            "TP": 2,
+            "PP": 1,
+            "DP": 1,
+            "Expert parallel": False,
+            "Precision": "bfloat16",
+            "Quantization": "fp8",
+        },
     }
     sweep_context = {
-        **{key.replace("Serving / ", "Decode / "): value for key, value in context.items()},
-        "Nodes": 2,
-        "Allocated GPUs": 16,
-        "Concurrency": 8,
-        "Prefill / Nodes": 1,
+        "Workload": context["Workload"],
+        "Request settings": {**context["Request settings"], "Concurrency": 8},
+        "Resources": {**context["Resources"], "Nodes": 2, "Allocated GPUs": 16},
+        "Prefill": {"Nodes": 1},
+        "Decode": context["Serving"],
     }
     points = [
         {
@@ -284,7 +288,10 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
             "x": x,
             "y": y,
             "run": "sweep · iteration=0 · step=1",
-            "context": {**sweep_point["context"], "Concurrency": concurrency},
+            "context": {
+                **sweep_point["context"],
+                "Request settings": {**sweep_context["Request settings"], "Concurrency": concurrency},
+            },
             "dimensions": f"x.phase={phase}, x.statistic=p99, y.phase={phase}",
             "id": f"pareto-0-point-{index}",
         }
@@ -298,6 +305,14 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
     }[plot.x.resolved_direction.value, plot.y.resolved_direction.value]
     for point, on_frontier in zip(points, expected_frontier, strict=True):
         point["status"] = "Frontier" if on_frontier else "Dominated"
+        point["context"] = {
+            "Measurements": {
+                "P99 Time to first token (ms)": point["x"],
+                "Output token throughput (tokens/s)": point["y"],
+                "Metric dimensions": point["dimensions"],
+            },
+            **point["context"],
+        }
     excluded = [
         {"group": "All", "run": "sweep · iteration=0 · step=2", "reason": "Missing test-run.toml for sweep step"},
         {"group": "All", "run": "missing · iteration=0 · step=0", "reason": "No execution results found"},
@@ -336,6 +351,15 @@ def test_build_sections(pareto_reporter: pareto_report.ParetoReporter) -> None:
     normalized_points[3]["dimensions"] = "x.phase=low, x.statistic=mean, y.phase=low"
     normalized_points[4]["dimensions"] = "x.phase=high, x.statistic=mean, y.phase=high"
     normalized_points[4]["x"] = 2
+    for point in normalized_points:
+        point["context"] = {
+            **point["context"],
+            "Measurements": {
+                "MEAN Time per output token (ms)": point["x"],
+                "Output throughput per allocated GPU (tokens/s/GPU)": point["y"],
+                "Metric dimensions": point["dimensions"],
+            },
+        }
     normalized_data = [{k: v for k, v in point.items() if k != "config"} for point in normalized_points]
     expected = [
         {

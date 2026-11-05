@@ -448,43 +448,6 @@
             }
             let pinnedPoint = false;
             const inspector = isPareto ? card.querySelector(".pareto-inspector") : null;
-            function pointPropertyGroups(point) {
-                const groups = {Measurements: {
-                    [payload.x_axis_label]: point.x,
-                    [payload.y_axis_label]: point.y,
-                    ...(point.dimensions ? {"Metric dimensions": point.dimensions} : {})
-                }};
-                const remaining = {...point.context};
-                const settings = {
-                    Workload: ["Model", "Container image", "Workload", "Backend"],
-                    "Request settings": ["Concurrency", "Users", "Input tokens", "Output tokens", "Requests", "Request rate"],
-                    Resources: ["Nodes", "Allocated GPUs", "Serving GPUs", "Prefill and decode share nodes"]
-                };
-                Object.entries(settings).forEach(([group, labels]) => {
-                    groups[group] = {};
-                    labels.forEach((label) => {
-                        if (Object.hasOwn(remaining, label)) {
-                            groups[group][label] = remaining[label];
-                            delete remaining[label];
-                        }
-                    });
-                });
-                ["Serving", "Prefill", "Decode"].forEach((role) => {
-                    groups[role] = {};
-                    const orderedLabels = ["Model", "Nodes", "Instances", "Nodes per instance", "Instances per node",
-                        "GPU IDs", "TP", "PP", "DP", "Expert parallel", "Precision", "Quantization"];
-                    const labels = [...new Set([...orderedLabels.map((label) => `${role} / ${label}`),
-                        ...Object.keys(remaining)])];
-                    labels.forEach((label) => {
-                        if (label.startsWith(`${role} / `) && Object.hasOwn(remaining, label)) {
-                            groups[role][label.slice(role.length + 3)] = remaining[label];
-                            delete remaining[label];
-                        }
-                    });
-                });
-                groups["Other settings"] = remaining;
-                return Object.entries(groups).filter(([, values]) => Object.keys(values).length);
-            }
             function inspectPoint(point, pin = false) {
                 if (!inspector || (pinnedPoint && !pin)) {
                     return;
@@ -497,7 +460,7 @@
                 inspector.querySelector(".js-point-clear").textContent = pin ? "Unpin point" : "Clear selection";
                 const fields = inspector.querySelector(".js-point-properties");
                 fields.replaceChildren();
-                pointPropertyGroups(point).forEach(([title, properties]) => {
+                Object.entries(point.context).forEach(([title, properties]) => {
                     const group = document.createElement("section");
                     group.className = "pareto-property-group";
                     group.dataset.group = title;
