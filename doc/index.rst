@@ -20,9 +20,10 @@ Explore configurations with optimization agents, compare measured results, and a
 :doc:`Extend CloudAI <DEV>` · `Configure optimization agents <USER_GUIDE.html#agents-configuration>`_
 
 .. _choose-a-workflow:
+.. _getting-started:
 
-Choose a benchmark
-------------------
+Run a benchmark
+---------------
 
 .. tab-set::
 
@@ -32,6 +33,12 @@ Choose a benchmark
       .. _inference-with-vllm:
 
       Benchmark Qwen3-0.6B on one GPU on a Slurm node.
+
+      .. dropdown:: Set up this benchmark
+
+         .. include:: _includes/benchmark-setup.txt
+
+      Use your cluster's configuration as ``system.toml``.
 
       .. code-block:: bash
 
@@ -52,6 +59,12 @@ Choose a benchmark
 
       Benchmark all-reduce on two Slurm nodes.
 
+      .. dropdown:: Set up this benchmark
+
+         .. include:: _includes/benchmark-setup.txt
+
+      Use your cluster's configuration as ``system.toml``.
+
       .. code-block:: bash
 
          uv run cloudai run --system-config system.toml \
@@ -67,30 +80,44 @@ Choose a benchmark
 
    .. tab-item:: Storage
 
-      .. _storage-with-fio:
+      .. _storage-with-nixl:
 
-      Install ``fio`` locally. Set ``filename`` to a disposable file on the storage to benchmark
-      (default: ``/tmp/cloudai-fio-quickstart``, 80 MiB).
+      Benchmark POSIX storage writes with NIXL on one Slurm node.
+
+      .. dropdown:: Set up this benchmark
+
+         .. include:: _includes/benchmark-setup.txt
+
+         Set ``output_path`` in ``system.toml`` to a writable directory on the storage to measure.
+
+      Use your cluster's configuration as ``system.toml``.
 
       .. code-block:: bash
 
-         uv run cloudai run --system-config conf/common/system/standalone_system.toml \
-             --test-scenario conf/experimental/quickstart/fio.toml
+         uv run cloudai run --system-config system.toml \
+             --test-scenario conf/experimental/quickstart/nixl-storage.toml
 
       .. dropdown:: View configuration
 
-         .. literalinclude:: ../conf/experimental/quickstart/fio.toml
+         .. literalinclude:: ../conf/experimental/quickstart/nixl-storage.toml
             :language: toml
             :start-at: name =
 
-      :doc:`Fio guide <workloads/fio>`
+      :doc:`NIXL Bench guide <workloads/nixl_bench>`
 
    .. tab-item:: Training
 
       .. _training-with-megatron-bridge:
 
       Run ten Qwen3-30B-A3B training steps on two eight-GPU H100 Slurm nodes.
-      Set ``HF_TOKEN`` and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
+
+      .. dropdown:: Set up this benchmark
+
+         .. include:: _includes/benchmark-setup.txt
+
+         Set ``HF_TOKEN`` in your environment and prepare the :doc:`Megatron Bridge prerequisites <workloads/megatron_bridge>`.
+
+      Use your cluster's configuration as ``system.toml``.
 
       .. code-block:: bash
 
@@ -104,22 +131,6 @@ Choose a benchmark
             :start-at: name =
 
       :doc:`Megatron Bridge guide <workloads/megatron_bridge>`
-
-.. _getting-started:
-
-Get started
------------
-
-Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`_ 0.13.4 or newer, then clone CloudAI:
-
-.. code-block:: bash
-
-   git clone https://github.com/NVIDIA/cloudai.git
-   cd cloudai
-
-For Slurm, copy ``conf/common/system/example_slurm_cluster.toml`` to ``system.toml`` and set your partitions,
-nodes, and GPU counts. Prepare the :doc:`workload prerequisites <workloads/workloads_requirements_installation>`.
-See :doc:`getting-started` for installation alternatives.
 
 Read your results
 -----------------
