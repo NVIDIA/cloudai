@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name = "quickstart-fio-slurm"
+
+[[Tests]]
+id = "fio"
+name = "fio"
+description = "Small file I/O benchmark"
+test_template_name = "Fio"
+num_nodes = 1
+time_limit = "00:05:00"
+extra_container_mounts = ["/tmp:/data"]
+
+  [Tests.cmd_args]
+  fio_binary = "fio"
+  docker_image_url = "openeuler/fio:3.42-oe2403sp3"
+
+    [Tests.cmd_args.args]
+    name = "cloudai-quickstart"
+    filename = "/data/cloudai-fio-quickstart"
+    rw = "randwrite"
+    bs = "128k"
+    size = "80m"
+    iodepth = 1
+    numjobs = 1
+    group_reporting = true
+    thread = true
