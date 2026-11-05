@@ -356,9 +356,9 @@ def test_single_sbatch_rejects_adaptive_retry_settings(
     nccl_tr: TestRun, slurm_system: SlurmSystem, agent: str, config: dict, message: str
 ) -> None:
     nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+    tc = TestScenario(name="tc", test_runs=[nccl_tr])
     nccl_tr.test.agent = agent
     nccl_tr.test.agent_config = config
-    tc = TestScenario(name="tc", test_runs=[nccl_tr])
 
     with pytest.raises(ValueError, match=message):
         SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
