@@ -22,7 +22,7 @@ import ast
 import csv
 import io
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,11 +36,6 @@ if TYPE_CHECKING:
 
 class TrajectoryLoadError(RuntimeError):  # noqa: D101
     def __init__(self, path: Path, reason: str, *, row: int | None = None, step: int | None = None) -> None:
-        self.path = path
-        self.row = row
-        self.step = step
-        self.reason = reason
-
         location = f"row {row}, " if row is not None else ""
         location += f"step {step}, " if step is not None else ""
         super().__init__(f"Cannot load trajectory {path}: {location}{reason}")
@@ -140,24 +135,18 @@ class Trajectory:
         )
 
     @classmethod
-    def load(
-        cls,
-        source: str | Path,
-        *,
-        metadata_path: str | Path | None = None,
-        schema: Mapping[str, Callable[[str], Any]] | None = None,
-    ) -> Trajectory:
+    def load(cls, source: str | Path) -> Trajectory:
         source = Path(source)
         path = source / cls.file_name if source.is_dir() else source
         columns, rows, text = cls._read_csv(
             path, required=tuple(name for name in cls._core_fields if name != "observation")
         )
 
-        sidecar = Path(metadata_path) if metadata_path is not None else path.parent / cls.metadata_file_name
-        has_metadata = metadata_path is not None or sidecar.exists() or sidecar.is_symlink()
+        sidecar = path.parent / cls.metadata_file_name
+        has_metadata = sidecar.exists() or sidecar.is_symlink()
         metadata_rows = cls._read_metadata(sidecar) if has_metadata else None
 
-        records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows, schema)
+        records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows)
         frame = lazy.pd.DataFrame(flattened_rows, dtype=object)
         if not flattened_rows:
             frame = lazy.pd.DataFrame(columns=columns)
@@ -199,7 +188,6 @@ class Trajectory:
         rows: list[tuple[int, dict[str, str]]],
         sidecar: Path,
         metadata_rows: dict[int, tuple[int, dict[str, str]]] | None,
-        schema: Mapping[str, Callable[[str], Any]] | None,
     ) -> tuple[list[TrajectoryRecord], list[dict[str, Any]]]:
         records = []
         flattened_rows = []
@@ -216,7 +204,7 @@ class Trajectory:
             steps.add(step)
 
             domains = {
-                name: cls._decode_core_value(row[name], path, row_number, name, schema)
+                name: cls._decode_core_value(row[name], path, row_number, name)
                 for name in cls._core_fields
                 if name != "step" and name in row
             }
@@ -236,7 +224,7 @@ class Trajectory:
                         extra[name] = value
                         source_paths[name] = sidecar
 
-            cls._decode_metadata(domains, extra, source_paths, step, schema)
+            cls._decode_metadata(domains, extra, source_paths, step)
             flattened: dict[str, Any] = {"step": step}
             for name, value in domains.items():
                 flattened.update(_flatten_value(name, value))
@@ -259,18 +247,10 @@ class Trajectory:
         values: dict[str, str],
         paths: Mapping[str, Path],
         step: int,
-        schema: Mapping[str, Callable[[str], Any]] | None,
     ) -> None:
         for name, value in values.items():
             path = paths[name]
-            decoded: Any = value
-            if schema is not None and name in schema:
-                try:
-                    decoded = schema[name](value)
-                except Exception as error:
-                    raise TrajectoryLoadError(path, f"cannot decode {name}: {error}", step=step) from error
-
-            cls._set_domain(domains, name, decoded, path, step)
+            cls._set_domain(domains, name, value, path, step)
 
     def records(self) -> tuple[TrajectoryRecord, ...]:
         if self._loaded_records is not None:
@@ -344,14 +324,7 @@ class Trajectory:
         path: Path,
         row: int,
         name: str,
-        schema: Mapping[str, Callable[[str], Any]] | None,
     ) -> Any:
-        if schema is not None and name in schema:
-            try:
-                return schema[name](value)
-            except Exception as error:
-                raise TrajectoryLoadError(path, f"cannot decode {name}: {error}", row=row) from error
-
         if name == "observation" and value.startswith("[truncated"):
             return value
 

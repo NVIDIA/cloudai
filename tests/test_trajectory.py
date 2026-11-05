@@ -393,15 +393,7 @@ def test_trajectory_logs_lifecycle_and_lookup(tmp_path: Path, caplog: pytest.Log
 
 
 def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
-    """The lookup index must select exactly the row a linear exact-match scan would.
-
-    ``find`` is backed by a hash index rather than a scan, so the index key has to carry
-    the same identity semantics as ``_values_match_exact`` -- exact type, then structure.
-    This asserts the two agree on every recorded row rather than on a handful of cases.
-    """
     import random
-
-    from cloudai.configurator.trajectory import _values_match_exact
 
     trajectory = Trajectory(iteration_dir=tmp_path)
     random.seed(0)
@@ -412,19 +404,14 @@ def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
         trajectory.append(step=step, action=action, reward=step / 100, observation=[float(step)], env_params=env)
         recorded.append((action, env))
 
-    frame = trajectory.dataframe
-
-    def scan(action: dict, env: dict) -> object | None:
-        criteria = {f"action.{k}": v for k, v in action.items()}
-        criteria.update({f"env_params.{k}": v for k, v in env.items()})
-        for _, row in frame.iterrows():
-            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
-                return row["step"]
-        return None
-
     for action, env in recorded:
+        expected = next(
+            step
+            for step, (recorded_action, recorded_env) in enumerate(recorded, start=1)
+            if recorded_action == action and recorded_env == env
+        )
         found = trajectory.find(action=action, env_params=env)
-        expected = scan(action, env)
+
         assert expected is not None
         assert found is not None
         assert found["step"] == expected
@@ -543,11 +530,9 @@ def test_load_preserves_source_metadata_until_an_explicit_projection(tmp_path: P
 
     loaded = Trajectory.load(tmp_path)
     projected = loaded.records()[0].domain("env_params", decode_numbers=True)
-    typed = Trajectory.load(tmp_path, schema={"env_params.msg_size": int, "env_params.drop_rate": float})
 
     assert projected == {"label": 1, "msg_size": 1024, "drop_rate": 0.003}
     assert loaded.records()[0].domain("env_params") == {"label": "001", "msg_size": "1024", "drop_rate": "0.003"}
-    assert typed.records()[0].domain("env_params") == {"label": "001", "msg_size": 1024, "drop_rate": 0.003}
 
 
 def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> None:
@@ -589,22 +574,25 @@ def test_load_accepts_writer_supported_domains_without_optional_metadata(
     written = Trajectory(iteration_dir=tmp_path)
     written.append(step=1, action=action, reward=reward, observation=observation)
 
+    live_record = written.records()[0]
     record = Trajectory.load(tmp_path).records()[0]
 
     assert record.domain("action") == action
+    assert live_record.domain("action") == record.domain("action")
     assert record.domain("reward") == reward
+    assert live_record.domain("reward") == record.domain("reward")
     assert record.domain("observation") == observation
+    assert live_record.domain("observation") == record.domain("observation")
     assert record.metadata == {}
     assert not written.metadata_path.exists()
 
 
-def test_load_accepts_explicit_csv_and_metadata_locations(tmp_path: Path) -> None:
+def test_load_accepts_an_explicit_csv_with_its_sibling_metadata(tmp_path: Path) -> None:
     written = Trajectory(iteration_dir=tmp_path)
     written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0], env_params={"workload": "bisection"})
     csv_path = written.output_path.rename(tmp_path / "measurements.csv")
-    metadata_path = written.metadata_path.rename(tmp_path / "conditions.csv")
 
-    record = Trajectory.load(csv_path, metadata_path=metadata_path).records()[0]
+    record = Trajectory.load(csv_path).records()[0]
 
     assert record.source == csv_path
     assert record.domain("env_params") == {"workload": "bisection"}
@@ -686,8 +674,8 @@ def test_load_rejects_inconsistent_artifacts_before_returning_history(
     with pytest.raises(TrajectoryLoadError, match=artifact) as failure:
         Trajectory.load(tmp_path)
 
-    assert failure.value.path.name == artifact
-    assert failure.value.reason
+    assert str(failure.value).startswith(f"Cannot load trajectory {tmp_path / artifact}:")
+    assert "row " in str(failure.value) or "step " in str(failure.value)
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
 
 
@@ -716,9 +704,9 @@ def test_load_identifies_the_step_whose_metadata_is_missing(tmp_path: Path) -> N
     with pytest.raises(TrajectoryLoadError) as failure:
         Trajectory.load(tmp_path)
 
-    assert failure.value.path == written.metadata_path
-    assert failure.value.step == 2
-    assert failure.value.reason
+    assert str(written.metadata_path) in str(failure.value)
+    assert "step 2" in str(failure.value)
+    assert "missing metadata row for trajectory step" in str(failure.value)
 
 
 def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
@@ -730,17 +718,6 @@ def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
 
     assert record.source == source
     assert record.domain("action") == {"ooo": 10}
-
-
-def test_load_reports_an_explicit_metadata_path_that_does_not_exist(tmp_path: Path) -> None:
-    written = Trajectory(iteration_dir=tmp_path)
-    written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0])
-    missing = tmp_path / "missing.csv"
-
-    with pytest.raises(TrajectoryLoadError) as failure:
-        Trajectory.load(written.output_path, metadata_path=missing)
-
-    assert failure.value.path == missing
 
 
 def test_load_preserves_legacy_history_without_an_observation_column(tmp_path: Path) -> None:

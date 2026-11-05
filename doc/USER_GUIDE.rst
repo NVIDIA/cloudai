@@ -660,7 +660,7 @@ Load a completed iteration through the same ``Trajectory`` class that writes it:
        metadata = trial.metadata
 
 ``load`` also accepts an explicit CSV path. It automatically loads sibling
-``metadata.csv`` when present; ``metadata_path`` selects another sidecar.
+``metadata.csv`` when present.
 Every core step must have exactly one metadata row when a sidecar exists.
 Duplicate headers, invalid or repeated steps, malformed CSV and mismatched
 step sets raise ``TrajectoryLoadError`` with the source and failure location.
@@ -678,15 +678,7 @@ observation column, every row must still contain its corresponding cell.
 
 ``trial.domain("env_params")`` returns environment parameters when that domain
 is present. A missing domain raises ``KeyError``. Legacy metadata cells remain
-strings because CSV does not preserve original scalar types. A caller with a
-known producer schema can supply explicit converters keyed by flattened name:
-
-.. code-block:: python
-
-   trajectory = Trajectory.load(
-       Path("results/scenario/Tests.1/0"),
-       schema={"env_params.drop_rate": float},
-   )
+strings because CSV does not preserve original scalar types.
 
 ``trial.domain("env_params", decode_numbers=True)`` explicitly projects numeric
 strings to integers or floats while retaining other strings. It does not change
