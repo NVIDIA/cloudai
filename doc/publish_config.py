@@ -28,39 +28,57 @@ class Dumper(yaml.SafeDumper):
         return super().increase_indent(flow, False)
 
 
-def release_number(slug):
+def version_order(version):
+    """Sort releases numerically, newest first, with dev last (reverse=True)."""
+    slug = version["slug"]
     parts = slug.removeprefix("v").split("-", 1)[0].split(".")
-    return tuple(map(int, parts)) if all(part.isdecimal() for part in parts) else ()
+    number = tuple(map(int, parts)) if all(part.isdecimal() for part in parts) else ()
+    return slug != "dev", number
 
 
-def configure(source, state, template, slug, sha, production):
-    """Prepare a complete version list without copying any version's content."""
-    if not slug or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789.-" for c in slug):
-        raise ValueError("Version slugs must contain only lowercase letters, numbers, dots, and hyphens.")
-    config = yaml.safe_load(template.read_text())
-    published = yaml.safe_load(state.read_text()) if state.exists() else {"versions": []}
-    versions = published["versions"]
-    if any("ref" not in entry or "path" in entry for entry in versions):
-        raise ValueError("release/docs must contain only versions pinned to source commit refs.")
-    previous = next((entry for entry in versions if entry["slug"] == slug), None)
-    if production and previous:
+def production_versions(versions, slug, sha, source):
+    """Update one version while preventing release replacement or dev rollback."""
+    previous = next((version for version in versions if version["slug"] == slug), None)
+    if previous:
         if slug == "dev":
             subprocess.run(["git", "-C", str(source), "merge-base", "--is-ancestor", previous["ref"], sha], check=True)
         elif previous["ref"] != sha:
             raise ValueError(f"Published release {slug} is immutable; its source commit cannot be replaced.")
-    candidate = {"display-name": slug, "slug": slug, "ref": sha, "availability": "beta" if slug == "dev" else "stable"}
+    candidate = {
+        "display-name": slug,
+        "slug": slug,
+        "ref": sha,
+        "availability": "beta" if slug == "dev" else "stable",
+    }
+    updated = [version for version in versions if version["slug"] != slug]
+    updated.append(candidate)
+    return sorted(updated, key=version_order, reverse=True)
+
+
+def preview_versions(versions, slug, sha):
+    """Make the preview the default while preserving all production versions."""
+    candidate = {
+        "display-name": f"Preview: {slug}",
+        "slug": f"preview-{slug}",
+        "ref": sha,
+        "availability": "beta",
+    }
+    return [candidate, *versions]
+
+
+def configure(source, state, template, slug, sha, production):
+    """Read production state and write the deployment config into the source checkout."""
+    if not slug or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789.-" for c in slug):
+        raise ValueError("Version slugs must contain only lowercase letters, numbers, dots, and hyphens.")
+    config = yaml.safe_load(template.read_text())
+    versions = yaml.safe_load(state.read_text())["versions"] if state.exists() else []
+    if any("ref" not in version or "path" in version for version in versions):
+        raise ValueError("release/docs must contain only versions pinned to source commit refs.")
     if production:
-        versions = [entry for entry in versions if entry["slug"] != slug] + [candidate]
-        versions.sort(key=lambda entry: (entry["slug"] != "dev", release_number(entry["slug"])), reverse=True)
+        config["versions"] = production_versions(versions, slug, sha, source)
     else:
-        # Preserve every production entry, including an already published release with this name.
-        candidate.update({"display-name": f"Preview: {slug}", "slug": f"preview-{slug}", "availability": "beta"})
-        versions = [candidate, *versions]
-    config["versions"] = versions
-    rendered = yaml.dump(config, Dumper=Dumper, sort_keys=False)
-    (source / "fern/docs.yml").write_text(rendered)
-    state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(rendered)
+        config["versions"] = preview_versions(versions, slug, sha)
+    (source / "fern/docs.yml").write_text(yaml.dump(config, Dumper=Dumper, sort_keys=False))
 
 
 if __name__ == "__main__":

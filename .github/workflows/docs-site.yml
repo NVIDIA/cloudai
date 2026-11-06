@@ -93,7 +93,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: automation/.python-version
-      - uses: astral-sh/setup-uv@v5
+      - name: Install publishing dependency
+        run: python -m pip install PyYAML==6.0.3
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -115,9 +116,11 @@ jobs:
         run: |
           args=()
           if [[ "$MODE" == production ]]; then args+=(--production); fi
-          uv run --project automation --locked python automation/doc/publish_config.py \
+          python automation/doc/publish_config.py \
             --source source --state state/fern/docs.yml --template automation/fern/docs.yml \
             --slug "$DOCS_SLUG" --sha "$SOURCE_SHA" "${args[@]}"
+          mkdir -p state/fern
+          cp source/fern/docs.yml state/fern/docs.yml
           cp automation/fern/fern.config.json source/fern/fern.config.json
           cp automation/fern/fern.config.json state/fern/fern.config.json
       - name: Publish
