@@ -1,0 +1,263 @@
+<Anchor id="systems" />
+
+This chapter lists all the systems supported by CloudAI. The attributes shown for each system can be set in TOML configuration files.
+
+| System                                                 | Scheduler Value |
+|--------------------------------------------------------|-----------------|
+| [Slurm](/1.6.1/systems#slurm-system)           | `slurm`         |
+| [Kubernetes](/1.6.1/systems#kubernetes-system) | `kubernetes`    |
+| [RunAI](/1.6.1/systems#runai-system)           | `runai`         |
+| [LSF](/1.6.1/systems#lsf-system)               | `lsf`           |
+| [Standalone](/1.6.1/systems#standalone-system) | `standalone`    |
+
+<Anchor id="slurm" />
+
+<Anchor id="slurm-system" />
+
+## Slurm
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem" /> *pydantic model* cloudai.systems.slurm.slurm_system.SlurmSystem**
+
+Represents a Slurm system.
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.default_partition" /> *field* default_partition*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.partitions" /> *field* partitions*: List\[[SlurmPartition](/1.6.1/systems#cloudai.systems.slurm.slurm_system.SlurmPartition "cloudai.systems.slurm.slurm_system.SlurmPartition")\]* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.account" /> *field* account*: str \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.distribution" /> *field* distribution*: str \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.mpi" /> *field* mpi*: str = 'pmix'***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.gpus_per_node" /> *field* gpus_per_node*: int \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.ntasks_per_node" /> *field* ntasks_per_node*: int \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.cache_docker_images_locally" /> *field* cache_docker_images_locally*: bool = False***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.scheduler" /> *field* scheduler*: str = 'slurm'***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.monitor_interval" /> *field* monitor_interval*: int = 60***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.extra_srun_args" /> *field* extra_srun_args*: str \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.extra_sbatch_args" /> *field* extra_sbatch_args*: list\[str\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.container_mount_home" /> *field* container_mount_home*: bool = False***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.data_repository" /> *field* data_repository*: [DataRepositoryConfig](/1.6.1/systems#cloudai.systems.slurm.slurm_system.DataRepositoryConfig "cloudai.systems.slurm.slurm_system.DataRepositoryConfig") \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.reports" /> *field* reports*: dict\[str, ReportConfig\] \| None = None***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.install_path" /> *field* install_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.output_path" /> *field* output_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.hf_home_path" /> *field* hf_home_path*: Path* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.global_env_vars" /> *field* global_env_vars*: dict\[str, Any\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmPartition" /> *pydantic model* cloudai.systems.slurm.slurm_system.SlurmPartition**
+
+Represents a partition within a Slurm system.
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmPartition.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmPartition.groups" /> *field* groups*: List\[[SlurmGroup](/1.6.1/systems#cloudai.systems.slurm.slurm_system.SlurmGroup "cloudai.systems.slurm.slurm_system.SlurmGroup")\] = \[\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmGroup" /> *pydantic model* cloudai.systems.slurm.slurm_system.SlurmGroup**
+
+Represents a group of nodes within a partition.
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmGroup.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.SlurmGroup.nodes" /> *field* nodes*: List\[str\]* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.DataRepositoryConfig" /> *pydantic model* cloudai.systems.slurm.slurm_system.DataRepositoryConfig**
+
+Configuration for a data repository.
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.DataRepositoryConfig.endpoint" /> *field* endpoint*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.slurm.slurm_system.DataRepositoryConfig.verify_certs" /> *field* verify_certs*: bool = True***
+
+<Anchor id="kubernetes" />
+
+<Anchor id="kubernetes-system" />
+
+## Kubernetes
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem" /> *pydantic model* cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem**
+
+Represents a Kubernetes system.
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.kube_config_path" /> *field* kube_config_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.default_namespace" /> *field* default_namespace*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.scheduler" /> *field* scheduler*: str = 'kubernetes'***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.monitor_interval" /> *field* monitor_interval*: int = 1***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.gpus_per_node" /> *field* gpus_per_node*: int = 1***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.use_host_network" /> *field* use_host_network*: bool \| None = None***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.install_path" /> *field* install_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.output_path" /> *field* output_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.hf_home_path" /> *field* hf_home_path*: Path* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.global_env_vars" /> *field* global_env_vars*: dict\[str, Any\]* *\[Optional\]***
+
+<Anchor id="runai" />
+
+<Anchor id="runai-system" />
+
+## RunAI
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem" /> *pydantic model* cloudai.systems.runai.runai_system.RunAISystem**
+
+RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes.
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.scheduler" /> *field* scheduler*: str = 'runai'***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.monitor_interval" /> *field* monitor_interval*: int = 60***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.base_url" /> *field* base_url*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.user_email" /> *field* user_email*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.app_id" /> *field* app_id*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.app_secret" /> *field* app_secret*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.project_id" /> *field* project_id*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.cluster_id" /> *field* cluster_id*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.install_path" /> *field* install_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.output_path" /> *field* output_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.hf_home_path" /> *field* hf_home_path*: Path* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.runai.runai_system.RunAISystem.global_env_vars" /> *field* global_env_vars*: dict\[str, Any\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode" /> *pydantic model* cloudai.systems.runai.runai_node.RunAINode**
+
+Represent a node in the RunAI cluster.
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.status" /> *field* status*: NodeStatus = NodeStatus.UNKNOWN***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.conditions" /> *field* conditions*: List\[Dict\[str, Any\]\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.taints" /> *field* taints*: List\[Dict\[str, Any\]\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.node_pool" /> *field* node_pool*: str = ''* *(alias 'nodePool')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.created_at" /> *field* created_at*: str = ''* *(alias 'createdAt')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.gpu_type" /> *field* gpu_type*: str \| None = None* *(alias 'gpuType')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.gpu_count" /> *field* gpu_count*: int \| None = None* *(alias 'gpuCount')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.nvlink_domain_uid" /> *field* nvlink_domain_uid*: str \| None = None* *(alias 'nvLinkDomainUid')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.nvlink_clique_id" /> *field* nvlink_clique_id*: str \| None = None* *(alias 'nvLinkCliqueId')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.name" /> *field* name*: str = ''***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.id" /> *field* id*: str = ''***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.cluster_uuid" /> *field* cluster_uuid*: str = ''* *(alias 'clusterUuid')***
+
+**<Anchor id="cloudai.systems.runai.runai_node.RunAINode.updated_at" /> *field* updated_at*: str = ''* *(alias 'updatedAt')***
+
+<Anchor id="lsf" />
+
+<Anchor id="lsf-system" />
+
+## LSF
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem" /> *pydantic model* cloudai.systems.lsf.lsf_system.LSFSystem**
+
+Represents an LSF system.
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.queues" /> *field* queues*: List\[[LSFQueue](/1.6.1/systems#cloudai.systems.lsf.lsf_system.LSFQueue "cloudai.systems.lsf.lsf_system.LSFQueue")\]* *\[Optional\]***
+
+A list of queues in the LSF system, filled in automatically
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.account" /> *field* account*: str \| None = None***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.scheduler" /> *field* scheduler*: str = 'lsf'***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.project_name" /> *field* project_name*: str \| None = None***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.default_queue" /> *field* default_queue*: str \| None = None***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.monitor_interval" /> *field* monitor_interval*: int = 60***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.app" /> *field* app*: str \| None = None***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.os_version" /> *field* os_version*: str \| None = None***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.install_path" /> *field* install_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.output_path" /> *field* output_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.hf_home_path" /> *field* hf_home_path*: Path* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFSystem.global_env_vars" /> *field* global_env_vars*: dict\[str, Any\]* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFQueue" /> *pydantic model* cloudai.systems.lsf.lsf_system.LSFQueue**
+
+Represents a queue within the LSF system.
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFQueue.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFQueue.groups" /> *field* groups*: List\[[LSFGroup](/1.6.1/systems#cloudai.systems.lsf.lsf_system.LSFGroup "cloudai.systems.lsf.lsf_system.LSFGroup")\] = \[\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFGroup" /> *pydantic model* cloudai.systems.lsf.lsf_system.LSFGroup**
+
+Represents a group of nodes within a queue.
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFGroup.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.lsf.lsf_system.LSFGroup.nodes" /> *field* nodes*: List\[str\]* *\[Required\]***
+
+<Anchor id="standalone" />
+
+<Anchor id="standalone-system" />
+
+## Standalone
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem" /> *pydantic model* cloudai.systems.standalone.standalone_system.StandaloneSystem**
+
+Class representing a Standalone system.
+
+This class is used for systems that execute commands directly without a job scheduler.
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.scheduler" /> *field* scheduler*: str = 'standalone'***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.monitor_interval" /> *field* monitor_interval*: int = 1***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.install_path" /> *field* install_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.output_path" /> *field* output_path*: Path* *\[Required\]***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.hf_home_path" /> *field* hf_home_path*: Path* *\[Optional\]***
+
+**<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.global_env_vars" /> *field* global_env_vars*: dict\[str, Any\]* *\[Optional\]***

@@ -1,0 +1,309 @@
+<Anchor id="sglang" />
+
+This workload (`test_template_name` is `sglang`) allows users to execute SGLang benchmarks within the CloudAI framework.
+
+SGLang is a high-throughput and memory-efficient inference engine for LLMs. This workload supports both aggregated and disaggregated prefill/decode modes.
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+<Anchor id="test-scenario-example" />
+
+### Test + Scenario example
+
+<Anchor id="id1" />
+
+test.toml (test definition)
+
+``` toml
+name = "sglang_test"
+description = "Example SGLang benchmark"
+test_template_name = "sglang"
+
+[cmd_args]
+docker_image_url = "lmsysorg/sglang:dev-cu13"
+model = "Qwen/Qwen3-8B"
+
+[bench_cmd_args]
+random_input = 16
+random_output = 128
+max_concurrency = 16
+num_prompts = 30
+```
+
+<Anchor id="id2" />
+
+scenario.toml (scenario with one test)
+
+``` toml
+name = "sglang-benchmark"
+
+[[Tests]]
+id = "sglang.1"
+num_nodes = 1
+time_limit = "00:10:00"
+test_name = "sglang_test"
+```
+
+<Anchor id="test-in-scenario-example" />
+
+### Test-in-Scenario example
+
+<Anchor id="id3" />
+
+scenario.toml (separate test toml is not needed)
+
+``` toml
+name = "sglang-benchmark"
+
+[[Tests]]
+id = "sglang.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "sglang_test"
+description = "Example SGLang benchmark"
+test_template_name = "sglang"
+
+[Tests.cmd_args]
+docker_image_url = "lmsysorg/sglang:dev-cu13"
+model = "Qwen/Qwen3-8B"
+
+[Tests.bench_cmd_args]
+random_input = 16
+random_output = 128
+max_concurrency = 16
+num_prompts = 30
+```
+
+<Anchor id="control-number-of-gpus" />
+
+## Control number of GPUs
+
+The number of GPUs can be controlled using the options below, listed from lowest to highest priority: 1. `gpus_per_node` system property (scalar value) 2. `CUDA_VISIBLE_DEVICES` environment variable (comma-separated list of GPU IDs) 3. `gpu_ids` command argument for `prefill` and `decode` configurations (comma-separated list of GPU IDs). If disaggregated mode is used (`prefill` is set), both `prefill` and `decode` should define `gpu_ids`, or none of them should set it.
+
+<Anchor id="control-disaggregation" />
+
+## Control disaggregation
+
+By default, SGLang will run without disaggregation as a single process. To enable disaggregation, one needs to set `prefill` configuration:
+
+<Anchor id="id4" />
+
+test.toml (disaggregated prefill/decode)
+
+``` toml
+[cmd_args]
+docker_image_url = "lmsysorg/sglang:dev-cu13"
+model = "Qwen/Qwen3-8B"
+
+[cmd_args.prefill]
+
+[extra_env_vars]
+CUDA_VISIBLE_DEVICES = "0,1,2,3"
+```
+
+The config above will automatically split GPUs specified in `CUDA_VISIBLE_DEVICES` into two halves, first half will be used for prefill and second half will be used for decode.
+
+For more control, one can specify the GPU IDs explicitly in `prefill` and `decode` configurations:
+
+<Anchor id="id5" />
+
+test.toml (disaggregated prefill/decode)
+
+``` toml
+[cmd_args.prefill]
+gpu_ids = "0,1"
+
+[cmd_args.decode]
+gpu_ids = "2,3"
+```
+
+In this case `CUDA_VISIBLE_DEVICES` will be ignored and only the GPUs specified in `gpu_ids` will be used.
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="sglang-serve-arguments" />
+
+### SGLang Serve Arguments
+
+<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs" /> *pydantic model* cloudai.workloads.sglang.sglang.SglangArgs
+
+Base command arguments for SGLang instances.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs.disaggregation_transfer_backend" /> *field* disaggregation_transfer_backend*: str \| list\[str\] \| None = 'nixl'***
+
+Transfer backend used in disaggregated mode. It is consumed by command generation and not emitted as a generic serve argument.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs.serve_args_exclude" /> *property* serve_args_exclude*: set\[str\]***
+
+Fields consumed internally and excluded from generic serve args.
+
+<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs.serialize_serve_arg" /> serialize_serve_arg(
+
+*key: str*,
+
+*value: Any*,
+
+) → list\[str\]
+
+Serialize a single serve argument to CLI tokens.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs.serve_args" /> *property* serve_args*: list\[str\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangArgs.gpu_ids" /> *field* gpu_ids*: str \| list\[str\] \| None = None***
+
+Comma-separated GPU IDs. If not set, all available GPUs will be used.
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs" /> *pydantic model* cloudai.workloads.sglang.sglang.SglangCmdArgs**
+
+Bases: `LLMServingCmdArgs[SglangArgs]`
+
+SGLang serve command arguments.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.model" /> *field* model*: str = 'Qwen/Qwen3-8B'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.serve_module" /> *field* serve_module*: str = 'sglang.launch_server'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.router_module" /> *field* router_module*: str = 'sglang_router.launch_router'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.bench_module" /> *field* bench_module*: str = 'sglang.bench_serving'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.healthcheck" /> *field* healthcheck*: str = '/v1/models'***
+
+Health check router endpoint.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.prefill" /> *field* prefill*: [SglangArgs](/1.6.1/workloads/sglang#cloudai.workloads.sglang.sglang.SglangArgs "cloudai.workloads.sglang.sglang.SglangArgs") \| None = None***
+
+Prefill instance arguments. If not set, a single instance without disaggregation is used.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.decode" /> *field* decode*: [SglangArgs](/1.6.1/workloads/sglang#cloudai.workloads.sglang.sglang.SglangArgs "cloudai.workloads.sglang.sglang.SglangArgs")* *\[Optional\]***
+
+Decode instance arguments.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.docker_image_url" /> *field* docker_image_url*: str* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.port" /> *field* port*: int = 8300***
+
+**Constraints:**
+
+- **ge** = 1
+
+- **le** = 65535
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.host" /> *field* host*: str = '0.0.0.0'***
+
+Host/interface for serve or router processes to bind to.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.bench_host" /> *field* bench_host*: str \| None = None***
+
+Hostname used by the benchmark client. Defaults to the allocated node hostname.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.serve_wait_seconds" /> *field* serve_wait_seconds*: int = 300***
+
+<Anchor id="benchmark-command-arguments" />
+
+### Benchmark Command Arguments
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs" /> *pydantic model* cloudai.workloads.sglang.sglang.SglangBenchCmdArgs**
+
+Bases: `CmdArgs`
+
+SGLang bench_serving command arguments.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.backend" /> *field* backend*: str = 'sglang'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.dataset_name" /> *field* dataset_name*: str = 'random'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.num_prompts" /> *field* num_prompts*: int = 30***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.max_concurrency" /> *field* max_concurrency*: int = 16***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.random_input" /> *field* random_input*: int = 16***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.random_output" /> *field* random_output*: int = 128***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.warmup_requests" /> *field* warmup_requests*: int = 2***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.random_range_ratio" /> *field* random_range_ratio*: float = 1.0***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangBenchCmdArgs.output_details" /> *field* output_details*: bool = True***
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition" /> *pydantic model* cloudai.workloads.sglang.sglang.SglangTestDefinition
+
+Bases: `LLMServingTestDefinition[SglangCmdArgs]`
+
+Test object for SGLang.
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.bench_cmd_args" /> *field* bench_cmd_args*: [SglangBenchCmdArgs](/1.6.1/workloads/sglang#cloudai.workloads.sglang.sglang.SglangBenchCmdArgs "cloudai.workloads.sglang.sglang.SglangBenchCmdArgs") = SglangBenchCmdArgs(backend='sglang', dataset_name='random', num_prompts=30, max_concurrency=16, random_input=16, random_output=128, warmup_requests=2, random_range_ratio=1.0, output_details=True)***
+
+<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.was_run_successful" /> was_run_successful(
+
+*tr: TestRun*,
+
+) → JobStatusResult
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.cmd_args_dict" /> *property* cmd_args_dict*: Dict\[str, str \| List\[str\]\]***
+
+<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.constraint_check" /> constraint_check(
+
+*tr: TestRun*,
+
+*system: System \| None*,
+
+) → bool
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.docker_image" /> *property* docker_image*: DockerImage***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.extra_args_str" /> *property* extra_args_str*: str***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.extra_installables" /> *property* extra_installables*: list\[Installable\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.hf_model" /> *property* hf_model*: HFModel***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.installables" /> *property* installables*: list\[Installable\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.is_dse_job" /> *property* is_dse_job*: bool***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.cmd_args" /> *field* cmd_args*: LLMServingCmdArgsT* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.name" /> *field* name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.description" /> *field* description*: str* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.test_template_name" /> *field* test_template_name*: str* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.extra_env_vars" /> *field* extra_env_vars*: dict\[str, str \| List\[str\]\] = &#123;&#125;***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.extra_cmd_args" /> *field* extra_cmd_args*: dict\[str, str\] = &#123;&#125;***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.extra_container_mounts" /> *field* extra_container_mounts*: list\[str\] = \[\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.git_repos" /> *field* git_repos*: list\[GitRepo\] = \[\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.nsys" /> *field* nsys*: NsysConfiguration \| None = None***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.predictor" /> *field* predictor*: PredictorConfig \| None = None***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.agent" /> *field* agent*: str = 'grid_search'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.agent_steps" /> *field* agent_steps*: int = 1***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.agent_metrics" /> *field* agent_metrics*: list\[str\] = \['default'\]***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.agent_reward_function" /> *field* agent_reward_function*: str = 'inverse'***
+
+**<Anchor id="cloudai.workloads.sglang.sglang.SglangTestDefinition.agent_config" /> *field* agent_config*: dict\[str, Any\] \| None = None***
+
+Agent configuration.
