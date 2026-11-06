@@ -5,7 +5,6 @@
 | Event | Source | Destination |
 | --- | --- | --- |
 | Push to `main` | Exact triggering commit | Production `dev` |
-| Push to `release/**` (except `release/docs`) | Exact triggering commit | Branch-specific preview |
 | Published non-prerelease GitHub Release | Exact tagged commit | Production |
 | Published prerelease | None | No deployment |
 | Manual **Publish Fern Documentation** | Selected branch, tag, or SHA | Preview by default; production can be selected |
@@ -16,7 +15,7 @@ cannot be replaced with another commit. The highest numeric release version is t
 maintenance releases do not move the default backward. All published releases remain listed.
 
 Stable GitHub releases publish directly to production in one job. Review documentation beforehand
-using release-branch or manual previews. The job resolves the tagged commit and reads the latest
+using manual previews. The job resolves the tagged commit and reads the latest
 production version state, preserving published dev and other release versions.
 
 ## Where version state lives
@@ -31,8 +30,7 @@ unchanged. If publication succeeds but saving the registry fails, rerun that job
 another production deployment; the Git push and Fern publication are not one atomic operation.
 
 Preview runs read that registry and prepend a temporary candidate entry, making it the preview default. Existing production versions,
-including the published `dev` SHA, remain unchanged. Each release branch has its own stable preview
-URL. The run summary records the source SHA and URL; workflow artifacts retain the candidate
+including the published `dev` SHA, remain unchanged. Manual previews reuse a stable URL for the selected source ref. The run summary records the source SHA and URL; workflow artifacts retain the candidate
 configuration and publish log. GitHub's artifact retention policy applies to this preview history.
 
 GitHub Actions serializes production jobs with the `fern-production` concurrency group and
