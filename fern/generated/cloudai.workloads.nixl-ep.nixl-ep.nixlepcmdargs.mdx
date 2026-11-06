@@ -1,0 +1,15 @@
+<Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs" />
+
+### `NixlEPCmdArgs`
+
+Command line arguments for the NIXL Elastic EP benchmark.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required | URL of the Docker image that contains the NIXL EP benchmark. |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.elastic_script" />`elastic_script` | `str` | `'/workspace/nixl/examples/device/ep/tests/elastic/elastic.py'` | Path to the benchmark entrypoint, relative to the container's NIXL runtime root or absolute in the container. |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.python_executable" />`python_executable` | `str` | `'python3'` | Python executable to use inside the container. |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.plan" />`plan` | `str \| list[str]` | Required | Serialized phase plan to write into a per-run JSON file. Use a single string such as "[[0, 1], [0, 1, 2, 3]]" for a single run, or a list of such strings to enable DSE mode (one run per plan). |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.num_processes_per_node" />`num_processes_per_node` | `int \| list[int]` | Required | Number of local worker processes to spawn on each allocated node. |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.service_startup_timeout_seconds" />`service_startup_timeout_seconds` | `int` | `60` | Seconds to wait for the master node's TCPStore to accept connections. Constraints: `Ge(ge=1)`. |
+| <Anchor id="cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs.store_port" />`store_port` | `int` | `9999` | TCPStore port used by the benchmark. Constraints: `Ge(ge=1)`, `Le(le=65535)`. |

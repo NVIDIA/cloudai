@@ -1,0 +1,17 @@
+<Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs" />
+
+### `AiconfiguratorCmdArgs`
+
+Command arguments for Aiconfigurator workload with nested agg/disagg configs.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.requirements" />`requirements` | `str` | `'aiconfigurator~=0.5.0'` | Space-separated Python requirements installed into the Aiconfigurator environment. |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.model_name" />`model_name` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.system" />`system` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.backend" />`backend` | `str` | `'trtllm'` |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.version" />`version` | `str` | `'0.20.0'` |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.isl" />`isl` | `int \| List[int]` | Required |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.osl" />`osl` | `int \| List[int]` | Required |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.agg" />`agg` | `cloudai.workloads.aiconfig.aiconfigurator.Agg \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs.disagg" />`disagg` | `cloudai.workloads.aiconfig.aiconfigurator.Disagg \| None` | `None` |  |

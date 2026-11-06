@@ -1,0 +1,49 @@
+<Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs" />
+
+### `DeepEPCmdArgs`
+
+Command arguments for the official DeepEP test scripts.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.subtest_name" />`subtest_name` | `Literal['test_internode', 'test_intranode', 'test_low_latency', 'test_ep']` | `'test_internode'` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.deep_ep_root" />`deep_ep_root` | `str` | `'/workspace/DeepEP'` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.legacy_tests_root" />`legacy_tests_root` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.elastic_tests_root" />`elastic_tests_root` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.python_executable" />`python_executable` | `str` | `'python'` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_processes" />`num_processes` | `int` | `8` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_tokens" />`num_tokens` | `int` | `4096` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.hidden" />`hidden` | `int` | `7168` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_topk" />`num_topk` | `int` | `8` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_experts" />`num_experts` | `int` | `256` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_topk_groups" />`num_topk_groups` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.allow_mnnvl" />`allow_mnnvl` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.test_ll_compatibility" />`test_ll_compatibility` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.pressure_test_mode" />`pressure_test_mode` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.pressure_test" />`pressure_test` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.shrink_test" />`shrink_test` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.disable_nvlink" />`disable_nvlink` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.use_logfmt" />`use_logfmt` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_sms" />`num_sms` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_qps" />`num_qps` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_allocated_qps" />`num_allocated_qps` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_gpu_timeout_secs" />`num_gpu_timeout_secs` | `int` | `100` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.num_cpu_timeout_secs" />`num_cpu_timeout_secs` | `int` | `100` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.sl_idx" />`sl_idx` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.do_cpu_sync" />`do_cpu_sync` | `int` | `1` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.allow_hybrid_mode" />`allow_hybrid_mode` | `int` | `1` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.allow_multiple_reduction" />`allow_multiple_reduction` | `int` | `1` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.prefer_overlap_with_compute" />`prefer_overlap_with_compute` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.deterministic" />`deterministic` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.seed" />`seed` | `int` | `0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.skip_check" />`skip_check` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.skip_perf_test" />`skip_perf_test` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.do_pressure_test" />`do_pressure_test` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.reuse_elastic_buffer" />`reuse_elastic_buffer` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.test_first_only" />`test_first_only` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.unbalanced_ratio" />`unbalanced_ratio` | `float` | `1.0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.precise_unbalanced_ratio" />`precise_unbalanced_ratio` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.masked_ratio" />`masked_ratio` | `float` | `0.0` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.dump_profile_traces" />`dump_profile_traces` | `str` | `''` |  |
+| <Anchor id="cloudai.workloads.deepep.deepep.DeepEPCmdArgs.ignore_local_traffic" />`ignore_local_traffic` | `bool` | `False` |  |

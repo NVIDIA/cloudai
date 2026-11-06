@@ -1,0 +1,33 @@
+<Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem" />
+
+### `SlurmSystem`
+
+Represents a Slurm system.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.name" />`name` | `str` | Required |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.scheduler" />`scheduler` | `str` | `'slurm'` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.install_path" />`install_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.output_path" />`output_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.hf_home_path" />`hf_home_path` | `pathlib.Path` | Factory: `System.<lambda>` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.global_env_vars" />`global_env_vars` | `dict[str, typing.Any]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.monitor_interval" />`monitor_interval` | `float` | `60.0` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.sol" />`sol` | `dict[str, list[cloudai.metrics.SOLTarget]]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.default_partition" />`default_partition` | `str` | Required |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.partitions" />`partitions` | `List[cloudai.systems.slurm.slurm_system.SlurmPartition]` | Required |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.account" />`account` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.distribution" />`distribution` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.mpi" />`mpi` | `str` | `'pmix'` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.gpus_per_node" />`gpus_per_node` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.ntasks_per_node" />`ntasks_per_node` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.cache_docker_images_locally" />`cache_docker_images_locally` | `bool` | `False` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.docker_image_import_extra_sbatch_args" />`docker_image_import_extra_sbatch_args` | `list[str]` | Factory: `list` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.extra_srun_args" />`extra_srun_args` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.extra_sbatch_args" />`extra_sbatch_args` | `list[str]` | Factory: `list` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.extra_transient_status_errors" />`extra_transient_status_errors` | `list[str]` | Factory: `list` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.status_retry_pause_seconds" />`status_retry_pause_seconds` | `int` | `10` |  Constraints: `Ge(ge=0)`. |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.container_mount_home" />`container_mount_home` | `bool` | `False` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.slurm_api" />`slurm_api` | `cloudai.systems.slurm.slurm_rest_client.SlurmAPIConfig \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.data_repository" />`data_repository` | `cloudai.systems.slurm.slurm_system.DataRepositoryConfig \| None` | `None` |  |
+| <Anchor id="cloudai.systems.slurm.slurm_system.SlurmSystem.reports" />`reports` | `dict[str, cloudai.models.scenario.ReportConfig] \| None` | `None` |  |
