@@ -273,11 +273,6 @@
         padding-top: 0.5rem;
         border-top: 1px solid var(--nv-border);
     }
-    .pareto-property-group[data-group="Measurements"],
-    .pareto-property-group[data-group="Workload"],
-    .pareto-property-group[data-group="Serving"] {
-        grid-column: 1 / -1;
-    }
     .pareto-property-group h4 {
         margin: 0;
         font-size: 0.9rem;
@@ -287,12 +282,6 @@
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
         gap: 0.35rem 0.85rem;
         margin: 0.4rem 0 0.15rem;
-    }
-    .pareto-property-group[data-group="Measurements"] .pareto-properties {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    }
-    .pareto-property-group[data-group="Workload"] .pareto-properties {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .pareto-properties dt {
         color: var(--nv-muted);
@@ -304,8 +293,7 @@
         font-variant-numeric: tabular-nums;
     }
     @container (max-width: 37.25rem) {
-        .js-point-properties,
-        .pareto-property-group[data-group="Workload"] .pareto-properties {
+        .js-point-properties {
             grid-template-columns: minmax(0, 1fr);
         }
     }
@@ -463,7 +451,6 @@
                 Object.entries(point.context).forEach(([title, properties]) => {
                     const group = document.createElement("section");
                     group.className = "pareto-property-group";
-                    group.dataset.group = title;
                     const heading = document.createElement("h4");
                     heading.textContent = title;
                     const list = document.createElement("dl");

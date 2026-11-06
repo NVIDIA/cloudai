@@ -188,13 +188,14 @@ settings, plus ``MetricObservation`` outputs with their units and dimensions. Mu
 same execution have separate reports, even when their metric names are identical. Unknown optional settings
 remain ``None``.
 
-vLLM and SGLang return one report per execution.
+vLLM and SGLang return one report per execution; Dynamo returns separate reports for its benchmark phases.
 The Pareto reporter treats each returned report as one candidate point and applies ``match`` to its metric
 observations. ``metric_observations()`` remains available and returns the combined observations from these reports.
 
 Each serving role records its instance count and assigned nodes per instance. An instance is one serving launch,
 which can span nodes; TP, PP, and DP describe parallelism within it. ``shared_nodes`` identifies overlapping
-prefill/decode placement. A combined prefill/decode instance is displayed as ``Serving``.
+prefill/decode placement. Dynamo resolves worker counts from its configured topology and standard launcher
+defaults. A combined prefill/decode instance is displayed as ``Serving``.
 
 .. _reporting-configuration-implementation:
 
