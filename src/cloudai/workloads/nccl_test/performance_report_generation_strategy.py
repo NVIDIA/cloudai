@@ -20,7 +20,7 @@ import re
 from functools import cache
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, List, Tuple
+from typing import TYPE_CHECKING, ClassVar, List, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, MetricValue, System, TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
@@ -49,14 +49,70 @@ TIME_DATA_COLUMNS = [
 ]
 
 
+def _table_columns(header: str) -> Optional[List[int]]:
+    """
+    Map one nccl-tests table header to the columns the report consumes.
+
+    nccl-tests prints the standard measurements twice (out-of-place, then in-place) and appends
+    more columns with -I, -S and -U, so the indices have to come from the header instead of a
+    fixed column count. Only columns before the second ``#wrong`` are used, so the two-token
+    ``timestamp`` column and the trailing tuning columns never shift them.
+    """
+    tokens = re.split(r"\s+", header.strip().lstrip("#").strip())
+
+    def first(*names: str) -> Optional[int]:
+        return next((index for index, token in enumerate(tokens) if token in names), None)
+
+    size = first("size")
+    count = first("count")
+    type_ = first("type")
+    redop = first("redop")
+    root = first("root")
+    if size is None or count is None or type_ is None or redop is None or root is None:
+        return None
+
+    times = [index for index, token in enumerate(tokens) if token in ("time", "cputime")]
+    algbw = [index for index, token in enumerate(tokens) if token == "algbw"]
+    busbw = [index for index, token in enumerate(tokens) if token == "busbw"]
+    wrong = [index for index, token in enumerate(tokens) if token == "#wrong"]
+    if min(len(times), len(algbw), len(busbw), len(wrong)) < 2:
+        return None
+
+    return [
+        size,
+        count,
+        type_,
+        redop,
+        root,
+        times[0],
+        algbw[0],
+        busbw[0],
+        wrong[0],
+        times[1],
+        algbw[1],
+        busbw[1],
+        wrong[1],
+    ]
+
+
 def _parse_data_rows(file: TextIOWrapper) -> List[List[str]]:
     parsed_data_rows: List[List[str]] = []
+    columns: Optional[List[int]] = None
     for line in file:
-        line: str = line.strip()
-        if re.match(r"^\d", line):
-            parts = re.split(r"\s+", line)
-            if len(parts) == 13:
-                parsed_data_rows.append(parts)
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            table_columns = _table_columns(line)
+            if table_columns is not None:
+                columns = table_columns
+            continue
+        if columns is None or not re.match(r"^\d", line):
+            continue
+        parts = re.split(r"\s+", line)
+        if len(parts) <= max(columns):
+            continue
+        parsed_data_rows.append([parts[index] for index in columns])
     return parsed_data_rows
 
 

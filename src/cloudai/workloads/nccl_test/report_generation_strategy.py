@@ -22,22 +22,19 @@ from cloudai.core import ReportGenerationStrategy, System, TestRun
 class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     """Base strategy for generating reports from NCCL test outputs."""
 
+    # nccl-tests starts every table header with these columns. -C renames ``time`` to ``cputime``,
+    # while -I, -S and -U only append columns after ``#wrong``, so the prefix stays intact.
+    HEADER_PATTERN = re.compile(
+        r"size\s+count\s+type\s+redop\s+root\s+(?:time|cputime)\s+algbw\s+busbw\s+#wrong",
+        re.IGNORECASE,
+    )
+
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
 
     def can_handle_directory(self) -> bool:
         stdout_path = self.test_run.output_path / "stdout.txt"
-        if stdout_path.exists():
-            with stdout_path.open("r") as file:
-                content = file.read()
-                return bool(
-                    re.search(r"out-of-place|in-place", content)
-                    and re.search(
-                        r"\b(size\s+count\s+type\s+redop\s+root\s+"
-                        r"time\s+algbw\s+busbw\s+#wrong\s+time\s+"
-                        r"algbw\s+busbw\s+#wrong)\b",
-                        content,
-                        re.IGNORECASE,
-                    )
-                )
-        return False
+        if not stdout_path.exists():
+            return False
+        content = stdout_path.read_text()
+        return bool(re.search(r"out-of-place|in-place", content) and self.HEADER_PATTERN.search(content))

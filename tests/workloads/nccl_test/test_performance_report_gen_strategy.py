@@ -72,6 +72,97 @@ def test_generate_performance_report(
     assert df["Ranks"].iloc[0] == 16, "Ranks is incorrect."
 
 
+def _nccl_stdout(
+    *,
+    cputime: bool = False,
+    iterations: bool = False,
+    timestamps: bool = False,
+    tuning: bool = False,
+) -> str:
+    """One nccl-tests table formatted the way the given nccl-tests output options emit it."""
+    time_column = "cputime" if cputime else "time"
+    header = ["size", "count", "type", "redop", "root", time_column, "algbw", "busbw", "#wrong"]
+    if iterations:
+        header += ["i_min", "i_max", "i_p99", "i_cv%"]
+    header += [time_column, "algbw", "busbw", "#wrong"]
+    if iterations:
+        header += ["i_min", "i_max", "i_p99", "i_cv%"]
+    if timestamps:
+        header += ["timestamp"]
+    if tuning:
+        header += [
+            "impl",
+            "algo",
+            "proto",
+            "kernelVariant",
+            "sync",
+            "#channels",
+            "#warps",
+            "netChunkSize",
+        ]
+
+    lines = [
+        "# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100",
+        "#",
+        "#                                                              out-of-place                       in-place",
+        "#       " + "   ".join(header),
+    ]
+    for size, out_of_place_time, in_place_time in ((1000000, 1.11, 1.12), (2000000, 2.22, 2.23)):
+        row = [str(size), str(size), "float", "sum", "-1", str(out_of_place_time), "10.10", "20.20", "0"]
+        if iterations:
+            row += ["1.10", "1.20", "1.30", "0.50"]
+        row += [str(in_place_time), "10.11", "20.21", "0"]
+        if iterations:
+            row += ["1.10", "1.20", "1.30", "0.50"]
+        if timestamps:
+            # nccl-tests prints the date and the time as two separate tokens.
+            row += ["2026-11-03", "07:17:49"]
+        if tuning:
+            row += ["N/A", "N/A", "N/A", "N/A", "0", "2", "8", "1048576"]
+        lines.append("     " + "   ".join(row))
+    lines.append("# Avg bus bandwidth    : 20.155")
+    return "\n".join(lines) + "\n"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {},
+        {"timestamps": True},
+        {"cputime": True},
+        {"iterations": True},
+        {"tuning": True},
+        {"iterations": True, "timestamps": True, "tuning": True},
+    ],
+    ids=["default", "timestamps", "cputime", "iterations", "tuning", "combined"],
+)
+def test_output_options_are_reported(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy,
+    nccl_tr: TestRun,
+    options: dict[str, bool],
+) -> None:
+    (nccl_tr.output_path / "stdout.txt").write_text(_nccl_stdout(**options))
+    extract_nccl_data.cache_clear()
+
+    assert report_strategy.can_handle_directory() is True
+
+    rows, _, _, _ = extract_nccl_data(nccl_tr.output_path / "stdout.txt")
+    assert [row[0] for row in rows] == ["1000000", "2000000"]
+    assert report_strategy.get_metric("default") == pytest.approx((1.12 + 2.23) / 2)
+
+
+def test_repeated_headers_are_parsed_per_table(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
+) -> None:
+    (nccl_tr.output_path / "stdout.txt").write_text(_nccl_stdout() + _nccl_stdout(cputime=True))
+    extract_nccl_data.cache_clear()
+
+    assert report_strategy.can_handle_directory() is True
+
+    rows, _, _, _ = extract_nccl_data(nccl_tr.output_path / "stdout.txt")
+    assert [row[0] for row in rows] == ["1000000", "2000000", "1000000", "2000000"]
+
+
 def test_parse_gpu_types(report_strategy: NcclTestPerformanceReportGenerationStrategy, tmp_path: Path) -> None:
     test_cases = [
         ("NVIDIA Tesla V100-PCIE-32GB", "Tesla V100-PCIE-32GB"),
