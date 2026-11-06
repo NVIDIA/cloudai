@@ -360,7 +360,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join([runtime_command, host_command])
 
     def _enable_vboost_cmd(self) -> str:
-        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
         return " ".join(
             [
                 "srun",

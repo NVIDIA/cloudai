@@ -83,7 +83,9 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
     def _get_server_client_split(self) -> Tuple[int, int]:
-        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
         if num_nodes < 3:
             raise ValueError("DeepSeekR1 requires at least 3 nodes: 2 server and 1 client.")
         return num_nodes - 1, 1
