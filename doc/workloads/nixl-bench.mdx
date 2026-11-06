@@ -1,0 +1,151 @@
+<Anchor id="nixl-bench" />
+
+This workload (test_template_name is `NIXLBench`) runs NIXL benchmarking suite for network and interconnect performance testing.
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+Test TOML example:
+
+``` toml
+name = "my_nixl_bench_test"
+description = "Example NIXL Bench test"
+test_template_name = "NIXLBench"
+
+[cmd_args]
+docker_image_url = "<docker container url here>"
+path_to_benchmark = "/workspace/nixlbench/build/nixlbench"
+backend = "UCX"
+initiator_seg_type = "VRAM"
+target_seg_type = "VRAM"
+op_type = "READ"
+filepath = "/data"
+device_list = "11:F:/store0.bin"
+# one could also use <num>kb, <num>mb, <num>gb shortcuts
+total_buffer_size = 8000000000
+```
+
+Test Scenario example:
+
+``` toml
+name = "nixl-bench-test"
+
+[[Tests]]
+id = "bench.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+test_name = "my_nixl_bench_test"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "nixl-bench-test"
+
+[[Tests]]
+id = "bench.1"
+num_nodes = 1
+time_limit = "00:10:00"
+
+name = "my_nixl_bench_test"
+description = "Example NIXL Bench test"
+test_template_name = "NIXLBench"
+
+  [Tests.cmd_args]
+  docker_image_url = "<docker container url here>"
+  path_to_benchmark = "/workspace/nixlbench/build/nixlbench"
+  backend = "UCX"
+  initiator_seg_type = "DRAM"
+  target_seg_type = "DRAM"
+  op_type = "WRITE"
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs" /> *pydantic model* cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs**
+
+Command line arguments for a NIXL Bench test.
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.path_to_benchmark" /> *field* path_to_benchmark*: str* *\[Required\]***
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_endpoints" /> *field* etcd_endpoints*: str = 'http://\$NIXL_ETCD_ENDPOINTS'***
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.docker_image_url" /> *field* docker_image_url*: str* *\[Required\]***
+
+URL of the Docker image to use for the benchmark.
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_path" /> *field* etcd_path*: str = 'etcd'***
+
+Path to the etcd executable.
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.wait_etcd_for" /> *field* wait_etcd_for*: int = 60***
+
+Number of seconds to wait for etcd to become healthy.
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_image_url" /> *field* etcd_image_url*: str \| None = None***
+
+Optional URL of the Docker image to use for etcd, by default etcd will be run from the same image as the benchmark.
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.filepath" /> *field* filepath*: str \| None = None***
+
+Directory path (in container) for storage operations. Example: /data
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.total_buffer_size" /> *field* total_buffer_size*: str \| list\[str\] \| None = None***
+
+Total buffer size in bytes. Examples: 1024, 1kb, 1mb, 1gb. Use with device_list. The size will be passed into NIXL as integer (bytes)
+
+**<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.device_list" /> *field* device_list*: str \| list\[str\] \| None = None***
+
+Device specs in format ‘id:type:path’ (e.g., ‘11:F:/store0.bin,27:K:/dev/nvme0n1’)
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchTestDefinition" /> *class* cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchTestDefinition(
+
+*\**,
+
+*name: str*,
+
+*description: str*,
+
+*test_template_name: str*,
+
+*cmd_args: [NIXLBenchCmdArgs](/cloudai/1.6.1/workloads/nixl-bench#cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs "cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs")*,
+
+*extra_env_vars: dict\[str, str \| List\[str\]\] = &#123;&#125;*,
+
+*extra_cmd_args: dict\[str, str\] = &#123;&#125;*,
+
+*extra_container_mounts: list\[str\] = \[\]*,
+
+*git_repos: list\[GitRepo\] = \[\]*,
+
+*nsys: NsysConfiguration \| None = None*,
+
+*predictor: PredictorConfig \| None = None*,
+
+*agent: str = 'grid_search'*,
+
+*agent_steps: int = 1*,
+
+*agent_metrics: list\[str\] = \['default'\]*,
+
+*agent_reward_function: str = 'inverse'*,
+
+*agent_config: dict\[str, Any\] \| None = None*,
+
+)
+
+Bases: `NIXLBaseTestDefinition[NIXLBenchCmdArgs]`
+
+Test definition for a NIXL Bench test.
