@@ -23,7 +23,6 @@ from .sglang import (
     SGLANG_SEMANTIC_EVAL_LOG_FILE,
     SGLangBenchReport,
     SglangTestDefinition,
-    parse_sglang_bench_output,
     parse_sglang_semantic_accuracy,
 )
 
@@ -40,7 +39,7 @@ class SGLangBenchReportGenerationStrategy(LLMServingReportGenerationStrategy[Sgl
         return "SGLang Benchmark Results"
 
     def parse_output(self, path: Path) -> SGLangBenchReport | None:
-        return parse_sglang_bench_output(path)
+        return SglangTestDefinition.parse_bench_output(path)
 
     def parse_semantic_accuracy(self) -> float | None:
         return parse_sglang_semantic_accuracy(self.test_run.output_path / SGLANG_SEMANTIC_EVAL_LOG_FILE)

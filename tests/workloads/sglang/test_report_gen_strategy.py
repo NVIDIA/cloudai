@@ -20,6 +20,9 @@ from typing import cast
 
 import pytest
 
+import cloudai.metrics
+import cloudai.report_generator.inference_report as inference_report
+import cloudai.util
 from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm import SlurmSystem
@@ -33,7 +36,6 @@ from cloudai.workloads.sglang import (
 from cloudai.workloads.sglang.sglang import (
     SGLANG_BENCH_JSONL_FILE,
     SGLANG_SEMANTIC_EVAL_LOG_FILE,
-    parse_sglang_bench_output,
     parse_sglang_semantic_accuracy,
 )
 
@@ -75,7 +77,7 @@ def test_sglang_can_handle_directory(slurm_system: SlurmSystem, sglang_tr: TestR
 
 
 def test_parse_sglang_bench_output_missing_file(tmp_path: Path) -> None:
-    assert parse_sglang_bench_output(tmp_path / SGLANG_BENCH_JSONL_FILE) is None
+    assert SglangTestDefinition.parse_bench_output(tmp_path / SGLANG_BENCH_JSONL_FILE) is None
 
 
 def test_parse_sglang_bench_output_skips_invalid_lines(tmp_path: Path) -> None:
@@ -85,7 +87,7 @@ def test_parse_sglang_bench_output_skips_invalid_lines(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    parsed = parse_sglang_bench_output(report_path)
+    parsed = SglangTestDefinition.parse_bench_output(report_path)
 
     assert parsed == SGLangBenchReport.model_validate_json(report_path.read_text().splitlines()[1])
 
@@ -97,7 +99,7 @@ def test_parse_sglang_bench_output_returns_none_for_unsuccessful_record(tmp_path
         encoding="utf-8",
     )
 
-    assert parse_sglang_bench_output(report_path) is None
+    assert SglangTestDefinition.parse_bench_output(report_path) is None
 
 
 @pytest.mark.parametrize(
@@ -193,3 +195,134 @@ def test_sglang_parses_num_prompts_from_input_lens(slurm_system: SlurmSystem, tm
     strategy = SGLangBenchReportGenerationStrategy(slurm_system, tr)
     assert strategy.can_handle_directory() is True
     assert strategy.get_metric("throughput") == 2400.0
+
+
+INFERENCE_DEFINITION = {
+    "name": "sglang",
+    "description": "Inference report",
+    "test_template_name": "sglang",
+    "cmd_args": {
+        "docker_image_url": "example/image:latest",
+        "model": "example/model",
+        "decode": {
+            "tp_size": 2,
+            "pp_size": 2,
+            "dp_size": 1,
+            "enable_expert_parallel": True,
+            "dtype": "float16",
+            "quantization": "fp8",
+        },
+    },
+    "bench_cmd_args": {
+        "num_prompts": 20,
+        "max_concurrency": 8,
+        "request_rate": 12.5,
+        "random_input": 128,
+        "random_output": 64,
+    },
+}
+INFERENCE_PREFILL = {
+    "tp_size": 2,
+    "pp_size": 1,
+    "dp_size": 1,
+    "enable_expert_parallel": True,
+    "dtype": "float16",
+    "quantization": "fp8",
+}
+
+
+@pytest.mark.parametrize(
+    "overrides,nodes,role_nodes,serving_gpus,shared_nodes",
+    [
+        pytest.param({}, 2, 2, 4, None, id="combined"),
+        pytest.param(
+            {"cmd_args": {"prefill": {**INFERENCE_PREFILL, "num_nodes": 2}, "decode": {"num_nodes": 2}}},
+            4,
+            2,
+            6,
+            False,
+            id="separate-nodes",
+        ),
+        pytest.param({"cmd_args": {"prefill": INFERENCE_PREFILL}}, 1, 1, 6, True, id="shared-node"),
+        pytest.param({"cmd_args": {"prefill": INFERENCE_PREFILL}}, 4, None, 6, None, id="unresolved-topology"),
+    ],
+)
+def test_inference_reports(
+    slurm_system: SlurmSystem,
+    tmp_path: Path,
+    overrides: dict,
+    nodes: int,
+    role_nodes: int | None,
+    serving_gpus: int,
+    shared_nodes: bool | None,
+) -> None:
+    definition = cloudai.util.deep_merge(INFERENCE_DEFINITION, overrides)
+    test = SglangTestDefinition.model_validate(definition)
+    tr = TestRun("sglang", test, nodes, [], output_path=tmp_path)
+    (tmp_path / "sglang-bench.jsonl").write_text(
+        json.dumps(
+            {
+                "num_prompts": 20,
+                "completed": 20,
+                "max_concurrency": 8,
+                "request_throughput": 10,
+                "output_throughput": 1000,
+                "mean_ttft_ms": 10,
+                "median_ttft_ms": 11,
+                "p99_ttft_ms": 12,
+                "mean_tpot_ms": 1,
+                "median_tpot_ms": 2,
+                "p99_tpot_ms": 3,
+            }
+        )
+    )
+    role: dict = dict(
+        num_nodes=role_nodes,
+        num_instances=1 if role_nodes else None,
+        nodes_per_instance=role_nodes,
+        instances_per_node=1 if role_nodes == 1 else None,
+        tensor_parallel_size=2,
+        data_parallel_size=1,
+        expert_parallel=True,
+        precision="float16",
+        quantization="fp8",
+    )
+    metrics = [
+        (cloudai.metrics.REQUEST_THROUGHPUT, 10, {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT, 1000, {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU, 1000 / (nodes * 8), {}),
+        (cloudai.metrics.OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU, 1000 / serving_gpus, {}),
+    ]
+    metrics.extend(
+        (metric, value, {"statistic": statistic})
+        for metric, values in ((cloudai.metrics.TTFT, (10, 11, 12)), (cloudai.metrics.TPOT, (1, 2, 3)))
+        for statistic, value in zip(("mean", "median", "p99"), values, strict=True)
+    )
+    expected = [
+        inference_report.InferenceReport(
+            config=inference_report.InferenceConfig(
+                model="example/model",
+                num_nodes=nodes,
+                backend="sglang",
+                benchmark="sglang",
+                container_image="example/image:latest",
+                gpus_per_node=8,
+                serving_gpu_count=serving_gpus,
+                input_tokens=128,
+                output_tokens=64,
+                concurrency=8,
+                request_count=20,
+                request_rate=12.5,
+                prefill=inference_report.InferenceRoleConfig(**role, pipeline_parallel_size=1)
+                if "prefill" in definition["cmd_args"]
+                else None,
+                decode=inference_report.InferenceRoleConfig(**role, pipeline_parallel_size=2),
+                shared_nodes=shared_nodes,
+            ),
+            observations=[
+                cloudai.metrics.MetricObservation(metric, value, dimensions) for metric, value, dimensions in metrics
+            ],
+        )
+    ]
+    assert test.inference_reports(slurm_system, tr) == expected
+    assert test.metric_observations(slurm_system, tr) == expected[0].observations
