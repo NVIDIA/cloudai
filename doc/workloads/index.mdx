@@ -1,0 +1,48 @@
+<Anchor id="workloads" />
+
+This chapter contains automatically generated documentation for all CloudAI workloads. Each workload provides specific functionality for running different types of tests and benchmarks.
+
+<Anchor id="available-workloads" />
+
+## Available Workloads
+
+| Test | Slurm | Kubernetes | RunAI | Standalone |
+|----|----|----|----|----|
+| [AIConfigurator](/1.7.1/workloads/aiconfigurator) | ❌ | ❌ | ❌ | ✅ |
+| [AI Dynamo](/1.7.1/workloads/ai-dynamo) | ✅ | ✅ | ❌ | ❌ |
+| [Bash Command](/1.7.1/workloads/bash-cmd) | ✅ | ❌ | ❌ | ❌ |
+| [Chakra Replay](/1.7.1/workloads/chakra-replay) | ✅ | ❌ | ❌ | ❌ |
+| [DDLB](/1.7.1/workloads/ddlb) | ✅ | ❌ | ❌ | ❌ |
+| [DeepEP Benchmark](/1.7.1/workloads/deepep) | ✅ | ❌ | ❌ | ❌ |
+| [DynamoMocker](/1.7.1/workloads/dynamo-mocker) | ❌ | ❌ | ❌ | ✅ |
+| [fio](/1.7.1/workloads/fio) | ✅ | ❌ | ❌ | ✅ |
+| [JaxToolbox workloads (DEPRECATED)](/1.7.1/workloads/jax-toolbox) | ✅ | ❌ | ❌ | ❌ |
+| MegatronRun | ✅ | ❌ | ❌ | ❌ |
+| [MegatronBridge](/1.7.1/workloads/megatron-bridge) | ✅ | ❌ | ❌ | ❌ |
+| [NCCL](/1.7.1/workloads/nccl) | ✅ | ✅ | ✅ | ❌ |
+| [NeMo v1.0 aka NemoLauncher (DEPRECATED)](/1.7.1/workloads/nemo-launcher) | ✅ | ❌ | ❌ | ❌ |
+| [Nemo Run](/1.7.1/workloads/nemo-run) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL Bench](/1.7.1/workloads/nixl-bench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL EP](/1.7.1/workloads/nixl-ep) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL KVBench](/1.7.1/workloads/nixl-kvbench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL CTPerf](/1.7.1/workloads/nixl-perftest) | ✅ | ❌ | ❌ | ❌ |
+| [Sleep](/1.7.1/workloads/sleep) | ✅ | ✅ | ❌ | ✅ |
+| [SGLang](/1.7.1/workloads/sglang) | ✅ | ❌ | ❌ | ❌ |
+| [Slurm Container](/1.7.1/workloads/slurm-container) | ✅ | ❌ | ❌ | ❌ |
+| Triton Inference | ✅ | ❌ | ❌ | ❌ |
+| [UCC](/1.7.1/workloads/ucc) | ✅ | ❌ | ❌ | ❌ |
+| [vLLM](/1.7.1/workloads/vllm) | ✅ | ❌ | ❌ | ❌ |
+
+<Anchor id="adding-new-workloads" />
+
+## Adding New Workloads
+
+To add documentation for a new workload:
+
+1.  Add docstrings to your Python classes and methods.
+
+2.  Create a reStructuredText file in `doc/workloads/` (e.g., `my_workload.rst`).
+
+3.  Add it to the table above.
+
+The documentation will be automatically generated during the build process.

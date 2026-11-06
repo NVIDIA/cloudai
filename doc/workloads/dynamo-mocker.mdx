@@ -1,0 +1,189 @@
+<Anchor id="dynamomocker" />
+
+DynamoMocker workload (`test_template_name` is `DynamoMocker`) runs GPU-free LLM inference simulation using `dynamo.mocker` and `dynamo.frontend` from the [ai-dynamo](https://github.com/ai-dynamo/dynamo) package, then benchmarks the stack with [aiperf](https://github.com/NVIDIA/aiperf) or [genai-perf](https://github.com/triton-inference-server/client/tree/main/src/c%2B%2B/perf_analyzer/genai-perf).
+
+It is a **Standalone** workload (no Slurm/Kubernetes/RunAI required).
+
+<Anchor id="prerequisites" />
+
+## Prerequisites
+
+CloudAI automatically installs `ai-dynamo`, `aiperf`, and `genai-perf` into a managed Python virtual environment on first run — no manual pip install is needed.
+
+The one prerequisite is `nats-server`. On many clusters `nats-server` is pre-installed by administrators and is already on `PATH`. Check if it is already available:
+
+``` bash
+which nats-server
+```
+
+If not found, download the binary from the [official releases](https://github.com/nats-io/nats-server/releases), extract it, and add it to `PATH`:
+
+``` bash
+# replace <version> with the latest release tag, e.g. v2.10.24
+curl -L https://github.com/nats-io/nats-server/releases/download/<version>/nats-server-<version>-linux-amd64.zip \
+  -o /tmp/nats-server.zip
+unzip /tmp/nats-server.zip -d /tmp/
+mkdir -p ~/.local/bin && mv /tmp/nats-server-<version>-linux-amd64/nats-server ~/.local/bin/
+export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc to persist
+```
+
+An `HF_TOKEN` environment variable is required to download gated models from HuggingFace Hub. Set it before running:
+
+``` bash
+export HF_TOKEN=<your_token>
+```
+
+<Anchor id="topologies" />
+
+## Topologies
+
+The workload supports two disaggregation modes, configured via `cmd_args.worker.disaggregation_mode`:
+
+- **Combined** (`none`): a single `dynamo.mocker` process handles both prefill and decode. Controlled by `cmd_args.worker.num_workers`.
+
+- **Disaggregated** (`prefill_decode`): separate prefill and decode mocker instances, mirroring the production `ai_dynamo` topology. Instance counts are set via `cmd_args.worker.prefill_worker.num_nodes` and `cmd_args.worker.decode_worker.num_nodes`.
+
+<Anchor id="benchmark-tools" />
+
+## Benchmark Tools
+
+Select the benchmark tool with `cmd_args.benchmark_tool`:
+
+- `"aiperf"` (default in the provided TOML) — uses the `aiperf` profiler
+
+- `"genai_perf"` — uses `genai-perf`` ``profile`
+
+Parameters for the active tool are configured under `[cmd_args.aiperf]` or `[cmd_args.genai_perf]`.
+
+<Anchor id="run-using-standalone" />
+
+## Run Using Standalone
+
+Note
+
+Set `HF_TOKEN` before running to allow model download from HuggingFace Hub.
+
+``` bash
+uv run cloudai run \
+  --system-config conf/experimental/dynamo_mocker/system/standalone_system.toml \
+  --tests-dir conf/experimental/dynamo_mocker/test \
+  --test-scenario conf/experimental/dynamo_mocker/test_scenario/dynamo_mocker.toml
+```
+
+CloudAI will:
+
+1.  Install `ai-dynamo`, `aiperf`, and `genai-perf` into a managed venv (first run only).
+
+2.  Write a wrapper script and launch `dynamo_mocker.sh`.
+
+3.  Start `nats-server`, `dynamo.mocker` (prefill and decode), and `dynamo.frontend`.
+
+4.  Run the benchmark and write results to the output directory.
+
+<Anchor id="review-benchmark-results" />
+
+## Review Benchmark Results
+
+After the run completes, results are placed in `results/<scenario_name>/<test_id>/`:
+
+- `benchmark_report.csv` — full per-request and aggregate metrics (throughput, latency percentiles, TTFT, ITL)
+
+- `stdout.txt` / `stderr.txt` — orchestration log and process output
+
+- `dynamo_prefill_0.log`, `dynamo_decode_0.log`, `dynamo_frontend.log` — per-component logs
+
+- `nats.log` — NATS server log
+
+Key summary metrics from `benchmark_report.csv`:
+
+``` default
+Metric,Value
+Output Token Throughput (tokens/sec),667.58
+Request Count,50.00
+Request Throughput (requests/sec),18.04
+
+Metric,avg,p50,p99
+Request Latency (ms),507.49,475.50,893.26
+Time to First Token (ms),77.82,71.99,137.26
+Inter Token Latency (ms),12.03,11.55,16.42
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs" /> *class* cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs(
+
+*\**,
+
+*model_path: str = 'Qwen/Qwen3-0.6B'*,
+
+*nats_cmd: str = 'nats-server -js'*,
+
+*engine: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerEngineArgs = \<factory\>*,
+
+*worker: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerWorkerConfig = \<factory\>*,
+
+*frontend: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerFrontendArgs = \<factory\>*,
+
+*benchmark_tool: ~typing.Literal\['genai_perf'*,
+
+*'aiperf'\] = 'genai_perf'*,
+
+*genai_perf: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerGenAIPerfArgs = \<factory\>*,
+
+*aiperf: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerAIPerfArgs = \<factory\>*,
+
+*\*\*extra_data: ~typing.Any*,
+
+)
+
+Bases: `CmdArgs`
+
+Top-level command arguments for the Dynamo Mocker workload.
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+**<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition" /> *class* cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition(*\*, name: str, description: str, test_template_name: str, cmd_args: ~cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs, dse_excluded_args: list\[str\] = \<factory\>, extra_env_vars: dict\[str, str \| ~typing.List\[str\]\] = &#123;&#125;, extra_cmd_args: dict\[str, str\] = &#123;&#125;, extra_container_mounts: list\[str\] = \[\], git_repos: list\[~cloudai.\_core.installables.git_repo.GitRepo\] = \[\], nsys: ~cloudai.models.workload.NsysConfiguration \| None = None, predictor: ~cloudai.models.workload.PredictorConfig \| None = None, training_report: ~cloudai.models.workload.TrainingReportConfig \| None = None, agent: str = 'grid_search', agent_steps: int = 1, agent_metrics: list\[str\] = \['default'\], agent_reward_function: str = 'inverse', agent_config: dict\[str, ~typing.Any\] \| None = None, env_params: dict\[str, ~cloudai.configurator.env_params.EnvParamSpec\] = \<factory\>, success_marker: str = 'success-marker.txt', failure_marker: str = 'failure-marker.txt'*)**
+
+Bases: `TestDefinition`
+
+Test definition for the Dynamo Mocker workload.
+
+Runs dynamo.mocker + dynamo.frontend as a lightweight GPU-free LLM inference simulator, then benchmarks it with genai-perf or aiperf via dynamo_mocker.sh. Select the benchmark tool with cmd_args.benchmark_tool (“genai_perf” or “aiperf”).
+
+**Supports two topologies mirroring ai_dynamo.sh:**
+
+- Combined (worker.disaggregation_mode=none): single mocker handles prefill+decode
+
+- Disaggregated (worker.disaggregation_mode=prefill_decode): separate prefill and decode mocker instances with KV event publishing and simulated transfer
+
+Requires: ai-dynamo and genai-perf or aiperf pip-installed in the active environment.
+
+**<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition.is_domain_randomization_enabled" /> *property* is_domain_randomization_enabled*: bool***
+
+at least one `env_params` annotation.
+
+**Type:**
+
+Whether the config declares domain randomization
+
+**<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition.is_dse_excluded_arg" /> is_dse_excluded_arg(*path: str*) → bool**
+
+Return whether a dot-separated cmd_args path should be ignored by DSE.
+
+**<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition.is_env_sampled" /> is_env_sampled(*cmd_args_path: str*) → bool**
+
+Whether a cmd_args field is env-sampled (env draws it per trial, not the agent).
+
+**<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition.validate_env_params" /> *validator* validate_env_params*  » * *all fields***
+
+Validate env_params annotations against cmd_args.
+
+`env_params` is an annotation: each key names a `cmd_args` field whose value is the candidate set (the single source of truth), and the entry carries only *how* to sample. So each key must name a real `cmd_args` field whose value is a candidate list; a scalar is already fixed, so annotating it is a meaningless label and is rejected here. When `weights` are declared, the list needs \>= 2 values and the weights must align 1:1 with it. Sampling, persistence, the per-trial cmd_args overlay, and the cache key all live in `CloudAIGymEnv`; keeping this shape check in core lets the overlay stay agent- and workload-agnostic rather than re-implemented per workload.

@@ -1,0 +1,111 @@
+<Anchor id="slurm-container" />
+
+This workload (test_template_name is `SlurmContainer`) executes containerized workloads using Slurm with custom container configurations.
+
+<Anchor id="usage-examples" />
+
+## Usage Examples
+
+Test TOML example:
+
+``` toml
+name = "my_container_test"
+description = "Example Slurm container test"
+test_template_name = "SlurmContainer"
+
+[cmd_args]
+image_path = "/path/to/container.sqsh"
+cmd = "python train.py"
+```
+
+Test Scenario example:
+
+``` toml
+name = "slurm-container-test"
+
+[[Tests]]
+id = "container.1"
+num_nodes = 2
+time_limit = "01:00:00"
+
+test_name = "my_container_test"
+```
+
+Test-in-Scenario example:
+
+``` toml
+name = "slurm-container-test"
+
+[[Tests]]
+id = "container.1"
+num_nodes = 2
+time_limit = "01:00:00"
+
+name = "my_container_test"
+description = "Example Slurm container test"
+test_template_name = "SlurmContainer"
+
+  [Tests.cmd_args]
+  image_path = "/path/to/container.sqsh"
+  cmd = "python train.py"
+```
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs" /> *class* cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs(
+
+*\**,
+
+*docker_image_url: str*,
+
+*cmd: str*,
+
+*\*\*extra_data: Any*,
+
+)
+
+Bases: `CmdArgs`
+
+Command line arguments for a generic Slurm container test.
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition" /> *class* cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition(*\*, name: str, description: str, test_template_name: str, cmd_args: ~cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs, dse_excluded_args: list\[str\] = \<factory\>, extra_env_vars: dict\[str, str \| ~typing.List\[str\]\] = &#123;&#125;, extra_cmd_args: dict\[str, str\] = &#123;&#125;, extra_container_mounts: list\[str\] = \[\], git_repos: list\[~cloudai.\_core.installables.git_repo.GitRepo\] = \[\], nsys: ~cloudai.models.workload.NsysConfiguration \| None = None, predictor: ~cloudai.models.workload.PredictorConfig \| None = None, training_report: ~cloudai.models.workload.TrainingReportConfig \| None = None, agent: str = 'grid_search', agent_steps: int = 1, agent_metrics: list\[str\] = \['default'\], agent_reward_function: str = 'inverse', agent_config: dict\[str, ~typing.Any\] \| None = None, env_params: dict\[str, ~cloudai.configurator.env_params.EnvParamSpec\] = \<factory\>, extra_srun_args: list\[str\] = \<factory\>, scripts: list\[~cloudai.\_core.installables.file.File\] = \<factory\>*)
+
+Bases: `TestDefinition`
+
+Test definition for a generic Slurm container test.
+
+**<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition.is_domain_randomization_enabled" /> *property* is_domain_randomization_enabled*: bool***
+
+at least one `env_params` annotation.
+
+**Type:**
+
+Whether the config declares domain randomization
+
+**<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition.is_dse_excluded_arg" /> is_dse_excluded_arg(*path: str*) → bool**
+
+Return whether a dot-separated cmd_args path should be ignored by DSE.
+
+<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition.is_env_sampled" /> is_env_sampled(
+
+*cmd_args_path: str*,
+
+) → bool
+
+Whether a cmd_args field is env-sampled (env draws it per trial, not the agent).
+
+**<Anchor id="cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition.validate_env_params" /> *validator* validate_env_params*  » * *all fields***
+
+Validate env_params annotations against cmd_args.
+
+`env_params` is an annotation: each key names a `cmd_args` field whose value is the candidate set (the single source of truth), and the entry carries only *how* to sample. So each key must name a real `cmd_args` field whose value is a candidate list; a scalar is already fixed, so annotating it is a meaningless label and is rejected here. When `weights` are declared, the list needs \>= 2 values and the weights must align 1:1 with it. Sampling, persistence, the per-trial cmd_args overlay, and the cache key all live in `CloudAIGymEnv`; keeping this shape check in core lets the overlay stay agent- and workload-agnostic rather than re-implemented per workload.
