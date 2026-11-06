@@ -1,0 +1,16 @@
+<Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs" />
+
+### `OSUBenchCmdArgs`
+
+Command line arguments for a OSU Benchmark test.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required | URL of the Docker image to use for the test. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.benchmarks_dir" />`benchmarks_dir` | `str` | Required | Directory with the OSU Benchmark binaries inside the container. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.benchmark" />`benchmark` | `str \| List[str]` | Required | Name of the benchmark to run. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.message_size" />`message_size` | `str \| List[str] \| None` | `None` | Message size for the benchmark.<br /><br />Examples::<br /><br />    128    // min = default, max = 128<br />    2:128  // min = 2, max = 128<br />    2:     // min 2, max = default |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.iterations" />`iterations` | `int \| None` | `None` | Number of iterations for the benchmark. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.warmup" />`warmup` | `int \| None` | `None` | Number of warmup iterations to skip before timing. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.mem_limit" />`mem_limit` | `int \| None` | `None` | Per-process maximum memory consumption in bytes. |
+| <Anchor id="cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs.full" />`full` | `bool` | `True` | Print full format listing of results. |

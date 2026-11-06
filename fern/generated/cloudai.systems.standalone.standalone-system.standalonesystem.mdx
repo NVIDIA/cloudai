@@ -1,0 +1,18 @@
+<Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem" />
+
+### `StandaloneSystem`
+
+Class representing a Standalone system.
+
+This class is used for systems that execute commands directly without a job scheduler.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.name" />`name` | `str` | Required |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.scheduler" />`scheduler` | `str` | `'standalone'` |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.install_path" />`install_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.output_path" />`output_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.hf_home_path" />`hf_home_path` | `pathlib.Path` | Factory: `System.<lambda>` |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.global_env_vars" />`global_env_vars` | `dict[str, typing.Any]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.monitor_interval" />`monitor_interval` | `float` | `1.0` |  |
+| <Anchor id="cloudai.systems.standalone.standalone_system.StandaloneSystem.sol" />`sol` | `dict[str, list[cloudai.metrics.SOLTarget]]` | Factory: `dict` |  |

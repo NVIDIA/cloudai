@@ -1,0 +1,11 @@
+<Anchor id="{{ symbol }}" />
+
+### `{{ symbol.rsplit('.', 1)[-1] }}`
+
+{{ description | mdx }}
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+{% for field in fields %}
+| <Anchor id="{{ symbol }}.{{ field.name }}" />`{{ field.name }}` | `{{ field.annotation | code }}` | {% if field.required %}Required{% elif field.factory %}Factory: `{{ field.factory | code }}`{% else %}`{{ field.default | code }}`{% endif %} | {{ field.description | cell }}{% if field.alias %} Alias: `{{ field.alias | code }}`.{% endif %}{% if field.constraints %} Constraints: {% for constraint in field.constraints %}`{{ constraint | code }}`{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %} |
+{% endfor %}

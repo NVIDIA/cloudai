@@ -1,0 +1,22 @@
+<Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs" />
+
+### `AIDynamoCmdArgs`
+
+Arguments for AI Dynamo.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.dynamo_version" />`dynamo_version` | `str` | `'f7e468c7e8ff0d1426db987564e60572167e8464'` | AI Dynamo Git commit, tag, or branch. |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.startup_cmd" />`startup_cmd` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.startup_cmd_docker_image" />`startup_cmd_docker_image` | `str \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.storage_cache_dir" />`storage_cache_dir` | `str \| list[str] \| None` | `'/tmp'` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.dynamo" />`dynamo` | `cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoArgs` | Required |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.hicache" />`hicache` | `dict \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.lmcache" />`lmcache` | `dict \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.lmcache_controller" />`lmcache_controller` | `cloudai.workloads.ai_dynamo.ai_dynamo.LMCacheController \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.genai_perf" />`genai_perf` | `cloudai.workloads.ai_dynamo.ai_dynamo.GenAIPerf` | Factory: `GenAIPerf` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.aiperf" />`aiperf` | `cloudai.workloads.ai_dynamo.ai_dynamo.AIPerf` | Factory: `AIPerf` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.aiperf_phases" />`aiperf_phases` | `list[cloudai.workloads.ai_dynamo.ai_dynamo.AIPerfPhase] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.aiperf_accuracy" />`aiperf_accuracy` | `cloudai.workloads.ai_dynamo.ai_dynamo.AIPerfAccuracy \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs.workloads" />`workloads` | `str` | `'genai_perf.sh'` |  |

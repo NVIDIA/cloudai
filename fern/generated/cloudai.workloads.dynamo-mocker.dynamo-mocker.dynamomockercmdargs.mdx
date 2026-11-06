@@ -1,0 +1,17 @@
+<Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs" />
+
+### `DynamoMockerCmdArgs`
+
+Top-level command arguments for the Dynamo Mocker workload.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.requirements" />`requirements` | `str` | `'ai-dynamo==1.3.0.post1 genai-perf==0.0.16 aiperf==0.11.0'` | Space-separated Python requirements installed into the Dynamo Mocker environment. |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.model_path" />`model_path` | `str` | `'Qwen/Qwen3-0.6B'` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.nats_cmd" />`nats_cmd` | `str` | `'nats-server -js'` | Command used to launch nats-server. Override with a full path if nats-server is not on PATH. |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.engine" />`engine` | `cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerEngineArgs` | Factory: `MockerEngineArgs` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.worker" />`worker` | `cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerWorkerConfig` | Factory: `MockerWorkerConfig` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.frontend" />`frontend` | `cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerFrontendArgs` | Factory: `MockerFrontendArgs` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.benchmark_tool" />`benchmark_tool` | `Literal['genai_perf', 'aiperf']` | `'genai_perf'` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.genai_perf" />`genai_perf` | `cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerGenAIPerfArgs` | Factory: `MockerGenAIPerfArgs` |  |
+| <Anchor id="cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs.aiperf" />`aiperf` | `cloudai.workloads.dynamo_mocker.dynamo_mocker.MockerAIPerfArgs` | Factory: `MockerAIPerfArgs` |  |
