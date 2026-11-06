@@ -1,0 +1,20 @@
+<Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem" />
+
+### `KubernetesSystem`
+
+Represents a Kubernetes system.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.name" />`name` | `str` | Required |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.scheduler" />`scheduler` | `str` | `'kubernetes'` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.install_path" />`install_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.output_path" />`output_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.hf_home_path" />`hf_home_path` | `pathlib.Path` | Factory: `System.<lambda>` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.global_env_vars" />`global_env_vars` | `dict[str, typing.Any]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.monitor_interval" />`monitor_interval` | `float` | `1.0` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.sol" />`sol` | `dict[str, list[cloudai.metrics.SOLTarget]]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.kube_config_path" />`kube_config_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.default_namespace" />`default_namespace` | `str` | Required |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.gpus_per_node" />`gpus_per_node` | `int` | `1` |  |
+| <Anchor id="cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem.use_host_network" />`use_host_network` | `bool \| None` | `None` |  |

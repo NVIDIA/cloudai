@@ -1,0 +1,27 @@
+<Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition" />
+
+### `NeMoRunTestDefinition`
+
+NeMoRun test definition.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.name" />`name` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.description" />`description` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.test_template_name" />`test_template_name` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.cmd_args" />`cmd_args` | `cloudai.workloads.nemo_run.nemo_run.NeMoRunCmdArgs` | Required |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.dse_excluded_args" />`dse_excluded_args` | `list[str]` | Factory: `list` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.extra_env_vars" />`extra_env_vars` | `dict[str, str \| typing.List[str]]` | `{}` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.extra_cmd_args" />`extra_cmd_args` | `dict[str, str]` | `{}` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.extra_container_mounts" />`extra_container_mounts` | `list[str]` | `[]` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.git_repos" />`git_repos` | `list[cloudai._core.installables.git_repo.GitRepo]` | `[]` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.nsys" />`nsys` | `cloudai.models.workload.NsysConfiguration \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.predictor" />`predictor` | `cloudai.models.workload.PredictorConfig \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.training_report" />`training_report` | `cloudai.models.workload.TrainingReportConfig \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.agent" />`agent` | `str` | `'grid_search'` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.agent_steps" />`agent_steps` | `int` | `1` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.agent_metrics" />`agent_metrics` | `list[str]` | `['default']` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.agent_reward_function" />`agent_reward_function` | `str` | `'inverse'` |  |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.agent_config" />`agent_config` | `dict[str, Any] \| None` | `None` | Agent configuration. |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.env_params" />`env_params` | `dict[str, cloudai.configurator.env_params.EnvParamSpec]` | Factory: `dict` | Environment parameters sampled by the env per trial. Sibling to cmd_args; not part of the agent's action space. CloudAIGymEnv samples, persists them in the trajectory output, and includes them in the trajectory cache key. |
+| <Anchor id="cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition.script" />`script` | `cloudai._core.installables.file.File` | `File(src=PosixPath('src/cloudai/workloads/nemo_run/cloudai_nemorun.py'))` |  |

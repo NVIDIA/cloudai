@@ -1,0 +1,74 @@
+references:
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmSystem
+    exclude:
+      - cmd_shell
+      - group_allocated
+      - supports_gpu_directives_cache
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmPartition
+    exclude:
+      - slurm_nodes
+  - symbol: cloudai.systems.slurm.slurm_system.SlurmGroup
+  - symbol: cloudai.systems.slurm.slurm_system.DataRepositoryConfig
+  - symbol: cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem
+  - symbol: cloudai.systems.runai.runai_system.RunAISystem
+    exclude:
+      - nodes
+  - symbol: cloudai.systems.runai.runai_node.RunAINode
+  - symbol: cloudai.systems.lsf.lsf_system.LSFSystem
+    exclude:
+      - cmd_shell
+  - symbol: cloudai.systems.lsf.lsf_system.LSFQueue
+    exclude:
+      - lsf_nodes
+  - symbol: cloudai.systems.lsf.lsf_system.LSFGroup
+  - symbol: cloudai.systems.standalone.standalone_system.StandaloneSystem
+    exclude:
+      - cmd_shell
+  - symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoCmdArgs
+  - symbol: cloudai.workloads.ai_dynamo.ai_dynamo.AIDynamoTestDefinition
+  - symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorCmdArgs
+  - symbol: cloudai.workloads.aiconfig.aiconfigurator.AiconfiguratorTestDefinition
+  - symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdArgs
+  - symbol: cloudai.workloads.bash_cmd.bash_cmd.BashCmdTestDefinition
+  - symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayCmdArgs
+  - symbol: cloudai.workloads.chakra_replay.chakra_replay.ChakraReplayTestDefinition
+  - symbol: cloudai.workloads.ddlb.ddlb.DDLBCmdArgs
+  - symbol: cloudai.workloads.ddlb.ddlb.DDLBTestDefinition
+  - symbol: cloudai.workloads.deepep.deepep.DeepEPCmdArgs
+  - symbol: cloudai.workloads.deepep.deepep.DeepEPTestDefinition
+  - symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerCmdArgs
+  - symbol: cloudai.workloads.dynamo_mocker.dynamo_mocker.DynamoMockerTestDefinition
+  - symbol: cloudai.workloads.fio.fio.FioCmdArgs
+  - symbol: cloudai.workloads.fio.fio.FioTestDefinition
+  - symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeCmdArgs
+  - symbol: cloudai.workloads.megatron_bridge.megatron_bridge.MegatronBridgeTestDefinition
+  - symbol: cloudai.workloads.nccl_test.nccl.NCCLCmdArgs
+  - symbol: cloudai.workloads.nccl_test.nccl.NCCLTestDefinition
+  - symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunCmdArgs
+  - symbol: cloudai.workloads.nemo_run.nemo_run.NeMoRunTestDefinition
+  - symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs
+  - symbol: cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchTestDefinition
+  - symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPCmdArgs
+  - symbol: cloudai.workloads.nixl_ep.nixl_ep.NixlEPTestDefinition
+  - symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs
+  - symbol: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchTestDefinition
+  - symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs
+  - symbol: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestTestDefinition
+  - symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchCmdArgs
+  - symbol: cloudai.workloads.osu_bench.osu_bench.OSUBenchTestDefinition
+  - symbol: cloudai.workloads.sglang.sglang.SglangArgs
+  - symbol: cloudai.workloads.sglang.sglang.SglangCmdArgs
+  - symbol: cloudai.workloads.sglang.sglang.SglangBenchCmdArgs
+  - symbol: cloudai.workloads.sglang.sglang.SglangSemanticEvalCmdArgs
+  - symbol: cloudai.workloads.sglang.sglang.SglangTestDefinition
+  - symbol: cloudai.workloads.sleep.sleep.SleepCmdArgs
+  - symbol: cloudai.workloads.sleep.sleep.SleepTestDefinition
+  - symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerCmdArgs
+  - symbol: cloudai.workloads.slurm_container.slurm_container.SlurmContainerTestDefinition
+  - symbol: cloudai.workloads.ucc_test.ucc.UCCCmdArgs
+  - symbol: cloudai.workloads.ucc_test.ucc.UCCTestDefinition
+  - symbol: cloudai.workloads.vllm.vllm.VllmArgs
+  - symbol: cloudai.workloads.vllm.vllm.VllmCmdArgs
+  - symbol: cloudai.workloads.vllm.vllm.VllmBenchCmdArgs
+  - symbol: cloudai.workloads.vllm.vllm.VllmSemanticEvalCmdArgs
+  - symbol: cloudai.workloads.vllm.vllm.VllmTestDefinition
