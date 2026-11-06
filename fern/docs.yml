@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/docs-yml.json
+instances:
+  - url: nvidia-cloudai.docs.buildwithfern.com/cloudai
+    custom-domain: docs.nvidia.com/cloudai
+    multi-source: true
+title: CloudAI
+global-theme: nvidia
+navbar-links:
+  - type: github
+    value: https://github.com/NVIDIA/cloudai
+versions:
+  - display-name: dev
+    path: ./dev.yml
+    slug: dev
+    availability: beta
