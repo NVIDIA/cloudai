@@ -49,10 +49,10 @@
   <!-- Inputs share the same configuration model. -->
   <rect x="40" y="148" width="1120" height="94" rx="14" fill="var(--input)" stroke="var(--line)"/>
   <text x="62" y="177" class="eyebrow">DEFINE YOUR EXPERIMENT</text>
-  <text x="62" y="211" class="body">Workload + settings</text>
-  <text x="340" y="211" class="body">Execution system + resources</text>
-  <text x="772" y="211" class="body">Scenario + objective</text>
-  <path d="M310 196V220 M740 196V220" stroke="var(--line)"/>
+  <text x="226.667" y="211" text-anchor="middle" class="body">Workload + settings</text>
+  <text x="600" y="211" text-anchor="middle" class="body">Execution system + resources</text>
+  <text x="973.333" y="211" text-anchor="middle" class="body">Scenario + objective</text>
+  <path d="M413.333 196V220 M786.667 196V220" stroke="var(--line)"/>
   <path d="M600 242V284" class="wire" marker-end="url(#arrow)"/>
 
   <!-- Execution and configuration search use the same framework. -->
