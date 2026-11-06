@@ -47,7 +47,7 @@ def parse_node_list(node_list: str) -> List[str]:
             for r in ranges:
                 if "-" in r:
                     start_node, end_node = r.split("-")
-                    number_of_digits = len(end_node)
+                    number_of_digits = len(start_node)
                     nodes.extend(
                         [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
                     )
