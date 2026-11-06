@@ -54,5 +54,10 @@ Python generators or creates generated-documentation commits on source branches.
   site settings from `main`; source documentation comes from the selected revision. Release branches
   need the trigger workflows, Fern configuration, and committed generated references.
 
-The first production run creates the configuration branch. Until a stable release is published,
-`dev` is the site's default version. Backfilling pre-Fern releases requires migrating their docs first.
+The first production run creates the configuration branch, seeded with the historical version refs
+in `fern/docs.yml`. The 1.6.1, 1.7.1, and 1.8.1 backfills contain static MDX, including Python references;
+1.8.1 uses the release branch revision tagged `v1.8.1-2`. These snapshots need no generation during publishing.
+
+Fern local preview renders only working-tree versions. To preview a historical version locally,
+check out its `fern-backfill/<version>` branch and run the Fern CLI there. The combined ref-backed
+site is assembled when publishing.

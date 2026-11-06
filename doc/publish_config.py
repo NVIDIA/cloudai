@@ -71,7 +71,10 @@ def configure(source, state, template, slug, sha, production):
     if not slug or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789.-" for c in slug):
         raise ValueError("Version slugs must contain only lowercase letters, numbers, dots, and hyphens.")
     config = yaml.safe_load(template.read_text())
-    versions = yaml.safe_load(state.read_text())["versions"] if state.exists() else []
+    if state.exists():
+        versions = yaml.safe_load(state.read_text())["versions"]
+    else:
+        versions = [version for version in config["versions"] if "ref" in version]
     if any("ref" not in version or "path" in version for version in versions):
         raise ValueError("release/docs must contain only versions pinned to source commit refs.")
     if production:
