@@ -1,63 +1,50 @@
 # CloudAI
 
-**Benchmark and optimize AI systems.**
+**The execution framework for AI-driven research.**
 
-CloudAI is an open-source framework for benchmarking and optimizing AI systems. Run training, inference,
-communication, and storage workloads through one experiment workflow. Use built-in grid search or connect custom
-optimization agents to explore configurations and identify the best results observed for your objective.
+Run the workloads your task requires, collect evidence, and use the results to guide the next experiment.
+Combine experiments into a broader investigation using existing workloads or your own.
 
-[Get started](https://nvidia.github.io/cloudai/#getting-started) ·
-[Choose a workflow](https://nvidia.github.io/cloudai/#choose-a-workflow) ·
-[Workload compatibility](https://nvidia.github.io/cloudai/workloads/index.html)
+![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](doc/_static/cloudai-experiments.svg)
 
-## From benchmarks to better configurations
+[Extend CloudAI](https://nvidia.github.io/cloudai/DEV.html) ·
+[Configure optimization agents](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration)
 
-| Run different benchmarks | Search configurations | Compare and reuse results |
-| --- | --- | --- |
-| Use a common CLI, Python API, and configuration model for workloads such as NCCL, NeMo, vLLM, SGLang, and Fio. | Define configuration choices and a performance objective. Use grid search for small spaces or integrate your own search policy. | Inspect performance trade-offs, read structured experiment results, and reuse the best configuration discovered during a search. |
+## Run a benchmark
 
-CloudAI's optimization agents select configurations and receive workload measurements as feedback. The built-in
-`grid_search` agent evaluates every combination in the configured search space. Custom agents can implement adaptive
-selection and stopping policies through the public agent interface.
-
-**Plan around your compute budget:** start with a baseline, choose meaningful search dimensions, and estimate the
-number and cost of evaluations before launching. Keep grid searches small; use a custom agent when you need an
-adaptive search policy. See [configuration search](https://nvidia.github.io/cloudai/#configuration-search).
-
-## Choose a workflow
-
-| I want to… | Start here |
+| Experiment | Start here |
 | --- | --- |
-| Measure communication or storage performance | [NCCL](https://nvidia.github.io/cloudai/workloads/nccl.html), [NIXL](https://nvidia.github.io/cloudai/workloads/nixl_bench.html), or [Fio](https://nvidia.github.io/cloudai/workloads/fio.html) |
-| Benchmark training configurations | [Megatron Bridge](https://nvidia.github.io/cloudai/workloads/megatron_bridge.html) or [NeMo Run](https://nvidia.github.io/cloudai/workloads/nemo_run.html) |
-| Compare inference configurations | [vLLM](https://nvidia.github.io/cloudai/workloads/vllm.html), [SGLang](https://nvidia.github.io/cloudai/workloads/sglang.html), and [latency–throughput trade-offs](https://nvidia.github.io/cloudai/pareto-frontiers.html) |
-| Explore a configuration space | [Configuration search](https://nvidia.github.io/cloudai/#configuration-search) and [agent configuration](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration) |
-| Automate experiments and consume their results | [Python API](https://nvidia.github.io/cloudai/api.html) and [experiment output](https://nvidia.github.io/cloudai/reporting.html#unified-experiment-output) |
+| Inference | [vLLM: Qwen3-0.6B on one GPU](https://nvidia.github.io/cloudai/?benchmark=inference#choose-a-workflow) |
+| Networking | [NCCL: all-reduce on two nodes](https://nvidia.github.io/cloudai/?benchmark=networking#choose-a-workflow) |
+| Storage | [Fio: file I/O on standalone or Slurm](https://nvidia.github.io/cloudai/?benchmark=storage#choose-a-workflow) |
+| Training | [Megatron Bridge: Qwen3-30B-A3B on two eight-GPU H100 nodes](https://nvidia.github.io/cloudai/?benchmark=training#choose-a-workflow) |
 
-Workload availability depends on the execution environment. Check the
-[support matrix](https://nvidia.github.io/cloudai/workloads/index.html) before selecting a workload.
+See [all workloads and supported systems](https://nvidia.github.io/cloudai/workloads/index.html).
 
 ## Get started
 
-Use [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.4 or newer to manage Python and dependencies:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.4 or newer and clone CloudAI:
 
 ```bash
 git clone https://github.com/NVIDIA/cloudai.git
 cd cloudai
-uv run cloudai --help
 ```
 
-Choose a workload above, then configure [where it will run](https://nvidia.github.io/cloudai/systems.html) and prepare
-its [prerequisites](https://nvidia.github.io/cloudai/workloads/workloads_requirements_installation.html).
-CloudAI uses three configuration types: a **system** describes where to run, a **test definition** describes the
-workload and its settings, and a **scenario** selects the test cases to execute.
+Follow the [Standalone](https://nvidia.github.io/cloudai/#quickstart-standalone) or
+[Slurm](https://nvidia.github.io/cloudai/#quickstart-slurm) setup, then run an example above.
+See [installation and CLI usage](https://nvidia.github.io/cloudai/getting-started.html) for more options.
 
-Use [`dry-run`](https://nvidia.github.io/cloudai/getting-started.html#dry-run) to inspect generated workload commands before execution.
-After an experiment, open its HTML reports or read `experiment.json` in the results directory. Configuration searches
-also produce a DSE report and a selected test configuration; see
-[report generation](https://nvidia.github.io/cloudai/getting-started.html#generate-report).
+## Guide the next experiment
 
-For installation alternatives and CLI examples, see the [documentation](https://nvidia.github.io/cloudai/#getting-started).
+Open the results directory printed by CloudAI. Use [HTML reports and `experiment.json`](https://nvidia.github.io/cloudai/reporting.html)
+to inspect measurements, or consume results through the [Python API](https://nvidia.github.io/cloudai/api.html).
+
+Use built-in `grid_search` to evaluate every configured combination, or connect your own
+[optimization agent](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration) to select configurations from
+measured feedback. Custom agents can implement adaptive selection and stopping policies to work within a compute budget.
+
+Add [workloads, systems and runners, reporters, or agents](https://nvidia.github.io/cloudai/DEV.html)
+through CloudAI's public interfaces and registry.
 
 ## Contribute
 

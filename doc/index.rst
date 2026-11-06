@@ -25,9 +25,11 @@ Run a benchmark
 ---------------
 
 .. tab-set::
+   :sync-group: benchmark
 
    .. tab-item:: Inference
       :selected:
+      :sync: inference
 
       .. _inference-with-vllm:
 
@@ -49,6 +51,7 @@ Run a benchmark
       :doc:`vLLM guide <workloads/vllm>`
 
    .. tab-item:: Networking
+      :sync: networking
 
       .. _networking-with-nccl:
 
@@ -70,6 +73,7 @@ Run a benchmark
       :doc:`NCCL guide <workloads/nccl>`
 
    .. tab-item:: Storage
+      :sync: storage
 
       .. _storage-with-fio:
 
@@ -106,6 +110,7 @@ Run a benchmark
       :doc:`Fio guide <workloads/fio>` · `Public container <https://hub.docker.com/r/openeuler/fio>`_
 
    .. tab-item:: Training
+      :sync: training
 
       .. _training-with-megatron-bridge:
 
