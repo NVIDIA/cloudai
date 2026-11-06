@@ -1,0 +1,48 @@
+<Anchor id="workloads" />
+
+This chapter contains automatically generated documentation for all CloudAI workloads. Each workload provides specific functionality for running different types of tests and benchmarks.
+
+<Anchor id="available-workloads" />
+
+## Available Workloads
+
+| Test | Slurm | Kubernetes | RunAI | Standalone |
+|----|----|----|----|----|
+| [AIConfigurator](/cloudai/workloads/aiconfigurator) | ❌ | ❌ | ❌ | ✅ |
+| [AI Dynamo](/cloudai/workloads/ai-dynamo) | ✅ | ✅ | ❌ | ❌ |
+| [Bash Command](/cloudai/workloads/bash-cmd) | ✅ | ❌ | ❌ | ❌ |
+| [Chakra Replay](/cloudai/workloads/chakra-replay) | ✅ | ❌ | ❌ | ❌ |
+| [DDLB](/cloudai/workloads/ddlb) | ✅ | ❌ | ❌ | ❌ |
+| [DeepEP Benchmark](/cloudai/workloads/deepep) | ✅ | ❌ | ❌ | ❌ |
+| [DynamoMocker](/cloudai/workloads/dynamo-mocker) | ❌ | ❌ | ❌ | ✅ |
+| [fio](/cloudai/workloads/fio) | ✅ | ❌ | ❌ | ✅ |
+| [JaxToolbox workloads (DEPRECATED)](/cloudai/workloads/jax-toolbox) | ✅ | ❌ | ❌ | ❌ |
+| MegatronRun | ✅ | ❌ | ❌ | ❌ |
+| [MegatronBridge](/cloudai/workloads/megatron-bridge) | ✅ | ❌ | ❌ | ❌ |
+| [NCCL](/cloudai/workloads/nccl) | ✅ | ✅ | ✅ | ❌ |
+| [NeMo v1.0 aka NemoLauncher (DEPRECATED)](/cloudai/workloads/nemo-launcher) | ✅ | ❌ | ❌ | ❌ |
+| [Nemo Run](/cloudai/workloads/nemo-run) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL Bench](/cloudai/workloads/nixl-bench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL EP](/cloudai/workloads/nixl-ep) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL KVBench](/cloudai/workloads/nixl-kvbench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL CTPerf](/cloudai/workloads/nixl-perftest) | ✅ | ❌ | ❌ | ❌ |
+| [Sleep](/cloudai/workloads/sleep) | ✅ | ✅ | ❌ | ✅ |
+| [SGLang](/cloudai/workloads/sglang) | ✅ | ❌ | ❌ | ❌ |
+| [SRT Slurm](/cloudai/workloads/srt-slurm) | ✅ | ❌ | ❌ | ❌ |
+| [Slurm Container](/cloudai/workloads/slurm-container) | ✅ | ❌ | ❌ | ❌ |
+| Triton Inference | ✅ | ❌ | ❌ | ❌ |
+| [UCC](/cloudai/workloads/ucc) | ✅ | ❌ | ❌ | ❌ |
+| [vLLM](/cloudai/workloads/vllm) | ✅ | ❌ | ❌ | ❌ |
+
+<Anchor id="adding-new-workloads" />
+
+## Adding New Workloads
+
+To add documentation for a new workload:
+
+1.  Add docstrings to your Python classes and methods.
+2.  Create an MDX file in `doc/workloads/` (e.g., `my_workload.mdx`).
+3.  Add it to the table above and to `fern/docs.yml`.
+4.  Add its reference classes to `fern/reference.yml` and include the generated snippets using Fern's `Markdown` component, with `src` set to `/generated/fully.qualified.Class.mdx`.
+
+The documentation will be automatically generated during the build process.
