@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
+import math
 from ast import literal_eval
 from pathlib import Path
 from typing import Any
@@ -21,7 +23,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from cloudai.configurator import Trajectory
+from cloudai.configurator import Trajectory, TrajectoryLoadError
 
 
 def test_append_flattens_domains_into_dataframe_columns(tmp_path: Path) -> None:
@@ -391,15 +393,7 @@ def test_trajectory_logs_lifecycle_and_lookup(tmp_path: Path, caplog: pytest.Log
 
 
 def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
-    """The lookup index must select exactly the row a linear exact-match scan would.
-
-    ``find`` is backed by a hash index rather than a scan, so the index key has to carry
-    the same identity semantics as ``_values_match_exact`` -- exact type, then structure.
-    This asserts the two agree on every recorded row rather than on a handful of cases.
-    """
     import random
-
-    from cloudai.configurator.trajectory import _values_match_exact
 
     trajectory = Trajectory(iteration_dir=tmp_path)
     random.seed(0)
@@ -410,19 +404,14 @@ def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
         trajectory.append(step=step, action=action, reward=step / 100, observation=[float(step)], env_params=env)
         recorded.append((action, env))
 
-    frame = trajectory.dataframe
-
-    def scan(action: dict, env: dict) -> object | None:
-        criteria = {f"action.{k}": v for k, v in action.items()}
-        criteria.update({f"env_params.{k}": v for k, v in env.items()})
-        for _, row in frame.iterrows():
-            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
-                return row["step"]
-        return None
-
     for action, env in recorded:
+        expected = next(
+            step
+            for step, (recorded_action, recorded_env) in enumerate(recorded, start=1)
+            if recorded_action == action and recorded_env == env
+        )
         found = trajectory.find(action=action, env_params=env)
-        expected = scan(action, env)
+
         assert expected is not None
         assert found is not None
         assert found["step"] == expected
@@ -490,3 +479,388 @@ def test_lookup_cost_does_not_grow_with_trajectory_length(tmp_path: Path) -> Non
     large = time.perf_counter() - start
 
     assert large < small * 3, f"lookup cost grew with length: {small:.4f}s -> {large:.4f}s over an 8x longer trajectory"
+
+
+def test_load_reconstructs_complete_trials_from_the_real_writer(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    for step, ooo in enumerate((10, 11), start=1):
+        written.append(
+            step=step,
+            action={"ooo": ooo},
+            reward=step / 10,
+            observation={"bus_bw": step * 10.0},
+            env_params={"workload": "bisection", "msg_size": 1024, "drop_rate": 0.003},
+            execution={"ticket": f"T-{step}"},
+        )
+    original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    loaded = Trajectory.load(tmp_path)
+    records = loaded.records()
+
+    assert [record.step for record in records] == [1, 2]
+    assert [record.domain("action") for record in records] == [{"ooo": 10}, {"ooo": 11}]
+    assert [record.domain("reward") for record in records] == [0.1, 0.2]
+    assert [record.domain("observation") for record in records] == [[10.0], [20.0]]
+    assert records[0].domain("env_params") == {
+        "workload": "bisection",
+        "msg_size": "1024",
+        "drop_rate": "0.003",
+    }
+    assert records[0].metadata["execution"] == {"ticket": "T-1"}
+    assert records[0].source == written.output_path
+    assert "observation.bus_bw" not in loaded.dataframe.columns
+
+    found = loaded.find(action={"ooo": 11})
+    assert found is not None
+    assert found["step"] == 2
+
+    pd.testing.assert_frame_equal(loaded.csv_dataframe, pd.read_csv(written.output_path))
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
+
+
+def test_load_preserves_source_metadata_until_an_explicit_projection(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(
+        step=1,
+        action={"ooo": 10},
+        reward=1.0,
+        observation=[100.0],
+        env_params={"label": "001", "msg_size": 1024, "drop_rate": 0.003},
+    )
+
+    loaded = Trajectory.load(tmp_path)
+    projected = loaded.records()[0].domain("env_params", decode_numbers=True)
+
+    assert projected == {"label": 1, "msg_size": 1024, "drop_rate": 0.003}
+    assert loaded.records()[0].domain("env_params") == {"label": "001", "msg_size": "1024", "drop_rate": "0.003"}
+
+
+def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"values": [1, 2]}, reward=1.0, observation=[2.0], execution={"ticket": "T-1"})
+
+    loaded = Trajectory.load(tmp_path)
+    record = loaded.records()[0]
+
+    record.domain("action")["values"].append(3)
+    record.metadata["execution"]["ticket"] = "changed"
+
+    flat = loaded.dataframe
+    values: object = flat.at[0, "action.values"]
+    assert isinstance(values, list)
+    values.append(3)
+
+    serialized = loaded.csv_dataframe
+    serialized.loc[0, "reward"] = 9.0
+
+    assert loaded.records()[0].domain("action") == {"values": [1, 2]}
+    assert loaded.records()[0].metadata["execution"] == {"ticket": "T-1"}
+
+    assert loaded.dataframe.loc[0, "action.values"] == [1, 2]
+    assert loaded.csv_dataframe.loc[0, "reward"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("action", "reward", "observation"),
+    [
+        (7, {"objective": 1.0}, (1, 2)),
+        ({"ooo": 1}, -1.0, [-1.0]),
+        ({"ooo": 2}, 0.0, 2.0),
+    ],
+)
+def test_load_accepts_writer_supported_domains_without_optional_metadata(
+    tmp_path: Path, action: Any, reward: Any, observation: Any
+) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action=action, reward=reward, observation=observation)
+
+    live_record = written.records()[0]
+    record = Trajectory.load(tmp_path).records()[0]
+
+    assert record.domain("action") == action
+    assert live_record.domain("action") == record.domain("action")
+    assert record.domain("reward") == reward
+    assert live_record.domain("reward") == record.domain("reward")
+    assert record.domain("observation") == observation
+    assert live_record.domain("observation") == record.domain("observation")
+    assert record.metadata == {}
+    assert not written.metadata_path.exists()
+
+
+def test_load_accepts_an_explicit_csv_with_its_sibling_metadata(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0], env_params={"workload": "bisection"})
+    csv_path = written.output_path.rename(tmp_path / "measurements.csv")
+
+    record = Trajectory.load(csv_path).records()[0]
+
+    assert record.source == csv_path
+    assert record.domain("env_params") == {"workload": "bisection"}
+
+
+@pytest.mark.parametrize("with_metadata", [False, True])
+def test_load_accepts_a_header_only_history(tmp_path: Path, with_metadata: bool) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n")
+    if with_metadata:
+        (tmp_path / "metadata.csv").write_text("step,env_params.workload\n")
+
+    loaded = Trajectory.load(tmp_path)
+
+    assert len(loaded) == 0
+    assert loaded.records() == ()
+    assert loaded.csv_dataframe.empty
+
+
+@pytest.mark.parametrize(
+    ("core", "metadata", "artifact"),
+    [
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n2,{'ooo': 11},0.2,[20.0]\n",
+            "step,env_params.workload\n1,bisection\n",
+            "metadata.csv",
+        ),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n",
+            "step,env_params.workload\n1,bisection\n1,many2one\n",
+            "metadata.csv",
+        ),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n",
+            "step,env_params.workload\n1,bisection\n2,many2one\n",
+            "metadata.csv",
+        ),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n",
+            "step,env_params.workload\ninvalid,bisection\n",
+            "metadata.csv",
+        ),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n1,{'ooo': 11},0.2,[20.0]\n",
+            None,
+            "trajectory.csv",
+        ),
+        (
+            "step,action,reward,observation\n2,{'ooo': 10},0.1,[10.0]\n1,{'ooo': 11},0.2,[20.0]\n",
+            None,
+            "trajectory.csv",
+        ),
+        ("step,action,reward,observation\n-1,{'ooo': 10},0.1,[10.0]\n", None, "trajectory.csv"),
+        ("step,action,reward,observation\ninvalid,{'ooo': 10},0.1,[10.0]\n", None, "trajectory.csv"),
+        ("step,reward,observation\n1,0.1,[10.0]\n", None, "trajectory.csv"),
+        ("step,action,reward,reward,observation\n1,{'ooo': 10},0.1,0.2,[10.0]\n", None, "trajectory.csv"),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n",
+            "step,env_params.workload,env_params.workload\n1,bisection,many2one\n",
+            "metadata.csv",
+        ),
+        (
+            "step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n",
+            "env_params.workload\nbisection\n",
+            "metadata.csv",
+        ),
+        ("step,action,reward,observation\n1,{'ooo': 10},0.1\n", None, "trajectory.csv"),
+        ("step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0],extra\n", None, "trajectory.csv"),
+        ('step,action,reward,observation\n1,"unterminated\n', None, "trajectory.csv"),
+    ],
+)
+def test_load_rejects_inconsistent_artifacts_before_returning_history(
+    tmp_path: Path, core: str, metadata: str | None, artifact: str
+) -> None:
+    (tmp_path / "trajectory.csv").write_text(core)
+    if metadata is not None:
+        (tmp_path / "metadata.csv").write_text(metadata)
+    original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    with pytest.raises(TrajectoryLoadError, match=artifact) as failure:
+        Trajectory.load(tmp_path)
+
+    assert str(failure.value).startswith(f"Cannot load trajectory {tmp_path / artifact}:")
+    assert "row " in str(failure.value) or "step " in str(failure.value)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
+
+
+@pytest.mark.parametrize("artifact", ["trajectory.csv", "metadata.csv"])
+def test_load_reports_unreadable_or_undecodable_artifact(tmp_path: Path, artifact: str) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{'ooo': 10},0.1,[10.0]\n")
+    (tmp_path / artifact).write_bytes(b"\xff\xfe")
+
+    with pytest.raises(TrajectoryLoadError, match=artifact):
+        Trajectory.load(tmp_path)
+
+
+def test_load_reports_missing_required_artifact(tmp_path: Path) -> None:
+    with pytest.raises(TrajectoryLoadError, match=r"trajectory\.csv"):
+        Trajectory.load(tmp_path)
+
+
+def test_load_identifies_the_step_whose_metadata_is_missing(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    for step in (1, 2):
+        written.append(
+            step=step, action={"ooo": step}, reward=1.0, observation=[100.0], env_params={"workload": "bisection"}
+        )
+    written.metadata_path.write_text("step,env_params.workload\n1,bisection\n")
+
+    with pytest.raises(TrajectoryLoadError) as failure:
+        Trajectory.load(tmp_path)
+
+    assert str(written.metadata_path) in str(failure.value)
+    assert "step 2" in str(failure.value)
+    assert "missing metadata row for trajectory step" in str(failure.value)
+
+
+def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0])
+    source = written.output_path.rename(tmp_path / "history")
+
+    record = Trajectory.load(source).records()[0]
+
+    assert record.source == source
+    assert record.domain("action") == {"ooo": 10}
+
+
+def test_load_preserves_legacy_history_without_an_observation_column(tmp_path: Path) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward\n1,{'ooo': 10},0.1\n")
+
+    loaded = Trajectory.load(tmp_path)
+    record = loaded.records()[0]
+
+    assert record.domain("action") == {"ooo": 10}
+    assert record.domain("reward") == 0.1
+
+    with pytest.raises(KeyError):
+        record.domain("observation")
+
+    assert list(loaded.csv_dataframe.columns) == ["step", "action", "reward"]
+
+
+def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path: Path) -> None:
+    payload = "x" * 140000
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"payload": payload}, reward=1.0, observation=[payload], logging={"payload": payload})
+    original_limit = csv.field_size_limit()
+    try:
+        csv.field_size_limit(4096)
+
+        loaded = Trajectory.load(tmp_path)
+
+        assert loaded.records()[0].domain("action") == {"payload": payload}
+        assert loaded.records()[0].domain("observation") == [payload]
+        assert loaded.records()[0].metadata["logging"] == {"payload": payload}
+        pd.testing.assert_frame_equal(loaded.csv_dataframe, pd.read_csv(written.output_path))
+        assert csv.field_size_limit() == 4096
+
+        written.metadata_path.write_text(f'step,logging.payload\n1,"{payload}",extra\n')
+
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(tmp_path)
+
+        assert csv.field_size_limit() == 4096
+    finally:
+        csv.field_size_limit(original_limit)
+
+
+def test_load_preserves_nested_nonfinite_numbers_from_the_real_writer(tmp_path: Path) -> None:
+    values = [float("nan"), float("inf"), float("-inf")]
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"values": values}, reward={"values": values}, observation=values)
+
+    record = Trajectory.load(tmp_path).records()[0]
+
+    for decoded in (record.domain("action")["values"], record.domain("reward")["values"], record.domain("observation")):
+        assert math.isnan(decoded[0])
+        assert decoded[1:] == [float("inf"), float("-inf")]
+
+
+@pytest.mark.parametrize("expression", ["[unknown]", "[float('nan')]", "[nan.real]"])
+def test_load_rejects_expressions_outside_the_literal_contract(tmp_path: Path, expression: str) -> None:
+    with (tmp_path / "trajectory.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "action", "reward", "observation"])
+        writer.writerow([1, {}, 1.0, expression])
+
+    with pytest.raises(TrajectoryLoadError):
+        Trajectory.load(tmp_path)
+
+
+def test_load_preserves_metadata_cell_line_endings_from_the_writer(tmp_path: Path) -> None:
+    note = "line1\r\nline2"
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0], env_params={"note": note})
+    original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    loaded = Trajectory.load(tmp_path)
+
+    assert loaded.records()[0].domain("env_params") == {"note": note}
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
+
+
+def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path: Path) -> None:
+    core_path = tmp_path / "trajectory.csv"
+    metadata_path = tmp_path / "metadata.csv"
+
+    with core_path.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "action", "reward", "observation"])
+        writer.writerow([0, {"ooo": 10}, 1.0, [100.0]])
+        writer.writerow([1, {"ooo": 11}, 2.0, [200.0]])
+
+    with metadata_path.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "env_params.workload"])
+        writer.writerow([0, "thin"])
+        writer.writerow([1, "wide"])
+
+    original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    loaded = Trajectory.load(tmp_path)
+
+    records = loaded.records()
+
+    assert [(record.step, record.domain("env_params")) for record in records] == [
+        (0, {"workload": "thin"}),
+        (1, {"workload": "wide"}),
+    ]
+    assert records[0].domain("action") == {"ooo": 10}
+
+    found = loaded.find(action={"ooo": 10}, env_params={"workload": "thin"})
+    assert found is not None
+    assert found["step"] == 0
+
+    pd.testing.assert_frame_equal(loaded.csv_dataframe, pd.read_csv(core_path))
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
+
+
+@pytest.mark.parametrize(
+    ("observation", "present", "expected"),
+    [
+        (None, False, "n/a"),
+        ([], True, "n/a"),
+        ("[truncated observation]", True, "n/a"),
+        ([1.23456, 2.0, "ready", 0.00001], True, "1.2346, 2, ready, 0"),
+        (0, True, "0"),
+    ],
+)
+def test_record_formats_observation_without_changing_its_domain(
+    tmp_path: Path, observation: Any, present: bool, expected: str
+) -> None:
+    if present:
+        trajectory = Trajectory(iteration_dir=tmp_path)
+        trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation)
+        record = trajectory.records()[0]
+    else:
+        (tmp_path / "trajectory.csv").write_text("step,action,reward\n1,{'ooo': 10},1.0\n")
+        record = Trajectory.load(tmp_path).records()[0]
+    original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    before = repr(record.domain("observation")) if present else None
+
+    assert record.format_observation() == expected
+
+    if present:
+        assert repr(record.domain("observation")) == before
+    else:
+        with pytest.raises(KeyError):
+            record.domain("observation")
+
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
