@@ -1,0 +1,48 @@
+<Anchor id="workloads" />
+
+This chapter contains automatically generated documentation for all CloudAI workloads. Each workload provides specific functionality for running different types of tests and benchmarks.
+
+<Anchor id="available-workloads" />
+
+## Available Workloads
+
+| Test | Slurm | Kubernetes | RunAI | Standalone |
+|----|----|----|----|----|
+| [AIConfigurator](/cloudai/1.8.1/workloads/aiconfigurator) | ❌ | ❌ | ❌ | ✅ |
+| [AI Dynamo](/cloudai/1.8.1/workloads/ai-dynamo) | ✅ | ✅ | ❌ | ❌ |
+| [Bash Command](/cloudai/1.8.1/workloads/bash-cmd) | ✅ | ❌ | ❌ | ❌ |
+| [Chakra Replay](/cloudai/1.8.1/workloads/chakra-replay) | ✅ | ❌ | ❌ | ❌ |
+| [DDLB](/cloudai/1.8.1/workloads/ddlb) | ✅ | ❌ | ❌ | ❌ |
+| [DeepEP Benchmark](/cloudai/1.8.1/workloads/deepep) | ✅ | ❌ | ❌ | ❌ |
+| [DynamoMocker](/cloudai/1.8.1/workloads/dynamo-mocker) | ❌ | ❌ | ❌ | ✅ |
+| [fio](/cloudai/1.8.1/workloads/fio) | ✅ | ❌ | ❌ | ✅ |
+| [JaxToolbox workloads (DEPRECATED)](/cloudai/1.8.1/workloads/jax-toolbox) | ✅ | ❌ | ❌ | ❌ |
+| MegatronRun | ✅ | ❌ | ❌ | ❌ |
+| [MegatronBridge](/cloudai/1.8.1/workloads/megatron-bridge) | ✅ | ❌ | ❌ | ❌ |
+| [NCCL](/cloudai/1.8.1/workloads/nccl) | ✅ | ✅ | ✅ | ❌ |
+| [NeMo v1.0 aka NemoLauncher (DEPRECATED)](/cloudai/1.8.1/workloads/nemo-launcher) | ✅ | ❌ | ❌ | ❌ |
+| [Nemo Run](/cloudai/1.8.1/workloads/nemo-run) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL Bench](/cloudai/1.8.1/workloads/nixl-bench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL EP](/cloudai/1.8.1/workloads/nixl-ep) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL KVBench](/cloudai/1.8.1/workloads/nixl-kvbench) | ✅ | ❌ | ❌ | ❌ |
+| [NIXL CTPerf](/cloudai/1.8.1/workloads/nixl-perftest) | ✅ | ❌ | ❌ | ❌ |
+| [Sleep](/cloudai/1.8.1/workloads/sleep) | ✅ | ✅ | ❌ | ✅ |
+| [SGLang](/cloudai/1.8.1/workloads/sglang) | ✅ | ❌ | ❌ | ❌ |
+| [Slurm Container](/cloudai/1.8.1/workloads/slurm-container) | ✅ | ❌ | ❌ | ❌ |
+| Triton Inference | ✅ | ❌ | ❌ | ❌ |
+| [UCC](/cloudai/1.8.1/workloads/ucc) | ✅ | ❌ | ❌ | ❌ |
+| [vLLM](/cloudai/1.8.1/workloads/vllm) | ✅ | ❌ | ❌ | ❌ |
+
+<Anchor id="adding-new-workloads" />
+
+## Adding New Workloads
+
+To add documentation for a new workload:
+
+1.  Add docstrings to your Python classes and methods.
+
+2.  Create a reStructuredText file in `doc/workloads/` (e.g., `my_workload.rst`).
+
+3.  Add it to the table above.
+
+The documentation will be automatically generated during the build process.
