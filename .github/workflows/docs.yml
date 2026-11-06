@@ -1,0 +1,19 @@
+name: Publish Development Documentation
+
+on:
+  push:
+    branches: [main, 'release/**', '!release/docs']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.ref != 'refs/heads/release/docs'
+    uses: NVIDIA/cloudai/.github/workflows/docs-site.yml@main
+    with:
+      channel: ${{ github.ref == 'refs/heads/main' && 'dev' || 'release' }}
+      source_ref: ${{ github.sha }}
+      preview_id: ${{ github.ref_name }}
+      mode: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    secrets: inherit

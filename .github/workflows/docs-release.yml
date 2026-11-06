@@ -1,0 +1,19 @@
+name: Publish Release Documentation
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  production:
+    if: '!github.event.release.prerelease'
+    uses: NVIDIA/cloudai/.github/workflows/docs-site.yml@main
+    with:
+      channel: release
+      source_ref: refs/tags/${{ github.event.release.tag_name }}
+      release_tag: ${{ github.event.release.tag_name }}
+      mode: production
+    secrets: inherit
