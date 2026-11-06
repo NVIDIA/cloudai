@@ -51,5 +51,5 @@ class HttpDataRepository:
     def push(self, entry: Dict[str, Any]) -> None:
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         payload = json.dumps([entry])
-        response = requests.post(self.endpoint, data=payload, headers=headers, verify=self.verify)
+        response = requests.post(self.endpoint, data=payload, headers=headers, verify=self.verify, timeout=30)
         response.raise_for_status()
