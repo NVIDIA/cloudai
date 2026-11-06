@@ -2,7 +2,7 @@ name: Publish Documentation
 
 on:
   push:
-    branches: [main, 'release/**', '!release/docs']
+    branches: [main]
   release:
     types: [published]
 
@@ -14,9 +14,8 @@ jobs:
     if: github.event_name != 'release' || !github.event.release.prerelease
     uses: NVIDIA/cloudai/.github/workflows/docs-site.yml@main
     with:
-      channel: ${{ github.event_name == 'push' && github.ref_name == 'main' && 'dev' || 'release' }}
+      channel: ${{ github.event_name == 'push' && 'dev' || 'release' }}
       source_ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || github.sha }}
       release_tag: ${{ github.event.release.tag_name || '' }}
-      preview_id: ${{ github.ref_name }}
-      mode: ${{ (github.event_name == 'release' || github.ref_name == 'main') && 'production' || 'preview' }}
+      mode: production
     secrets: inherit
