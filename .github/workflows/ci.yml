@@ -30,14 +30,6 @@ jobs:
       - name: Run linting via pre-commit
         run: uv run --locked pre-commit run --all-files --show-diff-on-failure
 
-      - name: Build documentation
-        run: |
-          set -eE
-          set -o pipefail
-
-          uv run --locked --extra docs sphinx-build -M html "doc" "doc/_build"
-          touch doc/_build/html/.nojekyll
-
   test:
     name: Run pytest (3.14)
 
