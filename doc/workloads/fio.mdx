@@ -1,0 +1,220 @@
+<Anchor id="fio" />
+
+`Fio` runs the open-source `fio` tool from CloudAI. It supports standalone and Slurm systems.
+
+<Anchor id="scenarios" />
+
+## Scenarios
+
+Use `conf/common/test_scenario/fio.toml` for Slurm clusters. It runs the common `fio` test in a container and starts 4 tasks total: `num_nodes`` ``=`` ``2` and `num_tasks_per_node`` ``=`` ``2`.
+
+Use `conf/common/test_scenario/fio_local.toml` for local/standalone runs. It uses host-installed `fio` and no container image.
+
+<Anchor id="fio-arguments" />
+
+## Fio Arguments
+
+Put fio CLI options under `cmd_args.args`. CloudAI does not declare a fixed fio option list; keys pass through verbatim.
+
+``` toml
+name = "fio"
+description = "fio random write smoke test"
+test_template_name = "Fio"
+
+[cmd_args]
+fio_binary = "fio"
+
+  [cmd_args.args]
+  name = "fio-smoke"
+  filename = "/tmp/cloudai-fio-test"
+  rw = "randwrite"
+  bs = "128k"
+  size = "80m"
+  iodepth = 1
+  numjobs = 1
+  group_reporting = true
+  thread = true
+```
+
+This emits options like `--rw=randwrite` and `--group_reporting`. Quote TOML keys when option names contain characters such as `-`:
+
+``` toml
+[cmd_args.args]
+"max-jobs" = 4
+```
+
+List values are CloudAI DSE sweeps:
+
+``` toml
+[cmd_args.args]
+bs = ["128k", "1m"]
+iodepth = [1, 8, 32]
+```
+
+To repeat the same fio option in one run, use a nested table. Nested key names are only stable TOML item names; values become fio values:
+
+``` toml
+[cmd_args.args.a]
+"0" = "=foo"  # --a==foo
+"1" = "bar"   # --a=bar
+
+[cmd_args.args."client"]
+"0" = "host1" # --client=host1
+"1" = "host2" # --client=host2
+```
+
+For existing or complex fio configs, use `job_file`:
+
+``` toml
+[cmd_args]
+fio_binary = "/tmp/fio/fio"
+job_file = "/tmp/kv_emulation.fio"
+```
+
+<Anchor id="slurm-tasks" />
+
+## Slurm Tasks
+
+Scenario `num_nodes` controls node count. `cmd_args.num_tasks_per_node` controls Slurm tasks per node. Total fio tasks = `num_nodes`` ``*`` ``num_tasks_per_node`. CloudAI passes this as `--ntasks` and `--ntasks-per-node`.
+
+``` toml
+[[Tests]]
+id = "Tests.fio"
+test_name = "fio"
+num_nodes = 2
+
+  [Tests.cmd_args]
+  docker_image_url = "openeuler/fio:3.42-oe2403sp3"
+  num_tasks_per_node = 2
+```
+
+<Anchor id="default-metric" />
+
+## Default Metric
+
+For `agent_metrics`` ``=`` ``["default"]`, CloudAI aggregates parsed fio summary rows. Defaults report total bandwidth across all operations and tasks. Bandwidth metrics are normalized to MiB/s before aggregation. Latency metrics are normalized to usec before aggregation.
+
+``` toml
+[cmd_args]
+metric_operation = "all"    # read, write, trim, all, first
+metric_name = "bw"          # bw, iops, latency
+metric_aggregate = "sum"    # sum, mean, min, max, first
+```
+
+Raw parsed rows and normalized metric values are written to `fio_summary.csv`.
+
+<Anchor id="api-documentation" />
+
+## API Documentation
+
+<Anchor id="command-arguments" />
+
+### Command Arguments
+
+<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs" /> *class* cloudai.workloads.fio.fio.FioCmdArgs(
+
+*\**,
+
+*fio_binary: str = 'fio'*,
+
+*job_file: str \| None = None*,
+
+*args: dict\[str*,
+
+*~typing.Any\] = \<factory\>*,
+
+*docker_image_url: str \| None = None*,
+
+*num_tasks_per_node: int \| None = 1*,
+
+*metric_operation: str = 'all'*,
+
+*metric_name: str = 'bw'*,
+
+*metric_aggregate: str = 'sum'*,
+
+*\*\*extra_data: ~typing.Any*,
+
+)
+
+Bases: `CmdArgs`
+
+Command line arguments for fio.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.fio_binary" /> *field* fio_binary*: str = 'fio'***
+
+fio executable to run. Use an absolute path for patched/custom fio builds.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.job_file" /> *field* job_file*: str \| None = None***
+
+Optional fio job/config file. When set, it is appended after CLI options.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.args" /> *field* args*: dict\[str, Any\]* *\[Optional\]***
+
+fio CLI options, without leading `--`. Keys are passed to fio verbatim.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.docker_image_url" /> *field* docker_image_url*: str \| None = None***
+
+Optional Docker image to use for Slurm container execution.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.num_tasks_per_node" /> *field* num_tasks_per_node*: int \| None = 1***
+
+Optional Slurm task count per node for multi-node fio runs.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_operation" /> *field* metric_operation*: str = 'all'***
+
+Operation used for the default metric: read, write, trim, all, or first.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_name" /> *field* metric_name*: str = 'bw'***
+
+Metric used for the default metric: bw, iops, or latency.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_aggregate" /> *field* metric_aggregate*: str = 'sum'***
+
+Aggregation used for the default metric: sum, mean, min, max, or first.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.fio_args" /> fio_args() → dict\[str, Any\]**
+
+Return only arguments intended for the fio CLI.
+
+<Anchor id="test-definition" />
+
+### Test Definition
+
+<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition" /> *class* cloudai.workloads.fio.fio.FioTestDefinition(*\*, name: str, description: str, test_template_name: str, cmd_args: ~cloudai.workloads.fio.fio.FioCmdArgs, dse_excluded_args: list\[str\] = \<factory\>, extra_env_vars: dict\[str, str \| ~typing.List\[str\]\] = &#123;&#125;, extra_cmd_args: dict\[str, str\] = &#123;&#125;, extra_container_mounts: list\[str\] = \[\], git_repos: list\[~cloudai.\_core.installables.git_repo.GitRepo\] = \[\], nsys: ~cloudai.models.workload.NsysConfiguration \| None = None, predictor: ~cloudai.models.workload.PredictorConfig \| None = None, training_report: ~cloudai.models.workload.TrainingReportConfig \| None = None, agent: str = 'grid_search', agent_steps: int = 1, agent_metrics: list\[str\] = \['default'\], agent_reward_function: str = 'inverse', agent_config: dict\[str, ~typing.Any\] \| None = None, env_params: dict\[str, ~cloudai.configurator.env_params.EnvParamSpec\] = \<factory\>*)
+
+Bases: `TestDefinition`
+
+Test definition for fio.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition.is_domain_randomization_enabled" /> *property* is_domain_randomization_enabled*: bool***
+
+at least one `env_params` annotation.
+
+**Type:**
+
+Whether the config declares domain randomization
+
+**<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition.is_dse_excluded_arg" /> is_dse_excluded_arg(*path: str*) → bool**
+
+Return whether a dot-separated cmd_args path should be ignored by DSE.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition.is_env_sampled" /> is_env_sampled(*cmd_args_path: str*) → bool**
+
+Whether a cmd_args field is env-sampled (env draws it per trial, not the agent).
+
+<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition.metric_observations" /> metric_observations(
+
+*system: System*,
+
+*tr: TestRun*,
+
+) → list\[MetricObservation\]
+
+Return canonical metric observations produced by this test run, if supported.
+
+**<Anchor id="cloudai.workloads.fio.fio.FioTestDefinition.validate_env_params" /> *validator* validate_env_params*  » * *all fields***
+
+Validate env_params annotations against cmd_args.
+
+`env_params` is an annotation: each key names a `cmd_args` field whose value is the candidate set (the single source of truth), and the entry carries only *how* to sample. So each key must name a real `cmd_args` field whose value is a candidate list; a scalar is already fixed, so annotating it is a meaningless label and is rejected here. When `weights` are declared, the list needs \>= 2 values and the weights must align 1:1 with it. Sampling, persistence, the per-trial cmd_args overlay, and the cache key all live in `CloudAIGymEnv`; keeping this shape check in core lets the overlay stay agent- and workload-agnostic rather than re-implemented per workload.

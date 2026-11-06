@@ -1,0 +1,243 @@
+<Anchor id="training-report-schema" />
+
+`training_report.json` is the unified training output for NeMoRun, MegatronRun, and Megatron-Bridge.
+
+<Anchor id="versioning" />
+
+## Versioning
+
+The top-level `schema_version` field uses `MAJOR.MINOR` versioning:
+
+- Increment **MAJOR** when removing, renaming, or incompatibly changing a field.
+
+- Increment **MINOR** when adding an optional field or otherwise making a backward-compatible schema change.
+
+- Do not change the schema version for implementation fixes that leave the JSON contract unchanged.
+
+Consumers should reject unsupported major versions and tolerate unknown fields within a supported major version.
+
+<Anchor id="version-history" />
+
+## Version History
+
+<Anchor id="id1" />
+
+### 1.0 — 2026-07-14
+
+Added to `root`:
+
+- `schema_version`: `str`
+
+Added to `root.config`:
+
+- `test_id`: `str`
+
+- `test_name`: `str`
+
+- `description`: `str`
+
+- `test_scenario_name`: `str`
+
+- `system_path`: `str`
+
+- `tests_dir_path`: `str`
+
+- `test_scenario_path`: `str`
+
+- `container_image`: `str`
+
+- `cloudai_execution_node`: `str`
+
+- `env_vars`: `dict[str,`` ``Any]`
+
+- `gpus_per_node`: `Optional[int]`
+
+- `nodes`: `list[str]`
+
+- `clique_size`: `Optional[int]`
+
+- `fp8`: `Optional[str]`
+
+- `fp8_recipe`: `Optional[str]`
+
+- `expert_tensor_parallel_size`: `int`
+
+<Anchor id="training-report-models" />
+
+## Training Report Models
+
+<Anchor id="cloudai.report_generator.training.models.TrainingResults" /> *class* cloudai.report_generator.training.models.TrainingResults(
+
+*\**,
+
+*schema_version: str = '1.0'*,
+
+*config: [TrainingConfig](/1.8.1/training-report-schema#cloudai.report_generator.training.models.TrainingConfig "cloudai.report_generator.training.models.TrainingConfig")*,
+
+*steps: List\[[TrainingStep](/1.8.1/training-report-schema#cloudai.report_generator.training.models.TrainingStep "cloudai.report_generator.training.models.TrainingStep")\]*,
+
+*aggregation: [StepAggregation](/1.8.1/training-report-schema#cloudai.report_generator.training.models.StepAggregation "cloudai.report_generator.training.models.StepAggregation") \| None = None*,
+
+)
+
+Container for parsed training output.
+
+<Anchor id="cloudai.report_generator.training.models.TrainingConfig" /> *class* cloudai.report_generator.training.models.TrainingConfig(
+
+*\**,
+
+*test_id: str*,
+
+*test_name: str*,
+
+*description: str*,
+
+*test_scenario_name: str*,
+
+*test_template_name: str*,
+
+*system_path: str*,
+
+*tests_dir_path: str*,
+
+*test_scenario_path: str*,
+
+*container_image: str = ''*,
+
+*cloudai_execution_node: str*,
+
+*env_vars: dict\[str, Any\]*,
+
+*world_size: int \| None = None*,
+
+*num_nodes: int*,
+
+*gpus_per_node: int \| None = None*,
+
+*nodes: list\[str\]*,
+
+*clique_size: int \| None = None*,
+
+*fp8: str \| None = None*,
+
+*fp8_recipe: str \| None = None*,
+
+*micro_batch_size: int*,
+
+*global_batch_size: int*,
+
+*seq_length: int*,
+
+*tensor_parallel_size: int*,
+
+*pipeline_parallel_size: int*,
+
+*context_parallel_size: int \| None*,
+
+*virtual_pipeline_parallel_size: int \| None*,
+
+*sequence_parallel: bool*,
+
+*expert_parallel_size: int*,
+
+*expert_tensor_parallel_size: int*,
+
+*data_parallel_size: int \| None = None*,
+
+*num_layers: int*,
+
+*hidden_size: int*,
+
+*num_attention_heads: int*,
+
+*num_query_groups: int*,
+
+*ffn_hidden_size: int*,
+
+*kv_channels: int*,
+
+*normalization: str*,
+
+*position_embedding_type: str*,
+
+*model_name: str = ''*,
+
+*num_experts: int \| None*,
+
+*moe_router_topk: int \| None*,
+
+*moe_ffn_hidden_size: int \| None*,
+
+*moe_grouped_gemm: bool \| None*,
+
+*profiling_enabled: bool = False*,
+
+*profiling_start_step: int \| None = None*,
+
+*profiling_stop_step: int \| None = None*,
+
+*exclude_start_steps: int = 5*,
+
+*exclude_post_profiling_steps: int = 2*,
+
+)
+
+Resolved training configuration from the framework artifact + CloudAI.
+
+CloudAI-computed fields are supplied by the parser during construction.
+
+<Anchor id="cloudai.report_generator.training.models.TrainingStep" /> *class* cloudai.report_generator.training.models.TrainingStep(
+
+*\**,
+
+*iteration: int*,
+
+*step_time_sec: float*,
+
+*loss: float*,
+
+*memory_reserved_bytes: float*,
+
+*memory_allocated_bytes: float*,
+
+*tflops_per_gpu: float \| None = None*,
+
+)
+
+Results for a single training iteration.
+
+<Anchor id="cloudai.report_generator.training.models.StepAggregation" /> *class* cloudai.report_generator.training.models.StepAggregation(
+
+*\**,
+
+*step_time_sec: [MetricStats](/1.8.1/training-report-schema#cloudai.report_generator.training.models.MetricStats "cloudai.report_generator.training.models.MetricStats")*,
+
+*loss: [MetricStats](/1.8.1/training-report-schema#cloudai.report_generator.training.models.MetricStats "cloudai.report_generator.training.models.MetricStats")*,
+
+*memory_reserved_bytes: [MetricStats](/1.8.1/training-report-schema#cloudai.report_generator.training.models.MetricStats "cloudai.report_generator.training.models.MetricStats")*,
+
+*memory_allocated_bytes: [MetricStats](/1.8.1/training-report-schema#cloudai.report_generator.training.models.MetricStats "cloudai.report_generator.training.models.MetricStats")*,
+
+*tflops_per_gpu: [MetricStats](/1.8.1/training-report-schema#cloudai.report_generator.training.models.MetricStats "cloudai.report_generator.training.models.MetricStats") \| None = None*,
+
+)
+
+Per-metric aggregated statistics over the filtered steps.
+
+<Anchor id="cloudai.report_generator.training.models.MetricStats" /> *class* cloudai.report_generator.training.models.MetricStats(
+
+*mean: float*,
+
+*min: float*,
+
+*max: float*,
+
+*std: float*,
+
+*t99: float*,
+
+*t95: float*,
+
+)
+
+Aggregated statistics for one metric over the filtered steps.
