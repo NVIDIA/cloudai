@@ -21,6 +21,9 @@ Explore configurations with grid search, or connect your own `optimization agent
 to guide search within your compute budget.
 :doc:`Add workloads, systems, and reporters <DEV>` for your task.
 
+Our team also develops internal optimization agents that can find strong configurations with fewer workload evaluations
+than grid search. These agents are separate from the public distribution.
+
 .. _choose-a-workflow:
 
 Run your first experiment
@@ -165,7 +168,7 @@ On Ubuntu, install Fio with ``sudo apt-get install fio``.
 .. _quickstart-slurm:
 
 Slurm
-~~~~~
+~~~~~~~~
 
 On your Slurm submit host, prepare the :doc:`container prerequisites <workloads/workloads_requirements_installation>`
 and copy the system configuration:

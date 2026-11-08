@@ -1,21 +1,28 @@
 Run on Slurm
 ============
 
-The following are subtopics related to Slurm:
+Choose an allocation mode, then adapt scheduler arguments and mounts for your workload.
 
-Single sbatch vs Per-case sbatch
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Choose an allocation mode
+-------------------------
 
-CloudAI supports two modes for submitting Slurm jobs:
+.. list-table::
+   :header-rows: 1
 
-1. (default) Per-case sbatch mode: each case is submitted as a separate sbatch job, allowing flexible scheduling and dependency management.
+   * - Mode
+     - Execution
+     - Use when
+   * - Per-case (default)
+     - Each case has its own sbatch allocation. Dependencies can coordinate cases.
+     - Cases need independent scheduling or can run concurrently.
+   * - ``--single-sbatch``
+     - Cases run sequentially on the same nodes in one allocation. Case dependencies are unsupported.
+     - Measurements need to reuse the same allocated nodes.
 
-   - Suits best when cases can run in parallel or there are no dependencies between cases.
+.. code-block:: bash
 
-2. Single sbatch mode: all cases are submitted together in a single sbatch job and share the same nodes. Each next case starts after the previous one completes. To enable it one needs to pass ``--single-sbatch`` flag to ``cloudai run`` command (works only for Slurm systems).
-
-   - Suits best for jobs when cases need to run on the same nodes for performance reasons.
-   - There is no support for dependency management between cases yet; all jobs run one after another.
+   uv run cloudai run --system-config slurm.toml \
+       --test-scenario conf/experimental/quickstart/nccl.toml --single-sbatch
 
 Assuming two cases in a scenario like this:
 

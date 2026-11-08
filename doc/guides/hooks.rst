@@ -1,7 +1,10 @@
 Prepare and clean up with hooks
 ===============================
 
-A test hook in CloudAI is a specialized test that runs either before or after each main test in a scenario, providing flexibility to prepare the environment or clean up resources. Hooks are defined as pre-test or post-test and referenced in the test scenario’s TOML file using ``pre_test`` and ``post_test`` fields.
+Use hooks to prepare the environment or clean up after each main test.
+
+* ``pre_test`` selects the preparation scenario.
+* ``post_test`` selects the cleanup scenario.
 
 .. code-block:: toml
 
@@ -21,7 +24,13 @@ CloudAI organizes hooks in a dedicated directory structure:
 - Hook test scenarios: Place pre-test hook and post-test hook scenario files in ``conf/hook/``
 - Hook tests: Place individual tests referenced in hooks within ``conf/hook/test/``
 
-In the execution flow, pre-test hooks run before the main test, which only executes if the pre-test completes successfully. Post-test hooks follow the main test, provided the prior steps succeed. If a pre-test hook fails, the main test and its post-test hook are skipped.
+Execution order:
+
+1. Run the pre-test hook.
+2. Run the main test if preparation succeeds.
+3. Run the post-test hook if the prior steps succeed.
+
+If preparation fails, CloudAI skips both the main test and its post-test hook.
 
 .. code-block:: toml
 

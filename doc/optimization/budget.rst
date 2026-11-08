@@ -7,7 +7,16 @@ Count candidates
 ----------------
 
 For grid search, multiply the number of choices in each independent dimension.
-Two algorithms and three message-size settings produce six candidates. Built-in grid search evaluates all of them;
+Two algorithms and three message-size settings produce six candidates.
+
+For example, add this table to a case in an NCCL search scenario:
+
+.. code-block:: toml
+
+   [Tests.extra_env_vars]
+   NCCL_ALGO = ["Ring", "Tree"]
+
+This dimension contributes two candidates. Built-in grid search evaluates all of them;
 ``agent_steps`` does not cap that Cartesian product.
 
 Estimate allocation cost
@@ -17,8 +26,10 @@ Estimate allocation cost
 
    GPU-hours = sum(allocated GPUs × allocated seconds for each evaluation) / 3600
 
-Include setup, warmup, repetitions, and allocation overhead. Use a measured baseline to estimate duration.
-Queue delay affects elapsed time separately. A per-job time limit is not an overall search-budget limit.
+* Estimate trial duration from a measured baseline.
+* Include setup, warmup, repetitions, and allocation overhead.
+* Track queue delay separately from allocated compute.
+* Treat a per-job time limit separately from the overall search budget.
 
 Control growth
 --------------

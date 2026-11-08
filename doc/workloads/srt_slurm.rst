@@ -46,32 +46,58 @@ and must be accessible on the shared filesystem.
    [cmd_args.recipe_overrides.benchmark]
    concurrencies = [[1, 4], [8, 16]]
 
-The repository named ``srt-slurm`` in ``git_repos`` supplies srtctl, regardless
-of entry order. Forks with that repository name are supported; other entries use
-ordinary CloudAI installation. Pin a revision supporting ``srtctl apply --set``.
-For older revisions without ``--set``, set ``cmd_args.recipe_override_mode = "render"``.
-This overlays existing mapping keys in a concrete recipe, preserves YAML value types,
-and submits a trial-local ``srt_slurm_recipe.yaml``. It rejects missing keys
-and does not resolve recipe variants or interpret native override path expressions;
-select the effective concrete recipe first. The default remains ``"native"``.
-The launch script ``run_srtctl.sh`` and rendered recipe are stored directly in
-each trial's output directory, alongside ``run_srtctl.log`` and ``srt_job_id.txt``.
-SRT Slurm job outputs are stored under ``srt_slurm_outputs/`` in that directory.
-Lists in ``recipe_overrides`` are DSE dimensions. Use nested candidate lists
-when the selected recipe value is itself a list. Recipe paths, cluster config
-paths, and result format are excluded from DSE. Additional apply flags use
-``extra_cmd_args``, for example ``extra_cmd_args = { no-preflight = "" }``.
+The repository named ``srt-slurm`` in ``git_repos`` supplies srtctl regardless of entry order.
+Forks with that name are supported; other repositories use ordinary CloudAI installation.
 
-``cluster_config`` is required and takes precedence over ``SRTSLURM_CONFIG``
-in the submitting environment. Supply a complete config with the recipe's
-aliases, mounts, and cluster settings. CloudAI exports merged system and test
-environment variables, removes virtual-environment directories from ``PATH``,
-unsets ``VIRTUAL_ENV``, and submits from the installed srt-slurm checkout. These
-steps prevent compute-node ``uv`` from selecting login-node Python through its
-PATH search, active-environment lookup, or current-directory ``.venv`` lookup.
-Tools supplied through virtual-environment PATH entries are removed as part of
-this compatibility cleanup; supply required compute-node tools outside a Python
-virtual environment.
+Recipe overrides
+~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+
+   * - Mode
+     - Behavior
+   * - ``native`` (default)
+     - Requires a revision supporting ``srtctl apply --set``. Passes typed overrides to srtctl.
+   * - ``render``
+     - Overlays existing mapping keys in a concrete recipe, preserves YAML types, and submits a trial-local recipe.
+
+For older revisions without ``--set``, add this setting to the test definition:
+
+.. code-block:: toml
+
+   [cmd_args]
+   recipe_override_mode = "render"
+
+Render mode rejects missing keys. Select a concrete recipe first: it does not resolve variants or native override path expressions.
+
+* Lists in ``recipe_overrides`` are search dimensions; use nested candidate lists for a recipe value that is itself a list.
+* Recipe paths, cluster configuration paths, and result format are excluded from search.
+* Additional apply flags use ``extra_cmd_args``, for example ``extra_cmd_args = { no-preflight = "" }``.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Trial artifact
+     - Purpose
+   * - ``run_srtctl.sh``
+     - Launch script.
+   * - ``srt_slurm_recipe.yaml``
+     - Rendered recipe, when using render mode.
+   * - ``run_srtctl.log`` and ``srt_job_id.txt``
+     - Submission log and job ID.
+   * - ``srt_slurm_outputs/``
+     - Slurm job outputs.
+
+Submission environment
+~~~~~~~~~~~~~~~~~~~~~~
+
+``cluster_config`` is required and takes precedence over ``SRTSLURM_CONFIG`` in the submitting environment.
+
+* Supply a complete config with the recipe's aliases, mounts, and cluster settings.
+* CloudAI exports merged system and test environment variables, removes virtual-environment directories from ``PATH``, unsets ``VIRTUAL_ENV``, and submits from the installed srt-slurm checkout.
+* These steps prevent compute-node ``uv`` from selecting login-node Python through its PATH search, active-environment lookup, or current-directory ``.venv`` lookup.
+* Tools supplied through virtual-environment PATH entries are removed as part of this compatibility cleanup; supply required compute-node tools outside a Python virtual environment.
 
 CloudAI also exports ``CLOUDAI_INSTALL_FOLDER`` as its absolute ``install_path``.
 SRT cluster configs can use its existing environment expansion in mount sources,
@@ -103,16 +129,14 @@ snapshot at ``/model``, also mount that model cache's ``blobs`` directory at
 mount sources must use the same ``hf_home_path`` cache root. See the AgentX DSE
 example for a complete configuration.
 
-Set the corresponding ``model_paths`` alias in ``srtslurm.yaml`` to that snapshot
-directory. Its cache root must match ``hf_home_path`` and be accessible on the
-submission and compute nodes. CloudAI does not infer models from recipes or
-synchronize these paths. To pin a model commit, use
-``hf_models = [{model_name = "Qwen/Qwen3-0.6B", revision = "<commit>"}]`` and put
-the same commit in the SRT snapshot path. String entries remain unpinned.
-Pinned models are checked and uninstalled by revision; uninstalling an unpinned
-model retains the existing behavior of removing the entire cached model. If the HF
-cache is inaccessible locally, the installer assumes models are already available
-on execution nodes instead of downloading them.
+Set the corresponding ``model_paths`` alias in ``srtslurm.yaml`` to that snapshot directory.
+
+* Its cache root must match ``hf_home_path`` and be accessible on the submission and compute nodes.
+* CloudAI does not infer models from recipes or synchronize these paths.
+* To pin a model commit, use ``hf_models = [{model_name = "Qwen/Qwen3-0.6B", revision = "<commit>"}]`` and put the same commit in the SRT snapshot path.
+* String entries remain unpinned.
+* Pinned models are checked and uninstalled by revision; uninstalling an unpinned model retains the existing behavior of removing the entire cached model.
+* If the HF cache is inaccessible locally, the installer assumes models are already available on execution nodes instead of downloading them.
 
 Scheduling ownership
 ~~~~~~~~~~~~~~~~~~~~
@@ -155,18 +179,14 @@ Use normal per-trial Slurm CLI execution; single-sbatch, Slurm REST submission,
 and CloudAI pre/post-test hooks are unsupported for this workload.
 
 Results
--------
+--------
 
-``result_format = "sa-bench"`` reads job-local ``sa-bench_*/results_*.json``
-files, falling back to ``benchmark-rollup.json`` when raw results are absent.
-Both result formats require the submitted job's ``<job_id>.json`` next to its
-``logs`` directory. Its ``job_id`` must match the tracked job, and ``resources``
-must contain nonnegative integer worker counts for ``agg``, ``prefill`` and
-``decode``, plus positive integer ``gpus_per_<role>`` for each active role.
-Missing, malformed, mismatched or incomplete metadata makes the trial unsuccessful;
-there is no fallback to manual counts, filenames, node capacity or resource snapshots.
-Use a pinned revision containing the resolved GPU metadata feature (introduced in
-commit ``7858d3091d5e278ab56ebf0246df9ea913bc2477``, first released in ``v1.0.0``).
+``result_format = "sa-bench"`` reads job-local ``sa-bench_*/results_*.json`` files, falling back to ``benchmark-rollup.json`` when raw results are absent.
+
+* Both result formats require the submitted job's ``<job_id>.json`` next to its ``logs`` directory.
+* Its ``job_id`` must match the tracked job, and ``resources`` must contain nonnegative integer worker counts for ``agg``, ``prefill`` and ``decode``, plus positive integer ``gpus_per_<role>`` for each active role.
+* Missing, malformed, mismatched or incomplete metadata makes the trial unsuccessful; there is no fallback to manual counts, filenames, node capacity or resource snapshots.
+* Use a pinned revision containing the resolved GPU metadata feature (introduced in commit ``7858d3091d5e278ab56ebf0246df9ea913bc2477``, first released in ``v1.0.0``).
 
 CloudAI calculates each role's GPU total as workers times GPUs per worker and sums
 those totals for the serving count. This automatically follows each trial's effective
@@ -185,16 +205,15 @@ DSE topology. CSV result rows include ``serving_gpus``, ``aggregate_gpus``,
 * ``median_intvty`` and ``p90_intvty`` use the reciprocal of the corresponding
   TPOT, in tokens/s/user.
 
-``result_format = "agentx"`` reads InferenceX aggregate JSON from the submitted
-job's ``logs/agentic`` directory. Each aggregate must have its corresponding
-``conc_<c>/aiperf_artifacts/profile_export.jsonl``. CloudAI reads the existing
-aggregation rather than recomputing per-request statistics. CloudAI recomputes
-per-GPU throughput from raw ``request_metrics.throughput`` total/input/output values
-using the job metadata's total serving count for all three streams. Producer
-``per_gpu`` values are ignored, since environment-derived divisors can become stale
-when DSE changes topology. An aggregate without raw total throughput is unusable.
-Interactivity uses full-response ITL
-when available, otherwise ITL. Latency aliases use the same units as sa-bench.
+``result_format = "agentx"`` reads InferenceX aggregate JSON from the submitted job's ``logs/agentic`` directory.
+
+* Each aggregate must have its corresponding ``conc_<c>/aiperf_artifacts/profile_export.jsonl``.
+* CloudAI reads the existing aggregation rather than recomputing per-request statistics.
+* CloudAI recomputes per-GPU throughput from raw ``request_metrics.throughput`` total/input/output values using the job metadata's total serving count for all three streams.
+* Producer ``per_gpu`` values are ignored, since environment-derived divisors can become stale when DSE changes topology.
+* An aggregate without raw total throughput is unusable.
+* Interactivity uses full-response ITL when available, otherwise ITL.
+* Latency aliases use the same units as sa-bench.
 
 An AgentX recipe uses ``benchmark.type: custom`` and its existing InferenceX
 command. Supply a pinned InferenceX checkout with ``init_submodules = true``

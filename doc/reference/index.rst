@@ -7,7 +7,6 @@ Look up exact command, configuration, and output contracts. For a working path, 
    :maxdepth: 1
 
    cli
-   /USER_GUIDE
    /systems
    system-settings
    system-fields

@@ -9,4 +9,3 @@ Call CloudAI from your application and use structured results to guide the next 
    python
    failures
    publish
-   http-results

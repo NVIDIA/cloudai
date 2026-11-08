@@ -36,16 +36,23 @@ Unified Experiment Output
 
 CloudAI writes ``experiment.json`` in each scenario's results directory.
 
-The file contains scenario details, system name, the username of the account running CloudAI in ``user``, and test cases
-listed under ``tests``. Older files without ``user`` are loaded with an empty string. For Slurm runs, the system name is
-the cluster reported by Slurm. Both Standalone and Slurm execution records are stored in each test case's ``runs`` list. Each
-record represents an iteration or DSE step and includes its number, process or Slurm job ID, status, timing, result path,
-and workload metrics.
+.. list-table::
+   :header-rows: 1
 
-If username lookup fails, CloudAI logs a warning and records an empty ``user`` without interrupting execution.
+   * - Record
+     - Contents
+   * - Scenario
+     - Scenario details, system name, submitting username (``user``), and ``tests``.
+   * - Test case
+     - Execution records in ``runs`` and recorded metrics.
+   * - Run
+     - Iteration or DSE-step number, process/job ID, status, timing, result path, and workload metrics.
 
-Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``. A status of ``unknown`` indicates the outcome
-could not be determined. Dry runs include scenario and test-case details without launching workloads.
+* Slurm uses the cluster-reported system name.
+* Older files or failed username lookups have an empty ``user``; lookup failures log a warning.
+* Timestamps use UTC; durations use seconds. Unknown timestamps are ``null``.
+* ``unknown`` status means the outcome could not be determined.
+* Dry runs record scenario and case details without launching workloads.
 
 Live ``runs`` status tracking:
 
@@ -56,14 +63,34 @@ Live ``runs`` status tracking:
 
 Metrics are sourced from ``TestDefinition.metric_observations()``, and are not affected by reporter settings.
 
-MegatronRun exposes ``iteration_time`` (milliseconds, lower is better) and ``tflops_per_gpu``
-(TFLOP/s/GPU, higher is better). Each observation is the mean of the last ten iteration metric lines in
-``stdout.txt``, or all available lines when fewer than ten are present, matching the per-test CSV report.
-No observations are emitted when iteration metric lines are missing.
+.. list-table::
+   :header-rows: 1
 
-When a test case is executed successfully, ``tests[].metrics`` contains that execution's metrics. For DSE, it contains
-metrics from the successful step with the highest valid reward. The search space, selected step, and configuration appear
-in ``tests[].dse``.
+   * - MegatronRun metric
+     - Unit
+     - Direction
+   * - ``iteration_time``
+     - Milliseconds
+     - Lower is better.
+   * - ``tflops_per_gpu``
+     - TFLOP/s/GPU
+     - Higher is better.
+
+Measurements use the mean of the last ten iteration metric lines in ``stdout.txt``, or all lines if fewer exist.
+Missing iteration lines produce no observations. This matches the per-test CSV report.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Result field
+     - Regular execution
+     - Configuration search
+   * - ``tests[].metrics``
+     - Metrics from the successful execution.
+     - Metrics from the successful step with the highest valid reward.
+   * - ``tests[].dse``
+     - Not a configuration search.
+     - Search space, selected step, and configuration.
 
 NCCL DSE Example
 ~~~~~~~~~~~~~~~~
@@ -112,10 +139,13 @@ Enabling or disabling a report needs to be done in the system configuration:
    status = { enable = true }
    junit = { enable = true }
 
-The ``junit`` scenario reporter is disabled by default. When enabled, it writes ``junit.xml`` in the scenario results
-directory. It emits one test case for every regular test iteration and every DSE step, including pass/fail status,
-failure details, scheduler duration when available, and the contents of ``stdout.txt`` and ``stderr.txt``. The artifact
-can be consumed directly by Jenkins, GitLab, GitHub Actions, and other CI systems that support JUnit XML.
+The ``junit`` reporter is disabled by default. When enabled:
+
+* Writes ``junit.xml`` in the scenario results directory.
+* Emits a test case for every regular iteration and DSE step.
+* Includes pass/fail status, failure details, available scheduler duration, and stdout/stderr.
+
+Use the artifact with CI systems that accept JUnit XML, following :doc:`automation/publish`.
 
 Speed-of-Light comparisons
 --------------------------
@@ -161,36 +191,3 @@ A test case can replace the targets for a metric inherited from the scenario or 
 
 The precedence is test case, then scenario, then system. NCCL and NIXL comparison v2 reports include measured, SOL,
 and percentage-of-SOL columns and draw a shared SOL curve when every compared run resolves the same targets.
-
-Previous section links
-----------------------
-
-.. raw:: html
-
-   <span id="reporting"></span>
-
-Reporting: :doc:`/automation/publish`.
-
-.. raw:: html
-
-   <span id="reporting-registration"></span>
-
-Reporting Registration: :doc:`/extend/reporter`.
-
-.. raw:: html
-
-   <span id="reporting-configuration-implementation"></span>
-
-Reporting Configuration Implementation: :doc:`/extend/reporter`.
-
-.. raw:: html
-
-   <span id="uploading-results-to-object-storage"></span>
-
-Uploading Results to Object Storage: :doc:`/automation/publish`.
-
-.. raw:: html
-
-   <span id="environment-variables"></span>
-
-Environment variables: :doc:`/automation/publish`.

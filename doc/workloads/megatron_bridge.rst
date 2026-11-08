@@ -18,22 +18,21 @@ Adapt the workload
 
 This workload (`test_template_name` is ``MegatronBridge``) submits training and finetuning tasks based on Megatron-Bridge framework.
 
-Megatron-Bridge and NeMo Run generate the training script in dry-run mode on the
-submit host. CloudAI retains and parses their sbatch, then writes
-``cloudai_sbatch_script.sh`` with its standard environment setup, metadata,
-rank mapping, and pre/post tests. These tests run inside the training allocation.
-Without the installed MBridge launcher or NeMo Run Python environment,
-``cloudai dry-run`` produces a placeholder instead of the training commands and
-logs a warning. The placeholder exits with an error if executed. Install the
-dependencies and repeat the dry-run to generate the complete training script.
+Megatron-Bridge and NeMo Run generate the training script in dry-run mode on the submit host.
 
-CloudAI owns the job name, output/error paths, and node placement. Configured
-CloudAI allocation directives override matching NeMo Run directives; other
-NeMo Run directives and training artifact paths are retained. Set scenario
-``num_nodes`` and system GPU/task counts to match the training configuration.
-``enable_vboost`` uses CloudAI's standard VBoost setup in both normal and single-sbatch execution.
-An explicitly configured value takes precedence over the ``ENABLE_VBOOST`` environment setting.
-The rendezvous address uses NeMo's selected head-node hostname, which must resolve inside the training containers.
+* CloudAI retains and parses their sbatch, then writes ``cloudai_sbatch_script.sh`` with its standard environment setup, metadata, rank mapping, and pre/post tests.
+* These tests run inside the training allocation.
+* Without the installed MBridge launcher or NeMo Run Python environment, ``cloudai dry-run`` produces a placeholder instead of the training commands and logs a warning.
+* The placeholder exits with an error if executed.
+* Install the dependencies and repeat the dry-run to generate the complete training script.
+
+CloudAI owns the job name, output/error paths, and node placement.
+
+* Configured CloudAI allocation directives override matching NeMo Run directives; other NeMo Run directives and training artifact paths are retained.
+* Set scenario ``num_nodes`` and system GPU/task counts to match the training configuration.
+* ``enable_vboost`` uses CloudAI's standard VBoost setup in both normal and single-sbatch execution.
+* An explicitly configured value takes precedence over the ``ENABLE_VBOOST`` environment setting.
+* The rendezvous address uses NeMo's selected head-node hostname, which must resolve inside the training containers.
 
 Additional launcher options can be passed through ``[extra_cmd_args]``. For example:
 

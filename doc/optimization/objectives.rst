@@ -6,10 +6,31 @@ Define the decision before selecting the search dimensions. Optimize a measured 
 Start with one metric
 ---------------------
 
-Choose a metric exposed by the workload's reporter. The search ranks valid rewards in descending order.
-Use the identity reward for a quantity to maximize, or a supported inverse/negative reward for a quantity to minimize,
-checking the transform's domain and failure behavior before running.
-The two-choice :doc:`search` recipe uses the NCCL reporter's ``default`` metric and inverse reward.
+Choose a metric exposed by the workload's reporter. Search ranks valid rewards in descending order.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Goal
+     - Reward
+     - Check
+   * - Maximize a metric
+     - Identity
+     - Higher values represent the desired outcome.
+   * - Minimize a metric
+     - Inverse or negative
+     - The transform accepts the metric domain and handles failures correctly.
+
+For the NCCL search, add these settings to the case:
+
+.. code-block:: toml
+
+   agent_metrics = ["default"]
+   agent_reward_function = "inverse"
+
+The NCCL ``default`` metric is mean in-place latency in microseconds across reported message sizes.
+Use the complete :doc:`search` example to run it.
+
 
 Define meaningful choices
 -------------------------

@@ -4,7 +4,7 @@ Run your first experiment
 Run a small file I/O experiment locally and find its results. This path needs no GPU or scheduler.
 
 Prepare
--------
+--------
 
 :doc:`Install CloudAI <getting-started>` and run the following commands from the repository root.
 Install the Fio executable; on Ubuntu, use ``sudo apt-get install fio``.
@@ -14,7 +14,7 @@ Install the Fio executable; on Ubuntu, use ``sudo apt-get install fio``.
    cp conf/common/system/standalone_system.toml standalone.toml
 
 Run
----
+--------
 
 The example writes an 80 MiB file at ``/tmp/cloudai-fio-quickstart``. Choose another filename in the scenario
 if you want to measure a different filesystem.
@@ -31,7 +31,7 @@ if you want to measure a different filesystem.
       :start-at: name =
 
 Inspect
--------
+--------
 
 Open the results directory printed by CloudAI. Inspect ``experiment.json`` for execution status and recorded metrics,
 then the workload output for bandwidth and IOPS. A successful process alone does not establish that you measured
@@ -39,41 +39,9 @@ the intended device: check the configured path, I/O pattern, block size, and fil
 See :doc:`reporting` for result interpretation.
 
 Adapt
------
+--------
 
 Change one Fio setting at a time and compare results under the same conditions.
 Use :doc:`guides/configuration` to understand the two configuration files.
 For GPU or multi-node experiments, choose a workload from :doc:`workloads/index` and follow
 :doc:`guides/environment`. For configuration search, continue to :doc:`optimization/search`.
-
-.. _step-1-creating-docker-image:
-
-See :doc:`extend/workload`.
-
-.. _step-2-preparing-configuration-files:
-
-See :doc:`guides/configuration`.
-
-.. _step-3-testing-definition:
-
-See :doc:`extend/workload`.
-
-.. _step-4-system-configuration:
-
-See :doc:`guides/environment`.
-
-.. _step-5-testing-configuration:
-
-See :doc:`guides/configuration`.
-
-.. _step-6-running-experiments:
-
-See :doc:`guides/index`.
-
-.. _step-7-generating-reports:
-
-See :doc:`reporting`.
-
-.. _test-in-scenario:
-
-See :doc:`guides/configuration`.

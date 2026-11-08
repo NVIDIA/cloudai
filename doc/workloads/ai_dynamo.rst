@@ -97,31 +97,29 @@ creates one prefill worker spanning two nodes and one decode worker spanning two
      pipeline-parallel-size = 1
 
 When ``nodes-per-worker`` is omitted, it defaults to ``1`` and preserves the previous one-worker-per-node behavior.
-For vLLM TP/PP groups, CloudAI launches rank 0 as the Dynamo-facing process and the remaining ranks with
-``--headless`` using Dynamo's multiprocessing executor. When ``data-parallel-size`` is greater than one, CloudAI
-instead launches a full Dynamo vLLM process on every node and derives ``data-parallel-size-local``,
-``data-parallel-start-rank``, the coordinator address, and the RPC port from the worker topology. SGLang receives
-``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every participating node; its configured
-``data-parallel-size`` is forwarded as ``dp-size``. The launcher derives prefill and decode disaggregation modes
-from the configured roles, so worker commands do not need role flags.
 
-For TP/PP-spanning workers, ``tensor-parallel-size * pipeline-parallel-size`` must be divisible by
-``nodes-per-worker``. For vLLM multinode data parallelism, ``data-parallel-size`` must instead be divisible by
-``nodes-per-worker``, and each DP rank's TP/PP group must fit within one node. SGLang multinode data parallelism
-requires ``--enable-dp-attention``. The resulting per-node GPU footprint must fit on each node. Ray-backed Dynamo
-vLLM groups are not currently supported. The Slurm launcher explicitly selects etcd discovery and the NATS event
-plane.
+* For vLLM TP/PP groups, CloudAI launches rank 0 as the Dynamo-facing process and the remaining ranks with ``--headless`` using Dynamo's multiprocessing executor.
+* When ``data-parallel-size`` is greater than one, CloudAI instead launches a full Dynamo vLLM process on every node and derives ``data-parallel-size-local``, ``data-parallel-start-rank``, the coordinator address, and the RPC port from the worker topology.
+* SGLang receives ``--dist-init-addr``, ``--nnodes``, and ``--node-rank`` on every participating node; its configured ``data-parallel-size`` is forwarded as ``dp-size``.
+* The launcher derives prefill and decode disaggregation modes from the configured roles, so worker commands do not need role flags.
 
-No separate WideEP mode is required. Multinode data-parallel orchestration is inferred from
-``nodes-per-worker > 1`` and ``data-parallel-size > 1``. Backend expert-parallel parameters such as vLLM's
-``--enable-expert-parallel`` or SGLang's ``ep-size`` and ``--enable-dp-attention`` remain explicit backend
-configuration.
-CloudAI uses the allocated Slurm node names for multinode rendezvous. The cluster must make those names consistently
-resolvable and mutually reachable from every allocated node and workload container. Multi-homed systems should also
-configure backend network selection, such as ``GLOO_SOCKET_IFNAME`` and ``NCCL_SOCKET_IFNAME``, at the system level.
-Explicit backend rendezvous addresses take precedence over addresses derived from the Slurm node names.
-Clusters that cannot provide this hostname contract must supply backend-native per-node address overrides, such as
-``SGLANG_HOST_IP`` or ``VLLM_NIXL_SIDE_CHANNEL_HOST``, together with explicit worker rendezvous arguments.
+For TP/PP-spanning workers, ``tensor-parallel-size * pipeline-parallel-size`` must be divisible by ``nodes-per-worker``.
+
+* For vLLM multinode data parallelism, ``data-parallel-size`` must instead be divisible by ``nodes-per-worker``, and each DP rank's TP/PP group must fit within one node.
+* SGLang multinode data parallelism requires ``--enable-dp-attention``.
+* The resulting per-node GPU footprint must fit on each node.
+* Ray-backed Dynamo vLLM groups are not currently supported.
+* The Slurm launcher explicitly selects etcd discovery and the NATS event plane.
+
+No separate WideEP mode is required.
+
+* Multinode data-parallel orchestration is inferred from ``nodes-per-worker > 1`` and ``data-parallel-size > 1``.
+* Backend expert-parallel parameters such as vLLM's ``--enable-expert-parallel`` or SGLang's ``ep-size`` and ``--enable-dp-attention`` remain explicit backend configuration.
+* CloudAI uses the allocated Slurm node names for multinode rendezvous.
+* The cluster must make those names consistently resolvable and mutually reachable from every allocated node and workload container.
+* Multi-homed systems should also configure backend network selection, such as ``GLOO_SOCKET_IFNAME`` and ``NCCL_SOCKET_IFNAME``, at the system level.
+* Explicit backend rendezvous addresses take precedence over addresses derived from the Slurm node names.
+* Clusters that cannot provide this hostname contract must supply backend-native per-node address overrides, such as ``SGLANG_HOST_IP`` or ``VLLM_NIXL_SIDE_CHANNEL_HOST``, together with explicit worker rendezvous arguments.
 
 Dedicated examples are available in ``test_scenario/vllm_multinode_worker_slurm.toml`` and
 ``test_scenario/sglang_multinode_worker_slurm.toml``. The existing ``vllm_slurm.toml`` and ``sglang_slurm.toml``
@@ -429,13 +427,14 @@ When ``cmd_args.aiperf_accuracy`` is configured, CloudAI expects AIPerf to produ
 the ``accuracy`` metric from its ``OVERALL`` row. The metric is reported as a 0.0-1.0 fraction. Keep synthetic prompt
 and token-length flags out of this mode; the benchmark dataset should come from AIPerf's accuracy benchmark.
 
-The ``entrypoint`` and ``cli`` fields form the accuracy command. CloudAI expands ``{model}``, ``{url}``,
-``{endpoint}``, ``{result_dir}``, and ``{artifact_dir}`` in ``cli`` before launching it. The ``setup-cmd`` field is
-optional. It is useful for Dynamo images that include an older system ``aiperf`` build without the accuracy benchmark
-plugins. The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
-MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before
-running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
-For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
+The ``entrypoint`` and ``cli`` fields form the accuracy command.
+
+* CloudAI expands ``{model}``, ``{url}``, ``{endpoint}``, ``{result_dir}``, and ``{artifact_dir}`` in ``cli`` before launching it.
+* The ``setup-cmd`` field is optional.
+* It is useful for Dynamo images that include an older system ``aiperf`` build without the accuracy benchmark plugins.
+* The example upgrades the image-level ``aiperf`` before launching ``aiperf profile``.
+* MMLU is loaded from ``lighteval/mmlu``, so either allow Hugging Face dataset access or pre-cache that dataset before running with ``HF_HUB_OFFLINE``/``HF_DATASETS_OFFLINE`` enabled.
+* For Qwen3 models, the example disables thinking mode so short MMLU answers can be parsed as choices.
 
 Custom Accuracy Scripts
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -472,11 +471,11 @@ Navigate to ``./results/<scenario>/<test-id>/0/`` and open the CSV to examine pe
 Shared-Node Disaggregated Runs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and
-``decode_worker.num-nodes`` to run both roles on the same allocated node(s). For example, ``num_nodes = 1`` with
-``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on
-the same node. CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's per-node GPU
-footprint, including local data-parallel ranks where applicable. The combined role GPU count must fit on one node.
+For Slurm, set top-level ``num_nodes`` lower than the sum of ``prefill_worker.num-nodes`` and ``decode_worker.num-nodes`` to run both roles on the same allocated node(s).
+
+* For example, ``num_nodes = 1`` with ``prefill_worker.num-nodes = 1`` and ``decode_worker.num-nodes = 1`` runs one prefill worker and one decode worker on the same node.
+* CloudAI assigns decode GPUs first and prefill GPUs after that based on each role's per-node GPU footprint, including local data-parallel ranks where applicable.
+* The combined role GPU count must fit on one node.
 
 Example ``aiperf_report.csv``:
 

@@ -12,17 +12,28 @@ The :doc:`/workloads/vllm` starter uses ``Qwen/Qwen3-0.6B``. Run it through the
 Use existing weights
 --------------------
 
-For vLLM, set ``cmd_args.model`` to the container-visible model directory and add the host directory to
-``extra_container_mounts``. Follow :doc:`/workloads/vllm` for the local-model example.
-For training, use the dataset and tokenizer settings described by the selected workload.
+For vLLM, point the model argument at a container-visible directory. In the inline scenario's test entry, use:
+
+.. code-block:: toml
+
+   extra_container_mounts = ["/shared/models:/models"]
+
+   [Tests.cmd_args]
+   model = "/models/my-model"
+
+Replace both paths with your model location and retain the starter's other required settings.
+For training, use the selected workload's dataset and tokenizer settings.
+
 
 Access and storage
 ------------------
 
-Authenticate with the model provider when the selected model requires it. Supply credentials through the environment
-required by the workload; do not store tokens in scenario files. The Megatron Bridge starter requires ``HF_TOKEN``.
-Allow space for the selected revision and verify the download using the provider's metadata before submitting jobs.
-Model size, format, and access requirements depend on the selected artifact.
+Before submission:
+
+* Authenticate when the model provider requires it. Pass credentials through the workload's environment.
+* Set ``HF_TOKEN`` for the Megatron Bridge starter; keep tokens out of scenario files.
+* Allow space for the selected revision and verify its download against provider metadata.
+
 
 For larger models, first confirm device memory, parallelism, and shared-storage access on the intended nodes.
 Keep the model revision and traffic or training inputs fixed when comparing configurations.
