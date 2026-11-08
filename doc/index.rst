@@ -17,7 +17,7 @@ Combine experiments into a broader investigation using existing workloads or you
    :width: 100%
    :class: cloudai-workflow dark-light
 
-Explore configurations with grid search, or connect your own `optimization agent <USER_GUIDE.html#agents-configuration>`_
+Explore configurations with grid search, or connect your own `optimization agent <reference/agents.html>`_
 to guide search within your compute budget.
 :doc:`Add workloads, systems, and reporters <DEV>` for your task.
 
@@ -186,15 +186,16 @@ Use the :doc:`Python API <api>` to automate experiments and consume results.
 
 .. toctree::
    :hidden:
+   :maxdepth: 2
 
-   getting-started
-   Tutorial
-   USER_GUIDE
-   api
-   reporting
-   systems
-   workloads/index
-   DEV
+   Overview <self>
+   start/index
+   guides/index
+   optimization/index
+   automation/index
+   Workloads <workloads/index>
+   extend/index
+   reference/index
    troubleshooting
 
 .. _external-materials-notice:

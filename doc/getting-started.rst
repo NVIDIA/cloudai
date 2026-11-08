@@ -1,5 +1,5 @@
-Installation and CLI
-====================
+Install CloudAI
+===============
 
 CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
 
@@ -12,7 +12,7 @@ These versions include certificate trust updates for the eMudhra/emSign CA compr
    cd cloudai
    uv run cloudai --help
 
-For a first benchmark, return to :ref:`getting-started`. See :doc:`systems` and
+Continue with :doc:`your first experiment <Tutorial>`. See :doc:`systems` and
 :doc:`workloads/workloads_requirements_installation` for environment setup.
 
 pip-based Installation
@@ -52,145 +52,68 @@ If your system Python version is not supported, you can install a custom version
                    # --seed installs pip and setuptools
    source .venv/bin/activate
 
-Key Concepts
-------------
 
-CloudAI separates where an experiment runs from what it executes:
+See :doc:`reference/cli` for the command catalog.
 
-- **System**: The execution environment, including the scheduler, available resources, and shared environment settings.
-- **Test definition**: The workload and its command arguments, environment variables, and configuration choices.
-- **Scenario**: The test cases to execute, with resource requirements and dependencies where supported.
+Previous section links
+----------------------
 
-See :doc:`USER_GUIDE` for configuration details and :doc:`Tutorial` for configuration examples.
+.. raw:: html
 
-CloudAI Modes Usage Examples
-----------------------------
+   <span id="installation-and-cli"></span>
 
-The following are the global options for the ``cloudai`` command:
+Installation and CLI: :doc:`/reference/cli`.
 
-- ``--log-file <path>``: specify a file to log output; by default ``debug.log`` in the current directory is used. Contains log entries of level ``DEBUG`` and higher
-- ``--log-level <level>``: specify logging level for standard output; default is ``INFO``
+.. raw:: html
 
-Available Modes
-~~~~~~~~~~~~~~~
+   <span id="key-concepts"></span>
 
-- :ref:`run`
-- :ref:`dry-run`
-- :ref:`generate-report`
-- :ref:`install`
-- :ref:`uninstall`
-- :ref:`list`
-- :ref:`verify-configs`
+Key Concepts: :doc:`/reference/cli`.
 
-Usage Examples
-~~~~~~~~~~~~~~
+.. raw:: html
 
-.. _run:
+   <span id="cloudai-modes-usage-examples"></span>
 
-run
-^^^
+CloudAI Modes Usage Examples: :doc:`/reference/cli`.
 
-This mode runs workloads. It automatically installs prerequisites if they are not met.
+.. raw:: html
 
-.. code-block:: bash
+   <span id="available-modes"></span>
 
-   cloudai run\
-       --system-config conf/common/system/example_slurm_cluster.toml\
-       --tests-dir conf/common/test\
-       --test-scenario conf/common/test_scenario/sleep.toml
+Available Modes: :doc:`/reference/cli`.
 
-.. _dry-run:
+.. raw:: html
 
-dry-run
-^^^^^^^
+   <span id="usage-examples"></span>
 
-This mode simulates running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
+Usage Examples: :doc:`/reference/cli`.
 
-.. code-block:: bash
+.. raw:: html
 
-   cloudai dry-run\
-       --system-config conf/common/system/example_slurm_cluster.toml\
-       --tests-dir conf/common/test\
-       --test-scenario conf/common/test_scenario/sleep.toml
+   <span id="dry-run"></span>
 
-.. _generate-report:
+dry-run: :doc:`/reference/cli`.
 
-generate-report
-^^^^^^^^^^^^^^^
+.. raw:: html
 
-This mode generates reports under the scenario directory. It automatically runs as part of the ``run`` mode after experiments are completed.
+   <span id="generate-report"></span>
 
-.. code-block:: bash
+generate-report: :doc:`/reference/cli`.
 
-   cloudai generate-report\
-       --system-config conf/common/system/example_slurm_cluster.toml\
-       --tests-dir conf/common/test\
-       --test-scenario conf/common/test_scenario/sleep.toml\
-       --result-dir /path/to/result_directory
+.. raw:: html
 
-Generated artifacts depend on the scenario contents:
+   <span id="uninstall"></span>
 
-- ``<scenario>.html`` summarizes scenario status.
-- ``<scenario>-dse-report.html`` describes configuration searches when the scenario contains DSE test cases.
-- ``<dse-case>/<iteration>/<dse-case>.toml`` contains the best discovered test configuration for a DSE case.
-- Workload and custom reporters may produce additional artifacts.
+uninstall: :doc:`/reference/cli`.
 
-The :doc:`reporting` guide describes ``experiment.json``, which records execution status and workload metrics
-independently of reporter settings.
+.. raw:: html
 
-.. _install:
+   <span id="list"></span>
 
-install
-^^^^^^^
+list: :doc:`/reference/cli`.
 
-This mode installs test prerequisites. For more details, refer to the :doc:`workloads/workloads_requirements_installation` guide. It automatically runs as part of the ``run`` mode if prerequisites are not met.
+.. raw:: html
 
-.. code-block:: bash
+   <span id="verify-configs"></span>
 
-   cloudai install\
-       --system-config conf/common/system/example_slurm_cluster.toml\
-       --tests-dir conf/common/test\
-       --test-scenario conf/common/test_scenario/sleep.toml
-
-.. _uninstall:
-
-uninstall
-^^^^^^^^^
-
-This mode is the opposite of the install mode. This mode removes installed test prerequisites.
-
-.. code-block:: bash
-
-   cloudai uninstall\
-       --system-config conf/common/system/example_slurm_cluster.toml\
-       --tests-dir conf/common/test\
-       --test-scenario conf/common/test_scenario/sleep.toml
-
-.. _list:
-
-list
-^^^^
-
-This mode lists internal components available within CloudAI.
-
-.. code-block:: bash
-
-   cloudai list <component_type>
-
-.. _verify-configs:
-
-verify-configs
-^^^^^^^^^^^^^^
-
-This mode verifies the correctness of system, test, and test scenario configuration files.
-
-.. code-block:: bash
-
-   # verify all at once
-   cloudai verify-configs conf
-
-   # verify a single file
-   cloudai verify-configs conf/common/system/example_slurm_cluster.toml
-
-   # verify all scenarios using specific folder with Test TOMLs
-   cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
+verify-configs: :doc:`/reference/cli`.

@@ -8,7 +8,7 @@ Combine experiments into a broader investigation using existing workloads or you
 ![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](doc/_static/cloudai-experiments.svg)
 
 [Extend CloudAI](https://nvidia.github.io/cloudai/DEV.html) ·
-[Configure optimization agents](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration)
+[Configure optimization agents](https://nvidia.github.io/cloudai/reference/agents.html)
 
 ## Run your first experiment
 
@@ -40,7 +40,7 @@ Open the results directory printed by CloudAI. Use [HTML reports and `experiment
 to inspect measurements, or consume results through the [Python API](https://nvidia.github.io/cloudai/api.html).
 
 Use built-in `grid_search` to evaluate every configured combination, or connect your own
-[optimization agent](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration) to select configurations from
+[optimization agent](https://nvidia.github.io/cloudai/reference/agents.html) to select configurations from
 measured feedback. Custom agents can implement adaptive selection and stopping policies to work within a compute budget.
 
 Add [workloads, systems and runners, reporters, or agents](https://nvidia.github.io/cloudai/DEV.html)

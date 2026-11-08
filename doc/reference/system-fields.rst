@@ -1,0 +1,57 @@
+Shared system settings
+======================
+
+.. list-table:: Field Descriptions
+   :header-rows: 1
+   :widths: 25 75
+
+   * - **Field**
+     - **Description**
+   * - **name**
+     - Specifies the name of the system. Users can choose any name that is convenient for them.
+   * - **scheduler**
+     - Indicates the type of system. It should be one of the supported types, currently ``slurm`` or ``standalone``. ``slurm`` refers to a system with the Slurm scheduler, while ``standalone`` refers to a single-node system without any slave nodes. Other values are possible depending on the available schedulers supported by CloudAI.
+   * - **install_path**
+     - Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images. Relative paths are converted to absolute paths using the current working directory when the system is loaded, preserving symbolic links.
+   * - **output_path**
+     - Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
+   * - **default_partition**
+     - Specifies the default partition where jobs are scheduled.
+   * - **partitions**
+     - Describes the available partitions and nodes within those partitions.
+   * - **[optional] groups**
+     - Within the same partition, users can define groups of nodes. The group concept can be used to allocate nodes from specific groups in a test scenario schema. For instance, this feature is useful for specifying topology awareness. Groups represent logical partitioning of nodes and users are responsible for ensuring no overlap across groups.
+   * - **mpi**
+     - Indicates the Process Management Interface (PMI) implementation to be used for inter-process communication.
+   * - **gpus_per_node** and **ntasks_per_node**
+     - These are Slurm arguments passed to the ``sbatch`` script and ``srun``.
+   * - **cache_docker_images_locally**
+     - Specifies whether CloudAI should cache remote Docker images locally during installation. If set to ``true``, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to ``false``, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
+   * - **global_env_vars**
+     - Lists all global environment variables that will be applied globally whenever tests are run.
+   * - **[optional] slurm_api**
+     - Uses Slurm REST API instead of local Slurm CLI tools. Set ``url`` and optional ``verify_certs`` and ``headers``.
+       Header values may reference environment variables using ``${NAME}``.
+
+Slurm REST API
+~~~~~~~~~~~~~~
+
+Set ``slurm_api.version`` to match your service: ``v0.0.38`` (the default), ``v0.0.40``, ``v0.0.41``, or ``v0.0.42``.
+The service must enable the ``slurm`` endpoint backed by ``slurmctld``. To retrieve status and timing after a job
+leaves the controller's records, it must also expose the ``slurmdb`` endpoint backed by ``slurmdbd``.
+
+Workload steps inherit the system's ``ntasks_per_node`` and ``gpus_per_node`` settings in REST mode,
+as they do with ``sbatch``. Explicit ``srun`` options can override these defaults for individual steps.
+
+.. code-block:: toml
+
+   [slurm_api]
+   url = "https://slurm-api.example.com"
+   version = "v0.0.42"
+   verify_certs = true
+
+     [slurm_api.headers]
+     X-SLURM-USER-NAME = "${SLURM_USER}"
+     X-SLURM-USER-TOKEN = "${SLURM_JWT}"
+
+Workloads that invoke their own Slurm launcher instead of producing an sbatch script are not supported in REST mode.
