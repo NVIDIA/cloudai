@@ -17,12 +17,14 @@ Combine experiments into a broader investigation using existing workloads or you
    :width: 100%
    :class: cloudai-workflow dark-light
 
-:doc:`Extend CloudAI <DEV>` · `Configure optimization agents <USER_GUIDE.html#agents-configuration>`_
+Explore configurations with grid search, or connect your own `optimization agent <USER_GUIDE.html#agents-configuration>`_
+to guide search within your compute budget.
+:doc:`Add workloads, systems, and reporters <DEV>` for your task.
 
 .. _choose-a-workflow:
 
-Run a benchmark
----------------
+Run your first experiment
+-------------------------
 
 .. tab-set::
    :sync-group: benchmark
@@ -178,6 +180,7 @@ Read your results
 -----------------
 
 Open the results directory printed by CloudAI. See :doc:`reporting` for HTML reports and ``experiment.json``.
+Use the :doc:`Python API <api>` to automate experiments and consume results.
 
 .. toctree::
    :hidden:

@@ -10,7 +10,7 @@ Combine experiments into a broader investigation using existing workloads or you
 [Extend CloudAI](https://nvidia.github.io/cloudai/DEV.html) ·
 [Configure optimization agents](https://nvidia.github.io/cloudai/USER_GUIDE.html#agents-configuration)
 
-## Run a benchmark
+## Run your first experiment
 
 | Experiment | Start here |
 | --- | --- |
