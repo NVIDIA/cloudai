@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://schema.buildwithfern.dev/docs-yml.json
 instances:
-  - url: nvidia-cloudai.docs.buildwithfern.com/cloudai
-    custom-domain: docs.nvidia.com/cloudai
+  - url: nvidia-cloudai.docs.buildwithfern.com/networking/cloudai
+    custom-domain: docs.nvidia.com/networking/cloudai
     multi-source: true
 title: CloudAI
 global-theme: nvidia
@@ -11,15 +11,15 @@ navbar-links:
 versions:
   - display-name: 1.8.1
     slug: 1.8.1
-    ref: de40f9754437ba7fab9045e49188ac1513c0994d
+    ref: 9a803b76f648b31edbed61696d0f4c3efce9b373
     availability: stable
   - display-name: 1.7.1
     slug: 1.7.1
-    ref: 6c95e97dd3f4ac0dae975e76478415540d9520a5
+    ref: e69491dbb829213767de633a432a63f403749bda
     availability: stable
   - display-name: 1.6.1
     slug: 1.6.1
-    ref: 9415fea55d7bb3bb3551852702e70e9e6951b676
+    ref: 055edc7aad3b719ae1eab2ff163e6a9a01968070
     availability: stable
   - display-name: dev
     path: ./dev.yml

@@ -27,7 +27,7 @@ Edit the model or generator, not files in `fern/generated/`. Pre-commit regenera
 stage any changed or newly generated files and retry the commit. CI checks the same hook.
 Methods and non-Pydantic references stay in authored pages.
 
-Use published paths such as `/cloudai/user-guide` for internal links; unversioned URLs
+Use base-path-free links such as `/user-guide`; Fern adds the configured site prefix. Unversioned URLs
 lead to the default stable version.
 
 For deployment configuration and version management, see [Publishing](publishing.md).

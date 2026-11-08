@@ -43,8 +43,8 @@ Python generators or creates generated-documentation commits on source branches.
 
 - Set the repository secret `FERN_TOKEN` for the `nvidia` organization. It serves both preview
   and production publishing.
-- `fern/docs.yml` uses `nvidia-cloudai.docs.buildwithfern.com/cloudai`, following the NVIDIA sample
-  naming convention, with public domain `docs.nvidia.com/cloudai`. Coordinate activation of the
+- `fern/docs.yml` uses `nvidia-cloudai.docs.buildwithfern.com/networking/cloudai`, following the NVIDIA sample
+  naming convention, with public domain `docs.nvidia.com/networking/cloudai`. Coordinate activation of the
   public route with the Fern administrators.
 - Create `docs-preview` and `docs-hosted` environments without required reviewers.
 - Exclude exactly `release/docs` from the `release/*` ruleset. CI creates and updates it with
