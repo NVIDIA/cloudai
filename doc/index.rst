@@ -26,6 +26,8 @@ to guide search within your compute budget.
 Run your first experiment
 -------------------------
 
+Start with an example below, or explore :doc:`all supported workloads <workloads/index>`.
+
 .. tab-set::
    :sync-group: benchmark
 

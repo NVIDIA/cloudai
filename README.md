@@ -12,14 +12,14 @@ Combine experiments into a broader investigation using existing workloads or you
 
 ## Run your first experiment
 
+Start with an example below, or explore [all supported workloads](https://nvidia.github.io/cloudai/workloads/index.html).
+
 | Experiment | Start here |
 | --- | --- |
 | Inference | [vLLM: Qwen3-0.6B on one GPU](https://nvidia.github.io/cloudai/?benchmark=inference#choose-a-workflow) |
 | Networking | [NCCL: all-reduce on two nodes](https://nvidia.github.io/cloudai/?benchmark=networking#choose-a-workflow) |
 | Storage | [Fio: file I/O on standalone or Slurm](https://nvidia.github.io/cloudai/?benchmark=storage#choose-a-workflow) |
 | Training | [Megatron Bridge: Qwen3-30B-A3B on two eight-GPU H100 nodes](https://nvidia.github.io/cloudai/?benchmark=training#choose-a-workflow) |
-
-See [all workloads and supported systems](https://nvidia.github.io/cloudai/workloads/index.html).
 
 ## Get started
 
