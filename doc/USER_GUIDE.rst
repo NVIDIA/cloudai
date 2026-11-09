@@ -673,6 +673,9 @@ and dictionary mutators are unavailable. Values returned by reads are detached
 copies, including nested values, so editing them cannot alter recorded history.
 The existing ``domain`` method remains available for explicit numeric decoding.
 
+``trial["env_params"]`` selects one group; ``trial.metadata`` returns a detached copy of all metadata.
+Both derive from one record, supporting field lookup and bulk access without duplicate storage.
+
 ``load`` also accepts an explicit CSV path. It automatically loads sibling
 ``metadata.csv`` when present.
 Every core step must have exactly one metadata row when a sidecar exists.
