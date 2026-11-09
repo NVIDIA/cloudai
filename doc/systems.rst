@@ -3,17 +3,17 @@ Systems
 
 Look up scheduler values and TOML fields for execution systems. Start with :doc:`guides/environment`
 for setup instructions, then use this page to adapt resource and path settings.
-Check :doc:`workloads/index` for the workloads supported on each system.
+Check :doc:`reference/workload-support` for the workloads supported on each system.
 
 .. csv-table::
    :header: "System", "Scheduler Value"
    :widths: 40, 30
 
    ":ref:`slurm-system`", "``slurm``"
+   ":ref:`standalone-system`", "``standalone``"
    ":ref:`kubernetes-system`", "``kubernetes``"
    ":ref:`runai-system`", "``runai``"
    ":ref:`lsf-system`", "``lsf``"
-   ":ref:`standalone-system`", "``standalone``"
 
 .. _slurm-system:
 
@@ -35,12 +35,21 @@ Slurm
 Kubernetes
 ----------
 
+Use :doc:`guides/kubernetes` for cluster setup and network attachments.
+
 .. autopydantic_model:: cloudai.systems.kubernetes.kubernetes_system.KubernetesSystem
 
 .. _runai-system:
 
 RunAI
 -----
+
+The RunAI integration supports NCCL.
+
+.. toctree::
+   :maxdepth: 1
+
+   NCCL on RunAI <guides/runai>
 
 .. autopydantic_model:: cloudai.systems.runai.runai_system.RunAISystem
    :exclude-members: nodes

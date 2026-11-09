@@ -13,6 +13,37 @@ The starter uses two nodes for all-reduce.
 
 Inspect execution status and measurements using :doc:`/reporting`.
 
+.. _nccl-kubernetes:
+
+Run on Kubernetes
+-----------------
+
+Prepare ``kubernetes.toml`` using :doc:`/guides/kubernetes` and install the
+`Kubeflow MPI Operator <https://github.com/kubeflow/mpi-operator>`_ with the ``kubeflow.org/v2beta1`` API.
+The namespace must permit the privileged launcher and worker pods used by this integration.
+
+Reuse the two-worker all-reduce scenario with the Kubernetes system:
+
+.. code-block:: bash
+
+   uv run cloudai run --system-config kubernetes.toml \
+       --test-scenario conf/experimental/quickstart/nccl.toml
+
+.. dropdown:: View the scenario
+
+   .. literalinclude:: ../../conf/experimental/quickstart/nccl.toml
+      :language: toml
+      :start-at: name =
+
+``num_nodes = 2`` creates two MPI worker pods. Set ``gpus_per_node`` in the system config to the GPUs per worker;
+CloudAI launches one MPI process per GPU. Kubernetes controls pod placement.
+
+The example uses the public NVIDIA PyTorch image, which includes ``all_reduce_perf_mpi``.
+Workers install an SSH server if needed, so they require package repository access in that case.
+For RDMA device requests and network attachments, follow :ref:`kubernetes-networking`.
+
+Inspect ``deployment.yaml`` for the MPIJob and ``stdout.txt`` for the NCCL measurements in the case output directory.
+
 Adapt the workload
 ------------------
 

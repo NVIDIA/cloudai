@@ -1,53 +1,46 @@
 AI Dynamo
 =========
 
-Measure serving performance with distributed Dynamo workers.
+Measure serving performance with distributed prefill and decode workers using ``test_template_name = "AIDynamo"``.
+Choose Kubernetes or Slurm below, then inspect measurements using :doc:`/reporting`.
 
-Check :doc:`compatibility <index>` and prepare :doc:`your execution environment </guides/environment>`.
-Use the example below as the starting point; supply its workload-specific inputs before execution.
+.. _dynamo-kubernetes:
 
-Inspect execution status and measurements using :doc:`/reporting`.
+Run on Kubernetes
+-----------------
 
-Adapt the workload
-------------------
+Prepare ``kubernetes.toml`` using :doc:`/guides/kubernetes`, then install the
+`Dynamo operator and platform services <https://docs.nvidia.com/dynamo/v1.1.1/getting-started/kubernetes-deployment>`_
+for your runtime version. The operator must serve ``nvidia.com/v1alpha1`` ``DynamoGraphDeployment`` resources.
 
-AI Dynamo workload (`test_template_name` is ``AIDynamo``) runs AI inference benchmarks using the Dynamo framework with distributed prefill and decode workers.
+The supplied example uses:
 
+* The public ``nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1`` image and ``Qwen/Qwen3-0.6B`` model.
+* One prefill worker and one decode worker, each with eight GPUs; set ``gpus_per_node = 8`` in the system config.
+* GenAI-Perf to send requests and collect inference measurements.
 
-Run Using Kubernetes
---------------------
-
-Prepare Cluster
-~~~~~~~~~~~~~~~
-Before running the AI Dynamo workload on a Kubernetes cluster, ensure that the cluster is set up according to the instructions in the `official documentation`_. Below is a short summary of the required steps:
-
-.. _official documentation: https://docs.nvidia.com/dynamo/dev/getting-started/kubernetes-deployment
-
-.. code-block:: bash
-
-   export NAMESPACE=dynamo-system
-   export RELEASE_VERSION=0.7.0  # replace with the desired release version
-
-   helm upgrade -n default -i dynamo-crds https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-crds-${RELEASE_VERSION}.tgz
-   helm upgrade -n default -i dynamo-platform https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-platform-${RELEASE_VERSION}.tgz
-
-   # The following components are required for multi node only.
-   # Versions should be aligned with Dynamo version.
-   helm upgrade -n default -i grove oci://ghcr.io/ai-dynamo/grove/grove-charts:v0.0.0-gd462e65
-   helm upgrade -n default -i kai-scheduler oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler:0.0.0-4c29820
-
-Launch and Monitor the Job
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. note::
-
-   Both CloudAI and Dynamo will try to access HuggingFace Hub. To avoid ``429 Too Many Requests`` errors and access models under auth, it is recommended to define ``HF_TOKEN`` environment variable before invoking CloudAI. Once set, run ``uv run hf auth login`` to authenticate.
+Use a dedicated namespace for the experiment. CloudAI names the deployment after ``default_namespace``;
+run one Dynamo experiment at a time in that namespace.
+For accelerated transfers between workers, configure :ref:`Network Operator attachments <kubernetes-networking>`.
 
 .. code-block:: bash
 
-   uv run cloudai run --system-config <k8s system toml> \
-      --tests-dir conf/experimental/ai_dynamo/test \
-      --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
+   uv run cloudai run --system-config kubernetes.toml \
+       --tests-dir conf/experimental/ai_dynamo/test \
+       --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
+
+.. dropdown:: View the scenario
+
+   .. literalinclude:: ../../conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
+      :language: toml
+      :start-at: name =
+
+To change worker sizing, copy the scenario and edit each worker's ``num-nodes`` and ``tensor-parallel-size``.
+Keep the tensor parallel size consistent with the GPUs available to that worker. Workers spanning multiple nodes
+also need Dynamo's multinode orchestration components on the cluster.
+
+The Kubernetes path uses ``cmd_args.genai_perf`` settings from the vLLM test definition.
+Inspect ``deployment.yaml``, ``genai_perf.log``, and the collected GenAI-Perf artifacts in the case output directory.
 
 Run Using Slurm
 ---------------

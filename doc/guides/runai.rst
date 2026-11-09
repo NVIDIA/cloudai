@@ -1,7 +1,9 @@
 Set up RunAI
 ============
 
-When using RunAI as the scheduler, additional fields must be specified in the system schema TOML file. The following is a list of required fields and how to set them:
+The RunAI integration supports NCCL. For direct Kubernetes execution of Dynamo or NCCL, use :doc:`kubernetes`.
+
+Configure your RunAI account and project in the system TOML:
 
 .. code-block:: toml
 

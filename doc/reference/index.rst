@@ -7,6 +7,7 @@ Look up exact command, configuration, and output contracts. For a working path, 
    :maxdepth: 1
 
    cli
+   workload-support
    /systems
    system-settings
    system-fields

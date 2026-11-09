@@ -8,7 +8,7 @@ Start with one case. Add resources, dependencies, and preparation only as your t
 
    environment
    slurm
-   runai
+   kubernetes
    scenarios
    hooks
    model-access

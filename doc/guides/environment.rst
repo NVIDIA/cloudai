@@ -32,9 +32,11 @@ Edit ``slurm.toml`` for your cluster:
 Start with one case. Use :doc:`slurm` for allocation modes, scheduler arguments, and tracing.
 
 
-Other schedulers
-----------------
+Kubernetes
+----------
 
-Use :doc:`runai` for RunAI credentials and configuration. The :doc:`/workloads/ai_dynamo` guide includes a Kubernetes
-execution path. Consult :doc:`/systems` for exact system fields and :doc:`/workloads/index` for workload compatibility.
-System registration alone does not imply every workload supports that scheduler.
+Use :doc:`kubernetes` to configure cluster access and networking, then run :doc:`Dynamo </workloads/ai_dynamo>`
+or :doc:`NCCL </workloads/nccl>`. CloudAI generates the workload's Kubernetes resources and collects results.
+
+Check :doc:`/reference/workload-support` before choosing a system. Configuration fields for all systems are
+in :doc:`/systems`.

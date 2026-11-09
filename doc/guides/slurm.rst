@@ -1,7 +1,19 @@
 Run on Slurm
 ============
 
-Choose an allocation mode, then adapt scheduler arguments and mounts for your workload.
+Run CloudAI on a login or submit node. Slurm schedules the workloads on compute nodes.
+
+.. image:: /_static/cloudai-slurm.svg
+   :alt: On the login node, CloudAI reads configuration, generates an sbatch script, and submits it to Slurm. Slurm allocates compute nodes, where srun launches the workload. Workload logs and measurements are written to the output directory for CloudAI to collect and report.
+   :class: cloudai-workflow dark-light
+
+* **Login / submit node:** runs CloudAI, generates ``cloudai_sbatch_script.sh``, submits it with ``sbatch``,
+  and monitors job status.
+* **Compute nodes:** execute the generated script and launch workload processes with ``srun``.
+* **Results:** workload logs and measurements are written to ``output_path``; CloudAI produces reports on the submit host.
+
+Start with :doc:`environment` to configure your cluster. Keep CloudAI running while it monitors the experiment,
+and make input, install, and output paths accessible where they are used.
 
 Choose an allocation mode
 -------------------------

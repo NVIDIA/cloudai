@@ -3,7 +3,7 @@ DynamoMocker
 
 Explore serving behavior with GPU-free Dynamo simulation.
 
-Check :doc:`compatibility <index>` and prepare :doc:`your execution environment </guides/environment>`.
+Check :doc:`compatibility </reference/workload-support>` and prepare :doc:`your execution environment </guides/environment>`.
 Use the example below as the starting point; supply its workload-specific inputs before execution.
 
 Inspect execution status and measurements using :doc:`/reporting`.
@@ -16,7 +16,7 @@ using ``dynamo.mocker`` and ``dynamo.frontend`` from the `ai-dynamo <https://git
 package, then benchmarks the stack with `aiperf <https://github.com/NVIDIA/aiperf>`_ or
 `genai-perf <https://github.com/triton-inference-server/client/tree/main/src/c%2B%2B/perf_analyzer/genai-perf>`_.
 
-It is a **Standalone** workload (no Slurm/Kubernetes/RunAI required).
+It is a **Standalone** workload.
 
 Prerequisites
 -------------

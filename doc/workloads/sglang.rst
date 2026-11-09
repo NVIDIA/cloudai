@@ -3,7 +3,7 @@ SGLang
 
 Measure inference performance with SGLang serving and benchmark settings.
 
-Check :doc:`compatibility <index>` and prepare :doc:`your execution environment </guides/environment>`.
+Check :doc:`compatibility </reference/workload-support>` and prepare :doc:`your execution environment </guides/environment>`.
 Use the example below as the starting point; supply its workload-specific inputs before execution.
 
 Inspect execution status and measurements using :doc:`/reporting`.

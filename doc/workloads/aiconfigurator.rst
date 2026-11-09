@@ -3,7 +3,7 @@ AIConfigurator
 
 Estimate inference configurations with AIConfigurator before allocating hardware for measurements.
 
-Check :doc:`compatibility <index>` and prepare :doc:`your execution environment </guides/environment>`.
+Check :doc:`compatibility </reference/workload-support>` and prepare :doc:`your execution environment </guides/environment>`.
 Use the example below as the starting point; supply its workload-specific inputs before execution.
 
 Inspect execution status and measurements using :doc:`/reporting`.
@@ -12,7 +12,7 @@ Adapt the workload
 ------------------
 
 AIConfigurator workload (`test_template_name` is ``Aiconfigurator``) runs the AIConfigurator predictor using the installed
-``aiconfigurator`` Python package. It is a **Standalone** workload (no Slurm/Kubernetes/RunAI required).
+``aiconfigurator`` Python package. It is a **Standalone** workload.
 
 Outputs
 -------
