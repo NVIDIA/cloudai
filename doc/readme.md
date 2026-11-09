@@ -1,7 +1,7 @@
 # Documentation
 
 Edit pages in `doc/*.mdx` and `doc/workloads/*.mdx`; use lowercase, hyphenated filenames.
-`fern/dev.yml` defines navigation and page paths for each version, including releases.
+`fern/dev.yml` defines navigation and page paths for this revision. Releases use the file from their pinned commit.
 `fern/docs.yml` holds site settings. The root README is separate from the Fern site.
 
 ## Local preview

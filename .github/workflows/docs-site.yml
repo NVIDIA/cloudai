@@ -137,7 +137,7 @@ jobs:
           ../automation/fern/node_modules/.bin/fern generate --docs "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/fern-publish.log"
           {
             printf 'Source: `%s`\n\n' "$SOURCE_SHA"
-            grep -F 'Published docs to ' "$RUNNER_TEMP/fern-publish.log"
+            grep -F 'Published docs to ' "$RUNNER_TEMP/fern-publish.log" || true
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Record successful production configuration
         if: inputs.mode == 'production'

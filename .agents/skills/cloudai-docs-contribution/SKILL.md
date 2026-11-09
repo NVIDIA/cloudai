@@ -27,7 +27,7 @@ description: Write, edit, or review CloudAI documentation, including Fern pages,
 ## Fern workflow
 
 - Preserve prose during migrations. Author `doc/**/*.mdx` with lowercase, hyphenated filenames;
-  keep the root README separate. Navigation: `fern/dev.yml` (all versions); site settings: `fern/docs.yml`.
+  keep the root README separate. Navigation: `fern/dev.yml` at each version’s pinned commit; site settings: `fern/docs.yml`.
 - Update navigation and incoming links when moving pages. Use base-path-free links such as `/user-guide`; Fern adds the site prefix. Unversioned links target default stable.
 - Generate only Pydantic field tables: models in `fern/reference.yml`, generator in `doc/generate_reference.py`.
   Include with `<Markdown src="/generated/<filename>.mdx" />`; never hand-edit `fern/generated/`.
