@@ -55,7 +55,7 @@ repos:
         language: system
       - id: generate-doc-reference
         name: Generate Python documentation reference
-        entry: uv run --locked --extra dev --extra docs python doc/generate_reference.py
+        entry: uv run --locked --isolated --python 3.14 --extra dev --extra docs python doc/generate_reference.py
         language: system
         pass_filenames: false
         always_run: true
