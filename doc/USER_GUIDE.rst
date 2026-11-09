@@ -654,10 +654,24 @@ Load a completed iteration through the same ``Trajectory`` class that writes it:
 
    trajectory = Trajectory.load(Path("results/scenario/Tests.1/0"))
    for trial in trajectory.records():
-       action = trial.domain("action")
-       reward = trial.domain("reward")
-       observation = trial.domain("observation")
+       action = trial["action"]
+       reward = trial["reward"]
+       observation = trial["observation"]
        metadata = trial.metadata
+
+Records are read-only mappings. Keys include ``step``, ``action``, ``reward``,
+optional ``observation`` and any metadata domains such as ``env_params``.
+They support indexing, ``get``, membership, iteration, ``len``, ``keys``,
+``items``, ``values``, dictionary conversion, unpacking, equality and reversed
+key iteration. Missing keys raise ``KeyError``; ``get`` returns its supplied
+default, or ``None``. ``trial.source`` and ``trial.row`` are provenance
+attributes; same-named metadata keys remain accessible through indexing.
+
+``trial.copy()`` and ``trial | {"reward": 1.0}`` return dictionaries; merging
+also works with the record on the right. Assignment, deletion, in-place merge
+and dictionary mutators are unavailable. Values returned by reads are detached
+copies, including nested values, so editing them cannot alter recorded history.
+The existing ``domain`` method remains available for explicit numeric decoding.
 
 ``load`` also accepts an explicit CSV path. It automatically loads sibling
 ``metadata.csv`` when present.
@@ -672,7 +686,7 @@ remain nonnegative, unique and increasing. Newly appended trials retain the
 existing positive-step requirement.
 
 Legacy files containing only ``step``, ``action`` and ``reward`` remain valid.
-When the observation column is absent, ``trial.domain("observation")`` raises
+When the observation column is absent, ``trial["observation"]`` raises
 ``KeyError`` rather than inventing a measurement. If a header declares an
 observation column, every row must still contain its corresponding cell.
 

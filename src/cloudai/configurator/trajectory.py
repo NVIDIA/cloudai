@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING, Any
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     import pandas as pd
 
 
@@ -48,8 +50,8 @@ class _NonfiniteLiteralNames(ast.NodeTransformer):
         return node
 
 
-@dataclass(frozen=True)
-class TrajectoryRecord:  # noqa: D101
+@dataclass(frozen=True, eq=False)
+class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
     step: int
     source: Path
     _domains: Mapping[str, Any]
@@ -57,6 +59,31 @@ class TrajectoryRecord:  # noqa: D101
 
     def __post_init__(self) -> None:  # noqa: D105
         object.__setattr__(self, "_domains", deepcopy(self._domains))
+
+    def __getitem__(self, key: str) -> Any:  # noqa: D105
+        return self.step if key == "step" else self.domain(key)
+
+    def __iter__(self) -> Iterator[str]:  # noqa: D105
+        yield "step"
+        yield from self._domains
+
+    def __len__(self) -> int:  # noqa: D105
+        return len(self._domains) + 1
+
+    def __reversed__(self) -> Iterator[str]:  # noqa: D105
+        return reversed(tuple(self))
+
+    def copy(self) -> dict[str, Any]:
+        return dict(self)
+
+    def __or__(self, other: Any) -> dict[str, Any]:  # noqa: D105
+        return dict(self) | other
+
+    def __ror__(self, other: Any) -> dict[str, Any]:  # noqa: D105
+        return other | dict(self)
+
+    def __ior__(self, other: Any) -> TrajectoryRecord:  # noqa: D105
+        raise TypeError("TrajectoryRecord is read-only; use '|' to create a merged dictionary")
 
     def domain(self, name: str, *, decode_numbers: bool = False) -> Any:
         value = deepcopy(self._domains[name])

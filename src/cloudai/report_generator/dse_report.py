@@ -245,7 +245,7 @@ def _build_trajectory_steps(
     steps: list[TrajectoryStep] = []
     for record in records:
         step_no = record.step
-        action = record.domain("action")
+        action = record["action"]
         if not isinstance(action, dict):
             action = {}
 
@@ -253,7 +253,7 @@ def _build_trajectory_steps(
         steps.append(
             TrajectoryStep(
                 step=step_no,
-                reward=float(record.domain("reward")),
+                reward=float(record["reward"]),
                 observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),

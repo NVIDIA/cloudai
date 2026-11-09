@@ -18,12 +18,13 @@ import csv
 import math
 from ast import literal_eval
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pandas as pd
 import pytest
 
-from cloudai.configurator import Trajectory, TrajectoryLoadError
+from cloudai.configurator import Trajectory, TrajectoryLoadError, TrajectoryRecord
 
 
 def test_append_flattens_domains_into_dataframe_columns(tmp_path: Path) -> None:
@@ -864,3 +865,92 @@ def test_record_formats_observation_without_changing_its_domain(
             record.domain("observation")
 
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
+
+
+@pytest.fixture(params=[False, True], ids=["live", "loaded"])
+def readonly_record(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> tuple[TrajectoryRecord, MappingProxyType[str, Any]]:
+    expected = {
+        "step": 1,
+        "action": {"values": [1, 2]},
+        "reward": 0.5,
+        "observation": [2.0],
+        "env_params": {"message_size": "1024"},
+        "execution": {"ticket": "T-1"},
+        "source": {"archive": "prior"},
+    }
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(**expected)
+    if request.param:
+        trajectory = Trajectory.load(tmp_path)
+
+    return trajectory.records()[0], MappingProxyType(expected)
+
+
+def test_record_reads_match_a_readonly_dictionary(
+    readonly_record: tuple[TrajectoryRecord, MappingProxyType[str, Any]], tmp_path: Path
+) -> None:
+    record, expected = readonly_record
+
+    assert record.source == tmp_path / "trajectory.csv"
+    assert record["source"] == {"archive": "prior"}
+    assert dict(record) == {**record} == record.copy() == expected
+    assert record == expected and expected == record
+    assert list(record) == list(record.keys()) == list(expected)
+    assert list(record.items()) == list(expected.items())
+    assert list(record.values()) == list(expected.values())
+    assert list(reversed(record)) == list(reversed(expected))
+    assert len(record) == len(expected) and bool(record) == bool(expected)
+    for key in expected:
+        assert key in record and record[key] == record.get(key) == expected[key]
+    for missing in ("missing", "row"):
+        assert missing not in record and record.get(missing) is None
+        assert record.get(missing, "fallback") == "fallback"
+        with pytest.raises(KeyError, match=missing):
+            _ = record[missing]
+
+    replacement = {"reward": 7.0, "new": 3}
+    assert record | replacement == expected | replacement
+    assert replacement | record == replacement | expected
+    assert record | record == expected | expected
+    assert list(record | replacement) == list(expected | replacement)
+    assert list(replacement | record) == list(replacement | expected)
+    invalid: Any = []
+    with pytest.raises(TypeError):
+        _ = record | invalid
+    with pytest.raises(TypeError):
+        _ = invalid | record
+    assert record.domain("env_params", decode_numbers=True) == {"message_size": 1024}
+    assert record["env_params"] == {"message_size": "1024"}
+
+
+def test_record_rejects_writes_and_returns_detached_nested_values(
+    readonly_record: tuple[TrajectoryRecord, MappingProxyType[str, Any]],
+) -> None:
+    record, expected = readonly_record
+    writable: Any = record
+
+    with pytest.raises(TypeError):
+        writable["reward"] = 7.0
+    with pytest.raises(TypeError):
+        del writable["reward"]
+    with pytest.raises(TypeError):
+        writable |= {"reward": 7.0}
+    for mutator in ("clear", "pop", "popitem", "setdefault", "update"):
+        assert not hasattr(record, mutator)
+
+    for detached in (
+        record["action"],
+        record.get("action"),
+        dict(record.items())["action"],
+        list(record.values())[1],
+        dict(record)["action"],
+        {**record}["action"],
+        record.copy()["action"],
+        (record | {})["action"],
+        ({} | record)["action"],
+    ):
+        assert isinstance(detached, dict)
+        detached["values"].append(3)
+        assert record == expected
