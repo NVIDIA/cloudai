@@ -10,6 +10,8 @@ For DSE workloads, you can pass agent configuration via ``agent_config`` in the 
 
 - ``random_seed``: controls deterministic random behavior in agents.
 - ``start_action``: controls the very first action strategy (``"random"`` or ``"first"``).
+- ``max_consecutive_rejected_proposals``: maximum consecutive constraint rejections before skipping a DSE step.
+  Defaults to ``16``; see :ref:`constraint-rejected-proposals` for retry behavior.
 - ``rewards`` (optional): nested table mapped to ``RewardOverrides``. When present, ``CloudAIGymEnv`` uses it for
   constraint failures and for substituting failed-metric values in observations.
 
@@ -33,6 +35,7 @@ Example:
      [Tests.agent_config]
      random_seed = 123
      start_action = "first"
+     max_consecutive_rejected_proposals = 16
 
        [Tests.agent_config.rewards]
        constraint_failure = -5.0
@@ -43,6 +46,29 @@ is built from first values of each sweep parameter). ``start_action = "random"``
 action, typically seeded by ``random_seed``.
 
 Custom agents may extend the ``BaseAgentConfig`` and offer more parameters to configure.
+
+.. _constraint-rejected-proposals:
+
+Retry constraint-rejected proposals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A constraint-rejected proposal updates the agent with ``constraint_failure`` and retries without consuming a
+DSE step. ``max_consecutive_rejected_proposals`` bounds those retries:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Event
+     - Effect
+   * - Retry limit reached
+     - Skip the current DSE step and continue with the next.
+   * - Execution, cache hit, or skipped step
+     - Reset the consecutive-rejection counter.
+   * - Episode reset
+     - Preserve the counter; the environment owns it across episodes.
+
+Single-sbatch DSE supports only ``grid_search`` and precomputes its combinations. It rejects an explicitly
+configured retry limit; omit ``max_consecutive_rejected_proposals`` in that mode.
 
 DSE Parameter Exclusions
 ~~~~~~~~~~~~~~~~~~~~~~~~

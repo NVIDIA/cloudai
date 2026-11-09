@@ -1,17 +1,86 @@
-# CloudAI
+<h1 align="center">CloudAI</h1>
 
-**The execution framework for AI-driven research.**
+<p align="center"><strong>The execution framework for AI-driven research.</strong></p>
+
+<p align="center">
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-Apache_2.0-76B900" alt="License: Apache 2.0"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-76B900" alt="Python 3.10 or newer"></a>
+</p>
+
+<p align="center">
+  <a href="#supported-workloads">Workloads</a> &nbsp;·&nbsp;
+  <a href="#run-your-first-experiment">Get started</a> &nbsp;·&nbsp;
+  <a href="#optimize-configurations">Optimization</a> &nbsp;·&nbsp;
+  <a href="#automate-and-extend">Python &amp; extensions</a> &nbsp;·&nbsp;
+  <a href="#contribute">Contribute</a>
+</p>
 
 Run the workloads your task requires, collect evidence, and use the results to guide the next experiment.
 Combine experiments into a broader investigation using existing workloads or your own.
 
+| Run workloads | Find better configurations | Add what your task needs |
+| :--- | :--- | :--- |
+| One CLI, Python API, and configuration model across workloads. | Grid search or optimization agents that guide experiments within a compute budget. | Public interfaces for workloads, execution systems, reporters, and agents. |
+
 ![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](doc/_static/cloudai-experiments.svg)
 
-- **Run different workloads through one framework.** Use a common CLI, Python API, and configuration model.
-- **Search for better configurations.** Evaluate a grid of choices or integrate an optimization agent that selects experiments and controls stopping within a compute budget.
-- **Add what your task needs.** Extend workloads, execution systems, reporters, and agents through public interfaces and the registry.
+## Supported workloads
+
+| Area | Integrations |
+| :--- | :--- |
+| **Inference** | Dynamo, vLLM, SGLang, SRT-Slurm, Triton Inference |
+| **Training** | Megatron Bridge, MegatronRun, NeMo Run, DDLB |
+| **Networking & communication** | NCCL, UCC, OSU, DeepEP, MoE Benchmark, NIXL Bench, NIXL EP, NIXL KVBench, NIXL Perftest |
+| **Storage** | Fio; storage-oriented transfers through NIXL Bench |
+| **Simulation & prediction** | AIConfigurator, Dynamo Mocker, Chakra Replay |
+| **Custom execution** | Bash commands, Slurm containers, Sleep for scheduling checks |
+| **Legacy training** | NeMo Launcher, JAX Toolbox (GPT, Grok, Nemotron) |
+
+<details>
+<summary><strong>Full workload × system compatibility</strong></summary>
+
+Names below are the exact `test_template_name` values. A check mark indicates a registered execution strategy;
+each workload still requires its own software and resources.
+
+<!-- Keep this matrix aligned with doc/reference/workload-support.rst and src/cloudai/registration.py. -->
+
+| Workload | Slurm | Standalone | Kubernetes | RunAI | LSF |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `Aiconfigurator` | — | ✅ | — | — | — |
+| `AIDynamo` | ✅ | — | ✅ | — | — |
+| `BashCmd` | ✅ | — | — | — | — |
+| `ChakraReplay` | ✅ | — | — | — | — |
+| `DDLBTest` | ✅ | — | — | — | — |
+| `DeepEP` | ✅ | — | — | — | — |
+| `DynamoMocker` | — | ✅ | — | — | — |
+| `Fio` | ✅ | ✅ | — | — | — |
+| `JaxToolboxGPT` | ✅ | — | — | — | — |
+| `JaxToolboxGrok` | ✅ | — | — | — | — |
+| `JaxToolboxNemotron` | ✅ | — | — | — | — |
+| `MegatronBridge` | ✅ | — | — | — | — |
+| `MegatronRun` | ✅ | — | — | — | — |
+| `MoEBenchmark` | ✅ | — | — | — | — |
+| `NcclTest` | ✅ | — | ✅ | ✅ | — |
+| `NeMoLauncher` | ✅ | — | — | — | — |
+| `NeMoRun` | ✅ | — | — | — | — |
+| `NIXLBench` | ✅ | — | — | — | — |
+| `NixlEP` | ✅ | — | — | — | — |
+| `NIXLKVBench` | ✅ | — | — | — | — |
+| `NixlPerftest` | ✅ | — | — | — | — |
+| `OSUBench` | ✅ | — | — | — | — |
+| `sglang` | ✅ | — | — | — | — |
+| `Sleep` | ✅ | ✅ | ✅ | — | ✅ |
+| `SlurmContainer` | ✅ | — | — | — | — |
+| `SRTSlurm` | ✅ | — | — | — | — |
+| `TritonInference` | ✅ | — | — | — | — |
+| `UCCTest` | ✅ | — | — | — | — |
+| `vllm` | ✅ | — | — | — | — |
+
+</details>
 
 ## Run your first experiment
+
+### 1. Get CloudAI
 
 Install `uv` 0.13.4 or newer, then clone CloudAI:
 
@@ -20,11 +89,12 @@ git clone https://github.com/NVIDIA/cloudai.git
 cd cloudai
 ```
 
-Choose an example below. Fio runs locally without a GPU; inference, networking, and training use Slurm.
-More integrations are listed in the [workload catalog](doc/workloads/index.rst).
+### 2. Choose an experiment
+
+Fio runs locally without a GPU. The vLLM, NCCL, and Megatron Bridge examples use the shared Slurm setup below.
 
 <details>
-<summary>Storage — run Fio locally</summary>
+<summary><strong>Storage — run Fio locally</strong></summary>
 
 Install the Fio executable (`sudo apt-get install fio` on Ubuntu), then run:
 
@@ -41,7 +111,7 @@ Adjust `rw`, `bs`, and `size` for your I/O pattern.
 </details>
 
 <details>
-<summary>Slurm setup — required for the GPU examples</summary>
+<summary><strong>Slurm setup — required for the GPU examples</strong></summary>
 
 Run CloudAI from a submit host with Slurm CLI tools, partition access, and container support for `srun`
 (such as Pyxis/Enroot). Execution nodes must be able to access the selected public images and shared files.
@@ -72,7 +142,7 @@ CloudAI installs declared workload prerequisites during execution. Cluster conta
 </details>
 
 <details>
-<summary>Inference — vLLM on one GPU</summary>
+<summary><strong>Inference — vLLM on one GPU</strong></summary>
 
 After the Slurm setup above, benchmark Qwen3-0.6B on one GPU:
 
@@ -87,7 +157,7 @@ with 16 input and 128 output tokens. Change the model, traffic, or parallelism s
 </details>
 
 <details>
-<summary>Networking — NCCL across two nodes</summary>
+<summary><strong>Networking — NCCL across two nodes</strong></summary>
 
 After the Slurm setup above, measure all-reduce across two nodes:
 
@@ -102,7 +172,7 @@ Change the collective, message sizes, or node count to investigate another commu
 </details>
 
 <details>
-<summary>Training — Megatron Bridge on two eight-GPU H100 nodes</summary>
+<summary><strong>Training — Megatron Bridge on two eight-GPU H100 nodes</strong></summary>
 
 Complete the Slurm setup above and set `HF_TOKEN` in your environment. Run ten Qwen3-30B-A3B training steps:
 
@@ -116,18 +186,25 @@ container, and training duration. Start with a short run before increasing the d
 
 </details>
 
-## Use the results
+## Inspect results
 
 Open the results directory printed by CloudAI:
 
-- **`experiment.json`** — execution status, metrics, and selected search results.
-- **HTML reports** — measurements and comparisons for inspection.
-- **`stdout.txt` and `stderr.txt`** — workload output for diagnosing failures or missing metrics.
+| Artifact | Use it to |
+| :--- | :--- |
+| `experiment.json` | Read execution status, metrics, and selected search results. |
+| HTML reports | Inspect measurements and compare configurations. |
+| `stdout.txt` / `stderr.txt` | Diagnose failures or missing metrics. |
 
 Keep model, input, resource, and measurement conditions consistent when comparing configurations.
 
+## Optimize configurations
+
+Evaluate a grid of choices, or connect an agent that selects the next experiment from measured feedback.
+Custom agents control stopping according to their compute-budget policy.
+
 <details>
-<summary>Search configurations — compare two NCCL algorithms</summary>
+<summary><strong>Search configurations — compare two NCCL algorithms</strong></summary>
 
 After running the networking example, compare Ring and Tree using the same Slurm setup:
 
@@ -156,8 +233,13 @@ configurations and stop according to their own policy.
 
 </details>
 
+## Automate and extend
+
+Use the Python API to run experiments from your own tools or an AI agent. Add workloads, execution systems,
+reporters, and optimization agents through public interfaces and the registry.
+
 <details>
-<summary>Automate experiments with Python</summary>
+<summary><strong>Automate experiments with Python</strong></summary>
 
 After the local Fio setup, save this as `experiment.py` and run `uv run python experiment.py`:
 
@@ -186,6 +268,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to propose changes or add an integration.
 
 CloudAI is licensed under [Apache 2.0](LICENSE.md).
 
-## External Materials
+<details>
+<summary><strong>External materials — notice and disclaimer</strong></summary>
 
-See the [Notice and Disclaimer](https://nvidia.github.io/cloudai/#external-materials-notice) in the CloudAI documentation before using external materials retrieved by CloudAI.
+NOTICE AND DISCLAIMER: This software automatically retrieves, accesses or interacts with external materials.
+Those retrieved materials are not distributed with this software and are governed solely by separate terms,
+conditions and licenses. You are solely responsible for finding, reviewing and complying with all applicable
+terms, conditions, and licenses, and for verifying the security, integrity and suitability of any retrieved
+materials for your specific use case. This software is provided "AS IS", without warranty of any kind. The
+author makes no representations or warranties regarding any retrieved materials, and assumes no liability for
+any losses, damages, liabilities or legal consequences from your use or inability to use this software or any
+retrieved materials. Use this software and the retrieved materials at your own risk.
+
+</details>

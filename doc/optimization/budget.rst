@@ -31,6 +31,9 @@ Estimate allocation cost
 * Track queue delay separately from allocated compute.
 * Treat a per-job time limit separately from the overall search budget.
 
+Constraint-rejected proposals are retried before consuming a DSE step, up to the configured consecutive-rejection
+limit. See :ref:`constraint-rejected-proposals` for how skipped steps affect progress.
+
 Control growth
 --------------
 

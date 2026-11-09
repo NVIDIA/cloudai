@@ -10,6 +10,8 @@ prerequisites still apply.
 Compatibility
 -------------
 
+.. Keep this matrix aligned with README.md and src/cloudai/registration.py.
+
 .. csv-table::
    :header: "Workload", "Slurm", "Standalone", "Kubernetes", "RunAI", "LSF"
    :widths: 35, 13, 13, 13, 13, 13

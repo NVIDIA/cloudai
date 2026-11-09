@@ -136,6 +136,27 @@ Will result in srun command inside sbatch script like this:
 
    srun ... --arg=val --other-arg=other-val ...
 
+.. _docker-image-import-arguments:
+
+Set image import limits
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Image imports have separate allocation arguments from workload execution. Add these top-level settings to your
+system TOML when caching images locally:
+
+.. code-block:: toml
+
+   cache_docker_images_locally = true
+   extra_sbatch_args = ["--segment 2"]
+   extra_srun_args = "--cpu-bind=cores"
+   docker_image_import_extra_sbatch_args = ["--time=00:20:00"]
+
+* Each import uses one node and one task, with the system's account and default partition.
+* The example allows 20 minutes per image import, excluding queue wait time.
+* ``extra_sbatch_args`` and ``extra_srun_args`` apply only to workloads. Put import-specific options in
+  ``docker_image_import_extra_sbatch_args``.
+* With no import time argument, Slurm's default time limit applies.
+
 Container Mounts
 ~~~~~~~~~~~~~~~~
 

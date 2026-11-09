@@ -98,12 +98,15 @@ AIPerf JSON exports also provide these Dynamo metrics, all maximized by default:
    * - ``total_token_throughput_per_serving_gpu``
      - tokens/s/GPU
 
-Total throughput includes input and output tokens, using AIPerf's ``total_token_throughput.avg``. Per-user
-throughput divides it by the phase's configured ``args.users``, falling back to ``args.concurrency``. Per-serving-GPU
-throughput divides it by the configured GPU count across prefill and decode, including worker replicas and
-multi-node groups. SGLang attention DP shares TP devices. Omitted settings follow CloudAI's standard launcher
-defaults; custom commands that change GPU placement are outside this calculation. Packing and hardware-derived
-defaults use the system's ``gpus_per_node``, or ``CUDA_VISIBLE_DEVICES`` when configured for the test.
+Total throughput includes input and output tokens, using AIPerf's ``total_token_throughput.avg``.
+
+* **Per user:** divide by the phase's ``args.users``, falling back to ``args.concurrency``.
+* **Per serving GPU:** divide by the configured GPU count across prefill and decode, including worker replicas
+  and multi-node groups. SGLang attention DP shares TP devices.
+* **Omitted settings:** use CloudAI's standard launcher defaults. Custom commands that change GPU placement are
+  outside this calculation.
+* **Packing and hardware-derived defaults:** use the system's ``gpus_per_node``, or ``CUDA_VISIBLE_DEVICES`` when
+  configured for the test.
 
 The two GPU-normalized metrics divide total output tokens/s by different counts:
 

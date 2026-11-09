@@ -17,6 +17,7 @@ In this section, we introduce the concept of the system schema, explain the mean
    ntasks_per_node = 8
 
    cache_docker_images_locally = true
+   docker_image_import_extra_sbatch_args = ["--time=00:20:00"]
 
    [[partitions]]
    name = "partition_1"

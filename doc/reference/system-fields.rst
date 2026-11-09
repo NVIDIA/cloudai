@@ -27,6 +27,10 @@ Shared system settings
      - These are Slurm arguments passed to the ``sbatch`` script and ``srun``.
    * - **cache_docker_images_locally**
      - Specifies whether CloudAI should cache remote Docker images locally during installation. If set to ``true``, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to ``false``, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
+   * - **[optional] docker_image_import_extra_sbatch_args**
+     - Slurm allocation arguments for image imports when ``cache_docker_images_locally = true``.
+       Defaults to ``[]``; Slurm's default time limit applies unless overridden.
+       See :ref:`docker-image-import-arguments` for a time-limit example.
    * - **global_env_vars**
      - Lists all global environment variables that will be applied globally whenever tests are run.
    * - **[optional] slurm_api**

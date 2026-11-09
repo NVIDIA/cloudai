@@ -18,6 +18,33 @@ Report registration is done via ``Registry`` class:
 
    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
 
+Provide inference measurements
+------------------------------
+
+Implement ``InferenceReportProvider.inference_reports(system, tr)`` from
+``cloudai.report_generator.inference_report`` to make a workload's inference measurements available to shared reports.
+Return one ``InferenceReport`` per independent measurement, or an empty list when no results are available.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Report content
+     - Contract
+   * - ``InferenceConfig``
+     - Resolved model, benchmark, load, hardware, and serving-role settings. Unknown optional settings remain ``None``.
+   * - ``MetricObservation`` outputs
+     - Metric values with units and dimensions. Independent measurements stay in separate reports even if metric names match.
+   * - Serving roles
+     - Instance counts and assigned nodes per instance; TP, PP, and DP describe parallelism within each instance.
+   * - ``shared_nodes``
+     - Overlapping prefill/decode placement. Combined prefill/decode is displayed as ``Serving``.
+
+vLLM and SGLang return one report per execution. Dynamo returns separate reports for benchmark phases and resolves
+worker counts from its configured topology and standard launcher defaults.
+
+The :doc:`Pareto reporter </pareto-frontiers>` treats each report as a candidate point and applies ``match`` to its
+metric observations. ``metric_observations()`` remains available and combines observations from these reports.
+
 .. _reporting-configuration-implementation:
 
 Reporting Configuration Implementation
