@@ -21,8 +21,8 @@ Explore configurations with grid search, or connect your own `optimization agent
 to guide search within your compute budget.
 :doc:`Add workloads, systems, and reporters <DEV>` for your task.
 
-Our team also develops internal optimization agents that can find strong configurations with fewer workload evaluations
-than grid search. These agents are separate from the public distribution.
+Our internal optimization agents can significantly reduce the number of experiments needed to find strong
+configurations compared with grid search, saving time and compute budget. Contact the team for details.
 
 .. _choose-a-workflow:
 
