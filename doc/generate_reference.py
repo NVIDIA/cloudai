@@ -83,12 +83,12 @@ def generate(root=ROOT):
         keep_trailing_newline=True,
         trim_blocks=True,
         lstrip_blocks=True,
-        autoescape=False,
+        autoescape=jinja2.select_autoescape(),
     )
     env.filters["mdx"] = mdx_text
     env.filters["cell"] = lambda value: mdx_text(value).replace("|", "&#124;").replace("\n", "<br />")
     env.filters["code"] = lambda value: str(value).replace("|", "\\|").replace("\n", " ")
-    template = env.get_template("reference.mdx.jinja")
+    template = env.get_template("reference.mdx.jinja2")
     output = root / "fern/generated"
     shutil.rmtree(output, ignore_errors=True)
     output.mkdir(parents=True, exist_ok=True)
