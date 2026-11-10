@@ -721,19 +721,32 @@ def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
     assert record.domain("action") == {"ooo": 10}
 
 
-def test_load_preserves_legacy_history_without_an_observation_column(tmp_path: Path) -> None:
-    (tmp_path / "trajectory.csv").write_text("step,action,reward\n1,{'ooo': 10},0.1\n")
+def test_load_rejects_a_history_without_an_observation_column(tmp_path: Path) -> None:
+    path = tmp_path / "trajectory.csv"
+    path.write_text("step,action,reward\n1,{'ooo': 10},0.1\n")
+    original = path.read_bytes()
 
-    loaded = Trajectory.load(tmp_path)
-    record = loaded.records()[0]
+    with pytest.raises(TrajectoryLoadError) as failure:
+        Trajectory.load(tmp_path)
 
-    assert record.domain("action") == {"ooo": 10}
-    assert record.domain("reward") == 0.1
+    assert str(failure.value) == f"Cannot load trajectory {path}: row 1, missing required columns: ['observation']"
+    assert path.read_bytes() == original
 
-    with pytest.raises(KeyError):
-        record.domain("observation")
 
-    assert list(loaded.csv_dataframe.columns) == ["step", "action", "reward"]
+@pytest.mark.parametrize(
+    ("cell", "expected"),
+    [("", ""), ("None", None), ("[]", []), ("[truncated observation]", "[truncated observation]")],
+)
+def test_load_preserves_present_observation_cells(tmp_path: Path, cell: str, expected: Any) -> None:
+    path = tmp_path / "trajectory.csv"
+    path.write_text("step,action,reward,observation\n1,{'ooo': 10},-1.0," + cell + "\n")
+    original = path.read_bytes()
+
+    record = Trajectory.load(tmp_path).records()[0]
+
+    assert record["observation"] == expected
+    assert record["reward"] == -1.0
+    assert path.read_bytes() == original
 
 
 def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path: Path) -> None:
@@ -847,13 +860,9 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
 def test_record_formats_observation_without_changing_its_domain(
     tmp_path: Path, observation: Any, present: bool, expected: str
 ) -> None:
-    if present:
-        trajectory = Trajectory(iteration_dir=tmp_path)
-        trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation)
-        record = trajectory.records()[0]
-    else:
-        (tmp_path / "trajectory.csv").write_text("step,action,reward\n1,{'ooo': 10},1.0\n")
-        record = Trajectory.load(tmp_path).records()[0]
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation if present else {})
+    record = trajectory.records()[0]
     original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
     before = repr(record.domain("observation")) if present else None
 

@@ -659,8 +659,8 @@ Load a completed iteration through the same ``Trajectory`` class that writes it:
        observation = trial["observation"]
        metadata = trial.metadata
 
-Records are read-only mappings. Keys include ``step``, ``action``, ``reward``,
-optional ``observation`` and any metadata domains such as ``env_params``.
+Loaded records are read-only mappings. Keys include ``step``, ``action``,
+``reward``, ``observation`` and any metadata domains such as ``env_params``.
 They support indexing, ``get``, membership, iteration, ``len``, ``keys``,
 ``items``, ``values``, dictionary conversion, unpacking, equality and reversed
 key iteration. Missing keys raise ``KeyError``; ``get`` returns its supplied
@@ -688,10 +688,12 @@ Legacy files may start at step 0; loaded step identities are preserved and must
 remain nonnegative, unique and increasing. Newly appended trials retain the
 existing positive-step requirement.
 
-Legacy files containing only ``step``, ``action`` and ``reward`` remain valid.
-When the observation column is absent, ``trial["observation"]`` raises
-``KeyError`` rather than inventing a measurement. If a header declares an
-observation column, every row must still contain its corresponding cell.
+All histories must contain ``step``, ``action``, ``reward`` and ``observation``.
+Missing required columns raise ``TrajectoryLoadError`` for every consumer.
+Histories without an ``observation`` column are no longer accepted; restore the
+original column from recorded measurements rather than inserting ``[]``.
+Only column presence is newly required; existing empty, ``None`` and truncated
+observation values remain supported. Every row must contain its declared cells.
 
 ``trial.domain("env_params")`` returns environment parameters when that domain
 is present. A missing domain raises ``KeyError``. Legacy metadata cells remain

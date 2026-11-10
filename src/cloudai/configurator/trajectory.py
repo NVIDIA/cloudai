@@ -150,9 +150,7 @@ class Trajectory:
     def load(cls, source: str | Path) -> Trajectory:
         source = Path(source)
         path = source / cls.file_name if source.is_dir() else source
-        columns, rows, text = _read_csv(
-            path, required=tuple(name for name in cls._core_fields if name != "observation")
-        )
+        columns, rows, text = _read_csv(path, required=cls._core_fields)
 
         sidecar = path.parent / cls.metadata_file_name
         has_metadata = sidecar.exists() or sidecar.is_symlink()
