@@ -490,9 +490,17 @@ def test_load_reconstructs_complete_trials_from_the_real_writer(tmp_path: Path) 
             action={"ooo": ooo},
             reward=step / 10,
             observation={"bus_bw": step * 10.0},
-            env_params={"workload": "bisection", "msg_size": 1024, "drop_rate": 0.003},
+            env_params={"workload": "bisection", "msg_size": 1024, "drop_rate": 0.003, "network.port": 100},
             execution={"ticket": f"T-{step}"},
         )
+    live = written.records()[0]
+    assert live["env_params"] == {
+        "workload": "bisection",
+        "msg_size": 1024,
+        "drop_rate": 0.003,
+        "network": {"port": 100},
+    }
+
     original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
 
     loaded = Trajectory.load(tmp_path)
@@ -506,6 +514,7 @@ def test_load_reconstructs_complete_trials_from_the_real_writer(tmp_path: Path) 
         "workload": "bisection",
         "msg_size": "1024",
         "drop_rate": "0.003",
+        "network": {"port": "100"},
     }
     assert records[0].metadata["execution"] == {"ticket": "T-1"}
     assert records[0].source == written.output_path
@@ -563,6 +572,74 @@ def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> 
 
     assert loaded.dataframe.loc[0, "action.values"] == [1, 2]
     assert loaded.csv_dataframe.loc[0, "reward"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("action", "reward", "observation", "serialized_observation", "next_observation"),
+    [
+        ({}, {"objective": {}}, {}, [], []),
+        (
+            {"cmd_args.ooo_thresh": 20, "nested": {"empty": {}}},
+            {"metrics.score": 1.0, "empty": {}},
+            [100.0],
+            [100.0],
+            [200.0],
+        ),
+    ],
+)
+def test_complete_core_records_survive_loading_and_appending(
+    tmp_path: Path,
+    action: Any,
+    reward: Any,
+    observation: Any,
+    serialized_observation: list[float],
+    next_observation: list[float],
+) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action=action, reward=reward, observation=observation)
+    live = trajectory.records()[0]
+
+    assert live["action"] == action
+    assert live["reward"] == reward
+    assert live["observation"] == observation
+    assert live.row is None
+
+    loaded = Trajectory.load(tmp_path)
+    first = loaded.records()[0]
+    assert first["action"] == action
+    assert first["reward"] == reward
+    assert first["observation"] == serialized_observation
+    assert first.row == 2
+
+    loaded.append(step=2, action=action, reward=reward, observation=next_observation)
+    records = loaded.records()
+    assert [record["action"] for record in records] == [action, action]
+    assert [record["reward"] for record in records] == [reward, reward]
+    assert [record["observation"] for record in records] == [serialized_observation, next_observation]
+    assert [record.row for record in records] == [2, None]
+    assert records[0].source == records[1].source == trajectory.output_path
+    assert live["action"] == first["action"] == records[0]["action"]
+
+    reloaded = Trajectory.load(tmp_path).records()
+    assert [dict(record) for record in reloaded] == [dict(record) for record in records]
+    assert [record.row for record in reloaded] == [2, 3]
+
+
+@pytest.mark.parametrize("domain", ["action", "reward", "observation"])
+def test_inline_auxiliary_columns_cannot_change_core_values(tmp_path: Path, domain: str) -> None:
+    source = tmp_path / "trajectory.csv"
+    with source.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "action", "reward", "observation", f"{domain}.extra"])
+        writer.writerow([1, {}, {}, {}, "auxiliary"])
+    original = source.read_bytes()
+
+    with pytest.raises(TrajectoryLoadError, match="overlaps core domain") as failure:
+        Trajectory.load(source)
+
+    assert str(source) in str(failure.value)
+    assert domain in str(failure.value)
+    assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize(
@@ -843,6 +920,10 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
         (1, {"workload": "wide"}),
     ]
     assert records[0]["action"] == {"ooo": 10}
+    for record in records:
+        assert list(record).count("step") == 1
+        assert len(record) == len(set(record)) == len(dict(record))
+        assert list(record.items()).count(("step", record.step)) == 1
     assert [record.get("step", decode_numbers=True) for record in records] == [0, 1]
     assert loaded.dataframe["step.extra"].tolist() == ["legacy-0", "legacy-1"]
 
@@ -867,8 +948,14 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
 def test_record_formats_observation_without_changing_its_domain(
     tmp_path: Path, observation: Any, present: bool, expected: str
 ) -> None:
-    trajectory = Trajectory(iteration_dir=tmp_path)
-    trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation if present else {})
+    if present:
+        trajectory = Trajectory(iteration_dir=tmp_path)
+        trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation)
+    else:
+        trajectory = Trajectory(
+            iteration_dir=tmp_path,
+            dataframe=pd.DataFrame([{"step": 1, "action.ooo": 10, "reward": 1.0}]),
+        )
     record = trajectory.records()[0]
     original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
     before = repr(record["observation"]) if present else None

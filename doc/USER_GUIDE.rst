@@ -687,6 +687,10 @@ Legacy files may start at step 0; loaded step identities are preserved and must
 remain nonnegative, unique and increasing. Newly appended trials retain the
 existing positive-step requirement.
 
+Appending preserves earlier record values and CSV provenance, including literal action keys and empty mappings.
+Inline auxiliary columns cannot overlap ``action``, ``reward`` or ``observation``.
+Legacy ``step.*`` columns remain available in ``dataframe`` without duplicating the record's step key.
+
 All histories must contain ``step``, ``action``, ``reward`` and ``observation``.
 Missing required columns raise ``TrajectoryLoadError`` for every consumer.
 Histories without an ``observation`` column are no longer accepted; restore the

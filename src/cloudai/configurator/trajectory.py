@@ -61,31 +61,26 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
         object.__setattr__(self, "_domains", deepcopy(self._domains))
 
     def __getitem__(self, key: str) -> Any:  # noqa: D105
-        return self.step if key == "step" else self._domain(key)
+        return self.step if key == "step" else deepcopy(self._domains[key])
 
     def __iter__(self) -> Iterator[str]:  # noqa: D105
         yield "step"
-        yield from self._domains
+        yield from (name for name in self._domains if name != "step")
 
     def __len__(self) -> int:  # noqa: D105
-        return len(self._domains) + 1
+        return len(self._domains) + ("step" not in self._domains)
 
     def get(self, key: str, default: Any = None, *, decode_numbers: bool = False) -> Any:
-        if key == "step":
-            return self.step
-
         try:
-            return self._domain(key, decode_numbers=decode_numbers)
+            value = self[key]
         except KeyError:
             return default
 
-    def _domain(self, name: str, *, decode_numbers: bool = False) -> Any:
-        value = deepcopy(self._domains[name])
         return _decode_numbers(value) if decode_numbers else value
 
     def format_observation(self) -> str:
         try:
-            observation = self._domain("observation")
+            observation = self["observation"]
         except KeyError:
             return "n/a"
         if isinstance(observation, str) and observation.startswith("[truncated"):
@@ -118,11 +113,6 @@ class Trajectory:
         self._dataframe = lazy.pd.DataFrame() if dataframe is None else _copy_dataframe(dataframe)
         self._validate_dataframe()
         self._dataframe = self._dataframe.astype(object)
-        # Rows are authoritative; the DataFrame is rebuilt on demand. Appending by
-        # concatenating a one-row frame copies every accumulated row (O(N^2) over a run),
-        # and ``find`` scanning with ``iterrows`` is O(N) per call, so a cached lookup index
-        # is kept alongside. Both are invisible when a trial costs seconds and dominate
-        # once trials are cheap.
         self._rows: list[dict[str, Any]] = (
             [dict(record) for _, record in self._dataframe.iterrows()] if len(self._dataframe) else []
         )
@@ -130,9 +120,8 @@ class Trajectory:
         self._frame_dirty = False
 
         self._source_csv_dataframe: pd.DataFrame | None = None
-        self._loaded_records: tuple[TrajectoryRecord, ...] | None = None
+        self._records: list[TrajectoryRecord | None] = [None] * len(self._rows)
         self._source_path: Path | None = None
-        self._source_metadata_path: Path | None = None
 
         logging.debug(
             "Initializing Trajectory: entries=%s, columns=%s.",
@@ -159,8 +148,7 @@ class Trajectory:
         loaded._dataframe = _copy_dataframe(frame)
         loaded._rows = deepcopy(flattened_rows)
         loaded._source_path = path
-        loaded._source_metadata_path = sidecar
-        loaded._loaded_records = tuple(records)
+        loaded._records.extend(records)
 
         try:
             loaded._source_csv_dataframe = lazy.pd.read_csv(io.StringIO(text))
@@ -235,11 +223,15 @@ class Trajectory:
         metadata_rows: dict[int, tuple[int, dict[str, str]]] | None,
     ) -> TrajectoryRecord:
         domains = {
-            name: _decode_core_value(row[name], path, row_number, name)
-            for name in cls._core_fields
-            if name != "step" and name in row
+            name: _decode_core_value(row[name], path, row_number, name) for name in cls._core_fields if name != "step"
         }
         extra = {name: value for name, value in row.items() if name not in cls._core_fields}
+
+        for name in extra:
+            domain = name.split(".", maxsplit=1)[0]
+            if domain in cls._core_domains and domain != "step":
+                raise TrajectoryLoadError(path, f"metadata overlaps core domain: {name}", row=row_number, step=step)
+
         source_paths = {name: path for name in extra}
 
         if metadata_rows is not None:
@@ -261,18 +253,28 @@ class Trajectory:
         return TrajectoryRecord(step, path, domains, row_number)
 
     def records(self) -> tuple[TrajectoryRecord, ...]:
-        if self._loaded_records is not None:
-            return deepcopy(self._loaded_records)
-
         records = []
-        for row in self._rows:
-            domains: dict[str, Any] = {}
-            for name, value in row.items():
-                if name != "step":
-                    _set_domain(domains, name, value, self.output_path, row["step"])
-            records.append(TrajectoryRecord(row["step"], self.output_path, domains))
+        for index, row in enumerate(self._rows):
+            record = self._records[index]
+            existing = {} if record is None else record._domains
+            missing = {
+                name: value
+                for name, value in row.items()
+                if name != "step" and name.split(".", maxsplit=1)[0] not in existing
+            }
 
-        return tuple(records)
+            if record is None or missing:
+                domains = dict(existing)
+                for name, value in missing.items():
+                    _set_domain(domains, name, value, self.output_path, row["step"])
+
+                source = self.output_path if record is None else record.source
+                source_row = None if record is None else record.row
+                record = TrajectoryRecord(row["step"], source, domains, source_row)
+                self._records[index] = record
+            records.append(record)
+
+        return deepcopy(tuple(records))
 
     @property
     def csv_dataframe(self) -> pd.DataFrame:
@@ -298,11 +300,7 @@ class Trajectory:
     @property
     def metadata_path(self) -> Path:
         """Return the trajectory metadata CSV path."""
-        return (
-            self._source_metadata_path
-            if self._source_metadata_path is not None
-            else self._iteration_dir / self.metadata_file_name
-        )
+        return self._iteration_dir / self.metadata_file_name
 
     def append(
         self,
@@ -331,6 +329,10 @@ class Trajectory:
         if expected_fields and fields != expected_fields:
             raise ValueError(f"trajectory record fields changed: expected {expected_fields}, got {fields}")
 
+        snapshot = TrajectoryRecord(
+            step, self.output_path, {"action": action, "reward": reward, "observation": observation}
+        )
+
         row = lazy.pd.Series(record, dtype=object)
         row_trajectory = lazy.pd.Series(
             {
@@ -357,7 +359,7 @@ class Trajectory:
         for fields, index in self._find_index.items():
             index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
         self._frame_dirty = True
-        self._loaded_records = None
+        self._records.append(snapshot)
         logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
         return _copy_series(row)
 
