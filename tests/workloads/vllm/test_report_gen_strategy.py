@@ -37,7 +37,10 @@ from cloudai.workloads.vllm.vllm import (
     VLLM_BENCH_JSON_FILE,
     VLLM_GSM8K_JSON_FILE,
     VLLM_SEMANTIC_EVAL_LOG_FILE,
+    VLLM_SERVE_LOG_FILE,
+    VllmServeStats,
     parse_vllm_semantic_accuracy,
+    parse_vllm_serve_stats,
 )
 
 BENCH_DATA = VLLMBenchReport(
@@ -286,3 +289,125 @@ def test_inference_reports(
     ]
     assert test.inference_reports(slurm_system, tr) == expected
     assert test.metric_observations(slurm_system, tr) == expected[0].observations
+
+
+STATS_PREFIX = "(APIServer pid=101) INFO 11-09 15:24:46 [loggers.py:274] Engine 000: "
+SERVE_LOG = "\n".join(
+    [
+        "(EngineCore_DP0 pid=202) INFO 11-09 15:23:10 [kv_cache_utils.py:1169] GPU KV cache size: 401,856 tokens, "
+        "Maximum concurrency for 40,960 tokens per request: 9.81x",
+        STATS_PREFIX + "Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, "
+        "Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+        STATS_PREFIX + "Avg prompt throughput: 512.0 tokens/s, Avg generation throughput: 1200.5 tokens/s, "
+        "Running: 8 reqs, Waiting: 0 reqs, GPU KV cache usage: 20.0%, Prefix cache hit rate: 0.0%",
+        STATS_PREFIX + "Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 2400.0 tokens/s, "
+        "Running: 16 reqs, Waiting: 4 reqs, Finished: 2 reqs, Preemptions: 3, GPU KV cache usage: 95.5%",
+        STATS_PREFIX + "Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 2100.0 tokens/s, "
+        "Running: 12 reqs, Waiting: 1 reqs, Finished: 5 reqs, GPU KV cache usage: 60.5%",
+        "(EngineCore_DP0 pid=202) INFO 11-09 15:25:01 [loggers.py:206] Engine 000: Iteration(9): 1 context requests, "
+        "16 context tokens, 0 generation requests, 0 generation tokens, iteration elapsed time: 3.10 ms, "
+        "GPU KV cache usage: 99.0%",
+        'INFO:     127.0.0.1:41234 - "POST /v1/completions HTTP/1.1" 200 OK',
+    ]
+)
+
+
+def test_parse_vllm_serve_stats(tmp_path: Path) -> None:
+    log_path = tmp_path / VLLM_SERVE_LOG_FILE
+    log_path.write_text(SERVE_LOG, encoding="utf-8")
+
+    assert parse_vllm_serve_stats(log_path) == VllmServeStats(
+        kv_cache_usage=[20.0, 95.5, 60.5], waiting_requests=[0, 4, 1], kv_cache_capacity=401856
+    )
+
+
+def test_parse_vllm_serve_stats_legacy_capacity_line(tmp_path: Path) -> None:
+    log_path = tmp_path / VLLM_SERVE_LOG_FILE
+    log_path.write_text(
+        "INFO 05-01 12:00:00 [kv_cache_utils.py:634] GPU KV cache size: 1,024 tokens\n"
+        "INFO 05-01 12:00:00 [kv_cache_utils.py:637] Maximum concurrency for 4,096 tokens per request: 0.25x\n",
+        encoding="utf-8",
+    )
+
+    assert parse_vllm_serve_stats(log_path) == VllmServeStats(
+        kv_cache_usage=[], waiting_requests=[], kv_cache_capacity=1024
+    )
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(None, id="missing"),
+        pytest.param("", id="empty"),
+        pytest.param("INFO Starting vLLM API server\nGPU KV cache usage: abc%\n", id="no-stats"),
+        pytest.param(
+            STATS_PREFIX + "Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, "
+            "GPU KV cache usage: 0.0%",
+            id="idle-only",
+        ),
+    ],
+)
+def test_parse_vllm_serve_stats_without_values(tmp_path: Path, content: str | None) -> None:
+    log_path = tmp_path / VLLM_SERVE_LOG_FILE
+    if content is not None:
+        log_path.write_text(content, encoding="utf-8")
+
+    assert parse_vllm_serve_stats(log_path) is None
+
+
+def test_parse_vllm_serve_stats_ignores_inconsistent_capacities(tmp_path: Path) -> None:
+    log_path = tmp_path / VLLM_SERVE_LOG_FILE
+    log_path.write_text("GPU KV cache size: 1,024 tokens\nGPU KV cache size: 2,048 tokens\n", encoding="utf-8")
+
+    assert parse_vllm_serve_stats(log_path) is None
+
+
+def test_vllm_serve_stats_observations() -> None:
+    stats = VllmServeStats(kv_cache_usage=[20.0, 95.5, 60.5], waiting_requests=[0, 4, 1], kv_cache_capacity=401856)
+
+    assert stats.observations() == [
+        cloudai.metrics.MetricObservation(cloudai.metrics.KV_CACHE_CAPACITY, 401856, {}),
+        cloudai.metrics.MetricObservation(cloudai.metrics.KV_CACHE_USAGE, 58.666666666666664, {"statistic": "mean"}),
+        cloudai.metrics.MetricObservation(cloudai.metrics.KV_CACHE_USAGE, 95.5, {"statistic": "max"}),
+        cloudai.metrics.MetricObservation(cloudai.metrics.WAITING_REQUESTS, 4, {"statistic": "max"}),
+    ]
+    assert stats.observations(include_runtime=False) == stats.observations()[:1]
+
+
+def test_vllm_metric_observations_include_serve_stats(slurm_system: SlurmSystem, vllm_tr: TestRun) -> None:
+    test = cast(VllmTestDefinition, vllm_tr.test)
+    bench_only = test.metric_observations(slurm_system, vllm_tr)
+    (vllm_tr.output_path / VLLM_SERVE_LOG_FILE).write_text(SERVE_LOG, encoding="utf-8")
+
+    observations = test.metric_observations(slurm_system, vllm_tr)
+
+    assert observations[: len(bench_only)] == bench_only
+    assert {obs.metric.key for obs in observations[len(bench_only) :]} == {
+        "kv_cache_capacity",
+        "kv_cache_usage",
+        "waiting_requests",
+    }
+
+
+def test_vllm_metric_observations_skip_runtime_stats_with_semantic_eval(
+    slurm_system: SlurmSystem, vllm_tr: TestRun
+) -> None:
+    test = cast(VllmTestDefinition, vllm_tr.test)
+    test.semantic_eval_cmd_args = VllmSemanticEvalCmdArgs()
+    (vllm_tr.output_path / VLLM_GSM8K_JSON_FILE).write_text(json.dumps({"accuracy": 0.9}), encoding="utf-8")
+    (vllm_tr.output_path / VLLM_SERVE_LOG_FILE).write_text(SERVE_LOG, encoding="utf-8")
+
+    keys = [obs.metric.key for obs in test.metric_observations(slurm_system, vllm_tr)]
+
+    assert "kv_cache_capacity" in keys
+    assert "kv_cache_usage" not in keys
+    assert "waiting_requests" not in keys
+
+
+def test_vllm_metric_observations_ignore_serve_log_without_bench_results(
+    slurm_system: SlurmSystem, vllm_tr: TestRun
+) -> None:
+    (vllm_tr.output_path / VLLM_BENCH_JSON_FILE).unlink()
+    (vllm_tr.output_path / VLLM_SERVE_LOG_FILE).write_text(SERVE_LOG, encoding="utf-8")
+
+    assert vllm_tr.test.metric_observations(slurm_system, vllm_tr) == []

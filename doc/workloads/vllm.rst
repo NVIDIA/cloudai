@@ -129,6 +129,22 @@ Structured metrics
    "``ttft`` (time to first token)", "ms", "Lower", "``statistic``: mean, median, p99"
    "``tpot`` (time per output token)", "ms", "Lower", "``statistic``: mean, median, p99"
    "``accuracy``", "ratio (0–1)", "Higher", "None"
+   "``kv_cache_capacity``", "tokens", "Higher", "None"
+   "``kv_cache_usage``", "%", "Lower", "``statistic``: mean, max"
+   "``waiting_requests``", "requests", "Lower", "``statistic``: max"
+
+The KV cache metrics are parsed from ``vllm-serve.log`` in non-disaggregated mode and are emitted only alongside
+benchmark results. ``kv_cache_capacity`` is the per-engine token capacity vLLM logs at startup, after model weights
+and activation memory are reserved. It is omitted when the log reports different capacities, for example from
+data-parallel engines with different settings. ``kv_cache_usage`` and ``waiting_requests`` are sampled from vLLM's
+periodic stats lines (every 10 seconds by default), skipping intervals with no running or waiting requests. ``max`` is
+the highest logged sample, not an exact peak. These runtime metrics are omitted when ``semantic_eval_cmd_args`` is set
+because evaluation traffic shares the same server log. Passing ``disable_log_stats`` to vLLM disables the runtime
+metrics.
+
+KV cache usage is the fraction of allocated KV cache blocks in use, not total GPU memory usage. vLLM preallocates GPU
+memory for the KV cache at startup, so device memory reported by tools such as ``nvidia-smi`` stays near
+``gpu_memory_utilization`` regardless of load.
 
 
 Controlling the Number of GPUs
