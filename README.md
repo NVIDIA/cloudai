@@ -3,6 +3,8 @@
 <p align="center"><strong>The execution framework for AI-driven research.</strong></p>
 
 <p align="center">
+  <a href="https://github.com/NVIDIA/cloudai/actions/workflows/ci.yml?query=event%3Apull_request"><img src="https://github.com/NVIDIA/cloudai/actions/workflows/ci.yml/badge.svg?event=pull_request" alt="CI status for pull requests"></a>
+  <a href="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml?query=branch%3Amain"><img src="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml/badge.svg?branch=main&amp;event=push" alt="Documentation build and deployment status on main"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-Apache_2.0-76B900" alt="License: Apache 2.0"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-76B900" alt="Python 3.10 or newer"></a>
 </p>
@@ -236,7 +238,25 @@ configurations and stop according to their own policy.
 ## Automate and extend
 
 Use the Python API to run experiments from your own tools or an AI agent. Add workloads, execution systems,
-reporters, and optimization agents through public interfaces and the registry.
+reporters, and optimization agents through public interfaces and the registry to fit your own environment and tasks.
+
+<details>
+<summary><strong>Build the extension your task needs</strong></summary>
+
+For an existing script or container, start with `BashCmd` or `SlurmContainer` on Slurm.
+For a reusable integration, implement and register the relevant public interface:
+
+| Your goal | Extension | Starting point |
+| :--- | :--- | :--- |
+| Run a new workload | Configuration and execution strategy | [Fio implementation](src/cloudai/workloads/fio) |
+| Extract custom metrics or generate reports | Reporter | [Reporter guide](doc/extend/reporter.rst) |
+| Choose configurations using measured feedback | Optimization agent | [Agent guide](doc/extend/agent.rst) |
+| Execute on another scheduler or platform | System and runner | [System guide](doc/extend/system.rst) |
+
+Use the public APIs in `cloudai.core` and register implementations with `Registry`.
+See the [workload guide](doc/extend/workload.rst) for implementation and validation steps.
+
+</details>
 
 <details>
 <summary><strong>Automate experiments with Python</strong></summary>
@@ -262,7 +282,11 @@ configuration and setup errors raise exceptions.
 
 ## Contribute
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) to propose changes or add an integration.
+Contributions are welcome: new integrations, fixes, documentation improvements, and examples from your own experiments.
+Built an extension others could use? We'd welcome a contribution.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). For a new feature or a substantial change, open an issue to discuss
+the use case with the team before implementing it.
 
 ## License
 

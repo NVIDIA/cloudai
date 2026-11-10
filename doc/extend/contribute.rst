@@ -1,7 +1,14 @@
 Develop and contribute
 ======================
 
-Make a focused change with a public example and validation appropriate to its behavior.
+Contributions are welcome, from a documentation fix to a new integration.
+
+- Share a workload, reporter, optimization agent, or execution backend you've built.
+- Improve an existing integration or fix a bug.
+- Add a public example or clarify a guide based on your experience.
+
+For a new feature or a substantial change, open an issue to discuss the use case with the team before implementing it.
+Keep each contribution focused, with validation appropriate to its behavior.
 
 Prepare
 -------

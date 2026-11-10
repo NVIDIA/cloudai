@@ -187,6 +187,8 @@ Read your results
 Open the results directory printed by CloudAI. See :doc:`reporting` for HTML reports and ``experiment.json``.
 Use the :doc:`Python API <api>` to automate experiments and consume results.
 
+Make CloudAI fit your task: :doc:`build an extension <extend/index>` or :doc:`contribute an improvement <extend/contribute>`.
+
 .. toctree::
    :hidden:
    :maxdepth: 2
