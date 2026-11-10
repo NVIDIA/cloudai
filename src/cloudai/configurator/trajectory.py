@@ -230,33 +230,12 @@ class Trajectory:
             previous_step = step
             steps.add(step)
 
-            domains = {
-                name: cls._decode_core_value(row[name], path, row_number, name)
-                for name in cls._core_fields
-                if name != "step" and name in row
-            }
-            extra = {name: value for name, value in row.items() if name not in cls._core_fields}
-            source_paths = {name: path for name in extra}
-
-            if metadata_rows is not None:
-                if step not in metadata_rows:
-                    raise TrajectoryLoadError(sidecar, "missing metadata row for trajectory step", step=step)
-                metadata_row_number, metadata_row = metadata_rows[step]
-                for name, value in metadata_row.items():
-                    if name != "step":
-                        if name in extra:
-                            raise TrajectoryLoadError(
-                                sidecar, f"duplicate metadata field: {name}", row=metadata_row_number, step=step
-                            )
-                        extra[name] = value
-                        source_paths[name] = sidecar
-
-            cls._decode_metadata(domains, extra, source_paths, step)
+            record = cls._build_record(path, row_number, row, step=step, sidecar=sidecar, metadata_rows=metadata_rows)
             flattened: dict[str, Any] = {"step": step}
-            for name, value in domains.items():
+            for name, value in record._domains.items():
                 flattened.update(_flatten_value(name, value))
             flattened_rows.append(flattened)
-            records.append(TrajectoryRecord(step, path, domains, row_number))
+            records.append(record)
 
         unmatched = set(metadata_rows or {}) - steps
         if unmatched:
@@ -268,16 +247,41 @@ class Trajectory:
         return records, flattened_rows
 
     @classmethod
-    def _decode_metadata(
+    def _build_record(
         cls,
-        domains: dict[str, Any],
-        values: dict[str, str],
-        paths: Mapping[str, Path],
+        path: Path,
+        row_number: int,
+        row: dict[str, str],
+        *,
         step: int,
-    ) -> None:
-        for name, value in values.items():
-            path = paths[name]
-            cls._set_domain(domains, name, value, path, step)
+        sidecar: Path,
+        metadata_rows: dict[int, tuple[int, dict[str, str]]] | None,
+    ) -> TrajectoryRecord:
+        domains = {
+            name: cls._decode_core_value(row[name], path, row_number, name)
+            for name in cls._core_fields
+            if name != "step" and name in row
+        }
+        extra = {name: value for name, value in row.items() if name not in cls._core_fields}
+        source_paths = {name: path for name in extra}
+
+        if metadata_rows is not None:
+            if step not in metadata_rows:
+                raise TrajectoryLoadError(sidecar, "missing metadata row for trajectory step", step=step)
+            metadata_row_number, metadata_row = metadata_rows[step]
+            for name, value in metadata_row.items():
+                if name != "step":
+                    if name in extra:
+                        raise TrajectoryLoadError(
+                            sidecar, f"duplicate metadata field: {name}", row=metadata_row_number, step=step
+                        )
+                    extra[name] = value
+                    source_paths[name] = sidecar
+
+        for name, value in extra.items():
+            cls._set_domain(domains, name, value, source_paths[name], step)
+
+        return TrajectoryRecord(step, path, domains, row_number)
 
     def records(self) -> tuple[TrajectoryRecord, ...]:
         if self._loaded_records is not None:

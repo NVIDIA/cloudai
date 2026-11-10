@@ -803,9 +803,9 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
 
     with core_path.open("w", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["step", "action", "reward", "observation"])
-        writer.writerow([0, {"ooo": 10}, 1.0, [100.0]])
-        writer.writerow([1, {"ooo": 11}, 2.0, [200.0]])
+        writer.writerow(["step", "action", "reward", "observation", "step.extra"])
+        writer.writerow([0, {"ooo": 10}, 1.0, [100.0], "legacy-0"])
+        writer.writerow([1, {"ooo": 11}, 2.0, [200.0], "legacy-1"])
 
     with metadata_path.open("w", newline="") as stream:
         writer = csv.writer(stream)
@@ -824,6 +824,7 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
         (1, {"workload": "wide"}),
     ]
     assert records[0].domain("action") == {"ooo": 10}
+    assert loaded.dataframe["step.extra"].tolist() == ["legacy-0", "legacy-1"]
 
     found = loaded.find(action={"ooo": 10}, env_params={"workload": "thin"})
     assert found is not None
