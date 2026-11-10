@@ -905,12 +905,11 @@ def test_record_reads_match_a_readonly_dictionary(
 
     assert record.source == tmp_path / "trajectory.csv"
     assert record["source"] == {"archive": "prior"}
-    assert dict(record) == {**record} == record.copy() == expected
+    assert dict(record) == {**record} == expected
     assert record == expected and expected == record
     assert list(record) == list(record.keys()) == list(expected)
     assert list(record.items()) == list(expected.items())
     assert list(record.values()) == list(expected.values())
-    assert list(reversed(record)) == list(reversed(expected))
     assert len(record) == len(expected) and bool(record) == bool(expected)
     for key in expected:
         assert key in record and record[key] == record.get(key) == expected[key]
@@ -920,17 +919,6 @@ def test_record_reads_match_a_readonly_dictionary(
         with pytest.raises(KeyError, match=missing):
             _ = record[missing]
 
-    replacement = {"reward": 7.0, "new": 3}
-    assert record | replacement == expected | replacement
-    assert replacement | record == replacement | expected
-    assert record | record == expected | expected
-    assert list(record | replacement) == list(expected | replacement)
-    assert list(replacement | record) == list(replacement | expected)
-    invalid: Any = []
-    with pytest.raises(TypeError):
-        _ = record | invalid
-    with pytest.raises(TypeError):
-        _ = invalid | record
     assert record.domain("env_params", decode_numbers=True) == {"message_size": 1024}
     assert record["env_params"] == {"message_size": "1024"}
 
@@ -945,8 +933,6 @@ def test_record_rejects_writes_and_returns_detached_nested_values(
         writable["reward"] = 7.0
     with pytest.raises(TypeError):
         del writable["reward"]
-    with pytest.raises(TypeError):
-        writable |= {"reward": 7.0}
     for mutator in ("clear", "pop", "popitem", "setdefault", "update"):
         assert not hasattr(record, mutator)
 
@@ -957,9 +943,6 @@ def test_record_rejects_writes_and_returns_detached_nested_values(
         list(record.values())[1],
         dict(record)["action"],
         {**record}["action"],
-        record.copy()["action"],
-        (record | {})["action"],
-        ({} | record)["action"],
     ):
         assert isinstance(detached, dict)
         detached["values"].append(3)

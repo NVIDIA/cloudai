@@ -662,16 +662,15 @@ Load a completed iteration through the same ``Trajectory`` class that writes it:
 Loaded records are read-only mappings. Keys include ``step``, ``action``,
 ``reward``, ``observation`` and any metadata domains such as ``env_params``.
 They support indexing, ``get``, membership, iteration, ``len``, ``keys``,
-``items``, ``values``, dictionary conversion, unpacking, equality and reversed
-key iteration. Missing keys raise ``KeyError``; ``get`` returns its supplied
-default, or ``None``. ``trial.source`` and ``trial.row`` are provenance
-attributes; same-named metadata keys remain accessible through indexing.
+``items``, ``values``, dictionary conversion, unpacking and equality. Missing
+keys raise ``KeyError``; ``get`` returns its supplied default, or ``None``.
+``trial.source`` and ``trial.row`` are provenance attributes; same-named
+metadata keys remain accessible through indexing.
 
-``trial.copy()`` and ``trial | {"reward": 1.0}`` return dictionaries; merging
-also works with the record on the right. Assignment, deletion, in-place merge
-and dictionary mutators are unavailable. Values returned by reads are detached
-copies, including nested values, so editing them cannot alter recorded history.
-The existing ``domain`` method remains available for explicit numeric decoding.
+Item assignment, deletion and dictionary mutators are unavailable. Values returned
+by reads are detached copies, including nested values, so editing them cannot
+alter recorded history. The existing ``domain`` method remains available for
+explicit numeric decoding.
 
 ``trial["env_params"]`` selects one group; ``trial.metadata`` returns a detached copy of all metadata.
 Both derive from one record, supporting field lookup and bulk access without duplicate storage.

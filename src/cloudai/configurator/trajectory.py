@@ -70,21 +70,6 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
     def __len__(self) -> int:  # noqa: D105
         return len(self._domains) + 1
 
-    def __reversed__(self) -> Iterator[str]:  # noqa: D105
-        return reversed(tuple(self))
-
-    def copy(self) -> dict[str, Any]:
-        return dict(self)
-
-    def __or__(self, other: Any) -> dict[str, Any]:  # noqa: D105
-        return dict(self) | other
-
-    def __ror__(self, other: Any) -> dict[str, Any]:  # noqa: D105
-        return other | dict(self)
-
-    def __ior__(self, other: Any) -> TrajectoryRecord:  # noqa: D105
-        raise TypeError("TrajectoryRecord is read-only; use '|' to create a merged dictionary")
-
     def domain(self, name: str, *, decode_numbers: bool = False) -> Any:
         value = deepcopy(self._domains[name])
         return _decode_numbers(value) if decode_numbers else value
