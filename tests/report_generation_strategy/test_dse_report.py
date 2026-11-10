@@ -143,7 +143,7 @@ def test_dse_summary_uses_the_record_observation_formatter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def format_observation(record: TrajectoryRecord) -> str:
-        assert record.domain("observation") == 7.5
+        assert record["observation"] == 7.5
         return "record-owned observation"
 
     monkeypatch.setattr(TrajectoryRecord, "format_observation", format_observation, raising=False)

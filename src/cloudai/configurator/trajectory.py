@@ -61,7 +61,7 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
         object.__setattr__(self, "_domains", deepcopy(self._domains))
 
     def __getitem__(self, key: str) -> Any:  # noqa: D105
-        return self.step if key == "step" else self.domain(key)
+        return self.step if key == "step" else self._domain(key)
 
     def __iter__(self) -> Iterator[str]:  # noqa: D105
         yield "step"
@@ -70,13 +70,22 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
     def __len__(self) -> int:  # noqa: D105
         return len(self._domains) + 1
 
-    def domain(self, name: str, *, decode_numbers: bool = False) -> Any:
+    def get(self, key: str, default: Any = None, *, decode_numbers: bool = False) -> Any:
+        if key == "step":
+            return self.step
+
+        try:
+            return self._domain(key, decode_numbers=decode_numbers)
+        except KeyError:
+            return default
+
+    def _domain(self, name: str, *, decode_numbers: bool = False) -> Any:
         value = deepcopy(self._domains[name])
         return _decode_numbers(value) if decode_numbers else value
 
     def format_observation(self) -> str:
         try:
-            observation = self.domain("observation")
+            observation = self._domain("observation")
         except KeyError:
             return "n/a"
         if isinstance(observation, str) and observation.startswith("[truncated"):

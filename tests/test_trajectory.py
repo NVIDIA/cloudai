@@ -499,10 +499,10 @@ def test_load_reconstructs_complete_trials_from_the_real_writer(tmp_path: Path) 
     records = loaded.records()
 
     assert [record.step for record in records] == [1, 2]
-    assert [record.domain("action") for record in records] == [{"ooo": 10}, {"ooo": 11}]
-    assert [record.domain("reward") for record in records] == [0.1, 0.2]
-    assert [record.domain("observation") for record in records] == [[10.0], [20.0]]
-    assert records[0].domain("env_params") == {
+    assert [record["action"] for record in records] == [{"ooo": 10}, {"ooo": 11}]
+    assert [record["reward"] for record in records] == [0.1, 0.2]
+    assert [record["observation"] for record in records] == [[10.0], [20.0]]
+    assert records[0]["env_params"] == {
         "workload": "bisection",
         "msg_size": "1024",
         "drop_rate": "0.003",
@@ -527,13 +527,17 @@ def test_load_preserves_source_metadata_until_an_explicit_projection(tmp_path: P
         reward=1.0,
         observation=[100.0],
         env_params={"label": "001", "msg_size": 1024, "drop_rate": 0.003},
+        source_row={"label": "001"},
     )
 
     loaded = Trajectory.load(tmp_path)
-    projected = loaded.records()[0].domain("env_params", decode_numbers=True)
+    projected = loaded.records()[0].get("env_params", decode_numbers=True)
 
     assert projected == {"label": 1, "msg_size": 1024, "drop_rate": 0.003}
-    assert loaded.records()[0].domain("env_params") == {"label": "001", "msg_size": "1024", "drop_rate": "0.003"}
+    assert loaded.records()[0]["env_params"] == {"label": "001", "msg_size": "1024", "drop_rate": "0.003"}
+    assert loaded.records()[0].get("env_params") == loaded.records()[0]["env_params"]
+    assert loaded.records()[0].get("source_row") == {"label": "001"}
+    assert loaded.records()[0].metadata["source_row"] == {"label": "001"}
 
 
 def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> None:
@@ -543,7 +547,7 @@ def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> 
     loaded = Trajectory.load(tmp_path)
     record = loaded.records()[0]
 
-    record.domain("action")["values"].append(3)
+    record["action"]["values"].append(3)
     record.metadata["execution"]["ticket"] = "changed"
 
     flat = loaded.dataframe
@@ -554,7 +558,7 @@ def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> 
     serialized = loaded.csv_dataframe
     serialized.loc[0, "reward"] = 9.0
 
-    assert loaded.records()[0].domain("action") == {"values": [1, 2]}
+    assert loaded.records()[0]["action"] == {"values": [1, 2]}
     assert loaded.records()[0].metadata["execution"] == {"ticket": "T-1"}
 
     assert loaded.dataframe.loc[0, "action.values"] == [1, 2]
@@ -578,12 +582,12 @@ def test_load_accepts_writer_supported_domains_without_optional_metadata(
     live_record = written.records()[0]
     record = Trajectory.load(tmp_path).records()[0]
 
-    assert record.domain("action") == action
-    assert live_record.domain("action") == record.domain("action")
-    assert record.domain("reward") == reward
-    assert live_record.domain("reward") == record.domain("reward")
-    assert record.domain("observation") == observation
-    assert live_record.domain("observation") == record.domain("observation")
+    assert record["action"] == action
+    assert live_record["action"] == record["action"]
+    assert record["reward"] == reward
+    assert live_record["reward"] == record["reward"]
+    assert record["observation"] == observation
+    assert live_record["observation"] == record["observation"]
     assert record.metadata == {}
     assert not written.metadata_path.exists()
 
@@ -596,7 +600,7 @@ def test_load_accepts_an_explicit_csv_with_its_sibling_metadata(tmp_path: Path) 
     record = Trajectory.load(csv_path).records()[0]
 
     assert record.source == csv_path
-    assert record.domain("env_params") == {"workload": "bisection"}
+    assert record["env_params"] == {"workload": "bisection"}
 
 
 @pytest.mark.parametrize("with_metadata", [False, True])
@@ -718,7 +722,7 @@ def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
     record = Trajectory.load(source).records()[0]
 
     assert record.source == source
-    assert record.domain("action") == {"ooo": 10}
+    assert record["action"] == {"ooo": 10}
 
 
 def test_load_rejects_a_history_without_an_observation_column(tmp_path: Path) -> None:
@@ -745,6 +749,8 @@ def test_load_preserves_present_observation_cells(tmp_path: Path, cell: str, exp
     record = Trajectory.load(tmp_path).records()[0]
 
     assert record["observation"] == expected
+    assert record.get("observation", "fallback") == expected
+    assert record.get("observation", "fallback", decode_numbers=True) == expected
     assert record["reward"] == -1.0
     assert path.read_bytes() == original
 
@@ -759,8 +765,8 @@ def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path
 
         loaded = Trajectory.load(tmp_path)
 
-        assert loaded.records()[0].domain("action") == {"payload": payload}
-        assert loaded.records()[0].domain("observation") == [payload]
+        assert loaded.records()[0]["action"] == {"payload": payload}
+        assert loaded.records()[0]["observation"] == [payload]
         assert loaded.records()[0].metadata["logging"] == {"payload": payload}
         pd.testing.assert_frame_equal(loaded.csv_dataframe, pd.read_csv(written.output_path))
         assert csv.field_size_limit() == 4096
@@ -782,7 +788,7 @@ def test_load_preserves_nested_nonfinite_numbers_from_the_real_writer(tmp_path: 
 
     record = Trajectory.load(tmp_path).records()[0]
 
-    for decoded in (record.domain("action")["values"], record.domain("reward")["values"], record.domain("observation")):
+    for decoded in (record["action"]["values"], record["reward"]["values"], record["observation"]):
         assert math.isnan(decoded[0])
         assert decoded[1:] == [float("inf"), float("-inf")]
 
@@ -806,7 +812,7 @@ def test_load_preserves_metadata_cell_line_endings_from_the_writer(tmp_path: Pat
 
     loaded = Trajectory.load(tmp_path)
 
-    assert loaded.records()[0].domain("env_params") == {"note": note}
+    assert loaded.records()[0]["env_params"] == {"note": note}
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
 
 
@@ -832,11 +838,12 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
 
     records = loaded.records()
 
-    assert [(record.step, record.domain("env_params")) for record in records] == [
+    assert [(record.step, record["env_params"]) for record in records] == [
         (0, {"workload": "thin"}),
         (1, {"workload": "wide"}),
     ]
-    assert records[0].domain("action") == {"ooo": 10}
+    assert records[0]["action"] == {"ooo": 10}
+    assert [record.get("step", decode_numbers=True) for record in records] == [0, 1]
     assert loaded.dataframe["step.extra"].tolist() == ["legacy-0", "legacy-1"]
 
     found = loaded.find(action={"ooo": 10}, env_params={"workload": "thin"})
@@ -864,15 +871,15 @@ def test_record_formats_observation_without_changing_its_domain(
     trajectory.append(step=1, action={"ooo": 10}, reward=1.0, observation=observation if present else {})
     record = trajectory.records()[0]
     original_files = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
-    before = repr(record.domain("observation")) if present else None
+    before = repr(record["observation"]) if present else None
 
     assert record.format_observation() == expected
 
     if present:
-        assert repr(record.domain("observation")) == before
+        assert repr(record["observation"]) == before
     else:
         with pytest.raises(KeyError):
-            record.domain("observation")
+            record["observation"]
 
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
 
@@ -883,7 +890,7 @@ def readonly_record(
 ) -> tuple[TrajectoryRecord, MappingProxyType[str, Any]]:
     expected = {
         "step": 1,
-        "action": {"values": [1, 2]},
+        "action": {"values": ["1", "2.5", "auto"], "label": "001"},
         "reward": 0.5,
         "observation": [2.0],
         "env_params": {"message_size": "1024"},
@@ -919,8 +926,18 @@ def test_record_reads_match_a_readonly_dictionary(
         with pytest.raises(KeyError, match=missing):
             _ = record[missing]
 
-    assert record.domain("env_params", decode_numbers=True) == {"message_size": 1024}
+    assert record.get("env_params", decode_numbers=True) == {"message_size": 1024}
+    assert record.get("action", decode_numbers=True) == {"values": [1, 2.5, "auto"], "label": 1}
     assert record["env_params"] == {"message_size": "1024"}
+
+    fallback = {"label": "001", "values": ["2"]}
+    assert record.get("missing", fallback) is fallback
+    assert record.get("missing", fallback, decode_numbers=True) is fallback
+    assert fallback == {"label": "001", "values": ["2"]}
+    assert record.get("missing", "001", decode_numbers=True) == "001"
+    assert record.get("missing", decode_numbers=True) is None
+    assert record.get("step", decode_numbers=True) == record.step
+    assert record.get("env_params", decode_numbers=False) == record["env_params"]
 
 
 def test_record_rejects_writes_and_returns_detached_nested_values(
@@ -939,6 +956,7 @@ def test_record_rejects_writes_and_returns_detached_nested_values(
     for detached in (
         record["action"],
         record.get("action"),
+        record.get("action", decode_numbers=True),
         dict(record.items())["action"],
         list(record.values())[1],
         dict(record)["action"],

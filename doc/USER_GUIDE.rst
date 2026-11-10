@@ -667,10 +667,10 @@ keys raise ``KeyError``; ``get`` returns its supplied default, or ``None``.
 ``trial.source`` and ``trial.row`` are provenance attributes; same-named
 metadata keys remain accessible through indexing.
 
-Item assignment, deletion and dictionary mutators are unavailable. Values returned
-by reads are detached copies, including nested values, so editing them cannot
-alter recorded history. The existing ``domain`` method remains available for
-explicit numeric decoding.
+Item assignment, deletion and dictionary mutators are unavailable. Stored values
+returned by reads are detached copies, including nested values, so editing them
+cannot alter recorded history. Indexing, ``get`` and ``metadata`` retain stored
+values by default; numeric decoding requires an explicit ``get`` option.
 
 ``trial["env_params"]`` selects one group; ``trial.metadata`` returns a detached copy of all metadata.
 Both derive from one record, supporting field lookup and bulk access without duplicate storage.
@@ -694,13 +694,15 @@ original column from recorded measurements rather than inserting ``[]``.
 Only column presence is newly required; existing empty, ``None`` and truncated
 observation values remain supported. Every row must contain its declared cells.
 
-``trial.domain("env_params")`` returns environment parameters when that domain
-is present. A missing domain raises ``KeyError``. Legacy metadata cells remain
-strings because CSV does not preserve original scalar types.
+``trial["env_params"]`` or ``trial.get("env_params")`` returns stored environment
+parameters. Indexing a missing key raises ``KeyError``; ``get`` returns its default
+unchanged, even when numeric decoding is requested. Metadata cells loaded from
+CSV remain strings because CSV does not preserve original scalar types.
 
-``trial.domain("env_params", decode_numbers=True)`` explicitly projects numeric
-strings to integers or floats while retaining other strings. It does not change
-stored metadata or establish the original producer types.
+``trial.get("env_params", decode_numbers=True)`` explicitly projects numeric-looking
+strings to integers or floats. This is a heuristic: a label such as ``"001"``
+becomes ``1``. Other strings stay unchanged; stored values and ``trial.metadata``
+remain untouched. Numeric decoding does not recover original producer types.
 
 ``dataframe`` retains flattened domain columns, and ``find`` retains exact-value
 and exact-type matching. ``csv_dataframe`` returns a copy of the original parsed
