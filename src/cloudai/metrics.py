@@ -105,7 +105,7 @@ BANDWIDTH_BASIS = DimensionDefinition("bandwidth_basis", "Bandwidth basis", Lite
 BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=True, min_length=1)])
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
-STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99"])
+STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99", "max"])
 PHASE = DimensionDefinition("phase", "Phase", Annotated[str, Field(strict=True, min_length=1)])
 BENCHMARK = DimensionDefinition("benchmark", "Benchmark", Annotated[str, Field(strict=True, min_length=1)])
 
@@ -188,6 +188,24 @@ TPOT = MetricDefinition(
     unit="ms",
     direction=OptimizationDirection.MINIMIZE,
 )
+KV_CACHE_USAGE = MetricDefinition(
+    key="kv_cache_usage",
+    display_name="KV cache usage",
+    unit="%",
+    direction=OptimizationDirection.MINIMIZE,
+)
+KV_CACHE_CAPACITY = MetricDefinition(
+    key="kv_cache_capacity",
+    display_name="KV cache capacity",
+    unit="tokens",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+WAITING_REQUESTS = MetricDefinition(
+    key="waiting_requests",
+    display_name="Waiting requests",
+    unit="requests",
+    direction=OptimizationDirection.MINIMIZE,
+)
 ACCURACY = MetricDefinition(
     key="accuracy",
     display_name="Accuracy",
@@ -207,6 +225,9 @@ MetricCatalog.register_metrics(
     OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU,
     TTFT,
     TPOT,
+    KV_CACHE_USAGE,
+    KV_CACHE_CAPACITY,
+    WAITING_REQUESTS,
     ACCURACY,
     ITERATION_TIME,
     TFLOPS_PER_GPU,

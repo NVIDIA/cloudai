@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+import statistics
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Optional, cast
@@ -297,6 +299,10 @@ class VllmTestDefinition(LLMServingTestDefinition[VllmCmdArgs], inference_report
         )
         if not observations:
             return []
+        if self.cmd_args.prefill is None:
+            serve_stats = parse_vllm_serve_stats(tr.output_path / VLLM_SERVE_LOG_FILE)
+            if serve_stats is not None:
+                observations.extend(serve_stats.observations(include_runtime=self.semantic_eval_cmd_args is None))
         prefill, decode = self.inference_role_configs(tr)
         config = inference_report.InferenceConfig(
             model=self.cmd_args.model,
@@ -329,6 +335,75 @@ class VLLMBenchReport(LLMServingBenchReport):
     @property
     def throughput(self) -> float:
         return self.output_throughput
+
+
+VLLM_STATS_LINE_MARKER = "Avg generation throughput:"
+VLLM_RUNNING_RE = re.compile(r"\bRunning: (\d+) reqs")
+VLLM_WAITING_RE = re.compile(r"\bWaiting: (\d+) reqs")
+VLLM_KV_CACHE_USAGE_RE = re.compile(r"KV cache usage: ([0-9]*\.?[0-9]+)%")
+VLLM_KV_CACHE_SIZE_RE = re.compile(r"KV cache size: ([0-9][0-9,]*) tokens")
+
+
+@dataclass(frozen=True)
+class VllmServeStats:
+    """KV cache values logged by a vLLM server; usage samples come from periodic stats lines with active requests."""
+
+    kv_cache_usage: list[float]
+    waiting_requests: list[int]
+    kv_cache_capacity: int | None
+
+    def observations(self, include_runtime: bool = True) -> list[cloudai.metrics.MetricObservation]:
+        observations: list[cloudai.metrics.MetricObservation] = []
+        if self.kv_cache_capacity is not None:
+            observations.append(
+                cloudai.metrics.MetricObservation(cloudai.metrics.KV_CACHE_CAPACITY, self.kv_cache_capacity, {})
+            )
+        if not include_runtime or not self.kv_cache_usage:
+            return observations
+        usage = cloudai.metrics.KV_CACHE_USAGE
+        observations.extend(
+            [
+                cloudai.metrics.MetricObservation(usage, statistics.fmean(self.kv_cache_usage), {"statistic": "mean"}),
+                cloudai.metrics.MetricObservation(usage, max(self.kv_cache_usage), {"statistic": "max"}),
+                cloudai.metrics.MetricObservation(
+                    cloudai.metrics.WAITING_REQUESTS, max(self.waiting_requests), {"statistic": "max"}
+                ),
+            ]
+        )
+        return observations
+
+
+def parse_vllm_serve_stats(log_path: Path) -> VllmServeStats | None:
+    """Parse KV cache capacity and periodic KV cache usage from a vLLM serve log."""
+    if not log_path.is_file():
+        return None
+
+    usage: list[float] = []
+    waiting: list[int] = []
+    capacities: set[int] = set()
+    with log_path.open(encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if size := VLLM_KV_CACHE_SIZE_RE.search(line):
+                capacities.add(int(size.group(1).replace(",", "")))
+                continue
+            if VLLM_STATS_LINE_MARKER not in line:
+                continue
+            running = VLLM_RUNNING_RE.search(line)
+            queued = VLLM_WAITING_RE.search(line)
+            kv_usage = VLLM_KV_CACHE_USAGE_RE.search(line)
+            if not (running and queued and kv_usage):
+                continue
+            if int(running.group(1)) + int(queued.group(1)) == 0:
+                continue  # Idle intervals before and after the benchmark would dilute the mean.
+            usage.append(float(kv_usage.group(1)))
+            waiting.append(int(queued.group(1)))
+
+    if len(capacities) > 1:
+        logging.debug(f"Ignoring inconsistent vLLM KV cache capacities in {log_path}: {sorted(capacities)}")
+    capacity = capacities.pop() if len(capacities) == 1 else None
+    if capacity is None and not usage:
+        return None
+    return VllmServeStats(kv_cache_usage=usage, waiting_requests=waiting, kv_cache_capacity=capacity)
 
 
 @cache
