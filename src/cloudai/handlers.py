@@ -30,6 +30,7 @@ import yaml
 import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
+    BaseAgent,
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
@@ -134,6 +135,10 @@ def handle_dse_job(runner: Runner) -> int:
         )
         return 1
 
+    if any(tr.pin_nodes and tr.test.agent_parallelism > 1 for tr in runner.runner.test_scenario.test_runs):
+        logging.error("'pin_nodes' is not supported for DSE jobs with 'agent_parallelism' greater than 1.")
+        return 1
+
     err = 0
     try:
         for tr in runner.runner.test_scenario.test_runs:
@@ -156,12 +161,18 @@ def handle_dse_job(runner: Runner) -> int:
                 runner=runner.runner,
                 rewards=agent_config.rewards,
                 max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
+                agent_parallelism=test_run.test.agent_parallelism,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
+            if env.agent_parallelism > 1 and type(agent).select_batch is BaseAgent.select_batch:
+                logging.warning(
+                    f"Agent '{agent_type}' proposes one action at a time; "
+                    f"agent_parallelism={env.agent_parallelism} has no effect."
+                )
 
             env.update_output()
             try:

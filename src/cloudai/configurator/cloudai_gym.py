@@ -17,19 +17,38 @@
 import copy
 import logging
 import math
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
-from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
+from cloudai.core import METRIC_ERROR, BaseRunner, JobStatusResult, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import BaseAgentConfig, RewardOverrides
-from .base_gym import BaseGym
+from .base_gym import BaseGym, EvaluationResult, Proposal
 from .env_params import EnvParams, ObsLeafDescriptor
 from .trajectory import Trajectory
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+@dataclass
+class _Candidate:
+    """One consumed proposal on its way to an ``EvaluationResult``."""
+
+    trial_index: int
+    action: dict[str, Any]
+    env_params: dict[str, Any]
+    test_run: TestRun | None = None
+    """Independent trial snapshot with ``step`` and ``output_path`` assigned; ``None`` when rejected."""
+    cached: "pd.Series | None" = None
+    """Trajectory row that already answers this proposal."""
+
+    @property
+    def needs_execution(self) -> bool:
+        return self.test_run is not None and self.cached is None
 
 
 class CloudAIGymEnv(BaseGym):
@@ -45,6 +64,7 @@ class CloudAIGymEnv(BaseGym):
         runner: BaseRunner,
         rewards: RewardOverrides,
         max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
+        agent_parallelism: int = 1,
     ):
         """
         Initialize the Gym environment using the TestRun object.
@@ -54,6 +74,7 @@ class CloudAIGymEnv(BaseGym):
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
             max_consecutive_rejected_proposals: Rejections allowed before consuming the current sweep step.
+            agent_parallelism: Maximum number of trials kept outstanding at the same time.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -61,6 +82,7 @@ class CloudAIGymEnv(BaseGym):
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
         self.max_consecutive_rejected_proposals = max_consecutive_rejected_proposals
+        self.agent_parallelism = agent_parallelism
         self._progress = test_run.step
         self._consecutive_rejections = 0
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
@@ -99,23 +121,14 @@ class CloudAIGymEnv(BaseGym):
     @property
     def upcoming_trial(self) -> int:
         """
-        Index of the next trial ``step`` will run.
+        Index of the next trial the environment will assign.
 
-        Logical progress includes executed, cached, failed, and skipped steps. ``TestRun.step`` is
-        assigned this index only for accepted candidates, so rejected proposals below the retry
-        limit do not consume a trial number. ``reset`` peeks at the same next value to report the
-        regime the first ``step`` will apply.
+        Executed, cached, failed, and skipped steps consume an index. ``TestRun.step`` is assigned
+        this index only for accepted proposals, so rejected proposals below the retry limit do not
+        consume a trial number. ``reset`` peeks at the same next value to report the regime the
+        next accepted proposal will get.
         """
-        return self.progress + 1
-
-    @property
-    def progress(self) -> int:
-        """Number of logical sweep steps consumed, including skipped steps."""
-        return self._progress
-
-    def _advance_progress(self) -> None:
-        self._progress += 1
-        self._consecutive_rejections = 0
+        return self._progress + 1
 
     def define_action_space(self) -> Dict[str, list[Any]]:
         return self.test_run.param_space
@@ -163,7 +176,7 @@ class CloudAIGymEnv(BaseGym):
 
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
-        Execute one step in the environment.
+        Execute one step in the environment: a one-proposal ``evaluate_batch``.
 
         Args:
             action (Any): Action chosen by the agent.
@@ -172,77 +185,67 @@ class CloudAIGymEnv(BaseGym):
             Tuple: A tuple containing:
                 - observation (list): Updated system state.
                 - reward (float): Reward for the action taken.
-                - done (bool): Whether the episode is done.
+                - done (bool): ``True`` when the action was rejected by the constraint check.
                 - info (dict): Additional info for debugging.
         """
-        trial = self.upcoming_trial
-        # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
-        sampled_env_params = self.params.sample(trial) if self.params else {}
-        info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
-        candidate_test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
-        candidate_test_run.step = trial
+        result = self.evaluate_batch([(self.upcoming_trial, action)])[0]
+        info: dict[str, Any] = {"env_params": result["env_params"]} if self.params is not None else {}
+        return result["observation"], result["value"], result["done"], info
 
-        cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[EvaluationResult]:
+        """
+        Evaluate proposals in waves of at most ``agent_parallelism`` trials.
 
-        if cached_result is not None:
-            self.test_run = candidate_test_run
-            logging.info(
-                "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
-                cached_result["reward"],
-                cached_result["step"],
-            )
-            observation = {
-                metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
-            }
-            reward = cast(float, cached_result["reward"])
-        else:
-            if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
-                logging.info("Constraint check failed for step %s", trial)
-                self._consecutive_rejections += 1
-                if self._consecutive_rejections >= self.max_consecutive_rejected_proposals:
-                    logging.info("Skipping DSE step %s after repeated constraint rejections", trial)
-                    self._advance_progress()
-                return [-1.0], self.rewards.constraint_failure, True, info
+        A wave is filled from ``proposals``, executed, and completely finalized before the next one
+        is filled, so results of earlier waves are in the trajectory cache for later proposals.
+        Identical proposals inside one wave are executed twice.
+        """
+        results: list[EvaluationResult] = []
+        pending = iter(proposals)
+        while wave := self._next_wave(pending, max_steps):
+            job_statuses = self.runner.run_trials([c.test_run for c in wave if c.test_run and c.needs_execution])
+            results.extend(self._finalize_wave(wave, job_statuses))
+        return results
 
-            self.test_run = candidate_test_run
+    def _next_wave(self, proposals: Iterator[Proposal], max_steps: Optional[int]) -> list[_Candidate]:
+        """
+        Pull proposals, in order, until ``agent_parallelism`` of them need execution.
 
-            new_tr = copy.deepcopy(self.test_run)
-            new_tr.output_path = self.runner.get_job_output_path(new_tr)
-            self.runner.test_scenario.test_runs = [new_tr]
+        Every pulled proposal is returned, so the caller reports one result per proposal:
 
-            self.runner.shutting_down = False
-            self.runner.jobs.clear()
-            self.runner.testrun_to_job_map.clear()
+        - The trial number is the next free one, counting trials accepted earlier in this wave.
+          Environment parameters are sampled for that number and are part of the cache key.
+        - Cached: a trajectory row matches the action and environment parameters. Consumes a step
+          and a trial number, takes no execution slot.
+        - Rejected: ``constraint_check`` fails. Consumes nothing, unless it is the
+          ``max_consecutive_rejected_proposals``-th rejection in a row, which consumes one step.
+          Any accepted proposal resets that counter.
+        - Otherwise the proposal takes an execution slot.
 
-            try:
-                self.runner.run()
-            except Exception as e:
-                logging.error(f"Error running step {self.test_run.step}: {e}")
+        Pulling stops when the wave is full, ``proposals`` ends, or steps consumed so far plus the
+        steps this wave will consume reach ``max_steps``. Nothing is pulled once the allowance is
+        exhausted, so an empty list ends the sweep.
+        """
+        del proposals, max_steps
+        raise NotImplementedError
 
-            if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
-                self.test_run = self.runner.test_scenario.test_runs[0]
-            else:
-                self.test_run = copy.deepcopy(self.original_test_run)
-                self.test_run.step = new_tr.step
-                self.test_run.output_path = new_tr.output_path
+    def _finalize_wave(self, wave: list[_Candidate], job_statuses: list[JobStatusResult]) -> list[EvaluationResult]:
+        """
+        Turn a finished wave into results and persist it, in proposal order.
 
-            observation = self.get_observation()
-            reward = self.compute_reward(observation)
+        ``job_statuses`` is aligned with the executed candidates of ``wave``. Per candidate:
 
-        self.trajectory.append(
-            step=self.test_run.step,
-            action=action,
-            reward=reward,
-            observation=observation,
-            env_params=sampled_env_params,
-        )
+        - Executed: read metrics from its own ``test_run``; a failed job or missing metric yields
+          ``rewards.metric_failure`` and status ``failed``.
+        - Cached: reuse the reward and observation of the matching trajectory row.
+        - Rejected: ``rewards.constraint_failure``, observation ``[-1.0]``, ``done=True``.
 
-        self._advance_progress()
-        logging.info(
-            "Step %s: Observation: %s, Reward: %.4f", trial, [round(obs, 4) for obs in observation.values()], reward
-        )
-
-        return list(observation.values()), reward, False, info
+        Executed and cached candidates are appended to the trajectory in trial order, whatever
+        order the jobs completed in; rejected ones get no row. ``self.test_run`` ends up as the
+        last accepted trial, which is what serial callers read today.
+        """
+        del wave, job_statuses
+        raise NotImplementedError
 
     def render(self, mode: str = "human"):
         """

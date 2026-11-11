@@ -120,6 +120,9 @@ class TestDefinition(BaseModel, ABC):
 
     agent: str = "grid_search"
     agent_steps: int = 1
+    agent_parallelism: int = Field(
+        default=1, ge=1, description="Maximum number of DSE trials CloudAI keeps outstanding at the same time."
+    )
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
     agent_config: dict[str, Any] | None = Field(default=None, description="Agent configuration.")

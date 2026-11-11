@@ -147,6 +147,30 @@ class BaseRunner(ABC):
             logging.debug(f"sleeping for {self.monitor_interval} seconds")
             time.sleep(self.monitor_interval)
 
+    def run_trials(self, trs: list[TestRun]) -> list[JobStatusResult]:
+        """
+        Run independent trials of one test concurrently and wait for all of them.
+
+        Unlike ``run``, one trial does not affect its siblings and the scenario is not touched:
+
+        - Every trial is submitted before monitoring starts; ``step`` and ``output_path`` are
+          already assigned by the caller. Dependencies and iterations do not apply.
+        - A failed job or workload is reported in that trial's result. Siblings keep running,
+          regardless of ``job_status_check``.
+        - A submission error aborts: already submitted siblings are killed and awaited, then the
+          error is raised.
+        - On any other error or interruption all submitted jobs are killed and awaited before the
+          error propagates. No job outlives this call.
+
+        Args:
+            trs: Trials to run; empty is allowed.
+
+        Returns:
+            One result per trial, in the order of ``trs``.
+        """
+        del trs
+        raise NotImplementedError
+
     def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.

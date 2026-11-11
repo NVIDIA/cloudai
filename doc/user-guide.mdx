@@ -182,6 +182,8 @@ Dependencies of a test can be described as a subsection of the test. It requires
 
 ## Agents Configuration
 
+`agent_parallelism` (default `1`) sets how many DSE trials CloudAI keeps outstanding at the same time. It sits next to `agent` and `agent_steps`, because it describes how much the system can run at once, not how the agent searches. Agents decide how many proposals they can supply before they need feedback; an agent that proposes one action at a time runs serially whatever the value. Trials that run side by side share the system, so use it only where they do not disturb each other's measurements. It cannot be combined with `pin_nodes` or with single-sbatch DSE.
+
 For DSE workloads, you can pass agent configuration via `agent_config` in the scenario.
 
 `BaseAgentConfig` includes:
@@ -201,6 +203,7 @@ id = "Tests.1"
 test_name = "nccl_test_all_reduce"
 agent = "grid_search"
 agent_steps = 10
+agent_parallelism = 4
 agent_metrics = ["default"]
 agent_reward_function = "inverse"
 
