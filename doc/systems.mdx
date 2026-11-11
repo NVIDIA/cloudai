@@ -1,14 +1,18 @@
 <Anchor id="systems" />
 
-This chapter lists all the systems supported by CloudAI. The attributes shown for each system can be set in TOML configuration files.
+Look up scheduler values and TOML fields for execution systems. Start with [Set up your execution environment](/guides/environment)
+for setup instructions, then use this page to adapt resource and path settings.
+Check [Workload and system support](/reference/workload-support) for the workloads supported on each system.
 
-| System                                      | Scheduler Value |
-|---------------------------------------------|-----------------|
-| [Slurm](#slurm-system)           | `slurm`         |
-| [Kubernetes](#kubernetes-system) | `kubernetes`    |
-| [RunAI](#runai-system)           | `runai`         |
-| [LSF](#lsf-system)               | `lsf`           |
-| [Standalone](#standalone-system) | `standalone`    |
+| System | Scheduler Value |
+| --- | --- |
+| [slurm system](/systems#slurm-system) | `slurm` |
+| [standalone system](/systems#standalone-system) | `standalone` |
+| [kubernetes system](/systems#kubernetes-system) | `kubernetes` |
+| [runai system](/systems#runai-system) | `runai` |
+| [lsf system](/systems#lsf-system) | `lsf` |
+
+<Anchor id="slurm" />
 
 <Anchor id="slurm-system" />
 
@@ -22,19 +26,39 @@ This chapter lists all the systems supported by CloudAI. The attributes shown fo
 
 <Markdown src="/generated/cloudai.systems.slurm.slurm-system.datarepositoryconfig.mdx" />
 
+<Anchor id="kubernetes" />
+
 <Anchor id="kubernetes-system" />
 
 ## Kubernetes
 
+Use [Run on Kubernetes](/guides/kubernetes) for cluster setup and network attachments.
+
 <Markdown src="/generated/cloudai.systems.kubernetes.kubernetes-system.kubernetessystem.mdx" />
+
+<Anchor id="runai" />
 
 <Anchor id="runai-system" />
 
 ## RunAI
 
+The RunAI integration supports NCCL.
+
+<CardGroup cols={2}>
+
+<Card title="NCCL on RunAI" href="/guides/runai">
+
+The RunAI integration supports NCCL.
+
+</Card>
+
+</CardGroup>
+
 <Markdown src="/generated/cloudai.systems.runai.runai-system.runaisystem.mdx" />
 
 <Markdown src="/generated/cloudai.systems.runai.runai-node.runainode.mdx" />
+
+<Anchor id="lsf" />
 
 <Anchor id="lsf-system" />
 
@@ -45,6 +69,8 @@ This chapter lists all the systems supported by CloudAI. The attributes shown fo
 <Markdown src="/generated/cloudai.systems.lsf.lsf-system.lsfqueue.mdx" />
 
 <Markdown src="/generated/cloudai.systems.lsf.lsf-system.lsfgroup.mdx" />
+
+<Anchor id="standalone" />
 
 <Anchor id="standalone-system" />
 

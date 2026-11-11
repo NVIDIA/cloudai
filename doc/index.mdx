@@ -1,216 +1,329 @@
+<Anchor id="cloudai" />
+
 <Anchor id="cloudai-benchmark-framework" />
 
-<Anchor id="overview" />
+**The execution framework for AI-driven research.**
 
-## Overview
+Run the workloads your task requires, collect evidence, and use the results to guide the next experiment.
+Combine experiments into a broader investigation using existing workloads or your own.
 
-CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the cloud. The primary motivation is to provide automated benchmarking on various systems.
+![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](assets/cloudai-experiments.svg)
 
-This document contains the following chapters:
+Explore configurations with grid search, or connect your own [optimization agent](/reference/agents)
+to guide search within your compute budget.
+[Add workloads, systems, and reporters](/development) for your task.
 
-- [Tutorial](/tutorial)
-- [User Guide](/user-guide)
-- [Python API](/api)
-- [Reporting](/reporting)
-- [Systems](/systems)
-- [Workloads](/workloads/index)
-- [Development](/development)
-- [Troubleshooting](/troubleshooting)
+Our internal optimization agents can significantly reduce the number of experiments needed to find strong
+configurations compared with grid search, saving time and compute budget. Contact the team for details.
+
+<Anchor id="run-your-first-experiment" />
+
+<Anchor id="choose-a-workflow" />
+
+## Run your first experiment
+
+Start with an example below, or explore [all supported workloads](/workloads/index).
+
+<Tabs>
+
+<Tab title="Inference">
+
+<Anchor id="inference-with-vllm" />
+
+Benchmark Qwen3-0.6B on one GPU on a Slurm node.
+
+[Slurm setup](/#quickstart-slurm)
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/vllm.toml
+```
+
+<Accordion title="View configuration">
+
+```toml
+name = "quickstart-vllm"
+
+[[Tests]]
+id = "vllm"
+name = "vllm"
+description = "Single-node Qwen inference benchmark"
+test_template_name = "vllm"
+num_nodes = 1
+time_limit = "00:10:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  model = "Qwen/Qwen3-0.6B"
+  serve_healthcheck = "/health"
+
+    [Tests.cmd_args.decode]
+    gpu_ids = "0"
+    tensor_parallel_size = 1
+
+  [Tests.bench_cmd_args]
+  random_input_len = 16
+  random_output_len = 128
+  max_concurrency = 16
+  num_prompts = 30
+```
+
+</Accordion>
+
+[vLLM guide](/workloads/vllm)
+
+</Tab>
+
+<Tab title="Networking">
+
+<Anchor id="networking-with-nccl" />
+
+Benchmark all-reduce on two Slurm nodes.
+
+[Slurm setup](/#quickstart-slurm)
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/nccl.toml
+```
+
+<Accordion title="View configuration">
+
+```toml
+name = "quickstart-nccl"
+
+[[Tests]]
+id = "all-reduce"
+name = "all-reduce"
+description = "Two-node NCCL all-reduce benchmark"
+test_template_name = "NcclTest"
+num_nodes = 2
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "128M"
+  iters = 20
+  warmup_iters = 5
+  stepfactor = 2
+```
+
+</Accordion>
+
+[NCCL guide](/workloads/nccl)
+
+</Tab>
+
+<Tab title="Storage">
+
+<Anchor id="storage-with-fio" />
+
+Benchmark file I/O with Fio. Set the test file path to the storage you want to measure.
+
+**Standalone** · [Setup](/#quickstart-standalone)
+
+```bash
+uv run cloudai run --system-config standalone.toml \
+    --test-scenario conf/experimental/quickstart/fio.toml
+```
+
+**Slurm** · [Setup](/#quickstart-slurm)
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/fio-slurm.toml
+```
+
+<Accordion title="View configurations">
+
+**Standalone**
+
+```toml
+name = "quickstart-fio"
+
+[[Tests]]
+id = "fio"
+name = "fio"
+description = "Small file I/O benchmark"
+test_template_name = "Fio"
+num_nodes = 1
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  fio_binary = "fio"
+
+    [Tests.cmd_args.args]
+    name = "cloudai-quickstart"
+    filename = "/tmp/cloudai-fio-quickstart"
+    rw = "randwrite"
+    bs = "128k"
+    size = "80m"
+    iodepth = 1
+    numjobs = 1
+    group_reporting = true
+    thread = true
+```
+
+**Slurm**
+
+```toml
+name = "quickstart-fio-slurm"
+
+[[Tests]]
+id = "fio"
+name = "fio"
+description = "Small file I/O benchmark"
+test_template_name = "Fio"
+num_nodes = 1
+time_limit = "00:05:00"
+extra_container_mounts = ["/tmp:/data"]
+
+  [Tests.cmd_args]
+  fio_binary = "fio"
+  docker_image_url = "openeuler/fio:3.42-oe2403sp3"
+
+    [Tests.cmd_args.args]
+    name = "cloudai-quickstart"
+    filename = "/data/cloudai-fio-quickstart"
+    rw = "randwrite"
+    bs = "128k"
+    size = "80m"
+    iodepth = 1
+    numjobs = 1
+    group_reporting = true
+    thread = true
+```
+
+</Accordion>
+
+[Fio guide](/workloads/fio) · [Public container](https://hub.docker.com/r/openeuler/fio)
+
+</Tab>
+
+<Tab title="Training">
+
+<Anchor id="training-with-megatron-bridge" />
+
+Run ten Qwen3-30B-A3B training steps on two eight-GPU H100 Slurm nodes.
+
+Set `HF_TOKEN` in your environment.
+
+[Slurm setup](/#quickstart-slurm)
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/mbridge.toml
+```
+
+<Accordion title="View configuration">
+
+```toml
+name = "quickstart-mbridge"
+
+[[Tests]]
+id = "training"
+name = "training"
+description = "Two-node H100 Qwen training benchmark"
+test_template_name = "MegatronBridge"
+num_nodes = 2
+time_limit = "00:30:00"
+
+  [[Tests.git_repos]]
+  url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
+  commit = "r0.4.0"
+  mount_as = "/opt/Megatron-Bridge"
+  init_submodules = true
+
+  [Tests.cmd_args]
+  gpu_type = "h100"
+  gpus_per_node = 8
+  num_gpus = 16
+  container_image = "nvcr.io#nvidia/nemo:26.02.00"
+  model_family_name = "qwen"
+  model_recipe_name = "qwen3_30b_a3b"
+  domain = "llm"
+  task = "pretrain"
+  compute_dtype = "fp8_cs"
+  max_steps = 10
+  nemorun_version = "v0.9.0"
+
+  [Tests.extra_env_vars]
+  PYTHONPATH = "/opt/Megatron-Bridge/3rdparty/Megatron-LM:${PYTHONPATH}"
+```
+
+</Accordion>
+
+[Megatron Bridge guide](/workloads/megatron-bridge)
+
+</Tab>
+
+</Tabs>
+
+<Anchor id="start-here" />
 
 <Anchor id="getting-started" />
 
-## Getting Started
+## Start here
 
-CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.4 or newer and clone CloudAI:
 
-Use uv 0.13.4 or newer to install and run CloudAI. For pip-based installation, use pip 26.2.2 or newer. These versions include certificate trust updates for the eMudhra/emSign CA compromise.
-
-``` bash
-git clone git@github.com:NVIDIA/cloudai.git
+```bash
+git clone https://github.com/NVIDIA/cloudai.git
 cd cloudai
-uv run cloudai --help
 ```
 
-<Note>
+<Anchor id="standalone" />
 
-For more instructions on how to set up access for `enroot`, see [Installation Requirements](/workloads/workloads-requirements-installation).
+<Anchor id="quickstart-standalone" />
 
-</Note>
+### Standalone
 
-<Anchor id="pip-based-installation" />
+Run Fio locally with `fio` installed.
 
-### pip-based Installation
-
-See the preferred Python version in the `.python-version` file and make sure you have it installed (For installation, see [Custom Python Version Installation](#install-custom-python-version)). Python 3.10 and newer remain supported. Follow these steps:
-
-``` bash
-git clone git@github.com:NVIDIA/cloudai.git
-cd cloudai
-python3.14 -m venv venv
-source venv/bin/activate
-pip install -e .
+```bash
+cp conf/common/system/standalone_system.toml standalone.toml
 ```
 
-<Note>
+On Ubuntu, install Fio with `sudo apt-get install fio`.
 
-When upgrading an existing installation, also update the host's `ca-certificates` package and the certificate bundles and installers in existing workload environments and container images. Updating CloudAI does not update these environments.
+<Anchor id="slurm" />
 
-</Note>
+<Anchor id="quickstart-slurm" />
 
-<Anchor id="install-custom-python-version" />
+### Slurm
 
-### Custom Python Version Installation
+On your Slurm submit host, prepare the [container prerequisites](/workloads/workloads-requirements-installation)
+and copy the system configuration:
 
-If your system Python version is not supported, you can install a custom version using the [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
-
-``` bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
-uv venv --seed  # picks the python version from .python-version
-                # --seed installs pip and setuptools
-source .venv/bin/activate
+```bash
+cp conf/common/system/example_slurm_cluster.toml slurm.toml
 ```
 
-<Anchor id="key-concepts" />
+Set your partitions, nodes, and GPU counts in `slurm.toml`.
+For Fio, set the host path in `extra_container_mounts` to the storage you want to measure.
+See [Systems](/systems) for system settings and [Install CloudAI](/getting-started) for installation alternatives.
 
-## Key Concepts
+<Anchor id="read-your-results" />
 
-CloudAI operates on three main schemas:
+## Read your results
 
-- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
-- **Test Schema**: An instance of a test template with custom arguments and environment variables
-- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
+Open the results directory printed by CloudAI. See [Read results and generate reports](/reporting) for HTML reports and `experiment.json`.
+Use the [Python API](/api) to automate experiments and consume results.
 
-These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
+Make CloudAI fit your task: [build an extension](/extend/index) or [contribute an improvement](/extend/contribute).
 
-<Anchor id="cloudai-modes-usage-examples" />
+<Accordion title="Notice and Disclaimer">
 
-## CloudAI Modes Usage Examples
+NOTICE AND DISCLAIMER: This software automatically retrieves, accesses or interacts with external materials.
+Those retrieved materials are not distributed with this software and are governed solely by separate terms,
+conditions and licenses. You are solely responsible for finding, reviewing and complying with all applicable
+terms, conditions, and licenses, and for verifying the security, integrity and suitability of any retrieved
+materials for your specific use case. This software is provided "AS IS", without warranty of any kind. The
+author makes no representations or warranties regarding any retrieved materials, and assumes no liability for
+any losses, damages, liabilities or legal consequences from your use or inability to use this software or any
+retrieved materials. Use this software and the retrieved materials at your own risk.
 
-The following are the global options for the `cloudai` command:
-
-- `--log-file <path>`: specify a file to log output; by default `debug.log` in the current directory is used. Contains log entries of level `DEBUG` and higher
-- `--log-level <level>`: specify logging level for standard output; default is `INFO`
-
-<Anchor id="available-modes" />
-
-### Available Modes
-
-- [run](#run)
-- [dry-run](#dry-run)
-- [generate-report](#generate-report)
-- [install](#install)
-- [uninstall](#uninstall)
-- [list](#list)
-- [verify-configs](#verify-configs)
-
-<Anchor id="usage-examples" />
-
-### Usage Examples
-
-<Anchor id="run" />
-
-#### run
-
-This mode runs workloads. It automatically installs prerequisites if they are not met.
-
-``` bash
-cloudai run\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
-
-<Anchor id="dry-run" />
-
-#### dry-run
-
-This mode simulates running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
-
-``` bash
-cloudai dry-run\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
-
-<Anchor id="generate-report" />
-
-#### generate-report
-
-This mode generates reports under the scenario directory. It automatically runs as part of the `run` mode after experiments are completed.
-
-``` bash
-cloudai generate-report\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml\
-    --result-dir /path/to/result_directory
-```
-
-<Anchor id="install" />
-
-#### install
-
-This mode installs test prerequisites. For more details, refer to the [Installation Requirements](/workloads/workloads-requirements-installation) guide. It automatically runs as part of the `run` mode if prerequisites are not met.
-
-``` bash
-cloudai install\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
-
-<Anchor id="uninstall" />
-
-#### uninstall
-
-This mode is the opposite of the install mode. This mode removes installed test prerequisites.
-
-``` bash
-cloudai uninstall\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
-
-<Anchor id="list" />
-
-#### list
-
-This mode lists internal components available within CloudAI.
-
-``` bash
-cloudai list <component_type>
-```
-
-<Anchor id="verify-configs" />
-
-#### verify-configs
-
-This mode verifies the correctness of system, test, and test scenario configuration files.
-
-``` bash
-# verify all at once
-cloudai verify-configs conf
-
-# verify a single file
-cloudai verify-configs conf/common/system/example_slurm_cluster.toml
-
-# verify all scenarios using specific folder with Test TOMLs
-cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
-```
-
-<Anchor id="external-materials-notice" />
-
-## Notice and Disclaimer
-
-NOTICE AND DISCLAIMER: This software automatically retrieves, accesses or interacts with external materials. Those retrieved materials are not distributed with this software and are governed solely by separate terms, conditions and licenses. You are solely responsible for finding, reviewing and complying with all applicable terms, conditions, and licenses, and for verifying the security, integrity and suitability of any retrieved materials for your specific use case. This software is provided "AS IS", without warranty of any kind. The author makes no representations or warranties regarding any retrieved materials, and assumes no liability for any losses, damages, liabilities or legal consequences from your use or inability to use this software or any retrieved materials. Use this software and the retrieved materials at your own risk.
-
-<Anchor id="documentation-update-history" />
-
-## Documentation Update History
-
-| Version | Date           | Description                                    |
-|---------|----------------|------------------------------------------------|
-| v1.5.0  | April xx, 2026 | Initial release of this documentation version. |
+</Accordion>

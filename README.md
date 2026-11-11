@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/NVIDIA/cloudai/actions/workflows/ci.yml?query=event%3Apull_request"><img src="https://github.com/NVIDIA/cloudai/actions/workflows/ci.yml/badge.svg?event=pull_request" alt="CI status for pull requests"></a>
-  <a href="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml?query=branch%3Amain"><img src="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml/badge.svg?branch=main&amp;event=push" alt="Documentation build and deployment status on main"></a>
+  <a href="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml?query=branch%3Amain"><img src="https://github.com/NVIDIA/cloudai/actions/workflows/docs.yml/badge.svg?branch=main&amp;event=push" alt="Documentation publishing status on main"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-Apache_2.0-76B900" alt="License: Apache 2.0"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-76B900" alt="Python 3.10 or newer"></a>
 </p>
@@ -24,7 +24,7 @@ Combine experiments into a broader investigation using existing workloads or you
 | :--- | :--- | :--- |
 | One CLI, Python API, and configuration model across workloads. | Grid search or optimization agents that guide experiments within a compute budget. | Public interfaces for workloads, execution systems, reporters, and agents. |
 
-![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](doc/_static/cloudai-experiments.svg)
+![CloudAI connects experiment configuration to workload execution, metrics, and reusable results. Custom agents can use measured feedback. Public interfaces support workloads, systems and runners, reporters, and agents.](doc/assets/cloudai-experiments.svg)
 
 ## Supported workloads
 
@@ -44,7 +44,7 @@ Combine experiments into a broader investigation using existing workloads or you
 Names below are the exact `test_template_name` values. A check mark indicates a registered execution strategy;
 each workload still requires its own software and resources.
 
-<!-- Keep this matrix aligned with doc/reference/workload-support.rst and src/cloudai/registration.py. -->
+<!-- Keep this matrix aligned with doc/reference/workload-support.mdx and src/cloudai/registration.py. -->
 
 | Workload | Slurm | Standalone | Kubernetes | RunAI | LSF |
 | :--- | :---: | :---: | :---: | :---: | :---: |
@@ -249,12 +249,12 @@ For a reusable integration, implement and register the relevant public interface
 | Your goal | Extension | Starting point |
 | :--- | :--- | :--- |
 | Run a new workload | Configuration and execution strategy | [Fio implementation](src/cloudai/workloads/fio) |
-| Extract custom metrics or generate reports | Reporter | [Reporter guide](doc/extend/reporter.rst) |
-| Choose configurations using measured feedback | Optimization agent | [Agent guide](doc/extend/agent.rst) |
-| Execute on another scheduler or platform | System and runner | [System guide](doc/extend/system.rst) |
+| Extract custom metrics or generate reports | Reporter | [Reporter guide](doc/extend/reporter.mdx) |
+| Choose configurations using measured feedback | Optimization agent | [Agent guide](doc/extend/agent.mdx) |
+| Execute on another scheduler or platform | System and runner | [System guide](doc/extend/system.mdx) |
 
 Use the public APIs in `cloudai.core` and register implementations with `Registry`.
-See the [workload guide](doc/extend/workload.rst) for implementation and validation steps.
+See the [workload guide](doc/extend/workload.mdx) for implementation and validation steps.
 
 </details>
 

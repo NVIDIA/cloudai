@@ -1,34 +1,15 @@
-<Anchor id="development" />
+<Anchor id="architecture-and-extension-points" />
 
-This chapter targets developers who want to contribute to the project's core.
+CloudAI separates configuration, execution, and result interpretation. Extend the layer responsible for the behavior you need.
 
-``` mermaid
-graph TD
-    subgraph _core
-        base_modules
-        core_implementations
-        registry
-    end
+| Extension | Start here |
+| --- | --- |
+| Workload configuration and execution | [Add a workload](/extend/workload) |
+| Metrics and reports | [Add a reporter](/extend/reporter) |
+| Configuration selection | [Add an optimization agent](/extend/agent) |
+| Scheduler or execution environment | [Add an execution system or runner](/extend/system) |
 
-    subgraph runners
-        SlurmRunner
-        StandaloneRunner
-    end
-
-    subgraph installers
-        SlurmInstaller
-        StandaloneInstaller
-    end
-
-    subgraph systems
-        SlurmSystem
-        StandaloneSystem
-    end
-
-    installers --> _core
-    runners --> _core
-    systems --> _core
-```
+Read [Develop and contribute](/extend/contribute) before changing shared interfaces. Keep public core APIs accessible through `cloudai.core`.
 
 <Anchor id="core-modules" />
 
@@ -53,47 +34,3 @@ Installables are shared among all tests. Therefore, if any number of tests use t
 and the project, without extras or dependency groups. An outdated lockfile fails installation instead
 of being updated. Projects without a lockfile continue to use pip. When `dependencies_from_pyproject=False`
 selects an existing `requirements.txt`, that selection takes precedence over the lockfile.
-
-``` mermaid
-classDiagram
-    class Installable {
-        <<abstract>>
-        + __eq__(other: object)
-        + __hash__()
-    }
-
-    class DockerImage {
-        + url: str
-        + install_path: str | Path
-    }
-
-    class GitRepo {
-        + git_url: str
-        + commit_hash: str
-        + install_path: Path
-    }
-
-    class PythonExecutable {
-        + git_repo: GitRepo
-        + venv_path: Path
-    }
-
-    Installable <|-- DockerImage
-    Installable <|-- GitRepo
-    Installable <|-- PythonExecutable
-    PythonExecutable --> GitRepo
-
-    class BaseInstaller {
-        <<abstract>>
-        + install(items: Iterable[Installable])
-        + uninstall(items: Iterable[Installable])
-        + is_installed(items: Iterable[Installable]) -> bool
-
-        * install_one(item: Installable)
-        * uninstall_one(item: Installable)
-        * is_installed_one(item: Installable) -> bool
-    }
-
-    BaseInstaller <|-- SlurmInstaller
-    BaseInstaller <|-- StandaloneInstaller
-```

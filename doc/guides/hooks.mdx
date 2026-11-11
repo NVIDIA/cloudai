@@ -1,0 +1,48 @@
+<Anchor id="prepare-and-clean-up-with-hooks" />
+
+Use hooks on Slurm to prepare the environment or clean up after each main test.
+
+<Note>
+
+Hook execution is supported only on Slurm. Other schedulers log a warning, skip the configured hooks,
+and run the scenario’s own tests normally.
+
+</Note>
+
+- `pre_test` selects the preparation scenario.
+- `post_test` selects the cleanup scenario.
+
+```toml
+name = "nccl-test"
+
+pre_test = "nccl_test_pre"
+post_test = "nccl_test_post"
+
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce"
+time_limit = "00:20:00"
+```
+
+CloudAI organizes hooks in a dedicated directory structure:
+
+- Hook directory: All hook configurations reside in `conf/hook/`
+- Hook test scenarios: Place pre-test hook and post-test hook scenario files in `conf/hook/`
+- Hook tests: Place individual tests referenced in hooks within `conf/hook/test/`
+
+Execution order:
+
+1. Run the pre-test hook.
+2. Run the main test if preparation succeeds.
+3. Run the post-test hook if the prior steps succeed.
+
+If preparation fails, CloudAI skips both the main test and its post-test hook.
+
+```toml
+name = "nccl_test_pre"
+
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce"
+time_limit = "00:20:00"
+```

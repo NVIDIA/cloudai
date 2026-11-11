@@ -1,0 +1,56 @@
+<Anchor id="workload-and-system-support" />
+
+Use this matrix to choose an execution system for your workload. Names match `test_template_name` in TOML.
+A check mark means this revision registers an execution strategy for that combination; workload-specific
+prerequisites still apply.
+
+<Anchor id="compatibility" />
+
+<Anchor id="workload-system-support" />
+
+## Compatibility
+
+{/* Keep this matrix aligned with README.md and src/cloudai/registration.py. */}
+
+| Workload | Slurm | Standalone | Kubernetes | RunAI | LSF |
+| --- | --- | --- | --- | --- | --- |
+| [Aiconfigurator](/workloads/aiconfigurator) | — | ✅ | — | — | — |
+| [AIDynamo](/workloads/ai-dynamo) | ✅ | — | ✅ | — | — |
+| [BashCmd](/workloads/bash-cmd) | ✅ | — | — | — | — |
+| [ChakraReplay](/workloads/chakra-replay) | ✅ | — | — | — | — |
+| [DDLBTest](/workloads/ddlb) | ✅ | — | — | — | — |
+| [DeepEP](/workloads/deepep) | ✅ | — | — | — | — |
+| [DynamoMocker](/workloads/dynamo-mocker) | — | ✅ | — | — | — |
+| [Fio](/workloads/fio) | ✅ | ✅ | — | — | — |
+| [JaxToolboxGPT](/workloads/jax-toolbox) | ✅ | — | — | — | — |
+| [JaxToolboxGrok](/workloads/jax-toolbox) | ✅ | — | — | — | — |
+| [JaxToolboxNemotron](/workloads/jax-toolbox) | ✅ | — | — | — | — |
+| [MegatronBridge](/workloads/megatron-bridge) | ✅ | — | — | — | — |
+| `MegatronRun` | ✅ | — | — | — | — |
+| `MoEBenchmark` | ✅ | — | — | — | — |
+| [NcclTest](/workloads/nccl) | ✅ | — | ✅ | ✅ | — |
+| [NeMoLauncher](/workloads/nemo-launcher) | ✅ | — | — | — | — |
+| [NeMoRun](/workloads/nemo-run) | ✅ | — | — | — | — |
+| [NIXLBench](/workloads/nixl-bench) | ✅ | — | — | — | — |
+| [NixlEP](/workloads/nixl-ep) | ✅ | — | — | — | — |
+| [NIXLKVBench](/workloads/nixl-kvbench) | ✅ | — | — | — | — |
+| [NixlPerftest](/workloads/nixl-perftest) | ✅ | — | — | — | — |
+| [OSUBench](/workloads/osu) | ✅ | — | — | — | — |
+| [sglang](/workloads/sglang) | ✅ | — | — | — | — |
+| [Sleep](/workloads/sleep) | ✅ | ✅ | ✅ | — | ✅ |
+| [SlurmContainer](/workloads/slurm-container) | ✅ | — | — | — | — |
+| [SRTSlurm](/workloads/srt-slurm) | ✅ | — | — | — | — |
+| `TritonInference` | ✅ | — | — | — | — |
+| [UCCTest](/workloads/ucc) | ✅ | — | — | — | — |
+| [vllm](/workloads/vllm) | ✅ | — | — | — | — |
+
+<Anchor id="choose-a-setup-path" />
+
+## Choose a setup path
+
+- [Run on Slurm](/guides/slurm): submit workloads to compute nodes from a login or submit host.
+- [Run your first experiment](/tutorial): run a local storage experiment with Standalone.
+- [Run on Kubernetes](/guides/kubernetes): run Dynamo or NCCL with the appropriate Kubernetes operators.
+
+RunAI currently has an NCCL integration; use [Set up RunAI](/guides/runai) for its configuration.
+LSF currently has a Sleep integration for scheduling checks; its fields are under [lsf system](/systems#lsf-system).

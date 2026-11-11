@@ -1,0 +1,89 @@
+<Anchor id="run-on-kubernetes" />
+
+Run Dynamo inference or NCCL communication experiments on an existing GPU cluster.
+CloudAI submits Kubernetes resources, monitors execution, and saves results locally.
+
+<Anchor id="prepare-cluster-access" />
+
+## Prepare cluster access
+
+- Install CloudAI using [Install CloudAI](/getting-started) and make `kubectl` available on the machine running CloudAI.
+- Use a kubeconfig with permission to create, inspect, and delete workload resources in your namespace.
+- Ensure GPU resources are available to pods and the cluster can pull the example's public container image.
+
+Save this as `kubernetes.toml`. Replace the kubeconfig path, namespace, and GPU count for your cluster:
+
+```toml
+name = "kubernetes-cluster"
+scheduler = "kubernetes"
+kube_config_path = "/absolute/path/to/kubeconfig"
+default_namespace = "cloudai-experiments"
+gpus_per_node = 8
+install_path = "./install"
+output_path = "./results"
+```
+
+Point `kubectl` at the same kubeconfig and current context as CloudAI:
+
+```bash
+export KUBECONFIG=/absolute/path/to/kubeconfig
+kubectl get nodes
+kubectl get namespace cloudai-experiments
+```
+
+Use an existing namespace or create it before running an experiment.
+
+<Anchor id="choose-an-experiment" />
+
+## Choose an experiment
+
+| Example | Cluster prerequisite | CloudAI submits |
+| --- | --- | --- |
+| [Dynamo inference](/workloads/ai-dynamo#dynamo-kubernetes) | Dynamo operator and platform services | `DynamoGraphDeployment` (`nvidia.com/v1alpha1`) |
+| [NCCL all-reduce](/workloads/nccl#nccl-kubernetes) | Kubeflow MPI Operator | `MPIJob` (`kubeflow.org/v2beta1`) |
+
+Sleep also supports Kubernetes for scheduling checks. See [Workload and system support](/reference/workload-support) for the complete matrix.
+
+<Anchor id="use-network-operator-attachments" />
+
+<Anchor id="kubernetes-networking" />
+
+## Use Network Operator attachments
+
+For Dynamo and NCCL, CloudAI can attach worker pods to networks provisioned by
+[NVIDIA Network Operator](https://docs.nvidia.com/networking/display/kubernetes2610/quick-start/quick-start-k8s.html).
+Prepare the operator, device resources, and NetworkAttachmentDefinitions on the cluster first.
+
+Add this top-level setting to `kubernetes.toml` to require network attachments:
+
+```toml
+use_host_network = false
+```
+
+Check the attachments CloudAI will discover:
+
+```bash
+kubectl get network-attachment-definitions --all-namespaces
+```
+
+CloudAI uses **all discovered attachments**, adds their `namespace/name` values to the worker pod annotations,
+and requests one `nvidia.com/<attachment-name>` device resource per attachment.
+For example, `networks/rdma0` must have a corresponding `nvidia.com/rdma0` resource on eligible nodes.
+Ensure every discovered attachment is usable by your workload and follows this naming convention.
+
+| `use_host_network` | Behavior for Dynamo and NCCL |
+| --- | --- |
+| Omitted | Discover attachments; fall back to host networking if none are returned. |
+| `false` | Require attachments; fail if discovery returns none. |
+| `true` | Use host networking and skip attachment discovery. |
+
+Discovery uses `kubectl` across all namespaces; the kubeconfig needs permission to list those resources.
+The generated `deployment.yaml` in each case's output directory shows the selected networking and device requests.
+
+<Anchor id="inspect-results" />
+
+## Inspect results
+
+CloudAI saves the generated deployment, resolved test configuration, and workload output under `output_path`.
+It removes the submitted workload resources when the experiment completes. Use [Read results and generate reports](/reporting) to inspect results
+and [kubernetes system](/systems#kubernetes-system) for the system field reference.

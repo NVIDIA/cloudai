@@ -1,0 +1,60 @@
+<Anchor id="understand-experiment-configuration" />
+
+Define where to run and what to execute in two TOML files. Start with an inline workload; separate reusable definitions later.
+
+<Anchor id="two-files" />
+
+## Two files
+
+| File | Responsibility |
+| --- | --- |
+| System | Scheduler, resources, paths, and shared settings. |
+| Scenario | Test cases, workload settings, and execution requirements. |
+
+The [Run your first experiment](/tutorial) uses `standalone.toml` and an inline Fio scenario:
+
+```toml
+name = "quickstart-fio"
+
+[[Tests]]
+id = "fio"
+name = "fio"
+description = "Small file I/O benchmark"
+test_template_name = "Fio"
+num_nodes = 1
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  fio_binary = "fio"
+
+    [Tests.cmd_args.args]
+    name = "cloudai-quickstart"
+    filename = "/tmp/cloudai-fio-quickstart"
+    rw = "randwrite"
+    bs = "128k"
+    size = "80m"
+    iodepth = 1
+    numjobs = 1
+    group_reporting = true
+    thread = true
+```
+
+`test_template_name` selects the integration. `cmd_args` configures its workload.
+`id` identifies the case within the scenario; it is distinct from the scenario's name.
+
+<Anchor id="reuse-a-definition" />
+
+## Reuse a definition
+
+When several scenarios share a workload definition, move its name, template, and arguments into a test TOML.
+Use `test_name` in each case and pass the definition directory with `--tests-dir`.
+Keep allocation settings such as `num_nodes` and `time_limit` in the scenario.
+
+<Anchor id="add-complexity-deliberately" />
+
+## Add complexity deliberately
+
+Use [Compose a scenario](/guides/scenarios) for multiple cases and dependencies, [Prepare and clean up with hooks](/guides/hooks) for preparation and cleanup,
+and [Run a configuration search](/optimization/search) for configuration search. List-valued settings can become search dimensions;
+see [Agent and search settings](/reference/agents) before using lists as ordinary workload arguments.
+Exact system fields are in [Systems](/systems); case fields are in [Scenario configuration](/reference/scenarios).

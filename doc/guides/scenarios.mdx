@@ -1,0 +1,36 @@
+<Anchor id="compose-a-scenario" />
+
+Start with one case, then add independent or coordinated workloads to the same scenario.
+
+<Anchor id="one-case" />
+
+## One case
+
+Copy a scenario from `conf/experimental/quickstart` and run it with its compatible system.
+Follow [Understand experiment configuration](/guides/configuration) for inline definitions and reusable test files.
+
+<Anchor id="several-cases" />
+
+## Several cases
+
+Add a `[[Tests]]` table with a unique `id` for each case. Independent cases may execute concurrently;
+account for their combined resource requirements. Use dependencies when execution order matters.
+
+For a case that must follow another, add this table within its `[[Tests]]` entry:
+
+```toml
+[[Tests.dependencies]]
+type = "start_post_comp"
+id = "first-case"
+```
+
+Replace `first-case` with the preceding case's ID. The dependency syntax and other dependency types are described in
+[Scenario configuration](/reference/scenarios). Use [Prepare and clean up with hooks](/guides/hooks) for repeated preparation and cleanup.
+
+<Anchor id="configuration-searches" />
+
+## Configuration searches
+
+Keep a baseline scenario and a DSE scenario separate. The ordinary DSE execution path rejects dependencies and
+mixed DSE/non-DSE cases. See [Run a configuration search](/optimization/search) for a minimal search.
+Validate and inspect generated commands with [Inspect commands before execution](/guides/preview) before requesting resources.

@@ -1,0 +1,70 @@
+<Anchor id="scenario-configuration" />
+
+A test scenario is a set of tests with specific dependencies between them. A test scenario is described in a TOML schema file. The following is an example of a test scenario file:
+
+```toml
+name = "nccl-test"
+
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce"
+num_nodes = 2
+time_limit = "00:20:00"
+
+[[Tests]]
+id = "Tests.2"
+test_name = "nccl_test_all_gather"
+num_nodes = 2
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.1"
+
+[[Tests]]
+id = "Tests.3"
+test_name = "nccl_test_reduce_scatter"
+num_nodes = 2
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.2"
+```
+
+The scenario `name` identifies the experiment. Each `[[Tests]]` entry has a unique `id`.
+Use `test_name` to select a definition from the test directory, or place the workload definition directly in the entry.
+See [Understand experiment configuration](/guides/configuration) for the smaller inline form.
+
+<Anchor id="select-nodes" />
+
+## Select nodes
+
+Choose one allocation form in a `[[Tests]]` entry:
+
+| Selection | TOML |
+| --- | --- |
+| Node count | `num_nodes = 2` |
+| Explicit nodes | `nodes = ["node-001", "node-002"]` |
+| Configured group | `nodes = ["PARTITION:GROUP:2"]` |
+| All available nodes in a group | `nodes = ["PARTITION:GROUP:max_avail"]` |
+
+Replace node and group names with entries for your system. Explicit node lists let Slurm apply arbitrary task placement.
+Set `time_limit` in Slurm format when required.
+
+<Anchor id="coordinate-cases" />
+
+## Coordinate cases
+
+Without dependencies, cases may execute concurrently, subject to resources and runner behavior.
+Add dependencies inside the dependent `[[Tests]]` entry:
+
+```toml
+[[Tests.dependencies]]
+type = "start_post_comp"
+id = "Tests.1"
+```
+
+| Type | Behavior |
+| --- | --- |
+| `start_post_init` | Start after the referenced case begins, with a specified delay. |
+| `start_post_comp` | Start after the referenced case completes. |
+| `end_post_comp` | End when the referenced case completes. |

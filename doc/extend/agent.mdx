@@ -1,0 +1,42 @@
+<Anchor id="add-an-optimization-agent" />
+
+Implement a selection policy when grid search does not fit your search space or compute budget.
+
+<Anchor id="use-the-public-lifecycle" />
+
+## Use the public lifecycle
+
+Subclass `BaseAgent` from `cloudai.configurator.base_agent` and provide its configuration model.
+Start from `GridSearchAgent` for a complete working implementation, then change selection and feedback handling.
+
+- `get_config_class` declares the configuration model.
+- `configure` prepares the policy's search state.
+- `select_action(observation=...)` returns a step number and action mapping, or `None` to stop.
+- `update_policy(feedback)` receives the action, reward, current and previous observations, trial index, and done flag.
+
+The base loop uses `max_steps` as its iteration bound. Implement budget accounting and early termination in the
+policy when required. Grid search sets this bound to the number of combinations and ignores observations.
+Agents that override `run` must preserve its success/failure contract.
+
+<Anchor id="package-the-integration" />
+
+## Package the integration
+
+CloudAI discovers installed packages through the `cloudai.agents` entry-point group. For example, in your package's
+`pyproject.toml`:
+
+```toml
+[project.entry-points."cloudai.agents"]
+my_search = "my_package.agent:MyAgent"
+```
+
+Install that package into the environment running CloudAI and select `agent = "my_search"` in the case configuration.
+Use `agent_config` for your model's parameters. See [Agent and search settings](/reference/agents) for shared settings.
+
+<Anchor id="verify-the-policy" />
+
+## Verify the policy
+
+Test action validity, observation ordering, deterministic seeding where supported, missing metrics, and termination.
+Demonstrate that the stopping policy respects the budget you document. Distinguish a recoverable workload failure from
+an unexpected agent bug. Inspect the saved trajectory and selected configuration, not just the returned exit code.

@@ -1,118 +1,280 @@
 navigation:
-  - page: CloudAI Benchmark Framework
-    path: ../doc/index.mdx
-    slug: /
-  - page: Tutorial
+- page: CloudAI
+  path: ../doc/index.mdx
+  slug: /
+- section: Get started
+  skip-slug: true
+  contents:
+  - page: Get started
+    path: ../doc/start/index.mdx
+    slug: start/index
+  - page: Install CloudAI
+    path: ../doc/getting-started.mdx
+    slug: getting-started
+  - page: Run your first experiment
     path: ../doc/tutorial.mdx
     slug: tutorial
-  - page: User Guide
-    path: ../doc/user-guide.mdx
-    slug: user-guide
+  - page: Understand experiment configuration
+    path: ../doc/guides/configuration.mdx
+    slug: guides/configuration
+- section: Run experiments
+  skip-slug: true
+  contents:
+  - page: Run experiments
+    path: ../doc/guides/index.mdx
+    slug: guides/index
+  - page: Set up your execution environment
+    path: ../doc/guides/environment.mdx
+    slug: guides/environment
+  - page: Run on Slurm
+    path: ../doc/guides/slurm.mdx
+    slug: guides/slurm
+  - page: Run on Kubernetes
+    path: ../doc/guides/kubernetes.mdx
+    slug: guides/kubernetes
+  - page: Compose a scenario
+    path: ../doc/guides/scenarios.mdx
+    slug: guides/scenarios
+  - page: Prepare and clean up with hooks
+    path: ../doc/guides/hooks.mdx
+    slug: guides/hooks
+  - page: Prepare model weights
+    path: ../doc/guides/model-access.mdx
+    slug: guides/model-access
+  - page: Prepare workload prerequisites
+    path: ../doc/workloads/workloads-requirements-installation.mdx
+    slug: workloads/workloads-requirements-installation
+  - page: Inspect commands before execution
+    path: ../doc/guides/preview.mdx
+    slug: guides/preview
+  - page: Read results and generate reports
+    path: ../doc/reporting.mdx
+    slug: reporting
+- section: Optimize configurations
+  skip-slug: true
+  contents:
+  - page: Optimize configurations
+    path: ../doc/optimization/index.mdx
+    slug: optimization/index
+  - page: Run a configuration search
+    path: ../doc/optimization/search.mdx
+    slug: optimization/search
+  - page: Choose an objective and search space
+    path: ../doc/optimization/objectives.mdx
+    slug: optimization/objectives
+  - page: Plan compute usage
+    path: ../doc/optimization/budget.mdx
+    slug: optimization/budget
+  - page: Compare trade-offs and reuse configurations
+    path: ../doc/pareto-frontiers.mdx
+    slug: pareto-frontiers
+- section: Automate experiments
+  skip-slug: true
+  contents:
+  - page: Automate experiments
+    path: ../doc/automation/index.mdx
+    slug: automation/index
+  - page: Run experiments with Python
+    path: ../doc/automation/python.mdx
+    slug: automation/python
+  - page: Handle results and failures
+    path: ../doc/automation/failures.mdx
+    slug: automation/failures
+  - page: Publish results and integrate with CI
+    path: ../doc/automation/publish.mdx
+    slug: automation/publish
+- section: Workloads
+  skip-slug: true
+  contents:
+  - page: Workloads
+    path: ../doc/workloads/index.mdx
+    slug: workloads/index
+  - section: Training
+    skip-slug: true
+    contents:
+    - page: Training
+      path: ../doc/workloads/training.mdx
+      slug: workloads/training
+    - page: MegatronBridge
+      path: ../doc/workloads/megatron-bridge.mdx
+      slug: workloads/megatron-bridge
+    - page: Nemo Run
+      path: ../doc/workloads/nemo-run.mdx
+      slug: workloads/nemo-run
+    - page: DDLB
+      path: ../doc/workloads/ddlb.mdx
+      slug: workloads/ddlb
+  - section: Inference
+    skip-slug: true
+    contents:
+    - page: Inference
+      path: ../doc/workloads/inference.mdx
+      slug: workloads/inference
+    - page: vLLM
+      path: ../doc/workloads/vllm.mdx
+      slug: workloads/vllm
+    - page: SGLang
+      path: ../doc/workloads/sglang.mdx
+      slug: workloads/sglang
+    - page: AI Dynamo
+      path: ../doc/workloads/ai-dynamo.mdx
+      slug: workloads/ai-dynamo
+    - page: SRT-Slurm
+      path: ../doc/workloads/srt-slurm.mdx
+      slug: workloads/srt-slurm
+  - section: Networking and communication
+    skip-slug: true
+    contents:
+    - page: Networking and communication
+      path: ../doc/workloads/networking.mdx
+      slug: workloads/networking
+    - page: NCCL
+      path: ../doc/workloads/nccl.mdx
+      slug: workloads/nccl
+    - page: UCC
+      path: ../doc/workloads/ucc.mdx
+      slug: workloads/ucc
+    - page: OSU
+      path: ../doc/workloads/osu.mdx
+      slug: workloads/osu
+    - page: DeepEP Benchmark
+      path: ../doc/workloads/deepep.mdx
+      slug: workloads/deepep
+    - page: NIXL Bench
+      path: ../doc/workloads/nixl-bench.mdx
+      slug: workloads/nixl-bench
+    - page: NIXL EP
+      path: ../doc/workloads/nixl-ep.mdx
+      slug: workloads/nixl-ep
+    - page: NIXL KVBench
+      path: ../doc/workloads/nixl-kvbench.mdx
+      slug: workloads/nixl-kvbench
+    - page: NIXL CTPerf
+      path: ../doc/workloads/nixl-perftest.mdx
+      slug: workloads/nixl-perftest
+  - section: Storage
+    skip-slug: true
+    contents:
+    - page: Storage
+      path: ../doc/workloads/storage.mdx
+      slug: workloads/storage
+    - page: fio
+      path: ../doc/workloads/fio.mdx
+      slug: workloads/fio
+  - section: Simulation and prediction
+    skip-slug: true
+    contents:
+    - page: Simulation and prediction
+      path: ../doc/workloads/simulation.mdx
+      slug: workloads/simulation
+    - page: AIConfigurator
+      path: ../doc/workloads/aiconfigurator.mdx
+      slug: workloads/aiconfigurator
+    - page: DynamoMocker
+      path: ../doc/workloads/dynamo-mocker.mdx
+      slug: workloads/dynamo-mocker
+    - page: Chakra Replay
+      path: ../doc/workloads/chakra-replay.mdx
+      slug: workloads/chakra-replay
+  - section: General-purpose execution
+    skip-slug: true
+    contents:
+    - page: General-purpose execution
+      path: ../doc/workloads/general.mdx
+      slug: workloads/general
+    - page: Bash Command
+      path: ../doc/workloads/bash-cmd.mdx
+      slug: workloads/bash-cmd
+    - page: Slurm Container
+      path: ../doc/workloads/slurm-container.mdx
+      slug: workloads/slurm-container
+    - page: Sleep
+      path: ../doc/workloads/sleep.mdx
+      slug: workloads/sleep
+  - section: Legacy integrations
+    skip-slug: true
+    contents:
+    - page: Legacy integrations
+      path: ../doc/workloads/legacy.mdx
+      slug: workloads/legacy
+    - page: NeMo Launcher (deprecated)
+      path: ../doc/workloads/nemo-launcher.mdx
+      slug: workloads/nemo-launcher
+    - page: JaxToolbox workloads (DEPRECATED)
+      path: ../doc/workloads/jax-toolbox.mdx
+      slug: workloads/jax-toolbox
+- section: Extend CloudAI
+  skip-slug: true
+  contents:
+  - page: Extend CloudAI
+    path: ../doc/extend/index.mdx
+    slug: extend/index
+  - page: Architecture and extension points
+    path: ../doc/development.mdx
+    slug: development
+  - page: Add a workload
+    path: ../doc/extend/workload.mdx
+    slug: extend/workload
+  - page: Add a reporter
+    path: ../doc/extend/reporter.mdx
+    slug: extend/reporter
+  - page: Add an optimization agent
+    path: ../doc/extend/agent.mdx
+    slug: extend/agent
+  - page: Add an execution system or runner
+    path: ../doc/extend/system.mdx
+    slug: extend/system
+  - page: Develop and contribute
+    path: ../doc/extend/contribute.mdx
+    slug: extend/contribute
+- section: Reference
+  skip-slug: true
+  contents:
+  - page: Reference
+    path: ../doc/reference/index.mdx
+    slug: reference/index
+  - page: CLI reference
+    path: ../doc/reference/cli.mdx
+    slug: reference/cli
+  - page: Workload and system support
+    path: ../doc/reference/workload-support.mdx
+    slug: reference/workload-support
+  - section: Systems
+    skip-slug: true
+    contents:
+    - page: Systems
+      path: ../doc/systems.mdx
+      slug: systems
+    - page: NCCL on RunAI
+      path: ../doc/guides/runai.mdx
+      slug: guides/runai
+  - page: System configuration example
+    path: ../doc/reference/system-settings.mdx
+    slug: reference/system-settings
+  - page: Shared system settings
+    path: ../doc/reference/system-fields.mdx
+    slug: reference/system-fields
+  - page: Test definitions
+    path: ../doc/reference/tests.mdx
+    slug: reference/tests
+  - page: Scenario configuration
+    path: ../doc/reference/scenarios.mdx
+    slug: reference/scenarios
+  - page: Agent and search settings
+    path: ../doc/reference/agents.mdx
+    slug: reference/agents
+  - section: Reports
+    skip-slug: true
+    contents:
+    - page: Reports
+      path: ../doc/reports.mdx
+      slug: reports
+    - page: Training Report Schema
+      path: ../doc/training-report-schema.mdx
+      slug: training-report-schema
   - page: Python API
     path: ../doc/api.mdx
     slug: api
-  - section: Reporting
-    skip-slug: true
-    contents:
-      - page: Reporting
-        path: ../doc/reporting.mdx
-        slug: reporting
-      - page: Reports
-        path: ../doc/reports.mdx
-        slug: reports
-      - page: Pareto Frontiers
-        path: ../doc/pareto-frontiers.mdx
-        slug: pareto-frontiers
-      - page: Training Report Schema
-        path: ../doc/training-report-schema.mdx
-        slug: training-report-schema
-  - page: Systems
-    path: ../doc/systems.mdx
-    slug: systems
-  - section: Workloads
-    skip-slug: true
-    contents:
-      - page: Workloads
-        path: ../doc/workloads/index.mdx
-        slug: workloads/index
-      - page: AI Dynamo
-        path: ../doc/workloads/ai-dynamo.mdx
-        slug: workloads/ai-dynamo
-      - page: AIConfigurator
-        path: ../doc/workloads/aiconfigurator.mdx
-        slug: workloads/aiconfigurator
-      - page: Bash Command
-        path: ../doc/workloads/bash-cmd.mdx
-        slug: workloads/bash-cmd
-      - page: Chakra Replay
-        path: ../doc/workloads/chakra-replay.mdx
-        slug: workloads/chakra-replay
-      - page: DDLB
-        path: ../doc/workloads/ddlb.mdx
-        slug: workloads/ddlb
-      - page: DeepEP Benchmark
-        path: ../doc/workloads/deepep.mdx
-        slug: workloads/deepep
-      - page: DynamoMocker
-        path: ../doc/workloads/dynamo-mocker.mdx
-        slug: workloads/dynamo-mocker
-      - page: fio
-        path: ../doc/workloads/fio.mdx
-        slug: workloads/fio
-      - page: JaxToolbox workloads (DEPRECATED)
-        path: ../doc/workloads/jax-toolbox.mdx
-        slug: workloads/jax-toolbox
-      - page: MegatronBridge
-        path: ../doc/workloads/megatron-bridge.mdx
-        slug: workloads/megatron-bridge
-      - page: NCCL
-        path: ../doc/workloads/nccl.mdx
-        slug: workloads/nccl
-      - page: NeMo v1.0 aka NemoLauncher (DEPRECATED)
-        path: ../doc/workloads/nemo-launcher.mdx
-        slug: workloads/nemo-launcher
-      - page: Nemo Run
-        path: ../doc/workloads/nemo-run.mdx
-        slug: workloads/nemo-run
-      - page: NIXL Bench
-        path: ../doc/workloads/nixl-bench.mdx
-        slug: workloads/nixl-bench
-      - page: NIXL EP
-        path: ../doc/workloads/nixl-ep.mdx
-        slug: workloads/nixl-ep
-      - page: NIXL KVBench
-        path: ../doc/workloads/nixl-kvbench.mdx
-        slug: workloads/nixl-kvbench
-      - page: NIXL CTPerf
-        path: ../doc/workloads/nixl-perftest.mdx
-        slug: workloads/nixl-perftest
-      - page: OSU
-        path: ../doc/workloads/osu.mdx
-        slug: workloads/osu
-      - page: SGLang
-        path: ../doc/workloads/sglang.mdx
-        slug: workloads/sglang
-      - page: Sleep
-        path: ../doc/workloads/sleep.mdx
-        slug: workloads/sleep
-      - page: SRT Slurm
-        path: ../doc/workloads/srt-slurm.mdx
-        slug: workloads/srt-slurm
-      - page: Slurm Container
-        path: ../doc/workloads/slurm-container.mdx
-        slug: workloads/slurm-container
-      - page: UCC
-        path: ../doc/workloads/ucc.mdx
-        slug: workloads/ucc
-      - page: vLLM
-        path: ../doc/workloads/vllm.mdx
-        slug: workloads/vllm
-      - page: Installation Requirements
-        path: ../doc/workloads/workloads-requirements-installation.mdx
-        slug: workloads/workloads-requirements-installation
-  - page: Development
-    path: ../doc/development.mdx
-    slug: development
-  - page: Troubleshooting
-    path: ../doc/troubleshooting.mdx
-    slug: troubleshooting
+- page: Troubleshooting
+  path: ../doc/troubleshooting.mdx
+  slug: troubleshooting

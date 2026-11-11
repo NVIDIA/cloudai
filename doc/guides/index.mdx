@@ -1,0 +1,61 @@
+<Anchor id="run-experiments" />
+
+Start with one case. Add resources, dependencies, and preparation only as your task requires.
+
+<CardGroup cols={2}>
+
+<Card title="Set up your execution environment" href="/guides/environment">
+
+Choose a system supported by the workload, then configure its resources and paths.
+
+</Card>
+
+<Card title="Run on Slurm" href="/guides/slurm">
+
+Run CloudAI on a login or submit node.
+
+</Card>
+
+<Card title="Run on Kubernetes" href="/guides/kubernetes">
+
+Run Dynamo inference or NCCL communication experiments on an existing GPU cluster.
+
+</Card>
+
+<Card title="Compose a scenario" href="/guides/scenarios">
+
+Start with one case, then add independent or coordinated workloads to the same scenario.
+
+</Card>
+
+<Card title="Prepare and clean up with hooks" href="/guides/hooks">
+
+Use hooks on Slurm to prepare the environment or clean up after each main test.
+
+</Card>
+
+<Card title="Prepare model weights" href="/guides/model-access">
+
+Choose the model in the workload configuration before allocating compute.
+
+</Card>
+
+<Card title="Prepare workload prerequisites" href="/workloads/workloads-requirements-installation">
+
+Each workload declares its prerequisites, such as images, source repositories, or models.
+
+</Card>
+
+<Card title="Inspect commands before execution" href="/guides/preview">
+
+Validate configuration and inspect generated workload commands before submitting work.
+
+</Card>
+
+<Card title="Read results and generate reports" href="/reporting">
+
+Open the results directory printed by CloudAI.
+
+</Card>
+
+</CardGroup>

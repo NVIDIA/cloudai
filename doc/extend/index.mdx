@@ -1,0 +1,47 @@
+<Anchor id="extend-cloudai" />
+
+Add the workload, metrics, search policy, or execution backend your investigation needs.
+Use CloudAI's public interfaces and registry to integrate your own tools and environments.
+
+For an existing script or container, start with [Bash Command](/workloads/bash-cmd) or [Slurm Container](/workloads/slurm-container) on Slurm.
+For a new integration, choose an extension guide below. Extensions useful to others are welcome as [contributions](/extend/contribute).
+
+<CardGroup cols={2}>
+
+<Card title="Architecture and extension points" href="/development">
+
+CloudAI separates configuration, execution, and result interpretation.
+
+</Card>
+
+<Card title="Add a workload" href="/extend/workload">
+
+Add a workload when an existing integration cannot execute the task you need.
+
+</Card>
+
+<Card title="Add a reporter" href="/extend/reporter">
+
+Turn workload output into metrics or publish a scenario-level artifact.
+
+</Card>
+
+<Card title="Add an optimization agent" href="/extend/agent">
+
+Implement a selection policy when grid search does not fit your search space or compute budget.
+
+</Card>
+
+<Card title="Add an execution system or runner" href="/extend/system">
+
+Add a backend when CloudAI must execute experiments through another scheduler or environment.
+
+</Card>
+
+<Card title="Develop and contribute" href="/extend/contribute">
+
+Contributions are welcome, from a documentation fix to a new integration.
+
+</Card>
+
+</CardGroup>
