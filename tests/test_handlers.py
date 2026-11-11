@@ -404,6 +404,24 @@ def test_verify_test_scenarios_parses_test_configs_once_regardless_of_scenario_c
     assert parse_all_calls_for(1) == parse_all_calls_for(5)
 
 
+@pytest.mark.parametrize("hook_field", ["pre_test", "post_test"])
+def test_verify_test_scenarios_accepts_scenario_with_hooks(
+    hook_field: str, tmp_path: Path, write_parseable_test: Callable[[Path, str], None]
+) -> None:
+    main_test = tmp_path / "main_test.toml"
+    write_parseable_test(main_test, "main_test")
+    hook_test = tmp_path / "hook_test.toml"
+    write_parseable_test(hook_test, "hook_test")
+    hook = tmp_path / "hook.toml"
+    hook.write_text('name = "hook"\n\n[[Tests]]\nid = "Tests.hook"\ntest_name = "hook_test"\n')
+    scenario = tmp_path / "scenario.toml"
+    scenario.write_text(
+        f'name = "scenario"\n{hook_field} = "hook"\n\n[[Tests]]\nid = "Tests.main"\ntest_name = "main_test"\n'
+    )
+
+    assert verify_test_scenarios([scenario], [main_test], [hook], [hook_test]) == 0
+
+
 def test_verify_test_scenarios_reports_an_unparseable_hook_test_no_scenario_references(
     tmp_path: Path,
     write_parseable_test: Callable[[Path, str], None],

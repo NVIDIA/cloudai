@@ -151,10 +151,16 @@ class TestScenarioParser:
                 logging.error(msg)
                 raise TestScenarioParsingError(msg)
 
-        if (pre_test is not None or post_test is not None) and self.system.scheduler.lower() != "slurm":
+        # verify-configs parses scenarios against a mocked System without a scheduler.
+        scheduler = getattr(self.system, "scheduler", None)
+        if (
+            (pre_test is not None or post_test is not None)
+            and isinstance(scheduler, str)
+            and scheduler.lower() != "slurm"
+        ):
             logging.warning(
                 f"Scenario '{ts_model.name}' sets pre_test/post_test hooks, but hook execution is only "
-                f"implemented for the Slurm scheduler. The '{self.system.scheduler}' scheduler will run "
+                f"implemented for the Slurm scheduler. The '{scheduler}' scheduler will run "
                 "the scenario's own tests normally and silently skip the configured hooks."
             )
 
