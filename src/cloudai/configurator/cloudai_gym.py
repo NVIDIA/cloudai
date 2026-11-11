@@ -188,7 +188,10 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): ``True`` when the action was rejected by the constraint check.
                 - info (dict): Additional info for debugging.
         """
-        result = self.evaluate_batch([(self.upcoming_trial, action)])[0]
+        results = self.evaluate_batch([(self.upcoming_trial, action)])
+        if not results:
+            raise RuntimeError("Cannot evaluate the action: the runner is shutting down.")
+        result = results[0]
         info: dict[str, Any] = {"env_params": result["env_params"]} if self.params is not None else {}
         return result["observation"], result["value"], result["done"], info
 
@@ -196,9 +199,13 @@ class CloudAIGymEnv(BaseGym):
         """
         Evaluate proposals in waves of at most ``max_parallelism`` trials.
 
-        A wave is filled from ``proposals``, executed, and completely finalized before the next one
-        is filled, so results of earlier waves are in the trajectory cache for later proposals.
-        Identical proposals inside one wave are executed twice.
+        A wave is filled from ``proposals``, executed by ``BaseRunner.run_trials``, and completely
+        finalized before the next one is filled, so results of earlier waves are in the trajectory
+        cache for later proposals. Identical proposals inside one wave are executed twice.
+
+        The runner and its scenario are left as they are: trials are passed to the runner
+        explicitly, and a runner shutdown is never reset here, so a cancelled sweep stops after
+        the wave that was running.
         """
         results: list[EvaluationResult] = []
         pending = iter(proposals)
@@ -224,7 +231,7 @@ class CloudAIGymEnv(BaseGym):
 
         Pulling stops when the wave is full, ``proposals`` ends, or steps consumed so far plus the
         steps this wave will consume reach ``max_steps``. Nothing is pulled once the allowance is
-        exhausted, so an empty list ends the sweep.
+        exhausted or the runner is shutting down, so an empty list ends the sweep.
         """
         del proposals, max_steps
         raise NotImplementedError
@@ -233,7 +240,8 @@ class CloudAIGymEnv(BaseGym):
         """
         Turn a finished wave into results and persist it, in proposal order.
 
-        ``job_statuses`` is aligned with the executed candidates of ``wave``. Per candidate:
+        ``job_statuses`` is what ``BaseRunner.run_trials`` returned for the executed candidates of
+        ``wave``, in the same order. Per candidate:
 
         - Executed: read metrics from its own ``test_run``; a failed job or missing metric yields
           ``rewards.metric_failure`` and status ``failed``.

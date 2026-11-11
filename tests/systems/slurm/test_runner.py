@@ -71,10 +71,8 @@ def test_slurm_run_output(
         {"size_bytes": 1024, "bandwidth_basis": "bus"},
     )
     with (
-        mock.patch.object(SlurmSystem, "is_job_running", side_effect=[False, True, True, False]) as is_running,
-        mock.patch.object(
-            SlurmSystem, "is_job_completed", side_effect=[False, False, False, False, False, False, True, True]
-        ) as is_completed,
+        mock.patch.object(SlurmSystem, "is_job_running", side_effect=[False, True]) as is_running,
+        mock.patch.object(SlurmSystem, "is_job_completed", side_effect=[False, False, False, True]) as is_completed,
         mock.patch.object(SlurmSystem, "complete_job", return_value=[]),
         mock.patch.object(SlurmSystem, "get_job_status", return_value=[metadata]) as get_metadata,
         mock.patch.object(
@@ -96,10 +94,10 @@ def test_slurm_run_output(
             write.reset_mock()
             is_running.reset_mock()
             is_completed.reset_mock()
-            runner.check_start_post_init_dependencies()
             runner.monitor_jobs()
-            is_running.assert_called_once_with(job)
-            assert is_completed.call_count == 2
+            is_completed.assert_called_once_with(job)
+            # The running state is polled only while the run is still published as pending.
+            assert is_running.call_count == int(index < 2)
             assert write.call_count == int(index in (1, 3))
             stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
             assert stored.tests[0].status == expected

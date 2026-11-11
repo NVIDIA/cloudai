@@ -34,6 +34,7 @@ from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    JobSubmissionError,
     MissingTestError,
     Parser,
     Registry,
@@ -125,8 +126,6 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
 def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
-    original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
-
     has_dependencies = any(tr.dependencies for tr in runner.runner.test_scenario.test_runs)
     if has_dependencies:
         logging.error(
@@ -181,12 +180,12 @@ def handle_dse_job(runner: Runner) -> int:
                 err |= agent.run()
             finally:
                 env.update_output()
+    except JobSubmissionError:
+        err = 1
     except Exception as exc:
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
         _record_run_failure(runner.runner.scenario_root, exc)
         raise
-    finally:
-        runner.runner.test_scenario.test_runs = original_test_runs
 
     logging.info("All jobs are complete.")
     return err
