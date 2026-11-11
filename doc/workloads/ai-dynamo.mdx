@@ -182,7 +182,7 @@ Single-phase runs keep the old artifact layout: `aiperf_artifacts/`, `aiperf.log
 
 CloudAI provides the scenario-level `ai_dynamo_comparison` report. It compares AI Dynamo runs using the standard LLM serving tables and charts for TTFT, TPOT, successful prompts, output-token throughput, TPS per user, and TPS per GPU. When `aiperf_accuracy` is configured and its result is available, the report also compares model accuracy. Both AIPerf and GenAI-Perf CSV output are supported.
 
-The scenario-level [Pareto report](/cloudai/pareto-frontiers) uses each configured AIPerf phase as a separate point, with that phase's concurrency and benchmark settings. It also supports GenAI-Perf results.
+The scenario-level [Pareto report](/pareto-frontiers) uses each configured AIPerf phase as a separate point, with that phase's concurrency and benchmark settings. It also supports GenAI-Perf results.
 
 AIPerf args are rendered as normal CLI flags. Multi-value AIPerf options should be passed with AIPerf CLI syntax, such as `server-metrics-formats = "csv,json,jsonl"` or `gpu-telemetry = "node1:9401,node2:9401"`. `server-metrics = "auto"` expands to the frontend metrics endpoint, Dynamo worker metrics endpoints, and any CloudAI-started DCGM exporters.
 

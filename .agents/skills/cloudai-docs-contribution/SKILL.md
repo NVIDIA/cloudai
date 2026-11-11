@@ -1,9 +1,11 @@
 ---
 name: cloudai-docs-contribution
-description: Write, edit, or review CloudAI documentation, including README.md, doc/, release notes, and docstrings.
+description: Write, edit, or review CloudAI documentation, including Fern pages, README.md, release notes, and docstrings.
 ---
 
 # CloudAI docs contribution
+
+## Writing
 
 - Write for the intended reader, not the PR reviewer. User docs explain how to use CloudAI;
   implementation and packaging details belong only where they help the reader's task.
@@ -21,3 +23,16 @@ description: Write, edit, or review CloudAI documentation, including README.md, 
   input/output example is more useful than a paragraph describing the implementation.
 - Check the rendered result when changing docs: list nesting, code blocks and links can look correct in source
   but fail in the published page.
+
+## Fern workflow
+
+- Preserve prose during migrations. Author `doc/**/*.mdx` with lowercase, hyphenated filenames;
+  keep the root README separate. Navigation: `fern/dev.yml` at each version’s pinned commit; site settings: `fern/docs.yml`.
+- Update navigation and incoming links when moving pages. Use base-path-free links such as `/user-guide`; Fern adds the site prefix. Unversioned links target default stable.
+- Generate only Pydantic field tables: models in `fern/reference.yml`, generator in `doc/generate_reference.py`.
+  Include with `<Markdown src="/generated/<filename>.mdx" />`; never hand-edit `fern/generated/`.
+  Author other references manually. Use introspection, not regex conversion; keep tooling minimal.
+- Pre-commit regenerates references; stage its changes and retry. For explicit regeneration: `make -C doc reference`.
+- Preview: `make -C doc preview` (Python 3.14, uv, Node.js 24); retain the legacy renderer, without rendering tests.
+
+For deployment work only, read [publishing instructions](../../../doc/publishing.md).
