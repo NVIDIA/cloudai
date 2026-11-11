@@ -25,30 +25,70 @@ For accelerated transfers between workers, configure [Network Operator attachmen
 
 ```bash
 uv run cloudai run --system-config kubernetes.toml \
-    --tests-dir conf/experimental/ai_dynamo/test \
-    --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
+    --test-scenario conf/experimental/quickstart/dynamo-kubernetes.toml
 ```
 
 <Accordion title="View the scenario">
 
 ```toml
-name = "vllm_k8s"
-
+name = "quickstart-dynamo-kubernetes"
 [[Tests]]
+name = "dynamo-vllm-kubernetes"
+description = "vLLM backend"
+test_template_name = "AIDynamo"
+extra_container_mounts = ["/run/udev:/run/udev"]
 id = "dynamo.vllm"
-test_name = "vLLM"
 
   [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  workloads = "genai_perf.sh"
+
     [Tests.cmd_args.dynamo]
-      [Tests.cmd_args.dynamo.prefill_worker]
-      num-nodes = 1
-        [Tests.cmd_args.dynamo.prefill_worker.args]
-        tensor-parallel-size = 8
+    backend = "vllm"
+    model = "Qwen/Qwen3-0.6B"
+    ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 1
+      cmd = "python3 -m dynamo.vllm"
+      worker-initialized-regex = "VllmWorker.*has.been.initialized"
+      extra-args = "--no-enable-expert-parallel"
+
         [Tests.cmd_args.dynamo.decode_worker.args]
+        gpu-memory-utilization = 0.8
         tensor-parallel-size = 8
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+        kv-transfer-config = "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 1
+      cmd = "python3 -m dynamo.vllm --is-prefill-worker"
+      worker-initialized-regex = "VllmWorker.*has.been.initialized"
+      extra-args = "--no-enable-expert-parallel"
+
+        [Tests.cmd_args.dynamo.prefill_worker.args]
+        gpu-memory-utilization = 0.8
+        tensor-parallel-size = 8
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+        kv-transfer-config = "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}"
+
+    [Tests.cmd_args.genai_perf]
+    cmd = "genai-perf profile"
+    extra-args = "--streaming --verbose -- -v --async"
+
+      [Tests.cmd_args.genai_perf.args]
+      endpoint-type = "chat"
+      extra-inputs = "min_tokens:10"
+      output-tokens-mean = 500
+      output-tokens-stddev = 0
+      random-seed = 123
+      request-count = 50
+      synthetic-input-tokens-mean = 300
+      synthetic-input-tokens-stddev = 0
+      warmup-request-count = 5
+      concurrency = 2
 ```
 
 </Accordion>
@@ -57,7 +97,7 @@ To change worker sizing, copy the scenario and edit each worker's `num-nodes` an
 Keep the tensor parallel size consistent with the GPUs available to that worker. Workers spanning multiple nodes
 also need Dynamo's multinode orchestration components on the cluster.
 
-The Kubernetes path uses `cmd_args.genai_perf` settings from the vLLM test definition.
+The Kubernetes path uses `cmd_args.genai_perf` settings from the scenario.
 Inspect `deployment.yaml`, `genai_perf.log`, and the collected GenAI-Perf artifacts in the case output directory.
 
 <Anchor id="run-using-slurm" />

@@ -34,7 +34,7 @@ Execution order:
 
 1. Run the pre-test hook.
 2. Run the main test if preparation succeeds.
-3. Run the post-test hook if the prior steps succeed.
+3. Run the post-test hook after the main command, even if that command fails.
 
 If preparation fails, CloudAI skips both the main test and its post-test hook.
 

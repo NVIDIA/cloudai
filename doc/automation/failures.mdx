@@ -10,11 +10,13 @@ Inspect the experiment status before using its measurements. Preserve failed run
 from pathlib import Path
 import cloudai.api
 
-experiment = cloudai.api.get_experiment(Path("results/your-experiment-directory"))
+system = Path("standalone.toml")
+experiment = cloudai.api.get_experiment(Path("results/your-experiment-directory"), system)
 print(experiment.status)
 ```
 
-Replace the path with the directory printed by execution. Use `list_experiments(system)` to discover saved experiments.
+Use the system config from execution and a result directory directly under its `output_path`.
+Use `list_experiments(system)` to discover saved experiments.
 See [Read results and generate reports](/reporting) for the record structure and [Python API](/api) for lookup errors.
 
 <Anchor id="distinguish-failures" />
@@ -22,6 +24,7 @@ See [Read results and generate reports](/reporting) for the record structure and
 ## Distinguish failures
 
 Configuration and setup errors raise exceptions. Workload failures appear in the returned experiment's status.
+A job submission failure can raise `SystemExit(1)`; handle it separately when embedding CloudAI in a long-lived application.
 Missing metrics need investigation even when a process completed. Store logs and the generated configuration so
 another process or person can diagnose the cause.
 

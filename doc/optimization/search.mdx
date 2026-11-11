@@ -64,3 +64,11 @@ the workload logs. See [Read results and generate reports](/reporting) for a rea
 
 Add dimensions only after estimating their combined cost with [Plan compute usage](/optimization/budget). Keep the baseline and search in separate
 scenarios. To choose trials using prior feedback, integrate [a custom agent](/extend/agent).
+
+<Note>
+
+Before reusing an exported DSE TOML, compare it with the successful selection in `experiment.json`.
+The TOML exporter ranks raw rewards, so a failed measurement can win if its substituted reward is higher.
+Searches that vary only `num_nodes` do not export this TOML.
+
+</Note>

@@ -14,6 +14,10 @@ Start from `GridSearchAgent` for a complete working implementation, then change 
 - `select_action(observation=...)` returns a step number and action mapping, or `None` to stop.
 - `update_policy(feedback)` receives the action, reward, current and previous observations, trial index, and done flag.
 
+In your initializer, obtain the action space from `env.define_action_space()`, call your `configure` method,
+and set a positive `max_steps`, as `GridSearchAgent` does. `BaseAgent.__init__` leaves `max_steps = 0`
+and does not call `configure`.
+
 The base loop uses `max_steps` as its iteration bound. Implement budget accounting and early termination in the
 policy when required. Grid search sets this bound to the number of combinations and ignores observations.
 Agents that override `run` must preserve its success/failure contract.

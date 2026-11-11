@@ -13,8 +13,8 @@ execution. Identify the system model, runner, installer, and workload execution 
 
 ## Connect the components
 
-- Define the system's configuration through the public core interfaces.
-- Implement submission, polling, completion, cancellation, and result-path handling in the runner.
+- Define the system’s configuration and implement `update`, `is_job_running`, `is_job_completed`, and `kill`.
+- Implement submission, scheduling, and result-path handling in the runner; delegate status checks and cancellation to the system.
 - Provide prerequisite installation appropriate to the environment.
 - Register the system, runner, and installer with `Registry` in the startup registration path.
 - Register workload strategies for that system and declare their compatibility explicitly.

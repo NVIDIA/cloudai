@@ -67,7 +67,7 @@ Missing iteration lines produce no observations. This matches the per-test CSV r
 
 | Result field | Regular execution | Configuration search |
 | --- | --- | --- |
-| `tests[].metrics` | Metrics from the successful execution. | Metrics from the successful step with the highest valid reward. |
+| `tests[].metrics` | Metrics when exactly one ordinary run completed successfully; otherwise empty. Use `tests[].runs[].metrics` for repeated runs. | Metrics from the successful step with the highest valid reward. |
 | `tests[].dse` | Not a configuration search. | Search space, selected step, and configuration. |
 
 <Anchor id="nccl-dse-example" />

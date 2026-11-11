@@ -1,6 +1,6 @@
 <Anchor id="agent-and-search-settings" />
 
-Built-in `grid_search` evaluates every configured combination; `agent_steps` is not a grid-search cap.
+Built-in `grid_search` proposes every configured combination; constraint-rejected candidates do not execute; `agent_steps` is not a grid-search cap.
 See [Run a configuration search](/optimization/search) for an executable example.
 
 For DSE workloads, you can pass agent configuration via `agent_config` in the scenario.
@@ -53,7 +53,8 @@ Custom agents may extend the `BaseAgentConfig` and offer more parameters to conf
 ## Retry constraint-rejected proposals
 
 A constraint-rejected proposal updates the agent with `constraint_failure` and retries without consuming a
-DSE step. `max_consecutive_rejected_proposals` bounds those retries:
+DSE step. Grid search stops when it exhausts its combinations, even if the retry limit has not been reached.
+`max_consecutive_rejected_proposals` bounds those retries:
 
 | Event | Effect |
 | --- | --- |
@@ -106,3 +107,6 @@ return type of `ReportGenerationStrategy.get_metric` is `MetricValue` (`float | 
 
 When branching on success vs failure, use **identity** (`value is METRIC_ERROR`), not equality to `-1.0`, so a legitimate metric of `-1.0` is not
 treated as an error. The gym observation path uses that identity check before applying `agent_config.rewards.metric_failure`.
+
+Choose a `metric_failure` value outside the valid metric range: the selected-result filter in `experiment.json`
+excludes observations equal to that value, including otherwise valid measurements.

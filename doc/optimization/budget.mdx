@@ -16,7 +16,7 @@ For example, add this table to a case in an NCCL search scenario:
 NCCL_ALGO = ["Ring", "Tree"]
 ```
 
-This dimension contributes two candidates. Built-in grid search evaluates all of them;
+This dimension contributes two candidates. Built-in grid search proposes each combination; rejected candidates do not execute;
 `agent_steps` does not cap that Cartesian product.
 
 <Anchor id="estimate-allocation-cost" />

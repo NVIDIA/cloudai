@@ -75,8 +75,11 @@ Generated artifacts depend on the scenario contents:
 
 - `<scenario>.html` summarizes scenario status.
 - `<scenario>-dse-report.html` describes configuration searches when the scenario contains DSE test cases.
-- `<dse-case>/<iteration>/<dse-case>.toml` contains the best discovered test configuration for a DSE case.
+- `<dse-case>/<iteration>/<dse-case>.toml` contains the highest-reward trajectory configuration when available. Searches that vary only `num_nodes` do not emit this file.
 - Workload and custom reporters may produce additional artifacts.
+
+Before reusing a DSE TOML, compare it with the successful selection in `experiment.json`;
+see [Inspect the selected result](/optimization/search#inspect-the-selected-result).
 
 The [Read results and generate reports](/reporting) guide describes `experiment.json`, which records execution status and workload metrics
 independently of reporter settings.

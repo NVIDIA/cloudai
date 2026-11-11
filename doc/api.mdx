@@ -36,6 +36,7 @@ print(experiment.status, experiment.path)
 
 - Workload failures appear in the experiment status.
 - Configuration and setup errors raise exceptions.
+- A job submission failure can raise `SystemExit(1)`; embedded callers must handle it separately from `Exception`.
 - `on_start` receives the initial experiment and cancellation function after the result file is created, before execution begins.
 - Execution remains synchronous after the callback.
 
@@ -54,4 +55,4 @@ print(experiment.status, experiment.path)
 | --- | --- | --- |
 | `list_experiments(system)` | `(experiment_id, result_directory)` pairs in the configured output directory. | Skips directories without `experiment.json`; a missing output directory returns an empty list. File contents are not parsed. |
 | `get_experiment(experiment_id, system)` | An `Experiment` loaded from the system output directory. | Invalid IDs and missing, unreadable, or malformed files raise `ValueError`. |
-| `get_experiment(Path(...))` | An `Experiment` loaded directly from a result directory. | The same file validation applies. |
+| `get_experiment(Path(...), system)` | An `Experiment` loaded from a direct child of the system’s configured output directory. | The same file validation applies. |

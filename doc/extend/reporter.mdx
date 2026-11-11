@@ -15,6 +15,10 @@ registration contracts; select the level that owns the data you need.
 Report registration is done via `Registry` class:
 
 ```python
+from cloudai.core import Registry
+from cloudai.models.scenario import ReportConfig
+from cloudai.reporter import PerTestReporter
+
 Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
 ```
 
@@ -22,8 +26,8 @@ Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=
 
 ## Provide inference measurements
 
-Implement `InferenceReportProvider.inference_reports(system, tr)` from
-`cloudai.report_generator.inference_report` to make a workload's inference measurements available to shared reports.
+Make the test definition inherit `InferenceReportProvider` from `cloudai.report_generator.inference_report`
+and implement `inference_reports(system, tr)` so shared reports recognize its inference measurements.
 Return one `InferenceReport` per independent measurement, or an empty list when no results are available.
 
 | Report content | Contract |
@@ -37,7 +41,13 @@ vLLM and SGLang return one report per execution. Dynamo returns separate reports
 worker counts from its configured topology and standard launcher defaults.
 
 The [Pareto reporter](/pareto-frontiers) treats each report as a candidate point and applies `match` to its
-metric observations. `metric_observations()` remains available and combines observations from these reports.
+metric observations. Also override `metric_observations(system, tr)` to expose the same measurements
+to callers that consume observations directly:
+
+```python
+def metric_observations(self, system, tr):
+    return [obs for report in self.inference_reports(system, tr) for obs in report.observations]
+```
 
 <Anchor id="reporting-configuration-implementation-1" />
 
@@ -51,6 +61,9 @@ The `reports` field is parsed during TOML reading and the respective Pydantic mo
 For example, a custom report configuration can be defined as follows:
 
 ```python
+from cloudai.models.scenario import ReportConfig
+
+
 class CustomReportConfig(ReportConfig):
     greeting: str
 ```

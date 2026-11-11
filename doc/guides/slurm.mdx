@@ -175,24 +175,28 @@ Container-based Slurm workloads use mounts to expose data and results. To simpli
 
 ### Head Node without Shared Storage Available on Compute Nodes
 
-When compute nodes do not share the file system with head node, `--enable-cache-without-check` for `run` and `dry-run` skips the real check for cache existence, but still builds all paths correctly. The flow is like this:
+When compute nodes do not share the installation cache with the submit host, `--enable-cache-without-check` for `run` and `dry-run` skips the real check for cache existence, but still builds all paths correctly. The flow is like this:
 
 1. *[on the head node]* run `cloudai install`.
 2. *[on the head node]* copy cache to compute nodes.
 3. Modify `system.toml` to set compute nodes' installation root.
 4. Run `cloudai run --enable-cache-without-check ...`.
 
+Keep `output_path` accessible at the same path on the submit host and compute nodes. Jobs read `env_vars.sh`
+and write logs there; CloudAI reads the results from the submit host. Copying the installation cache does not replace this requirement.
+
 <Anchor id="dev-details" />
 
 ### Dev Details
 
-`SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
+`SlurmCommandGenStrategy` defines abstract method `_container_mounts(self)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(self)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
 
 <Anchor id="nsys-tracing" />
 
 ### Nsys Tracing
 
-Users can enable Nsys tracing for any workload when running via Slurm. Note that `nsys` should be available on the compute nodes; CloudAI does not manage it.
+Slurm workloads using the standard command wrapper support `[nsys]` tracing. Make `nsys` available on the compute nodes.
+Megatron Bridge uses its [native profiling settings](/workloads/megatron-bridge) instead of this wrapper.
 
 The configuration fields are:
 

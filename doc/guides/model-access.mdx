@@ -13,7 +13,8 @@ The [vLLM](/workloads/vllm) starter uses `Qwen/Qwen3-0.6B`. Run it through the
 
 ## Use existing weights
 
-For vLLM, point the model argument at a container-visible directory. In the inline scenario's test entry, use:
+For vLLM, add `extra_container_mounts` to the `[[Tests]]` entry before `[Tests.cmd_args]`.
+Then replace `model` in the existing `[Tests.cmd_args]` table, keeping its other settings:
 
 ```toml
 extra_container_mounts = ["/shared/models:/models"]
