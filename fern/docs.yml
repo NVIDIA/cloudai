@@ -1,0 +1,26 @@
+instances:
+  - url: nvidia-cloudai.docs.buildwithfern.com/networking/cloudai
+    custom-domain: docs.nvidia.com/networking/cloudai
+    multi-source: true
+title: CloudAI
+global-theme: nvidia
+navbar-links:
+  - type: github
+    value: https://github.com/NVIDIA/cloudai
+versions:
+  - display-name: 1.8.1
+    slug: 1.8.1
+    ref: 9a803b76f648b31edbed61696d0f4c3efce9b373
+    availability: stable
+  - display-name: 1.7.1
+    slug: 1.7.1
+    ref: e69491dbb829213767de633a432a63f403749bda
+    availability: stable
+  - display-name: 1.6.1
+    slug: 1.6.1
+    ref: 055edc7aad3b719ae1eab2ff163e6a9a01968070
+    availability: stable
+  - display-name: dev
+    slug: dev
+    ref: 172aabb525cb7389e53c59dd3ae408d61db0bf32
+    availability: beta
