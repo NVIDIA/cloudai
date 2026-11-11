@@ -17,6 +17,7 @@
 import copy
 import logging
 import math
+import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -199,20 +200,40 @@ class CloudAIGymEnv(BaseGym):
         """
         Evaluate proposals in waves of at most ``max_parallelism`` trials.
 
-        A wave is filled from ``proposals``, executed by ``BaseRunner.run_trials``, and completely
-        finalized before the next one is filled, so results of earlier waves are in the trajectory
-        cache for later proposals. Identical proposals inside one wave are executed twice.
+        A wave is filled from ``proposals``, executed, and completely finalized before the next one
+        is filled, so results of earlier waves are in the trajectory cache for later proposals.
+        Identical proposals inside one wave are executed twice.
 
-        The runner and its scenario are left as they are: trials are passed to the runner
-        explicitly, and a runner shutdown is never reset here, so a cancelled sweep stops after
-        the wave that was running.
+        The runner's scenario is left as it is and a runner shutdown is never reset here, so a
+        cancelled sweep stops after the wave that was running.
         """
         results: list[EvaluationResult] = []
         pending = iter(proposals)
         while wave := self._next_wave(pending, max_steps):
-            job_statuses = self.runner.run_trials([c.test_run for c in wave if c.test_run and c.needs_execution])
-            results.extend(self._finalize_wave(wave, job_statuses))
+            results.extend(self._finalize_wave(wave, self._run_wave(wave)))
         return results
+
+    def _run_wave(self, wave: list[_Candidate]) -> dict[int, JobStatusResult]:
+        """
+        Submit the trials of a wave that need execution and wait for all of them.
+
+        Uses the runner's own submission and polling without its scenario policy: a failed trial
+        does not stop its siblings. Returns job statuses keyed by trial number.
+        """
+        job_statuses: dict[int, JobStatusResult] = {}
+        try:
+            for candidate in wave:
+                if candidate.test_run is not None and candidate.needs_execution:
+                    self.runner.submit_test(candidate.test_run)
+            while self.runner.jobs:
+                for job, job_status in self.runner.poll_jobs():
+                    job_statuses[job.test_run.step] = job_status
+                if self.runner.jobs:
+                    time.sleep(self.runner.monitor_interval)
+        except Exception:
+            self.runner.shutdown()
+            raise
+        return job_statuses
 
     def _next_wave(self, proposals: Iterator[Proposal], max_steps: Optional[int]) -> list[_Candidate]:
         """
@@ -236,12 +257,14 @@ class CloudAIGymEnv(BaseGym):
         del proposals, max_steps
         raise NotImplementedError
 
-    def _finalize_wave(self, wave: list[_Candidate], job_statuses: list[JobStatusResult]) -> list[EvaluationResult]:
+    def _finalize_wave(
+        self, wave: list[_Candidate], job_statuses: dict[int, JobStatusResult]
+    ) -> list[EvaluationResult]:
         """
         Turn a finished wave into results and persist it, in proposal order.
 
-        ``job_statuses`` is what ``BaseRunner.run_trials`` returned for the executed candidates of
-        ``wave``, in the same order. Per candidate:
+        ``job_statuses`` holds the job status of every executed candidate, keyed by trial number.
+        Per candidate:
 
         - Executed: read metrics from its own ``test_run``; a failed job or missing metric yields
           ``rewards.metric_failure`` and status ``failed``.

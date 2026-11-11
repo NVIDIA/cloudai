@@ -149,34 +149,6 @@ class BaseRunner(ABC):
             self.shutdown()
             raise
 
-    def run_trials(self, trs: list[TestRun]) -> list[JobStatusResult]:
-        """
-        Run independent trials concurrently and wait for all of them.
-
-        Unlike ``run``, no scenario policy applies: no dependencies, no iterations, and a failed
-        trial is reported in its own result while its siblings keep running, whatever
-        ``job_status_check`` says. ``step`` must already be assigned and unique per trial.
-
-        Args:
-            trs: Trials to run; empty is allowed.
-
-        Returns:
-            One result per trial, in the order of ``trs``.
-        """
-        results: dict[int, JobStatusResult] = {}
-        try:
-            for tr in trs:
-                self.submit_test(tr)
-            while self.jobs:
-                for job, result in self.poll_jobs():
-                    results[job.test_run.step] = result
-                if self.jobs:
-                    time.sleep(self.monitor_interval)
-        except Exception:
-            self.shutdown()
-            raise
-        return [results[tr.step] for tr in trs]
-
     def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
