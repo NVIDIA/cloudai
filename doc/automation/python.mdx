@@ -19,8 +19,8 @@ experiment = cloudai.api.run_experiment(scenario, system)
 print(experiment.status, experiment.path)
 ```
 
-`run_experiment` is synchronous: it returns after execution finishes. The returned model contains the data saved
-in `experiment.json`. An external agent can use that evidence to choose the next scenario.
+`run_experiment` is synchronous: it returns an experiment snapshot after execution finishes.
+An external agent can use that evidence to choose the next scenario.
 
 <Anchor id="integrate-into-a-larger-investigation" />
 

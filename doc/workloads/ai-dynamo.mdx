@@ -46,7 +46,6 @@ id = "dynamo.vllm"
     [Tests.cmd_args.dynamo]
     backend = "vllm"
     model = "Qwen/Qwen3-0.6B"
-    ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 1
@@ -98,6 +97,7 @@ Keep the tensor parallel size consistent with the GPUs available to that worker.
 also need Dynamo's multinode orchestration components on the cluster.
 
 The Kubernetes path uses `cmd_args.genai_perf` settings from the scenario.
+The frontend uses the Dynamo operator's defaults; `ingress-cmd` applies only on Slurm.
 Inspect `deployment.yaml`, `genai_perf.log`, and the collected GenAI-Perf artifacts in the case output directory.
 
 <Anchor id="run-using-slurm" />

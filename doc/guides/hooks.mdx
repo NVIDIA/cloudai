@@ -7,6 +7,9 @@ Use hooks on Slurm to prepare the environment or clean up after each main test.
 Hook execution is supported only on Slurm. Other schedulers log a warning, skip the configured hooks,
 and run the scenario’s own tests normally.
 
+With `--single-sbatch`, the pre-test hook runs once before all cases; the post-test hook is skipped.
+Omit this flag when each case needs preparation or cleanup.
+
 </Note>
 
 - `pre_test` selects the preparation scenario.

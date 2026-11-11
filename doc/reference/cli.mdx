@@ -28,6 +28,8 @@ The following are the global options for the `cloudai` command:
 
 ### Usage Examples
 
+Prepare `slurm.toml` using [Run on Slurm](/guides/slurm) before running these commands.
+
 <Anchor id="run-1" />
 
 <Anchor id="run" />
@@ -38,7 +40,7 @@ This mode runs workloads. It automatically installs prerequisites if they are no
 
 ```bash
 cloudai run\
-    --system-config conf/common/system/example_slurm_cluster.toml\
+    --system-config slurm.toml\
     --test-scenario conf/experimental/quickstart/nccl.toml
 ```
 
@@ -52,7 +54,7 @@ This mode generates workload commands without executing the workload. This is us
 
 ```bash
 cloudai dry-run\
-    --system-config conf/common/system/example_slurm_cluster.toml\
+    --system-config slurm.toml\
     --test-scenario conf/experimental/quickstart/nccl.toml
 ```
 
@@ -66,7 +68,7 @@ This mode generates reports under the scenario directory. It automatically runs 
 
 ```bash
 cloudai generate-report\
-    --system-config conf/common/system/example_slurm_cluster.toml\
+    --system-config slurm.toml\
     --test-scenario conf/experimental/quickstart/nccl.toml\
     --result-dir /path/to/result_directory
 ```
@@ -94,7 +96,7 @@ This mode installs test prerequisites. For more details, refer to the [Prepare w
 
 ```bash
 cloudai install\
-    --system-config conf/common/system/example_slurm_cluster.toml\
+    --system-config slurm.toml\
     --test-scenario conf/experimental/quickstart/nccl.toml
 ```
 
@@ -108,7 +110,7 @@ This mode is the opposite of the install mode. This mode removes installed test 
 
 ```bash
 cloudai uninstall\
-    --system-config conf/common/system/example_slurm_cluster.toml\
+    --system-config slurm.toml\
     --test-scenario conf/experimental/quickstart/nccl.toml
 ```
 

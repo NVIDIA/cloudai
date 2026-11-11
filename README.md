@@ -84,7 +84,7 @@ each workload still requires its own software and resources.
 
 ### 1. Get CloudAI
 
-Install `uv` 0.13.4 or newer, then clone CloudAI:
+Install `uv` 0.13.6 or newer, then clone CloudAI:
 
 ```bash
 git clone https://github.com/NVIDIA/cloudai.git

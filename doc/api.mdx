@@ -32,12 +32,13 @@ print(experiment.status, experiment.path)
 
 ## Run an experiment
 
-`run_experiment(scenario, system)` waits for completion and returns an `Experiment` with the data saved in `experiment.json`.
+`run_experiment(scenario, system)` waits for completion and returns an in-memory `Experiment` snapshot.
+CloudAI also writes `experiment.json`; write failures are logged, so the file may be missing or stale.
 
 - Workload failures appear in the experiment status.
 - Configuration and setup errors raise exceptions.
 - A job submission failure can raise `SystemExit(1)`; embedded callers must handle it separately from `Exception`.
-- `on_start` receives the initial experiment and cancellation function after the result file is created, before execution begins.
+- `on_start` receives the initial experiment and cancellation function after the first attempt to save results, before execution begins.
 - Execution remains synchronous after the callback.
 
 | Option | Use |

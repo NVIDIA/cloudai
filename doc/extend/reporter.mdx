@@ -2,25 +2,40 @@
 
 Turn workload output into metrics or publish a scenario-level artifact.
 
-Start with the reporter nearest your workload in `src/cloudai/workloads` or `src/cloudai/report_generator`.
-Import public interfaces through `cloudai.core`. A workload reporter and a scenario reporter have different
-registration contracts; select the level that owns the data you need.
+Choose the reporter level that owns the data you need:
+
+| Task | Interface | Registration |
+| --- | --- | --- |
+| Extract workload metrics or generate per-run artifacts | `ReportGenerationStrategy` | `add_report` |
+| Combine results into a scenario artifact | `Reporter` | `add_scenario_report` |
+
+Import public interfaces through `cloudai.core`. For CLI use, add your imports and registration calls inside
+`register_all()` in `src/cloudai/registration.py`. For Python API use, register in the same process before
+parsing or running the scenario.
 
 <Anchor id="reporting-registration-1" />
 
 <Anchor id="reporting-registration" />
 
-## Reporting Registration
+## Expose workload metrics
 
-Report registration is done via `Registry` class:
+Subclass `ReportGenerationStrategy` and implement:
+
+- `metrics`: the metric names your strategy provides.
+- `get_metric(name)`: a numeric value, or `METRIC_ERROR` for missing or failed measurements.
+- `can_handle_directory()`: whether the run's output can be processed.
+- `generate_report()`: write any per-run artifacts.
+
+The Fio integration provides a working example of this registration:
 
 ```python
 from cloudai.core import Registry
-from cloudai.models.scenario import ReportConfig
-from cloudai.reporter import PerTestReporter
+from cloudai.workloads.fio import FioReportGenerationStrategy, FioTestDefinition
 
-Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
+Registry().add_report(FioTestDefinition, FioReportGenerationStrategy)
 ```
+
+Use your own definition and strategy classes when adding a workload. Search uses this registration to find metrics.
 
 <Anchor id="provide-inference-measurements" />
 
@@ -53,31 +68,39 @@ def metric_observations(self, system, tr):
 
 <Anchor id="reporting-configuration-implementation" />
 
-## Reporting Configuration Implementation
+## Add a scenario report
 
-Each report can define its own configuration, which is constructed and passed as an argument to `Registry.add_scenario_report`.
-The `reports` field is parsed during TOML reading and the respective Pydantic model is created for it.
-
-For example, a custom report configuration can be defined as follows:
+Implement `Reporter.generate()` in your report module. This minimal example writes the scenario name:
 
 ```python
+from cloudai.core import Reporter
+
+
+class CustomReport(Reporter):
+    def generate(self) -> None:
+        (self.results_root / "summary.txt").write_text(
+            self.test_scenario.name + "\n", encoding="utf-8"
+        )
+```
+
+Import `CustomReport` into `register_all()` and add the registration there:
+
+```python
+from cloudai.core import Registry
 from cloudai.models.scenario import ReportConfig
 
-
-class CustomReportConfig(ReportConfig):
-    greeting: str
+Registry().add_scenario_report("custom", CustomReport, ReportConfig(enable=False))
 ```
 
-```python
-Registry().add_scenario_report("custom", CustomReport, CustomReportConfig(greeting="default value"))
-```
-
-And it can be used in a test scenario as follows:
+Enable it in the scenario:
 
 ```toml
 [reports]
-custom = { enable = true, greeting = "Hello, world!" }
+custom = { enable = true }
 ```
+
+For additional options, subclass `ReportConfig` and pass an instance at registration; the parsed values are
+available through `self.config`.
 
 Verify successful, failed, and missing-metric cases. Return `METRIC_ERROR` for a failed metric,
 using identity checks rather than treating every numeric `-1.0` as an error.

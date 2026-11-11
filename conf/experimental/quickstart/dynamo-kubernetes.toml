@@ -29,7 +29,6 @@ id = "dynamo.vllm"
     [Tests.cmd_args.dynamo]
     backend = "vllm"
     model = "Qwen/Qwen3-0.6B"
-    ingress-cmd = "python -m dynamo.frontend --router-mode kv --router-reset-states"
 
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 1

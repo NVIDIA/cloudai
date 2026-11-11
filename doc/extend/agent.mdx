@@ -34,8 +34,10 @@ CloudAI discovers installed packages through the `cloudai.agents` entry-point gr
 my_search = "my_package.agent:MyAgent"
 ```
 
-Install that package into the environment running CloudAI and select `agent = "my_search"` in the case configuration.
-Use `agent_config` for your model's parameters. See [Agent and search settings](/reference/agents) for shared settings.
+Install that package into the environment running CloudAI. In the [configuration search example](/optimization/search),
+replace `agent = "grid_search"` with `agent = "my_search"` and keep the list-valued `NCCL_ALGO` choices.
+An agent runs only when the case defines a search dimension. Use `agent_config` for your model's parameters;
+see [Agent and search settings](/reference/agents).
 
 <Anchor id="verify-the-policy" />
 

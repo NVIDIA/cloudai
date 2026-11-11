@@ -23,6 +23,9 @@ agent_reward_function = "inverse"
 The NCCL `default` metric is mean in-place latency in microseconds across reported message sizes.
 Use the complete [Run a configuration search](/optimization/search) example to run it.
 
+With `negative`, set `agent_config.rewards.metric_failure` above the valid metric range so failures receive
+a worse reward. The default `-1.0` becomes `+1.0`, which can outrank valid latency measurements.
+
 <Anchor id="define-meaningful-choices" />
 
 ## Define meaningful choices

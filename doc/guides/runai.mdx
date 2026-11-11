@@ -24,5 +24,7 @@ cluster_id = "your_cluster_id"              # Cluster ID in UUID format (e.g., a
 - Use your assigned project and cluster IDs. Contact your administrator if they are not available
 - All other fields follow the same semantics as in the Slurm system schema (e.g., `install_path`, `output_path`)
 
-Use an HTTPS endpoint and keep `verify_certs = true`. For a private certificate authority, install its CA certificate
-in the system trust store. Requests use a 30-second timeout.
+Use an HTTPS endpoint and keep `verify_certs = true`. For a private certificate authority:
+
+- Install its CA certificate in the system trust store for log connections.
+- Set `REQUESTS_CA_BUNDLE=/path/to/ca-bundle.pem` to a PEM bundle containing that CA for API requests.
