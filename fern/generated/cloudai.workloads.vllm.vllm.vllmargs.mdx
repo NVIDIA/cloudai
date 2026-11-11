@@ -1,0 +1,13 @@
+<Anchor id="cloudai.workloads.vllm.vllm.VllmArgs" />
+
+### `VllmArgs`
+
+Base command arguments for vLLM instances.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmArgs.gpu_ids" />`gpu_ids` | `str \| list[str] \| None` | `None` | Comma-separated GPU IDs. If not set, all available GPUs will be used. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmArgs.num_nodes" />`num_nodes` | `int \| list[int] \| None` | `None` | Number of Slurm nodes assigned to this role in disaggregated serving mode. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmArgs.ray_head" />`ray_head` | `VllmRayStartArgs \| None` | `None` | Arguments appended to the Ray head startup command for multi-node vLLM roles. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmArgs.ray_worker" />`ray_worker` | `VllmRayStartArgs \| None` | `None` | Arguments appended to the Ray worker startup command for multi-node vLLM roles. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmArgs.nixl_threads" />`nixl_threads` | `int \| list[int] \| None` | `None` | Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument. |

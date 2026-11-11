@@ -1,0 +1,35 @@
+<Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs" />
+
+### `NixlPerftestCmdArgs`
+
+CmdArgs for NIXL Perftest.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required | URL of the Docker image to use for the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.etcd_path" />`etcd_path` | `str` | `'etcd'` | Path to the etcd executable. |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.wait_etcd_for" />`wait_etcd_for` | `int` | `60` | Number of seconds to wait for etcd to become healthy. |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.etcd_image_url" />`etcd_image_url` | `str \| None` | `None` | Optional URL of the Docker image to use for etcd, by default etcd will be run from the same image as the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.subtest" />`subtest` | `Literal['sequential-ct-perftest']` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.perftest_script" />`perftest_script` | `str` | `'/workspace/nixl/benchmark/kvbench/main.py'` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.matgen_script" />`matgen_script` | `str` | `'/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py'` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.python_executable" />`python_executable` | `str` | `'python'` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_user_requests" />`num_user_requests` | `int \| list[int]` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.batch_size" />`batch_size` | `int \| list[int]` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_prefill_nodes" />`num_prefill_nodes` | `int \| list[int]` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_decode_nodes" />`num_decode_nodes` | `int \| list[int]` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.isl_mean" />`isl_mean` | `int \| list[int] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.isl_scale" />`isl_scale` | `int \| list[int] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.prefill_tp" />`prefill_tp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.prefill_pp" />`prefill_pp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.prefill_cp" />`prefill_cp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.decode_tp" />`decode_tp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.decode_pp" />`decode_pp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.decode_cp" />`decode_cp` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.model" />`model` | `str \| list[str] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.hidden_size" />`hidden_size` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_layers" />`num_layers` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_heads" />`num_heads` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.num_kv_heads" />`num_kv_heads` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.dtype_size" />`dtype_size` | `int \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs.matgen_args" />`matgen_args` | `cloudai.workloads.nixl_perftest.nixl_perftest.MatgenCmdArgs` | Factory: `MatgenCmdArgs` |  |

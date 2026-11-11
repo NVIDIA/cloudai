@@ -1,0 +1,30 @@
+<Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs" />
+
+### `NCCLCmdArgs`
+
+NCCL test command arguments.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.subtest_name" />`subtest_name` | `Literal['all_reduce_perf_mpi', 'all_gather_perf_mpi', 'alltoall_perf_mpi', 'alltoallv_perf_mpi', 'broadcast_perf_mpi', 'gather_perf_mpi', 'hypercube_perf_mpi', 'reduce_perf_mpi', 'reduce_scatter_perf_mpi', 'scatter_perf_mpi', 'sendrecv_perf_mpi', 'bisection_perf_mpi', 'all_reduce_perf', 'all_gather_perf', 'alltoall_perf', 'alltoallv_perf', 'broadcast_perf', 'gather_perf', 'hypercube_perf', 'reduce_perf', 'reduce_scatter_perf', 'scatter_perf', 'sendrecv_perf', 'bisection_perf'] \| list[Literal['all_reduce_perf_mpi', 'all_gather_perf_mpi', 'alltoall_perf_mpi', 'alltoallv_perf_mpi', 'broadcast_perf_mpi', 'gather_perf_mpi', 'hypercube_perf_mpi', 'reduce_perf_mpi', 'reduce_scatter_perf_mpi', 'scatter_perf_mpi', 'sendrecv_perf_mpi', 'bisection_perf_mpi', 'all_reduce_perf', 'all_gather_perf', 'alltoall_perf', 'alltoallv_perf', 'broadcast_perf', 'gather_perf', 'hypercube_perf', 'reduce_perf', 'reduce_scatter_perf', 'scatter_perf', 'sendrecv_perf', 'bisection_perf']]` | `'all_reduce_perf_mpi'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.nthreads" />`nthreads` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.ngpus" />`ngpus` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.minbytes" />`minbytes` | `str \| list[str]` | `'32M'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.maxbytes" />`maxbytes` | `str \| list[str]` | `'32M'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.stepbytes" />`stepbytes` | `str \| list[str]` | `'1M'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.op" />`op` | `Literal['sum', 'prod', 'min', 'max', 'avg', 'all'] \| list[Literal['sum', 'prod', 'min', 'max', 'avg', 'all']]` | `'sum'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.datatype" />`datatype` | `Literal['uint8', 'float'] \| list[Literal['uint8', 'float']]` | `'float'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.root" />`root` | `int \| list[int]` | `0` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.iters" />`iters` | `int \| list[int]` | `20` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.warmup_iters" />`warmup_iters` | `int \| list[int]` | `5` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.agg_iters" />`agg_iters` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.average" />`average` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.parallel_init" />`parallel_init` | `int \| list[int]` | `0` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.check" />`check` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.blocking" />`blocking` | `int \| list[int]` | `0` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.cudagraph" />`cudagraph` | `int \| list[int]` | `0` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.stepfactor" />`stepfactor` | `int \| list[int] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.use_deepep_matrix" />`use_deepep_matrix` | `bool` | `False` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.alltoallv_matrix_container_path" />`alltoallv_matrix_container_path` | `str` | `'/tmp/traffic_matrix.txt'` |  |
+| <Anchor id="cloudai.workloads.nccl_test.nccl.NCCLCmdArgs.min_busbw" />`min_busbw` | `float \| None` | `None` |  |

@@ -1,0 +1,20 @@
+<Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs" />
+
+### `NIXLKVBenchCmdArgs`
+
+Command line arguments for NIXL KVBench.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.filepath" />`filepath` | `str \| None` | `None` | Directory path (in container) for storage operations. Example: /data |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.total_buffer_size" />`total_buffer_size` | `str \| list[str] \| None` | `None` | Total buffer size in bytes. Examples: 1024, 1kb, 1mb, 1gb. Use with device_list. The size will be passed into NIXL as integer (bytes) |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.device_list" />`device_list` | `str \| list[str] \| None` | `None` | Device specs in format 'id:type:path' (e.g., '11:F:/store0.bin,27:K:/dev/nvme0n1') |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required | URL of the Docker image to use for the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.etcd_path" />`etcd_path` | `str` | `'etcd'` | Path to the etcd executable. |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.wait_etcd_for" />`wait_etcd_for` | `int` | `60` | Number of seconds to wait for etcd to become healthy. |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.etcd_image_url" />`etcd_image_url` | `str \| None` | `None` | Optional URL of the Docker image to use for etcd, by default etcd will be run from the same image as the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.command" />`command` | `Literal['profile']` | `'profile'` |  |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.kvbench_script" />`kvbench_script` | `str` | `'/workspace/nixl/benchmark/kvbench/main.py'` |  |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.python_executable" />`python_executable` | `str` | `'python'` |  |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.model_cfg" />`model_cfg` | `str \| list[str] \| None` | `None` | Path to model configuration file used by NIXL KVBench. |
+| <Anchor id="cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs.backend" />`backend` | `str \| list[str] \| None` | `None` |  |
