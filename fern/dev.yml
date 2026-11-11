@@ -5,9 +5,6 @@ navigation:
 - section: Get started
   skip-slug: true
   contents:
-  - page: Get started
-    path: ../doc/start/index.mdx
-    slug: start/index
   - page: Install CloudAI
     path: ../doc/getting-started.mdx
     slug: getting-started
@@ -17,12 +14,10 @@ navigation:
   - page: Understand experiment configuration
     path: ../doc/guides/configuration.mdx
     slug: guides/configuration
+  path: ../doc/start/index.mdx
 - section: Run experiments
   skip-slug: true
   contents:
-  - page: Run experiments
-    path: ../doc/guides/index.mdx
-    slug: guides/index
   - page: Set up your execution environment
     path: ../doc/guides/environment.mdx
     slug: guides/environment
@@ -50,12 +45,10 @@ navigation:
   - page: Read results and generate reports
     path: ../doc/reporting.mdx
     slug: reporting
+  path: ../doc/guides/index.mdx
 - section: Optimize configurations
   skip-slug: true
   contents:
-  - page: Optimize configurations
-    path: ../doc/optimization/index.mdx
-    slug: optimization/index
   - page: Run a configuration search
     path: ../doc/optimization/search.mdx
     slug: optimization/search
@@ -68,12 +61,10 @@ navigation:
   - page: Compare trade-offs and reuse configurations
     path: ../doc/pareto-frontiers.mdx
     slug: pareto-frontiers
+  path: ../doc/optimization/index.mdx
 - section: Automate experiments
   skip-slug: true
   contents:
-  - page: Automate experiments
-    path: ../doc/automation/index.mdx
-    slug: automation/index
   - page: Run experiments with Python
     path: ../doc/automation/python.mdx
     slug: automation/python
@@ -83,18 +74,13 @@ navigation:
   - page: Publish results and integrate with CI
     path: ../doc/automation/publish.mdx
     slug: automation/publish
+  path: ../doc/automation/index.mdx
 - section: Workloads
   skip-slug: true
   contents:
-  - page: Workloads
-    path: ../doc/workloads/index.mdx
-    slug: workloads/index
   - section: Training
     skip-slug: true
     contents:
-    - page: Training
-      path: ../doc/workloads/training.mdx
-      slug: workloads/training
     - page: MegatronBridge
       path: ../doc/workloads/megatron-bridge.mdx
       slug: workloads/megatron-bridge
@@ -104,12 +90,10 @@ navigation:
     - page: DDLB
       path: ../doc/workloads/ddlb.mdx
       slug: workloads/ddlb
+    path: ../doc/workloads/training.mdx
   - section: Inference
     skip-slug: true
     contents:
-    - page: Inference
-      path: ../doc/workloads/inference.mdx
-      slug: workloads/inference
     - page: vLLM
       path: ../doc/workloads/vllm.mdx
       slug: workloads/vllm
@@ -122,12 +106,10 @@ navigation:
     - page: SRT-Slurm
       path: ../doc/workloads/srt-slurm.mdx
       slug: workloads/srt-slurm
+    path: ../doc/workloads/inference.mdx
   - section: Networking and communication
     skip-slug: true
     contents:
-    - page: Networking and communication
-      path: ../doc/workloads/networking.mdx
-      slug: workloads/networking
     - page: NCCL
       path: ../doc/workloads/nccl.mdx
       slug: workloads/nccl
@@ -152,21 +134,17 @@ navigation:
     - page: NIXL CTPerf
       path: ../doc/workloads/nixl-perftest.mdx
       slug: workloads/nixl-perftest
+    path: ../doc/workloads/networking.mdx
   - section: Storage
     skip-slug: true
     contents:
-    - page: Storage
-      path: ../doc/workloads/storage.mdx
-      slug: workloads/storage
     - page: fio
       path: ../doc/workloads/fio.mdx
       slug: workloads/fio
+    path: ../doc/workloads/storage.mdx
   - section: Simulation and prediction
     skip-slug: true
     contents:
-    - page: Simulation and prediction
-      path: ../doc/workloads/simulation.mdx
-      slug: workloads/simulation
     - page: AIConfigurator
       path: ../doc/workloads/aiconfigurator.mdx
       slug: workloads/aiconfigurator
@@ -176,12 +154,10 @@ navigation:
     - page: Chakra Replay
       path: ../doc/workloads/chakra-replay.mdx
       slug: workloads/chakra-replay
+    path: ../doc/workloads/simulation.mdx
   - section: General-purpose execution
     skip-slug: true
     contents:
-    - page: General-purpose execution
-      path: ../doc/workloads/general.mdx
-      slug: workloads/general
     - page: Bash Command
       path: ../doc/workloads/bash-cmd.mdx
       slug: workloads/bash-cmd
@@ -191,24 +167,21 @@ navigation:
     - page: Sleep
       path: ../doc/workloads/sleep.mdx
       slug: workloads/sleep
+    path: ../doc/workloads/general.mdx
   - section: Legacy integrations
     skip-slug: true
     contents:
-    - page: Legacy integrations
-      path: ../doc/workloads/legacy.mdx
-      slug: workloads/legacy
     - page: NeMo Launcher (deprecated)
       path: ../doc/workloads/nemo-launcher.mdx
       slug: workloads/nemo-launcher
     - page: JaxToolbox workloads (DEPRECATED)
       path: ../doc/workloads/jax-toolbox.mdx
       slug: workloads/jax-toolbox
+    path: ../doc/workloads/legacy.mdx
+  path: ../doc/workloads/index.mdx
 - section: Extend CloudAI
   skip-slug: true
   contents:
-  - page: Extend CloudAI
-    path: ../doc/extend/index.mdx
-    slug: extend/index
   - page: Architecture and extension points
     path: ../doc/development.mdx
     slug: development
@@ -227,12 +200,10 @@ navigation:
   - page: Develop and contribute
     path: ../doc/extend/contribute.mdx
     slug: extend/contribute
+  path: ../doc/extend/index.mdx
 - section: Reference
   skip-slug: true
   contents:
-  - page: Reference
-    path: ../doc/reference/index.mdx
-    slug: reference/index
   - page: CLI reference
     path: ../doc/reference/cli.mdx
     slug: reference/cli
@@ -242,12 +213,10 @@ navigation:
   - section: Systems
     skip-slug: true
     contents:
-    - page: Systems
-      path: ../doc/systems.mdx
-      slug: systems
     - page: NCCL on RunAI
       path: ../doc/guides/runai.mdx
       slug: guides/runai
+    path: ../doc/systems.mdx
   - page: System configuration example
     path: ../doc/reference/system-settings.mdx
     slug: reference/system-settings
@@ -266,15 +235,14 @@ navigation:
   - section: Reports
     skip-slug: true
     contents:
-    - page: Reports
-      path: ../doc/reports.mdx
-      slug: reports
     - page: Training Report Schema
       path: ../doc/training-report-schema.mdx
       slug: training-report-schema
+    path: ../doc/reports.mdx
   - page: Python API
     path: ../doc/api.mdx
     slug: api
+  path: ../doc/reference/index.mdx
 - page: Troubleshooting
   path: ../doc/troubleshooting.mdx
   slug: troubleshooting
