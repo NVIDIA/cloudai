@@ -18,7 +18,6 @@ wheels/
 share/python-wheels/
 *.egg-info/
 *.egg
-doc/_build
 
 # PyInstaller
 # Usually these files are written by a python script from a template
