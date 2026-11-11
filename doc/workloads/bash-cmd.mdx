@@ -1,5 +1,16 @@
 <Anchor id="bash-command" />
 
+Run an existing shell command as a CloudAI case.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 Bash Command workload (`test_template_name` is `BashCmd`) allows users to execute arbitrary bash commands within the CloudAI framework. This is useful for simple scripts, custom testing commands, or integrating external tools.
 
 `cmd` specified in the `cmd_args` section will be added as-is into generated sbatch script.
@@ -10,7 +21,7 @@ Bash Command workload (`test_template_name` is `BashCmd`) allows users to execut
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_bash_test"
 description = "Example bash command test"
 test_template_name = "BashCmd"
@@ -21,7 +32,7 @@ cmd = "echo 'Hello from CloudAI!'"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "bash-test"
 
 [[Tests]]
@@ -34,7 +45,7 @@ test_name = "my_bash_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "bash-test"
 
 [[Tests]]
@@ -50,9 +61,9 @@ test_template_name = "BashCmd"
   cmd = "echo 'Hello from CloudAI!'"
 ```
 
-<Anchor id="api-documentation" />
+<Anchor id="configuration-and-api-reference" />
 
-## API Documentation
+## Configuration and API reference
 
 <Anchor id="command-arguments" />
 

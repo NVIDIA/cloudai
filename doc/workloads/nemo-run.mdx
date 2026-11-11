@@ -1,5 +1,16 @@
 <Anchor id="nemo-run" />
 
+Run NeMo training and fine-tuning through NeMo Run.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `NemoRun`) executes NeMo training and fine-tuning tasks using the NeMo Run framework.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ This workload (`test_template_name` is `NemoRun`) executes NeMo training and fin
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_nemo_test"
 description = "Example NeMo Run test"
 test_template_name = "NemoRun"
@@ -20,7 +31,7 @@ task = "pretrain"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "nemo-run-test"
 
 [[Tests]]
@@ -33,7 +44,7 @@ test_name = "my_nemo_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "nemo-run-test"
 
 [[Tests]]

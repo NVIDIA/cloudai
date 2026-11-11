@@ -1,5 +1,16 @@
 <Anchor id="sleep" />
 
+Check scheduling and timing with a simple sleep workload.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `Sleep`) executes a simple sleep command for testing and timing purposes. Useful for testing schedulers and system behavior.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ This workload (`test_template_name` is `Sleep`) executes a simple sleep command 
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_sleep_test"
 description = "Example Sleep test"
 test_template_name = "Sleep"
@@ -19,7 +30,7 @@ seconds = 30
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "sleep-test"
 
 [[Tests]]
@@ -32,7 +43,7 @@ test_name = "my_sleep_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "sleep-test"
 
 [[Tests]]

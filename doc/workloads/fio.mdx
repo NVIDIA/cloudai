@@ -1,22 +1,42 @@
 <Anchor id="fio" />
 
-`Fio` runs the open-source `fio` tool from CloudAI. It supports standalone and Slurm systems.
+Measure file I/O on the filesystem or device path you select.
+
+Start with the [local setup](/tutorial).
+
+```bash
+uv run cloudai run --system-config standalone.toml \
+    --test-scenario conf/experimental/quickstart/fio.toml
+```
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
+`Fio` runs the open-source `fio` tool from CloudAI.
+It supports standalone and Slurm systems.
 
 <Anchor id="scenarios" />
 
 ## Scenarios
 
-Use `conf/common/test_scenario/fio.toml` for Slurm clusters. It runs the common `fio` test in a container and starts 4 tasks total: `num_nodes = 2` and `num_tasks_per_node = 2`.
+Use `conf/common/test_scenario/fio.toml` for Slurm clusters.
+It runs the common `fio` test in a container and starts 4 tasks total:
+`num_nodes = 2` and `num_tasks_per_node = 2`.
 
-Use `conf/common/test_scenario/fio_local.toml` for local/standalone runs. It uses host-installed `fio` and no container image.
+Use `conf/common/test_scenario/fio_local.toml` for local/standalone runs.
+It uses host-installed `fio` and no container image.
 
 <Anchor id="fio-arguments" />
 
 ## Fio Arguments
 
-Put fio CLI options under `cmd_args.args`. CloudAI does not declare a fixed fio option list; keys pass through verbatim.
+Put fio CLI options under `cmd_args.args`.
+CloudAI does not declare a fixed fio option list; keys pass through verbatim.
 
-``` toml
+```toml
 name = "fio"
 description = "fio random write smoke test"
 test_template_name = "Fio"
@@ -36,24 +56,26 @@ fio_binary = "fio"
   thread = true
 ```
 
-This emits options like `--rw=randwrite` and `--group_reporting`. Quote TOML keys when option names contain characters such as `-`:
+This emits options like `--rw=randwrite` and `--group_reporting`.
+Quote TOML keys when option names contain characters such as `-`:
 
-``` toml
+```toml
 [cmd_args.args]
 "max-jobs" = 4
 ```
 
 List values are CloudAI DSE sweeps:
 
-``` toml
+```toml
 [cmd_args.args]
 bs = ["128k", "1m"]
 iodepth = [1, 8, 32]
 ```
 
-To repeat the same fio option in one run, use a nested table. Nested key names are only stable TOML item names; values become fio values:
+To repeat the same fio option in one run, use a nested table.
+Nested key names are only stable TOML item names; values become fio values:
 
-``` toml
+```toml
 [cmd_args.args.a]
 "0" = "=foo"  # --a==foo
 "1" = "bar"   # --a=bar
@@ -65,7 +87,7 @@ To repeat the same fio option in one run, use a nested table. Nested key names a
 
 For existing or complex fio configs, use `job_file`:
 
-``` toml
+```toml
 [cmd_args]
 fio_binary = "/tmp/fio/fio"
 job_file = "/tmp/kv_emulation.fio"
@@ -75,9 +97,12 @@ job_file = "/tmp/kv_emulation.fio"
 
 ## Slurm Tasks
 
-Scenario `num_nodes` controls node count. `cmd_args.num_tasks_per_node` controls Slurm tasks per node. Total fio tasks = `num_nodes * num_tasks_per_node`. CloudAI passes this as `--ntasks` and `--ntasks-per-node`.
+Scenario `num_nodes` controls node count.
+`cmd_args.num_tasks_per_node` controls Slurm tasks per node.
+Total fio tasks = `num_nodes * num_tasks_per_node`.
+CloudAI passes this as `--ntasks` and `--ntasks-per-node`.
 
-``` toml
+```toml
 [[Tests]]
 id = "Tests.fio"
 test_name = "fio"
@@ -92,9 +117,12 @@ num_nodes = 2
 
 ## Default Metric
 
-For `agent_metrics = ["default"]`, CloudAI aggregates parsed fio summary rows. Defaults report total bandwidth across all operations and tasks. Bandwidth metrics are normalized to MiB/s before aggregation. Latency metrics are normalized to usec before aggregation.
+For `agent_metrics = ["default"]`, CloudAI aggregates parsed fio summary rows.
+Defaults report total bandwidth across all operations and tasks.
+Bandwidth metrics are normalized to MiB/s before aggregation.
+Latency metrics are normalized to usec before aggregation.
 
-``` toml
+```toml
 [cmd_args]
 metric_operation = "all"    # read, write, trim, all, first
 metric_name = "bw"          # bw, iops, latency

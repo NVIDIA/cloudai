@@ -1,5 +1,16 @@
 <Anchor id="deepep-benchmark" />
 
+Measure expert-parallel communication with DeepEP.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 DeepEP Benchmark workload (`test_template_name` is `DeepEP`) allows users to execute DeepEP (Deep Expert Parallelism) MoE (Mixture of Experts) benchmarks within the CloudAI framework.
 
 <Anchor id="overview" />
@@ -20,7 +31,7 @@ DeepEP is a benchmark for measuring the performance of MoE models with distribut
 
 Test TOML example (Standard Mode):
 
-``` toml
+```toml
 name = "deepep_standard"
 description = "DeepEP MoE Benchmark - Standard Mode"
 test_template_name = "DeepEP"
@@ -39,7 +50,7 @@ num_iterations = 50
 
 Test TOML example (Low-Latency Mode):
 
-``` toml
+```toml
 name = "deepep_low_latency"
 description = "DeepEP MoE Benchmark - Low Latency Mode"
 test_template_name = "DeepEP"
@@ -58,7 +69,7 @@ allow_mnnvl = false
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "deepep-benchmark"
 
 [[Tests]]
@@ -70,7 +81,7 @@ time_limit = "00:30:00"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "deepep-benchmark"
 
 [[Tests]]

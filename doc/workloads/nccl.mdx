@@ -1,5 +1,73 @@
 <Anchor id="nccl" />
 
+Measure collective communication across your selected GPUs and nodes.
+
+Start with the [Slurm setup](/guides/environment).
+The starter uses two nodes for all-reduce.
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/nccl.toml
+```
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="run-on-kubernetes" />
+
+<Anchor id="nccl-kubernetes" />
+
+## Run on Kubernetes
+
+Prepare `kubernetes.toml` using [Run on Kubernetes](/guides/kubernetes) and install the
+[Kubeflow MPI Operator](https://github.com/kubeflow/mpi-operator) with the `kubeflow.org/v2beta1` API.
+The namespace must permit the privileged launcher and worker pods used by this integration.
+
+Reuse the two-worker all-reduce scenario with the Kubernetes system:
+
+```bash
+uv run cloudai run --system-config kubernetes.toml \
+    --test-scenario conf/experimental/quickstart/nccl.toml
+```
+
+<Accordion title="View the scenario">
+
+```toml
+name = "quickstart-nccl"
+
+[[Tests]]
+id = "all-reduce"
+name = "all-reduce"
+description = "Two-node NCCL all-reduce benchmark"
+test_template_name = "NcclTest"
+num_nodes = 2
+time_limit = "00:05:00"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "128M"
+  iters = 20
+  warmup_iters = 5
+  stepfactor = 2
+```
+
+</Accordion>
+
+`num_nodes = 2` creates two MPI worker pods. Set `gpus_per_node` in the system config to the GPUs per worker;
+CloudAI launches one MPI process per GPU. Kubernetes controls pod placement.
+
+The example uses the public NVIDIA PyTorch image, which includes `all_reduce_perf_mpi`.
+Workers install an SSH server if needed, so they require package repository access in that case.
+For RDMA device requests and network attachments, follow [kubernetes networking](/guides/kubernetes#kubernetes-networking).
+
+Inspect `deployment.yaml` for the MPIJob and `stdout.txt` for the NCCL measurements in the case output directory.
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `NcclTest`) allows users to execute NCCL benchmarks within the CloudAI framework.
 
 <Anchor id="usage-example" />
@@ -8,7 +76,7 @@ This workload (`test_template_name` is `NcclTest`) allows users to execute NCCL 
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_nccl_test"
 description = "Example NCCL test"
 test_template_name = "NcclTest"
@@ -19,7 +87,7 @@ docker_image_url = "nvcr.io#nvidia/pytorch:25.06-py3"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "nccl-test"
 
 [[Tests]]
@@ -32,7 +100,7 @@ test_name = "my_nccl_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "nccl-test"
 
 [[Tests]]
@@ -50,9 +118,9 @@ test_template_name = "NcclTest"
   iters = 100
 ```
 
-<Anchor id="api-documentation" />
+<Anchor id="configuration-and-api-reference" />
 
-## API Documentation
+## Configuration and API reference
 
 <Anchor id="command-arguments" />
 

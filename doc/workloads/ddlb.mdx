@@ -1,5 +1,16 @@
 <Anchor id="ddlb" />
 
+Run distributed training experiments with DDLB.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 DDLB workload (`test_template_name` is `DDLB`) allows users to execute DDLB (Distributed Deep Learning Benchmarks) within the CloudAI framework. Please find the DDLB README at [https://github.com/samnordmann/ddlb](https://github.com/samnordmann/ddlb).
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ DDLB workload (`test_template_name` is `DDLB`) allows users to execute DDLB (Dis
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_ddlb_test"
 description = "Example DDLB test"
 test_template_name = "DDLB"
@@ -21,7 +32,7 @@ dtype = "float16"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "ddlb-test"
 
 [[Tests]]
@@ -34,7 +45,7 @@ test_name = "my_ddlb_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "ddlb-test"
 
 [[Tests]]
@@ -58,9 +69,9 @@ test_template_name = "DDLB"
   impl = "pytorch;backend=nccl;order=AG_before"
 ```
 
-<Anchor id="api-documentation" />
+<Anchor id="configuration-and-api-reference" />
 
-## API Documentation
+## Configuration and API reference
 
 <Anchor id="command-arguments" />
 

@@ -1,0 +1,74 @@
+<Anchor id="run-a-configuration-search" />
+
+Compare two NCCL algorithm settings and inspect the configuration with the best observed reward.
+
+<Anchor id="prepare-a-baseline" />
+
+## Prepare a baseline
+
+Run the [networking example](/#networking-with-nccl) first. This search uses the same two-node Slurm setup and public image.
+Keep the system, message sizes, and other workload settings fixed.
+
+<Anchor id="run-two-candidates" />
+
+## Run two candidates
+
+```bash
+uv run cloudai run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/nccl-search.toml
+```
+
+```toml
+name = "quickstart-nccl-search"
+
+[[Tests]]
+id = "all-reduce"
+name = "all-reduce"
+description = "Two-node NCCL all-reduce benchmark"
+test_template_name = "NcclTest"
+num_nodes = 2
+time_limit = "00:05:00"
+agent = "grid_search"
+agent_metrics = ["default"]
+agent_reward_function = "inverse"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "128M"
+  iters = 20
+  warmup_iters = 5
+  stepfactor = 2
+
+  [Tests.extra_env_vars]
+  NCCL_ALGO = ["Ring", "Tree"]
+```
+
+`NCCL_ALGO` defines two choices. Built-in `grid_search` evaluates both; it does not adapt its choices from
+measurements. The `default` metric is mean in-place latency in microseconds across the reported message sizes; `inverse` converts a lower-is-better
+metric into a higher-is-better reward. Check [Choose an objective and search space](/optimization/objectives) before adapting the objective.
+
+<Anchor id="inspect-the-selected-result" />
+
+## Inspect the selected result
+
+Read `tests[].dse` in `experiment.json` for search details and the selected step; `tests[].metrics` contains
+the successful step with the highest valid reward. Inspect the DSE report and selected test configuration alongside
+the workload logs. See [Read results and generate reports](/reporting) for a real two-candidate example and its measurement context.
+
+<Anchor id="expand-the-search" />
+
+## Expand the search
+
+Add dimensions only after estimating their combined cost with [Plan compute usage](/optimization/budget). Keep the baseline and search in separate
+scenarios. To choose trials using prior feedback, integrate [a custom agent](/extend/agent).
+
+<Note>
+
+Before reusing an exported DSE TOML, compare it with the successful selection in `experiment.json`.
+The TOML exporter ranks raw rewards, so a failed measurement can win if its substituted reward is higher.
+Searches that vary only `num_nodes` do not export this TOML.
+
+</Note>

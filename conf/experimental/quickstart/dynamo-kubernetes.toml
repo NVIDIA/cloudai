@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "quickstart-dynamo-kubernetes"
+[[Tests]]
+name = "dynamo-vllm-kubernetes"
+description = "vLLM backend"
+test_template_name = "AIDynamo"
+extra_container_mounts = ["/run/udev:/run/udev"]
+id = "dynamo.vllm"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.1.1"
+  workloads = "genai_perf.sh"
+
+    [Tests.cmd_args.dynamo]
+    backend = "vllm"
+    model = "Qwen/Qwen3-0.6B"
+
+      [Tests.cmd_args.dynamo.decode_worker]
+      num-nodes = 1
+      cmd = "python3 -m dynamo.vllm"
+      worker-initialized-regex = "VllmWorker.*has.been.initialized"
+      extra-args = "--no-enable-expert-parallel"
+
+        [Tests.cmd_args.dynamo.decode_worker.args]
+        gpu-memory-utilization = 0.8
+        tensor-parallel-size = 8
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+        kv-transfer-config = "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 1
+      cmd = "python3 -m dynamo.vllm --is-prefill-worker"
+      worker-initialized-regex = "VllmWorker.*has.been.initialized"
+      extra-args = "--no-enable-expert-parallel"
+
+        [Tests.cmd_args.dynamo.prefill_worker.args]
+        gpu-memory-utilization = 0.8
+        tensor-parallel-size = 8
+        pipeline-parallel-size = 1
+        data-parallel-size = 1
+        kv-transfer-config = "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}"
+
+    [Tests.cmd_args.genai_perf]
+    cmd = "genai-perf profile"
+    extra-args = "--streaming --verbose -- -v --async"
+
+      [Tests.cmd_args.genai_perf.args]
+      endpoint-type = "chat"
+      extra-inputs = "min_tokens:10"
+      output-tokens-mean = 500
+      output-tokens-stddev = 0
+      random-seed = 123
+      request-count = 50
+      synthetic-input-tokens-mean = 300
+      synthetic-input-tokens-stddev = 0
+      warmup-request-count = 5
+      concurrency = 2

@@ -1,0 +1,40 @@
+---
+slug: /optimization/index
+---
+
+<Anchor id="optimize-configurations" />
+
+Compare candidate configurations, inspect measured trade-offs, and reuse the best observed result.
+
+Our internal optimization agents can significantly reduce the number of experiments needed to find strong
+configurations compared with grid search, saving time and compute budget. Contact the team for details.
+
+Start with the public grid-search example below, or [integrate your own selection policy](/extend/agent).
+
+<CardGroup cols={2}>
+
+<Card title="Run a configuration search" href="/optimization/search">
+
+Compare two NCCL algorithm settings and inspect the configuration with the best observed reward.
+
+</Card>
+
+<Card title="Choose an objective and search space" href="/optimization/objectives">
+
+Define the decision before selecting the search dimensions.
+
+</Card>
+
+<Card title="Plan compute usage" href="/optimization/budget">
+
+Start with a small search space and estimate the cost before allocating resources.
+
+</Card>
+
+<Card title="Compare trade-offs and reuse configurations" href="/pareto-frontiers">
+
+Compare observed latency and throughput before choosing a configuration.
+
+</Card>
+
+</CardGroup>
