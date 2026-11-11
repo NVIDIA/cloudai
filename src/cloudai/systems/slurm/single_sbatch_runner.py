@@ -46,10 +46,10 @@ class SingleSbatchRunner(SlurmRunner):
                 continue
             if tr.test.agent != "grid_search":
                 raise ValueError("Single-sbatch DSE supports only grid_search")
-            if tr.test.agent_parallelism > 1:
-                raise ValueError("agent_parallelism is unsupported for single-sbatch DSE")
             if "max_consecutive_rejected_proposals" in (tr.test.agent_config or {}):
                 raise ValueError("max_consecutive_rejected_proposals is unsupported for single-sbatch DSE")
+            if "max_parallelism" in (tr.test.agent_config or {}):
+                raise ValueError("max_parallelism is unsupported for single-sbatch DSE")
 
     def get_sbatch_directives(self) -> list[str]:
         max_nodes, node_list = self.extract_sbatch_nodes_spec()

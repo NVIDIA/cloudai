@@ -128,7 +128,6 @@ class TestRunModel(BaseModel):
     nsys: Optional[NsysConfiguration] = None
     agent: Optional[str] = None
     agent_steps: Optional[int] = None
-    agent_parallelism: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: Optional[str] = None
     agent_config: Optional[dict[str, Any]] = Field(default=None, description="Agent configuration.")

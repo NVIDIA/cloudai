@@ -135,10 +135,6 @@ def handle_dse_job(runner: Runner) -> int:
         )
         return 1
 
-    if any(tr.pin_nodes and tr.test.agent_parallelism > 1 for tr in runner.runner.test_scenario.test_runs):
-        logging.error("'pin_nodes' is not supported for DSE jobs with 'agent_parallelism' greater than 1.")
-        return 1
-
     err = 0
     try:
         for tr in runner.runner.test_scenario.test_runs:
@@ -156,22 +152,28 @@ def handle_dse_job(runner: Runner) -> int:
 
             agent_config_data = test_run.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
+            if test_run.pin_nodes and agent_config.max_parallelism > 1:
+                logging.error(
+                    f"'pin_nodes' is not supported with 'max_parallelism' greater than 1 (test '{test_run.name}')."
+                )
+                err = 1
+                continue
             env = CloudAIGymEnv(
                 test_run=test_run,
                 runner=runner.runner,
                 rewards=agent_config.rewards,
                 max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
-                agent_parallelism=test_run.test.agent_parallelism,
+                max_parallelism=agent_config.max_parallelism,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
-            if env.agent_parallelism > 1 and type(agent).select_batch is BaseAgent.select_batch:
+            if agent_config.max_parallelism > 1 and type(agent).select_batch is BaseAgent.select_batch:
                 logging.warning(
                     f"Agent '{agent_type}' proposes one action at a time; "
-                    f"agent_parallelism={env.agent_parallelism} has no effect."
+                    f"max_parallelism={agent_config.max_parallelism} has no effect."
                 )
 
             env.update_output()

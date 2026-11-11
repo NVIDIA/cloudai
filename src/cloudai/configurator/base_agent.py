@@ -49,6 +49,11 @@ class BaseAgentConfig(BaseModel):
         default=16,
         description="Maximum constraint-rejected proposals before the environment skips the current DSE step.",
     )
+    max_parallelism: int = Field(
+        default=1,
+        ge=1,
+        description="Maximum number of DSE trials CloudAI keeps outstanding at the same time.",
+    )
     rewards: RewardOverrides = Field(
         default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
@@ -127,7 +132,7 @@ class BaseAgent(ABC):
         """
         Propose every action the agent can supply before it needs feedback.
 
-        The environment pulls proposals lazily and keeps at most ``agent_parallelism`` of them
+        The environment pulls proposals lazily and keeps at most ``max_parallelism`` of them
         running. It also stops pulling once the step allowance is exhausted, so agents whose
         proposals do not depend on feedback may return an unbounded generator. Constraint-rejected
         and cached proposals take no execution slot; the environment simply pulls the next one.

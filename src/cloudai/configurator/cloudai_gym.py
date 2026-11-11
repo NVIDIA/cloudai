@@ -64,7 +64,7 @@ class CloudAIGymEnv(BaseGym):
         runner: BaseRunner,
         rewards: RewardOverrides,
         max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
-        agent_parallelism: int = 1,
+        max_parallelism: int = 1,
     ):
         """
         Initialize the Gym environment using the TestRun object.
@@ -74,7 +74,7 @@ class CloudAIGymEnv(BaseGym):
             runner (BaseRunner): The runner object to execute jobs.
             rewards: Reward / observation overrides from agent config.
             max_consecutive_rejected_proposals: Rejections allowed before consuming the current sweep step.
-            agent_parallelism: Maximum number of trials kept outstanding at the same time.
+            max_parallelism: Maximum number of trials kept outstanding at the same time.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -82,7 +82,7 @@ class CloudAIGymEnv(BaseGym):
         self.rewards = rewards
         self.max_steps = test_run.test.agent_steps
         self.max_consecutive_rejected_proposals = max_consecutive_rejected_proposals
-        self.agent_parallelism = agent_parallelism
+        self.max_parallelism = max_parallelism
         self._progress = test_run.step
         self._consecutive_rejections = 0
         self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
@@ -194,7 +194,7 @@ class CloudAIGymEnv(BaseGym):
 
     def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[EvaluationResult]:
         """
-        Evaluate proposals in waves of at most ``agent_parallelism`` trials.
+        Evaluate proposals in waves of at most ``max_parallelism`` trials.
 
         A wave is filled from ``proposals``, executed, and completely finalized before the next one
         is filled, so results of earlier waves are in the trajectory cache for later proposals.
@@ -209,7 +209,7 @@ class CloudAIGymEnv(BaseGym):
 
     def _next_wave(self, proposals: Iterator[Proposal], max_steps: Optional[int]) -> list[_Candidate]:
         """
-        Pull proposals, in order, until ``agent_parallelism`` of them need execution.
+        Pull proposals, in order, until ``max_parallelism`` of them need execution.
 
         Every pulled proposal is returned, so the caller reports one result per proposal:
 
