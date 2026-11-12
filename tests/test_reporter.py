@@ -579,6 +579,38 @@ def _create_dse_iteration(
                 toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
 
 
+def test_best_dse_config_among_equal_rewards_is_the_earliest_step(
+    slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata
+) -> None:
+    dse_case = TestRun(
+        name="dse-case",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="NCCL case",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
+            agent_steps=2,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+        iterations=1,
+    )
+    # Trials are written as they finish, so the rows are not sorted by step.
+    steps = [
+        {"step": 2, "action": {"ngpus": 2}, "reward": -5.0, "observation": [5], "elapsed_time_sec": 60},
+        {"step": 1, "action": {"ngpus": 1}, "reward": -5.0, "observation": [5], "elapsed_time_sec": 60},
+    ]
+    _create_dse_iteration(
+        dse_case, iteration=0, results_root=slurm_system.output_path, slurm_metadata=slurm_metadata, steps=steps
+    )
+    scenario = TestScenario(name="dse-ties", test_runs=[dse_case])
+
+    DSEReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig()).generate()
+
+    best_config = toml.load(slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml")
+    assert best_config["cmd_args"]["ngpus"] == 1
+
+
 def test_dse_reporter(
     slurm_system: SlurmSystem,
     slurm_metadata: SlurmSystemMetadata,

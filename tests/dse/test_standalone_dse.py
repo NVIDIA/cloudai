@@ -37,11 +37,12 @@ def standalone(tmp_path: Path) -> StandaloneSystem:
     )
 
 
-def test_processes_of_a_wave_overlap_and_waves_do_not(standalone: StandaloneSystem) -> None:
+def test_free_slots_are_refilled_while_a_slow_process_runs(standalone: StandaloneSystem) -> None:
     test_run = probe_test_run(
         [1, 2, 3, 4, 5, 6],
         agent_config={"max_parallelism": 3},
-        duration=0.7,
+        duration=0.4,
+        durations={1: 2.5},
         rejected_x=[2],
         failing_x=[4],
     )
@@ -49,13 +50,19 @@ def test_processes_of_a_wave_overlap_and_waves_do_not(standalone: StandaloneSyst
 
     assert handle_dse_job(runner) == 0
 
-    assert read_trajectory(runner) == [(1, 1, 1.0), (2, 3, 3.0), (3, 4, -1.0), (4, 5, 5.0), (5, 6, 6.0)]
+    assert sorted(read_trajectory(runner)) == [(1, 1, 1.0), (2, 3, 3.0), (3, 4, -1.0), (4, 5, 5.0), (5, 6, 6.0)]
     trial_root = runner.runner.scenario_root / "probe" / "0"
     timing = {step: probe_timing(trial_root / str(step)) for step in range(1, 6)}
-    first_wave, second_wave = [timing[step] for step in (1, 2, 3)], [timing[step] for step in (4, 5)]
-    for wave in (first_wave, second_wave):
-        assert max(start for start, _ in wave) < min(finish for _, finish in wave)
-    assert min(start for start, _ in second_wave) >= max(finish for _, finish in first_wave)
+    slow_start, slow_finish = timing[1]
+    # The slow trial holds one slot for the whole sweep; the other two slots are refilled meanwhile.
+    assert all(start < slow_finish and slow_start < finish for start, finish in timing.values())
+    assert min(timing[4][0], timing[5][0]) >= min(timing[2][1], timing[3][1])
+    changes = sorted([(start, 1) for start, _ in timing.values()] + [(finish, -1) for _, finish in timing.values()])
+    alive = peak = 0
+    for _, change in changes:
+        alive += change
+        peak = max(peak, alive)
+    assert peak == 3
 
     runs = runner.runner.experiment_output.experiment.tests[0].runs
     assert [(run.step, run.status) for run in runs] == [

@@ -31,7 +31,7 @@ alone, so a test reads as a list of proposals and their fates:
 A trial reports ``x`` as its ``default`` metric. Two ways to execute it:
 
 - ``ScriptedRunner`` with ``ScriptedSystem``: jobs live in memory and durations are counted in
-  monitoring passes, so wave tests are exact and need no waiting;
+  monitoring passes, so tests are exact and need no waiting;
 - ``StandaloneRunner`` with ``ProbeStandaloneCommandGenStrategy``: real processes, durations in
   seconds, each process records when it started and finished.
 """
@@ -282,8 +282,8 @@ def max_outstanding(events: list[tuple[str, int]]) -> int:
     return peak
 
 
-def waves(events: list[tuple[str, int]]) -> list[list[int]]:
-    """Group submitted trial steps into waves: a wave ends when the next submit follows a completion."""
+def started_together(events: list[tuple[str, int]]) -> list[list[int]]:
+    """Group submitted trial steps: the trials of a group were submitted with no completion in between."""
     result: list[list[int]] = []
     previous = None
     for event, step in events:
