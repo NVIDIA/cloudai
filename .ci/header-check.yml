@@ -3,7 +3,7 @@ general:
     - "\\.git.*"
     - "__pycache__"
     - "\\.egg-info"
-    - "\\.(ya?ml|md|txt|jinja2|sh|log|ipynb|rst|json)$"
+    - "\\.(ya?ml|mdx?|txt|jinja2|sh|log|ipynb|rst|json)$"
     - "tests/ref_data/*"
     - "results/*"
     - "doc/_build/*"

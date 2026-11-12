@@ -966,7 +966,7 @@ def test_record_formats_observation_without_changing_its_domain(
         assert repr(record["observation"]) == before
     else:
         with pytest.raises(KeyError):
-            record["observation"]
+            _ = record["observation"]
 
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == original_files
 

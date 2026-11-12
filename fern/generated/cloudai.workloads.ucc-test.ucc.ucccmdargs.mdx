@@ -1,0 +1,14 @@
+<Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs" />
+
+### `UCCCmdArgs`
+
+UCC test command arguments.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.collective" />`collective` | `Literal['allgather', 'allgatherv', 'allreduce', 'alltoall', 'alltoallv', 'barrier', 'bcast', 'gather', 'gatherv', 'reduce', 'reduce_scatter', 'reduce_scatterv', 'scatter', 'scatterv', 'memcpy', 'reducedt', 'reducedt_strided'] \| list[Literal['allgather', 'allgatherv', 'allreduce', 'alltoall', 'alltoallv', 'barrier', 'bcast', 'gather', 'gatherv', 'reduce', 'reduce_scatter', 'reduce_scatterv', 'scatter', 'scatterv', 'memcpy', 'reducedt', 'reducedt_strided']]` | `'alltoall'` |  |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.b" />`b` | `int \| list[int]` | `1` |  |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.e" />`e` | `str \| list[str]` | `'8M'` |  |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.gen" />`gen` | `str \| list[str] \| None` | `None` |  |
+| <Anchor id="cloudai.workloads.ucc_test.ucc.UCCCmdArgs.use_deepep_matrix" />`use_deepep_matrix` | `bool` | `False` |  |

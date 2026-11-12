@@ -11,7 +11,7 @@ Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; prese
 
 - After each successful authorized push, find the open PR matching the pushed repository and head branch. Apply this skill before reporting completion, including for commit-and-push requests.
 - Push authorization includes maintaining that PR's title, description, labels, and assignee. No separate approval needed. No open PR: stop; do not create one unless asked.
-- Read current PR and final diff. Update stale metadata; preserve accurate user edits. Check CI for the new head; never carry forward an older commit's passing status. Already current: no write needed.
+- Read current PR and final diff. Update stale metadata; preserve accurate user edits. Check CI for the new head separately. Already current: no write needed.
 
 ## Description
 
@@ -24,14 +24,13 @@ Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; prese
 
 ## Test plan
 
-- Green CI covering routine checks: `CI passed.` Enough. Verify current-head status before claiming success.
+- List `CI` as automated coverage in the Test Plan; omit run status from the PR description.
 - Do not enumerate unit tests, test cases/counts, pytest commands, pre-commit hooks, formatting, lint, type checks, or local environment details already covered by CI. No duplicate checklists elsewhere in description.
-- Pending, failed, or unavailable CI: state accurately and briefly. Include actionable failures or material coverage gaps; never imply success.
 - Add distinctive evidence CI cannot provide: real installation, remote workload, performance measurement. Keep setup, outcome, and relevant measurement concise.
 - More detail only when explicitly requested or specifically required by repository instructions. A Test Plan heading alone does not require commands or check inventories.
 - Reporting rule only: still run required checks.
 
-Example: `CI passed. Manual Slurm import completed in 34 seconds with a 20-minute limit.`
+Example: `CI. Manual Slurm import completed in 34 seconds with a 20-minute limit.`
 
 ## Labels
 

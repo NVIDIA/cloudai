@@ -1,0 +1,17 @@
+<Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs" />
+
+### `DDLBCmdArgs`
+
+DDLB test command arguments.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.primitive" />`primitive` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.m" />`m` | `int \| list[int]` | `1024` |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.n" />`n` | `int \| list[int]` | `128` |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.k" />`k` | `int \| list[int]` | `1024` |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.dtype" />`dtype` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.num_iterations" />`num_iterations` | `int` | `50` |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.num_warmups" />`num_warmups` | `int` | `5` |  |
+| <Anchor id="cloudai.workloads.ddlb.ddlb.DDLBCmdArgs.impl" />`impl` | `str \| list[str]` | `'pytorch;backend=nccl;order=AG_before'` |  |

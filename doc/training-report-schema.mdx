@@ -1,0 +1,165 @@
+<Anchor id="training-report-schema" />
+
+`training_report.json` is the unified training output for NeMoRun, MegatronRun, and Megatron-Bridge.
+
+<Anchor id="versioning" />
+
+## Versioning
+
+The top-level `schema_version` field uses `MAJOR.MINOR` versioning:
+
+- Increment **MAJOR** when removing, renaming, or incompatibly changing a field.
+- Increment **MINOR** when adding an optional field or otherwise making a backward-compatible schema change.
+- Do not change the schema version for implementation fixes that leave the JSON contract unchanged.
+
+Consumers should reject unsupported major versions and tolerate unknown fields within a supported major version.
+
+<Anchor id="version-history" />
+
+## Version History
+
+<Anchor id="section" />
+
+### 1.0 — 2026-07-14
+
+Added to `root`:
+
+- `schema_version`: `str`
+
+Added to `root.config`:
+
+- `test_id`: `str`
+- `test_name`: `str`
+- `description`: `str`
+- `test_scenario_name`: `str`
+- `system_path`: `str`
+- `tests_dir_path`: `str`
+- `test_scenario_path`: `str`
+- `container_image`: `str`
+- `cloudai_execution_node`: `str`
+- `env_vars`: `dict[str, Any]`
+- `gpus_per_node`: `Optional[int]`
+- `nodes`: `list[str]`
+- `clique_size`: `Optional[int]`
+- `fp8`: `Optional[str]`
+- `fp8_recipe`: `Optional[str]`
+- `expert_tensor_parallel_size`: `int`
+
+<Anchor id="training-report-models" />
+
+## Training Report Models
+
+<Anchor id="cloudai.report_generator.training.models.TrainingResults" />
+
+### `TrainingResults`
+
+Container for parsed training output.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `schema_version` | `str` | `'1.0'` |  |
+| `config` | `cloudai.report_generator.training.models.TrainingConfig` | `Required` |  |
+| `steps` | `List[cloudai.report_generator.training.models.TrainingStep]` | `Required` |  |
+| `aggregation` | `cloudai.report_generator.training.models.StepAggregation \| None` | `None` |  |
+
+<Anchor id="cloudai.report_generator.training.models.TrainingConfig" />
+
+### `TrainingConfig`
+
+Resolved training configuration from the framework artifact + CloudAI.
+
+CloudAI-computed fields are supplied by the parser during construction.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `test_id` | `str` | `Required` |  |
+| `test_name` | `str` | `Required` |  |
+| `description` | `str` | `Required` |  |
+| `test_scenario_name` | `str` | `Required` |  |
+| `test_template_name` | `str` | `Required` |  |
+| `system_path` | `str` | `Required` |  |
+| `tests_dir_path` | `str` | `Required` |  |
+| `test_scenario_path` | `str` | `Required` |  |
+| `container_image` | `str` | `''` |  |
+| `cloudai_execution_node` | `str` | `Required` |  |
+| `env_vars` | `dict[str, typing.Any]` | `Required` |  |
+| `world_size` | `int \| None` | `None` |  |
+| `num_nodes` | `int` | `Required` |  |
+| `gpus_per_node` | `int \| None` | `None` |  |
+| `nodes` | `list[str]` | `Required` |  |
+| `clique_size` | `int \| None` | `None` |  |
+| `fp8` | `str \| None` | `None` |  |
+| `fp8_recipe` | `str \| None` | `None` |  |
+| `micro_batch_size` | `int` | `Required` |  |
+| `global_batch_size` | `int` | `Required` |  |
+| `seq_length` | `int` | `Required` |  |
+| `tensor_parallel_size` | `int` | `Required` |  |
+| `pipeline_parallel_size` | `int` | `Required` |  |
+| `context_parallel_size` | `int \| None` | `Required` |  |
+| `virtual_pipeline_parallel_size` | `int \| None` | `Required` |  |
+| `sequence_parallel` | `bool` | `Required` |  |
+| `expert_parallel_size` | `int` | `Required` |  |
+| `expert_tensor_parallel_size` | `int` | `Required` |  |
+| `data_parallel_size` | `int \| None` | `None` |  |
+| `num_layers` | `int` | `Required` |  |
+| `hidden_size` | `int` | `Required` |  |
+| `num_attention_heads` | `int` | `Required` |  |
+| `num_query_groups` | `int` | `Required` |  |
+| `ffn_hidden_size` | `int` | `Required` |  |
+| `kv_channels` | `int` | `Required` |  |
+| `normalization` | `str` | `Required` |  |
+| `position_embedding_type` | `str` | `Required` |  |
+| `model_name` | `str` | `''` |  |
+| `num_experts` | `int \| None` | `Required` |  |
+| `moe_router_topk` | `int \| None` | `Required` |  |
+| `moe_ffn_hidden_size` | `int \| None` | `Required` |  |
+| `moe_grouped_gemm` | `bool \| None` | `Required` |  |
+| `profiling_enabled` | `bool` | `False` |  |
+| `profiling_start_step` | `int \| None` | `None` |  |
+| `profiling_stop_step` | `int \| None` | `None` |  |
+| `exclude_start_steps` | `int` | `5` |  |
+| `exclude_post_profiling_steps` | `int` | `2` |  |
+
+<Anchor id="cloudai.report_generator.training.models.TrainingStep" />
+
+### `TrainingStep`
+
+Results for a single training iteration.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `iteration` | `int` | `Required` |  |
+| `step_time_sec` | `float` | `Required` |  |
+| `loss` | `float` | `Required` |  |
+| `memory_reserved_bytes` | `float` | `Required` |  |
+| `memory_allocated_bytes` | `float` | `Required` |  |
+| `tflops_per_gpu` | `float \| None` | `None` |  |
+
+<Anchor id="cloudai.report_generator.training.models.StepAggregation" />
+
+### `StepAggregation`
+
+Per-metric aggregated statistics over the filtered steps.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `step_time_sec` | `cloudai.report_generator.training.models.MetricStats` | `Required` |  |
+| `loss` | `cloudai.report_generator.training.models.MetricStats` | `Required` |  |
+| `memory_reserved_bytes` | `cloudai.report_generator.training.models.MetricStats` | `Required` |  |
+| `memory_allocated_bytes` | `cloudai.report_generator.training.models.MetricStats` | `Required` |  |
+| `tflops_per_gpu` | `cloudai.report_generator.training.models.MetricStats \| None` | `None` |  |
+
+<Anchor id="cloudai.report_generator.training.models.MetricStats" />
+
+### `MetricStats`
+
+Aggregated statistics for one metric over the filtered steps.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `mean` | `float` | `Required` |  |
+| `min` | `float` | `Required` |  |
+| `max` | `float` | `Required` |  |
+| `std` | `float` | `Required` |  |
+| `t99` | `float` | `Required` |  |
+| `t95` | `float` | `Required` |  |

@@ -1,0 +1,16 @@
+<Anchor id="cloudai.workloads.fio.fio.FioCmdArgs" />
+
+### `FioCmdArgs`
+
+Command line arguments for fio.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.fio_binary" />`fio_binary` | `str` | `'fio'` | fio executable to run. Use an absolute path for patched/custom fio builds. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.job_file" />`job_file` | `str \| None` | `None` | Optional fio job/config file. When set, it is appended after CLI options. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.args" />`args` | `dict[str, typing.Any]` | Factory: `dict` | fio CLI options, without leading ``--``. Keys are passed to fio verbatim. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.docker_image_url" />`docker_image_url` | `str \| None` | `None` | Optional Docker image to use for Slurm container execution. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.num_tasks_per_node" />`num_tasks_per_node` | `int \| None` | `1` | Optional Slurm task count per node for multi-node fio runs. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_operation" />`metric_operation` | `str` | `'all'` | Operation used for the default metric: read, write, trim, all, or first. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_name" />`metric_name` | `str` | `'bw'` | Metric used for the default metric: bw, iops, or latency. |
+| <Anchor id="cloudai.workloads.fio.fio.FioCmdArgs.metric_aggregate" />`metric_aggregate` | `str` | `'sum'` | Aggregation used for the default metric: sum, mean, min, max, or first. |

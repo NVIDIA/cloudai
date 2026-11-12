@@ -106,6 +106,8 @@ BACKEND = DimensionDefinition("backend", "Backend", Annotated[str, Field(strict=
 SOURCE_MEMORY = DimensionDefinition("source_memory", "Source memory", Annotated[str, Field(strict=True, min_length=1)])
 TARGET_MEMORY = DimensionDefinition("target_memory", "Target memory", Annotated[str, Field(strict=True, min_length=1)])
 STATISTIC = DimensionDefinition("statistic", "Statistic", Literal["mean", "median", "p99"])
+PHASE = DimensionDefinition("phase", "Phase", Annotated[str, Field(strict=True, min_length=1)])
+BENCHMARK = DimensionDefinition("benchmark", "Benchmark", Annotated[str, Field(strict=True, min_length=1)])
 
 BANDWIDTH = MetricDefinition(
     key="bandwidth",
@@ -144,6 +146,24 @@ OUTPUT_TOKEN_THROUGHPUT = MetricDefinition(
     unit="tokens/s",
     direction=OptimizationDirection.MAXIMIZE,
 )
+TOTAL_TOKEN_THROUGHPUT = MetricDefinition(
+    key="total_token_throughput",
+    display_name="Total token throughput",
+    unit="tokens/s",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+TOTAL_TOKEN_THROUGHPUT_PER_USER = MetricDefinition(
+    key="total_token_throughput_per_user",
+    display_name="Total throughput per configured user",
+    unit="tokens/s/user",
+    direction=OptimizationDirection.MAXIMIZE,
+)
+TOTAL_TOKEN_THROUGHPUT_PER_SERVING_GPU = MetricDefinition(
+    key="total_token_throughput_per_serving_gpu",
+    display_name="Total throughput per serving GPU",
+    unit="tokens/s/GPU",
+    direction=OptimizationDirection.MAXIMIZE,
+)
 OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU = MetricDefinition(
     key="output_token_throughput_per_allocated_gpu",
     display_name="Output throughput per allocated GPU",
@@ -180,6 +200,9 @@ MetricCatalog.register_metrics(
     LATENCY,
     REQUEST_THROUGHPUT,
     OUTPUT_TOKEN_THROUGHPUT,
+    TOTAL_TOKEN_THROUGHPUT,
+    TOTAL_TOKEN_THROUGHPUT_PER_USER,
+    TOTAL_TOKEN_THROUGHPUT_PER_SERVING_GPU,
     OUTPUT_TOKEN_THROUGHPUT_PER_ALLOCATED_GPU,
     OUTPUT_TOKEN_THROUGHPUT_PER_SERVING_GPU,
     TTFT,
@@ -198,6 +221,8 @@ MetricCatalog.register_dimensions(
     SOURCE_MEMORY,
     TARGET_MEMORY,
     STATISTIC,
+    PHASE,
+    BENCHMARK,
 )
 
 

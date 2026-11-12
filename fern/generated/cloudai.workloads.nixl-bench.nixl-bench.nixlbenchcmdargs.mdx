@@ -1,0 +1,21 @@
+<Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs" />
+
+### `NIXLBenchCmdArgs`
+
+Command line arguments for a NIXL Bench test.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.filepath" />`filepath` | `str \| None` | `None` | Directory path (in container) for storage operations. Example: /data |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.total_buffer_size" />`total_buffer_size` | `str \| list[str] \| None` | `None` | Total buffer size in bytes. Examples: 1024, 1kb, 1mb, 1gb. Use with device_list. The size will be passed into NIXL as integer (bytes) |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.device_list" />`device_list` | `str \| list[str] \| None` | `None` | Device specs in format 'id:type:path' (e.g., '11:F:/store0.bin,27:K:/dev/nvme0n1') |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required | URL of the Docker image to use for the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_path" />`etcd_path` | `str` | `'etcd'` | Path to the etcd executable. |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.wait_etcd_for" />`wait_etcd_for` | `int` | `60` | Number of seconds to wait for etcd to become healthy. |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_image_url" />`etcd_image_url` | `str \| None` | `None` | Optional URL of the Docker image to use for etcd, by default etcd will be run from the same image as the benchmark. |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.path_to_benchmark" />`path_to_benchmark` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.launch_mode" />`launch_mode` | `Literal['default', 'independent']` | `'default'` | CloudAI launch mode: 'default' preserves existing orchestration; 'independent' launches one null-runtime task per node in one Slurm step by default. Use num_nodes to select the node count and extra_srun_args to override task placement. Not passed to NIXLBench. |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.etcd_endpoints" />`etcd_endpoints` | `str` | `'http://$NIXL_ETCD_ENDPOINTS'` |  |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.runtime_type" />`runtime_type` | `Literal['ETCD', 'ASIO']` | `'ETCD'` |  |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.asio_address" />`asio_address` | `str` | `'$NIXL_ASIO_ADDRESS'` |  |
+| <Anchor id="cloudai.workloads.nixl_bench.nixl_bench.NIXLBenchCmdArgs.asio_port" />`asio_port` | `int` | `12345` |  Constraints: `Ge(ge=1)`, `Le(le=65535)`. |

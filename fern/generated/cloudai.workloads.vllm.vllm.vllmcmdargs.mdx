@@ -1,0 +1,20 @@
+<Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs" />
+
+### `VllmCmdArgs`
+
+vLLM serve command arguments.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.model" />`model` | `str` | `'Qwen/Qwen3-0.6B'` |  |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.port" />`port` | `int` | `8300` |  Constraints: `Ge(ge=1)`, `Le(le=65535)`. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.host" />`host` | `str` | `'0.0.0.0'` | Host/interface for serve or router processes to bind to. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.bench_host" />`bench_host` | `str \| None` | `None` | Hostname used by the benchmark client. Defaults to the allocated node hostname. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.healthcheck" />`healthcheck` | `str` | `'/healthcheck'` | vLLM server healthcheck endpoint. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.serve_healthcheck" />`serve_healthcheck` | `str \| None` | `None` | Readiness endpoint for serve, prefill, and decode server processes. Defaults to healthcheck. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.serve_wait_seconds" />`serve_wait_seconds` | `int` | `300` |  |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.prefill" />`prefill` | `cloudai.workloads.vllm.vllm.VllmArgs \| None` | `None` | Prefill instance arguments. If not set, a single instance without disaggregation will be used. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.decode" />`decode` | `cloudai.workloads.vllm.vllm.VllmArgs` | Factory: `VllmArgs` | Decode instance arguments. |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.proxy_script" />`proxy_script` | `str` | `'/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py'` |  |
+| <Anchor id="cloudai.workloads.vllm.vllm.VllmCmdArgs.proxy_healthcheck" />`proxy_healthcheck` | `str` | `'/healthcheck'` | vLLM disaggregated proxy/router healthcheck endpoint. |

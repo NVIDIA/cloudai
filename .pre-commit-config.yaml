@@ -21,9 +21,9 @@ repos:
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.408
     hooks:
-    - id: pyright
-      entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off pyright
-      language: system
+      - id: pyright
+        entry: env PYRIGHT_PYTHON_GLOBAL_NODE=off pyright
+        language: system
 
   # https://docs.astral.sh/ruff/integrations/#pre-commit
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -53,3 +53,9 @@ repos:
         name: taplo
         entry: taplo fmt --check --diff
         language: system
+      - id: generate-doc-reference
+        name: Generate Python documentation reference
+        entry: uv run --locked --isolated --python 3.14 --extra dev --extra docs python doc/generate_reference.py
+        language: system
+        pass_filenames: false
+        always_run: true

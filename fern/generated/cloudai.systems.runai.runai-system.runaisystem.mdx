@@ -1,0 +1,23 @@
+<Anchor id="cloudai.systems.runai.runai_system.RunAISystem" />
+
+### `RunAISystem`
+
+RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.name" />`name` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.scheduler" />`scheduler` | `str` | `'runai'` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.install_path" />`install_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.output_path" />`output_path` | `pathlib.Path` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.hf_home_path" />`hf_home_path` | `pathlib.Path` | Factory: `System.<lambda>` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.global_env_vars" />`global_env_vars` | `dict[str, typing.Any]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.monitor_interval" />`monitor_interval` | `float` | `60.0` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.sol" />`sol` | `dict[str, list[cloudai.metrics.SOLTarget]]` | Factory: `dict` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.base_url" />`base_url` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.verify_certs" />`verify_certs` | `bool` | `True` |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.user_email" />`user_email` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.app_id" />`app_id` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.app_secret" />`app_secret` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.project_id" />`project_id` | `str` | Required |  |
+| <Anchor id="cloudai.systems.runai.runai_system.RunAISystem.cluster_id" />`cluster_id` | `str` | Required |  |

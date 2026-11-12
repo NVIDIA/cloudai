@@ -1,0 +1,163 @@
+name: Publish Fern Documentation
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
+      channel:
+        required: true
+        type: string
+      release_tag:
+        type: string
+        default: ''
+      mode:
+        required: true
+        type: string
+      preview_id:
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag, or commit to publish
+        type: string
+        required: true
+        default: main
+      channel:
+        description: Version to publish
+        type: choice
+        options: [release, dev]
+        default: release
+      release_tag:
+        description: Release tag (required for release production; optional for previews)
+        type: string
+      mode:
+        type: choice
+        options: [preview, production]
+        default: preview
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.mode == 'preview' && 'docs-preview' || 'docs-hosted' }}
+    concurrency:
+      group: ${{ inputs.mode == 'production' && 'fern-production' || format('fern-preview-{0}', inputs.preview_id || inputs.source_ref) }}
+      cancel-in-progress: false
+      queue: max
+    defaults:
+      run:
+        shell: bash
+    env:
+      SOURCE_REF: ${{ inputs.source_ref }}
+      CHANNEL: ${{ inputs.channel }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      MODE: ${{ inputs.mode }}
+      PREVIEW_ID: ${{ inputs.preview_id || inputs.source_ref }}
+    steps:
+      - name: Checkout publishing tools from main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: automation
+          persist-credentials: false
+      - name: Checkout documentation source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve source and version
+        run: |
+          SHA=$(git -C source rev-parse HEAD)
+          if [[ "$CHANNEL" == dev ]]; then
+            SLUG=dev
+            if [[ "$MODE" == production ]]; then
+              git -C source merge-base --is-ancestor "$SHA" origin/main
+            fi
+          else
+            SLUG="${RELEASE_TAG:-candidate}"
+            [[ "$SLUG" != dev ]]
+            if [[ "$MODE" == production ]]; then
+              : "${RELEASE_TAG:?A release tag is required for production.}"
+              [[ "$SHA" == "$(git -C source rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")" ]]
+            fi
+          fi
+          printf 'SOURCE_SHA=%s\nDOCS_SLUG=%s\n' "$SHA" "$SLUG" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: automation/.python-version
+      - name: Install publishing dependency
+        run: python -m pip install PyYAML==6.0.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install Fern
+        run: npm --prefix automation/fern ci
+      - name: Read current production configuration
+        run: |
+          git init state
+          git -C state remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          if git -C state ls-remote --exit-code origin refs/heads/release/docs; then
+            git -C state fetch origin release/docs
+            git -C state checkout -b release/docs FETCH_HEAD
+          else
+            status=$?
+            if [[ "$status" != 2 ]]; then exit "$status"; fi
+            git -C state checkout --orphan release/docs
+          fi
+      - name: Prepare deployment configuration
+        run: |
+          args=()
+          if [[ "$MODE" == production ]]; then args+=(--production); fi
+          python automation/doc/publish_config.py \
+            --source source --state state/fern/docs.yml --template automation/fern/docs.yml \
+            --slug "$DOCS_SLUG" --sha "$SOURCE_SHA" "${args[@]}"
+          mkdir -p state/fern
+          cp source/fern/docs.yml state/fern/docs.yml
+          cp automation/fern/fern.config.json source/fern/fern.config.json
+          cp automation/fern/fern.config.json state/fern/fern.config.json
+      - name: Publish
+        working-directory: source
+        env:
+          FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
+        run: |
+          : "${FERN_TOKEN:?Set FERN_TOKEN for the nvidia organization.}"
+          args=()
+          if [[ "$MODE" == preview ]]; then
+            ID=$(printf '%s' "$PREVIEW_ID" | sha256sum | cut -c1-16)
+            args+=(--preview --id "cloudai-$ID")
+          fi
+          ../automation/fern/node_modules/.bin/fern generate --docs "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/fern-publish.log"
+          {
+            printf 'Source: `%s`\n\n' "$SOURCE_SHA"
+            grep -F 'Published docs to ' "$RUNNER_TEMP/fern-publish.log" || true
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record successful production configuration
+        if: inputs.mode == 'production'
+        working-directory: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add fern/docs.yml fern/fern.config.json
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: publish $DOCS_SLUG from $SOURCE_SHA"
+            git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+              push origin HEAD:release/docs
+          fi
+      - name: Retain deployment configuration
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fern-${{ inputs.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            state/fern/
+            ${{ runner.temp }}/fern-publish.log

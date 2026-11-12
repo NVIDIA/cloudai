@@ -1,0 +1,21 @@
+<Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs" />
+
+### `SglangCmdArgs`
+
+SGLang serve command arguments.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.docker_image_url" />`docker_image_url` | `str` | Required |  |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.model" />`model` | `str` | `'Qwen/Qwen3-8B'` |  |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.port" />`port` | `int` | `8300` |  Constraints: `Ge(ge=1)`, `Le(le=65535)`. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.host" />`host` | `str` | `'0.0.0.0'` | Host/interface for serve or router processes to bind to. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.bench_host" />`bench_host` | `str \| None` | `None` | Hostname used by the benchmark client. Defaults to the allocated node hostname. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.healthcheck" />`healthcheck` | `str` | `'/v1/models'` | Health check router endpoint. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.serve_healthcheck" />`serve_healthcheck` | `str \| None` | `None` | Readiness endpoint for serve, prefill, and decode server processes. Defaults to healthcheck. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.serve_wait_seconds" />`serve_wait_seconds` | `int` | `300` |  |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.prefill" />`prefill` | `cloudai.workloads.sglang.sglang.SglangArgs \| None` | `None` | Prefill instance arguments. If not set, a single instance without disaggregation is used. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.decode" />`decode` | `cloudai.workloads.sglang.sglang.SglangArgs` | Factory: `SglangArgs` | Decode instance arguments. |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.serve_module" />`serve_module` | `str` | `'sglang.launch_server'` |  |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.router_module" />`router_module` | `str` | `'sglang_router.launch_router'` |  |
+| <Anchor id="cloudai.workloads.sglang.sglang.SglangCmdArgs.bench_module" />`bench_module` | `str` | `'sglang.bench_serving'` |  |

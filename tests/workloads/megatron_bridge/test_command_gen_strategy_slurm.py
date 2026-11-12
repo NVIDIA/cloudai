@@ -74,7 +74,17 @@ def test_launcher_dependencies(
         if launcher_present and python_present:
             with pytest.raises(RuntimeError, match="Megatron-Bridge dry-run failed"):
                 strategy._generate_mbridge_sbatch()
-            run.assert_called_once()
+            assert run.call_count == 2
+            assert run.call_args_list[0].args[0] == [
+                str(venv / "bin/python"),
+                "-m",
+                "pip",
+                "install",
+                f"wandb=={tdef.cmd_args.wandb_version}",
+                f"numpy=={tdef.cmd_args.numpy_version}",
+            ]
+            assert run.call_args_list[0].kwargs["check"] is True
+            assert run.call_args_list[1].args[0][:2] == ["/bin/bash", "-c"]
         else:
             assert strategy._generate_mbridge_sbatch() is None
             run.assert_not_called()
@@ -166,6 +176,15 @@ def test_launcher_argument_translation(
     tdef.extra_cmd_args = {"logger.tensorboard_dir": "/custom tensorboard", "logger.log_memory_to_tensorboard": "false"}
     parts = strategy._build_launcher_parts(tdef.cmd_args, tdef, strategy.system.install_path, Path("launcher.py"))
     command = " ".join(shlex.split(" ".join(parts)))
+    assert shlex.split(" ".join(parts))[2:9] == [
+        str((strategy.system.install_path / "mbridge_launcher.py").absolute()),
+        "generate",
+        "--launcher",
+        str(Path("launcher.py").absolute()),
+        "--output",
+        str(strategy.test_run.output_path.absolute()),
+        "--",
+    ]
     for fragment in expected:
         assert fragment in command
     for flag in absent:
@@ -173,6 +192,33 @@ def test_launcher_argument_translation(
     assert "logger.tensorboard_dir=/custom tensorboard" in shlex.split(" ".join(parts))
     assert "logger.log_memory_to_tensorboard=false" in command
     assert "logger.tensorboard_dir=/nemo_run/tb_logs" not in command
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_evaluation_command(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_path: Path, installed: bool) -> None:
+    tdef = strategy.test_run.test
+    assert isinstance(tdef, MegatronBridgeTestDefinition)
+    tdef.git_repos = [GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="v0.4.0")]
+    repo = (
+        tmp_path / "installed repo" if installed else strategy.system.install_path / tdef.megatron_bridge_repo.repo_name
+    )
+    if installed:
+        tdef.megatron_bridge_repo.installed_path = repo
+    root = tmp_path / "run output"
+    strategy.test_run.output_path = root
+    tdef.python_executable.venv_path = tmp_path / "python env"
+
+    assert strategy._build_evaluation_command() == [
+        "/bin/bash",
+        "-c",
+        'source "$1" && export NEMORUN_HOME="$2" && exec "$3" "$4" evaluate --launcher "$5" --output "$2"',
+        "mbridge-evaluate",
+        str(root / "env_vars.sh"),
+        str(root),
+        str(tmp_path / "python env/bin/python"),
+        str((strategy.system.install_path / "mbridge_launcher.py").absolute()),
+        str(repo / "scripts/performance/setup_experiment.py"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -245,11 +291,25 @@ def test_launcher_container_resolution(
 
 
 @pytest.mark.parametrize("cleanup_error", [False, True])
-def test_artifact_cleanup(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_path: Path, cleanup_error: bool) -> None:
+@pytest.mark.parametrize("evaluation_state", ["missing", "error", "completed"])
+def test_artifact_cleanup(
+    strategy: MegatronBridgeSlurmCommandGenStrategy,
+    tmp_path: Path,
+    cleanup_error: bool,
+    evaluation_state: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     strategy.cleanup_job_artifacts()
     root = strategy.test_run.output_path
     code = root / "experiments/run/code"
     code.mkdir(parents=True)
+    (root / "cloudai_megatron_bridge_launcher.log").write_text("Step Time: 1.0 s | GPU utilization: 100 TFLOP/s/GPU\n")
+    if evaluation_state != "missing":
+        (root / "cloudai_megatron_bridge_training.success").touch()
+        # A directory at the log path makes evaluation fail before starting a subprocess.
+        (root / "cloudai_megatron_bridge_evaluation.log").mkdir()
+    if evaluation_state == "completed":
+        (root / "cloudai_megatron_bridge_evaluation.exitcode").write_text("0\n")
     (code / "source.py").write_text("packaged source")
     external = tmp_path / "external.log"
     external.write_text("dummy_token")
@@ -275,3 +335,9 @@ def test_artifact_cleanup(strategy: MegatronBridgeSlurmCommandGenStrategy, tmp_p
     assert artifact.read_bytes() == contents.replace(b"dummy_token", b"XXXXXXXXXXX")
     assert untouched.read_bytes() == b"dummy_token"
     assert external.read_text() == "dummy_token"
+    assert ("MBridge evaluation failed unexpectedly." in caplog.text) == (evaluation_state == "error")
+    if evaluation_state == "completed":
+        assert (root / "cloudai_megatron_bridge_evaluation.exitcode").read_text() == "0\n"
+    if evaluation_state == "error":
+        assert (root / "cloudai_megatron_bridge_evaluation.exitcode").read_text() == "1\n"
+        assert not strategy.test_run.test.was_run_successful(strategy.test_run).is_successful

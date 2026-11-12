@@ -136,10 +136,10 @@ cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx
 ```
 
 ## Additional Documentation
-For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [official documentation](https://nvidia.github.io/cloudai/).
+See the [documentation](https://nvidia.github.io/cloudai/) for usage and [documentation guide](doc/readme.md) for authoring.
 
 ## Contribution
-Please feel free to contribute to the CloudAI project and share your insights. Your contributions are highly appreciated.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 This project is licensed under Apache 2.0. See the LICENSE file for detailed information.

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import re
 import shlex
@@ -29,7 +30,8 @@ from rich.table import Table
 from typing_extensions import Self
 
 import cloudai.metrics
-from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, MetricValue, ReportGenerationStrategy
+import cloudai.report_generator.inference_report as inference_report
+from cloudai.core import METRIC_ERROR, DockerImage, HFModel, Installable, MetricValue, ReportGenerationStrategy, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -107,6 +109,58 @@ def calculate_decode_gpu_ids(
         return gpu_ids
     mid = len(gpu_ids) // 2
     return gpu_ids[mid:]
+
+
+def disaggregated_role_node_counts(
+    tdef: LLMServingTestDefinition[Any], num_nodes: int, workload_name: str
+) -> tuple[int, int]:
+    """Resolve the same serving-role node split for launch and reporting."""
+    if tdef.cmd_args.prefill is None:
+        return (0, 0)
+
+    prefill_nodes = tdef.cmd_args.prefill.num_nodes
+    decode_nodes = tdef.cmd_args.decode.num_nodes
+    for role, count in (("prefill", prefill_nodes), ("decode", decode_nodes)):
+        if isinstance(count, list):
+            raise ValueError(f"{role}.num_nodes must be a single integer for command generation.")
+
+    prefill_nodes = cast(int | None, prefill_nodes)
+    decode_nodes = cast(int | None, decode_nodes)
+    if prefill_nodes is None and decode_nodes is None:
+        if num_nodes in (1, 2):
+            return (1, 1)
+        raise ValueError(
+            f"Disaggregated {workload_name} over more than 2 nodes requires both "
+            "prefill.num_nodes and decode.num_nodes."
+        )
+    if prefill_nodes is None or decode_nodes is None:
+        raise ValueError("Both prefill.num_nodes and decode.num_nodes must be set or both must be omitted.")
+    if prefill_nodes <= 0 or decode_nodes <= 0:
+        raise ValueError("prefill.num_nodes and decode.num_nodes must be positive integers.")
+    if prefill_nodes + decode_nodes != num_nodes:
+        raise ValueError(
+            f"prefill.num_nodes + decode.num_nodes must equal allocated nodes ({num_nodes}), "
+            f"got {prefill_nodes + decode_nodes}."
+        )
+    return (prefill_nodes, decode_nodes)
+
+
+def inference_role_config(values: dict[str, Any]) -> inference_report.InferenceRoleConfig:
+    """Normalize serving-role argument names shared by inference workloads."""
+    values = {key.replace("-", "_"): value for key, value in values.items()}
+    gpu_ids = values.get("gpu_ids")
+    expert_parallel = values.get("enable_expert_parallel")
+    return inference_report.InferenceRoleConfig(
+        model=values.get("model", values.get("model_path")),
+        num_nodes=values.get("num_nodes"),
+        gpu_ids=parse_gpu_ids(gpu_ids) if gpu_ids else None,
+        tensor_parallel_size=values.get("tensor_parallel_size", values.get("tp_size", values.get("tp"))),
+        pipeline_parallel_size=values.get("pipeline_parallel_size", values.get("pp_size", values.get("pp"))),
+        data_parallel_size=values.get("data_parallel_size", values.get("dp_size", values.get("dp"))),
+        expert_parallel=expert_parallel in (True, "") if expert_parallel is not None else None,
+        precision=values.get("dtype"),
+        quantization=values.get("quantization"),
+    )
 
 
 class LLMServingArgs(CmdArgs):
@@ -200,6 +254,37 @@ class LLMServingTestDefinition(TestDefinition, Generic[LLMServingCmdArgsT]):
             roles.append(self.cmd_args.prefill)
         counts = [role.serving_gpu_count for role in roles]
         return sum(count for count in counts if count is not None) if all(counts) else None
+
+    def inference_role_configs(
+        self, tr: TestRun
+    ) -> tuple[inference_report.InferenceRoleConfig | None, inference_report.InferenceRoleConfig]:
+        try:
+            prefill_nodes, decode_nodes = (
+                disaggregated_role_node_counts(self, tr.nnodes, self.test_template_name)
+                if self.cmd_args.prefill is not None
+                else (0, tr.nnodes)
+            )
+        except ValueError:
+            return (
+                inference_role_config(self.cmd_args.prefill.model_dump(exclude_none=True))
+                if self.cmd_args.prefill is not None
+                else None,
+                inference_role_config(self.cmd_args.decode.model_dump(exclude_none=True)),
+            )
+        roles = []
+        for args, nodes in ((self.cmd_args.prefill, prefill_nodes), (self.cmd_args.decode, decode_nodes)):
+            roles.append(
+                dataclasses.replace(
+                    inference_role_config(args.model_dump(exclude_none=True)),
+                    num_nodes=nodes,
+                    num_instances=1,
+                    nodes_per_instance=nodes,
+                    instances_per_node=1 if nodes == 1 else None,
+                )
+                if args is not None
+                else None
+            )
+        return roles[0], cast(inference_report.InferenceRoleConfig, roles[1])
 
     @property
     def docker_image(self) -> DockerImage:
@@ -463,30 +548,10 @@ class LLMServingSlurmCommandGenStrategy(SlurmCommandGenStrategy, Generic[LLMServ
         return num_nodes
 
     def disaggregated_role_node_counts(self) -> tuple[int, int]:
-        if not self.is_disaggregated or self.tdef.cmd_args.prefill is None:
+        if not self.is_disaggregated:
             return (0, 0)
-
         num_nodes, _ = self.get_cached_nodes_spec()
-        prefill_nodes = self._role_num_nodes(self.tdef.cmd_args.prefill.num_nodes, "prefill")
-        decode_nodes = self._role_num_nodes(self.tdef.cmd_args.decode.num_nodes, "decode")
-
-        if prefill_nodes is None and decode_nodes is None:
-            if num_nodes in (1, 2):
-                return (1, 1)
-            raise ValueError(
-                f"Disaggregated {self.workload_name} over more than 2 nodes requires both "
-                "prefill.num_nodes and decode.num_nodes."
-            )
-        if prefill_nodes is None or decode_nodes is None:
-            raise ValueError("Both prefill.num_nodes and decode.num_nodes must be set or both must be omitted.")
-        if prefill_nodes <= 0 or decode_nodes <= 0:
-            raise ValueError("prefill.num_nodes and decode.num_nodes must be positive integers.")
-        if prefill_nodes + decode_nodes != num_nodes:
-            raise ValueError(
-                f"prefill.num_nodes + decode.num_nodes must equal allocated nodes ({num_nodes}), "
-                f"got {prefill_nodes + decode_nodes}."
-            )
-        return (prefill_nodes, decode_nodes)
+        return disaggregated_role_node_counts(self.tdef, num_nodes, self.workload_name)
 
     def role_node_count(self, role: str) -> int:
         if role == "serve":
