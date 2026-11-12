@@ -257,6 +257,7 @@ class CloudAIGymEnv(BaseGym):
                 break
 
             trial_index, action = proposal
+            action = copy.deepcopy(action)  # the agent may reuse its dict for the next proposal
             trial = self.upcoming_trial
             env_params = self.params.sample(trial) if self.params else {}
             test_run = self.test_run.apply_params_set(action, env_params=env_params)
@@ -297,32 +298,40 @@ class CloudAIGymEnv(BaseGym):
         Submit the trials of a wave that need execution and wait for all of them.
 
         Uses the runner's own submission and polling without its scenario policy: a failed trial
-        does not stop its siblings. A trial that cannot be prepared for submission is a failed
-        trial too. A job submission error, or an error while waiting, kills the wave and is raised.
+        does not stop its siblings. Errors cost trials, not the sweep: a trial that cannot be
+        prepared for submission fails alone, and an error while waiting fails the trials that are
+        still running, whose jobs are terminated. Only a job submission error is raised.
 
-        Returns job statuses keyed by trial number.
+        Returns job statuses keyed by trial number; a trial without one did not finish.
         """
         job_statuses: dict[int, JobStatusResult] = {}
         try:
             for candidate in wave:
-                if candidate.test_run is None or not candidate.needs_execution or self.runner.shutting_down:
-                    continue
-                try:
-                    self.runner.submit_test(candidate.test_run)
-                except JobSubmissionError:
-                    raise
-                except Exception as e:
-                    logging.error(f"Error running step {candidate.step}: {e}")
-                    job_statuses[candidate.step] = JobStatusResult(is_successful=False, error_message=str(e))
+                if candidate.test_run is not None and candidate.needs_execution:
+                    self._submit_trial(candidate.test_run, job_statuses)
             while self.runner.jobs:
                 for job, job_status in self.runner.poll_jobs():
                     job_statuses[job.test_run.step] = job_status
+                    if not job_status.is_successful:
+                        logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
                 if self.runner.jobs:
                     time.sleep(self.runner.monitor_interval)
-        except Exception:
-            self.runner.shutdown()
-            raise
+        except BaseException as e:
+            running = sorted(job.test_run.step for job in self.runner.jobs)
+            self.runner.abandon_jobs()
+            if isinstance(e, JobSubmissionError) or not isinstance(e, Exception):
+                raise
+            logging.error(f"Error while waiting for steps {running}: {e}")
         return job_statuses
+
+    def _submit_trial(self, test_run: TestRun, job_statuses: dict[int, JobStatusResult]) -> None:
+        try:
+            self.runner.submit_test(test_run)
+        except JobSubmissionError:
+            raise
+        except Exception as e:
+            logging.error(f"Error running step {test_run.step}: {e}")
+            job_statuses[test_run.step] = JobStatusResult(is_successful=False, error_message=str(e))
 
     def _finalize_wave(
         self, wave: list[_Candidate], job_statuses: dict[int, JobStatusResult]
@@ -340,7 +349,8 @@ class CloudAIGymEnv(BaseGym):
 
         Executed and cached candidates are appended to the trajectory in trial order, whatever
         order the jobs completed in; rejected ones get no row. ``self.test_run`` ends up as the
-        last accepted trial, which is what serial callers read.
+        last accepted trial, which is what serial callers read; for a cached one its
+        ``output_path`` is the directory of the trial whose result is reused.
         """
         results: list[EvaluationResult] = []
         for candidate in wave:
@@ -366,11 +376,11 @@ class CloudAIGymEnv(BaseGym):
                 metrics = self.test_run.test.agent_metrics
                 candidate.observation = {metric: candidate.cached[f"observation.{metric}"] for metric in metrics}
                 candidate.reward = float(candidate.cached["reward"])
-                output_path = self.iteration_dir / str(candidate.cached["step"])
+                output_path = self.test_run.output_path = self.iteration_dir / str(candidate.cached["step"])
             elif candidate.duplicate_of is not None and candidate.duplicate_of.test_run is not None:
                 candidate.observation = dict(candidate.duplicate_of.observation or {})
                 candidate.reward = candidate.duplicate_of.reward
-                output_path = candidate.duplicate_of.test_run.output_path
+                output_path = self.test_run.output_path = candidate.duplicate_of.test_run.output_path
             else:
                 candidate.observation = self.get_observation()
                 candidate.reward = self.compute_reward(candidate.observation)

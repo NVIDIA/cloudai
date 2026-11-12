@@ -21,7 +21,7 @@ from types import FrameType
 from typing import Optional
 
 from .base_runner import BaseRunner
-from .exceptions import JobFailureError, JobSubmissionError
+from .exceptions import JobFailureError
 from .registry import Registry
 from .system import System
 from .test_scenario import TestScenario
@@ -113,9 +113,6 @@ class Runner:
             return True
         except JobFailureError as exc:
             logging.debug(f"Runner failed JobFailure exception: {exc}", exc_info=True)
-            return False
-        except JobSubmissionError as exc:
-            logging.debug(f"Runner failed JobSubmission exception: {exc}", exc_info=True)
             return False
 
     def cancel_on_signal(

@@ -57,6 +57,7 @@ class MyRunner(BaseRunner):
         super().delayed_submit_test(tr, 0)
 
     def delayed_kill_job(self, job: BaseJob, delay: int = 0):
+        job.terminated_by_dependency = True
         self.killed_by_dependency.append(job)
 
 
@@ -202,8 +203,8 @@ class TestPollJobs:
             patch.object(SlurmSystem, "is_job_completed", side_effect=[False, False, True]) as is_completed,
             patch.object(SlurmSystem, "is_job_running") as is_running,
         ):
-            assert run_mode.poll_jobs() == []
-            assert run_mode.poll_jobs() == []
+            assert list(run_mode.poll_jobs()) == []
+            assert list(run_mode.poll_jobs()) == []
             [(job, status)] = run_mode.poll_jobs()
 
         assert is_completed.call_count == 3
@@ -220,9 +221,10 @@ class TestPollJobs:
         run_mode.submit_test(tr_main)
         run_mode.submit_test(tr_other)
 
-        with patch.object(SlurmSystem, "is_job_completed", side_effect=[True, False]):
+        with patch.object(SlurmSystem, "is_job_completed", side_effect=[True, False]) as is_completed:
             [(job, status)] = run_mode.poll_jobs()
 
+        assert is_completed.call_count == 2
         assert job.test_run is tr_main
         assert (status.is_successful, status.error_message) == (False, "workload job failed")
         assert [job.test_run for job in run_mode.jobs] == [tr_other]
@@ -239,15 +241,17 @@ class TestPollJobs:
             patch.object(SlurmSystem, "is_job_completed", return_value=False),
             patch.object(SlurmSystem, "is_job_running", side_effect=[False, True]) as is_running,
         ):
-            run_mode.poll_jobs()
+            list(run_mode.poll_jobs())
             assert run_mode.submitted_trs == [tr_main]
-            run_mode.poll_jobs()
+            list(run_mode.poll_jobs())
             assert run_mode.submitted_trs == [tr_main, tr_dep]
-            run_mode.poll_jobs()
+            list(run_mode.poll_jobs())
 
         assert is_running.call_count == 2
 
-    def test_dry_run_completes_without_asking_the_system(self, runner: MyRunner, tr_main: TestRun):
+    def test_dry_run_completes_without_asking_the_system_or_the_workload(self, runner: MyRunner, tr_main: TestRun):
+        cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")
+        runner.runner_job_status_result = JobStatusResult(False, "runner job failed")
         runner.submit_test(tr_main)
 
         with patch.object(SlurmSystem, "is_job_completed") as is_completed:
@@ -256,6 +260,16 @@ class TestPollJobs:
         is_completed.assert_not_called()
         assert job.test_run is tr_main
         assert status.is_successful
+
+    def test_caller_handles_a_finished_job_before_the_next_one_is_checked(self, runner: MyRunner, tr_main: TestRun):
+        tr_other = deepcopy(tr_main)
+        tr_other.name = "other"
+        runner.submit_test(tr_main)
+        runner.submit_test(tr_other)
+
+        tracked_when_handled = [[job.test_run.name for job in runner.jobs] for _ in runner.poll_jobs()]
+
+        assert tracked_when_handled == [["other"], []]
 
 
 class TestMonitorJobs:
@@ -305,13 +319,43 @@ class TestMonitorJobs:
         assert runner.submitted_trs == [tr_main] * 3
         assert runner.jobs == []
 
+    def test_start_post_init_dependent_with_iterations_is_submitted_once_per_iteration(
+        self, runner: MyRunner, tr_main: TestRun
+    ):
+        tr_main.iterations = 2
+        tr_dep = deepcopy(tr_main)
+        tr_dep.name = "dependent"
+        tr_dep.dependencies = {"start_post_init": TestDependency(tr_main)}
+        runner.test_scenario.test_runs.append(tr_dep)
 
-class TestRunScenario:
+        runner.run()
+
+        assert [tr.name for tr in runner.submitted_trs].count("dependent") == 2
+        assert [tr.name for tr in runner.submitted_trs].count(tr_main.name) == 2
+        assert runner.jobs == []
+        assert runner.testrun_to_job_map == {}
+
+    def test_end_post_comp_dependent_finishing_with_its_source_is_not_iterated_again(
+        self, runner: MyRunner, tr_main: TestRun
+    ):
+        tr_dep = deepcopy(tr_main)
+        tr_dep.name = "background"
+        tr_dep.iterations = 3
+        tr_dep.dependencies = {"end_post_comp": TestDependency(tr_main)}
+        runner.test_scenario.test_runs.append(tr_dep)
+
+        runner.run()
+
+        assert [tr.name for tr in runner.submitted_trs] == [tr_main.name, "background"]
+        assert [job.test_run.name for job in runner.killed_by_dependency] == ["background"]
+
+
+class TestSubmitAndShutdown:
     @pytest.fixture
     def tr_main(self, runner: MyRunner) -> TestRun:
         return runner.test_scenario.test_runs[0]
 
-    def test_submission_error_kills_outstanding_jobs(self, runner: MyRunner, tr_main: TestRun):
+    def test_submission_error_terminates_outstanding_jobs(self, runner: MyRunner, tr_main: TestRun):
         tr_broken = deepcopy(tr_main)
         tr_broken.name = "broken"
         runner.test_scenario.test_runs.append(tr_broken)
@@ -330,5 +374,43 @@ class TestRunScenario:
         ):
             runner.run()
 
-        assert runner.shutting_down
         assert [call.args[0].test_run for call in kill.call_args_list] == [tr_main]
+        assert runner.jobs == []
+        assert runner.testrun_to_job_map == {}
+        assert not runner.shutting_down
+
+    def test_nothing_is_started_after_shutdown(self, runner: MyRunner, tr_main: TestRun):
+        runner.shutdown()
+
+        runner.submit_test(tr_main)
+
+        assert runner.submitted_trs == []
+        assert runner.jobs == []
+
+    def test_job_submitted_while_shutting_down_is_terminated(self, runner: MyRunner, tr_main: TestRun):
+        submit = runner._submit_test
+
+        def shutdown_while_submitting(tr: TestRun) -> BaseJob:
+            runner.shutdown()
+            return submit(tr)
+
+        with (
+            patch.object(runner, "_submit_test", side_effect=shutdown_while_submitting),
+            patch.object(SlurmSystem, "kill") as kill,
+        ):
+            runner.submit_test(tr_main)
+
+        assert [call.args[0].test_run for call in kill.call_args_list] == [tr_main]
+        assert [job.test_run for job in runner.jobs] == [tr_main]
+
+    def test_shutdown_terminates_every_job_even_if_one_cannot_be_terminated(self, runner: MyRunner, tr_main: TestRun):
+        tr_other = deepcopy(tr_main)
+        tr_other.name = "other"
+        runner.submit_test(tr_main)
+        runner.submit_test(tr_other)
+
+        with patch.object(SlurmSystem, "kill", side_effect=[RuntimeError("cannot cancel"), None]) as kill:
+            runner.shutdown()
+
+        assert [call.args[0].test_run for call in kill.call_args_list] == [tr_main, tr_other]
+        assert runner.shutting_down

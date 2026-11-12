@@ -22,9 +22,13 @@ alone, so a test reads as a list of proposals and their fates:
 
 - ``rejected_x``: the constraint check fails, nothing is executed;
 - ``failing_x``: the trial is executed, fails, and reports no metric;
+- ``failing_with_metric_x``: the trial fails after it reported its metric;
+- ``silent_x``: the trial succeeds but reports no metric;
+- ``broken_x``: the trial cannot be prepared for submission;
+- ``unsubmittable_x``: the scheduler refuses the job;
 - ``durations``: how long the trial runs; everything else takes ``duration``.
 
-A finished trial reports ``x`` as its ``default`` metric. Two ways to execute it:
+A trial reports ``x`` as its ``default`` metric. Two ways to execute it:
 
 - ``ScriptedRunner`` with ``ScriptedSystem``: jobs live in memory and durations are counted in
   monitoring passes, so wave tests are exact and need no waiting;
@@ -63,6 +67,7 @@ from cloudai.core import (
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 RESULT_FILE = "probe_result.txt"
+STATUS_FILE = "probe_status.txt"
 TIMING_FILE = "probe_timing.json"
 JOB_SCRIPT = Path(__file__).with_name("probe_job.py")
 
@@ -80,6 +85,9 @@ class ProbeTestDefinition(TestDefinition):
     cmd_args: ProbeCmdArgs
     rejected_x: list[int] = Field(default_factory=list)
     failing_x: list[int] = Field(default_factory=list)
+    failing_with_metric_x: list[int] = Field(default_factory=list)
+    silent_x: list[int] = Field(default_factory=list)
+    broken_x: list[int] = Field(default_factory=list)
     unsubmittable_x: list[int] = Field(default_factory=list)
     durations: dict[int, float] = Field(default_factory=dict)
     duration: float = 1
@@ -100,8 +108,15 @@ class ProbeTestDefinition(TestDefinition):
     def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         return self.x_of(tr) not in self.rejected_x
 
+    def fails(self, tr: TestRun) -> bool:
+        return self.x_of(tr) in self.failing_x or self.x_of(tr) in self.failing_with_metric_x
+
+    def reports_metric(self, tr: TestRun) -> bool:
+        return self.x_of(tr) not in self.failing_x and self.x_of(tr) not in self.silent_x
+
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        if (tr.output_path / RESULT_FILE).exists():
+        status_file = tr.output_path / STATUS_FILE
+        if status_file.exists() and status_file.read_text() == "ok":
             return JobStatusResult(is_successful=True)
         return JobStatusResult(is_successful=False, error_message=f"probe x={self.x_of(tr)} failed")
 
@@ -161,6 +176,7 @@ class ScriptedSystem(System):
     monitor_interval: float = 0
     _events: list[tuple[str, int]] = PrivateAttr(default_factory=list)
     _on_pass: Callable[[], None] | None = PrivateAttr(default=None)
+    _on_submit: Callable[[TestRun], None] | None = PrivateAttr(default=None)
 
     @property
     def events(self) -> list[tuple[str, int]]:
@@ -170,6 +186,15 @@ class ScriptedSystem(System):
     def on_pass(self, callback: Callable[[], None]) -> None:
         """Call ``callback`` at every completion check, e.g. to cancel the run midway."""
         self._on_pass = callback
+
+    def on_submit(self, callback: Callable[[TestRun], None]) -> None:
+        """Call ``callback`` while a trial is being submitted, before its job is tracked."""
+        self._on_submit = callback
+
+    def submitting(self, tr: TestRun) -> None:
+        self.record("submit", tr)
+        if self._on_submit is not None:
+            self._on_submit(tr)
 
     def record(self, event: str, tr: TestRun) -> None:
         self._events.append((event, tr.step))
@@ -199,11 +224,10 @@ class ScriptedSystem(System):
             raise TypeError("ScriptedSystem runs only the probe workload")
         if job.killed:
             return True
-        if test.x_of(tr) in test.failing_x:
-            self.record("fail", tr)
-        else:
+        if test.reports_metric(tr):
             (tr.output_path / RESULT_FILE).write_text(str(test.x_of(tr)))
-            self.record("finish", tr)
+        (tr.output_path / STATUS_FILE).write_text("failed" if test.fails(tr) else "ok")
+        self.record("fail" if test.fails(tr) else "finish", tr)
         return True
 
     def kill(self, job: BaseJob) -> None:
@@ -219,9 +243,11 @@ class ScriptedRunner(BaseRunner):
         test = tr.test
         if not isinstance(test, ProbeTestDefinition) or not isinstance(self.system, ScriptedSystem):
             raise TypeError("ScriptedRunner runs only the probe workload on a ScriptedSystem")
+        if test.x_of(tr) in test.broken_x:
+            raise ValueError(f"probe x={test.x_of(tr)} cannot be prepared")
         if test.x_of(tr) in test.unsubmittable_x:
             raise JobSubmissionError(tr.name, "probe", "", "", "scripted submission failure")
-        self.system.record("submit", tr)
+        self.system.submitting(tr)
         return ScriptedJob(tr, id=tr.step, remaining_passes=test.duration_of(tr))
 
 
@@ -281,8 +307,10 @@ class ProbeStandaloneCommandGenStrategy(CommandGenStrategy):
         if not isinstance(test, ProbeTestDefinition):
             raise TypeError("ProbeStandaloneCommandGenStrategy runs only the probe workload")
         args = [sys.executable, str(JOB_SCRIPT), str(tr.output_path), str(test.x_of(tr)), str(test.duration_of(tr))]
-        if test.x_of(tr) in test.failing_x:
+        if test.fails(tr):
             args.append("--fail")
+        if not test.reports_metric(tr):
+            args.append("--no-metric")
         return " ".join(shlex.quote(arg) for arg in args)
 
 

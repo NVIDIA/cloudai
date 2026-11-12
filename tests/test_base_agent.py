@@ -18,6 +18,10 @@ import itertools
 from collections.abc import Iterable, Iterator
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
+from cloudai.configurator import BaseGym
 from cloudai.core import BaseAgent, BaseAgentConfig, EvaluationResult, Proposal
 
 
@@ -218,3 +222,52 @@ def test_run_stops_when_select_action_returns_none() -> None:
     assert agent.selected_observations == [[0.0], [1.0], [2.0]]
     assert env.batches == 3
     assert [feedback["value"] for feedback in agent.updates] == [1.0, 2.0]
+
+
+class _StepOnlyEnv(BaseGym):
+    """Environment written before batches existed: rejects every second action."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.actions: list[dict[str, Any]] = []
+
+    def define_action_space(self) -> dict[str, Any]:
+        return {}
+
+    def define_observation_space(self) -> list:
+        return [0.0]
+
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[list, dict[str, Any]]:
+        del seed, options
+        return [0.0], {}
+
+    def step(self, action: Any) -> tuple[list, float, bool, dict]:
+        self.actions.append(action)
+        rejected = len(self.actions) % 2 == 0
+        value = -1.0 if rejected else float(len(self.actions))
+        return [value], value, rejected, {}
+
+    def render(self, mode: str = "human") -> None:
+        del mode
+
+    def seed(self, seed: int | None = None) -> None:
+        del seed
+
+
+def test_run_drives_an_environment_that_only_implements_step() -> None:
+    env = _StepOnlyEnv()
+    agent = _RecordingAgent(env)  # type: ignore[arg-type]
+
+    assert agent.run() == 0
+
+    assert agent.proposals == 3
+    assert [update["status"] for update in agent.updates] == ["completed", "rejected", "completed"]
+    assert [update["step"] for update in agent.updates] == [1, None, 2]
+    assert [update["value"] for update in agent.updates] == [1.0, -1.0, 3.0]
+    assert agent.selected_observations == [[0.0], [1.0], [-1.0]]
+
+
+def test_max_parallelism_must_be_positive() -> None:
+    assert BaseAgentConfig().max_parallelism == 1
+    with pytest.raises(ValidationError):
+        BaseAgentConfig(max_parallelism=0)

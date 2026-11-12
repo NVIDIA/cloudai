@@ -18,6 +18,7 @@ import datetime
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Dict, List
 
@@ -122,13 +123,29 @@ class BaseRunner(ABC):
         self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):
-        """Gracefully shut down the runner, terminating all outstanding jobs."""
+        """
+        Cancel the run: stop starting tests and terminate all outstanding jobs.
+
+        Terminated jobs stay tracked until they are polled as finished.
+        """
         self.shutting_down = True
         logging.info("Terminating all jobs...")
-        for job in self.jobs:
-            logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
-            self.system.kill(job)
+        self._kill_jobs()
         logging.info("Waiting for all jobs to be killed.")
+
+    def abandon_jobs(self) -> None:
+        """Terminate all outstanding jobs and stop tracking them, for a caller that gives up on them after an error."""
+        self._kill_jobs()
+        self.jobs.clear()
+        self.testrun_to_job_map.clear()
+
+    def _kill_jobs(self) -> None:
+        for job in list(self.jobs):
+            logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
+            try:
+                self.system.kill(job)
+            except Exception:
+                logging.exception(f"Failed to terminate job {job.id} for test {job.test_run.name}")
 
     def run(self):
         """Run the test scenario."""
@@ -146,27 +163,33 @@ class BaseRunner(ABC):
                 logging.debug(f"sleeping for {self.monitor_interval} seconds")
                 time.sleep(self.monitor_interval)
         except JobSubmissionError:
-            self.shutdown()
+            self.abandon_jobs()
             raise
 
     def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
 
+        Nothing is started once the runner is shutting down.
+
         Args:
             tr (TestRun): The test to be started.
         """
+        if self.shutting_down:
+            logging.info(f"Not starting test {tr.name}: the runner is shutting down.")
+            return
+
         tr.output_path = self.get_job_output_path(tr)
         logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
-        try:
-            job = self._submit_test(tr)
-            self.jobs.append(job)
-            self.testrun_to_job_map[tr] = job
-            self.update_run_output(job)
-        except JobSubmissionError as e:
-            logging.error(e)
-            raise
+        job = self._submit_test(tr)
+        self.jobs.append(job)
+        self.testrun_to_job_map[tr] = job
+        self.update_run_output(job)
+        if self.shutting_down:
+            # The shutdown arrived while the job was being submitted and could not see it.
+            logging.info(f"Terminating job {job.id} for test {tr.name}")
+            self.system.kill(job)
 
     def on_job_submit(self, tr: TestRun) -> None:
         return
@@ -196,40 +219,39 @@ class BaseRunner(ABC):
         """
         pass
 
-    def poll_jobs(self) -> list[tuple[BaseJob, JobStatusResult]]:
+    def poll_jobs(self) -> Iterator[tuple[BaseJob, JobStatusResult]]:
         """
-        Check every tracked job once and return the ones that finished, with their status.
+        Check every tracked job once and yield the ones that finished, with their status.
 
         Each job is asked for completion once per call. Its running state is asked only while
         somebody still waits for it: the run is published as pending, or tests with a
         ``start_post_init`` dependency on it are not submitted yet.
 
-        Finished jobs get their completion callback and final output update and are no longer
-        tracked. What a finished or failed job means for the rest of the run is up to the caller.
+        A finished job gets its completion callback and final output update and is no longer
+        tracked. What it means for the rest of the run is up to the caller, whose handling of one
+        job runs before the next job is checked.
         """
-        finished: list[tuple[BaseJob, JobStatusResult]] = []
         output_changed = False
+        try:
+            for job in list(self.jobs):
+                tr = job.test_run
+                is_completed = self.mode == "dry-run" or self.system.is_job_completed(job)
+                pending_run = self._pending_run_output(tr)
+                waits_for_start = pending_run is not None or self._has_start_post_init_dependents(tr)
+                is_started = is_completed or (waits_for_start and self.system.is_job_running(job))
+                logging.debug(f"Job {job.id} for test {tr.name} ({is_started=}, {is_completed=}, {self.mode=})")
 
-        for job in list(self.jobs):
-            tr = job.test_run
-            is_completed = self.mode == "dry-run" or self.system.is_job_completed(job)
-            pending_run = self._pending_run_output(tr)
-            waits_for_start = pending_run is not None or self._has_start_post_init_dependents(tr)
-            is_started = is_completed or (waits_for_start and self.system.is_job_running(job))
-            logging.debug(f"Job {job.id} for test {tr.name} ({is_started=}, {is_completed=}, {self.mode=})")
-
-            if is_started:
-                self.check_and_schedule_start_post_init_dependent_tests(tr)
-            if is_started and not is_completed and pending_run is not None:
-                pending_run.status = "running"
-                self.experiment_output.update_run(str(tr.name), pending_run)
-                output_changed = True
-            if is_completed:
-                finished.append((job, self._complete_job(job)))
-
-        if output_changed:
-            self.experiment_output.write()
-        return finished
+                if is_started:
+                    self.check_and_schedule_start_post_init_dependent_tests(tr)
+                if is_started and not is_completed and pending_run is not None:
+                    pending_run.status = "running"
+                    self.experiment_output.update_run(str(tr.name), pending_run)
+                    output_changed = True
+                if is_completed:
+                    yield job, self._complete_job(job)
+        finally:
+            if output_changed:
+                self.experiment_output.write()
 
     def _complete_job(self, job: BaseJob) -> JobStatusResult:
         self.on_job_completion(job)

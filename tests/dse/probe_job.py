@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Process of one real probe trial: sleep, then report ``x`` unless told to fail."""
+"""Process of one real probe trial: sleep, then report ``x`` and whether the trial succeeded."""
 
 import json
 import sys
@@ -24,14 +24,14 @@ from pathlib import Path
 
 def main() -> int:
     output_path, x, duration = Path(sys.argv[1]), sys.argv[2], float(sys.argv[3])
-    fail = "--fail" in sys.argv[4:]
+    fail, no_metric = "--fail" in sys.argv[4:], "--no-metric" in sys.argv[4:]
     start = time.time()
     time.sleep(duration)
     (output_path / "probe_timing.json").write_text(json.dumps({"start": start, "finish": time.time()}))
-    if fail:
-        return 3
-    (output_path / "probe_result.txt").write_text(x)
-    return 0
+    if not no_metric:
+        (output_path / "probe_result.txt").write_text(x)
+    (output_path / "probe_status.txt").write_text("failed" if fail else "ok")
+    return 3 if fail else 0
 
 
 if __name__ == "__main__":

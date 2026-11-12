@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.configurator.env_params import EnvParamSpec
-from cloudai.core import CloudAIGymEnv, RewardOverrides, Runner
+from cloudai.configurator.env_params import EnvParams, EnvParamSpec
+from cloudai.core import CloudAIGymEnv, JobSubmissionError, RewardOverrides, Runner, TestRun
 from cloudai.handlers import handle_dse_job
 
 from .conftest import ProbeAgent
@@ -50,7 +50,7 @@ def probe_env(system: ScriptedSystem, x: list[int], max_parallelism: int, **kwar
     return CloudAIGymEnv(test_run, runner.runner, rewards=RewardOverrides(), max_parallelism=max_parallelism)
 
 
-def test_grid_runs_in_waves(system: ScriptedSystem) -> None:
+def test_grid_runs_in_waves(system: ScriptedSystem, caplog: pytest.LogCaptureFixture) -> None:
     runner = scripted(system, x=[1, 2, 3, 4, 5, 6, 7], max_parallelism=3)
 
     assert handle_dse_job(runner) == 0
@@ -58,6 +58,7 @@ def test_grid_runs_in_waves(system: ScriptedSystem) -> None:
     assert waves(system.events) == [[1, 2, 3], [4, 5, 6], [7]]
     assert max_outstanding(system.events) == 3
     assert read_trajectory(runner) == [(step, step, float(step)) for step in range(1, 8)]
+    assert "has no effect" not in caplog.text
 
 
 def test_next_wave_starts_only_after_the_slowest_trial(system: ScriptedSystem) -> None:
@@ -99,21 +100,89 @@ def test_rejected_proposals_take_no_slot_and_no_trial_number(system: ScriptedSys
 
 
 def test_failed_trial_does_not_stop_its_wave_or_the_sweep(system: ScriptedSystem) -> None:
-    runner = scripted(system, x=[1, 2, 3, 4], max_parallelism=2, failing_x=[2])
+    runner = scripted(system, x=[1, 2, 3, 4], max_parallelism=3, failing_x=[1], durations={2: 3, 3: 5})
 
     assert handle_dse_job(runner) == 0
 
     assert system.events == [
         ("submit", 1),
         ("submit", 2),
-        ("finish", 1),
-        ("fail", 2),
         ("submit", 3),
-        ("submit", 4),
+        ("fail", 1),
+        ("finish", 2),
         ("finish", 3),
+        ("submit", 4),
         ("finish", 4),
     ]
+    assert read_trajectory(runner) == [(1, 1, -1.0), (2, 2, 2.0), (3, 3, 3.0), (4, 4, 4.0)]
+    assert not runner.runner.shutting_down
+
+
+def test_failed_job_and_missing_metric_both_fail_the_trial(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3, 4], max_parallelism=4, failing_x=[1], failing_with_metric_x=[2], silent_x=[3])
+
+    results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3, 4)], start=1))
+
+    assert [result["status"] for result in results] == ["failed", "failed", "failed", "completed"]
+    assert [result["value"] for result in results] == [-1.0, 2.0, -1.0, 4.0]
+
+
+def test_trial_that_cannot_be_prepared_fails_alone(system: ScriptedSystem, caplog: pytest.LogCaptureFixture) -> None:
+    runner = scripted(system, x=[1, 2, 3, 4], max_parallelism=3, broken_x=[2])
+
+    assert handle_dse_job(runner) == 0
+
+    assert waves(system.events) == [[1, 3], [4]]
     assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, -1.0), (3, 3, 3.0), (4, 4, 4.0)]
+    assert "Error running step 2: probe x=2 cannot be prepared" in caplog.text
+
+
+def test_error_while_waiting_fails_the_running_trials_and_the_sweep_goes_on(
+    system: ScriptedSystem, caplog: pytest.LogCaptureFixture
+) -> None:
+    runner = scripted(system, x=[1, 2, 3, 4, 5], max_parallelism=3, durations={1: 1, 2: 4, 3: 4})
+    failures: list[str] = []
+
+    def fail_once_the_first_trial_is_over() -> None:
+        if ("finish", 1) in system.events and not failures:
+            failures.append("scheduler query failed")
+            raise RuntimeError(failures[0])
+
+    system.on_pass(fail_once_the_first_trial_is_over)
+
+    assert handle_dse_job(runner) == 0
+
+    assert system.events == [
+        ("submit", 1),
+        ("submit", 2),
+        ("submit", 3),
+        ("finish", 1),
+        ("kill", 2),
+        ("kill", 3),
+        ("submit", 4),
+        ("submit", 5),
+        ("finish", 4),
+        ("finish", 5),
+    ]
+    assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, -1.0), (3, 3, -1.0), (4, 4, 4.0), (5, 5, 5.0)]
+    assert "Error while waiting for steps [2, 3]: scheduler query failed" in caplog.text
+    assert not runner.runner.shutting_down
+    assert runner.runner.jobs == []
+
+
+def test_interrupt_inside_a_wave_terminates_its_trials(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=2, duration=5)
+
+    def interrupt() -> None:
+        raise KeyboardInterrupt
+
+    system.on_pass(interrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
+
+    assert system.events == [("submit", 1), ("submit", 2), ("kill", 1), ("kill", 2)]
+    assert env.runner.jobs == []
 
 
 @pytest.mark.parametrize("max_parallelism", [2, 3, 5, 16])
@@ -155,6 +224,7 @@ def test_results_report_every_proposal_in_order(system: ScriptedSystem) -> None:
     trial_root = env.runner.scenario_root / "probe" / "0"
     assert [result["output_path"] for result in results] == [trial_root / "1", None, trial_root / "2", trial_root / "1"]
     assert env.test_run.step == 3
+    assert env.test_run.output_path == trial_root / "1"
     assert env.upcoming_trial == 4
 
 
@@ -178,6 +248,44 @@ def test_identical_proposals_in_one_wave_run_once(system: ScriptedSystem) -> Non
     trial_root = env.runner.scenario_root / "probe" / "0"
     assert [result["output_path"] for result in results] == [trial_root / str(step) for step in (1, 1, 3, 3, 1)]
     assert waves(system.events) == [[1, 3]]
+
+
+def test_duplicate_in_a_wave_resets_the_rejection_counter(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3], max_parallelism=3, rejected_x=[2])
+    env.max_consecutive_rejected_proposals = 2
+
+    results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 1, 2, 3)], start=1))
+
+    assert [result["status"] for result in results] == ["completed", "rejected", "cached", "rejected", "completed"]
+    assert [result["step"] for result in results] == [1, None, 2, None, 3]
+    assert env.upcoming_trial == 4
+
+
+def test_agent_may_reuse_its_action_object(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3], max_parallelism=3)
+
+    def proposals():
+        action = {}
+        for x in (1, 2, 3):
+            action["x"] = x
+            yield x, action
+
+    results = env.evaluate_batch(proposals())
+
+    assert [result["action"] for result in results] == [{"x": 1}, {"x": 2}, {"x": 3}]
+    assert [result["value"] for result in results] == [1.0, 2.0, 3.0]
+    assert waves(system.events) == [[1, 2, 3]]
+
+
+def test_waiting_sleeps_between_passes(system: ScriptedSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=2, durations={1: 3, 2: 1})
+    env.runner.monitor_interval = 7
+    sleeps: list[float] = []
+    monkeypatch.setattr("cloudai.configurator.cloudai_gym.time.sleep", sleeps.append)
+
+    env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
+
+    assert sleeps == [7, 7]
 
 
 def test_proposals_are_pulled_lazily(system: ScriptedSystem) -> None:
@@ -282,19 +390,31 @@ def test_agent_gets_feedback_for_a_whole_batch_before_the_next_one(system: Scrip
 
 
 def test_env_params_are_sampled_per_trial_whatever_the_parallelism(tmp_path: Path) -> None:
-    def sweep(root: Path, parallelism: int) -> list[dict]:
-        system = ScriptedSystem(name="scripted", install_path=root / "install", output_path=root / "output")
+    proposals = [(101, 1), (205, 2), (317, 3), (404, 1), (512, 3), (633, 2), (748, 1)]
+
+    def noisy_test_run() -> TestRun:
         test_run = probe_test_run([1, 2, 3], agent="probe_stream", agent_steps=6, rejected_x=[2])
         test_run.test.cmd_args.noise = [10, 20, 30, 40]
         test_run.test.env_params = {"noise": EnvParamSpec()}
+        return test_run
+
+    def sweep(root: Path, parallelism: int) -> list[dict]:
+        system = ScriptedSystem(name="scripted", install_path=root / "install", output_path=root / "output")
+        test_run = noisy_test_run()
         runner = dse_runner(system, ScriptedRunner, test_run)
         env = CloudAIGymEnv(test_run, runner.runner, rewards=RewardOverrides(), max_parallelism=parallelism)
-        results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3, 1, 3, 2, 1)], start=1))
+        results = env.evaluate_batch((proposal_id, {"x": x}) for proposal_id, x in proposals)
         return [{"step": r["step"], "status": r["status"], "env_params": r["env_params"]} for r in results]
 
     serial = sweep(tmp_path / "serial", 1)
 
     assert sweep(tmp_path / "parallel", 3) == serial
+    assert [result["step"] for result in serial] == [1, None, 2, 3, 4, None, 5]
+    reference = EnvParams.from_test(noisy_test_run().test)
+    assert reference is not None
+    # A rejected proposal is checked against the regime of the trial it would have become.
+    for result, trial in zip(serial, [1, 2, 2, 3, 4, 5, 5], strict=True):
+        assert result["env_params"] == reference.sample(trial)
     assert len({result["env_params"]["noise"] for result in serial}) > 1
 
 
@@ -307,8 +427,16 @@ def test_step_is_a_one_proposal_batch(system: ScriptedSystem) -> None:
     assert waves(system.events) == [[1]]
 
 
+def test_step_is_not_bound_by_the_step_allowance(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3], max_parallelism=1, agent_steps=1)
+
+    assert [env.step({"x": x})[1] for x in (1, 2, 3)] == [1.0, 2.0, 3.0]
+    assert waves(system.events) == [[1], [2], [3]]
+
+
 def test_cancelling_stops_the_sweep_and_drops_the_interrupted_wave(system: ScriptedSystem) -> None:
-    first = probe_test_run([1, 2, 3, 4, 5, 6], agent_config={"max_parallelism": 2}, duration=3)
+    first = probe_test_run([1, 2, 3, 4, 5, 6], agent="probe_stream", agent_steps=6, duration=3)
+    first.test.agent_config = {"max_parallelism": 2}
     second = probe_test_run([1, 2], name="second")
     runner = dse_runner(system, ScriptedRunner, first, second)
 
@@ -333,6 +461,41 @@ def test_cancelling_stops_the_sweep_and_drops_the_interrupted_wave(system: Scrip
     assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, 2.0)]
     assert read_trajectory(runner, "second") == []
     assert runner.runner.jobs == []
+    [agent] = ProbeAgent.created
+    assert [update["trial_index"] for update in agent.updates] == [1, 2]
+    assert agent.proposed == 4
+    runner.runner.finish_output(successful=False)
+    assert runner.runner.experiment_output.experiment.status == "cancelled"
+
+
+def test_cancel_between_submissions_terminates_the_trial_in_flight(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3], max_parallelism=3, duration=50)
+
+    def cancel_while_submitting_the_second_trial(tr) -> None:
+        if tr.step == 2:
+            env.runner.shutdown()
+
+    system.on_submit(cancel_while_submitting_the_second_trial)
+
+    assert env.evaluate_batch(enumerate([{"x": 1}, {"x": 2}, {"x": 3}], start=1)) == []
+
+    assert system.events == [("submit", 1), ("submit", 2), ("kill", 1), ("kill", 2)]
+    assert env.runner.jobs == []
+
+
+def test_nothing_is_pulled_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=2)
+    env.runner.shutdown()
+    pulled = []
+
+    def proposals():
+        for x in (1, 2):
+            pulled.append(x)
+            yield x, {"x": x}
+
+    assert env.evaluate_batch(proposals()) == []
+    assert pulled == []
+    assert env.upcoming_trial == 1
 
 
 def test_step_fails_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
@@ -345,13 +508,17 @@ def test_step_fails_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
     assert system.events == []
 
 
-def test_submission_error_stops_the_wave_and_fails_the_sweep(system: ScriptedSystem) -> None:
+def test_submission_error_terminates_the_wave_and_aborts_the_sweep(system: ScriptedSystem) -> None:
     runner = scripted(system, x=[1, 2, 3, 4], max_parallelism=3, unsubmittable_x=[3], duration=2)
 
-    assert handle_dse_job(runner) == 1
+    with pytest.raises(JobSubmissionError):
+        handle_dse_job(runner)
 
     assert system.events == [("submit", 1), ("submit", 2), ("kill", 1), ("kill", 2)]
     assert read_trajectory(runner) == []
+    assert runner.runner.jobs == []
+    runner.runner.finish_output(successful=False)
+    assert runner.runner.experiment_output.experiment.status == "failed"
 
 
 def test_pin_nodes_cannot_be_combined_with_parallel_trials(
@@ -365,3 +532,13 @@ def test_pin_nodes_cannot_be_combined_with_parallel_trials(
 
     assert system.events == []
     assert "'pin_nodes' is not supported with 'max_parallelism' greater than 1" in caplog.text
+
+
+def test_pin_nodes_works_with_serial_trials(system: ScriptedSystem) -> None:
+    test_run = probe_test_run([1, 2])
+    test_run.pin_nodes = True
+    runner = dse_runner(system, ScriptedRunner, test_run)
+
+    assert handle_dse_job(runner) == 0
+
+    assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, 2.0)]

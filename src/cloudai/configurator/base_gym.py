@@ -50,6 +50,8 @@ class EvaluationResult(TypedDict):
 class BaseGym(ABC):
     """Base class for CloudAI Gym environments."""
 
+    _consumed_steps: int = 0
+
     def __init__(self):
         """Initialize the CloudAIGym environment."""
         self.action_space = self.define_action_space()
@@ -121,11 +123,37 @@ class BaseGym(ABC):
         steps were consumed over the lifetime of the environment. An empty list means the sweep is
         over: either ``proposals`` was empty or the step allowance is exhausted.
 
+        Default: one ``step`` per proposal, where a step that returns ``done`` is a rejected
+        proposal and consumes nothing.
+
         Args:
             proposals: Proposals the agent can supply before it needs feedback. May be lazy and unbounded.
             max_steps: Total step allowance for this environment; ``None`` means unlimited.
         """
-        raise NotImplementedError(f"{type(self).__name__} does not support batch evaluation")
+        results: list[EvaluationResult] = []
+        pending = iter(proposals)
+        while max_steps is None or self._consumed_steps < max_steps:
+            proposal = next(pending, None)
+            if proposal is None:
+                break
+            trial_index, action = proposal
+            observation, reward, done, info = self.step(action)
+            if not done:
+                self._consumed_steps += 1
+            results.append(
+                EvaluationResult(
+                    trial_index=trial_index,
+                    action=action,
+                    value=reward,
+                    observation=observation,
+                    done=done,
+                    status="rejected" if done else "completed",
+                    step=None if done else self._consumed_steps,
+                    output_path=None,
+                    env_params=info.get("env_params", {}),
+                )
+            )
+        return results
 
     @abstractmethod
     def render(self, mode: str = "human"):
