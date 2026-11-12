@@ -25,6 +25,7 @@ from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import (
     JobFailureError,
     JobIdRetrievalError,
+    JobSubmissionError,
     MissingTestError,
     SystemConfigParsingError,
     TestConfigParsingError,
@@ -59,6 +60,7 @@ from ._core.test_scenario import (
     TestScenario,
 )
 from .configurator.base_agent import BaseAgent, BaseAgentConfig, RewardOverrides
+from .configurator.base_gym import EvaluationResult, Proposal
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.env_params import (
     CategoricalEncoding,
@@ -91,6 +93,7 @@ __all__ = [
     "ConfigPaths",
     "DockerImage",
     "Encoding",
+    "EvaluationResult",
     "File",
     "GitRepo",
     "Grader",
@@ -104,6 +107,7 @@ __all__ = [
     "JobFailureError",
     "JobIdRetrievalError",
     "JobStatusResult",
+    "JobSubmissionError",
     "JsonGenStrategy",
     "MetricErrorSentinel",
     "MetricValue",
@@ -114,6 +118,7 @@ __all__ = [
     "Parser",
     "PerTestReporter",
     "PredictorConfig",
+    "Proposal",
     "PythonEnvironment",
     "PythonExecutable",
     "Registry",

@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .base_gym import BaseGym
+from .base_gym import BaseGym, Proposal
 
 
 class RewardOverrides(BaseModel):
@@ -48,6 +48,11 @@ class BaseAgentConfig(BaseModel):
     max_consecutive_rejected_proposals: int = Field(
         default=16,
         description="Maximum constraint-rejected proposals before the environment skips the current DSE step.",
+    )
+    max_parallelism: int = Field(
+        default=1,
+        ge=1,
+        description="Maximum number of DSE trials CloudAI keeps outstanding at the same time.",
     )
     rewards: RewardOverrides = Field(
         default_factory=RewardOverrides,
@@ -123,14 +128,36 @@ class BaseAgent(ABC):
         """
         pass
 
+    def select_batch(self, observation: list[float] | None = None) -> Iterable[Proposal]:
+        """
+        Propose every action the agent can supply before it needs feedback.
+
+        The environment pulls proposals lazily and keeps at most ``max_parallelism`` of them
+        running. It also stops pulling once the step allowance is exhausted, so agents whose
+        proposals do not depend on feedback may return an unbounded generator. Constraint-rejected
+        and cached proposals take no execution slot; the environment simply pulls the next one.
+
+        Default: a single proposal from ``select_action``, which keeps existing agents serial. It
+        is produced lazily, so ``select_action`` is not called once the step allowance is exhausted.
+
+        Args:
+            observation: Latest observation, as for ``select_action``.
+
+        Returns:
+            Proposals as ``(proposal identity, action)``; empty to signal termination of the agent loop.
+        """
+        proposal = self.select_action(observation=observation)
+        if proposal is not None:
+            yield proposal
+
     def run(self) -> int:
         """
         Orchestrate this agent's exploration over ``self.env``.
 
-        Default: a step loop driven by the dispatcher (``select_action`` →
-        ``env.step`` → ``update_policy`` per proposal). The environment owns
-        logical sweep progress, including retries and skipped steps. Agents
-        that drive their own training loop override this method.
+        Default: a batch loop (``select_batch`` → ``env.evaluate_batch`` →
+        ``update_policy`` per result). The environment owns the sweep
+        bookkeeping: the step allowance, constraint retries and skipped steps.
+        Agents that drive their own training loop override this method.
 
         Failure contract (``handle_dse_job`` consumes the result via
         ``err |= agent.run()``):
@@ -138,7 +165,7 @@ class BaseAgent(ABC):
         - Return a non-zero code for *recoverable* failures (e.g. a workload run
           that failed but should not abort the rest of the sweep). The code is
           accumulated and the next ``TestRun`` still executes. Workload-level
-          failures are already surfaced this way: ``CloudAIGymEnv.step`` maps a
+          failures are already surfaced this way: ``CloudAIGymEnv`` maps a
           failed metric to ``rewards.metric_failure`` rather than raising, and
           agents with their own training loop should likewise catch training
           errors and return a non-zero code.
@@ -150,24 +177,9 @@ class BaseAgent(ABC):
             int: Process-style return code (``0`` success, non-zero recoverable failure).
         """
         observation, _ = self.env.reset()
-        while self.env.progress < self.max_steps:
-            result = self.select_action(observation=observation)
-            if result is None:
-                break
-            step, action = result
-            logging.info("Proposal %s for step %s/%s: %s", step, self.env.progress + 1, self.max_steps, action)
-            prev_observation = observation
-            observation, reward, done, *_ = self.env.step(action)
-
-            self.update_policy(
-                {
-                    "trial_index": step,
-                    "value": reward,
-                    "observation": observation,
-                    "prev_observation": prev_observation,
-                    "action": action,
-                    "done": done,
-                }
-            )
+        while results := self.env.evaluate_batch(self.select_batch(observation), max_steps=self.max_steps):
+            for result in results:
+                self.update_policy({**result, "prev_observation": observation})
+            observation = results[-1]["observation"]
 
         return 0

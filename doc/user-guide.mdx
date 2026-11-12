@@ -189,6 +189,7 @@ For DSE workloads, you can pass agent configuration via `agent_config` in the sc
 - `random_seed`: controls deterministic random behavior in agents.
 - `start_action`: controls the very first action strategy (`"random"` or `"first"`).
 - `max_consecutive_rejected_proposals`: skips the current DSE step after this many consecutive constraint-rejected proposals and continues with the next step. The environment owns this counter across episode resets; an execution, cache hit, or skipped step resets it. Rejected proposals still update the agent with `constraint_failure`. The default is `16`. Single-sbatch DSE supports only `grid_search` and rejects an explicitly configured retry limit because combinations are precomputed before execution.
+- `max_parallelism`: maximum number of DSE trials CloudAI keeps outstanding at the same time. The default is `1`. See [Parallel trials](#parallel-trials).
 - `rewards` (optional): nested table mapped to `RewardOverrides`. When present, `CloudAIGymEnv` uses it for constraint failures and for substituting failed-metric values in observations.
   - `constraint_failure`: reward returned when `TestDefinition.constraint_check` fails on a step. If omitted or unset, the environment uses `-1.0`.
   - `metric_failure`: value written into the observation vector when a metric is missing or is the canonical error sentinel `METRIC_ERROR` (a distinct object from numeric metrics, so a valid `-1.0` result is not mistaken for an error). If omitted or unset, observations use `-1.0` for that slot.
@@ -208,6 +209,7 @@ agent_reward_function = "inverse"
   random_seed = 123
   start_action = "first"
   max_consecutive_rejected_proposals = 16
+  max_parallelism = 4
 
     [Tests.agent_config.rewards]
     constraint_failure = -5.0
@@ -217,6 +219,21 @@ agent_reward_function = "inverse"
 When an agent honors `start_action = "first"`, it should start from `CloudAIGymEnv.first_sweep` (the sweep is built from first values of each sweep parameter). `start_action = "random"` means starting from a random action, typically seeded by `random_seed`.
 
 Custom agents may extend the `BaseAgentConfig` and offer more parameters to configure.
+
+<Anchor id="parallel-trials" />
+
+### Parallel trials
+
+With `max_parallelism` greater than `1`, CloudAI keeps up to that many DSE trials running: as soon as a trial finishes, the next proposal of the agent takes its place. Trials are separate jobs on the system, so nothing changes in how a single trial runs or where its output goes.
+
+- The agent decides how many proposals it can make before it needs feedback. `grid_search` proposes the whole grid, so every slot stays busy until the grid is exhausted. An agent that proposes a few actions and then waits for their results leaves slots empty meanwhile. An agent that proposes one action at a time runs serially whatever the value, and CloudAI logs a warning.
+- Proposals rejected by the constraint check and proposals already present in the trajectory take no slot. A proposal identical to a trial that is still running does not run again and shares that trial's result.
+- A failed trial is recorded with `metric_failure` and does not stop the other trials.
+- Trials are written to the trajectory as they finish, so its rows are not sorted by `step` when trials finish out of order. Which trials run, their step numbers and their results do not depend on `max_parallelism`.
+- Cancelling the run (for example with Ctrl+C) kills the running trials and stops the search. Trials already written to the trajectory are kept; trials that were still running are not recorded.
+- Trials that run side by side share the system. Use parallel trials only where they do not disturb each other's measurements. `max_parallelism` greater than `1` cannot be combined with `pin_nodes`, and single-sbatch DSE rejects the setting.
+
+Custom agents opt in by overriding `BaseAgent.select_batch`, which returns every proposal the agent can make before it needs feedback. It may be a generator, including an endless one: CloudAI pulls proposals only when it has a free slot and stops when the agent's step allowance (`agent_steps` for most agents, the grid size for `grid_search`) is used up. `update_policy` is then called once per proposal, in proposal order, with the same feedback keys as before plus `status` (`completed`, `failed`, `cached` or `rejected`), `step`, `output_path` and `env_params`.
 
 <Anchor id="dse-parameter-exclusions" />
 

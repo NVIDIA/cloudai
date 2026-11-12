@@ -15,11 +15,42 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any, Dict, Literal, Optional, Tuple, TypedDict
+
+Proposal = tuple[int, dict[str, Any]]
+"""Agent proposal: the agent's own proposal identity and the action, as returned by ``select_action``."""
+
+
+class EvaluationResult(TypedDict):
+    """
+    Outcome of one consumed proposal; passed to ``BaseAgent.update_policy`` as feedback.
+
+    A plain dict at runtime, so agents that read the legacy feedback keys keep working.
+    """
+
+    trial_index: int
+    """Proposal identity chosen by the agent (first item of the proposal)."""
+    action: dict[str, Any]
+    value: float
+    """Reward."""
+    observation: list
+    done: bool
+    """Legacy flag: ``True`` only for constraint-rejected proposals."""
+    status: Literal["completed", "failed", "cached", "rejected"]
+    step: Optional[int]
+    """Environment trial number (``TestRun.step``); ``None`` when the proposal was rejected."""
+    output_path: Optional[Path]
+    """Trial output directory; ``None`` when nothing was executed for this proposal."""
+    env_params: dict[str, Any]
+    """Environment parameters sampled for this trial; empty when none are declared."""
 
 
 class BaseGym(ABC):
     """Base class for CloudAI Gym environments."""
+
+    _consumed_steps: int = 0
 
     def __init__(self):
         """Initialize the CloudAIGym environment."""
@@ -83,11 +114,46 @@ class BaseGym(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def progress(self) -> int:
-        """Number of logical sweep steps consumed by this environment."""
-        pass
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[EvaluationResult]:
+        """
+        Evaluate agent proposals and return one result per consumed proposal, in proposal order.
+
+        The environment owns the sweep bookkeeping: it pulls proposals lazily, resolves cached and
+        constraint-rejected ones without running anything, and stops pulling once ``max_steps``
+        steps were consumed over the lifetime of the environment. An empty list means the sweep is
+        over: either ``proposals`` was empty or the step allowance is exhausted.
+
+        Default: one ``step`` per proposal, where a step that returns ``done`` is a rejected
+        proposal and consumes nothing.
+
+        Args:
+            proposals: Proposals the agent can supply before it needs feedback. May be lazy and unbounded.
+            max_steps: Total step allowance for this environment; ``None`` means unlimited.
+        """
+        results: list[EvaluationResult] = []
+        pending = iter(proposals)
+        while max_steps is None or self._consumed_steps < max_steps:
+            proposal = next(pending, None)
+            if proposal is None:
+                break
+            trial_index, action = proposal
+            observation, reward, done, info = self.step(action)
+            if not done:
+                self._consumed_steps += 1
+            results.append(
+                EvaluationResult(
+                    trial_index=trial_index,
+                    action=action,
+                    value=reward,
+                    observation=observation,
+                    done=done,
+                    status="rejected" if done else "completed",
+                    step=None if done else self._consumed_steps,
+                    output_path=None,
+                    env_params=info.get("env_params", {}),
+                )
+            )
+        return results
 
     @abstractmethod
     def render(self, mode: str = "human"):

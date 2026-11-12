@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 class Trajectory:
-    """An ordered DataFrame of DSE steps persisted as core and metadata CSVs."""
+    """A DataFrame of DSE steps, in the order they were recorded, persisted as core and metadata CSVs."""
 
     file_name = "trajectory.csv"
     metadata_file_name = "metadata.csv"
@@ -57,6 +57,7 @@ class Trajectory:
         self._rows: list[dict[str, Any]] = (
             [dict(record) for _, record in self._dataframe.iterrows()] if len(self._dataframe) else []
         )
+        self._steps = {record["step"] for record in self._rows}
         self._find_index: dict[tuple[str, ...], dict[tuple, list[int]]] = {}
         self._frame_dirty = False
         logging.debug(
@@ -96,8 +97,8 @@ class Trajectory:
     ) -> pd.Series:
         """Flatten, persist, and store one trajectory row."""
         self._validate_step(step)
-        if self._rows and step <= self._rows[-1]["step"]:
-            raise ValueError(f"trajectory steps must increase: last step is {self._rows[-1]['step']}, got {step}")
+        if step in self._steps:
+            raise ValueError(f"trajectory steps must be unique: step {step} is already recorded")
 
         record: dict[str, object] = {"step": step}
         domains = {"action": action, "reward": reward, "observation": observation, **values}
@@ -134,6 +135,7 @@ class Trajectory:
             _append_csv_row(row_metadata, self.metadata_path)
 
         self._rows.append(record)
+        self._steps.add(step)
         position = len(self._rows) - 1
         for fields, index in self._find_index.items():
             index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
@@ -182,6 +184,11 @@ class Trajectory:
         logging.debug("Found matching trajectory row at step %s for %s.", record["step"], values)
         return _copy_series(lazy.pd.Series(record, dtype=object))
 
+    @staticmethod
+    def values_match(left: object, right: object) -> bool:
+        """Whether ``find`` treats two domain values as the same: equal values of equal types."""
+        return _values_match_exact(left, right)
+
     def _materialize(self) -> None:
         """Rebuild the DataFrame from the row buffer, once, when a caller asks for it."""
         if not self._frame_dirty:
@@ -203,13 +210,13 @@ class Trajectory:
         if "step" not in self._dataframe.columns:
             raise ValueError("trajectory dataframe must contain a step column")
 
-        previous_step: int | None = None
+        steps: set[int] = set()
         for dataframe_step in self._dataframe["step"]:
             step = dataframe_step.item() if hasattr(dataframe_step, "item") else dataframe_step
             self._validate_step(step)
-            if previous_step is not None and step <= previous_step:
-                raise ValueError(f"trajectory steps must increase: last step is {previous_step}, got {step}")
-            previous_step = step
+            if step in steps:
+                raise ValueError(f"trajectory steps must be unique: step {step} is already recorded")
+            steps.add(step)
 
     @staticmethod
     def _validate_step(step: object) -> None:

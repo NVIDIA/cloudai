@@ -30,9 +30,11 @@ import yaml
 import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
+    BaseAgent,
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    JobSubmissionError,
     MissingTestError,
     Parser,
     Registry,
@@ -124,8 +126,6 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
 def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
-    original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
-
     has_dependencies = any(tr.dependencies for tr in runner.runner.test_scenario.test_runs)
     if has_dependencies:
         logging.error(
@@ -151,29 +151,45 @@ def handle_dse_job(runner: Runner) -> int:
 
             agent_config_data = test_run.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
+            if test_run.pin_nodes and agent_config.max_parallelism > 1:
+                logging.error(
+                    f"'pin_nodes' is not supported with 'max_parallelism' greater than 1 (test '{test_run.name}')."
+                )
+                err = 1
+                continue
             env = CloudAIGymEnv(
                 test_run=test_run,
                 runner=runner.runner,
                 rewards=agent_config.rewards,
                 max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
+                max_parallelism=agent_config.max_parallelism,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
+            if agent_config.max_parallelism > 1 and type(agent).select_batch is BaseAgent.select_batch:
+                logging.warning(
+                    f"Agent '{agent_type}' proposes one action at a time; "
+                    f"max_parallelism={agent_config.max_parallelism} has no effect."
+                )
 
             env.update_output()
             try:
                 err |= agent.run()
             finally:
                 env.update_output()
+    except JobSubmissionError:
+        raise
     except Exception as exc:
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
         _record_run_failure(runner.runner.scenario_root, exc)
         raise
-    finally:
-        runner.runner.test_scenario.test_runs = original_test_runs
+
+    if runner.runner.shutting_down:
+        logging.info("DSE is cancelled.")
+        return 1
 
     logging.info("All jobs are complete.")
     return err

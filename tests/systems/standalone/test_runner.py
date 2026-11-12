@@ -68,14 +68,13 @@ def test_standalone_run_output_uses_workload_status_and_metrics(
     datetime_type = datetime.datetime
     with (
         mock.patch.object(StandaloneSystem, "is_job_running", return_value=True),
-        mock.patch.object(StandaloneSystem, "is_job_completed", side_effect=[False, False, False, False, True, True]),
+        mock.patch.object(StandaloneSystem, "is_job_completed", side_effect=[False, False, True]),
         mock.patch("cloudai.output.datetime.datetime", wraps=datetime_type) as clock,
         mock.patch.object(runner.experiment_output, "write", wraps=runner.experiment_output.write) as write,
     ):
         for seconds, expected in ((1, "running"), (2, "running"), (3, "completed")):
             write.reset_mock()
             clock.now.return_value = start + datetime.timedelta(seconds=seconds)
-            runner.check_start_post_init_dependencies()
             runner.monitor_jobs()
             stored = cloudai.models.output.Experiment.model_validate_json((tmp_path / "experiment.json").read_text())
             assert len(stored.tests[0].runs) == 1

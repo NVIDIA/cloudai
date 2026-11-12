@@ -27,7 +27,17 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseAgentConfig, BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
+from cloudai.core import (
+    BaseAgentConfig,
+    BaseJob,
+    BaseRunner,
+    JobStatusResult,
+    RewardOverrides,
+    Runner,
+    System,
+    TestRun,
+    TestScenario,
+)
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -246,6 +256,7 @@ def test_constraint_failure(
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
+    runner.jobs, runner.shutting_down = [], False
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -269,9 +280,8 @@ def test_constraint_failure(
     assert done is True
     assert checked_steps == [1]
     assert env.test_run.step == 0
-    assert env.progress == 0
     assert env.upcoming_trial == 1
-    runner.run.assert_not_called()
+    runner.submit_test.assert_not_called()
     assert "env_params" not in info, "no env_params declared -> key absent (its presence signals a real regime)"
 
 
@@ -294,7 +304,6 @@ def test_custom_loop_advances_after_rejection_limit(
             assert terminated is True
 
     assert "Skipping DSE step 1 after repeated constraint rejections" in caplog.text
-    assert env.progress == 1
     assert env.test_run.step == 0
     assert env.upcoming_trial == 2
 
@@ -310,13 +319,13 @@ def test_successful_execution_resets_rejection_limit(
     actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
 
     env.step(actions[0])
-    assert env.progress == 0
+    assert env.upcoming_trial == 1
     env.step(actions[1])
-    assert env.progress == 1
+    assert env.upcoming_trial == 2
     env.step(actions[2])
-    assert env.progress == 1
+    assert env.upcoming_trial == 2
     env.step(actions[3])
-    assert env.progress == 2
+    assert env.upcoming_trial == 3
 
 
 def test_failed_workload_consumes_sweep_step(
@@ -330,12 +339,19 @@ def test_failed_workload_consumes_sweep_step(
         rewards=RewardOverrides(),
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
-    monkeypatch.setattr(runner, "run", MagicMock(side_effect=RuntimeError("workload failed")))
-    monkeypatch.setattr(env, "get_observation", MagicMock(return_value={"default": -1.0}))
 
-    env.step(env.first_sweep)
+    def fail_jobs() -> list[tuple[BaseJob, JobStatusResult]]:
+        finished = [(job, JobStatusResult(is_successful=False, error_message="workload failed")) for job in runner.jobs]
+        runner.jobs.clear()
+        return finished
 
-    assert env.progress == 1
+    monkeypatch.setattr(runner, "poll_jobs", fail_jobs)
+    monkeypatch.setattr(TestRun, "get_metric_value", MagicMock(return_value=-1.0))
+
+    results = env.evaluate_batch([(1, env.first_sweep)])
+
+    assert [result["status"] for result in results] == ["failed"]
+    assert env.upcoming_trial == 2
     assert env.test_run.step == 1
 
 
@@ -351,13 +367,13 @@ def test_cache_hit_resets_rejection_limit(
     monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
 
     env.step(actions[1])
-    assert env.progress == 1
+    assert env.upcoming_trial == 2
     env.step(cached_action)
-    assert env.progress == 2
+    assert env.upcoming_trial == 3
     env.step(actions[2])
-    assert env.progress == 2
+    assert env.upcoming_trial == 3
     env.step(actions[3])
-    assert env.progress == 3
+    assert env.upcoming_trial == 4
 
 
 def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
@@ -582,6 +598,7 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
     runner.system = MagicMock()
+    runner.jobs, runner.shutting_down = [], False
 
     env = CloudAIGymEnv(
         test_run=test_run,
@@ -595,11 +612,11 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
 
     obs, reward, done, _info = env.step(cached_action)
 
-    runner.run.assert_not_called()
+    runner.submit_test.assert_not_called()
     assert reward == 0.42
     assert obs == [0.84]
     assert done is False
-    assert env.progress == 5
+    assert env.upcoming_trial == 6
     rows = env.trajectory.dataframe
     assert len(rows) == 2
     assert rows.iloc[-1]["step"] == 5, (
@@ -715,7 +732,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
     full step() flow: sample env_params -> apply_params_set -> increment candidate ->
-    cache lookup -> runner.run() -> trajectory append. With seed 42 the sampler
+    cache lookup -> runner.submit_test() -> trajectory append. With seed 42 the sampler
     draws ball_speed=3 then ball_speed=1 on the two consecutive trials, so the
     cache key differs and the workload must re-run both times.
     """
@@ -753,13 +770,12 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
     action = {"paddle_width": 4}
-    fake_obs = iter([{"default": 100.0}, {"default": 50.0}])
 
-    with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
+    with patch.object(TestRun, "get_metric_value", side_effect=[100.0, 50.0]):
         *_, info1 = env.step(action)  # samples ball_speed=3
         *_, info2 = env.step(action)  # samples ball_speed=1
 
-    assert runner.run.call_count == 2, (
+    assert runner.submit_test.call_count == 2, (
         "Different sampled env_params between two env.step() calls with the same action "
         "must trigger a workload re-run; the cache lookup must miss."
     )
@@ -803,9 +819,8 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
     action_a, action_b = {"paddle_width": 4}, {"paddle_width": 8}
-    fake_obs = iter([{"default": 100.0}, {"default": 50.0}, {"default": 25.0}])
 
-    with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
+    with patch.object(TestRun, "get_metric_value", side_effect=[100.0, 50.0, 25.0]):
         for action in (action_a, action_b, action_a):
             env.step(action)
 
@@ -852,12 +867,11 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
 
-    # The second proposal fails the constraint; execution steps 1 and 2 survive. get_observation is only
-    # reached on the surviving steps, so it yields exactly two values.
-    fake_obs = iter([{"default": 100.0}, {"default": 25.0}])
+    # The second proposal fails the constraint; execution steps 1 and 2 survive. The metric is only
+    # read on the surviving steps, so it yields exactly two values.
     with (
         patch.object(EnvVarTestDefinition, "constraint_check", side_effect=[True, False, True]),
-        patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)),
+        patch.object(TestRun, "get_metric_value", side_effect=[100.0, 25.0]),
     ):
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
@@ -928,12 +942,12 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
         observation={"default": 0.84},
         env_params=expected_sample,
     )
-    with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
+    with patch.object(TestRun, "get_metric_value", side_effect=AssertionError("cache miss path must not run")):
         obs, reward, _done, info = env.step(action)
 
-    runner.run.assert_not_called()
+    runner.submit_test.assert_not_called()
     assert reward == 0.42
-    assert env.progress == 2
+    assert env.upcoming_trial == 3
     assert obs == [0.84], "flat obs stays the cached metrics; the regime is not mixed into it"
     assert info["env_params"] == expected_sample, (
         "the per-trial regime behind this observation is reported on info['env_params']"
@@ -994,12 +1008,13 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     )
     expected = _random.Random("42:ball_speed:1").choice([1, 2])
 
-    with patch.object(env, "get_observation", side_effect=lambda: {"default": 1.0}):
+    with patch.object(TestRun, "get_metric_value", return_value=1.0):
         env.step({"paddle_width": 4})
 
-    ran_cmd_args = runner.test_scenario.test_runs[0].test.cmd_args
+    runner.submit_test.assert_called_once()
+    ran_cmd_args = runner.submit_test.call_args.args[0].test.cmd_args
     assert ran_cmd_args.ball_speed == expected, (
-        "step() must overlay the sampled env_params onto cmd_args before runner.run(), so the "
+        "step() must overlay the sampled env_params onto cmd_args before runner.submit_test(), so the "
         f"workload runs with ball_speed={expected} (the observer's draw), not the candidate list."
     )
 

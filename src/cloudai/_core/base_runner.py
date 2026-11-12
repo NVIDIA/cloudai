@@ -18,6 +18,7 @@ import datetime
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Dict, List
 
@@ -122,13 +123,29 @@ class BaseRunner(ABC):
         self.experiment_output.finish(status=status, finish=datetime.datetime.now(datetime.timezone.utc))
 
     def shutdown(self):
-        """Gracefully shut down the runner, terminating all outstanding jobs."""
+        """
+        Cancel the run: stop starting tests and terminate all outstanding jobs.
+
+        Terminated jobs stay tracked until they are polled as finished.
+        """
         self.shutting_down = True
         logging.info("Terminating all jobs...")
-        for job in self.jobs:
-            logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
-            self.system.kill(job)
+        self._kill_jobs()
         logging.info("Waiting for all jobs to be killed.")
+
+    def abandon_jobs(self) -> None:
+        """Terminate all outstanding jobs and stop tracking them, for a caller that gives up on them after an error."""
+        self._kill_jobs()
+        self.jobs.clear()
+        self.testrun_to_job_map.clear()
+
+    def _kill_jobs(self) -> None:
+        for job in list(self.jobs):
+            logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
+            try:
+                self.system.kill(job)
+            except Exception:
+                logging.exception(f"Failed to terminate job {job.id} for test {job.test_run.name}")
 
     def run(self):
         """Run the test scenario."""
@@ -137,34 +154,42 @@ class BaseRunner(ABC):
 
         total_tests = len(self.test_scenario.test_runs)
         dependency_free_trs = self.find_dependency_free_tests()
-        for tr in dependency_free_trs:
-            self.submit_test(tr)
-
         logging.debug(f"Total tests: {total_tests}, dependency free tests: {[tr.name for tr in dependency_free_trs]}")
-        while self.jobs:
-            self.check_start_post_init_dependencies()
-            self.monitor_jobs()
-            logging.debug(f"sleeping for {self.monitor_interval} seconds")
-            time.sleep(self.monitor_interval)
+        try:
+            for tr in dependency_free_trs:
+                self.submit_test(tr)
+            while self.jobs:
+                self.monitor_jobs()
+                logging.debug(f"sleeping for {self.monitor_interval} seconds")
+                time.sleep(self.monitor_interval)
+        except JobSubmissionError:
+            self.abandon_jobs()
+            raise
 
     def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
 
+        Nothing is started once the runner is shutting down.
+
         Args:
             tr (TestRun): The test to be started.
         """
+        if self.shutting_down:
+            logging.info(f"Not starting test {tr.name}: the runner is shutting down.")
+            return
+
         tr.output_path = self.get_job_output_path(tr)
         logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
-        try:
-            job = self._submit_test(tr)
-            self.jobs.append(job)
-            self.testrun_to_job_map[tr] = job
-            self.update_run_output(job)
-        except JobSubmissionError as e:
-            logging.error(e)
-            exit(1)
+        job = self._submit_test(tr)
+        self.jobs.append(job)
+        self.testrun_to_job_map[tr] = job
+        self.update_run_output(job)
+        if self.shutting_down:
+            # The shutdown arrived while the job was being submitted and could not see it.
+            logging.info(f"Terminating job {job.id} for test {tr.name}")
+            self.system.kill(job)
 
     def on_job_submit(self, tr: TestRun) -> None:
         return
@@ -194,44 +219,68 @@ class BaseRunner(ABC):
         """
         pass
 
-    def check_start_post_init_dependencies(self):
+    def poll_jobs(self) -> Iterator[tuple[BaseJob, JobStatusResult]]:
         """
-        Check and handle start_post_init dependencies.
+        Check every tracked job once and yield the ones that finished, with their status.
 
-        This method should be called periodically to ensure timely execution of tests with
-        start_post_init dependencies.
+        Each job is asked for completion once per call. Its running state is asked only while
+        somebody still waits for it: the run is published as pending, or tests with a
+        ``start_post_init`` dependency on it are not submitted yet.
+
+        A finished job gets its completion callback and final output update and is no longer
+        tracked. What it means for the rest of the run is up to the caller, whose handling of one
+        job runs before the next job is checked.
         """
-        items = list(self.testrun_to_job_map.items())
-        status_changed = False
+        output_changed = False
+        try:
+            for job in list(self.jobs):
+                tr = job.test_run
+                is_completed = self.mode == "dry-run" or self.system.is_job_completed(job)
+                pending_run = self._pending_run_output(tr)
+                waits_for_start = pending_run is not None or self._has_start_post_init_dependents(tr)
+                is_started = is_completed or (waits_for_start and self.system.is_job_running(job))
+                logging.debug(f"Job {job.id} for test {tr.name} ({is_started=}, {is_completed=}, {self.mode=})")
 
-        for tr, job in items:
-            is_running, is_completed = False, False
-            if self.mode == "dry-run":
-                is_running, is_completed = True, True
-            else:
-                is_running, is_completed = (
-                    self.system.is_job_running(job),
-                    self.system.is_job_completed(job),
-                )
+                if is_started:
+                    self.check_and_schedule_start_post_init_dependent_tests(tr)
+                if is_started and not is_completed and pending_run is not None:
+                    pending_run.status = "running"
+                    self.experiment_output.update_run(str(tr.name), pending_run)
+                    output_changed = True
+                if is_completed:
+                    yield job, self._complete_job(job)
+        finally:
+            if output_changed:
+                self.experiment_output.write()
 
-            if self.mode == "run" and is_running and not is_completed:
-                test_output = next(
-                    (test for test in self.experiment_output.experiment.tests if test.id == str(tr.name)), None
-                )
-                if test_output is not None:
-                    for run_output in test_output.runs:
-                        if run_output.path == str(tr.output_path.absolute()) and run_output.status == "pending":
-                            run_output.status = "running"
-                            self.experiment_output.update_run(str(tr.name), run_output)
-                            status_changed = True
-                            break
+    def _complete_job(self, job: BaseJob) -> JobStatusResult:
+        self.on_job_completion(job)
+        result = JobStatusResult(is_successful=True)
+        if self.mode != "dry-run":
+            result = self.get_job_status(job)
+            self.update_run_output(job, result)
+        self.jobs.remove(job)
+        del self.testrun_to_job_map[job.test_run]
+        return result
 
-            logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
-            if is_running or is_completed:
-                self.check_and_schedule_start_post_init_dependent_tests(tr)
+    def _pending_run_output(self, tr: TestRun) -> cloudai.models.output.Run | None:
+        """Return the published run of this test run while it is still pending."""
+        if self.mode != "run":
+            return None
+        path = str(tr.output_path.absolute())
+        for test in self.experiment_output.experiment.tests:
+            if test.id != str(tr.name):
+                continue
+            return next((run for run in test.runs if run.path == path and run.status == "pending"), None)
+        return None
 
-        if status_changed:
-            self.experiment_output.write()
+    def _has_start_post_init_dependents(self, started_test_run: TestRun) -> bool:
+        """Whether a test not submitted yet waits for this test run to start."""
+        for tr in self.test_scenario.test_runs:
+            dep = tr.dependencies.get("start_post_init")
+            if dep is not None and dep.test_run == started_test_run and tr not in self.testrun_to_job_map:
+                return True
+        return False
 
     def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
         """
@@ -306,41 +355,18 @@ class BaseRunner(ABC):
         successful_jobs_count = 0
 
         logging.debug(f"Monitoring {len(self.jobs)} jobs")
-        for job in list(self.jobs):
-            is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
-
-            if is_completed:
-                logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
-                self.on_job_completion(job)
-
-                if self.mode == "dry-run":
-                    successful_jobs_count += 1
+        for job, job_status_result in self.poll_jobs():
+            logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=})")
+            if not job_status_result.is_successful:
+                error_message = f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
+                logging.error(error_message)
+                if self.test_scenario.job_status_check:
                     self.handle_job_completion(job)
-                else:
-                    if self.test_scenario.job_status_check:
-                        job_status_result = self.get_job_status(job)
-                        self.update_run_output(job, job_status_result)
-                        if job_status_result.is_successful:
-                            successful_jobs_count += 1
-                            self.handle_job_completion(job)
-                        else:
-                            error_message = (
-                                f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
-                            )
-                            logging.error(error_message)
-                            self.handle_job_completion(job)
-                            self.shutdown()
-                            raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
-                    else:
-                        job_status_result = self.get_job_status(job)
-                        self.update_run_output(job, job_status_result)
-                        if not job_status_result.is_successful:
-                            error_message = (
-                                f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
-                            )
-                            logging.error(error_message)
-                        successful_jobs_count += 1
-                        self.handle_job_completion(job)
+                    self.shutdown()
+                    raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
+
+            successful_jobs_count += 1
+            self.handle_job_completion(job)
 
         return successful_jobs_count
 
@@ -377,17 +403,13 @@ class BaseRunner(ABC):
             f"(iteration {completed_job.test_run.current_iteration + 1} of {completed_job.test_run.iterations})"
         )
 
-        self.jobs.remove(completed_job)
-        del self.testrun_to_job_map[completed_job.test_run]
-
-        if completed_job.test_run.step <= 0:
-            if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
-                completed_job.test_run.current_iteration += 1
-                msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
-                logging.info(msg)
-                self.submit_test(completed_job.test_run)
-            else:
-                self.handle_dependencies(completed_job)
+        if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+            completed_job.test_run.current_iteration += 1
+            msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
+            logging.info(msg)
+            self.submit_test(completed_job.test_run)
+        else:
+            self.handle_dependencies(completed_job)
 
     def on_job_completion(self, job: BaseJob) -> None:
         """
