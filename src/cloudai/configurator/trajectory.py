@@ -182,6 +182,11 @@ class Trajectory:
         logging.debug("Found matching trajectory row at step %s for %s.", record["step"], values)
         return _copy_series(lazy.pd.Series(record, dtype=object))
 
+    @staticmethod
+    def values_match(left: object, right: object) -> bool:
+        """Whether ``find`` treats two domain values as the same: equal values of equal types."""
+        return _values_match_exact(left, right)
+
     def _materialize(self) -> None:
         """Rebuild the DataFrame from the row buffer, once, when a caller asks for it."""
         if not self._frame_dirty:

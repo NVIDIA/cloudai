@@ -25,7 +25,9 @@ from pydantic import ConfigDict
 from cloudai.core import (
     BaseJob,
     BaseRunner,
+    JobFailureError,
     JobStatusResult,
+    JobSubmissionError,
     System,
     TestDefinition,
     TestDependency,
@@ -182,3 +184,151 @@ class TestHandleDependencies:
         runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.killed_by_dependency) == 1
         assert runner.killed_by_dependency[0].test_run == tr_dep
+
+
+class TestPollJobs:
+    @pytest.fixture
+    def tr_main(self, runner: MyRunner) -> TestRun:
+        return runner.test_scenario.test_runs[0]
+
+    @pytest.fixture
+    def run_mode(self, slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
+        return MyRunner("run", slurm_system, test_scenario, slurm_system.output_path)
+
+    def test_asks_for_completion_once_and_never_for_running_state(self, run_mode: MyRunner, tr_main: TestRun):
+        run_mode.submit_test(tr_main)
+
+        with (
+            patch.object(SlurmSystem, "is_job_completed", side_effect=[False, False, True]) as is_completed,
+            patch.object(SlurmSystem, "is_job_running") as is_running,
+        ):
+            assert run_mode.poll_jobs() == []
+            assert run_mode.poll_jobs() == []
+            [(job, status)] = run_mode.poll_jobs()
+
+        assert is_completed.call_count == 3
+        is_running.assert_not_called()
+        assert job.test_run is tr_main
+        assert status.is_successful
+        assert run_mode.jobs == []
+        assert run_mode.testrun_to_job_map == {}
+
+    def test_failed_job_is_only_reported(self, run_mode: MyRunner, tr_main: TestRun):
+        cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")
+        tr_other = deepcopy(tr_main)
+        tr_other.name = "other"
+        run_mode.submit_test(tr_main)
+        run_mode.submit_test(tr_other)
+
+        with patch.object(SlurmSystem, "is_job_completed", side_effect=[True, False]):
+            [(job, status)] = run_mode.poll_jobs()
+
+        assert job.test_run is tr_main
+        assert (status.is_successful, status.error_message) == (False, "workload job failed")
+        assert [job.test_run for job in run_mode.jobs] == [tr_other]
+        assert not run_mode.shutting_down
+
+    def test_start_post_init_dependent_is_submitted_once_the_job_runs(self, run_mode: MyRunner, tr_main: TestRun):
+        tr_dep = deepcopy(tr_main)
+        tr_dep.name = "dependent"
+        tr_dep.dependencies = {"start_post_init": TestDependency(tr_main)}
+        run_mode.test_scenario.test_runs.append(tr_dep)
+        run_mode.submit_test(tr_main)
+
+        with (
+            patch.object(SlurmSystem, "is_job_completed", return_value=False),
+            patch.object(SlurmSystem, "is_job_running", side_effect=[False, True]) as is_running,
+        ):
+            run_mode.poll_jobs()
+            assert run_mode.submitted_trs == [tr_main]
+            run_mode.poll_jobs()
+            assert run_mode.submitted_trs == [tr_main, tr_dep]
+            run_mode.poll_jobs()
+
+        assert is_running.call_count == 2
+
+    def test_dry_run_completes_without_asking_the_system(self, runner: MyRunner, tr_main: TestRun):
+        runner.submit_test(tr_main)
+
+        with patch.object(SlurmSystem, "is_job_completed") as is_completed:
+            [(job, status)] = runner.poll_jobs()
+
+        is_completed.assert_not_called()
+        assert job.test_run is tr_main
+        assert status.is_successful
+
+
+class TestMonitorJobs:
+    @pytest.fixture
+    def tr_main(self, runner: MyRunner) -> TestRun:
+        return runner.test_scenario.test_runs[0]
+
+    @pytest.fixture
+    def run_mode(self, slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
+        return MyRunner("run", slurm_system, test_scenario, slurm_system.output_path)
+
+    def test_failed_job_stops_the_scenario(self, run_mode: MyRunner, tr_main: TestRun):
+        cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")
+        tr_other = deepcopy(tr_main)
+        tr_other.name = "other"
+        run_mode.submit_test(tr_main)
+        run_mode.submit_test(tr_other)
+
+        with (
+            patch.object(SlurmSystem, "is_job_completed", side_effect=[True, False]),
+            patch.object(SlurmSystem, "kill") as kill,
+            pytest.raises(JobFailureError),
+        ):
+            run_mode.monitor_jobs()
+
+        assert run_mode.shutting_down
+        assert [call.args[0].test_run for call in kill.call_args_list] == [tr_other]
+
+    def test_failed_job_is_tolerated_without_job_status_check(self, run_mode: MyRunner, tr_main: TestRun):
+        cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")
+        run_mode.test_scenario.job_status_check = False
+        run_mode.submit_test(tr_main)
+
+        with patch.object(SlurmSystem, "is_job_completed", return_value=True):
+            assert run_mode.monitor_jobs() == 1
+
+        assert not run_mode.shutting_down
+        assert run_mode.jobs == []
+
+    def test_job_is_resubmitted_for_every_iteration(self, runner: MyRunner, tr_main: TestRun):
+        tr_main.iterations = 3
+        runner.submit_test(tr_main)
+
+        assert [runner.monitor_jobs() for _ in range(3)] == [1, 1, 1]
+
+        assert tr_main.current_iteration == 2
+        assert runner.submitted_trs == [tr_main] * 3
+        assert runner.jobs == []
+
+
+class TestRunScenario:
+    @pytest.fixture
+    def tr_main(self, runner: MyRunner) -> TestRun:
+        return runner.test_scenario.test_runs[0]
+
+    def test_submission_error_kills_outstanding_jobs(self, runner: MyRunner, tr_main: TestRun):
+        tr_broken = deepcopy(tr_main)
+        tr_broken.name = "broken"
+        runner.test_scenario.test_runs.append(tr_broken)
+        error = JobSubmissionError("broken", "cmd", "", "", "cannot submit")
+        submit = runner._submit_test
+
+        def submit_or_fail(tr: TestRun) -> BaseJob:
+            if tr is tr_broken:
+                raise error
+            return submit(tr)
+
+        with (
+            patch.object(runner, "_submit_test", side_effect=submit_or_fail),
+            patch.object(SlurmSystem, "kill") as kill,
+            pytest.raises(JobSubmissionError),
+        ):
+            runner.run()
+
+        assert runner.shutting_down
+        assert [call.args[0].test_run for call in kill.call_args_list] == [tr_main]

@@ -70,6 +70,9 @@ class StandaloneRunner(BaseRunner):
     def on_job_completion(self, job: BaseJob) -> None:
         standalone_job = cast(StandaloneJob, job)
         standalone_job.finish = datetime.datetime.now(datetime.timezone.utc)
+        if standalone_job.process is not None:
+            # The process is over: drain and close its pipes instead of leaving them to the garbage collector.
+            standalone_job.process.communicate()
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")

@@ -127,4 +127,4 @@ class StandaloneSystem(System):
 
         cmd = f"kill -9 {pid}"
         logging.debug(f"Executing termination command for job {pid}: {cmd}")
-        self.cmd_shell.execute(cmd)
+        self.cmd_shell.execute(cmd).communicate()

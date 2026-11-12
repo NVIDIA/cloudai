@@ -381,14 +381,13 @@ class BaseRunner(ABC):
             f"(iteration {completed_job.test_run.current_iteration + 1} of {completed_job.test_run.iterations})"
         )
 
-        if completed_job.test_run.step <= 0:
-            if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
-                completed_job.test_run.current_iteration += 1
-                msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
-                logging.info(msg)
-                self.submit_test(completed_job.test_run)
-            else:
-                self.handle_dependencies(completed_job)
+        if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+            completed_job.test_run.current_iteration += 1
+            msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
+            logging.info(msg)
+            self.submit_test(completed_job.test_run)
+        else:
+            self.handle_dependencies(completed_job)
 
     def on_job_completion(self, job: BaseJob) -> None:
         """

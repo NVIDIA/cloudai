@@ -137,7 +137,8 @@ class BaseAgent(ABC):
         proposals do not depend on feedback may return an unbounded generator. Constraint-rejected
         and cached proposals take no execution slot; the environment simply pulls the next one.
 
-        Default: a single proposal from ``select_action``, which keeps existing agents serial.
+        Default: a single proposal from ``select_action``, which keeps existing agents serial. It
+        is produced lazily, so ``select_action`` is not called once the step allowance is exhausted.
 
         Args:
             observation: Latest observation, as for ``select_action``.
@@ -146,7 +147,8 @@ class BaseAgent(ABC):
             Proposals as ``(proposal identity, action)``; empty to signal termination of the agent loop.
         """
         proposal = self.select_action(observation=observation)
-        return [] if proposal is None else [proposal]
+        if proposal is not None:
+            yield proposal
 
     def run(self) -> int:
         """

@@ -181,11 +181,15 @@ def handle_dse_job(runner: Runner) -> int:
             finally:
                 env.update_output()
     except JobSubmissionError:
-        err = 1
+        return 1
     except Exception as exc:
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
         _record_run_failure(runner.runner.scenario_root, exc)
         raise
+
+    if runner.runner.shutting_down:
+        logging.info("DSE is cancelled.")
+        return 1
 
     logging.info("All jobs are complete.")
     return err
