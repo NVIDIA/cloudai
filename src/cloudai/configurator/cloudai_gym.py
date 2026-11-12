@@ -305,10 +305,14 @@ class CloudAIGymEnv(BaseGym):
         Returns job statuses keyed by trial number; a trial without one did not finish.
         """
         job_statuses: dict[int, JobStatusResult] = {}
+        trials = [
+            candidate.test_run for candidate in wave if candidate.test_run is not None and candidate.needs_execution
+        ]
+        if trials:
+            logging.info(f"Running {len(trials)} trial(s): steps {[test_run.step for test_run in trials]}")
         try:
-            for candidate in wave:
-                if candidate.test_run is not None and candidate.needs_execution:
-                    self._submit_trial(candidate.test_run, job_statuses)
+            for test_run in trials:
+                self._submit_trial(test_run, job_statuses)
             while self.runner.jobs:
                 for job, job_status in self.runner.poll_jobs():
                     job_statuses[job.test_run.step] = job_status
