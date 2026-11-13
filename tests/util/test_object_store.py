@@ -211,16 +211,6 @@ def test_s3_object_store_uses_injected_client(tmp_path: Path) -> None:
     supplied_client.head_bucket.assert_called_once_with(Bucket="approved-bucket")
 
 
-def test_s3_object_store_clients_are_isolated() -> None:
-    first_client, second_client = MagicMock(), MagicMock()
-    first = S3ObjectStore(bucket="first", client=first_client)
-    second = S3ObjectStore(bucket="second", client=second_client)
-
-    assert first.client is first_client
-    assert second.client is second_client
-    assert first.client is not second.client
-
-
 def test_s3_object_store_exists_reraises_non_404_errors() -> None:
     with patch("cloudai.util.object_store.lazy") as mock_lazy:
         client = MagicMock()

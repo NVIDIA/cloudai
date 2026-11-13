@@ -34,10 +34,10 @@ from .util.utils import get_current_username
 @dataclass(frozen=True)
 class S3UploadRequest:
     """
-    Requested destination and local results for one S3 upload.
+    Resolved destination and local results for one S3 upload.
 
-    The prefix already includes the system, experiment owner, and results
-    directory. Owner and destination labels do not establish caller identity.
+    The prefix includes the system, experiment owner, and results directory.
+    These labels do not establish caller identity.
     """
 
     bucket: str
@@ -49,12 +49,7 @@ class S3UploadRequest:
 
 @dataclass(frozen=True)
 class PreparedS3Upload:
-    """
-    An authenticated store and approved prefix for one upload.
-
-    Keep credentials in the store's client, rather than report configuration.
-    The store is excluded from representations to avoid exposing client state.
-    """
+    """A prepared store and approved prefix for one upload."""
 
     store: S3ObjectStore = field(repr=False)
     key_prefix: str
@@ -66,8 +61,8 @@ class S3UploadConfig(ReportConfig):
 
     Destination fields fall back to environment variables when not set in TOML, so a
     cluster-wide destination can be supplied by the environment while a scenario can
-    still override it. Credentials are never read from here; boto3 resolves them from
-    its standard chain.
+    still override it. Credentials are never read from here; by default, boto3 resolves
+    them from its standard chain.
     """
 
     bucket: str = Field(default_factory=lambda: os.getenv("CLOUDAI_S3_BUCKET", ""))
@@ -90,14 +85,12 @@ class S3UploadReporter(Reporter):
 
     def prepare_upload(self, request: S3UploadRequest) -> Optional[PreparedS3Upload]:
         """
-        Prepare a store and destination before any S3 requests.
+        Prepare a store and destination before the first S3 request.
 
-        Extensions may override this method to authorize the requested
-        destination and supply a client with temporary credentials. Return
-        ``None`` to skip this upload. A failure must not fall back to another
-        credential source. Client lifetime and renewal belong to the extension.
-
-        The default implementation uses boto3's normal credential chain.
+        Override to authorize the destination or supply a preconfigured client.
+        Return ``None`` to skip; exceptions reach the report error handler without
+        falling back to default credentials. Extensions own credential renewal.
+        The default uses boto3's standard credential chain.
         """
         if not request.bucket:
             logging.warning(
@@ -114,9 +107,6 @@ class S3UploadReporter(Reporter):
         config = self.config
         if not isinstance(config, S3UploadConfig):
             logging.warning(f"Expected S3UploadConfig, got {type(config).__name__}, skipping results upload.")
-            return
-
-        if not config.enable:
             return
 
         if not self.results_root.exists():
