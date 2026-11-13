@@ -309,7 +309,7 @@ The `s3` scenario report publishes the scenario results directory to an S3-compa
 
 It is registered last, after `tarball`, so it always observes the complete results directory including every other report's output.
 
-Files are uploaded under `s3://<bucket>/<prefix>/<cluster>/<username>/<results-directory>/`, where `cluster` is the system name and `username` is the original experiment owner's `user` field in `experiment.json`, including when running `generate-report`. If the file is missing, unreadable, invalid, or has no recorded owner, uploads use the current account's username. If that lookup also fails, uploads use `unknown`. Tarballs use the same path, with `<results-directory>.tgz` appended.
+By default, files are uploaded under `s3://<bucket>/<prefix>/<cluster>/<username>/<results-directory>/`, where `cluster` is the system name and `username` is the original experiment owner's `user` field in `experiment.json`, including when running `generate-report`. If the file is missing, unreadable, invalid, or has no recorded owner, uploads use the current account's username. If that lookup also fails, uploads use `unknown`. Tarballs use the same path, with `<results-directory>.tgz` appended.
 
 Install the optional dependency first:
 
@@ -335,7 +335,7 @@ Configuration options:
 
 | Option | Default | Description |
 |----|----|----|
-| `bucket` | `$CLOUDAI_S3_BUCKET` | Destination bucket. Required; the upload is skipped with a warning if unset. |
+| `bucket` | `$CLOUDAI_S3_BUCKET` | Destination bucket. Required by the default reporter; the upload is skipped with a warning if unset. |
 | `prefix` | `$CLOUDAI_S3_PREFIX` | Key prefix. Objects are written under `<prefix>/<system_name>/<username>/<results_dir_name>/`. |
 | `endpoint_url` | `$CLOUDAI_S3_ENDPOINT_URL` | Custom endpoint, for MinIO or other S3-compatible stores. |
 | `region` | unset | AWS region. When unset, boto3 resolves it (e.g. `AWS_DEFAULT_REGION`). |
@@ -367,7 +367,7 @@ export CLOUDAI_S3_ENDPOINT_URL=http://localhost:9000   # only for MinIO or other
 
 With these set, enabling the report only needs `s3 = { enable = true }`.
 
-**Credentials are never read from CloudAI configuration.** They are resolved by boto3's standard chain: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `~/.aws/credentials`, or an instance/IAM role.
+**Credentials are never read from CloudAI configuration.** By default, they are resolved by boto3's standard chain: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `~/.aws/credentials`, or an instance/IAM role.
 
 Because reports run inside a `try`/`except`, an upload failure logs a warning and leaves the run's exit status unchanged.
 
@@ -377,3 +377,44 @@ To upload a results directory from an earlier run, re-run the reports against it
 cloudai generate-report --system-config <system.toml> --tests-dir <tests/> \
   --test-scenario <scenario.toml> --result-dir results/<scenario>_<timestamp>
 ```
+
+<Anchor id="preparing-an-upload-in-an-extension" />
+
+### Preparing an upload in an extension
+
+Override `S3UploadReporter.prepare_upload` to authorize a destination or obtain temporary credentials before the first S3 request. Its `S3UploadRequest` contains the destination settings, local results root, and complete key prefix, including system, experiment owner, and results-directory names.
+
+Return `PreparedS3Upload` with the store and approved prefix for both tree and tarball uploads, or `None` to skip. Exceptions reach the ordinary report error handler without falling back to default credentials.
+
+Register the extension before starting the CLI, and enable the `s3` report in the scenario as shown above:
+
+``` python
+from company_uploads import authorize_upload
+from cloudai.cli import main
+from cloudai.core import (
+    PreparedS3Upload,
+    Registry,
+    S3ObjectStore,
+    S3UploadConfig,
+    S3UploadReporter,
+    S3UploadRequest,
+)
+
+class CompanyS3Reporter(S3UploadReporter):
+    def prepare_upload(self, request: S3UploadRequest) -> PreparedS3Upload:
+        grant = authorize_upload(request.bucket, request.key_prefix)
+        return PreparedS3Upload(
+            store=S3ObjectStore(
+                bucket=grant.bucket,
+                client=grant.client,
+            ),
+            key_prefix=grant.key_prefix,
+        )
+
+Registry().update_scenario_report("s3", CompanyS3Reporter, S3UploadConfig())
+main()
+```
+
+The default hook uses boto3's standard credential chain and skips an unset bucket. An extension can supply that bucket and pass a preconfigured client to `S3ObjectStore`, keeping credentials out of report configuration and process-wide AWS settings.
+
+Extensions own credential lifetime and renewal: static temporary credentials do not refresh automatically. Keep credentials in the client and sanitize authorization errors, since report configuration and exceptions may be logged.

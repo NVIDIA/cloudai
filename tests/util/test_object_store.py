@@ -197,6 +197,20 @@ def test_s3_object_store_exists() -> None:
         assert store.exists("missing") is False
 
 
+def test_s3_object_store_uses_injected_client(tmp_path: Path) -> None:
+    local = tmp_path / "report.json"
+    local.write_text("{}")
+    supplied_client = MagicMock()
+    with patch("cloudai.util.object_store.lazy") as default_provider:
+        store = S3ObjectStore(bucket="approved-bucket", client=supplied_client)
+        store.upload_file(local, "approved/run/report.json")
+        assert store.bucket_exists() is True
+
+    default_provider.boto3.client.assert_not_called()
+    supplied_client.upload_file.assert_called_once_with(str(local), "approved-bucket", "approved/run/report.json")
+    supplied_client.head_bucket.assert_called_once_with(Bucket="approved-bucket")
+
+
 def test_s3_object_store_exists_reraises_non_404_errors() -> None:
     with patch("cloudai.util.object_store.lazy") as mock_lazy:
         client = MagicMock()

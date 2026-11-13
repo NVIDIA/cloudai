@@ -16,6 +16,7 @@
 
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -30,14 +31,38 @@ from .util.object_store import S3ObjectStore, join_key
 from .util.utils import get_current_username
 
 
+@dataclass(frozen=True)
+class S3UploadRequest:
+    """
+    Resolved destination and local results for one S3 upload.
+
+    The prefix includes the system, experiment owner, and results directory.
+    These labels do not establish caller identity.
+    """
+
+    bucket: str
+    key_prefix: str
+    region: Optional[str]
+    endpoint_url: Optional[str]
+    results_root: Path
+
+
+@dataclass(frozen=True)
+class PreparedS3Upload:
+    """A prepared store and approved prefix for one upload."""
+
+    store: S3ObjectStore = field(repr=False)
+    key_prefix: str
+
+
 class S3UploadConfig(ReportConfig):
     """
     Configuration for uploading a scenario results directory to object storage.
 
     Destination fields fall back to environment variables when not set in TOML, so a
     cluster-wide destination can be supplied by the environment while a scenario can
-    still override it. Credentials are never read from here; boto3 resolves them from
-    its standard chain.
+    still override it. Credentials are never read from here; by default, boto3 resolves
+    them from its standard chain.
     """
 
     bucket: str = Field(default_factory=lambda: os.getenv("CLOUDAI_S3_BUCKET", ""))
@@ -58,39 +83,43 @@ class S3UploadConfig(ReportConfig):
 class S3UploadReporter(Reporter):
     """Uploads the scenario results directory to object storage."""
 
+    def prepare_upload(self, request: S3UploadRequest) -> Optional[PreparedS3Upload]:
+        """
+        Prepare a store and destination before the first S3 request.
+
+        Override to authorize the destination or supply a preconfigured client.
+        Return ``None`` to skip; exceptions reach the report error handler without
+        falling back to default credentials. Extensions own credential renewal.
+        The default uses boto3's standard credential chain.
+        """
+        if not request.bucket:
+            logging.warning(
+                "S3 upload is enabled but no bucket is configured. "
+                "Set 'bucket' in the report config or the CLOUDAI_S3_BUCKET environment variable."
+            )
+            return None
+        return PreparedS3Upload(
+            store=S3ObjectStore(bucket=request.bucket, endpoint_url=request.endpoint_url, region=request.region),
+            key_prefix=request.key_prefix,
+        )
+
     def generate(self) -> None:
         config = self.config
         if not isinstance(config, S3UploadConfig):
             logging.warning(f"Expected S3UploadConfig, got {type(config).__name__}, skipping results upload.")
             return
 
-        if not config.bucket:
-            logging.warning(
-                "S3 upload is enabled but no bucket is configured. "
-                "Set 'bucket' in the report config or the CLOUDAI_S3_BUCKET environment variable."
-            )
-            return
-
         if not self.results_root.exists():
             logging.warning(f"Results directory {self.results_root} does not exist, skipping results upload.")
             return
 
-        store = S3ObjectStore(bucket=config.bucket, endpoint_url=config.endpoint_url, region=config.region)
-        if not store.bucket_exists():
-            logging.warning(f"Bucket '{config.bucket}' does not exist, skipping results upload.")
+        prepared = self.prepare_upload(self._upload_request(config))
+        if prepared is None:
             return
-
-        # generate-report has no in-memory experiment, so read the saved snapshot for its owner.
-        try:
-            user = Experiment.model_validate_json(
-                (self.results_root / "experiment.json").read_text(encoding="utf-8")
-            ).user
-        except (OSError, ValueError):
-            user = ""
-        if not user:
-            user = get_current_username() or "unknown"
-            logging.warning("Experiment owner unavailable; using '%s' in the S3 path.", user)
-        key_prefix = join_key(config.prefix, self.system.name, user, self.results_root.name)
+        store, key_prefix = prepared.store, prepared.key_prefix
+        if not store.bucket_exists():
+            logging.warning(f"Bucket '{store.bucket}' does not exist, skipping results upload.")
+            return
 
         if config.upload_tree:
             stats = store.upload_directory(self.results_root, key_prefix, max_workers=config.upload_concurrency)
@@ -106,6 +135,25 @@ class S3UploadReporter(Reporter):
 
         if config.upload_tarball:
             self.upload_tarball(store, key_prefix)
+
+    def _upload_request(self, config: S3UploadConfig) -> S3UploadRequest:
+        # generate-report has no in-memory experiment; read its saved owner.
+        try:
+            user = Experiment.model_validate_json(
+                (self.results_root / "experiment.json").read_text(encoding="utf-8")
+            ).user
+        except (OSError, ValueError):
+            user = ""
+        if not user:
+            user = get_current_username() or "unknown"
+            logging.warning("Experiment owner unavailable; using '%s' in the S3 path.", user)
+        return S3UploadRequest(
+            bucket=config.bucket,
+            key_prefix=join_key(config.prefix, self.system.name, user, self.results_root.name),
+            region=config.region,
+            endpoint_url=config.endpoint_url,
+            results_root=self.results_root,
+        )
 
     def upload_tarball(self, store: S3ObjectStore, key_prefix: str) -> None:
         """
