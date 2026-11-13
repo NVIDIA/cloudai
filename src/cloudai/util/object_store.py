@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .lazy_imports import lazy
 
@@ -132,9 +132,9 @@ class S3ObjectStore(ObjectStore):
     """
     S3-backed object store.
 
-    Credentials are resolved by boto3's standard chain (``AWS_*`` environment variables,
-    ``~/.aws/credentials``, instance/IAM roles), so no secrets are read from CloudAI
-    configuration files.
+    An optional preconfigured client supports temporary credentials without
+    changing process-wide AWS settings. Otherwise credentials are resolved by
+    boto3's standard chain. Secrets are never read from CloudAI configuration.
     """
 
     def __init__(
@@ -142,11 +142,13 @@ class S3ObjectStore(ObjectStore):
         bucket: str,
         endpoint_url: Optional[str] = None,
         region: Optional[str] = None,
+        *,
+        client: Any = None,
     ) -> None:
         self.bucket = bucket
         self.endpoint_url = endpoint_url
         self.region = region
-        self._client = None
+        self._client = client
 
     @property
     def client(self):

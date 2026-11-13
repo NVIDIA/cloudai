@@ -71,7 +71,7 @@ from .configurator.gymnasium_adapter import GymnasiumAdapter
 from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .reporter import JUnitReporter, PerTestReporter, StatusReporter, TarballReporter
-from .s3_reporter import S3UploadConfig, S3UploadReporter
+from .s3_reporter import PreparedS3Upload, S3UploadConfig, S3UploadReporter, S3UploadRequest
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
 from .util.object_store import ObjectStore, S3ObjectStore, UploadStats
@@ -114,6 +114,7 @@ __all__ = [
     "Parser",
     "PerTestReporter",
     "PredictorConfig",
+    "PreparedS3Upload",
     "PythonEnvironment",
     "PythonExecutable",
     "Registry",
@@ -124,6 +125,7 @@ __all__ = [
     "S3ObjectStore",
     "S3UploadConfig",
     "S3UploadReporter",
+    "S3UploadRequest",
     "StatusReporter",
     "StructuredObservationProducer",
     "System",

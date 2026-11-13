@@ -19,13 +19,13 @@ import os
 import tarfile
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
 from cloudai import TestScenario
-from cloudai.core import Registry
+from cloudai.core import PreparedS3Upload, Registry, S3UploadRequest
 from cloudai.s3_reporter import S3UploadConfig, S3UploadReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.object_store import UploadStats
@@ -253,6 +253,103 @@ class TestS3UploadReporter:
     def test_upload_concurrency_must_be_positive(self, concurrency: int) -> None:
         with pytest.raises(ValidationError):
             S3UploadConfig(enable=True, bucket="my-bucket", upload_concurrency=concurrency)
+
+    def test_preparation_approves_destination_before_s3_io(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        events = []
+        approved_store = MagicMock()
+        approved_store.bucket_exists.side_effect = lambda: events.append("bucket-check") or True
+        approved_store.upload_directory.return_value = UploadStats()
+
+        class CompanyReporter(S3UploadReporter):
+            def prepare_upload(self, request: S3UploadRequest) -> PreparedS3Upload:
+                events.append(request)
+                return PreparedS3Upload(store=approved_store, key_prefix="approved/run")
+
+        with patch("cloudai.s3_reporter.S3ObjectStore") as default_store:
+            CompanyReporter(
+                slurm_system,
+                TestScenario(name="dummy", test_runs=[]),
+                results_dir,
+                S3UploadConfig(
+                    enable=True,
+                    bucket="requested-bucket",
+                    prefix="requested",
+                    endpoint_url="https://storage.example.org",
+                    region="example-region",
+                    upload_tarball=True,
+                ),
+            ).generate()
+
+        assert events == [
+            S3UploadRequest(
+                bucket="requested-bucket",
+                key_prefix=f"requested/test_system/test-user/{results_dir.name}",
+                region="example-region",
+                endpoint_url="https://storage.example.org",
+                results_root=results_dir,
+            ),
+            "bucket-check",
+        ]
+        default_store.assert_not_called()
+        approved_store.upload_directory.assert_called_once_with(results_dir, "approved/run", max_workers=8)
+        approved_store.upload_file.assert_called_once_with(
+            Path(str(results_dir) + ".tgz"), f"approved/run/{results_dir.name}.tgz"
+        )
+
+    def test_preparation_can_supply_missing_bucket(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        store = MagicMock()
+        store.upload_directory.return_value = UploadStats()
+
+        class CompanyReporter(S3UploadReporter):
+            def prepare_upload(self, request: S3UploadRequest) -> PreparedS3Upload:
+                assert request.bucket == ""
+                return PreparedS3Upload(store=store, key_prefix=request.key_prefix)
+
+        CompanyReporter(
+            slurm_system,
+            TestScenario(name="dummy", test_runs=[]),
+            results_dir,
+            S3UploadConfig(enable=True),
+        ).generate()
+
+        store.upload_directory.assert_called_once_with(
+            results_dir, f"test_system/test-user/{results_dir.name}", max_workers=8
+        )
+
+    @pytest.mark.parametrize("enabled,exists", [(False, True), (True, False)])
+    def test_inactive_upload_does_not_prepare(
+        self, slurm_system: SlurmSystem, results_dir: Path, enabled: bool, exists: bool
+    ) -> None:
+        reporter = self.reporter(slurm_system, results_dir if exists else results_dir / "missing", bucket="my-bucket")
+        reporter.config.enable = enabled
+        with patch.object(reporter, "prepare_upload") as prepare:
+            reporter.generate()
+        prepare.assert_not_called()
+
+    def test_preparation_can_skip_upload(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        reporter = self.reporter(slurm_system, results_dir, bucket="my-bucket")
+        with (
+            patch.object(reporter, "prepare_upload", return_value=None),
+            patch("cloudai.s3_reporter.S3ObjectStore") as store,
+        ):
+            reporter.generate()
+        store.assert_not_called()
+
+    def test_preparation_failure_does_not_fall_back(self, slurm_system: SlurmSystem, results_dir: Path) -> None:
+        reporter = self.reporter(slurm_system, results_dir, bucket="my-bucket")
+        with (
+            patch.object(reporter, "prepare_upload", side_effect=RuntimeError("Authorization denied")),
+            patch("cloudai.s3_reporter.S3ObjectStore") as store,
+            pytest.raises(RuntimeError, match="Authorization denied"),
+        ):
+            reporter.generate()
+        store.assert_not_called()
+
+
+def test_prepared_upload_does_not_represent_client_state() -> None:
+    prepared = PreparedS3Upload(store=MagicMock(name="sensitive-client-state"), key_prefix="approved/run")
+
+    assert repr(prepared) == "PreparedS3Upload(key_prefix='approved/run')"
 
 
 def test_s3_upload_runs_after_tarball() -> None:
