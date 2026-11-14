@@ -14,54 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 
-import pandas as pd
 import pytest
 import toml
 
 from cloudai.configurator import Trajectory, TrajectoryRecord
 from cloudai.core import CommandGenStrategy, TestRun
 from cloudai.models.scenario import TestRunDetails
-from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
+from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.systems.slurm.slurm_metadata import SlurmJobMetadata
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
-
-
-@pytest.fixture
-def completed_pair(tmp_path: Path) -> Path:
-    (tmp_path / "trajectory.csv").write_text(
-        "step,action,reward,observation\n1,{'ooo': 1},1.0,[100.0]\n2,{'ooo': 2},1.0,[100.0]\n"
-    )
-    (tmp_path / "metadata.csv").write_text("step,env_params.workload\n1,bisection\n2,bisection\n")
-
-    return tmp_path
-
-
-def test_report_loader_preserves_the_serialized_source_view(completed_pair: Path) -> None:
-    loaded = load_trajectory_dataframe(completed_pair)
-    assert loaded is not None
-    path, frame = loaded
-
-    assert path == completed_pair / "trajectory.csv"
-    pd.testing.assert_frame_equal(frame, pd.read_csv(path))
-    assert isinstance(frame.loc[0, "action"], str)
-
-
-@pytest.mark.parametrize("invalid_artifact", ["missing_core", "missing_metadata_row", "invalid_step"])
-def test_report_loader_uses_shared_integrity_validation(completed_pair: Path, invalid_artifact: str) -> None:
-    if invalid_artifact == "missing_core":
-        (completed_pair / "trajectory.csv").unlink()
-    elif invalid_artifact == "missing_metadata_row":
-        (completed_pair / "metadata.csv").write_text("step,env_params.workload\n1,bisection\n")
-    else:
-        (completed_pair / "trajectory.csv").write_text(
-            "step,action,reward,observation\ninvalid,{'ooo': 1},1.0,[100.0]\n"
-        )
-
-    with pytest.raises(RuntimeError, match=r"(trajectory|metadata)\.csv"):
-        load_trajectory_dataframe(completed_pair)
 
 
 @pytest.fixture
@@ -113,10 +76,26 @@ def scalar_observation_case(slurm_system: SlurmSystem) -> tuple[TestRun, TestRun
     return case, step_run
 
 
+@pytest.mark.parametrize("dump_conflict", [False, True])
 def test_dse_summary_receives_decoded_observations_and_actions(
-    slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun]
+    slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun], dump_conflict: bool
 ) -> None:
     case, completed = scalar_observation_case
+    if dump_conflict:
+        from cloudai.configurator import TrajectoryLoadError
+
+        dump = completed.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+        recorded = toml.loads(dump.read_text())
+        recorded["test_definition"]["cmd_args"]["ngpus"] = 1
+        dump.write_text(toml.dumps(recorded))
+        with pytest.raises(TrajectoryLoadError):
+            build_dse_summaries(
+                system=slurm_system,
+                results_root=slurm_system.output_path,
+                loaded_test_runs=[completed],
+                test_cases=[case],
+            )
+        return
 
     summaries = build_dse_summaries(
         system=slurm_system,
@@ -160,3 +139,39 @@ def test_dse_summary_uses_the_record_observation_formatter(
     chart = summaries[0].reward_chart_data
     assert chart is not None
     assert chart["observations"] == ["record-owned observation"]
+
+
+@pytest.mark.parametrize("history", ["absent", "metadata-only", "partial", "corrupt-marker"])
+def test_dse_summary_skips_only_truly_absent_history(
+    slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun], history: str
+) -> None:
+    case, completed = scalar_observation_case
+    iteration = completed.output_path.parent
+    if history in ("absent", "metadata-only"):
+        (iteration / "trajectory.csv").unlink()
+        (iteration / ".trajectory.commit.json").unlink()
+        if history == "absent":
+            (iteration / "metadata.csv").unlink()
+    elif history == "partial":
+        (iteration / "trajectory.csv").write_text("step,action,reward,observation\n1,")
+    else:
+        (iteration / ".trajectory.commit.json").write_text("{")
+
+    if history == "absent":
+        assert (
+            build_dse_summaries(
+                system=slurm_system,
+                results_root=slurm_system.output_path,
+                loaded_test_runs=[completed],
+                test_cases=[case],
+            )
+            == []
+        )
+    else:
+        with pytest.raises(RuntimeError, match=r"trajectory|metadata|commit"):
+            build_dse_summaries(
+                system=slurm_system,
+                results_root=slurm_system.output_path,
+                loaded_test_runs=[completed],
+                test_cases=[case],
+            )

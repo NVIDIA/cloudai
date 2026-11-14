@@ -579,10 +579,8 @@ def _create_dse_iteration(
                 toml.dump(TestRunDetails.from_test_run(step_tr, "", "").model_dump(mode="json"), dump_file)
 
 
-def test_dse_reporter(
-    slurm_system: SlurmSystem,
-    slurm_metadata: SlurmSystemMetadata,
-) -> None:
+@pytest.mark.parametrize("dump_conflict", [False, True])
+def test_dse_reporter(slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata, dump_conflict: bool) -> None:
     slurm_metadata.system.gpu_arch_type = "NVIDIA H100 80GB HBM3"
 
     dse_case = TestRun(
@@ -637,6 +635,16 @@ def test_dse_reporter(
     )
     reporter = DSEReporter(slurm_system, scenario, slurm_system.output_path, ReportConfig())
     reporter.load_test_runs()
+    if dump_conflict:
+        from cloudai.configurator import TrajectoryLoadError
+
+        dump = slurm_system.output_path / dse_case.name / "0" / "1" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+        recorded = toml.loads(dump.read_text())
+        recorded["test_definition"]["cmd_args"]["ngpus"] = 1
+        dump.write_text(toml.dumps(recorded))
+        with pytest.raises(TrajectoryLoadError):
+            reporter.report_best_dse_config()
+        return
 
     summaries = build_dse_summaries(
         system=slurm_system,
@@ -689,3 +697,5 @@ def test_dse_reporter(
 
     assert (slurm_system.output_path / "single-dse-scenario-dse-report.html").exists()
     assert (slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml").exists()
+    best_config = slurm_system.output_path / dse_case.name / "0" / f"{dse_case.name}.toml"
+    assert toml.loads(best_config.read_text()) == toml.loads(expected["best_config_toml"])

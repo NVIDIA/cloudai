@@ -601,72 +601,150 @@ Fields with `None` value are not passed to `nsys` command.
 
 ## Reading DSE Trajectories
 
-Load a completed iteration through the same `Trajectory` class that writes it:
+`Trajectory` records each submitted DSE trial and loads its history for reports,
+policy evaluation and memory imports. Recording uses the resolved in-memory test,
+including static settings and sampled values; it does not read back `test-run.toml`.
 
-``` python
+```mermaid
+flowchart TD
+    I[Resolved in-memory trial] --> T[Trajectory recording]
+    T --> C[Committed CSV pair]
+    T --> F[Live feedback and memory]
+    C --> L[Trajectory.load]
+    L --> R[Reports, policy and history imports]
+```
+
+### Recorded Configuration
+
+For example, this NCCL test selects `iters` and samples `warmup_iters`:
+
+```toml
+name = "all-gather"
+description = "Set docker_image_url to your NCCL test image."
+test_template_name = "NcclTest"
+
+[cmd_args]
+docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+subtest_name = "all_gather_perf_mpi"
+iters = [10, 20]
+warmup_iters = [5, 50]
+maxbytes = "4G"
+
+[env_params.warmup_iters]
+weights = [0.25, 0.75]
+```
+
+Selecting `iters=20` and sampling `warmup_iters=50` records the proposal in
+`action`, and `warmup_iters=50`, fixed `maxbytes="4G"` and other resolved workload
+settings in `env_params`. This includes nested command arguments, extra command
+and environment arguments, and fixed node counts. Action dimensions stay separate
+from environment context. A partial proposal's held values are available in
+`run_details.resolved_action`; candidate lists belong to the original search space.
+
+`run_details` also holds launch/backend settings, metric order and reward policy.
+`measurement` and `evaluation_failure` distinguish actual outcomes, unavailable
+metrics and measurement origin. Units remain unknown when no producer supplies
+them. The full recorded context also reaches live cognitive memory; sampled
+policy observations retain their existing shape.
+
+Recording applies workload-owned redaction, including Megatron Bridge's known
+token policy. It is not a general secret-discovery filter. Historical recovery
+preserves recorded text and can report redaction or completeness as unknown.
+
+### Load and Inspect
+
+```python
 from pathlib import Path
 
 from cloudai.configurator import Trajectory
 
-trajectory = Trajectory.load(Path("results/scenario/Tests.1/0"))
-for trial in trajectory.records():
-    action = trial["action"]
-    reward = trial["reward"]
-    observation = trial["observation"]
-    metadata = trial.metadata
+history = Trajectory.load(Path("results/scenario/Tests.1/0"))
+for trial in history.records():
+    environment = trial.get("env_params", {}, decode_numbers=True)
+    details = trial.get("run_details", {}, decode_numbers=True)
+    reasons = trial.ineligibility_reasons("reference")
+    print(trial.step, trial["action"], environment, details, reasons)
 ```
 
-Loaded records are read-only mappings. Keys include `step`, `action`,
-`reward`, `observation` and any metadata domains such as `env_params`.
-They support indexing, `get`, membership, iteration, `len`, `keys`,
-`items`, `values`, dictionary conversion, unpacking and equality. Missing
-keys raise `KeyError`; `get` returns its supplied default, or `None`.
-`trial.source` and `trial.row` are provenance attributes; same-named
-metadata keys remain accessible through indexing.
+Records are read-only mappings with detached nested values. Indexing, default
+`get` and `.metadata` preserve stored values. For new versioned records, explicit
+`decode_numbers=True` restores declared environment/context types exactly:
+`"001"` stays a string, and booleans, `None`, containers and literal dotted keys
+retain their types and identity. Other metadata groups remain raw. Legacy numeric
+decoding is heuristic and can turn `"001"` into `1`; it cannot reconstruct unknown
+original types. `history.dataframe` exposes flattened storage columns.
 
-Item assignment, deletion and dictionary mutators are unavailable. Stored values
-returned by reads are detached copies, including nested values, so editing them
-cannot alter recorded history. Indexing, `get` and `metadata` retain stored
-values by default; numeric decoding requires an explicit `get` option.
+A directory or explicit CSV path is accepted. Every history requires `step`,
+`action`, `reward` and `observation`; a sidecar must match its steps one-to-one.
+Malformed rows, duplicate fields, reserved core-domain overlaps and conflicting
+metadata raise `TrajectoryLoadError` without returning a partial history.
+`trial.source` and `trial.row` identify CSV provenance. Loading never changes files
+or takes writer ownership. `missing_ok=True` returns an empty history only when
+all history artifacts are absent; partial or corrupt histories still raise.
 
-`trial["env_params"]` selects one group; `trial.metadata` returns a detached copy of all metadata.
-Both derive from one record, supporting field lookup and bulk access without duplicate storage.
+### Open or Continue a History
 
-`load` also accepts an explicit CSV path. It automatically loads sibling
-`metadata.csv` when present.
-Every core step must have exactly one metadata row when a sidecar exists.
-Duplicate headers, invalid or repeated steps, malformed CSV and mismatched
-step sets raise `TrajectoryLoadError` with the source and failure location.
-No partial trajectory is returned. Loading does not modify the source files.
-`trial.source` identifies the CSV file, and `trial.row` is its logical CSV
-record number, counting the header as record 1. Live records have no CSV row.
-Legacy files may start at step 0; loaded step identities are preserved and must
-remain nonnegative, unique and increasing. Newly appended trials retain the
-existing positive-step requirement.
+| Operation | Use |
+|---|---|
+| `Trajectory(iteration_dir=path)` | Create a new history; existing history is refused. |
+| `Trajectory(iteration_dir=path, mode="resume")` | Open a managed history and remove only unpublished tails. |
+| `Trajectory(iteration_dir=path, mode="adopt")` | Validate a markerless legacy history before continuing it. |
+| `Trajectory.load(path)` | Read committed records without recovery writes. |
 
-Appending preserves earlier record values and CSV provenance, including literal action keys and empty mappings.
-Inline auxiliary columns cannot overlap `action`, `reward` or `observation`.
-Legacy `step.*` columns remain available in `dataframe` without duplicating the record's step key.
+Managed histories publish `trajectory.csv` and `metadata.csv` together through
+`.trajectory.commit.json`. Readers see only the committed prefix. Retrying the
+same last-step payload is idempotent; changing that payload is refused. Appends
+must preserve the existing columns, including after adoption; use a new history
+when changing the schema. Caller code owns agent and scheduler progress restoration.
 
-All histories must contain `step`, `action`, `reward` and `observation`.
-Missing required columns raise `TrajectoryLoadError` for every consumer.
-Histories without an `observation` column are no longer accepted; restore the
-original column from recorded measurements rather than inserting `[]`.
-Only column presence is newly required; existing empty, `None` and truncated
-observation values remain supported. Every row must contain its declared cells.
+Archive completed directories with their CSV pair and marker together; do not
+hand-edit managed artifacts. Writing requires one serial owner, independent
+regular CSV files without symlinks or hard links, and a local POSIX filesystem with
+reliable locks, file/directory synchronization and atomic same-directory rename.
 
-`trial["env_params"]` or `trial.get("env_params")` returns stored environment
-parameters. Indexing a missing key raises `KeyError`; `get` returns its default
-unchanged, even when numeric decoding is requested. Metadata cells loaded from
-CSV remain strings because CSV does not preserve original scalar types.
+### Recover Historical Context
 
-`trial.get("env_params", decode_numbers=True)` explicitly projects numeric-looking
-strings to integers or floats. This is a heuristic: a label such as `"001"`
-becomes `1`. Other strings stay unchanged; stored values and `trial.metadata`
-remain untouched. Numeric decoding does not recover original producer types.
+```python
+history = Trajectory.load(
+    Path("archive/Tests.1/0"), recovery="recorded"
+)
+```
 
-`dataframe` retains flattened domain columns, and `find` retains exact-value
-and exact-type matching. `csv_dataframe` returns a copy of the original parsed
-CSV view for report consumers. Observation vectors loaded from CSV remain
-anonymous; the loader does not fabricate metric names. Failed workload results
-remain data, with training eligibility decided by the consuming agent.
+Default loading preserves historical raw data. Opt-in recovery uses only matching
+recorded test-run dumps, filling missing context after checking agreement.
+Missing dumps or unverified identities remain unknown; contradictions refuse the
+history. Current defaults are never substituted. Modern versioned context does
+not read TOML even when this option is selected.
+
+`run_details.recovery` records source identity and step, selected dump path/hash,
+actual historical identity, unknown fields and opaque original context paths.
+Source identity survives copying; historical steps do not become current scheduler
+progress. Type restoration requires original wire agreement. Completeness may
+remain unknown even with a matching dump, and opaque legacy strings stay opaque.
+
+### Choose Usable Evidence
+
+`trial.ineligibility_reasons(purpose)` returns reason codes; an empty tuple means
+eligible for that purpose:
+
+| Purpose | Meaning |
+|---|---|
+| `reference` | Retain representable finite-reward evidence, including failures and unknown context. |
+| `decision` | Count valid proposals, including failed or cached decisions. |
+| `measurement` | Use numeric outcomes without explicit failure, nonfinite evidence or ambiguous legacy `-1`. |
+| `learning` | Require usable measurements and compatibility with a supplied current configuration. |
+
+For learning, pass `current=(original_test_run, system, rewards)`. Compatibility
+checks full actual action values, static/launch/reward settings, metric schema and
+positive-probability randomized support. Unknown recovered context does not qualify.
+Consumers log reasons and skip individual ineligible records while preserving the
+source. Legitimate explicit nonfailure `-1` and other finite negatives remain usable;
+a failure penalty is not inferred from its numeric value. Legacy step 0 stays in
+storage but is skipped by these eligibility checks; positive step gaps remain unchanged.
+
+Cache identity covers the safe full configuration and actual reward policy.
+A cached row counts as a new decision while retaining its original measurement
+origin; it is not a fresh independent measurement. Warm starts also require a
+lossless action encoding and representable learner observations. PPO warm starts
+with Dict observations remain unsupported. Cognitive memory can still retain
+finite failure evidence for qualitative reasoning.

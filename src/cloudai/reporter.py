@@ -28,7 +28,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
+from cloudai.configurator import Trajectory
+from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
@@ -271,12 +272,12 @@ class DSEReporter(Reporter):
                 continue
 
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
-            loaded_trajectory = load_trajectory_dataframe(tr_root)
-            if loaded_trajectory is None:
-                logging.warning("No trajectory file found for %s in %s", tr.name, tr_root)
+            trajectory = Trajectory.load(tr_root, missing_ok=True, recovery="recorded")
+            if not trajectory:
+                logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)
                 continue
 
-            _, df = loaded_trajectory
+            df = trajectory.dataframe
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():

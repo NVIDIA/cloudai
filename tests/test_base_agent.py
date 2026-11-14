@@ -155,3 +155,35 @@ def test_successful_execution_resets_rejected_proposal_limit() -> None:
 
     assert agent.proposals == 4
     assert [feedback["value"] for feedback in agent.updates] == [-1.0, 1.0, -1.0, 2.0]
+
+
+def test_run_forwards_the_committed_context_without_expanding_policy_observations() -> None:
+    context = {"label": "001", "enabled": True, "optional": None, "empty": {}, "mixed": [1, "2", False]}
+    envelope = {
+        "env_params": context,
+        "configuration_id": "configured-run",
+        "run_details": {"run_name": "live", "iteration": 0, "step": 1},
+        "measurement": {"kind": "fresh", "outcome": "success"},
+        "evaluation_failure": None,
+    }
+    env = _SequenceEnv()
+    env.results = iter(
+        [
+            ([1.0], 1.0, False, {"env_params": {"sampled": 3}, "trajectory": envelope}),
+            ([2.0], 2.0, False, {"env_params": {"sampled": 4}, "trajectory": envelope}),
+        ]
+    )
+    agent = _RecordingAgent(env)
+
+    assert agent.run() == 0
+
+    assert agent.selected_observations == [[0.0], [1.0]]
+    assert len(agent.updates) == 2
+    assert agent.updates[0]["env_params"] == context
+    assert agent.updates[0]["configuration_id"] == "configured-run"
+    assert agent.updates[0]["run_details"] == envelope["run_details"]
+    assert agent.updates[0]["measurement"] == envelope["measurement"]
+    assert agent.updates[0]["evaluation_failure"] is None
+    assert agent.updates[0]["action"] == {"candidate": 1}
+    assert agent.updates[0]["observation"] == [1.0]
+    assert agent.updates[0]["value"] == 1.0

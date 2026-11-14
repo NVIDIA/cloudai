@@ -27,7 +27,7 @@ import toml
 
 import cloudai.metrics
 import cloudai.models.output
-from cloudai.configurator import CloudAIGymEnv
+from cloudai.configurator import CloudAIGymEnv, Trajectory
 from cloudai.configurator.env_params import EnvParams, EnvParamSpec
 from cloudai.core import JobStatusResult, Registry, System, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
@@ -811,4 +811,6 @@ def test_dse_env_params_are_applied_to_runs_and_trajectory(dse_tr: TestRun, slur
     trajectory = pd.read_csv(trajectory_path)
     metadata = pd.read_csv(metadata_path)
     assert trajectory["step"].tolist() == metadata["step"].tolist()
-    assert metadata["env_params.nthreads"].tolist() == [sample["nthreads"] for sample in expected_samples]
+    assert [
+        row.get("env_params", decode_numbers=True)["nthreads"] for row in Trajectory.load(trajectory_path).records()
+    ] == [sample["nthreads"] for sample in expected_samples]

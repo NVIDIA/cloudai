@@ -119,11 +119,6 @@ def format_money(value: float | None) -> str:
     return f"${value:,.2f}"
 
 
-def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
-    trajectory = Trajectory.load(iteration_dir)
-    return trajectory.output_path, trajectory.csv_dataframe
-
-
 def _format_scalar(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4f}".rstrip("0").rstrip(".")
@@ -235,7 +230,7 @@ def _build_trajectory_steps(
     test_case: TestRun,
     test_runs: list[TestRun],
 ) -> list[TrajectoryStep] | None:
-    trajectory = Trajectory.load(iteration_dir)
+    trajectory = Trajectory.load(iteration_dir, missing_ok=True, recovery="recorded")
     records = trajectory.records()
     if not records:
         logging.warning(f"No trajectory data found for {test_case.name} at {trajectory.output_path}")
