@@ -24,7 +24,10 @@ from cloudai.core import GitRepo, RewardOverrides, TestRun
 from cloudai.workloads.megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
 
 
-def test_trajectory_projection_respects_workload_secret_redaction(tmp_path: Path, slurm_system) -> None:
+@pytest.mark.parametrize("credential", ["hf_token", "wandb_key"])
+def test_trajectory_projection_respects_workload_secret_redaction(
+    tmp_path: Path, slurm_system, credential: str
+) -> None:
     secret = "synthetic-recording-secret"
     tdef = MegatronBridgeTestDefinition(
         name="bridge",
@@ -32,7 +35,8 @@ def test_trajectory_projection_respects_workload_secret_redaction(tmp_path: Path
         test_template_name="MegatronBridge",
         cmd_args=MegatronBridgeCmdArgs.model_validate(
             {
-                "hf_token": secret,
+                "hf_token": "synthetic-independent-hf-control",
+                credential: secret,
                 "model_family_name": "qwen3",
                 "model_recipe_name": "30b_a3b",
                 "tuple_alias": (secret,),
@@ -58,7 +62,7 @@ def test_trajectory_projection_respects_workload_secret_redaction(tmp_path: Path
     assert secret not in repr(projected)
     assert projected["extra_env_vars"]["ORDINARY"] == "001"
     assert tdef.model_dump() == ordinary
-    assert ordinary["cmd_args"]["hf_token"] == secret
+    assert ordinary["cmd_args"][credential] == secret
     assert ordinary["cmd_args"]["tuple_alias"] == (secret,)
     assert ordinary["cmd_args"]["path_alias"] == Path("/tmp") / secret
     tr = TestRun(
@@ -130,7 +134,7 @@ def test_trajectory_projection_respects_workload_secret_redaction(tmp_path: Path
     assert replacement not in trajectory.metadata_path.read_text()
 
     collision = tdef.model_copy(deep=True)
-    collision.extra_env_vars = {secret: "left", projected["cmd_args"]["hf_token"]: "right"}
+    collision.extra_env_vars = {secret: "left", projected["cmd_args"][credential]: "right"}
     collision_ordinary = collision.model_dump()
     collision_run = copy.deepcopy(tr)
     collision_run.test = collision
@@ -150,3 +154,57 @@ def test_trajectory_projection_respects_workload_secret_redaction(tmp_path: Path
     with pytest.raises(ValueError, match=r"collision|duplicate"):
         collision.model_dump(mode="json", context={"purpose": "trajectory"})
     assert collision.model_dump() == collision_ordinary
+
+
+@pytest.mark.parametrize(
+    ("hf_token", "wandb_key"),
+    [
+        ("synthetic-hf-long", "synthetic-wandb"),
+        ("prefix-shared-suffix", "shared"),
+        ("REDACTED", "synthetic-wandb"),
+        ("synthetic-hf-control", "<REDACTED>-synthetic-wandb"),
+    ],
+)
+def test_trajectory_projection_handles_overlapping_credentials_and_is_idempotent(
+    tmp_path: Path, slurm_system, hf_token: str, wandb_key: str
+) -> None:
+    marker = "<REDACTED>"
+    definition = MegatronBridgeTestDefinition(
+        name="overlap",
+        description="overlap",
+        test_template_name="MegatronBridge",
+        cmd_args=MegatronBridgeCmdArgs.model_validate(
+            {
+                "hf_token": hf_token,
+                "wandb_key": wandb_key,
+                "model_family_name": "qwen3",
+                "model_recipe_name": "30b_a3b",
+                "aliases": [hf_token, wandb_key, marker],
+            }
+        ),
+        extra_env_vars={"HF": hf_token, "WANDB": wandb_key, "MARKER": marker},
+        git_repos=[GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="r0.2.0")],
+    )
+    ordinary = definition.model_dump()
+    projected = definition.model_dump(mode="json", context={"purpose": "trajectory"})
+    assert projected["cmd_args"]["hf_token"] == projected["cmd_args"]["wandb_key"] == marker
+    assert projected["cmd_args"]["aliases"] == [marker, marker, marker]
+    assert projected["extra_env_vars"] == {"HF": marker, "WANDB": marker, "MARKER": marker}
+    projected_model = MegatronBridgeTestDefinition.model_validate(projected)
+    assert projected_model.model_dump(mode="json", context={"purpose": "trajectory"}) == projected
+    writer = Trajectory(iteration_dir=tmp_path)
+    run = TestRun(name="overlap", test=definition, num_nodes=1, nodes=[], step=1)
+    writer.record(
+        test_run=run,
+        action_space={},
+        action={},
+        reward=1.0,
+        observation=[],
+        system=slurm_system,
+        rewards=RewardOverrides(),
+    )
+    for record in (writer.records()[0], Trajectory.load(tmp_path).records()[0]):
+        environment = record.get("env_params", decode_numbers=True)
+        assert environment["hf_token"] == environment["wandb_key"] == marker
+        assert environment["aliases"] == [marker, marker, marker]
+    assert definition.model_dump() == ordinary

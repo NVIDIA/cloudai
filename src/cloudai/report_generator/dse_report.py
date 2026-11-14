@@ -17,13 +17,14 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import toml
 
-from cloudai.configurator import Trajectory
+from cloudai.configurator import Trajectory, TrajectoryRecord
 from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
@@ -229,11 +230,10 @@ def _build_trajectory_steps(
     iteration_dir: Path,
     test_case: TestRun,
     test_runs: list[TestRun],
+    records: tuple[TrajectoryRecord, ...],
 ) -> list[TrajectoryStep] | None:
-    trajectory = Trajectory.load(iteration_dir, missing_ok=True, recovery="recorded")
-    records = trajectory.records()
     if not records:
-        logging.warning(f"No trajectory data found for {test_case.name} at {trajectory.output_path}")
+        logging.warning(f"No trajectory data found for {test_case.name} at {iteration_dir}")
         return None
 
     runs_by_step = {test_run.step: test_run for test_run in test_runs}
@@ -271,7 +271,9 @@ def _build_iteration_summary(
     iteration_dir: Path,
     test_runs: list[TestRun],
 ) -> DSECaseIterationSummary | None:
-    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs)
+    trajectory = Trajectory.load(iteration_dir, missing_ok=True, recovery="recorded")
+    records = trajectory.records()
+    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs, records)
     if not trajectory_steps:
         return None
 
@@ -285,7 +287,11 @@ def _build_iteration_summary(
         return None
 
     with best_step_dump.open() as f:
-        test_run_details = TestRunDetails.model_validate(toml.load(f))
+        raw_dump = toml.load(f)
+        best_record = next(record for record in records if record.step == best_step.step)
+        test_run_details = TestRunDetails.model_validate(
+            raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+        )
 
     elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
     if not elapsed_times:
@@ -318,7 +324,7 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
+        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump(exclude_unset=True)),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )

@@ -76,18 +76,30 @@ def scalar_observation_case(slurm_system: SlurmSystem) -> tuple[TestRun, TestRun
     return case, step_run
 
 
-@pytest.mark.parametrize("dump_conflict", [False, True])
+@pytest.mark.parametrize("dump_conflict", [False, True, "nonwinning"])
 def test_dse_summary_receives_decoded_observations_and_actions(
-    slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun], dump_conflict: bool
+    slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun], dump_conflict: bool | str
 ) -> None:
     case, completed = scalar_observation_case
     if dump_conflict:
         from cloudai.configurator import TrajectoryLoadError
 
-        dump = completed.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+        selected = completed
+        if dump_conflict == "nonwinning":
+            history = Trajectory(iteration_dir=completed.output_path.parent, mode="resume")
+            history.append(step=2, action={"ngpus": 1}, reward=0.0, observation=7.5)
+            selected = case.apply_params_set({"ngpus": 1})
+            selected.step = 2
+            selected.output_path = completed.output_path.parent / "2"
+            selected.output_path.mkdir()
+            (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+                toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+            )
+        dump = selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
         recorded = toml.loads(dump.read_text())
-        recorded["test_definition"]["cmd_args"]["ngpus"] = 1
+        recorded["test_definition"]["cmd_args"]["ngpus"] = 1 if dump_conflict is True else 2
         dump.write_text(toml.dumps(recorded))
+        before = {path: path.read_bytes() for path in dump.parent.parent.rglob("*") if path.is_file()}
         with pytest.raises(TrajectoryLoadError):
             build_dse_summaries(
                 system=slurm_system,
@@ -95,6 +107,7 @@ def test_dse_summary_receives_decoded_observations_and_actions(
                 loaded_test_runs=[completed],
                 test_cases=[case],
             )
+        assert {path: path.read_bytes() for path in dump.parent.parent.rglob("*") if path.is_file()} == before
         return
 
     summaries = build_dse_summaries(
@@ -175,3 +188,226 @@ def test_dse_summary_skips_only_truly_absent_history(
                 loaded_test_runs=[completed],
                 test_cases=[case],
             )
+
+
+@pytest.mark.parametrize(
+    "archive,change",
+    [
+        ("native", "matching"),
+        ("native", "minimal"),
+        ("native", "command"),
+        ("native", "held_action"),
+        ("native", "string_action"),
+        ("native", "float_action"),
+        ("native", "bool_action"),
+        ("native", "static"),
+        ("native", "resource"),
+        ("native", "bool_resource"),
+        ("native", "nodes"),
+        ("native", "name"),
+        ("native", "iteration"),
+        ("native", "step"),
+        ("native", "bool_step"),
+        ("native", "output_path"),
+        ("native", "missing_action"),
+        ("legacy", "matching"),
+        ("legacy", "minimal"),
+        ("legacy", "command"),
+        ("native", "credentials"),
+        ("legacy", "credentials"),
+        ("native", "bool_static"),
+        ("native", "none_static"),
+        ("native", "float_resource"),
+        ("native", "string_resource"),
+        ("native", "float_step"),
+        ("native", "string_step"),
+        ("native", "date"),
+        ("native", "none_array"),
+        ("native", "list_order"),
+    ],
+)
+def test_best_config_export_verifies_recorded_settings_without_inventing_defaults(
+    slurm_system: SlurmSystem, archive: str, change: str
+) -> None:
+    from copy import deepcopy
+    from datetime import date
+
+    from cloudai.configurator import Trajectory, TrajectoryLoadError
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="typed-export",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="typed export",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs.model_validate(
+                {
+                    "docker_image_url": "fake://url/nccl",
+                    **(
+                        {"fixed_array": {"none_array": [None], "list_order": [1, 2]}[change]}
+                        if change in ("none_array", "list_order")
+                        else {}
+                    ),
+                    **({"date_alias": date(2026, 1, 2)} if change == "date" else {}),
+                    "ngpus": [1, 2],
+                    "iters": [10, 20],
+                    "payload": {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]},
+                }
+            ),
+            dse_excluded_args=["cmd_args.payload"]
+            + (["cmd_args.fixed_array"] if change in ("none_array", "list_order") else []),
+            agent_steps=1,
+            extra_env_vars={"FIXED": "0001"},
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+        iterations=1,
+    )
+    if change == "credentials":
+        from cloudai.core import GitRepo
+        from cloudai.workloads.megatron_bridge.megatron_bridge import (
+            MegatronBridgeCmdArgs,
+            MegatronBridgeTestDefinition,
+        )
+
+        case.test = MegatronBridgeTestDefinition(
+            name="bridge",
+            description="credential export",
+            test_template_name="MegatronBridge",
+            cmd_args=MegatronBridgeCmdArgs.model_validate(
+                {
+                    "ngpus": [1, 2],
+                    "iters": [10, 20],
+                    "hf_token": "synthetic-export-hf",
+                    "wandb_key": "synthetic-export-wandb",
+                    "alias": "synthetic-export-hf:synthetic-export-wandb",
+                    "model_family_name": "qwen3",
+                    "model_recipe_name": "30b_a3b",
+                }
+            ),
+            git_repos=[GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="r0.2.0")],
+            agent_steps=1,
+        )
+    iteration = slurm_system.output_path / case.name / "0"
+    selected = case.apply_params_set({"ngpus": 2, "iters": 10})
+    assert "fixed_array" not in case.param_space
+    assert selected.test.cmd_args.model_dump().get("fixed_array") == {"none_array": [None], "list_order": [1, 2]}.get(
+        change
+    )
+    selected.step = 1
+    selected.output_path = iteration / "1"
+    selected.output_path.mkdir(parents=True)
+    (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+    (selected.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
+        "Step Time : 1.0 s GPU utilization: 2.0 TFLOP/s/GPU"
+    )
+    (selected.output_path / "cloudai_megatron_bridge_evaluation.exitcode").write_text("0")
+    job = SlurmJobMetadata(
+        job_id=1,
+        name=case.name,
+        state="COMPLETED",
+        start_time="2026-01-01T00:00:00",
+        end_time="2026-01-01T00:01:00",
+        elapsed_time_sec=60,
+        exit_code="0:0",
+        srun_cmd="srun test",
+        test_cmd="test",
+        job_root=selected.output_path,
+        job_steps=[],
+    )
+    (selected.output_path / "slurm-job.toml").write_text(toml.dumps(job.model_dump(mode="json")))
+    history = Trajectory(iteration_dir=iteration)
+    if archive == "native":
+        history.record(
+            test_run=selected,
+            action_space=case.param_space,
+            action={"ngpus": 2},
+            reward=1.0,
+            observation={"default": 1.0},
+            system=slurm_system,
+            rewards=RewardOverrides(),
+            run_output=Run(
+                path=str(selected.output_path),
+                jobid="export",
+                status="completed",
+                step=1,
+                iteration=0,
+                metrics=[Metric(name="default", value=1.0, unit="unknown")],
+            ),
+        )
+    else:
+        history.append(step=1, action={"ngpus": 2, "iters": 10}, reward=1.0, observation=1.0)
+    raw = toml.loads(toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump()))
+    if change == "minimal":
+        raw["test_definition"] = {
+            key: raw["test_definition"][key] for key in ("name", "description", "test_template_name", "cmd_args")
+        }
+        raw["test_definition"]["cmd_args"] = {
+            key: raw["test_definition"]["cmd_args"][key] for key in ("docker_image_url", "ngpus", "iters", "payload")
+        }
+    updates = {
+        "none_array": (("test_definition", "cmd_args", "fixed_array"), []),
+        "list_order": (("test_definition", "cmd_args", "fixed_array"), [2, 1]),
+        "command": (("test_definition", "cmd_args", "ngpus"), 1),
+        "held_action": (("test_definition", "cmd_args", "iters"), 999),
+        "string_action": (("test_definition", "cmd_args", "iters"), "10"),
+        "float_action": (("test_definition", "cmd_args", "iters"), 10.0),
+        "bool_action": (("test_definition", "cmd_args", "iters"), True),
+        "static": (("test_definition", "extra_env_vars", "FIXED"), "changed"),
+        "resource": (("nnodes",), 2),
+        "bool_resource": (("nnodes",), True),
+        "nodes": (("nodes",), ["other-node"]),
+        "name": (("name",), "other-run"),
+        "iteration": (("current_iteration",), 1),
+        "step": (("step",), 2),
+        "bool_step": (("step",), True),
+        "output_path": (("output_path",), str(iteration / "other" / "1")),
+        "bool_static": (("test_definition", "cmd_args", "payload", "enabled"), 1),
+        "none_static": (("test_definition", "cmd_args", "payload", "missing"), "not-none"),
+        "float_resource": (("nnodes",), 1.0),
+        "string_resource": (("nnodes",), "1"),
+        "float_step": (("step",), 1.0),
+        "string_step": (("step",), "1"),
+    }
+    if change in updates:
+        path, value = updates[change]
+        target = raw
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+    elif change == "missing_action":
+        del raw["test_definition"]["cmd_args"]["iters"]
+    expected = deepcopy(raw["test_definition"])
+    dump = selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+    dump.write_text(toml.dumps(raw))
+    export = iteration / f"{case.name}.toml"
+    previous = b'preserve = "existing export"\n'
+    export.write_bytes(previous)
+    before = {
+        path: path.read_bytes() for path in (history.output_path, history.output_path.with_name("metadata.csv"), dump)
+    }
+    if change in ("matching", "minimal", "credentials", "date"):
+        summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
+        assert len(summaries) == 1
+        actual = toml.loads(summaries[0].best_config_toml)
+        assert actual == expected
+        assert export.read_bytes() == previous
+        if change == "credentials":
+            exported = type(selected.test).model_validate(actual)
+            projected = exported.model_dump(mode="json", context={"purpose": "trajectory"})
+            original_projection = selected.test.model_dump(mode="json", context={"purpose": "trajectory"})
+            assert toml.loads(toml.dumps(projected)) == toml.loads(toml.dumps(original_projection))
+            assert selected.test.cmd_args.hf_token == "synthetic-export-hf"
+            assert selected.test.cmd_args.wandb_key == "synthetic-export-wandb"
+            if archive == "native":
+                stored = Trajectory.load(iteration).records()[0].get("env_params", decode_numbers=True)
+                assert {key: projected["cmd_args"][key] for key in ("hf_token", "wandb_key", "alias")} == {
+                    key: stored[key] for key in ("hf_token", "wandb_key", "alias")
+                }
+    else:
+        with pytest.raises(TrajectoryLoadError):
+            summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
+        assert export.read_bytes() == previous
+    assert all(path.read_bytes() == original for path, original in before.items())

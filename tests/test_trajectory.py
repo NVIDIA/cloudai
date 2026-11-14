@@ -1137,16 +1137,19 @@ def test_resolved_context_round_trips_types_literal_paths_and_raw_metadata(
         }
         assert [type(value) for value in context["payload"]["mixed"]] == [str, int, bool, type(None), dict]
         assert "tuned" not in context
-        raw = record["env_params"]["payload"]
-        assert raw["numeric_string"] == '"001"'
-        assert raw["boolean"] == "true" and raw["null"] == "null"
-        assert raw["empty_mapping"] == "{}" and raw["empty_list"] == "[]"
-        assert raw["nested"] == {"a.b": '"literal"', "a": {"b": '"nested"'}}
+        raw = record["env_params"]
+        cell = raw["payload"]
+        assert cell == json.dumps(payload, allow_nan=False, separators=(",", ":"))
+        decoded_cell = json.loads(cell)
+        assert decoded_cell["numeric_string"] == "001"
+        assert decoded_cell["boolean"] is True and decoded_cell["null"] is None
+        assert decoded_cell["empty_mapping"] == {} and decoded_cell["empty_list"] == []
+        assert decoded_cell["nested"] == {"a.b": "literal", "a": {"b": "nested"}}
         assert record.metadata["env_params"] == record["env_params"] == record.get("env_params")
         context["payload"]["mixed"].append("changed")
-        raw["nested"]["a.b"] = "changed"
+        raw["payload"] = "changed"
         assert record.get("env_params", decode_numbers=True)["payload"] == payload
-        assert record["env_params"]["payload"]["nested"]["a.b"] == '"literal"'
+        assert record["env_params"]["payload"] == cell
 
 
 @pytest.mark.parametrize(
@@ -2581,3 +2584,195 @@ def test_learning_eligibility_checks_actual_values_full_context_and_supported_re
         assert candidate.ineligibility_reasons("reference") == ()
         assert candidate["action"] == {"x": 1}
     assert current.step == 99
+
+
+@pytest.mark.parametrize(
+    ("run_unit", "fallback_unit", "expected_unit"),
+    [
+        ("GB/s", "", "GB/s"),
+        ("GB/s", "unknown", "GB/s"),
+        ("GB/s", "MiB/s", "GB/s"),
+        ("", "ms", "ms"),
+        ("unknown", "ms", "ms"),
+        (None, "ms", "ms"),
+        (None, "", "unknown"),
+    ],
+)
+def test_record_retains_observed_units_before_fallback_and_cache(
+    base_tr: TestRun,
+    tmp_path: Path,
+    slurm_system,
+    monkeypatch: pytest.MonkeyPatch,
+    run_unit,
+    fallback_unit,
+    expected_unit,
+) -> None:
+    from cloudai.core import TestDefinition
+    from cloudai.metrics import MetricDefinition, MetricObservation, OptimizationDirection
+    from cloudai.models.output import Metric, Run
+
+    base_tr.test.cmd_args = CmdArgs()
+    base_tr.test.agent_metrics = ["default"]
+    base_tr.step = 1
+    fallback = [
+        MetricObservation(
+            MetricDefinition("default", "Default", fallback_unit, OptimizationDirection.MAXIMIZE), 2.0, {}
+        )
+    ]
+    monkeypatch.setattr(TestDefinition, "metric_observations", lambda self, system, tr: fallback)
+    actual = Run(
+        path=str(base_tr.output_path),
+        jobid="units",
+        status="completed",
+        step=1,
+        iteration=base_tr.current_iteration,
+        metrics=[] if run_unit is None else [Metric(name="default", value=2.0, unit=run_unit)],
+    )
+    writer = Trajectory(iteration_dir=tmp_path)
+    first = writer.record(
+        test_run=base_tr,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+        run_output=actual,
+    )
+    assert first.get("measurement", decode_numbers=True)["metrics"]["0"]["unit"] == expected_unit
+    origin = first.get("measurement", decode_numbers=True)["origin"]
+    cached = writer.find(action={})
+    assert cached is not None
+    fallback[0] = MetricObservation(
+        MetricDefinition("default", "Default", "changed-fallback", OptimizationDirection.MAXIMIZE), 2.0, {}
+    )
+    base_tr.step = 2
+    writer.record(
+        test_run=base_tr,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+        cached_result=cached,
+    )
+    for history in (writer, Trajectory.load(tmp_path)):
+        measurements = [record.get("measurement", decode_numbers=True) for record in history.records()]
+        assert [measurement["metrics"]["0"]["unit"] for measurement in measurements] == [expected_unit, expected_unit]
+        assert measurements[1]["kind"] == "cached" and measurements[1]["origin"] == origin
+
+
+def test_record_keeps_stable_wire_cells_across_supported_sampled_value_shapes(
+    base_tr: TestRun, tmp_path: Path, slurm_system
+) -> None:
+    from cloudai.configurator.env_params import EnvParams, EnvParamSpec
+
+    candidates = [
+        {"left": 1},
+        {"right": 2},
+        {},
+        [],
+        "0001",
+        {"a.b": {"literal": "true", "enabled": True, "missing": None, "items": ["001", 1, False]}},
+    ]
+    base_tr.test.cmd_args = CmdArgs.model_validate({"noise": candidates, "fixed": "001"})
+    base_tr.test.env_params = {"noise": EnvParamSpec()}
+    parameters = EnvParams.from_test(base_tr.test)
+    assert parameters is not None and not base_tr.param_space
+    selected = {}
+    for trial in range(1, 129):
+        sample = parameters.sample(trial)
+        selected.setdefault(json.dumps(sample, sort_keys=True), (trial, sample))
+        if len(selected) == len(candidates):
+            break
+    assert len(selected) == len(candidates)
+    writer = Trajectory(iteration_dir=tmp_path)
+    expected = sorted(selected.values())
+    live = []
+    for trial, sample in expected:
+        submitted = base_tr.apply_params_set({}, env_params=sample)
+        submitted.step = trial
+        live.append(
+            writer.record(
+                test_run=submitted,
+                action_space={},
+                action={},
+                reward=1.0,
+                observation={"default": 1.0},
+                system=slurm_system,
+                rewards=RewardOverrides(),
+            )
+        )
+    with writer.metadata_path.open(newline="") as stream:
+        header = next(csv.reader(stream))
+    assert 'env_params.["noise"]' in header
+    assert not any(name.startswith('env_params.["noise",') for name in header)
+    loaded = Trajectory.load(tmp_path)
+    for actual, reloaded, (trial, sample) in zip(live, loaded.records(), expected, strict=True):
+        assert actual.metadata == reloaded.metadata
+        assert isinstance(actual["env_params"]["noise"], str)
+        assert json.loads(actual["env_params"]["noise"]) == sample["noise"]
+        for record in (actual, reloaded):
+            assert json.dumps(record.get("env_params", decode_numbers=True)["noise"], sort_keys=True) == json.dumps(
+                sample["noise"], sort_keys=True
+            )
+            assert record.get("env_params", decode_numbers=True)["fixed"] == "001"
+        for history in (writer, loaded):
+            found = history.find(action={}, env_params=sample)
+            assert found is not None and found["step"] == trial
+    original = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    del writer
+    gc.collect()
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    trial, sample = expected[0]
+    submitted = base_tr.apply_params_set({}, env_params=sample)
+    submitted.step = expected[-1][0] + 1
+    resumed.record(
+        test_run=submitted,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+    )
+    assert all(
+        (tmp_path / name).read_bytes().startswith(data) for name, data in original.items() if name.endswith(".csv")
+    )
+    found = Trajectory.load(tmp_path).find(action={}, env_params=sample)
+    assert found is not None and found["step"] == trial
+
+
+@pytest.mark.parametrize("mode", ["adopt", "resume"])
+def test_versioned_old_nested_headers_continue_only_when_the_original_schema_matches(tmp_path: Path, mode: str) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{},1.0,[]\n")
+    with (tmp_path / "metadata.csv").open("w", newline="") as stream:
+        csv.writer(stream).writerows([["step", 'env_params.["sample","left"]', "record_format_version"], [1, "1", "1"]])
+    writer = Trajectory(iteration_dir=tmp_path, mode="adopt")
+    if mode == "resume":
+        del writer
+        gc.collect()
+        writer = Trajectory(iteration_dir=tmp_path, mode="resume")
+    prefix = {name: (tmp_path / name).read_bytes() for name in ("trajectory.csv", "metadata.csv")}
+    writer.append(
+        step=2, action={}, reward=2.0, observation=[], env_params={"sample": {"left": 2}}, record_format_version="1"
+    )
+    loaded = Trajectory.load(tmp_path)
+    assert loaded.records()[1]["env_params"]["sample"] == {"left": "2"}
+    assert loaded.records()[1].get("env_params", decode_numbers=True)["sample"] == {"left": 2}
+    assert all((tmp_path / name).read_bytes().startswith(data) for name, data in prefix.items())
+    for history in (writer, loaded):
+        found = history.find(action={}, env_params={"sample": {"left": 2}})
+        assert found is not None and found["step"] == 2
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    with pytest.raises(ValueError, match=r"fields|schema"):
+        writer.append(
+            step=3,
+            action={},
+            reward=3.0,
+            observation=[],
+            env_params={"sample": {"right": 3}},
+            record_format_version="1",
+        )
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before

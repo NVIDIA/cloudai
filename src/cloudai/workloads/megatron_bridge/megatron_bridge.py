@@ -212,9 +212,13 @@ class MegatronBridgeTestDefinition(TestDefinition):
         configuration = handler(self)
         if not isinstance(info.context, dict) or info.context.get("purpose") != "trajectory":
             return configuration
-        token = self.cmd_args.hf_token
-        if not token:
+        tokens = {token for token in (self.cmd_args.hf_token, self.cmd_args.wandb_key) if token}
+        if not tokens:
             return configuration
+
+        pattern = re.compile(
+            "|".join(re.escape(token) for token in sorted({HF_TOKEN_REDACTION, *tokens}, key=len, reverse=True))
+        )
 
         def redact(value: Any) -> Any:
             if isinstance(value, dict):
@@ -227,7 +231,7 @@ class MegatronBridgeTestDefinition(TestDefinition):
                 return projected
             if isinstance(value, list):
                 return [redact(child) for child in value]
-            return value.replace(token, HF_TOKEN_REDACTION) if isinstance(value, str) else value
+            return pattern.sub(lambda match: HF_TOKEN_REDACTION, value) if isinstance(value, str) else value
 
         if "record" in info.context:
             info.context["record"] = redact(info.context["record"])

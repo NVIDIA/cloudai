@@ -18,6 +18,7 @@ import contextlib
 import logging
 import tarfile
 import xml.etree.ElementTree as ET
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -28,7 +29,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.configurator import Trajectory
+from cloudai.configurator import Trajectory, TrajectoryLoadError
 from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 
@@ -279,6 +280,7 @@ class DSEReporter(Reporter):
 
             df = trajectory.dataframe
             best_step = df.loc[df["reward"].idxmax()]["step"]
+            best_record = next(record for record in trajectory.records() if record.step == best_step)
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
@@ -286,7 +288,12 @@ class DSEReporter(Reporter):
 
             with best_step_details.open() as f:
                 try:
-                    trd = TestRunDetails.model_validate(toml.load(f))
+                    raw_dump = toml.load(f)
+                    trd = TestRunDetails.model_validate(
+                        raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+                    )
+                except TrajectoryLoadError:
+                    raise
                 except Exception as exc:
                     logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
                     continue
@@ -294,7 +301,7 @@ class DSEReporter(Reporter):
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(), f)
+                toml.dump(trd.test_definition.model_dump(exclude_unset=True), f)
 
 
 class TarballReporter(Reporter):

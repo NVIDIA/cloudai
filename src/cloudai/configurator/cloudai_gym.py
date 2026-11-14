@@ -16,7 +16,6 @@
 
 import copy
 import logging
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
@@ -69,17 +68,12 @@ class CloudAIGymEnv(BaseGym):
         super().__init__()
 
     def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
-        """Return valid trial steps and configurations in descending reward order."""
         tr = self.original_test_run
+        eligible_steps = {
+            record.step for record in self.trajectory.records() if not record.ineligibility_reasons("measurement")
+        }
         candidates = [
-            row
-            for row in self.trajectory.dataframe.to_dict(orient="records")
-            if math.isfinite(row["reward"])
-            and all(
-                math.isfinite(row[f"observation.{metric}"])
-                and row[f"observation.{metric}"] != self.rewards.metric_failure
-                for metric in tr.test.agent_metrics
-            )
+            row for row in self.trajectory.dataframe.to_dict(orient="records") if row["step"] in eligible_steps
         ]
         return [
             (int(row["step"]), {key: row[f"action.{key}"] for key in tr.param_space})

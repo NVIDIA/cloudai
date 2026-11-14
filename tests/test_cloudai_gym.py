@@ -178,6 +178,8 @@ def execution_env(
                 ],
             ),
         )
+        if outcome == "completed_then_runner_failure":
+            raise OSError("failed after publishing completed output")
 
     def metric(test_run: TestRun, system: System, name: str) -> MetricValue:
         del system
@@ -511,3 +513,44 @@ def test_failed_status_from_the_public_runner_output_producer_is_authoritative(
     assert measurement["outcome"] == "runner_failure"
     assert measurement["origin"]["jobid"] == "reported-failure"
     assert info["trajectory"]["evaluation_failure"] == {"constraint": False, "metric_indices": [], "runner": True}
+
+
+@pytest.mark.parametrize(
+    "execution_env,expected_best",
+    [
+        (("success", 0), 1),
+        (("legitimate_minus_one", 0), 1),
+        (("metric_failure", 0), None),
+        (("runner_failure", 0), None),
+        (("reported_runner_failure", 0), None),
+        (("completed_then_runner_failure", 0), None),
+    ],
+    indirect=["execution_env"],
+)
+def test_recommendations_use_measurement_eligibility_and_keep_completed_run_guard(execution_env, expected_best) -> None:
+    env, submitted, _, outcome, _ = execution_env
+    env.reset()
+    env.step({"choice": 2})
+    env.update_output()
+    test_output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    assert test_output.dse is not None
+    assert test_output.dse.best_step == expected_best
+    records = Trajectory.load(env.trajectory.output_path).records()
+    assert len(records) == 1
+    measurements = [record for record in records if not record.ineligibility_reasons("measurement")]
+    assert bool(measurements) is (expected_best is not None)
+    assert not records[0].ineligibility_reasons("decision")
+    if expected_best is not None:
+        assert test_output.dse.best_config == {"choice": 2}
+        env.step({"choice": 2})
+        env.update_output()
+        assert len(submitted) == 1
+        records = Trajectory.load(env.trajectory.output_path).records()
+        first = records[0].get("measurement", decode_numbers=True)
+        cached = records[1].get("measurement", decode_numbers=True)
+        assert cached["kind"] == "cached" and cached["origin"] == first["origin"]
+        assert test_output.dse.best_step == 1
+        assert sum(not record.ineligibility_reasons("measurement") for record in records) == 2
+    elif outcome == "completed_then_runner_failure":
+        assert test_output.runs[0].status == "completed"
+        assert records[0].get("measurement", decode_numbers=True)["outcome"] == "runner_failure"

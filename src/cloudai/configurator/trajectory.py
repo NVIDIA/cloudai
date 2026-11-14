@@ -726,6 +726,7 @@ class Trajectory:
                     {
                         entry.metric.key: entry.metric.unit or "unknown"
                         for entry in test_run.test.metric_observations(system, test_run)
+                        if units.get(entry.metric.key, "unknown") == "unknown"
                     }
                 )
         observation_values = (
@@ -983,13 +984,22 @@ class Trajectory:
             "reward": reward,
             "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
         }
-        metadata = _serialize_metadata(lazy.pd.Series(record, dtype=object), self.metadata_path)
+        metadata_record = dict(record)
+        if format_version == "1" and "env_params" in values:
+            metadata_record = {name: value for name, value in record.items() if not name.startswith("env_params.")}
+            metadata_record.update(_flatten_environment(values["env_params"], expand_mappings=False))
+            header = self._headers.get("metadata")
+            if header is not None and {
+                name for name in metadata_record if name == "step" or name.split(".", 1)[0] not in self._core_domains
+            } != set(header):
+                metadata_record = record
+        metadata = _serialize_metadata(lazy.pd.Series(metadata_record, dtype=object), self.metadata_path)
         metadata_row: dict[str, object] = (
             {"step": step} if metadata is None else {str(name): value for name, value in metadata.items()}
         )
         serialized_core = {name: _csv_cell(value) for name, value in core_row.items()}
         serialized_metadata = {name: _csv_cell(value) for name, value in metadata_row.items()}
-        self._build_record(
+        validated = self._build_record(
             self.output_path,
             2,
             serialized_core,
@@ -998,7 +1008,10 @@ class Trajectory:
             metadata_rows={step: (2, serialized_metadata)},
         )
         snapshot = TrajectoryRecord(
-            step, self.output_path, {"action": action, "reward": reward, "observation": observation}
+            step,
+            self.output_path,
+            (dict(validated._domains) if format_version == "1" else {})
+            | {"action": action, "reward": reward, "observation": observation},
         )
         return record, snapshot, core_row, metadata_row
 
@@ -1426,15 +1439,15 @@ def _values_match_exact(left: Any, right: Any) -> bool:
     return bool(left == right)
 
 
-def _flatten_environment(value: object, path: tuple[str, ...] = ()) -> dict[str, Any]:
+def _flatten_environment(value: object, path: tuple[str, ...] = (), *, expand_mappings: bool = True) -> dict[str, Any]:
     if not path and not isinstance(value, Mapping):
         raise TypeError("versioned env_params must be a mapping")
-    if isinstance(value, Mapping) and value:
+    if isinstance(value, Mapping) and value and (not path or expand_mappings):
         flattened = {}
         for key, child in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"environment mapping keys must be strings: {key!r}")
-            flattened.update(_flatten_environment(child, (*path, key)))
+            flattened.update(_flatten_environment(child, (*path, key), expand_mappings=expand_mappings))
         return flattened
     return {f"env_params.{json.dumps(path, separators=(',', ':'))}": deepcopy(value)}
 
