@@ -1010,7 +1010,11 @@ class Trajectory:
         snapshot = TrajectoryRecord(
             step,
             self.output_path,
-            (dict(validated._domains) if format_version == "1" else {})
+            (
+                {"env_params": validated._domains["env_params"]}
+                if format_version == "1" and "env_params" in validated._domains
+                else {}
+            )
             | {"action": action, "reward": reward, "observation": observation},
         )
         return record, snapshot, core_row, metadata_row

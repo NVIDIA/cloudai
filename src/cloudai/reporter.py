@@ -278,9 +278,13 @@ class DSEReporter(Reporter):
                 logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)
                 continue
 
-            df = trajectory.dataframe
-            best_step = df.loc[df["reward"].idxmax()]["step"]
-            best_record = next(record for record in trajectory.records() if record.step == best_step)
+            eligible_records = [
+                record for record in trajectory.records() if not record.ineligibility_reasons("measurement")
+            ]
+            if not eligible_records:
+                continue
+            best_record = max(eligible_records, key=lambda record: record["reward"])
+            best_step = best_record.step
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)

@@ -2776,3 +2776,36 @@ def test_versioned_old_nested_headers_continue_only_when_the_original_schema_mat
             record_format_version="1",
         )
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize("env_codec,context_codec", [(False, False), (True, False), (False, True), (True, True)])
+@pytest.mark.parametrize("value", [1, True, "001"], ids=["integer", "boolean", "literal"])
+def test_environment_codec_preserves_other_live_raw_domains(
+    tmp_path: Path, env_codec: bool, context_codec: bool, value: object
+) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    versions: dict[str, object] = {}
+    if env_codec:
+        versions.update(record_format_version="1", env_params={"fixed": {"number": 1, "flag": True, "label": "001"}})
+    if context_codec:
+        versions.update(record_context_version="1", run_details="{}", measurement="{}", evaluation_failure="null")
+    writer.append(step=1, action={"choice": 1}, reward=1.0, observation=[1.0], execution={"literal": value}, **versions)
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    live = writer.records()[0]
+    loaded = Trajectory.load(tmp_path).records()[0]
+    for record, expected in ((live, value), (loaded, str(value))):
+        assert record["execution"] == record.get("execution") == record.metadata["execution"] == {"literal": expected}
+        assert type(record["execution"]["literal"]) is type(expected)
+        decoded = record.get("execution", decode_numbers=True)["literal"]
+        explicit = expected if context_codec else 1 if expected == "001" else expected
+        if not context_codec and isinstance(expected, str) and expected == "1":
+            explicit = 1
+        assert decoded == explicit and type(decoded) is type(explicit)
+        if env_codec:
+            assert record.get("env_params", decode_numbers=True) == {
+                "fixed": {"number": 1, "flag": True, "label": "001"}
+            }
+            assert record["env_params"] == {
+                "fixed": json.dumps({"number": 1, "flag": True, "label": "001"}, separators=(",", ":"))
+            }
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before

@@ -358,10 +358,12 @@ class TestRunDetails(BaseModel):
             resources = {"NUM_NODES": supplied["nnodes"]} if "nnodes" in supplied else {}
             configuration = supplied["test_definition"]
             resolved = _resolve_recorded_action(configuration, resources, action, missing_ok=True)
-            if native and set(resolved) != set(action):
-                raise ValueError("native winning action cannot be verified from selected dump")
             action = {name: _export_comparison_view(value) for name, value in action.items()}
             resolved = {name: _export_comparison_view(value) for name, value in resolved.items()}
+            if native and json.dumps(action, sort_keys=True, allow_nan=False) != json.dumps(
+                resolved, sort_keys=True, allow_nan=False
+            ):
+                raise ValueError("native winning action cannot be verified from selected dump")
             _merge_recorded_values(action, resolved, action, record, typed=True)
             environment = _export_comparison_view(_record_environment(deepcopy(configuration), resources, action))
             recorded["environment"] = _export_comparison_view(recorded["environment"])

@@ -224,6 +224,12 @@ def test_dse_summary_skips_only_truly_absent_history(
         ("native", "date"),
         ("native", "none_array"),
         ("native", "list_order"),
+        ("native", "nested_matching"),
+        ("native", "nested_extra"),
+        ("native", "nested_missing"),
+        ("legacy", "nested_matching"),
+        ("legacy", "nested_extra"),
+        ("legacy", "nested_missing"),
     ],
 )
 def test_best_config_export_verifies_recorded_settings_without_inventing_defaults(
@@ -253,10 +259,14 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
                     **({"date_alias": date(2026, 1, 2)} if change == "date" else {}),
                     "ngpus": [1, 2],
                     "iters": [10, 20],
-                    "payload": {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]},
+                    "payload": (
+                        [{"x": 1}, {"x": 2}]
+                        if change.startswith("nested_")
+                        else {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]}
+                    ),
                 }
             ),
-            dse_excluded_args=["cmd_args.payload"]
+            dse_excluded_args=([] if change.startswith("nested_") else ["cmd_args.payload"])
             + (["cmd_args.fixed_array"] if change in ("none_array", "list_order") else []),
             agent_steps=1,
             extra_env_vars={"FIXED": "0001"},
@@ -291,7 +301,9 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             agent_steps=1,
         )
     iteration = slurm_system.output_path / case.name / "0"
-    selected = case.apply_params_set({"ngpus": 2, "iters": 10})
+    selected = case.apply_params_set(
+        {"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {})
+    )
     assert "fixed_array" not in case.param_space
     assert selected.test.cmd_args.model_dump().get("fixed_array") == {"none_array": [None], "list_order": [1, 2]}.get(
         change
@@ -323,7 +335,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         history.record(
             test_run=selected,
             action_space=case.param_space,
-            action={"ngpus": 2},
+            action={"ngpus": 2} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
             reward=1.0,
             observation={"default": 1.0},
             system=slurm_system,
@@ -338,7 +350,12 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             ),
         )
     else:
-        history.append(step=1, action={"ngpus": 2, "iters": 10}, reward=1.0, observation=1.0)
+        history.append(
+            step=1,
+            action={"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
+            reward=1.0,
+            observation=1.0,
+        )
     raw = toml.loads(toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump()))
     if change == "minimal":
         raw["test_definition"] = {
@@ -348,6 +365,8 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             key: raw["test_definition"]["cmd_args"][key] for key in ("docker_image_url", "ngpus", "iters", "payload")
         }
     updates = {
+        "nested_extra": (("test_definition", "cmd_args", "payload", "y"), 2),
+        "nested_missing": (("test_definition", "cmd_args", "payload"), {}),
         "none_array": (("test_definition", "cmd_args", "fixed_array"), []),
         "list_order": (("test_definition", "cmd_args", "fixed_array"), [2, 1]),
         "command": (("test_definition", "cmd_args", "ngpus"), 1),
@@ -388,7 +407,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
     before = {
         path: path.read_bytes() for path in (history.output_path, history.output_path.with_name("metadata.csv"), dump)
     }
-    if change in ("matching", "minimal", "credentials", "date"):
+    if change in ("matching", "minimal", "credentials", "date", "nested_matching"):
         summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
         assert len(summaries) == 1
         actual = toml.loads(summaries[0].best_config_toml)
@@ -408,6 +427,113 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
                 }
     else:
         with pytest.raises(TrajectoryLoadError):
-            summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
+            build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
         assert export.read_bytes() == previous
     assert all(path.read_bytes() == original for path, original in before.items())
+
+
+@pytest.mark.parametrize("outcome", ["mixed", "all_failed", "no_run", "job_failed"])
+def test_best_config_uses_eligible_measurements_without_removing_history(
+    slurm_system: SlurmSystem, outcome: str
+) -> None:
+    from cloudai.configurator import Trajectory
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="measurement-selection",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="measurement selection",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
+            agent_steps=3,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+    )
+    iteration = slurm_system.output_path / case.name / "0"
+    history = Trajectory(iteration_dir=iteration)
+    runs = []
+    for step, ngpus, reward in ((1, 1, -1.0), (2, 2, 100.0), (3, 1, -1.0)):
+        selected = case.apply_params_set({"ngpus": ngpus})
+        selected.step = step
+        selected.output_path = iteration / str(step)
+        selected.output_path.mkdir(parents=True)
+        (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+        job = SlurmJobMetadata(
+            job_id=step,
+            name=case.name,
+            state="FAILED" if outcome == "job_failed" else "COMPLETED",
+            start_time="2026-01-01T00:00:00",
+            end_time="2026-01-01T00:01:00",
+            elapsed_time_sec=60,
+            exit_code="1:0" if outcome == "job_failed" else "0:0",
+            srun_cmd="srun test",
+            test_cmd="test",
+            job_root=selected.output_path,
+            job_steps=[],
+        )
+        (selected.output_path / "slurm-job.toml").write_text(toml.dumps(job.model_dump(mode="json")))
+        (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+        )
+        cached = history.find(action={"ngpus": 1}) if step == 3 else None
+        history.record(
+            test_run=selected,
+            action_space=case.param_space,
+            action={"ngpus": ngpus},
+            reward=reward,
+            observation={"default": reward},
+            system=slurm_system,
+            rewards=RewardOverrides(),
+            execution_error="failed after completed output" if step == 2 or outcome == "all_failed" else None,
+            cached_result=cached,
+            run_output=None
+            if outcome == "no_run" or step == 3
+            else Run(
+                path=str(selected.output_path),
+                jobid=f"job-{step}",
+                status="failed" if outcome == "job_failed" else "completed",
+                step=step,
+                iteration=0,
+                metrics=[Metric(name="default", value=reward, unit="unknown")],
+            ),
+        )
+        runs.append(selected)
+    records = Trajectory.load(iteration).records()
+    assert [record.step for record in records] == [1, 2, 3]
+    assert [not record.ineligibility_reasons("measurement") for record in records] == (
+        [True, False, True] if outcome in ("mixed", "no_run") else [False, False, False]
+    )
+    assert not any(record.ineligibility_reasons("decision") for record in records)
+    assert records[2].get("measurement", decode_numbers=True)["kind"] == "cached"
+    assert (
+        records[2].get("measurement", decode_numbers=True)["origin"]
+        == records[0].get("measurement", decode_numbers=True)["origin"]
+    )
+    export = iteration / f"{case.name}.toml"
+    previous = b'preserve = "existing export"\n'
+    export.write_bytes(previous)
+    before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file() and path != export}
+    summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [] if outcome == "no_run" else runs, [case])
+    assert export.read_bytes() == previous
+    if outcome == "mixed":
+        assert len(summaries) == 1
+        summary = summaries[0]
+        assert toml.loads(summary.best_config_toml)["cmd_args"]["ngpus"] == 1
+        assert summary.reward_chart_data == {
+            "labels": [1, 2, 3],
+            "rewards": [-1.0, 100.0, -1.0],
+            "observations": ["-1", "100", "-1"],
+            "best_index": 0,
+        }
+        assert summary.efficiency_steps == "3 / 2 steps"
+        assert summary.observed_runtime == "3m"
+        assert [
+            (row.name, [(value.text, value.is_best) for value in row.values]) for row in summary.parameter_rows
+        ] == [("ngpus", [("1", True), ("2", False)])]
+    else:
+        assert summaries == []
+    assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file() and path != export} == before
+    assert len(Trajectory.load(iteration).records()) == 3

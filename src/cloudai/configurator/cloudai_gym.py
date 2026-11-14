@@ -69,16 +69,30 @@ class CloudAIGymEnv(BaseGym):
 
     def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
         tr = self.original_test_run
-        eligible_steps = {
-            record.step for record in self.trajectory.records() if not record.ineligibility_reasons("measurement")
+        eligible_records = {
+            record.step: record
+            for record in self.trajectory.records()
+            if not record.ineligibility_reasons("measurement")
         }
         candidates = [
-            row for row in self.trajectory.dataframe.to_dict(orient="records") if row["step"] in eligible_steps
+            row for row in self.trajectory.dataframe.to_dict(orient="records") if row["step"] in eligible_records
         ]
-        return [
-            (int(row["step"]), {key: row[f"action.{key}"] for key in tr.param_space})
-            for row in sorted(candidates, key=lambda row: row["reward"], reverse=True)
-        ]
+        ranked = []
+        for row in sorted(candidates, key=lambda row: row["reward"], reverse=True):
+            record = eligible_records[row["step"]]
+            details = (
+                record.get("run_details", {}, decode_numbers=True)
+                if record.get("record_context_version") == "1"
+                else {}
+            )
+            resolved_action = details.get("resolved_action") if isinstance(details, dict) else None
+            action = (
+                {key: resolved_action[key] for key in tr.param_space}
+                if isinstance(resolved_action, dict) and tr.param_space.keys() <= resolved_action.keys()
+                else {key: row[f"action.{key}"] for key in tr.param_space}
+            )
+            ranked.append((int(row["step"]), action))
+        return ranked
 
     def update_output(self) -> None:
         """Publish the DSE recommendation without interrupting execution on output errors."""

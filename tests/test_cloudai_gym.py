@@ -554,3 +554,102 @@ def test_recommendations_use_measurement_eligibility_and_keep_completed_run_guar
     elif outcome == "completed_then_runner_failure":
         assert test_output.runs[0].status == "completed"
         assert records[0].get("measurement", decode_numbers=True)["outcome"] == "runner_failure"
+
+
+@pytest.mark.parametrize("execution_env", [("success", 0)], indirect=True)
+@pytest.mark.parametrize(
+    "proposal",
+    ["partial", "complete", "legacy_complete", "unversioned_full", "unversioned_incomplete", "declared_incomplete"],
+)
+def test_recommendations_keep_resolved_held_dimensions_and_rank_order(
+    execution_env: tuple[CloudAIGymEnv, list[TestRun], list[TestRun], str, int],
+    monkeypatch: pytest.MonkeyPatch,
+    proposal: str,
+) -> None:
+    import json
+    from copy import deepcopy
+
+    from cloudai.models.output import Metric, Run
+
+    env, submitted, _, _, _ = execution_env
+    env.original_test_run.test.cmd_args = CmdArgs.model_validate({"choice": [1, 2], "held": ["001", "002"]})
+    env.test_run.test.cmd_args = deepcopy(env.original_test_run.test.cmd_args)
+    monkeypatch.setattr(TestRun, "get_metric_value", lambda self, system, name: 9.0 if len(submitted) > 1 else 1.0)
+    env.reset()
+    first = {"choice": 1, "held": "001"}
+    winning = {"choice": 2, "held": "001"}
+    if proposal not in ("partial", "complete"):
+        for step, action, reward in ((1, first, 1.0), (2, winning, 9.0)):
+            context = {}
+            if proposal in ("unversioned_full", "unversioned_incomplete"):
+                context["run_details"] = {
+                    "resolved_action": action if proposal == "unversioned_full" else {"choice": action["choice"]}
+                }
+            elif proposal == "declared_incomplete":
+                seed = Trajectory(iteration_dir=env.trajectory.output_path.parent.parent / "seed" / str(step))
+                selected = env.original_test_run.apply_params_set(action)
+                selected.step = step
+                native = seed.record(
+                    test_run=selected,
+                    action_space=env.original_test_run.param_space,
+                    action=action,
+                    reward=reward,
+                    observation={"custom_metric": reward, "bandwidth": reward},
+                    system=env.runner.system,
+                    rewards=RewardOverrides(),
+                    run_output=Run(
+                        path=str(selected.output_path),
+                        jobid=f"seed-{step}",
+                        status="completed",
+                        step=step,
+                        iteration=0,
+                        metrics=[
+                            Metric(name="custom_metric", value=reward, unit="unknown"),
+                            Metric(name="bandwidth", value=reward, unit="GB/s"),
+                        ],
+                    ),
+                )
+                details = native.get("run_details", decode_numbers=True)
+                details["resolved_action"] = {"choice": action["choice"]}
+                context.update(
+                    record_context_version="1",
+                    run_details=json.dumps(details),
+                    measurement=native["measurement"],
+                    evaluation_failure=native["evaluation_failure"],
+                )
+            env.trajectory.append(step=step, action=action, reward=reward, observation=[reward, reward], **context)
+            env.runner.experiment_output.update_run(
+                "resolved",
+                Run(
+                    path=str(env.trajectory.output_path.parent / str(step)),
+                    jobid=f"legacy-{step}",
+                    status="completed",
+                    step=step,
+                    iteration=0,
+                    metrics=[Metric(name="custom_metric", value=reward, unit="unknown")],
+                ),
+            )
+    else:
+        env.step(first)
+        env.step({"choice": 2} if proposal == "partial" else winning)
+    env.update_output()
+    output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    assert output.dse is not None
+    assert output.dse.best_config is not None
+    assert output.dse.best_config == winning
+    assert output.dse.best_step == 2
+    assert type(output.dse.best_config["held"]) is str
+    records = Trajectory.load(env.trajectory.output_path).records()
+    assert len(records) == 2
+    if proposal in ("partial", "complete"):
+        assert not any(record.ineligibility_reasons("measurement") for record in records)
+        assert records[1].get("run_details", decode_numbers=True)["resolved_action"] == winning
+        env.step(winning)
+        env.update_output()
+        assert len(submitted) == 2
+        assert output.dse.best_step == 2 and output.dse.best_config == winning
+        records = Trajectory.load(env.trajectory.output_path).records()
+        assert (
+            records[2].get("measurement", decode_numbers=True)["origin"]
+            == records[1].get("measurement", decode_numbers=True)["origin"]
+        )

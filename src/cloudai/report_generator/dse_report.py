@@ -252,7 +252,12 @@ def _build_trajectory_steps(
                 observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),
-                is_successful=step_run.test.was_run_successful(step_run).is_successful if step_run else False,
+                is_successful=(
+                    step_run.test.was_run_successful(step_run).is_successful
+                    and not record.ineligibility_reasons("measurement")
+                    if step_run
+                    else False
+                ),
             )
         )
 
