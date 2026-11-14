@@ -268,22 +268,27 @@ class DSEReporter(Reporter):
 
     def report_best_dse_config(self):
         """Persist the highest-reward configuration for each DSE test case iteration."""
-        for tr in self.test_scenario.test_runs:
-            if not tr.test.is_dse_job:
-                continue
-
+        for tr in (test_run for test_run in self.test_scenario.test_runs if test_run.test.is_dse_job):
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
             trajectory = Trajectory.load(tr_root, missing_ok=True, recovery="recorded")
             if not trajectory:
                 logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)
                 continue
 
-            eligible_records = [
+            candidates = []
+            for record in (
                 record for record in trajectory.records() if not record.ineligibility_reasons("measurement")
-            ]
-            if not eligible_records:
+            ):
+                reward = record["reward"]
+                if isinstance(reward, str):
+                    try:
+                        reward = int(reward)
+                    except ValueError:
+                        reward = float(reward)
+                candidates.append((reward, record))
+            if not candidates:
                 continue
-            best_record = max(eligible_records, key=lambda record: record["reward"])
+            best_record = max(candidates, key=lambda candidate: candidate[0])[1]
             best_step = best_record.step
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():

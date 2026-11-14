@@ -241,6 +241,9 @@ def _build_trajectory_steps(
     for record in records:
         step_no = record.step
         action = record["action"]
+        resolved_action = record.get("run_details", {}, decode_numbers=True).get("resolved_action")
+        if isinstance(resolved_action, dict) and test_case.param_space.keys() <= resolved_action.keys():
+            action = {key: resolved_action[key] for key in test_case.param_space}
         if not isinstance(action, dict):
             action = {}
 

@@ -77,6 +77,12 @@ class CloudAIGymEnv(BaseGym):
         candidates = [
             row for row in self.trajectory.dataframe.to_dict(orient="records") if row["step"] in eligible_records
         ]
+        for row in candidates:
+            if isinstance(row["reward"], str):
+                try:
+                    row["reward"] = int(row["reward"])
+                except ValueError:
+                    row["reward"] = float(row["reward"])
         ranked = []
         for row in sorted(candidates, key=lambda row: row["reward"], reverse=True):
             record = eligible_records[row["step"]]

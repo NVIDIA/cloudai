@@ -653,3 +653,89 @@ def test_recommendations_keep_resolved_held_dimensions_and_rank_order(
             records[2].get("measurement", decode_numbers=True)["origin"]
             == records[1].get("measurement", decode_numbers=True)["origin"]
         )
+
+
+@pytest.mark.parametrize("execution_env", [("success", 0)], indirect=True)
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+@pytest.mark.parametrize(
+    "rewards,expected_step",
+    [
+        pytest.param((9, "010"), 2, id="mixed_leading_zero"),
+        pytest.param((9, " 10"), 2, id="mixed_whitespace"),
+        pytest.param(("09", "010"), 2, id="lexical_strings"),
+        pytest.param((9007199254740992, 9007199254740993), 2, id="native_bigints"),
+        pytest.param((10, 10), 1, id="native_tie"),
+        pytest.param((10, "010"), 1, id="mixed_numeric_tie"),
+        pytest.param((9, " 10.5"), 2, id="whitespace_fraction"),
+        pytest.param((9007199254740992, " 9007199254740993"), 2, id="mixed_bigint_string"),
+    ],
+)
+def test_recommendations_rank_numeric_rewards_without_changing_recorded_values(
+    execution_env: tuple[CloudAIGymEnv, list[TestRun], list[TestRun], str, int],
+    archive: str,
+    rewards: tuple[int | str, int | str],
+    expected_step: int,
+) -> None:
+    from cloudai.models.output import Metric, Run
+
+    env, _, _, _, _ = execution_env
+    env.reset()
+    writer = env.trajectory
+    for step, reward in enumerate(rewards, 1):
+        selected = env.original_test_run.apply_params_set({"choice": step}, env_params={"ball_speed": 3})
+        selected.step = step
+        selected.output_path = writer.output_path.parent / str(step)
+        output = Run(
+            path=str(selected.output_path),
+            jobid=f"rank-{step}",
+            status="completed",
+            step=step,
+            iteration=0,
+            metrics=[
+                Metric(name="custom_metric", value=1.0, unit="unknown"),
+                Metric(name="bandwidth", value=2.5, unit="GB/s"),
+            ],
+        )
+        if archive == "native":
+            writer.record(
+                test_run=selected,
+                action_space=env.original_test_run.param_space,
+                action={"choice": step},
+                reward=reward,
+                observation={"custom_metric": 1.0, "bandwidth": 2.5},
+                system=env.runner.system,
+                rewards=RewardOverrides(),
+                run_output=output,
+            )
+        else:
+            writer.append(step=step, action={"choice": step}, reward=reward, observation=[1.0, 2.5])
+        env.runner.experiment_output.update_run("resolved", output)
+    loaded = Trajectory.load(writer.output_path)
+    before = {path: path.read_bytes() for path in writer.output_path.parent.iterdir() if path.is_file()}
+    test_output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    outcomes = []
+    for name, history in (("live", writer), ("loaded", loaded)):
+        records = history.records()
+        assert [record["reward"] for record in records] == list(rewards)
+        assert [type(record["reward"]) for record in records] == [type(reward) for reward in rewards]
+        assert not any(record.ineligibility_reasons("measurement") for record in records)
+        getters = [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in records]
+        test_output.dse = None
+        env.trajectory = history
+        env.update_output()
+        outcomes.append(
+            (
+                name,
+                None if test_output.dse is None else test_output.dse.best_step,
+                None if test_output.dse is None else test_output.dse.best_config,
+            )
+        )
+        assert [
+            (record.get("reward"), record.get("reward", decode_numbers=True)) for record in history.records()
+        ] == getters
+        assert [type(record["reward"]) for record in history.records()] == [type(reward) for reward in rewards]
+    assert {path: path.read_bytes() for path in writer.output_path.parent.iterdir() if path.is_file()} == before
+    assert outcomes == [
+        ("live", expected_step, {"choice": expected_step}),
+        ("loaded", expected_step, {"choice": expected_step}),
+    ]

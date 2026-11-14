@@ -1055,3 +1055,86 @@ def test_best_config_uses_eligible_measurements_without_removing_history(
         assert export.read_bytes() == previous
     assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file() and path != export} == before
     assert len(Trajectory.load(iteration).records()) == 3
+
+
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+@pytest.mark.parametrize(
+    "rewards,expected_step",
+    [
+        pytest.param((9, "010"), 2, id="mixed_leading_zero"),
+        pytest.param((9, " 10"), 2, id="mixed_whitespace"),
+        pytest.param(("09", "010"), 2, id="lexical_strings"),
+        pytest.param((9007199254740992, 9007199254740993), 2, id="native_bigints"),
+        pytest.param((10, 10), 1, id="native_tie"),
+        pytest.param((10, "010"), 1, id="mixed_numeric_tie"),
+        pytest.param((9, " 10.5"), 2, id="whitespace_fraction"),
+        pytest.param((9007199254740992, " 9007199254740993"), 2, id="mixed_bigint_string"),
+    ],
+)
+def test_best_config_ranks_numeric_rewards_without_changing_recorded_values(
+    slurm_system: SlurmSystem, archive: str, rewards: tuple[int | str, int | str], expected_step: int
+) -> None:
+    from cloudai.configurator import Trajectory
+    from cloudai.core import RewardOverrides, TestRun, TestScenario
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="reward-order",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="reward order",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=[1, 2]),
+            agent_steps=2,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+    )
+    iteration = slurm_system.output_path / case.name / "0"
+    history = Trajectory(iteration_dir=iteration)
+    for step, reward in enumerate(rewards, 1):
+        selected = case.apply_params_set({"ngpus": step})
+        selected.step = step
+        selected.output_path = iteration / str(step)
+        selected.output_path.mkdir(parents=True)
+        (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+        _write_slurm_job(selected.output_path, 60)
+        (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+        )
+        if archive == "native":
+            history.record(
+                test_run=selected,
+                action_space=case.param_space,
+                action={"ngpus": step},
+                reward=reward,
+                observation={"default": 1.0},
+                system=slurm_system,
+                rewards=RewardOverrides(),
+                run_output=Run(
+                    path=str(selected.output_path),
+                    jobid=f"rank-{step}",
+                    status="completed",
+                    step=step,
+                    iteration=0,
+                    metrics=[Metric(name="default", value=1.0, unit="unknown")],
+                ),
+            )
+        else:
+            history.append(step=step, action={"ngpus": step}, reward=reward, observation=[1.0])
+    records = Trajectory.load(iteration).records()
+    assert [record["reward"] for record in records] == list(rewards)
+    assert [type(record["reward"]) for record in records] == [type(reward) for reward in rewards]
+    assert not any(record.ineligibility_reasons("measurement") for record in records)
+    getters = [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in records]
+    before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()}
+    reporter = DSEReporter(
+        slurm_system, TestScenario(name="reward-order", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    )
+    reporter.report_best_dse_config()
+    assert all(path.read_bytes() == data for path, data in before.items())
+    reloaded = Trajectory.load(iteration).records()
+    assert [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in reloaded] == getters
+    assert [type(record["reward"]) for record in reloaded] == [type(reward) for reward in rewards]
+    actual = toml.loads((iteration / f"{case.name}.toml").read_text())
+    assert actual["cmd_args"]["ngpus"] == expected_step

@@ -537,3 +537,95 @@ def test_best_config_uses_eligible_measurements_without_removing_history(
         assert summaries == []
     assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file() and path != export} == before
     assert len(Trajectory.load(iteration).records()) == 3
+
+
+@pytest.mark.parametrize(
+    "archive", ["native_partial", "native_full", "legacy_literal", "unversioned_opaque_literal", "declared_incomplete"]
+)
+def test_parameter_highlights_use_complete_recorded_actions_with_raw_fallback(
+    slurm_system: SlurmSystem, archive: str
+) -> None:
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="complete-highlights",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="complete highlights",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs.model_validate(
+                {"docker_image_url": "fake://url/nccl", "ngpus": [1, 2], "label": ["001", "002"]}
+            ),
+            agent_steps=1,
+        ),
+        num_nodes=1,
+        nodes=["node1"],
+    )
+    assert list(case.param_space) == ["ngpus", "label"]
+    selected = case.apply_params_set({"ngpus": 2, "label": "001"})
+    selected.step = 1
+    iteration = slurm_system.output_path / case.name / "0"
+    selected.output_path = iteration / "1"
+    selected.output_path.mkdir(parents=True)
+    (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+    job = SlurmJobMetadata(
+        job_id=1,
+        name=case.name,
+        state="COMPLETED",
+        start_time="2026-01-01T00:00:00",
+        end_time="2026-01-01T00:01:00",
+        elapsed_time_sec=60,
+        exit_code="0:0",
+        srun_cmd="srun test",
+        test_cmd="test",
+        job_root=selected.output_path,
+        job_steps=[],
+    )
+    (selected.output_path / "slurm-job.toml").write_text(toml.dumps(job.model_dump(mode="json")))
+    (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+        toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+    )
+    history = Trajectory(iteration_dir=iteration)
+    action = {"ngpus": 2} if archive == "native_partial" else {"ngpus": 2, "label": "001"}
+    if archive in ("legacy_literal", "unversioned_opaque_literal"):
+        context = (
+            {"run_details": {"resolved_action": {"label": "001"}}} if archive == "unversioned_opaque_literal" else {}
+        )
+        history.append(step=1, action=action, reward=9, observation=[1.0], **context)
+    else:
+        history.record(
+            test_run=selected,
+            action_space={"ngpus": case.param_space["ngpus"]} if archive == "declared_incomplete" else case.param_space,
+            action=action,
+            reward=9,
+            observation={"default": 1.0},
+            system=slurm_system,
+            rewards=RewardOverrides(),
+            run_output=Run(
+                path=str(selected.output_path),
+                jobid="highlight",
+                status="completed",
+                step=1,
+                iteration=0,
+                metrics=[Metric(name="default", value=1.0, unit="unknown")],
+            ),
+        )
+    before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()}
+    original = history.records()[0]
+    original_action = original["action"]
+    original_metadata = original.metadata
+    summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [selected], [case])
+    assert len(summaries) == 1
+    actual = toml.loads(summaries[0].best_config_toml)["cmd_args"]
+    assert {name: actual[name] for name in case.param_space} == {"ngpus": 2, "label": "001"}
+    assert type(actual["label"]) is str
+    assert original["action"] == original_action == action
+    assert original.metadata == original_metadata
+    assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()} == before
+    assert [
+        (row.name, [(value.text, value.is_best) for value in row.values]) for row in summaries[0].parameter_rows
+    ] == [
+        ("ngpus", [("1", False), ("2", True)]),
+        ("label", [("001", True), ("002", False)]),
+    ]
