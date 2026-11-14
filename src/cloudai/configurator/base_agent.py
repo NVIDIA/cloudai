@@ -157,10 +157,12 @@ class BaseAgent(ABC):
             step, action = result
             logging.info("Proposal %s for step %s/%s: %s", step, self.env.progress + 1, self.max_steps, action)
             prev_observation = observation
-            observation, reward, done, *_ = self.env.step(action)
+            observation, reward, done, *details = self.env.step(action)
+            info = details[-1] if details and isinstance(details[-1], dict) else {}
 
             self.update_policy(
                 {
+                    **info.get("trajectory", {}),
                     "trial_index": step,
                     "value": reward,
                     "observation": observation,
