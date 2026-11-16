@@ -243,9 +243,9 @@ class CloudAIGymEnv(BaseGym):
         The runner's scenario is left as it is and a runner shutdown is never reset here: a
         cancelled sweep stops, and the proposals that were not recorded by then get no result.
 
-        A trial that cannot be prepared, and an error while checking the running trials, fail the
-        affected trials and the sweep goes on. Any other error (from the agent, from recording, a
-        job submission error, an interrupt) terminates the running trials and is raised.
+        A trial that cannot be prepared fails alone and the sweep goes on. Any other error (from
+        the agent, from checking the running trials, from recording, a job submission error, an
+        interrupt) shuts the runner down, which terminates the running trials, and is raised.
         """
         batch = _Batch(iter(proposals), max_steps)
         try:
@@ -257,7 +257,7 @@ class CloudAIGymEnv(BaseGym):
                 if still_running:
                     time.sleep(self.runner.monitor_interval)
         except BaseException:
-            self.runner.abandon_jobs()
+            self.runner.shutdown()
             raise
         if self.runner.shutting_down and batch.waiting:
             logging.info("DSE is cancelled; %s unfinished proposal(s) are not recorded.", len(batch.waiting))
@@ -350,23 +350,13 @@ class CloudAIGymEnv(BaseGym):
         Check the running trials once and record the ones that finished.
 
         Uses the runner's own polling without its scenario policy: a failed trial does not stop
-        the others. An error while checking fails the trials that are still running, whose jobs
-        are terminated, and the sweep goes on.
+        the others. An error while checking the jobs is not handled here.
         """
         running = {candidate.step: candidate for candidate in batch.waiting if candidate.needs_execution}
-        try:
-            for job, job_status in self.runner.poll_jobs():
-                running[job.test_run.step].job_status = job_status
-                if not job_status.is_successful:
-                    logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
-        except JobSubmissionError:
-            raise
-        except Exception as e:
-            steps = sorted(job.test_run.step for job in self.runner.jobs)
-            self.runner.abandon_jobs()
-            logging.error(f"Error while waiting for steps {steps}: {e}")
-            for step in steps:
-                running[step].job_status = JobStatusResult(is_successful=False, error_message=str(e))
+        for job, job_status in self.runner.poll_jobs():
+            running[job.test_run.step].job_status = job_status
+            if not job_status.is_successful:
+                logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
         self._record_finished(batch)
 
     def _record_finished(self, batch: _Batch) -> None:

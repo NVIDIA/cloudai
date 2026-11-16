@@ -29,7 +29,6 @@ from cloudai.handlers import handle_dse_job
 
 from .conftest import ProbeAgent
 from .probe import (
-    RESULT_FILE,
     ScriptedRunner,
     ScriptedSystem,
     dse_runner,
@@ -179,9 +178,7 @@ def test_trial_that_cannot_be_prepared_fails_alone(system: ScriptedSystem, caplo
     assert "Error running step 2: probe x=2 cannot be prepared" in caplog.text
 
 
-def test_error_while_waiting_fails_the_running_trials_and_the_sweep_goes_on(
-    system: ScriptedSystem, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_error_while_waiting_terminates_the_running_trials_and_aborts_the_sweep(system: ScriptedSystem) -> None:
     runner = scripted(system, x=[1, 2, 3, 4, 5], max_parallelism=3, durations={1: 1, 2: 4, 3: 4})
     failures: list[str] = []
 
@@ -192,43 +189,11 @@ def test_error_while_waiting_fails_the_running_trials_and_the_sweep_goes_on(
 
     system.on_pass(fail_once_the_first_trial_is_over)
 
-    assert handle_dse_job(runner) == 0
+    with pytest.raises(RuntimeError, match="scheduler query failed"):
+        handle_dse_job(runner)
 
-    assert system.events == [
-        ("submit", 1),
-        ("submit", 2),
-        ("submit", 3),
-        ("finish", 1),
-        ("kill", 2),
-        ("kill", 3),
-        ("submit", 4),
-        ("submit", 5),
-        ("finish", 4),
-        ("finish", 5),
-    ]
-    assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, -1.0), (3, 3, -1.0), (4, 4, 4.0), (5, 5, 5.0)]
-    assert "Error while waiting for steps [2, 3]: scheduler query failed" in caplog.text
-    assert not runner.runner.shutting_down
-    assert runner.runner.jobs == []
-
-
-def test_trial_terminated_after_a_polling_error_is_failed_whatever_it_reported(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2], max_parallelism=2, durations={2: 4})
-    failures: list[str] = []
-
-    def fail_once_the_first_trial_is_over() -> None:
-        if ("finish", 1) in system.events and not failures:
-            failures.append("scheduler query failed")
-            (env.runner.scenario_root / "probe" / "0" / "2" / RESULT_FILE).write_text("2")
-            raise RuntimeError(failures[0])
-
-    system.on_pass(fail_once_the_first_trial_is_over)
-
-    results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2)], start=1))
-
-    assert [result["status"] for result in results] == ["completed", "failed"]
-    assert [result["value"] for result in results] == [1.0, 2.0]
-    assert system.events == [("submit", 1), ("submit", 2), ("finish", 1), ("kill", 2)]
+    assert system.events == [("submit", 1), ("submit", 2), ("submit", 3), ("finish", 1), ("kill", 2), ("kill", 3)]
+    assert runner.runner.shutting_down
 
 
 def test_trial_keeps_running_when_its_submission_fails_after_the_job_started(system: ScriptedSystem) -> None:
@@ -268,7 +233,7 @@ def test_interrupt_terminates_the_running_trials(system: ScriptedSystem) -> None
         env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
 
     assert system.events == [("submit", 1), ("submit", 2), ("kill", 1), ("kill", 2)]
-    assert env.runner.jobs == []
+    assert env.runner.shutting_down
 
 
 def test_error_in_the_agent_terminates_the_running_trials(system: ScriptedSystem) -> None:
@@ -283,7 +248,7 @@ def test_error_in_the_agent_terminates_the_running_trials(system: ScriptedSystem
         env.evaluate_batch(proposals())
 
     assert system.events == [("submit", 1), ("submit", 2), ("finish", 1), ("kill", 2)]
-    assert env.runner.jobs == []
+    assert env.runner.shutting_down
     assert list(env.trajectory.dataframe["step"]) == [1]
 
 
@@ -645,9 +610,9 @@ def test_submission_error_terminates_the_running_trials_and_aborts_the_sweep(sys
 
     assert system.events == [("submit", 1), ("submit", 2), ("kill", 1), ("kill", 2)]
     assert read_trajectory(runner) == []
-    assert runner.runner.jobs == []
+    assert runner.runner.shutting_down
     runner.runner.finish_output(successful=False)
-    assert runner.runner.experiment_output.experiment.status == "failed"
+    assert runner.runner.experiment_output.experiment.status == "cancelled"
 
 
 def test_pin_nodes_cannot_be_combined_with_parallel_trials(
