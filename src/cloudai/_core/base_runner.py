@@ -215,33 +215,39 @@ class BaseRunner(ABC):
         Check every tracked job once and yield the ones that finished, with their status.
 
         Each job is asked for completion once per call. Its running state is asked only while
-        somebody still waits for it: the run is published as pending, or tests with a
+        somebody still waits for it: its run is published as pending, or tests with a
         ``start_post_init`` dependency on it are not submitted yet.
 
         A finished job gets its completion callback and final output update and is no longer
         tracked. What it means for the rest of the run is up to the caller, whose handling of one
         job runs before the next job is checked.
         """
-        output_changed = False
+        experiment_output_changed = False
         try:
             for job in list(self.jobs):
-                tr = job.test_run
                 is_completed = self.mode == "dry-run" or self.system.is_job_completed(job)
-                pending_run = self._pending_run_output(tr)
-                waits_for_start = pending_run is not None or self._has_start_post_init_dependents(tr)
-                is_started = is_completed or (waits_for_start and self.system.is_job_running(job))
-                logging.debug(f"Job {job.id} for test {tr.name} ({is_started=}, {is_completed=}, {self.mode=})")
+                job_output = (
+                    self.experiment_output.find_run(str(job.test_run.name), str(job.test_run.output_path.absolute()))
+                    if self.mode == "run"
+                    else None
+                )
+                is_output_pending = job_output is not None and job_output.status == "pending"
+                is_waiting_for_start = is_output_pending or self._has_start_post_init_dependents(job.test_run)
+                is_started = is_completed or (is_waiting_for_start and self.system.is_job_running(job))
+                logging.debug(
+                    f"Job {job.id} for test {job.test_run.name} ({is_started=}, {is_completed=}, {self.mode=})"
+                )
 
                 if is_started:
-                    self.check_and_schedule_start_post_init_dependent_tests(tr)
-                if is_started and not is_completed and pending_run is not None:
-                    pending_run.status = "running"
-                    self.experiment_output.update_run(str(tr.name), pending_run)
-                    output_changed = True
+                    self.check_and_schedule_start_post_init_dependent_tests(job.test_run)
+                if is_started and not is_completed and job_output is not None and is_output_pending:
+                    job_output.status = "running"
+                    self.experiment_output.update_run(str(job.test_run.name), job_output)
+                    experiment_output_changed = True
                 if is_completed:
                     yield job, self._complete_job(job)
         finally:
-            if output_changed:
+            if experiment_output_changed:
                 self.experiment_output.write()
 
     def _complete_job(self, job: BaseJob) -> JobStatusResult:
@@ -253,17 +259,6 @@ class BaseRunner(ABC):
         self.jobs.remove(job)
         del self.testrun_to_job_map[job.test_run]
         return result
-
-    def _pending_run_output(self, tr: TestRun) -> cloudai.models.output.Run | None:
-        """Return the published run of this test run while it is still pending."""
-        if self.mode != "run":
-            return None
-        path = str(tr.output_path.absolute())
-        for test in self.experiment_output.experiment.tests:
-            if test.id != str(tr.name):
-                continue
-            return next((run for run in test.runs if run.path == path and run.status == "pending"), None)
-        return None
 
     def _has_start_post_init_dependents(self, started_test_run: TestRun) -> bool:
         """Whether a test not submitted yet waits for this test run to start."""
