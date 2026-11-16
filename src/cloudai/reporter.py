@@ -277,6 +277,7 @@ class DSEReporter(Reporter):
                 continue
 
             _, df = loaded_trajectory
+            df = df.sort_values("step")  # rows are in completion order; equal rewards go to the earliest step
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():

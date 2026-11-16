@@ -265,6 +265,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     inner_runner.test_scenario = TestScenario(name="test_scenario", test_runs=[base_tr])
     inner_runner.jobs = {}
     inner_runner.testrun_to_job_map = {}
+    inner_runner.shutting_down = False
 
     def _job_output_path(tr: TestRun, create: bool = True):
         output_path = inner_runner.scenario_root / tr.name / f"{tr.current_iteration}" / f"{tr.step}"
@@ -291,7 +292,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     )
     reporter.load_test_runs()
 
-    assert inner_runner.run.call_count == 2
+    assert [call.args[0].step for call in inner_runner.submit_test.call_args_list] == [1, 3]
     assert (trajectory_dir / "1").exists()
     assert not (trajectory_dir / "2").exists()
     assert (trajectory_dir / "3").exists()
