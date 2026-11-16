@@ -131,13 +131,7 @@ class BaseRunner(ABC):
         self.shutting_down = True
         logging.info("Terminating all jobs...")
         self._kill_jobs()
-        logging.info("Waiting for all jobs to be killed.")
-
-    def abandon_jobs(self) -> None:
-        """Terminate all outstanding jobs and stop tracking them, for a caller that gives up on them after an error."""
-        self._kill_jobs()
-        self.jobs.clear()
-        self.testrun_to_job_map.clear()
+        logging.info("Termination requested; the jobs stay tracked until they are reported finished.")
 
     def _kill_jobs(self) -> None:
         for job in list(self.jobs):
@@ -163,7 +157,7 @@ class BaseRunner(ABC):
                 logging.debug(f"sleeping for {self.monitor_interval} seconds")
                 time.sleep(self.monitor_interval)
         except JobSubmissionError:
-            self.abandon_jobs()
+            self.shutdown()
             raise
 
     def submit_test(self, tr: TestRun):

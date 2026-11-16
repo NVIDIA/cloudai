@@ -375,9 +375,7 @@ class TestSubmitAndShutdown:
             runner.run()
 
         assert [call.args[0].test_run for call in kill.call_args_list] == [tr_main]
-        assert runner.jobs == []
-        assert runner.testrun_to_job_map == {}
-        assert not runner.shutting_down
+        assert runner.shutting_down
 
     def test_nothing_is_started_after_shutdown(self, runner: MyRunner, tr_main: TestRun):
         runner.shutdown()
