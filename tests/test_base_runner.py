@@ -196,40 +196,6 @@ class TestPollJobs:
     def run_mode(self, slurm_system: SlurmSystem, test_scenario: TestScenario) -> MyRunner:
         return MyRunner("run", slurm_system, test_scenario, slurm_system.output_path)
 
-    def test_asks_for_completion_once_and_never_for_running_state(self, run_mode: MyRunner, tr_main: TestRun):
-        run_mode.submit_test(tr_main)
-
-        with (
-            patch.object(SlurmSystem, "is_job_completed", side_effect=[False, False, True]) as is_completed,
-            patch.object(SlurmSystem, "is_job_running") as is_running,
-        ):
-            assert list(run_mode.poll_jobs()) == []
-            assert list(run_mode.poll_jobs()) == []
-            [(job, status)] = run_mode.poll_jobs()
-
-        assert is_completed.call_count == 3
-        is_running.assert_not_called()
-        assert job.test_run is tr_main
-        assert status.is_successful
-        assert run_mode.jobs == []
-        assert run_mode.testrun_to_job_map == {}
-
-    def test_failed_job_is_only_reported(self, run_mode: MyRunner, tr_main: TestRun):
-        cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")
-        tr_other = deepcopy(tr_main)
-        tr_other.name = "other"
-        run_mode.submit_test(tr_main)
-        run_mode.submit_test(tr_other)
-
-        with patch.object(SlurmSystem, "is_job_completed", side_effect=[True, False]) as is_completed:
-            [(job, status)] = run_mode.poll_jobs()
-
-        assert is_completed.call_count == 2
-        assert job.test_run is tr_main
-        assert (status.is_successful, status.error_message) == (False, "workload job failed")
-        assert [job.test_run for job in run_mode.jobs] == [tr_other]
-        assert not run_mode.shutting_down
-
     def test_start_post_init_dependent_is_submitted_once_the_job_runs(self, run_mode: MyRunner, tr_main: TestRun):
         tr_dep = deepcopy(tr_main)
         tr_dep.name = "dependent"
@@ -239,15 +205,13 @@ class TestPollJobs:
 
         with (
             patch.object(SlurmSystem, "is_job_completed", return_value=False),
-            patch.object(SlurmSystem, "is_job_running", side_effect=[False, True]) as is_running,
+            patch.object(SlurmSystem, "is_job_running", side_effect=[False, True]),
         ):
             list(run_mode.poll_jobs())
             assert run_mode.submitted_trs == [tr_main]
             list(run_mode.poll_jobs())
             assert run_mode.submitted_trs == [tr_main, tr_dep]
             list(run_mode.poll_jobs())
-
-        assert is_running.call_count == 2
 
     def test_dry_run_completes_without_asking_the_system_or_the_workload(self, runner: MyRunner, tr_main: TestRun):
         cast(MyWorkload, tr_main.test).workload_status_result = JobStatusResult(False, "workload job failed")

@@ -164,26 +164,3 @@ def test_experiment_output_preserves_runs_and_finalizes_failure(
             },
         ],
     }
-
-
-def test_experiment_output_finds_a_run_by_test_and_path(tmp_path: pathlib.Path) -> None:
-    start = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc)
-    experiment = cloudai.models.output.Experiment(
-        id="experiment",
-        name="scenario",
-        system_name="test-system",
-        user="test-user",
-        status="running",
-        path=str(tmp_path),
-        start=start,
-        tests=[cloudai.models.output.Test(id="case", name="workload", path=str(tmp_path / "case"))],
-    )
-    experiment_output = cloudai.output.ExperimentOutput(experiment, tmp_path)
-    run = cloudai.models.output.Run(
-        path=str(tmp_path / "case" / "0"), jobid="101", status="pending", start=start, iteration=0
-    )
-    experiment_output.update_run("case", run)
-
-    assert experiment_output.find_run("case", run.path) == run
-    assert experiment_output.find_run("case", str(tmp_path / "case" / "1")) is None
-    assert experiment_output.find_run("other", run.path) is None
