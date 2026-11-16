@@ -76,6 +76,9 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         )
     except cloudai.handlers.InstallationError:
         return 1
+    except cloudai.core.JobSubmissionError as exc:
+        logging.error(str(exc))
+        return 1
 
     if args.single_sbatch or not any(tr.is_dse_job for tr in scenario.test_runs):
         return 0

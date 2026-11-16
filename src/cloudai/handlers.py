@@ -33,6 +33,7 @@ from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    JobSubmissionError,
     MissingTestError,
     Parser,
     Registry,
@@ -168,6 +169,8 @@ def handle_dse_job(runner: Runner) -> int:
                 err |= agent.run()
             finally:
                 env.update_output()
+    except JobSubmissionError:
+        raise
     except Exception as exc:
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
         _record_run_failure(runner.runner.scenario_root, exc)
