@@ -130,16 +130,13 @@ class BaseRunner(ABC):
         """
         self.shutting_down = True
         logging.info("Terminating all jobs...")
-        self._kill_jobs()
-        logging.info("Termination requested; the jobs stay tracked until they are reported finished.")
-
-    def _kill_jobs(self) -> None:
         for job in list(self.jobs):
             logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
             try:
                 self.system.kill(job)
             except Exception:
                 logging.exception(f"Failed to terminate job {job.id} for test {job.test_run.name}")
+        logging.info("Termination requested; the jobs stay tracked until they are reported finished.")
 
     def run(self):
         """Run the test scenario."""
