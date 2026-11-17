@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -27,7 +28,15 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseAgentConfig, BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
+from cloudai.core import (
+    BaseAgentConfig,
+    BaseRunner,
+    RewardOverrides,
+    Runner,
+    System,
+    TestRun,
+    TestScenario,
+)
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -232,6 +241,7 @@ def test_constraint_failure(
     rewards: RewardOverrides,
     expected_reward: float,
     monkeypatch: pytest.MonkeyPatch,
+    slurm_system: SlurmSystem,
 ):
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
@@ -245,7 +255,7 @@ def test_constraint_failure(
     )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -347,7 +357,17 @@ def test_cache_hit_resets_rejection_limit(
     env = CloudAIGymEnv(test_run, runner, rewards=RewardOverrides(), max_consecutive_rejected_proposals=2)
     actions = GridSearchAgent(env, GridSearchAgent.get_config_class()()).get_all_combinations()
     cached_action = actions[0]
-    env.trajectory.append(step=1, action=cached_action, reward=1.0, observation={"default": 1.0})
+    cached_run = env.original_test_run.apply_params_set(cached_action)
+    cached_run.step = 1
+    env.trajectory.record(
+        test_run=cached_run,
+        action_space=env.original_test_run.param_space,
+        action=cached_action,
+        reward=1.0,
+        observation={"default": 1.0},
+        system=env.runner.system,
+        rewards=env.rewards,
+    )
     monkeypatch.setattr(type(test_run.test), "constraint_check", lambda self, tr, system: False)
 
     env.step(actions[1])
@@ -519,6 +539,17 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
     assert upd_tdef.docker_image.installed_path == tmp_path
 
 
+@pytest.fixture
+def seed_trajectory(monkeypatch: pytest.MonkeyPatch) -> Callable[[pd.DataFrame], None]:
+    def seed(dataframe: pd.DataFrame) -> None:
+        def create(*, iteration_dir: Path) -> Trajectory:
+            return Trajectory(iteration_dir=iteration_dir, dataframe=dataframe)
+
+        monkeypatch.setattr("cloudai.configurator.cloudai_gym.Trajectory", create)
+
+    return seed
+
+
 @pytest.mark.parametrize(
     ("entries", "action", "expected_step"),
     [
@@ -541,22 +572,42 @@ def test_get_cached_trajectory_result(
     entries: list[dict[str, object]],
     action: dict[str, object],
     expected_step: int | None,
+    seed_trajectory: Callable[[pd.DataFrame], None],
+    slurm_system: SlurmSystem,
 ) -> None:
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = MagicMock(test_runs=[])
     runner.jobs = {}
     runner.testrun_to_job_map = {}
     runner.get_job_output_path.return_value = tmp_path / "scenario" / base_tr.name / "0" / "7"
 
+    seed = Trajectory(iteration_dir=tmp_path / "seed")
+    for entry in entries:
+        cached_action = {
+            key.removeprefix("action."): value for key, value in entry.items() if key.startswith("action.")
+        }
+        cached_run = base_tr.apply_params_set(cached_action)
+        cached_step = entry["step"]
+        assert isinstance(cached_step, int)
+        cached_run.step = cached_step
+        seed.record(
+            test_run=cached_run,
+            system=slurm_system,
+            action_space=base_tr.param_space,
+            action=cached_action,
+            reward=entry["reward"],
+            observation={"default": entry["observation.default"]},
+            rewards=RewardOverrides(),
+        )
+    seed_trajectory(seed.dataframe)
     env = CloudAIGymEnv(
         test_run=base_tr,
         runner=runner,
         rewards=RewardOverrides(),
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
-    env.trajectory = Trajectory(iteration_dir=env.iteration_dir, dataframe=pd.DataFrame(entries, dtype=object))
 
     actual = env.get_cached_trajectory_result(action, {})
     if actual is None:
@@ -565,7 +616,9 @@ def test_get_cached_trajectory_result(
         assert actual["step"] == expected_step
 
 
-def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, tmp_path: Path) -> None:
+def test_cached_step_appends_trajectory_record(
+    nemorun: NeMoRunTestDefinition, tmp_path: Path, slurm_system: SlurmSystem
+) -> None:
     """Cache hits must still append a record so the visible step list matches agent_steps."""
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.data.global_batch_size = 8
@@ -581,8 +634,15 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -591,7 +651,17 @@ def test_cached_step_appends_trajectory_record(nemorun: NeMoRunTestDefinition, t
     )
     cached_action = {"trainer.max_steps": 1000}
     env.test_run.current_iteration = 0
-    env.trajectory.append(step=1, action=cached_action, reward=0.42, observation={"default": 0.84})
+    cached_run = env.original_test_run.apply_params_set(cached_action)
+    cached_run.step = 1
+    env.trajectory.record(
+        test_run=cached_run,
+        action_space=env.original_test_run.param_space,
+        action=cached_action,
+        reward=0.42,
+        observation={"default": 0.84},
+        system=env.runner.system,
+        rewards=env.rewards,
+    )
 
     obs, reward, done, _info = env.step(cached_action)
 
@@ -621,18 +691,20 @@ def _seed_cached_entry_with_env_params(
     env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
 ) -> None:
     """Seed an environment-parameter-aware trajectory with one entry."""
-    trajectory = Trajectory(iteration_dir=env.iteration_dir)
-    trajectory.append(
-        step=1,
+    cached = env.original_test_run.apply_params_set(action, env_params=env_params)
+    cached.step = 1
+    env.trajectory.record(
+        test_run=cached,
+        system=env.runner.system,
+        action_space=env.original_test_run.param_space,
         action=action,
         reward=0.5,
         observation={"default": 100.0},
-        env_params=dict(env_params),
+        rewards=env.rewards,
     )
-    env.trajectory = trajectory
 
 
-def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> None:
+def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path, slurm_system: SlurmSystem) -> None:
     """Cache MUST miss when env_params differ, even if action is identical.
 
     Without this property the agent receives stale rewards on every cache hit
@@ -641,7 +713,7 @@ def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> 
     """
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = MagicMock(test_runs=[])
     runner.jobs = {}
     runner.testrun_to_job_map = {}
@@ -661,11 +733,13 @@ def test_cache_miss_when_env_params_differ(base_tr: TestRun, tmp_path: Path) -> 
     )
 
 
-def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: Path) -> None:
+def test_cache_hit_when_action_and_env_params_match(
+    base_tr: TestRun, tmp_path: Path, slurm_system: SlurmSystem
+) -> None:
     """Same action AND same env_params must still HIT the cache."""
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = MagicMock(test_runs=[])
     runner.jobs = {}
     runner.testrun_to_job_map = {}
@@ -683,15 +757,30 @@ def test_cache_hit_when_action_and_env_params_match(base_tr: TestRun, tmp_path: 
     assert result.step == 1
 
 
-def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path) -> None:
+def test_cache_hit_when_neither_has_env_params(
+    base_tr: TestRun, tmp_path: Path, seed_trajectory: Callable[[pd.DataFrame], None], slurm_system: SlurmSystem
+) -> None:
     """Workloads without env_params behave exactly as today (back-compat)."""
     runner = MagicMock()
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = MagicMock(test_runs=[])
     runner.jobs = {}
     runner.testrun_to_job_map = {}
 
+    seed = Trajectory(iteration_dir=tmp_path / "seed")
+    cached_run = base_tr.apply_params_set({"x": 10})
+    cached_run.step = 1
+    seed.record(
+        test_run=cached_run,
+        system=slurm_system,
+        action_space=base_tr.param_space,
+        action={"x": 10},
+        reward=0.5,
+        observation={"default": 100.0},
+        rewards=RewardOverrides(),
+    )
+    seed_trajectory(seed.dataframe)
     env = CloudAIGymEnv(
         test_run=base_tr,
         runner=runner,
@@ -699,10 +788,6 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
     env.test_run.current_iteration = 0
-    env.trajectory = Trajectory(
-        iteration_dir=env.iteration_dir,
-        dataframe=pd.DataFrame([_trajectory_row(1, {"x": 10}, 0.5, [100.0])], dtype=object),
-    )
     # Note: neither the cached entry nor the trial carries env_params -> existing behavior.
 
     result = env.get_cached_trajectory_result({"x": 10}, {})
@@ -710,7 +795,7 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     assert result.step == 1
 
 
-def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
+def test_step_reruns_workload_when_env_params_change(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     """Integration: two env.step() calls with the same action but different sampled env_params re-run.
 
     Counterpart to test_cache_miss_when_env_params_differ but exercising the
@@ -739,13 +824,20 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = test_scenario
     runner.jobs = {}
     runner.testrun_to_job_map = {}
     runner.shutting_down = False
     runner.get_job_output_path.return_value = test_run.output_path
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -755,7 +847,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     action = {"paddle_width": 4}
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}])
 
-    with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
+    with patch.object(env, "get_observation", side_effect=lambda *, failed_metrics=None: next(fake_obs)):
         *_, info1 = env.step(action)  # samples ball_speed=3
         *_, info2 = env.step(action)  # samples ball_speed=1
 
@@ -768,7 +860,7 @@ def test_step_reruns_workload_when_env_params_change(tmp_path: Path) -> None:
     )
 
 
-def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
+def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     """Every recorded trial includes its sampled environment in trajectory metadata."""
     tdef = EnvVarTestDefinition(
         name="dr",
@@ -791,11 +883,18 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = test_scenario
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -805,19 +904,20 @@ def test_env_params_are_recorded_in_trajectory_metadata(tmp_path: Path) -> None:
     action_a, action_b = {"paddle_width": 4}, {"paddle_width": 8}
     fake_obs = iter([{"default": 100.0}, {"default": 50.0}, {"default": 25.0}])
 
-    with patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)):
+    with patch.object(env, "get_observation", side_effect=lambda *, failed_metrics=None: next(fake_obs)):
         for action in (action_a, action_b, action_a):
             env.step(action)
 
     trajectory = pd.read_csv(env.trajectory_file_path)
     metadata = pd.read_csv(env.trajectory.metadata_path)
     assert list(trajectory.columns) == ["step", "action", "reward", "observation"]
-    assert list(metadata.columns) == ["step", "env_params.ball_speed"]
+    assert "record_format_version" in metadata.columns
     assert trajectory["step"].tolist() == metadata["step"].tolist() == [1, 2, 3]
-    assert metadata["env_params.ball_speed"].notna().all()
+    loaded = Trajectory.load(env.iteration_dir).records()
+    assert all(record.get("env_params", decode_numbers=True)["ball_speed"] in [1, 2, 3] for record in loaded)
 
 
-def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) -> None:
+def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     """A constraint failure records no trajectory components."""
     tdef = EnvVarTestDefinition(
         name="dr",
@@ -840,11 +940,18 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
 
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = test_scenario
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -857,7 +964,7 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
     fake_obs = iter([{"default": 100.0}, {"default": 25.0}])
     with (
         patch.object(EnvVarTestDefinition, "constraint_check", side_effect=[True, False, True]),
-        patch.object(env, "get_observation", side_effect=lambda: next(fake_obs)),
+        patch.object(env, "get_observation", side_effect=lambda *, failed_metrics=None: next(fake_obs)),
     ):
         for action in ({"paddle_width": 4}, {"paddle_width": 6}, {"paddle_width": 8}):
             env.step(action)
@@ -877,7 +984,9 @@ def test_constraint_failure_omits_the_complete_trajectory_row(tmp_path: Path) ->
     assert traj_steps == metadata_steps == [1, 2]
 
 
-def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(tmp_path: Path) -> None:
+def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row(
+    tmp_path: Path, slurm_system: SlurmSystem
+) -> None:
     """End-to-end: a cache hit records its environment in the trajectory output.
 
     A cache hit still appends a complete row even though workload execution is
@@ -905,11 +1014,18 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     test_run.step = 1
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = TestScenario(name="dr_scenario", test_runs=[test_run])
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -921,12 +1037,16 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     expected_sample = {"ball_speed": _random.Random("42:ball_speed:2").choice([1, 2, 3])}  # noqa: S311, RUF100
     action = {"paddle_width": 4}
     env.test_run.current_iteration = 0
-    env.trajectory.append(
-        step=1,
+    cached_run = env.original_test_run.apply_params_set(action, env_params=expected_sample)
+    cached_run.step = 1
+    env.trajectory.record(
+        test_run=cached_run,
+        action_space=env.original_test_run.param_space,
         action=action,
         reward=0.42,
         observation={"default": 0.84},
-        env_params=expected_sample,
+        system=env.runner.system,
+        rewards=env.rewards,
     )
     with patch.object(env, "get_observation", side_effect=AssertionError("cache miss path must not run")):
         obs, reward, _done, info = env.step(action)
@@ -943,15 +1063,13 @@ def test_step_cache_hit_with_declared_env_params_records_complete_trajectory_row
     metadata = pd.read_csv(env.trajectory.metadata_path)
     assert list(trajectory.columns) == ["step", "action", "reward", "observation"]
     assert trajectory.iloc[-1]["step"] == 2
-    assert metadata.iloc[-1]["env_params.ball_speed"] == expected_sample["ball_speed"]
-
-    traj_rows = env.trajectory.dataframe
-    assert len(traj_rows) == 2 and traj_rows.iloc[-1]["env_params.ball_speed"] == expected_sample["ball_speed"], (
-        "cache-hit trajectory entry must record the per-trial env_params sample"
-    )
+    assert metadata.iloc[-1]["step"] == 2
+    records = Trajectory.load(env.iteration_dir).records()
+    assert len(records) == 2
+    assert records[-1].get("env_params", decode_numbers=True)["ball_speed"] == expected_sample["ball_speed"]
 
 
-def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
+def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path, slurm_system: SlurmSystem) -> None:
     """The per-trial env_params sample must be overlaid onto cmd_args before the workload runs.
 
     env_params are the env-side twin of the action: core overlays the sampled values onto
@@ -981,11 +1099,18 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
     runner.test_scenario = TestScenario(name="overlay_scenario", test_runs=[test_run])
     runner.jobs, runner.testrun_to_job_map, runner.shutting_down = {}, {}, False
     runner.get_job_output_path.return_value = test_run.output_path
 
+    from cloudai.models.output import Experiment
+    from cloudai.output import ExperimentOutput
+
+    runner.experiment_output = ExperimentOutput(
+        Experiment(id="fixture", name="fixture", system_name=slurm_system.name, path=str(runner.scenario_root)),
+        runner.scenario_root,
+    )
     env = CloudAIGymEnv(
         test_run=test_run,
         runner=runner,
@@ -994,7 +1119,7 @@ def test_step_overlays_env_params_onto_cmd_args(tmp_path: Path) -> None:
     )
     expected = _random.Random("42:ball_speed:1").choice([1, 2])
 
-    with patch.object(env, "get_observation", side_effect=lambda: {"default": 1.0}):
+    with patch.object(env, "get_observation", side_effect=lambda *, failed_metrics=None: {"default": 1.0}):
         env.step({"paddle_width": 4})
 
     ran_cmd_args = runner.test_scenario.test_runs[0].test.cmd_args
@@ -1026,7 +1151,7 @@ def test_param_space_excludes_env_params_keys(setup_env: tuple[TestRun, BaseRunn
 
 
 def test_csv_trajectory_has_no_env_params_column_when_not_declared(
-    nemorun: NeMoRunTestDefinition, tmp_path: Path
+    nemorun: NeMoRunTestDefinition, tmp_path: Path, slurm_system: SlurmSystem
 ) -> None:
     """Workloads without env_params retain the base trajectory schema."""
     tdef = nemorun.model_copy(deep=True)
@@ -1041,7 +1166,7 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
     )
     runner = MagicMock(spec=BaseRunner)
     runner.scenario_root = tmp_path / "scenario"
-    runner.system = MagicMock()
+    runner.system = slurm_system
 
     env = CloudAIGymEnv(
         test_run=test_run,
@@ -1053,7 +1178,8 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
     assert env.params is None, "no env_params declared -> no EnvParams object"
     env.trajectory.append(step=1, action={}, reward=1.0, observation={"default": 1.0})
     assert env.trajectory_file_path.read_text().splitlines()[0] == "step,action,reward,observation"
-    assert not env.trajectory.metadata_path.exists()
+    assert env.trajectory.metadata_path.read_text().splitlines() == ["step", "1"]
+    assert Trajectory.load(env.iteration_dir).records()[0].metadata == {}
 
 
 def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEnv:

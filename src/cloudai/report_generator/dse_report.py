@@ -16,19 +16,18 @@
 
 from __future__ import annotations
 
-import ast
-import contextlib
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import toml
 
+from cloudai.configurator import Trajectory, TrajectoryRecord
 from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
-from cloudai.util.lazy_imports import lazy
 
 from .util import load_system_metadata
 
@@ -119,21 +118,6 @@ def format_money(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"${value:,.2f}"
-
-
-def _safe_literal_eval(raw: Any, default: Any) -> Any:
-    if isinstance(raw, str):
-        with contextlib.suppress(SyntaxError, ValueError):
-            return ast.literal_eval(raw)
-    return default
-
-
-def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
-    """Load a trajectory CSV as a DataFrame."""
-    trajectory_file = iteration_dir / "trajectory.csv"
-    if not trajectory_file.is_file():
-        return None
-    return trajectory_file, lazy.pd.read_csv(trajectory_file)
 
 
 def _format_scalar(value: Any) -> str:
@@ -246,36 +230,37 @@ def _build_trajectory_steps(
     iteration_dir: Path,
     test_case: TestRun,
     test_runs: list[TestRun],
+    records: tuple[TrajectoryRecord, ...],
 ) -> list[TrajectoryStep] | None:
-    loaded_trajectory = load_trajectory_dataframe(iteration_dir)
-    if loaded_trajectory is None:
-        logging.warning(f"No trajectory file found for {test_case.name} in {iteration_dir}")
-        return None
-
-    trajectory_file, df = loaded_trajectory
-    if df.empty:
-        logging.warning(f"No trajectory data found for {test_case.name} at {trajectory_file}")
+    if not records:
+        logging.warning(f"No trajectory data found for {test_case.name} at {iteration_dir}")
         return None
 
     runs_by_step = {test_run.step: test_run for test_run in test_runs}
     steps: list[TrajectoryStep] = []
-    for row in df.to_dict(orient="records"):
-        step_no = int(row["step"])
-        action = _safe_literal_eval(row.get("action"), {})
+    for record in records:
+        step_no = record.step
+        action = record["action"]
+        resolved_action = record.get("run_details", {}, decode_numbers=True).get("resolved_action")
+        if isinstance(resolved_action, dict) and test_case.param_space.keys() <= resolved_action.keys():
+            action = {key: resolved_action[key] for key in test_case.param_space}
         if not isinstance(action, dict):
             action = {}
-        observation = _safe_literal_eval(row.get("observation"), [])
-        if not isinstance(observation, list):
-            observation = [observation]
+
         step_run = runs_by_step.get(step_no)
         steps.append(
             TrajectoryStep(
                 step=step_no,
-                reward=float(row["reward"]),
-                observation_text=", ".join(_format_scalar(value) for value in observation) if observation else "n/a",
+                reward=float(record["reward"]),
+                observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),
-                is_successful=step_run.test.was_run_successful(step_run).is_successful if step_run else False,
+                is_successful=(
+                    step_run.test.was_run_successful(step_run).is_successful
+                    and not record.ineligibility_reasons("measurement")
+                    if step_run
+                    else False
+                ),
             )
         )
 
@@ -294,7 +279,9 @@ def _build_iteration_summary(
     iteration_dir: Path,
     test_runs: list[TestRun],
 ) -> DSECaseIterationSummary | None:
-    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs)
+    trajectory = Trajectory.load(iteration_dir, missing_ok=True, recovery="recorded")
+    records = trajectory.records()
+    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs, records)
     if not trajectory_steps:
         return None
 
@@ -308,7 +295,11 @@ def _build_iteration_summary(
         return None
 
     with best_step_dump.open() as f:
-        test_run_details = TestRunDetails.model_validate(toml.load(f))
+        raw_dump = toml.load(f)
+        best_record = next(record for record in records if record.step == best_step.step)
+        test_run_details = TestRunDetails.model_validate(
+            raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+        )
 
     elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
     if not elapsed_times:
@@ -341,7 +332,7 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
+        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump(exclude_unset=True)),
         parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )

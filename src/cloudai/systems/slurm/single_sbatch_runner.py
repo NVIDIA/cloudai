@@ -238,6 +238,12 @@ class SingleSbatchRunner(SlurmRunner):
                 max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
             )
 
+            recorded_runs = {
+                (Path(run.path).absolute(), run.iteration, run.step): run
+                for test in self.experiment_output.experiment.tests
+                if test.id == tr.name
+                for run in test.runs
+            }
             try:
                 for idx, combination in enumerate(tr.all_combinations, start=1):
                     sampled_env_params = gym.params.sample(idx) if gym.params is not None else {}
@@ -249,14 +255,21 @@ class SingleSbatchRunner(SlurmRunner):
                         continue
 
                     gym.test_run = next_tr
-                    observation = gym.get_observation()
+                    failed_metrics: list[str] = []
+                    observation = gym.get_observation(failed_metrics=failed_metrics)
                     reward = gym.compute_reward(observation)
-                    gym.trajectory.append(
-                        step=idx,
+                    gym.trajectory.record(
+                        test_run=next_tr,
+                        action_space=tr.param_space,
+                        system=self.system,
+                        rewards=gym.rewards,
+                        failed_metrics=failed_metrics,
+                        run_output=recorded_runs.get(
+                            (next_tr.output_path.absolute(), next_tr.current_iteration, next_tr.step)
+                        ),
                         action=combination,
                         reward=reward,
                         observation=observation,
-                        env_params=sampled_env_params,
                     )
             finally:
                 gym.update_output()
