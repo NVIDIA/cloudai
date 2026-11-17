@@ -1599,6 +1599,81 @@ def test_explicit_adoption_rejects_invalid_legacy_pair_before_creating_a_marker(
     assert not (tmp_path / ".trajectory.commit.json").exists()
 
 
+@pytest.mark.parametrize("inline_column", ["note", "env_params.foo"])
+@pytest.mark.parametrize("with_metadata", [False, True])
+def test_readable_inline_columns_cannot_be_adopted_for_writing(
+    tmp_path: Path, inline_column: str, with_metadata: bool
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    core.write_text(f"step,action,reward,observation,{inline_column}\n1,{{}},1,[],old\n")
+    if with_metadata:
+        (tmp_path / "metadata.csv").write_text("step,env_params.sidecar\n1,retained\n")
+    paths = (core, tmp_path / "metadata.csv", tmp_path / ".trajectory.commit.json")
+    before = {path.name: path.read_bytes() if path.exists() else None for path in paths}
+    loaded = Trajectory.load(tmp_path)
+    assert loaded.dataframe.loc[0, inline_column] == "old"
+    with pytest.raises(RuntimeError, match="read-only"):
+        loaded.append(step=2, action={}, reward=2, observation=[])
+
+    for _ in range(2):
+        with pytest.raises(TrajectoryLoadError, match="writ") as failure:
+            Trajectory(iteration_dir=tmp_path, mode="adopt")
+        assert str(core) in str(failure.value) and inline_column in str(failure.value)
+        assert {path.name: path.read_bytes() if path.exists() else None for path in paths} == before
+        assert Trajectory.load(tmp_path).dataframe.loc[0, inline_column] == "old"
+
+
+@pytest.mark.parametrize(
+    "inline_column,history_id,core_digest,metadata_digest",
+    [
+        (
+            "note",
+            "cfe58403-ff40-4ec3-a7cc-696214414fe7",
+            "518b072315a7d978200f2d330cce6bf0eaa3cb0b3edfad210c964fd29b07eef7",
+            "e0d2afb5eb392f48233918d897c038d61c4fd180680da8aed997cc457b5dd52f",
+        ),
+        (
+            "env_params.foo",
+            "8ac2dc2e-01cb-49cf-b5f0-cd30fcc181da",
+            "bab28f33aa5dd7029b3689e62eef92c402bc473c9807570862d6e4ce1efec1c1",
+            "00f2b04214b5cf39120ba94b7033d9f1e70681607973053ac1c708f7e3a4f810",
+        ),
+    ],
+)
+def test_old_inline_managed_history_refuses_resume_before_recovering_tails(
+    tmp_path: Path, inline_column: str, history_id: str, core_digest: str, metadata_digest: str
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    core.write_text(f"step,action,reward,observation,{inline_column}\n1,{{}},1,[],old\n")
+    metadata = tmp_path / "metadata.csv"
+    metadata.write_text("step\n1\n")
+    marker = {
+        "format_version": 1,
+        "generation": 1,
+        "history_id": history_id,
+        "last_record_sha256": "0d9d3b9795250568ef6840868ec19c728f63c77ed25e023f8d3dc417af650261",
+        "last_step": 1,
+        "metadata": {"bytes": len(metadata.read_bytes()), "sha256": metadata_digest},
+        "trajectory": {"bytes": len(core.read_bytes()), "sha256": core_digest},
+    }
+    marker_path = tmp_path / ".trajectory.commit.json"
+    marker_path.write_text(json.dumps(marker))
+    with core.open("ab") as stream:
+        stream.write(b"2,{},2,[],unpublished\n")
+    with metadata.open("ab") as stream:
+        stream.write(b"2\n")
+    paths = (core, metadata, marker_path)
+    before = {path.name: path.read_bytes() for path in paths}
+    assert Trajectory.load(tmp_path).dataframe[inline_column].tolist() == ["old"]
+
+    for _ in range(2):
+        with pytest.raises(TrajectoryLoadError, match="writ") as failure:
+            Trajectory(iteration_dir=tmp_path, mode="resume")
+        assert str(core) in str(failure.value) and inline_column in str(failure.value)
+        assert {path.name: path.read_bytes() for path in paths} == before
+        assert Trajectory.load(tmp_path).dataframe[inline_column].tolist() == ["old"]
+
+
 @pytest.mark.parametrize("legacy_message, first_matching_step", [(10, 2), (20, 1)])
 def test_warm_legacy_cache_and_versioned_records_share_earliest_exact_lookup(
     tmp_path: Path, legacy_message: int, first_matching_step: int

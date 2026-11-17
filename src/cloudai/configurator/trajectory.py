@@ -1043,6 +1043,12 @@ class Trajectory:
             if (mode == "resume") != (marker is not None):
                 raise ValueError("resume requires a commit marker; adopt requires a markerless legacy history")
             loaded = type(self).load(self._iteration_dir)
+            columns = loaded._headers.get("trajectory")
+            if columns is not None and set(columns) != set(self._core_fields):
+                raise TrajectoryLoadError(
+                    self.output_path,
+                    f"unsupported writable trajectory columns: {columns!r}; use Trajectory.load for read-only access",
+                )
             for name in ("_dataframe", "_rows", "_records", "_headers", "_source_path"):
                 setattr(self, name, getattr(loaded, name))
             if marker is None:
