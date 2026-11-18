@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import shlex
 from pathlib import Path
 from typing import cast
 
@@ -273,6 +275,23 @@ wait_for_health() {{
 }}"""
 
         assert func == expected
+
+    @pytest.mark.parametrize("custom_bash", [None, "echo setup"])
+    def test_dict_serve_arg_reaches_vllm_as_json(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy, custom_bash: str | None
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.custom_bash = custom_bash
+        spec_config = {"method": "ngram", "num_speculative_tokens": 3, "prompt_lookup_max": 4}
+        tdef.cmd_args.decode = VllmArgs.model_validate({"speculative_config": spec_config})
+
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        serve_line = next(line for line in srun_command.splitlines() if "vllm serve" in line)
+        tokens = shlex.split(serve_line)
+        if "-c" in tokens:
+            tokens = shlex.split(tokens[tokens.index("-c") + 1])
+        assert json.loads(tokens[tokens.index("--speculative-config") + 1]) == spec_config
 
     def test_custom_bash_string_wraps_aggregated_serve_and_benchmark(
         self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy

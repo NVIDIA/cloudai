@@ -213,6 +213,11 @@ class TestLLMServingArgsBehavior:
             "0",
         ]
 
+    def test_serve_args_serializes_dict_values_as_quoted_json(self) -> None:
+        args = FakeLLMArgs.model_validate({"speculative_config": {"method": "ngram", "num_speculative_tokens": 3}})
+
+        assert args.serve_args == ["--speculative-config", '\'{"method":"ngram","num_speculative_tokens":3}\'']
+
 
 class TestLLMServingTestDefinitionBehavior:
     def test_shared_installables_include_git_repos_docker_image_and_hf_model(
