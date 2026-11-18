@@ -223,5 +223,5 @@ Documentation Update History
 +----------+-----------------+--------------------------------------------------+
 | Version  | Date            | Description                                      |
 +==========+=================+==================================================+
-| v1.5.0   | April xx, 2026  | Initial release of this documentation version.   |
+| v1.8.1   | November, 2026  | Initial release of this documentation version.   |
 +----------+-----------------+--------------------------------------------------+
