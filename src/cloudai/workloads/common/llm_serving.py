@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import math
 import re
 import shlex
@@ -203,6 +204,8 @@ class LLMServingArgs(CmdArgs):
         opt = f"--{key.replace('_', '-')}"
         if value == "":
             return [opt]
+        if isinstance(value, dict):
+            return [opt, shlex.quote(json.dumps(value, separators=(",", ":")))]
         return [opt, str(value)]
 
     @property
