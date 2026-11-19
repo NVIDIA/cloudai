@@ -7,6 +7,7 @@ general:
     - "tests/ref_data/*"
     - "results/*"
     - "doc/_build/*"
+    - "doc/assets/.*\\.svg$"
     - "uv.lock"
     # Jenkins pipeline definitions carry no license header by convention.
     # The checker fails on any file it has no rule for, so this must be an

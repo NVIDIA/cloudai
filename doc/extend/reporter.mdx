@@ -1,0 +1,107 @@
+<Anchor id="add-a-reporter" />
+
+Turn workload output into metrics or publish a scenario-level artifact.
+
+Choose the reporter level that owns the data you need:
+
+| Task | Interface | Registration |
+| --- | --- | --- |
+| Extract workload metrics or generate per-run artifacts | `ReportGenerationStrategy` | `add_report` |
+| Combine results into a scenario artifact | `Reporter` | `add_scenario_report` |
+
+Import public interfaces through `cloudai.core`. For CLI use, add your imports and registration calls inside
+`register_all()` in `src/cloudai/registration.py`. For Python API use, register in the same process before
+parsing or running the scenario.
+
+<Anchor id="reporting-registration-1" />
+
+<Anchor id="reporting-registration" />
+
+## Expose workload metrics
+
+Subclass `ReportGenerationStrategy` and implement:
+
+- `metrics`: the metric names your strategy provides.
+- `get_metric(name)`: a numeric value, or `METRIC_ERROR` for missing or failed measurements.
+- `can_handle_directory()`: whether the run's output can be processed.
+- `generate_report()`: write any per-run artifacts.
+
+The Fio integration provides a working example of this registration:
+
+```python
+from cloudai.core import Registry
+from cloudai.workloads.fio import FioReportGenerationStrategy, FioTestDefinition
+
+Registry().add_report(FioTestDefinition, FioReportGenerationStrategy)
+```
+
+Use your own definition and strategy classes when adding a workload. Search uses this registration to find metrics.
+
+<Anchor id="provide-inference-measurements" />
+
+## Provide inference measurements
+
+Make the test definition inherit `InferenceReportProvider` from `cloudai.report_generator.inference_report`
+and implement `inference_reports(system, tr)` so shared reports recognize its inference measurements.
+Return one `InferenceReport` per independent measurement, or an empty list when no results are available.
+
+| Report content | Contract |
+| --- | --- |
+| `InferenceConfig` | Resolved model, benchmark, load, hardware, and serving-role settings. Unknown optional settings remain `None`. |
+| `MetricObservation` outputs | Metric values with units and dimensions. Independent measurements stay in separate reports even if metric names match. |
+| Serving roles | Instance counts and assigned nodes per instance; TP, PP, and DP describe parallelism within each instance. |
+| `shared_nodes` | Overlapping prefill/decode placement. Combined prefill/decode is displayed as `Serving`. |
+
+vLLM and SGLang return one report per execution. Dynamo returns separate reports for benchmark phases and resolves
+worker counts from its configured topology and standard launcher defaults.
+
+The [Pareto reporter](/pareto-frontiers) treats each report as a candidate point and applies `match` to its
+metric observations. Also override `metric_observations(system, tr)` to expose the same measurements
+to callers that consume observations directly:
+
+```python
+def metric_observations(self, system, tr):
+    return [obs for report in self.inference_reports(system, tr) for obs in report.observations]
+```
+
+<Anchor id="reporting-configuration-implementation-1" />
+
+<Anchor id="reporting-configuration-implementation" />
+
+## Add a scenario report
+
+Implement `Reporter.generate()` in your report module. This minimal example writes the scenario name:
+
+```python
+from cloudai.core import Reporter
+
+
+class CustomReport(Reporter):
+    def generate(self) -> None:
+        (self.results_root / "summary.txt").write_text(
+            self.test_scenario.name + "\n", encoding="utf-8"
+        )
+```
+
+Import `CustomReport` into `register_all()` and add the registration there:
+
+```python
+from cloudai.core import Registry
+from cloudai.models.scenario import ReportConfig
+
+Registry().add_scenario_report("custom", CustomReport, ReportConfig(enable=False))
+```
+
+Enable it in the scenario:
+
+```toml
+[reports]
+custom = { enable = true }
+```
+
+For additional options, subclass `ReportConfig` and pass an instance at registration; the parsed values are
+available through `self.config`.
+
+Verify successful, failed, and missing-metric cases. Return `METRIC_ERROR` for a failed metric,
+using identity checks rather than treating every numeric `-1.0` as an error.
+See [Agent and search settings](/reference/agents) for metric failure behavior.

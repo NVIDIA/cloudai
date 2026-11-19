@@ -1,28 +1,35 @@
 <Anchor id="troubleshooting" />
 
-This section guides you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI.
+Find the failed stage before changing the experiment. Start with the error message and the configuration used for that run.
 
-<Anchor id="identifying-the-root-cause" />
+| Symptom | First check | Continue |
+| --- | --- | --- |
+| Configuration fails to load | File paths, workload name, field types, and referenced test definitions. | [Understand experiment configuration](/guides/configuration) and [Inspect commands before execution](/guides/preview) |
+| Prerequisite installation fails | Image or package availability, authentication, disk space, and cache path. | [Prepare workload prerequisites](/workloads/workloads-requirements-installation) |
+| Job remains queued | Scheduler allocation, requested resources, and partition access. | [Set up your execution environment](/guides/environment) |
+| Workload exits unsuccessfully | Generated command, `stdout.txt`, and `stderr.txt` for that execution. | Workload guide in [Workloads](/workloads/index) |
+| Metrics or reports are missing | Workload completion, expected output, parser inputs, and report configuration. | [Read results and generate reports](/reporting) |
+| Search selects an unexpected result | Objective direction, valid rewards, missing metrics, and compared conditions. | [Choose an objective and search space](/optimization/objectives) |
 
-## Identifying the Root Cause
+<Anchor id="inspect-the-execution" />
 
-If you encounter issues running a command, start by reading the error message to understand the root cause. We strive to make our error messages and exception messages as readable and interpretable as possible.
+## Inspect the execution
 
-<Anchor id="system-infrastructure-vs.-cloudai-bugs" />
+CloudAI writes `debug.log` in the invocation directory unless `--log-file` selects another path.
+Find the generated command and the execution's output directory there. On Slurm, inspect the generated sbatch script
+and scheduler state. A pending allocation is different from a workload failure.
 
-## System Infrastructure vs. CloudAI Bugs
+<Anchor id="reproduce-narrowly" />
 
-To determine whether an issue is due to system infrastructure or a CloudAI bug, follow these steps:
+## Reproduce narrowly
 
-1.  **Check stdout Messages:** If CloudAI fails to run a test successfully, it will be indicated in the stdout messages that a test has failed.
-2.  **Review Log Files:**
-    - Navigate to the output directory and review `debug.log`, stdout, and stderr files
-    - `debug.log` contains detailed steps executed by CloudAI, including generated commands, executed commands, and error messages
-3.  **Analyze Error Messages:** By examining the error messages in the log files, you can understand the type of errors CloudAI encountered.
-4.  **Examine Output Directory:** If a test fails without explicit error messages, review the output directory of the failed test. Look for `stdout.txt`, `stderr.txt`, or any generated files to understand the failure reason.
-5.  **Manual Rerun of Tests:**
-    - To manually rerun the test, consult the `debug.log` for the command CloudAI executed
-    - Look for an `sbatch` command with a generated `sbatch` script
-    - Execute the command manually to debug further
+Use the same configuration with `dry-run` to inspect command generation. If you rerun the generated workload command,
+it executes real work and may request resources. Reduce the scenario to the failing case while retaining its required
+inputs and environment. Change one suspected cause at a time.
 
-If the problem persists, please report the issue at [https://github.com/NVIDIA/cloudai/issues/new/choose](https://github.com/NVIDIA/cloudai/issues/new/choose). When you report an issue, please make sure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
+<Anchor id="report-an-issue" />
+
+## Report an issue
+
+Use the [issue template](https://github.com/NVIDIA/cloudai/issues/new/choose) with the CloudAI revision, invocation,
+minimal configuration, expected result, and relevant logs. Remove credentials and internal hostnames before posting.

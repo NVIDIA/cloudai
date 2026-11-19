@@ -1,5 +1,16 @@
 <Anchor id="nixl-kvbench" />
 
+Measure NIXL KV-cache transfer behavior.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `NIXLKVBench`) runs NIXL KV-cache benchmarking for key-value store performance testing.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ This workload (`test_template_name` is `NIXLKVBench`) runs NIXL KV-cache benchma
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_nixl_kvbench_test"
 description = "Example NIXL KVBench test"
 test_template_name = "NIXLKVBench"
@@ -27,7 +38,7 @@ filepath = "/data"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "nixl-kvbench-test"
 
 [[Tests]]
@@ -40,7 +51,7 @@ test_name = "my_nixl_kvbench_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "nixl-kvbench-test"
 
 [[Tests]]

@@ -1,5 +1,16 @@
 <Anchor id="slurm-container" />
 
+Run an existing containerized workload through Slurm.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `SlurmContainer`) executes containerized workloads using Slurm with custom container configurations.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ This workload (`test_template_name` is `SlurmContainer`) executes containerized 
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_container_test"
 description = "Example Slurm container test"
 test_template_name = "SlurmContainer"
@@ -21,7 +32,7 @@ cmd = "python train.py"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "slurm-container-test"
 
 [[Tests]]
@@ -34,7 +45,7 @@ test_name = "my_container_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "slurm-container-test"
 
 [[Tests]]
@@ -56,7 +67,12 @@ test_template_name = "SlurmContainer"
 
 ## Run Status
 
-Exit-code checking is disabled by default for backwards compatibility. Set `check_exit_code = true` in `cmd_args` to record the aggregate `srun` exit code in the per-test `exit_code.txt` file and use it to determine success. Only integer `0` is successful. Any non-zero integer, or a missing, malformed, unreadable, or undecodable file, marks the run as failed. Slurm-style exit code `0:0` is not accepted.
+Exit-code checking is disabled by default for backwards compatibility. Set
+`check_exit_code = true` in `cmd_args` to record the aggregate `srun` exit
+code in the per-test `exit_code.txt` file and use it to determine success.
+Only integer `0` is successful. Any non-zero integer, or a missing, malformed,
+unreadable, or undecodable file, marks the run as failed. Slurm-style exit code
+`0:0` is not accepted.
 
 <Anchor id="api-documentation" />
 

@@ -1,0 +1,34 @@
+<Anchor id="inspect-commands-before-execution" />
+
+Validate configuration and inspect generated workload commands before submitting work.
+
+<Anchor id="generate-commands" />
+
+## Generate commands
+
+After preparing `slurm.toml`, run:
+
+```bash
+uv run cloudai dry-run --system-config slurm.toml \
+    --test-scenario conf/experimental/quickstart/nccl.toml
+```
+
+Review the generated scripts and paths reported by CloudAI. Check allocation size, container image, mounts,
+workload arguments, and output location before replacing `dry-run` with `run`.
+
+<Anchor id="validate-from-python" />
+
+## Validate from Python
+
+```python
+from pathlib import Path
+import cloudai.api
+
+cloudai.api.validate_scenario(
+    Path("conf/experimental/quickstart/nccl.toml"), Path("slurm.toml")
+)
+```
+
+Validation loads configuration without creating a runner, installing dependencies, or submitting jobs.
+It does not check cluster availability or guarantee successful workload execution.
+See [Python API](/api) for exception behavior and [CLI reference](/reference/cli) for CLI options.
