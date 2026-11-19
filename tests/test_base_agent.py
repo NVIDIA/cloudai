@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import itertools
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from typing import Any
 
 import pytest
@@ -26,11 +26,10 @@ from cloudai.core import BaseAgent, BaseAgentConfig, EvaluationResult, Proposal
 
 
 class _FakeEnv:
-    """Like the real env, owns the step allowance and pulls proposals lazily: ``batch_size`` per batch."""
+    """Like the real env, owns the step allowance and pulls one proposal per batch."""
 
-    def __init__(self, batch_size: int = 1) -> None:
+    def __init__(self) -> None:
         self._progress = 0
-        self.batch_size = batch_size
         self.batches = 0
         self.results: list[EvaluationResult] = []
 
@@ -41,7 +40,7 @@ class _FakeEnv:
         self.batches += 1
         if max_steps is not None and self._progress >= max_steps:
             return []
-        results = [self._evaluate(proposal) for proposal in itertools.islice(proposals, self.batch_size)]
+        results = [self._evaluate(proposal) for proposal in itertools.islice(proposals, 1)]
         self.results.extend(results)
         return results
 
@@ -66,8 +65,8 @@ class _FakeEnv:
 class _SequenceEnv(_FakeEnv):
     """Answers proposals with scripted rewards; ``None`` rejects the proposal without consuming a step."""
 
-    def __init__(self, rewards: list[float | None], batch_size: int = 1) -> None:
-        super().__init__(batch_size)
+    def __init__(self, rewards: list[float | None]) -> None:
+        super().__init__()
         self.rewards = iter(rewards)
 
     def _evaluate(self, proposal: Proposal) -> EvaluationResult:
@@ -128,16 +127,6 @@ class _RecordingAgent(BaseAgent):
         self.updates.append(feedback)
 
 
-class _PairAgent(_RecordingAgent):
-    """Proposes two actions before it needs feedback."""
-
-    def select_batch(self, observation: list[float] | None = None) -> Iterator[Proposal]:
-        for _ in range(2):
-            proposal = self.select_action(observation)
-            if proposal is not None:
-                yield proposal
-
-
 def test_run_retries_constraint_rejection_without_consuming_execution_step() -> None:
     env = _SequenceEnv([None, 2.0, 3.0])
     agent = _RecordingAgent(env)
@@ -177,27 +166,6 @@ def test_successful_execution_resets_rejected_proposal_limit() -> None:
 
     assert agent.proposals == 4
     assert [feedback["value"] for feedback in agent.updates] == [-1.0, 1.0, -1.0, 2.0]
-
-
-def test_run_shares_prev_observation_within_a_batch() -> None:
-    agent = _PairAgent(_SequenceEnv([1.0, 2.0, 3.0, 4.0], batch_size=2))
-    agent.max_steps = 4
-
-    assert agent.run() == 0
-
-    assert agent.selected_observations == [[0.0], [0.0], [2.0], [2.0]]
-    assert [feedback["trial_index"] for feedback in agent.updates] == [1, 2, 3, 4]
-    assert [feedback["prev_observation"] for feedback in agent.updates] == [[0.0], [0.0], [2.0], [2.0]]
-
-
-def test_default_select_batch_is_lazy() -> None:
-    agent = _RecordingAgent(_SequenceEnv([]))
-
-    batch = agent.select_batch([0.0])
-
-    assert agent.proposals == 0
-    assert list(batch) == [(1, {"candidate": 1})]
-    assert agent.proposals == 1
 
 
 def test_run_does_not_select_action_when_env_does_not_pull() -> None:

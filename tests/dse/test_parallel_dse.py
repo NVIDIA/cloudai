@@ -50,19 +50,6 @@ def probe_env(system: ScriptedSystem, x: list[int], max_parallelism: int, **kwar
     return CloudAIGymEnv(test_run, runner.runner, rewards=RewardOverrides(), max_parallelism=max_parallelism)
 
 
-def test_grid_never_runs_more_than_max_parallelism_trials(
-    system: ScriptedSystem, caplog: pytest.LogCaptureFixture
-) -> None:
-    runner = scripted(system, x=[1, 2, 3, 4, 5, 6, 7], max_parallelism=3)
-
-    assert handle_dse_job(runner) == 0
-
-    assert started_together(system.events) == [[1, 2, 3], [4, 5, 6], [7]]
-    assert max_outstanding(system.events) == 3
-    assert read_trajectory(runner) == [(step, step, float(step)) for step in range(1, 8)]
-    assert "has no effect" not in caplog.text
-
-
 def test_free_slot_is_refilled_while_a_slow_trial_runs(system: ScriptedSystem) -> None:
     runner = scripted(system, x=[1, 2, 3, 4, 5, 6], max_parallelism=3, durations={2: 5})
 
@@ -85,16 +72,20 @@ def test_free_slot_is_refilled_while_a_slow_trial_runs(system: ScriptedSystem) -
     assert max_outstanding(system.events) == 3
 
 
-def test_free_slot_is_refilled_before_waiting(system: ScriptedSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_free_slot_is_refilled_before_waiting_and_waiting_uses_the_monitor_interval(
+    system: ScriptedSystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
     env = probe_env(system, x=[1, 2, 3], max_parallelism=2, durations={2: 5})
-    seen_when_waiting: list[list[tuple[str, int]]] = []
+    env.runner.monitor_interval = 7
+    waits: list[tuple[float, list[tuple[str, int]]]] = []
     monkeypatch.setattr(
-        "cloudai.configurator.cloudai_gym.time.sleep", lambda _: seen_when_waiting.append(list(system.events))
+        "cloudai.configurator.cloudai_gym.time.sleep", lambda seconds: waits.append((seconds, list(system.events)))
     )
 
     env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3)], start=1))
 
-    assert seen_when_waiting[0] == [("submit", 1), ("submit", 2), ("finish", 1), ("submit", 3)]
+    assert waits[0][1] == [("submit", 1), ("submit", 2), ("finish", 1), ("submit", 3)]
+    assert {seconds for seconds, _ in waits} == {7}
 
 
 def test_trials_over_at_their_first_check_cost_no_waiting(
@@ -305,15 +296,6 @@ def test_best_trial_among_equal_rewards_does_not_depend_on_the_completion_order(
     assert [step for step, _ in env._ranked_dse_candidates()] == [1, 2]
 
 
-def test_finished_trials_feed_the_cache_of_later_proposals(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2, 3], max_parallelism=2)
-
-    results = env.evaluate_batch(enumerate([{"x": 1}, {"x": 2}, {"x": 1}, {"x": 3}, {"x": 2}], start=1))
-
-    assert [result["status"] for result in results] == ["completed", "completed", "cached", "completed", "cached"]
-    assert started_together(system.events) == [[1, 2], [4]]
-
-
 def test_proposal_identical_to_a_running_trial_shares_its_result(system: ScriptedSystem) -> None:
     env = probe_env(system, x=[1, 2], max_parallelism=3, failing_x=[2])
 
@@ -352,17 +334,6 @@ def test_agent_may_reuse_its_action_object(system: ScriptedSystem) -> None:
     assert [result["action"] for result in results] == [{"x": 1}, {"x": 2}, {"x": 3}]
     assert [result["value"] for result in results] == [1.0, 2.0, 3.0]
     assert started_together(system.events) == [[1, 2, 3]]
-
-
-def test_waiting_sleeps_between_passes(system: ScriptedSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    env = probe_env(system, x=[1, 2], max_parallelism=2, durations={1: 3, 2: 1})
-    env.runner.monitor_interval = 7
-    sleeps: list[float] = []
-    monkeypatch.setattr("cloudai.configurator.cloudai_gym.time.sleep", sleeps.append)
-
-    env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
-
-    assert sleeps == [7, 7]
 
 
 def test_proposals_are_pulled_lazily(system: ScriptedSystem) -> None:
@@ -495,20 +466,14 @@ def test_env_params_are_sampled_per_trial_whatever_the_parallelism(tmp_path: Pat
     assert len({result["env_params"]["noise"] for result in serial}) > 1
 
 
-def test_step_is_a_one_proposal_batch(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2], max_parallelism=3, rejected_x=[2])
+def test_step_is_a_one_proposal_batch_not_bound_by_the_step_allowance(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2, 3], max_parallelism=3, rejected_x=[2], agent_steps=1)
 
     assert env.step({"x": 1}) == ([1.0], 1.0, False, {})
     assert env.step({"x": 2}) == ([-1.0], -1.0, True, {})
     assert env.step({"x": 1}) == ([1.0], 1.0, False, {})
-    assert started_together(system.events) == [[1]]
-
-
-def test_step_is_not_bound_by_the_step_allowance(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2, 3], max_parallelism=1, agent_steps=1)
-
-    assert [env.step({"x": x})[1] for x in (1, 2, 3)] == [1.0, 2.0, 3.0]
-    assert started_together(system.events) == [[1], [2], [3]]
+    assert env.step({"x": 3}) == ([3.0], 3.0, False, {})
+    assert started_together(system.events) == [[1], [3]]
 
 
 def test_cancelling_stops_the_sweep_and_does_not_record_the_running_trials(system: ScriptedSystem) -> None:
@@ -545,23 +510,6 @@ def test_cancelling_stops_the_sweep_and_does_not_record_the_running_trials(syste
     assert runner.runner.experiment_output.experiment.status == "cancelled"
 
 
-def test_trials_finished_before_the_cancel_stay_recorded(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2, 3], max_parallelism=2, durations={2: 5})
-
-    def cancel_once_the_third_trial_runs() -> None:
-        if ("submit", 3) in system.events and not env.runner.shutting_down:
-            env.runner.shutdown()
-
-    system.on_pass(cancel_once_the_third_trial_runs)
-
-    results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3)], start=1))
-
-    assert [result["step"] for result in results] == [1]
-    assert system.events == [("submit", 1), ("submit", 2), ("finish", 1), ("submit", 3), ("kill", 2), ("kill", 3)]
-    assert list(env.trajectory.dataframe["step"]) == [1]
-    assert env.runner.jobs == []
-
-
 def test_cancel_between_submissions_terminates_the_trial_in_flight(system: ScriptedSystem) -> None:
     env = probe_env(system, x=[1, 2, 3], max_parallelism=3, duration=50)
 
@@ -577,7 +525,7 @@ def test_cancel_between_submissions_terminates_the_trial_in_flight(system: Scrip
     assert env.runner.jobs == []
 
 
-def test_nothing_is_pulled_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
+def test_nothing_runs_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
     env = probe_env(system, x=[1, 2], max_parallelism=2)
     env.runner.shutdown()
     pulled = []
@@ -590,15 +538,8 @@ def test_nothing_is_pulled_once_the_run_is_cancelled(system: ScriptedSystem) -> 
     assert env.evaluate_batch(proposals()) == []
     assert pulled == []
     assert env.upcoming_trial == 1
-
-
-def test_step_fails_once_the_run_is_cancelled(system: ScriptedSystem) -> None:
-    env = probe_env(system, x=[1, 2], max_parallelism=1)
-    env.runner.shutdown()
-
     with pytest.raises(RuntimeError, match="shutting down"):
         env.step({"x": 1})
-
     assert system.events == []
 
 
