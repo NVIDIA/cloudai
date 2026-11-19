@@ -10,7 +10,7 @@ navbar-links:
 versions:
   - display-name: 1.8.1
     slug: 1.8.1
-    ref: 9a803b76f648b31edbed61696d0f4c3efce9b373
+    ref: 8b2fd725e47878e828a499a7ca1e002bc9554d21
     availability: stable
   - display-name: 1.7.1
     slug: 1.7.1
