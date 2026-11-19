@@ -16,5 +16,5 @@ general:
 apache-2.0:
   validate-spdx-license: true
   include:
-    - ".*\\.(py|toml)$"
+    - ".*\\.(py|toml|svg)$"
     - "Makefile"
