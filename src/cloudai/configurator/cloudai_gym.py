@@ -204,7 +204,6 @@ class CloudAIGymEnv(BaseGym):
         del options
         if seed is not None:
             lazy.np.random.seed(seed)
-        self.test_run.current_iteration = 0
         info: dict[str, Any] = {}
         if self.params is not None:
             info["env_params"] = self.params.sample(self.upcoming_trial)

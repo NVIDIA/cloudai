@@ -47,7 +47,7 @@ class StandaloneRunner(BaseRunner):
         metrics: list[cloudai.models.output.Metric] = []
         if result is not None:
             status = "completed" if result.is_successful else "failed"
-            if job.terminated_by_dependency:
+            if job.terminated_by_dependency or (self.shutting_down and not result.is_successful):
                 status = "cancelled"
             if result.is_successful:
                 try:

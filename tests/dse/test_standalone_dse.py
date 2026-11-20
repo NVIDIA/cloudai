@@ -18,12 +18,15 @@
 
 from __future__ import annotations
 
+import argparse
 import threading
 import time
 from pathlib import Path
 
 import pytest
 
+import cloudai.handlers
+from cloudai.cli.cli import handle_dry_run_and_run
 from cloudai.handlers import handle_dse_job
 from cloudai.systems.standalone import StandaloneJob, StandaloneRunner, StandaloneSystem
 
@@ -100,3 +103,34 @@ def test_cancelling_kills_the_running_processes(standalone: StandaloneSystem) ->
     assert len(processes) == 2
     assert all(process is not None and process.poll() is not None for process in processes)
     assert read_trajectory(runner) == []
+    runner.runner.finish_output(successful=False)
+    assert runner.runner.experiment_output.experiment.status == "cancelled"
+    assert all(run.status == "cancelled" for run in runner.runner.experiment_output.experiment.tests[0].runs)
+
+
+@pytest.mark.parametrize("job_status_check", [True, False])
+def test_cli_reports_ordinary_scenario_failure_policy(
+    standalone: StandaloneSystem, monkeypatch: pytest.MonkeyPatch, job_status_check: bool
+) -> None:
+    test_run = probe_test_run([1], failing_x=[1], duration=0.05)
+    test_run.test.cmd_args.x = 1
+    runner = dse_runner(standalone, StandaloneRunner, test_run)
+    runner.runner.test_scenario.job_status_check = job_status_check
+    monkeypatch.setattr(
+        cloudai.handlers, "load_experiment", lambda *args, **kwargs: (standalone, [], runner.runner.test_scenario)
+    )
+    monkeypatch.setattr(cloudai.handlers, "create_experiment_runner", lambda *args, **kwargs: runner)
+    monkeypatch.setattr(cloudai.handlers, "_ensure_installation", lambda *args, **kwargs: None)
+    args = argparse.Namespace(
+        test_scenario=Path("scenario.toml"),
+        system_config=Path("system.toml"),
+        tests_dir=None,
+        hook_dir=None,
+        output_dir=None,
+        mode="run",
+        single_sbatch=False,
+        enable_cache_without_check=False,
+    )
+
+    assert handle_dry_run_and_run(args) == (1 if job_status_check else 0)
+    assert (runner.runner.scenario_root / "probe" / "0" / "probe_status.txt").read_text() == "failed"

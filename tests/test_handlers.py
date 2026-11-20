@@ -57,6 +57,13 @@ from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.test_parser import TestParser
 
 
+@pytest.fixture
+def dse_tr(dse_tr: TestRun) -> TestRun:
+    """Use one search for handler dispatch tests; repetition is covered by the DSE integration tests."""
+    dse_tr.iterations = 1
+    return dse_tr
+
+
 class StubAgentConfig(BaseAgentConfig):
     knob: int = 0
     payload: dict[str, Any] = Field(default_factory=dict)

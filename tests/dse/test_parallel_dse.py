@@ -478,6 +478,7 @@ def test_step_is_a_one_proposal_batch_not_bound_by_the_step_allowance(system: Sc
 
 def test_cancelling_stops_the_sweep_and_does_not_record_the_running_trials(system: ScriptedSystem) -> None:
     first = probe_test_run([1, 2, 3, 4, 5, 6], agent="probe_stream", agent_steps=6, duration=3)
+    first.iterations = 3
     first.test.agent_config = {"max_parallelism": 2}
     second = probe_test_run([1, 2], name="second")
     runner = dse_runner(system, ScriptedRunner, first, second)
@@ -577,3 +578,48 @@ def test_pin_nodes_works_with_serial_trials(system: ScriptedSystem) -> None:
     assert handle_dse_job(runner) == 0
 
     assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, 2.0)]
+
+
+def test_kubernetes_parallel_trials_are_rejected_before_submission(
+    system: ScriptedSystem, caplog: pytest.LogCaptureFixture
+) -> None:
+    system.scheduler = "kubernetes"
+    runner = scripted(system, x=[1, 2], max_parallelism=2)
+
+    assert handle_dse_job(runner) == 1
+
+    assert system.events == []
+    assert "trial resources are not isolated" in caplog.text
+
+
+def test_kubernetes_serial_trials_remain_supported(system: ScriptedSystem) -> None:
+    system.scheduler = "kubernetes"
+    runner = scripted(system, x=[1, 2], max_parallelism=1)
+
+    assert handle_dse_job(runner) == 0
+
+    assert read_trajectory(runner) == [(1, 1, 1.0), (2, 2, 2.0)]
+
+
+@pytest.mark.parametrize("max_parallelism", [1, 2])
+def test_iterations_repeat_the_search_with_fresh_agents_and_caches(
+    system: ScriptedSystem, max_parallelism: int
+) -> None:
+    test_run = probe_test_run(
+        [1, 2], agent="probe_stream", agent_steps=2, agent_config={"max_parallelism": max_parallelism}
+    )
+    test_run.iterations = 3
+    runner = dse_runner(system, ScriptedRunner, test_run)
+
+    assert handle_dse_job(runner) == 0
+
+    assert len(ProbeAgent.created) == 3
+    assert [len(agent.updates) for agent in ProbeAgent.created] == [2, 2, 2]
+    assert [event for event, _ in system.events].count("submit") == 6
+    for iteration in range(3):
+        path = runner.runner.scenario_root / "probe" / str(iteration)
+        assert (path / "trajectory.csv").is_file()
+        assert (path / "1" / "probe_result.txt").read_text() == "1"
+        assert (path / "2" / "probe_result.txt").read_text() == "2"
+    assert test_run.current_iteration == 0
+    assert test_run.step == 0

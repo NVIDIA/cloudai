@@ -17,6 +17,7 @@
 """Process of one real probe trial: sleep, then report ``x`` and whether the trial succeeded."""
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ def main() -> int:
     output_path, x, duration = Path(sys.argv[1]), sys.argv[2], float(sys.argv[3])
     fail, no_metric = "--fail" in sys.argv[4:], "--no-metric" in sys.argv[4:]
     start = time.time()
+    (output_path / "probe_started.json").write_text(json.dumps({"start": start, "pid": os.getpid(), "x": x}))
     time.sleep(duration)
     (output_path / "probe_timing.json").write_text(json.dumps({"start": start, "finish": time.time()}))
     if not no_metric:
