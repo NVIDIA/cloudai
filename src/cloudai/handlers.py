@@ -30,7 +30,9 @@ import yaml
 import cloudai.models.output
 from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
+    BaseAgent,
     BaseInstaller,
+    BaseRunner,
     CloudAIGymEnv,
     Installable,
     JobSubmissionError,
@@ -40,6 +42,7 @@ from cloudai.core import (
     Runner,
     System,
     TestParser,
+    TestRun,
     TestScenario,
     TestScenarioParsingError,
 )
@@ -122,10 +125,31 @@ def _scenario_installables(scenario: TestScenario) -> list[Installable]:
     return installables
 
 
+def _parallel_dse_error(test_run: TestRun, system: System, max_parallelism: int) -> str | None:
+    if max_parallelism <= 1:
+        return None
+    if system.scheduler == "kubernetes":
+        return "Parallel DSE trials are not supported on Kubernetes: trial resources are not isolated."
+    if test_run.pin_nodes:
+        return f"'pin_nodes' is not supported with 'max_parallelism' greater than 1 (test '{test_run.name}')."
+    return None
+
+
+def _dse_iterations(runner: BaseRunner) -> collections.abc.Iterator[TestRun]:
+    """Repeat each search with independent agent state, numbering and trajectory/cache."""
+    for tr in runner.test_scenario.test_runs:
+        for iteration in range(tr.current_iteration, tr.iterations):
+            if runner.shutting_down:
+                return
+            test_run = copy.deepcopy(tr)
+            test_run.current_iteration = iteration
+            if iteration != tr.current_iteration:
+                test_run.step = 0
+            yield test_run
+
+
 def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
-
-    original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
 
     has_dependencies = any(tr.dependencies for tr in runner.runner.test_scenario.test_runs)
     if has_dependencies:
@@ -137,9 +161,7 @@ def handle_dse_job(runner: Runner) -> int:
 
     err = 0
     try:
-        for tr in runner.runner.test_scenario.test_runs:
-            test_run = copy.deepcopy(tr)
-
+        for test_run in _dse_iterations(runner.runner):
             agent_type = test_run.test.agent
             if not registry.has_agent(agent_type):
                 logging.error(
@@ -152,17 +174,28 @@ def handle_dse_job(runner: Runner) -> int:
 
             agent_config_data = test_run.test.agent_config or {}
             agent_config = agent_class.get_config_class()(**agent_config_data)
+            parallel_error = _parallel_dse_error(test_run, runner.runner.system, agent_config.max_parallelism)
+            if parallel_error:
+                logging.error(parallel_error)
+                err = 1
+                continue
             env = CloudAIGymEnv(
                 test_run=test_run,
                 runner=runner.runner,
                 rewards=agent_config.rewards,
                 max_consecutive_rejected_proposals=agent_config.max_consecutive_rejected_proposals,
+                max_parallelism=agent_config.max_parallelism,
             )
             if agent_config.start_action == "first":
                 logging.info(f"Using deterministic first sweep for the chosen agent: {env.first_sweep}.")
 
             agent = agent_class(env, agent_config)
             logging.debug(f"Created agent {agent.__class__.__name__}.")
+            if agent_config.max_parallelism > 1 and type(agent).select_batch is BaseAgent.select_batch:
+                logging.warning(
+                    f"Agent '{agent_type}' proposes one action at a time; "
+                    f"max_parallelism={agent_config.max_parallelism} has no effect."
+                )
 
             env.update_output()
             try:
@@ -175,8 +208,10 @@ def handle_dse_job(runner: Runner) -> int:
         logging.exception("DSE job aborted by an unexpected error; generating reports before failing.")
         _record_run_failure(runner.runner.scenario_root, exc)
         raise
-    finally:
-        runner.runner.test_scenario.test_runs = original_test_runs
+
+    if runner.runner.shutting_down:
+        logging.info("DSE is cancelled.")
+        return 1
 
     logging.info("All jobs are complete.")
     return err

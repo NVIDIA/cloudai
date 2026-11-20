@@ -171,12 +171,29 @@ def test_trajectory_rejects_invalid_steps(tmp_path: Path, step: Any) -> None:
         trajectory.append(step=step, action={"x": 1}, reward=1.0, observation={"metric": 1.0})
 
 
-def test_trajectory_rejects_non_increasing_steps(tmp_path: Path) -> None:
+def test_trajectory_rejects_repeated_steps(tmp_path: Path) -> None:
     trajectory = Trajectory(iteration_dir=tmp_path)
 
     trajectory.append(step=2, action={"x": 1}, reward=1.0, observation={"metric": 1.0})
-    with pytest.raises(ValueError, match="steps must increase"):
+    with pytest.raises(ValueError, match="steps must be unique"):
         trajectory.append(step=2, action={"x": 2}, reward=1.0, observation={"metric": 1.0})
+
+
+def test_trajectory_keeps_the_order_steps_were_recorded_in(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+
+    for step in (3, 1, 2):
+        trajectory.append(step=step, action={"x": step}, reward=float(step), observation={"metric": 1.0})
+
+    assert list(trajectory.dataframe["step"]) == [3, 1, 2]
+    assert list(pd.read_csv(trajectory.output_path)["step"]) == [3, 1, 2]
+    found = trajectory.find(action={"x": 1})
+    assert found is not None
+    assert found["step"] == 1
+    warm_started = Trajectory(iteration_dir=tmp_path / "copy", dataframe=trajectory.dataframe)
+    assert list(warm_started.dataframe["step"]) == [3, 1, 2]
+    with pytest.raises(ValueError, match="steps must be unique"):
+        warm_started.append(step=1, action={"x": 4}, reward=4.0, observation={"metric": 1.0})
 
 
 def test_first_row_establishes_fixed_schema(tmp_path: Path) -> None:
@@ -253,7 +270,7 @@ def test_warm_start_dataframe_is_copied_and_not_replayed(tmp_path: Path) -> None
     [
         ([{"action.x": 1}], "must contain a step column"),
         ([{"step": 0}], "positive integer"),
-        ([{"step": 2}, {"step": 1}], "steps must increase"),
+        ([{"step": 2}, {"step": 2}], "steps must be unique"),
     ],
 )
 def test_warm_start_dataframe_validation(tmp_path: Path, records: list[dict[str, object]], message: str) -> None:

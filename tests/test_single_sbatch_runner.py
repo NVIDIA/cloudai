@@ -345,6 +345,7 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     [
         ("bo_gp", {}, "supports only grid_search"),
         ("grid_search", {"max_consecutive_rejected_proposals": 2}, "unsupported for single-sbatch DSE"),
+        ("grid_search", {"max_parallelism": 2}, "max_parallelism is unsupported for single-sbatch DSE"),
     ],
 )
 def test_single_sbatch_rejects_adaptive_retry_settings(

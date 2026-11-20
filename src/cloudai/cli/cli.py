@@ -80,8 +80,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         logging.error(str(exc))
         return 1
 
-    if args.single_sbatch or not any(tr.is_dse_job for tr in scenario.test_runs):
-        return 0
     return 0 if successful else 1
 
 
