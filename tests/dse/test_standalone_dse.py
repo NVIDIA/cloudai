@@ -77,7 +77,7 @@ def test_free_slots_are_refilled_while_a_slow_process_runs(standalone: Standalon
     ]
 
 
-def test_cancelling_kills_the_running_processes(standalone: StandaloneSystem) -> None:
+def test_cancelling_kills_the_running_processes(standalone: StandaloneSystem, caplog: pytest.LogCaptureFixture) -> None:
     test_run = probe_test_run([1, 2, 3, 4], agent_config={"max_parallelism": 2}, duration=30)
     runner = dse_runner(standalone, StandaloneRunner, test_run)
     processes = []
@@ -106,6 +106,8 @@ def test_cancelling_kills_the_running_processes(standalone: StandaloneSystem) ->
     runner.runner.finish_output(successful=False)
     assert runner.runner.experiment_output.experiment.status == "cancelled"
     assert all(run.status == "cancelled" for run in runner.runner.experiment_output.experiment.tests[0].runs)
+    assert "Step 1 failed" not in caplog.text
+    assert "Step 2 failed" not in caplog.text
 
 
 @pytest.mark.parametrize("job_status_check", [True, False])

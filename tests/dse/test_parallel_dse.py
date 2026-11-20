@@ -159,6 +159,18 @@ def test_failed_job_and_missing_metric_both_fail_the_trial(system: ScriptedSyste
     assert [result["value"] for result in results] == [-1.0, 2.0, -1.0, 4.0]
 
 
+def test_missing_metric_log_identifies_the_trial_metric_and_output(
+    system: ScriptedSystem, caplog: pytest.LogCaptureFixture
+) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=2, silent_x=[1])
+
+    results = env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
+
+    assert results[0]["status"] == "failed"
+    assert "Step 1 has missing or failed metrics ['default']" in caplog.text
+    assert str(results[0]["output_path"]) in caplog.text
+
+
 def test_trial_that_cannot_be_prepared_fails_alone(system: ScriptedSystem, caplog: pytest.LogCaptureFixture) -> None:
     runner = scripted(system, x=[1, 2, 3, 4], max_parallelism=3, broken_x=[2])
 

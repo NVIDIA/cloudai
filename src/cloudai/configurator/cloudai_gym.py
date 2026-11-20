@@ -355,7 +355,10 @@ class CloudAIGymEnv(BaseGym):
         for job, job_status in self.runner.poll_jobs():
             running[job.test_run.step].job_status = job_status
             if not job_status.is_successful:
-                logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
+                if self.runner.shutting_down:
+                    logging.info("Step %s stopped during shutdown.", job.test_run.step)
+                else:
+                    logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
         self._record_finished(batch)
 
     def _record_finished(self, batch: _Batch) -> None:
@@ -417,6 +420,13 @@ class CloudAIGymEnv(BaseGym):
             candidate.observation = self.get_observation()
             candidate.reward = self.compute_reward(candidate.observation)
             has_metric_failure = any(value == self.rewards.metric_failure for value in candidate.observation.values())
+            if has_metric_failure:
+                logging.warning(
+                    "Step %s has missing or failed metrics %s in %s.",
+                    candidate.step,
+                    [key for key, value in candidate.observation.items() if value == self.rewards.metric_failure],
+                    self.test_run.output_path,
+                )
             job_failed = candidate.job_status is None or not candidate.job_status.is_successful
             status = "failed" if has_metric_failure or job_failed else "completed"
             output_path = self.test_run.output_path
