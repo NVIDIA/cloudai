@@ -1,28 +1,59 @@
 <Anchor id="python-api" />
 
-`cloudai.api` lets a Python program validate or run a scenario and find its saved results. Pass configuration file paths as `pathlib.Path` objects:
+`cloudai.api` lets a Python program validate or run a scenario and find its saved results.
+Prepare the Fio environment from [Run your first experiment](/tutorial) first. For integration patterns, see [Automate experiments](/automation/index).
+Pass configuration file paths as `pathlib.Path` objects:
 
-``` python
+```python
 from pathlib import Path
 
 import cloudai.api
 
-system = Path("conf/common/system/example_slurm_cluster.toml")
-scenario = Path("conf/common/test_scenario/sleep.toml")
+system = Path("standalone.toml")
+scenario = Path("conf/experimental/quickstart/fio.toml")
 
-cloudai.api.validate_scenario(
-    scenario, system, tests_dir=Path("conf/common/test")
-)
-experiment = cloudai.api.run_experiment(
-    scenario, system, tests_dir=Path("conf/common/test")
-)
+cloudai.api.validate_scenario(scenario, system)
+experiment = cloudai.api.run_experiment(scenario, system)
 print(experiment.status, experiment.path)
 ```
 
-`validate_scenario` performs the same configuration loading checks as `run_experiment`. It returns `None` on success and raises configuration errors on failure, without creating a runner, installing dependencies, or submitting jobs. Pass `tests_dir` for referenced test definitions and `hook_dir` for custom hooks, as with `run_experiment`. Validation does not check cluster availability or whether a workload will run successfully.
+<Anchor id="validate-a-scenario" />
 
-`run_experiment` waits for the scenario to finish and returns an `Experiment` model with the same data saved in `experiment.json`. Workload failures appear in its status. Configuration and setup errors raise exceptions. Use `mode="dry-run"` to generate commands without running workloads. Use `single_sbatch=True` for a single Slurm allocation. Pass `hook_dir` to use a custom hook directory. Pass an `on_start` callback to receive the initial `Experiment` and a cancellation function after `experiment.json` is created and before execution begins. The function remains synchronous after calling the callback.
+## Validate a scenario
 
-`list_experiments(system)` returns `(experiment_id, result_directory)` pairs from the system's configured output directory. Directories without `experiment.json` are skipped. A missing output directory gives an empty list; experiment file contents are not parsed.
+`validate_scenario(scenario, system)` performs the same configuration loading checks as execution.
 
-`get_experiment(experiment_id, system)` loads an `Experiment` from that system's output directory. Pass a `Path` to a result directory to load it directly. Invalid IDs and missing, unreadable, or malformed experiment files raise `ValueError`.
+- Returns `None` on success; raises configuration errors on failure.
+- Creates no runner, installs no dependencies, and submits no jobs.
+- Accepts `tests_dir` for referenced definitions and `hook_dir` for custom hooks.
+- Does not check cluster availability or guarantee workload success.
+
+<Anchor id="run-an-experiment" />
+
+## Run an experiment
+
+`run_experiment(scenario, system)` waits for completion and returns an in-memory `Experiment` snapshot.
+CloudAI also writes `experiment.json`; write failures are logged, so the file may be missing or stale.
+
+- Workload failures appear in the experiment status.
+- Configuration and setup errors raise exceptions.
+- A job submission failure can raise `SystemExit(1)`; embedded callers must handle it separately from `Exception`.
+- `on_start` receives the initial experiment and cancellation function after the first attempt to save results, before execution begins.
+- Execution remains synchronous after the callback.
+
+| Option | Use |
+| --- | --- |
+| `mode="dry-run"` | Generate commands without running workloads. |
+| `single_sbatch=True` | Execute through one Slurm allocation. |
+| `hook_dir` | Select a custom hook directory. |
+| `on_start` | Connect experiment startup and cancellation to your application. |
+
+<Anchor id="find-saved-experiments" />
+
+## Find saved experiments
+
+| Call | Result | Errors or omissions |
+| --- | --- | --- |
+| `list_experiments(system)` | `(experiment_id, result_directory)` pairs in the configured output directory. | Skips directories without `experiment.json`; a missing output directory returns an empty list. File contents are not parsed. |
+| `get_experiment(experiment_id, system)` | An `Experiment` loaded from the system output directory. | Invalid IDs and missing, unreadable, or malformed files raise `ValueError`. |
+| `get_experiment(Path(...), system)` | An `Experiment` loaded from a direct child of the system’s configured output directory. | The same file validation applies. |

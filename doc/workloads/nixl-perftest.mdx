@@ -1,5 +1,16 @@
 <Anchor id="nixl-ctperf" />
 
+Measure communication performance with NIXL CTPerf.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `NixlPerftest`) runs NIXL performance testing suite for comprehensive network performance evaluation.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ This workload (`test_template_name` is `NixlPerftest`) runs NIXL performance tes
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_nixl_perftest_test"
 description = "Example NIXL Perftest test"
 test_template_name = "NixlPerftest"
@@ -29,7 +40,7 @@ model = "deepseek-r1-distill-llama-70b"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "nixl-perftest-test"
 
 [[Tests]]
@@ -42,7 +53,7 @@ test_name = "my_nixl_perftest_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "nixl-perftest-test"
 
 [[Tests]]

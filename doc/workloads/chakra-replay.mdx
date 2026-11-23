@@ -1,5 +1,16 @@
 <Anchor id="chakra-replay" />
 
+Replay a Chakra execution trace to investigate workload behavior.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 Chakra Replay workload (`test_template_name` is `ChakraReplay`) replays execution traces from the Chakra execution trace format for performance analysis and debugging.
 
 <Anchor id="usage-examples" />
@@ -8,7 +19,7 @@ Chakra Replay workload (`test_template_name` is `ChakraReplay`) replays executio
 
 Test TOML example:
 
-``` toml
+```toml
 name = "my_chakra_test"
 description = "Example Chakra replay test"
 test_template_name = "ChakraReplay"
@@ -19,7 +30,7 @@ trace_path = "/path/to/trace.et"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "chakra-replay-test"
 
 [[Tests]]
@@ -32,7 +43,7 @@ test_name = "my_chakra_test"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "chakra-replay-test"
 
 [[Tests]]

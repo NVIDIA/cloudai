@@ -1,5 +1,16 @@
 <Anchor id="nixl-ep" />
 
+Measure elastic expert-parallel communication through NIXL.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
 This workload (`test_template_name` is `NixlEP`) runs the NIXL Elastic EP benchmark through a Slurm-managed multi-node elastic launcher flow.
 
 <Anchor id="overview" />
@@ -26,7 +37,7 @@ The `plan` field is a JSON-encoded list of phases. Each phase is a list of rank 
 
 Example:
 
-``` text
+```text
 [[0, 1, 2, 3],              # phase 0: ranks 0–3 start
  [0, 1, 2, 3, 4, 5, 6, 7], # phase 1: ranks 4–7 join (expansion)
  [0, 1, 2, 3, 4, -6, 7],   # phase 2: rank 6 contracted (no new launch)
@@ -41,7 +52,7 @@ Phase completion is detected by polling the primary log for `-> end phase N` mar
 
 Test TOML example:
 
-``` toml
+```toml
 name = "nixl-ep-expansion-contraction"
 description = "NIXL Elastic EP expansion/contraction benchmark"
 test_template_name = "NixlEP"
@@ -60,7 +71,7 @@ disable_ll_nvlink = true
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "nixl-ep-expansion-contraction"
 
 [[Tests]]

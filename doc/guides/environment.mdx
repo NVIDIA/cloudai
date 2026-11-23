@@ -1,0 +1,43 @@
+<Anchor id="set-up-your-execution-environment" />
+
+Choose a system supported by the workload, then configure its resources and paths.
+
+<Anchor id="standalone" />
+
+## Standalone
+
+For local Fio execution, install `fio` and copy the system example:
+
+```bash
+cp conf/common/system/standalone_system.toml standalone.toml
+```
+
+Use [Run your first experiment](/tutorial) to verify this path. Standalone support varies by workload; check [Workloads](/workloads/index).
+
+<Anchor id="slurm" />
+
+## Slurm
+
+On the submit host, prepare [Prepare workload prerequisites](/workloads/workloads-requirements-installation), then copy:
+
+```bash
+cp conf/common/system/example_slurm_cluster.toml slurm.toml
+```
+
+Edit `slurm.toml` for your cluster:
+
+- Set partition, node counts, and GPU counts.
+- Make output, install, model, and input paths accessible on the execution nodes.
+- Add container mounts for data outside the default paths.
+
+Start with one case. Use [Run on Slurm](/guides/slurm) for allocation modes, scheduler arguments, and tracing.
+
+<Anchor id="kubernetes" />
+
+## Kubernetes
+
+Use [Run on Kubernetes](/guides/kubernetes) to configure cluster access and networking, then run [Dynamo](/workloads/ai-dynamo)
+or [NCCL](/workloads/nccl). CloudAI generates the workload's Kubernetes resources and collects results.
+
+Check [Workload and system support](/reference/workload-support) before choosing a system. Configuration fields for all systems are
+in [Systems](/systems).

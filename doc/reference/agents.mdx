@@ -1,0 +1,112 @@
+<Anchor id="agent-and-search-settings" />
+
+Built-in `grid_search` proposes every configured combination; constraint-rejected candidates do not execute; `agent_steps` is not a grid-search cap.
+See [Run a configuration search](/optimization/search) for an executable example.
+
+For DSE workloads, you can pass agent configuration via `agent_config` in the scenario.
+
+`BaseAgentConfig` includes:
+
+- `random_seed`: controls deterministic random behavior in agents.
+- `start_action`: controls the very first action strategy (`"random"` or `"first"`).
+- `max_consecutive_rejected_proposals`: maximum consecutive constraint rejections before skipping a DSE step.
+  Defaults to `16`; see [constraint rejected proposals](/reference/agents#constraint-rejected-proposals) for retry behavior.
+- `rewards` (optional): nested table mapped to `RewardOverrides`. When present, `CloudAIGymEnv` uses it for
+  constraint failures and for substituting failed-metric values in observations.
+
+  - `constraint_failure`: reward returned when `TestDefinition.constraint_check` fails on a step. If omitted
+    or unset, the environment uses `-1.0`.
+  - `metric_failure`: value written into the observation vector when a metric is missing or is the
+    canonical error sentinel `METRIC_ERROR` (a distinct object from numeric metrics, so a valid `-1.0`
+    result is not mistaken for an error). If omitted or unset, observations use `-1.0` for that slot.
+
+Example:
+
+```toml
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce"
+agent = "grid_search"
+agent_metrics = ["default"]
+agent_reward_function = "inverse"
+
+  [Tests.agent_config]
+  random_seed = 123
+  start_action = "first"
+  max_consecutive_rejected_proposals = 16
+
+    [Tests.agent_config.rewards]
+    constraint_failure = -5.0
+    metric_failure = 0.0
+```
+
+When an agent honors `start_action = "first"`, it should start from `CloudAIGymEnv.first_sweep` (the sweep
+is built from first values of each sweep parameter). `start_action = "random"` means starting from a random
+action, typically seeded by `random_seed`.
+
+Custom agents may extend the `BaseAgentConfig` and offer more parameters to configure.
+
+<Anchor id="retry-constraint-rejected-proposals" />
+
+<Anchor id="constraint-rejected-proposals" />
+
+## Retry constraint-rejected proposals
+
+A constraint-rejected proposal updates the agent with `constraint_failure` and retries without consuming a
+DSE step. Grid search stops when it exhausts its combinations, even if the retry limit has not been reached.
+`max_consecutive_rejected_proposals` bounds those retries:
+
+| Event | Effect |
+| --- | --- |
+| Retry limit reached | Skip the current DSE step and continue with the next. |
+| Execution, cache hit, or skipped step | Reset the consecutive-rejection counter. |
+| Episode reset | Preserve the counter; the environment owns it across episodes. |
+
+Single-sbatch DSE supports only `grid_search` and precomputes its combinations. It rejects an explicitly
+configured retry limit; omit `max_consecutive_rejected_proposals` in that mode.
+
+<Anchor id="dse-parameter-exclusions" />
+
+## DSE Parameter Exclusions
+
+CloudAI builds the DSE parameter space implicitly from list-valued fields under `cmd_args`, list-valued
+`extra_env_vars`, and list-valued `num_nodes`. Most lists mean "try each value", but some workload settings are
+real list-valued configuration, such as worker port lists or ordered benchmark phases.
+
+Use `dse_excluded_args` to keep a list intact:
+
+- Each path starts with `cmd_args.`.
+- A path can identify one field or a parent object.
+- Prefix matching means `cmd_args.foo` also excludes `cmd_args.foo.bar`.
+
+```toml
+[[Tests]]
+id = "Tests.1"
+test_name = "my_test"
+dse_excluded_args = ["cmd_args.lmcache.lmcache_worker_ports"]
+
+  [Tests.cmd_args.lmcache]
+  chunk_size = [256, 512]
+  lmcache_worker_ports = [8788, 8789, 8790, 8791]
+```
+
+| Setting | Effect |
+| --- | --- |
+| `chunk_size` | Two search choices: 256 and 512. |
+| `lmcache_worker_ports` | One list passed intact to the workload. |
+| Parent-path exclusion | Keeps all nested lists under that path intact. |
+| `extra_env_vars` and `num_nodes` | Still search dimensions; `dse_excluded_args` applies only to `cmd_args`. |
+
+<Anchor id="metric-errors-and-report-strategies" />
+
+## Metric Errors and Report Strategies
+
+Report generation strategies signal a failed or missing metric by returning the singleton `METRIC_ERROR` from
+`cloudai.core` (type `MetricErrorSentinel`; `float(METRIC_ERROR)` is `-1.0` for numeric use). The declared
+return type of `ReportGenerationStrategy.get_metric` is `MetricValue` (`float | MetricErrorSentinel`).
+
+When branching on success vs failure, use **identity** (`value is METRIC_ERROR`), not equality to `-1.0`, so a legitimate metric of `-1.0` is not
+treated as an error. The gym observation path uses that identity check before applying `agent_config.rewards.metric_failure`.
+
+Choose a `metric_failure` value outside the valid metric range: the selected-result filter in `experiment.json`
+excludes observations equal to that value, including otherwise valid measurements.
