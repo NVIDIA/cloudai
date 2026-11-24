@@ -209,27 +209,15 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         if df.empty:
             return METRIC_ERROR
 
-        bandwidth_metrics = {
-            "max-busbw-in-place": "In-place",
-            "max-busbw-out-of-place": "Out-of-place",
+        metrics = {
+            "default": ("Time (us) In-place", "mean"),
+            "latency-in-place": ("Time (us) In-place", "mean"),
+            "latency-out-of-place": ("Time (us) Out-of-place", "mean"),
+            "max-busbw-in-place": ("Busbw (GB/s) In-place", "max"),
+            "max-busbw-out-of-place": ("Busbw (GB/s) Out-of-place", "max"),
         }
-        if metric in bandwidth_metrics:
-            placement = bandwidth_metrics[metric]
-            data = df[f"Busbw (GB/s) {placement}"].astype(float)
-            wrong = lazy.pd.to_numeric(df[f"#Wrong {placement}"], errors="coerce")
-            if not (wrong == 0).all() or not lazy.np.isfinite(data).all() or (data < 0).any():
-                return METRIC_ERROR
-            return float(data.max())
-
-        metric_to_field = {
-            "default": "Time (us) In-place",
-            "latency-in-place": "Time (us) In-place",
-            "latency-out-of-place": "Time (us) Out-of-place",
-        }
-
-        if metric not in metric_to_field:
+        if metric not in metrics:
             return METRIC_ERROR
 
-        data = df[metric_to_field[metric]].astype(float).tolist()
-
-        return float(lazy.np.mean(data))
+        column, reduction = metrics[metric]
+        return float(df[column].astype(float).agg(reduction))

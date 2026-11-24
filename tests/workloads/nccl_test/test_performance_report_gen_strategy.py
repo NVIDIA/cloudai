@@ -113,6 +113,13 @@ def test_get_metric(
     assert res == lazy.np.mean(ref_values)
 
 
+@pytest.mark.parametrize("metric,expected", [("max-busbw-in-place", 130.41), ("max-busbw-out-of-place", 130.40)])
+def test_peak_bandwidth(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, metric: str, expected: float
+) -> None:
+    assert report_strategy.get_metric(metric) == expected
+
+
 def test_get_metric_returns_metric_error_for_malformed_numeric_row(
     report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
 ) -> None:
