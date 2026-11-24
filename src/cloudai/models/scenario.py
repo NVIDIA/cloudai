@@ -350,7 +350,7 @@ class TestRunDetails(BaseModel):
                 },
             }
             projection["record"] = TypeAdapter(dict[str, Any]).dump_python(projection["record"], mode="json")
-            definition.model_dump(mode="json", exclude_unset=True, context=projection)
+            effective_configuration = definition.model_dump(mode="json", context=projection)
             supplied = projection["record"]["supplied"]
             recorded = projection["record"]["recorded"]
             native = record.get("record_context_version") == "1" and "recovery" not in details
@@ -365,7 +365,9 @@ class TestRunDetails(BaseModel):
             ):
                 raise ValueError("native winning action cannot be verified from selected dump")
             _merge_recorded_values(action, resolved, action, record, typed=True)
-            environment = _export_comparison_view(_record_environment(deepcopy(configuration), resources, action))
+            environment = _export_comparison_view(
+                _record_environment(deepcopy(effective_configuration if native else configuration), resources, action)
+            )
             recorded["environment"] = _export_comparison_view(recorded["environment"])
             merged = _merge_recorded_values(
                 recorded["environment"], environment, recorded["environment"], record, typed=True

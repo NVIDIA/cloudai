@@ -17,7 +17,7 @@
 import copy
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
@@ -198,7 +198,7 @@ class CloudAIGymEnv(BaseGym):
                 observation = {
                     metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
                 }
-            reward = cast(float, cached_result["reward"])
+            reward = float(cached_result["reward"])
         else:
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
                 logging.info("Constraint check failed for step %s", trial)

@@ -29,6 +29,7 @@ import math
 import os
 import stat
 import tempfile
+import threading
 import uuid
 import weakref
 from collections.abc import Mapping, Sequence
@@ -38,6 +39,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from cloudai.util.lazy_imports import lazy
+from cloudai.util.utils import values_match_exact
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -154,6 +156,7 @@ class Trajectory:
     metadata_file_name = "metadata.csv"
     _core_fields = ("step", "action", "reward", "observation")
     _core_domains = frozenset(_core_fields)
+    _csv_read_lock = threading.Lock()
 
     def __init__(
         self,
@@ -218,8 +221,28 @@ class Trajectory:
             raise ValueError(f"unsupported trajectory recovery policy: {recovery!r}")
         source = Path(source)
         path = source / cls.file_name if source.is_dir() else source
-        sidecar = path.parent / cls.metadata_file_name
         marker = _read_commit(path.parent)
+        try:
+            loaded = cls._load_snapshot(path, marker, missing_ok, recovery)
+        except TrajectoryLoadError:
+            if marker is not None:
+                raise
+            marker = _read_commit(path.parent)
+            if marker is None:
+                raise
+        else:
+            if marker is not None:
+                return loaded
+            marker = _read_commit(path.parent)
+            if marker is None:
+                return loaded
+        return cls._load_snapshot(path, marker, missing_ok, recovery)
+
+    @classmethod
+    def _load_snapshot(
+        cls, path: Path, marker: dict[str, Any] | None, missing_ok: bool, recovery: Literal["recorded"] | None
+    ) -> Trajectory:
+        sidecar = path.parent / cls.metadata_file_name
         texts = _committed_texts(path, marker) if marker is not None else None
         if (marker is not None and marker["trajectory"]["bytes"] == 0) or (
             marker is None
@@ -400,7 +423,8 @@ class Trajectory:
             contexts = {
                 name: deepcopy(values.get(name, {})) for name in ("run_details", "measurement", "evaluation_failure")
             }
-            environment = record.get("env_params", {}, decode_numbers=True)
+            legacy = record.get("record_format_version") != "1"
+            environment = record.get("env_params", {}, decode_numbers=not legacy)
             if any(not isinstance(value, dict) for value in contexts.values()) or not isinstance(environment, dict):
                 raise ValueError("scalar reserved context cannot be normalized")
             if "recovery" in contexts["run_details"]:
@@ -454,7 +478,7 @@ class Trajectory:
             _merge_recorded_values(values, semantic_evidence, values, record)
             action = record["action"] if isinstance(record["action"], Mapping) else {}
             resolved = _resolve_recorded_action(configuration, resources, action, missing_ok=True)
-            if any(not _values_match_exact(action[name], value) for name, value in resolved.items()):
+            if any(not values_match_exact(action[name], value) for name, value in resolved.items()):
                 raise ValueError("recorded action conflicts with historical configuration")
             supplied = _record_environment(deepcopy(configuration), resources, action)
             _validate_environment(supplied)
@@ -469,7 +493,6 @@ class Trajectory:
                 if supplied
                 else set()
             )
-            legacy = record.get("record_format_version") != "1"
             if legacy and any(
                 ".".join(left) == ".".join(right) and left != right
                 for left in original_paths
@@ -710,6 +733,10 @@ class Trajectory:
         cached_result: pd.Series | None = None,
         run_output: Run | None = None,
     ) -> TrajectoryRecord:
+        if isinstance(observation, Mapping):
+            if set(observation) != set(test_run.test.agent_metrics):
+                raise ValueError("observation keys must match agent_metrics exactly")
+            observation = [observation[name] for name in test_run.test.agent_metrics]
         cached_measurement = (
             _decode_record_context(dict(cached_result), self.output_path, test_run.step, field="measurement")[
                 "measurement"
@@ -730,9 +757,7 @@ class Trajectory:
                     }
                 )
         observation_values = (
-            observation
-            if isinstance(observation, Mapping)
-            else dict(zip(test_run.test.agent_metrics, observation, strict=False))
+            dict(zip(test_run.test.agent_metrics, observation, strict=False))
             if isinstance(observation, Sequence)
             else {}
         )
@@ -740,8 +765,7 @@ class Trajectory:
         for index, name in enumerate(test_run.test.agent_metrics):
             value = observation_values.get(name)
             status = "failed" if name in failed_metrics else "observed"
-            if isinstance(value, float) and not math.isfinite(value):
-                status = "nonfinite"
+            status = "nonfinite" if isinstance(value, float) and not math.isfinite(value) else status
             unit = units.get(name, "unknown")
             if cached_result is not None:
                 cached_metric = cached_measurement.get("metrics", {}).get(str(index), {})
@@ -754,8 +778,7 @@ class Trajectory:
             metric["status"] == "nonfinite" for metric in metrics.values()
         ):
             outcome = "nonfinite"
-        if failed_metrics:
-            outcome = "metric_failure"
+        outcome = "metric_failure" if failed_metrics else outcome
         if execution_error is not None or execution_status in {"failed", "cancelled"}:
             outcome = "runner_failure"
         origin = {
@@ -931,7 +954,10 @@ class Trajectory:
         core_header, core_bytes = _encode_csv_row(core_row, self._headers.get("trajectory"))
         metadata_header, metadata_bytes = _encode_csv_row(metadata_row, self._headers.get("metadata"))
         record_digest = hashlib.sha256(core_bytes + b"\x00" + metadata_bytes).hexdigest()
-        if self._reconcile_retry(step, record_digest):
+        legacy_digest = _legacy_record_digest(
+            tuple(core_row[name] for name in core_header), tuple(metadata_row[name] for name in metadata_header)
+        )
+        if self._reconcile_retry(step, (record_digest, legacy_digest)):
             return _copy_series(lazy.pd.Series(record, dtype=object))
         if self._rows and step <= self._rows[-1]["step"]:
             raise ValueError(f"trajectory steps must increase: last step is {self._rows[-1]['step']}, got {step}")
@@ -1124,7 +1150,7 @@ class Trajectory:
         publication.update(generation=publication["generation"] + 1, last_step=step, last_record_sha256=record_digest)
         return publication, (payloads[0], payloads[1]), hashes
 
-    def _reconcile_retry(self, step: int, record_digest: str) -> bool:
+    def _reconcile_retry(self, step: int, record_digests: tuple[str, str]) -> bool:
         marker = _read_commit(self._iteration_dir)
         if marker != self._publication:
             if self._pending is None or marker != self._pending["publication"]:
@@ -1135,7 +1161,7 @@ class Trajectory:
             _sync_directory(self._iteration_dir)
             self._accept_pending()
         if marker is not None and step == marker["last_step"]:
-            if record_digest != marker["last_record_sha256"]:
+            if marker["last_record_sha256"] not in record_digests:
                 raise ValueError(
                     "trajectory steps must increase; retry payload differs from the committed record at the same step"
                 )
@@ -1229,7 +1255,7 @@ class Trajectory:
             candidate = self._rows[position]
             if versioned is not None and (candidate.get("record_format_version") == "1") != versioned:
                 continue
-            if all(_values_match_exact(candidate[field], criteria[field]) for field in fields):
+            if all(values_match_exact(candidate[field], criteria[field]) for field in fields):
                 return position
         return None
 
@@ -1291,28 +1317,29 @@ def _read_csv(
     if "\x00" in text:
         raise TrajectoryLoadError(path, "artifact contains a NUL character")
 
-    previous_limit = csv.field_size_limit()
-    csv.field_size_limit(max(previous_limit, len(text)))
-    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
-    try:
-        header = next(reader, None)
-        if not header:
-            raise TrajectoryLoadError(path, "missing CSV header", row=1)
-        if any(not name for name in header) or len(header) != len(set(header)):
-            raise TrajectoryLoadError(path, "CSV header must contain unique nonempty names", row=1)
-        missing = set(required) - set(header)
-        if missing:
-            raise TrajectoryLoadError(path, f"missing required columns: {sorted(missing)}", row=1)
+    with Trajectory._csv_read_lock:
+        previous_limit = csv.field_size_limit()
+        csv.field_size_limit(max(previous_limit, len(text)))
+        reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+        try:
+            header = next(reader, None)
+            if not header:
+                raise TrajectoryLoadError(path, "missing CSV header", row=1)
+            if any(not name for name in header) or len(header) != len(set(header)):
+                raise TrajectoryLoadError(path, "CSV header must contain unique nonempty names", row=1)
+            missing = set(required) - set(header)
+            if missing:
+                raise TrajectoryLoadError(path, f"missing required columns: {sorted(missing)}", row=1)
 
-        rows = []
-        for row_number, values in enumerate(reader, start=2):
-            if len(values) != len(header):
-                raise TrajectoryLoadError(path, f"expected {len(header)} fields, got {len(values)}", row=row_number)
-            rows.append((row_number, dict(zip(header, values, strict=True))))
-    except csv.Error as error:
-        raise TrajectoryLoadError(path, f"malformed CSV: {error}", row=reader.line_num) from error
-    finally:
-        csv.field_size_limit(previous_limit)
+            rows = []
+            for row_number, values in enumerate(reader, start=2):
+                if len(values) != len(header):
+                    raise TrajectoryLoadError(path, f"expected {len(header)} fields, got {len(values)}", row=row_number)
+                rows.append((row_number, dict(zip(header, values, strict=True))))
+        except csv.Error as error:
+            raise TrajectoryLoadError(path, f"malformed CSV: {error}", row=reader.line_num) from error
+        finally:
+            csv.field_size_limit(previous_limit)
 
     return header, rows, text
 
@@ -1433,20 +1460,6 @@ def _hashable_key(value: Any) -> Any:
         # the sets {1} and {1.0}, and a split is unrecoverable where a shared bucket is not.
         return (type_name,)
     return (type_name, value)
-
-
-def _values_match_exact(left: Any, right: Any) -> bool:
-    if type(left) is not type(right):
-        return False
-    if isinstance(left, Mapping):
-        if set(left) != set(right):
-            return False
-        return all(_values_match_exact(left[key], right[key]) for key in left)
-    if isinstance(left, Sequence) and not isinstance(left, (str, bytes)):
-        return len(left) == len(right) and all(
-            _values_match_exact(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
-        )
-    return bool(left == right)
 
 
 def _flatten_environment(value: object, path: tuple[str, ...] = (), *, expand_mappings: bool = True) -> dict[str, Any]:
@@ -1707,7 +1720,12 @@ def _validate_committed_records(
     last_step = None if not core_rows else int(core_rows[-1][1]["step"])
     if last_step != marker["last_step"]:
         raise TrajectoryLoadError(path, "committed final step does not match the marker")
-    if _last_record_digest(core_rows, metadata_rows) != marker["last_record_sha256"]:
+    digests = {_last_record_digest(core_rows, metadata_rows)}
+    if core_rows:
+        row = core_rows[-1][1]
+        metadata = next(value for _, value in metadata_rows if int(value["step"]) == int(row["step"]))
+        digests.add(_legacy_record_digest(tuple(row.values()), tuple(metadata.values())))
+    if marker["last_record_sha256"] not in digests:
         raise TrajectoryLoadError(path, "committed final record does not match the marker")
 
 
@@ -1721,6 +1739,18 @@ def _last_record_digest(
     return hashlib.sha256(_csv_bytes(tuple(row.values())) + b"\x00" + _csv_bytes(tuple(metadata.values()))).hexdigest()
 
 
+def _legacy_record_digest(core: Sequence[object], metadata: Sequence[object]) -> str:
+    rows = []
+    for values in (core, metadata):
+        cells = [_csv_cell(value) for value in values]
+        encoded = [
+            '"' + cell.replace('"', '""') + '"' if any(character in cell for character in ',"\n') else cell
+            for cell in cells
+        ]
+        rows.append((",".join(encoded) + "\n").encode("utf-8"))
+    return hashlib.sha256(rows[0] + b"\x00" + rows[1]).hexdigest()
+
+
 def _csv_cell(value: object) -> str:
     return "" if value is None else str(value)
 
@@ -1730,8 +1760,8 @@ def _csv_bytes(values: Sequence[object]) -> bytes:
     if any("\x00" in value for value in cells):
         raise ValueError("trajectory CSV cells cannot contain NUL characters")
     output = io.StringIO(newline="")
-    csv.writer(output, lineterminator="\n").writerow(cells)
-    return output.getvalue().encode("utf-8")
+    csv.writer(output, lineterminator="\r\n").writerow(cells)
+    return (output.getvalue().removesuffix("\r\n") + "\n").encode("utf-8")
 
 
 def _encode_csv_row(row: dict[str, object], header: tuple[str, ...] | None) -> tuple[tuple[str, ...], bytes]:
@@ -1863,7 +1893,7 @@ def _merge_recorded_values(
                 prefix=path,
             )
             continue
-        agrees = _values_match_exact(prior, value) if typed else _values_match_exact(prior, _csv_cell(value))
+        agrees = values_match_exact(prior, value) if typed else values_match_exact(prior, _csv_cell(value))
         if not agrees:
             raise TrajectoryLoadError(
                 record.source, f"recorded context conflicts with historical value at {'.'.join(path)}", step=record.step
@@ -1895,7 +1925,11 @@ def _record_outcome_reasons(record: TrajectoryRecord, *, reference: bool) -> tup
         reasons.append("reward_unusable")
     if reference:
         return tuple(reasons)
-    if not _finite_record_value(record["observation"]):
+    if (
+        "observation" not in record
+        or (isinstance(record["observation"], str) and record["observation"].startswith("[truncated"))
+        or not _finite_record_value(record["observation"])
+    ):
         reasons.append("observation_unusable")
     failure = record.get("evaluation_failure", decode_numbers=True)
     measurement = record.get("measurement", {}, decode_numbers=True)
@@ -1909,6 +1943,27 @@ def _record_outcome_reasons(record: TrajectoryRecord, *, reference: bool) -> tup
         if isinstance(paths, list)
         else set()
     )
+    failure_fields = {
+        name: value == "True"
+        if (
+            name in ("constraint", "runner", "metric", "nonfinite")
+            and isinstance(value, str)
+            and value in ("True", "False")
+            and (record.get("record_context_version") != "1" or ("evaluation_failure", name) in opaque)
+        )
+        else value
+        for name, value in failure_fields.items()
+    }
+    serialized_indices = failure_fields.get("metric_indices")
+    if isinstance(serialized_indices, str) and (
+        record.get("record_context_version") != "1" or ("evaluation_failure", "metric_indices") in opaque
+    ):
+        with contextlib.suppress(ValueError, SyntaxError):
+            recovered_indices = ast.literal_eval(serialized_indices)
+            if isinstance(recovered_indices, list) and all(
+                type(index) is int and index >= 0 for index in recovered_indices
+            ):
+                failure_fields["metric_indices"] = recovered_indices
     failure_fields = {
         name: value
         for name, value in failure_fields.items()
@@ -2012,10 +2067,10 @@ def _target_configuration_reasons(
         or not isinstance(proposal, Mapping)
         or set(resolved) != set(space)
         or any(
-            name not in resolved or not _values_match_exact(value, resolved[name]) for name, value in proposal.items()
+            name not in resolved or not values_match_exact(value, resolved[name]) for name, value in proposal.items()
         )
         or any(
-            not any(_values_match_exact(value, candidate) for candidate in space[name])
+            not any(values_match_exact(value, candidate) for candidate in space[name])
             for name, value in resolved.items()
         )
     ):
@@ -2032,7 +2087,7 @@ def _target_configuration_reasons(
             for index, value in enumerate(parameter.candidates)
             if parameter.weights is None or parameter.weights[index] > 0
         ]
-        if name not in environment or not any(_values_match_exact(environment[name], value) for value in support):
+        if name not in environment or not any(values_match_exact(environment[name], value) for value in support):
             return ("environment_incompatible",)
         regime[name] = environment[name]
     try:
@@ -2043,7 +2098,7 @@ def _target_configuration_reasons(
     except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
         return ("configuration_incompatible",)
     expected_details = expected["run_details"]
-    schema_matches = _values_match_exact(details["agent_metrics"], expected_details["agent_metrics"])
+    schema_matches = values_match_exact(details["agent_metrics"], expected_details["agent_metrics"])
     measurement_matches = True
     if learning:
         measurement = record.get("measurement", {}, decode_numbers=True)
@@ -2077,9 +2132,9 @@ def _target_configuration_reasons(
         for reason, fails in (
             (
                 "configuration_incompatible",
-                not _values_match_exact(environment, expected["env_params"])
+                not values_match_exact(environment, expected["env_params"])
                 or any(
-                    not _values_match_exact(details[name], expected_details[name])
+                    not values_match_exact(details[name], expected_details[name])
                     for name in ("launch", "reward_function", "evaluation_policy")
                 ),
             ),

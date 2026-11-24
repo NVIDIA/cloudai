@@ -17,7 +17,9 @@
 import getpass
 import logging
 import re
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
+from typing import Any
 
 
 def get_current_username() -> str:
@@ -76,3 +78,17 @@ def format_time_limit(total_time: timedelta) -> str:
     if days > 0:
         return f"{days}-{hours:02}:{minutes:02}:{seconds:02}"
     return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+
+def values_match_exact(left: Any, right: Any) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, Mapping):
+        if set(left) != set(right):
+            return False
+        return all(values_match_exact(left[key], right[key]) for key in left)
+    if isinstance(left, Sequence) and not isinstance(left, (str, bytes)):
+        return len(left) == len(right) and all(
+            values_match_exact(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
+        )
+    return bool(left == right)

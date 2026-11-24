@@ -205,6 +205,10 @@ all history artifacts are absent; partial or corrupt histories still raise.
 | `Trajectory(iteration_dir=path, mode="adopt")` | Validate a markerless legacy history before continuing it. |
 | `Trajectory.load(path)` | Read committed records without recovery writes. |
 
+Histories with inline auxiliary columns in `trajectory.csv`, including a legacy
+`note` column, are read-only. Neither `adopt` nor `resume` can continue these
+layouts; write subsequent trials to a new history.
+
 Managed histories publish `trajectory.csv` and `metadata.csv` together through
 `.trajectory.commit.json`. Readers see only the committed prefix. Retrying the
 same last-step payload is idempotent; changing that payload is refused. Appends

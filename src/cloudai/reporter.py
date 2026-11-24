@@ -268,8 +268,13 @@ class DSEReporter(Reporter):
 
     def report_best_dse_config(self):
         """Persist the highest-reward configuration for each DSE test case iteration."""
-        for tr in (test_run for test_run in self.test_scenario.test_runs if test_run.is_dse_job):
-            tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
+        for tr, iteration in (
+            (test_run, iteration)
+            for test_run in self.test_scenario.test_runs
+            if test_run.is_dse_job
+            for iteration in range(test_run.iterations)
+        ):
+            tr_root = self.results_root / tr.name / str(iteration)
             trajectory = Trajectory.load(tr_root, missing_ok=True, recovery="recorded")
             if not trajectory:
                 logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)

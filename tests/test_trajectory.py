@@ -890,10 +890,13 @@ def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path
         assert loaded.dataframe["step"].tolist() == [record.step for record in loaded.records()]
         assert csv.field_size_limit() == 4096
 
-        written.metadata_path.write_text(f'step,logging.payload\n1,"{payload}",extra\n')
+        markerless = tmp_path / "markerless"
+        markerless.mkdir()
+        (markerless / Trajectory.file_name).write_bytes(written.output_path.read_bytes())
+        (markerless / Trajectory.metadata_file_name).write_text(f'step,logging.payload\n1,"{payload}",extra\n')
 
-        with pytest.raises(TrajectoryLoadError):
-            Trajectory.load(tmp_path)
+        with pytest.raises(TrajectoryLoadError, match="row 2, expected 2 fields, got 3"):
+            Trajectory.load(markerless)
 
         assert csv.field_size_limit() == 4096
     finally:
@@ -2243,7 +2246,7 @@ def test_recorded_recovery_uses_only_matching_historical_evidence(
         assert record.get("configuration_id") is None
         assert record.source == root / "trajectory.csv"
     for record, original in zip(records[1:], raw[1:], strict=True):
-        assert record.get("env_params", decode_numbers=True) == original.get("env_params", decode_numbers=True)
+        assert record.get("env_params", decode_numbers=True) == original["env_params"]
         assert ["label"] in record.get("run_details", decode_numbers=True)["recovery"]["ambiguous_env_paths"]
     copied = tmp_path / "copied"
     shutil.copytree(root, copied)
@@ -2450,6 +2453,10 @@ def eligibility_context(tmp_path: Path):
             {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
         ),
         ("legacy-known-failure", {"measurement": "explicit_failure", "learning": "explicit_failure"}),
+        (
+            "malformed-native-boolean",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
     ],
 )
 def test_record_eligibility_preserves_evidence_for_distinct_consumer_roles(
@@ -2525,7 +2532,9 @@ def test_record_eligibility_preserves_evidence_for_distinct_consumer_roles(
         elif case == "malformed-metric-status":
             measurement["metrics"]["0"]["status"] = []
         else:
-            rows[0]["evaluation_failure"] = json.dumps({"metric_indices": "[]"})
+            rows[0]["evaluation_failure"] = json.dumps(
+                {"malformed-native-boolean": {"constraint": "True"}}.get(case, {"metric_indices": "[]"})
+            )
         rows[0]["measurement"] = json.dumps(measurement)
         with (archive / Trajectory.metadata_file_name).open("w", newline="") as stream:
             csv_writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
@@ -2884,3 +2893,278 @@ def test_environment_codec_preserves_other_live_raw_domains(
                 "fixed": json.dumps({"number": 1, "flag": True, "label": "001"}, separators=(",", ":"))
             }
     assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize("value", ["001", "nan", "inf", "False", "[]"])
+@pytest.mark.parametrize("dump", ["absent", "unverified"])
+def test_recorded_recovery_preserves_uncorroborated_legacy_environment_cells(
+    tmp_path: Path, value: str, dump: str
+) -> None:
+    import toml
+
+    from cloudai.core import CommandGenStrategy
+
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(step=1, action={"x": 1}, reward=10, observation=[1.0], env_params={"label": value})
+    if dump == "unverified":
+        archive = tmp_path / "1"
+        archive.mkdir()
+        (archive / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps({"name": "unverified", "test_definition": {"cmd_args": {"label": "not-trusted"}}})
+        )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    original = Trajectory.load(tmp_path).records()[0]
+
+    recovered = Trajectory.load(tmp_path, recovery="recorded").records()[0]
+
+    assert original["env_params"] == {"label": value}
+    assert recovered.get("env_params", decode_numbers=True) == {"label": value}
+    assert recovered["action"] == original["action"]
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("shape", ["ordered", "reversed", "missing", "extra"])
+def test_record_orders_mapping_observations_by_declared_metrics_and_refuses_key_mismatch(
+    tmp_path: Path, eligibility_context, shape: str
+) -> None:
+    from cloudai.models.output import Metric, Run
+
+    case, system, rewards = eligibility_context
+    case.test.agent_metrics = ["bandwidth", "latency"]
+    selected = case.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+    selected.step = 1
+    observation = {
+        "ordered": {"bandwidth": 100.0, "latency": 2.0},
+        "reversed": {"latency": 2.0, "bandwidth": 100.0},
+        "missing": {"bandwidth": 100.0},
+        "extra": {"bandwidth": 100.0, "latency": 2.0, "extra": 9.0},
+    }[shape]
+    writer = Trajectory(iteration_dir=tmp_path)
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    arguments: dict[str, Any] = {
+        "test_run": selected,
+        "action_space": case.param_space,
+        "action": {"x": 1},
+        "reward": 10,
+        "observation": observation,
+        "system": system,
+        "rewards": rewards,
+        "run_output": Run(
+            path=str(selected.output_path),
+            jobid="metric-order",
+            status="completed",
+            step=1,
+            iteration=0,
+            metrics=[
+                Metric(name="bandwidth", value=100, unit="unknown"),
+                Metric(name="latency", value=2, unit="unknown"),
+            ],
+        ),
+    }
+    if shape in ("missing", "extra"):
+        with pytest.raises(ValueError):
+            writer.record(**arguments)
+        assert len(writer) == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+        return
+
+    live = writer.record(**arguments)
+    reloaded = Trajectory.load(tmp_path).records()[0]
+
+    for record in (live, reloaded):
+        assert record["observation"] == [100.0, 2.0]
+        assert record.get("run_details", decode_numbers=True)["agent_metrics"] == ["bandwidth", "latency"]
+        assert record.ineligibility_reasons("learning", current=eligibility_context) == ()
+    assert observation == arguments["observation"]
+
+
+@pytest.mark.parametrize("observation", [None, "[truncated observation]", "[truncated after 1000 characters]", [1.0]])
+def test_missing_or_truncated_observation_excludes_measurements_but_preserves_decisions(
+    tmp_path: Path, eligibility_context, observation
+) -> None:
+    row = {"step": 1, "action": {"x": 1}, "reward": 10}
+    if observation is not None:
+        row["observation"] = observation
+    history = Trajectory(iteration_dir=tmp_path, dataframe=pd.DataFrame([row]))
+    record = history.records()[0]
+    before = dict(record)
+
+    assert record.ineligibility_reasons("reference") == ()
+    assert record.ineligibility_reasons("decision") == ()
+    for purpose in ("measurement", "learning"):
+        reasons = record.ineligibility_reasons(purpose, current=eligibility_context if purpose == "learning" else None)
+        assert ("observation_unusable" in reasons) is (observation != [1.0])
+    assert dict(record) == before
+
+
+@pytest.mark.parametrize("field", ["constraint", "runner", "metric", "nonfinite"])
+@pytest.mark.parametrize("failed", [False, True])
+def test_legacy_boolean_failure_fields_keep_measurement_policy_after_both_load_modes(
+    tmp_path: Path, field: str, failed: bool
+) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(step=1, action={"x": 1}, reward=10, observation=[1.0], evaluation_failure={field: failed})
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    live = writer.records()[0]
+    assert ("explicit_failure" in live.ineligibility_reasons("measurement")) is failed
+
+    for recovery in (None, "recorded"):
+        record = Trajectory.load(tmp_path, recovery=recovery).records()[0]
+        assert record.get("evaluation_failure", decode_numbers=True)[field] == str(failed)
+        assert ("explicit_failure" in record.ineligibility_reasons("measurement")) is failed
+        assert record.ineligibility_reasons("reference") == ()
+        assert record.ineligibility_reasons("decision") == ()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+def test_concurrent_large_csv_loads_restore_process_field_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, current_thread
+
+    directories = [tmp_path / "first", tmp_path / "second"]
+    for directory in directories:
+        directory.mkdir()
+        with (directory / Trajectory.file_name).open("w", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["step", "action", "reward", "observation", "note"])
+            writer.writerow([1, {"x": 1}, 10, [1.0], "x" * 200000])
+    reader = csv.reader
+    first_inside, second_started, second_inside, first_finished = Event(), Event(), Event(), Event()
+    original_limit = csv.field_size_limit()
+
+    def scheduled_reader(*args, **kwargs):
+        if current_thread().name.endswith("_0"):
+            first_inside.set()
+            assert second_started.wait(5)
+            second_inside.wait(1)
+        else:
+            second_inside.set()
+            assert first_finished.wait(5)
+        return reader(*args, **kwargs)
+
+    def load(index: int):
+        if index:
+            second_started.set()
+        try:
+            return [record.step for record in Trajectory.load(directories[index]).records()]
+        finally:
+            if not index:
+                first_finished.set()
+
+    try:
+        with monkeypatch.context() as scheduling:
+            scheduling.setattr(csv, "reader", scheduled_reader)
+            with ThreadPoolExecutor(max_workers=2, thread_name_prefix="trajectory-reader") as pool:
+                first = pool.submit(load, 0)
+                assert first_inside.wait(5)
+                second = pool.submit(load, 1)
+                assert first.result(timeout=10) == [1]
+                assert second.result(timeout=10) == [1]
+        assert csv.field_size_limit() == original_limit
+    finally:
+        csv.field_size_limit(original_limit)
+
+
+@pytest.mark.parametrize("partial_tail", [False, True], ids=["complete-unpublished-row", "partial-unpublished-row"])
+def test_marker_appearing_after_legacy_precheck_bounds_the_published_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, partial_tail: bool
+) -> None:
+    core = tmp_path / Trajectory.file_name
+    core.write_text("step,action,reward,observation\n1,{'x': 1},10,[1.0]\n")
+    marker = tmp_path / ".trajectory.commit.json"
+    open_path, replace = Path.open, os.replace
+    owners = []
+    started = False
+
+    def interrupt_publication(source, target):
+        if Path(target) == marker and json.loads(Path(source).read_text())["generation"] == 2:
+            raise OSError("unpublished second record")
+        return replace(source, target)
+
+    def start_adoption_at_read(path: Path, *args, **kwargs):
+        nonlocal started
+        if path == core and not started:
+            started = True
+            owner = Trajectory(iteration_dir=tmp_path, mode="adopt")
+            owners.append(owner)
+            with pytest.raises(OSError, match="unpublished second record"):
+                owner.append(step=2, action={"x": 2}, reward=20, observation=[2.0])
+            if partial_tail:
+                content = core.read_bytes()
+                core.write_bytes(content[: content.rfind(b"\n", 0, len(content) - 1) + 1] + b'2,"unfinished')
+        return open_path(path, *args, **kwargs)
+
+    with monkeypatch.context() as scheduling:
+        scheduling.setattr(Path, "open", start_adoption_at_read)
+        scheduling.setattr(os, "replace", interrupt_publication)
+        loaded = Trajectory.load(tmp_path)
+
+    assert started
+    assert [record.step for record in loaded.records()] == [1]
+    assert json.loads(marker.read_text())["last_step"] == 1
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+
+
+@pytest.mark.parametrize("label", ["plain", "bare\rreturn", "line\nfeed", "paired\r\nbreak"])
+def test_csv_control_characters_roundtrip_load_resume_and_exact_retry(tmp_path: Path, label: str) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    values: dict[str, Any] = {
+        "step": 1,
+        "action": {"x": 1},
+        "reward": 10,
+        "observation": [1.0],
+        "logging": {"label": label},
+    }
+    writer.append(**values)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"label": label}
+    del writer
+    gc.collect()
+
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    resumed.append(**values)
+
+    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"label": label}
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize("indices", [[], [0], [-1], [True], "not a list"])
+def test_legacy_metric_failure_indices_preserve_raw_cells_and_consumer_policy(tmp_path: Path, indices) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(
+        step=1,
+        action={"x": 1},
+        reward=10,
+        observation=[1.0],
+        evaluation_failure={"constraint": False, "metric_indices": indices},
+    )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    expected = indices == [0] and all(type(index) is int for index in indices)
+    assert ("explicit_failure" in writer.records()[0].ineligibility_reasons("measurement")) is expected
+
+    for recovery in (None, "recorded"):
+        record = Trajectory.load(tmp_path, recovery=recovery).records()[0]
+        assert record.get("evaluation_failure", decode_numbers=True)["metric_indices"] == str(indices)
+        assert ("explicit_failure" in record.ineligibility_reasons("measurement")) is expected
+        assert record.ineligibility_reasons("reference") == ()
+        assert record.ineligibility_reasons("decision") == ()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+def test_old_python310_adopted_quoted_carriage_return_keeps_valid_marker_and_retry_bytes(tmp_path: Path) -> None:
+    import shutil
+
+    reference = Path(__file__).parent / "ref_data" / "trajectory" / "old310-adopt-quoted-cr"
+    expected = {path.name: path.read_bytes() for path in reference.iterdir()}
+    shutil.copytree(reference, tmp_path, dirs_exist_ok=True)
+
+    loaded = Trajectory.load(tmp_path)
+
+    assert [record.step for record in loaded.records()] == [1]
+    assert loaded.records()[0]["note"] == "left\rright"
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    resumed.append(step=1, action={}, reward=1, observation=[1.0], note="left\rright")
+    assert {name: (tmp_path / name).read_bytes() for name in expected} == expected
+    assert {path.name: path.read_bytes() for path in reference.iterdir()} == expected

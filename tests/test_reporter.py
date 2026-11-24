@@ -700,7 +700,7 @@ def test_dse_reporter(
             "labels": [0, 1, 2],
             "rewards": [-10.0, -5.0, -7.0],
             "observations": ["10", "5", "7"],
-            "best_index": 0,
+            "best_index": 1,
         },
     }
     assert len(summaries) == 1
@@ -719,6 +719,7 @@ def test_dse_reporter(
     [
         ("native", "matching"),
         ("native", "minimal"),
+        ("native", "omitted_different_default"),
         ("native", "command"),
         ("native", "held_action"),
         ("native", "string_action"),
@@ -767,6 +768,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
     from cloudai.models.output import Metric, Run
     from cloudai.models.scenario import ReportConfig
 
+    nested_action = {"x": None, "keep": 1} if archive == "native" and change == "nested_matching" else {"x": 1}
     case = TestRun(
         name="typed-export",
         test=NCCLTestDefinition(
@@ -776,6 +778,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             cmd_args=NCCLCmdArgs.model_validate(
                 {
                     "docker_image_url": "fake://url/nccl",
+                    "nthreads": {"omitted_different_default": 4}.get(change, 1),
                     **(
                         {"fixed_array": {"none_array": [None], "list_order": [1, 2]}[change]}
                         if change in ("none_array", "list_order")
@@ -785,7 +788,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
                     "ngpus": [1, 2],
                     "iters": [10, 20],
                     "payload": (
-                        [{"x": 1}, {"x": 2}]
+                        [nested_action, {"x": 2}]
                         if change.startswith("nested_")
                         else {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]}
                     ),
@@ -827,7 +830,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         )
     iteration = slurm_system.output_path / case.name / "0"
     selected = case.apply_params_set(
-        {"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {})
+        {"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {})
     )
     assert "fixed_array" not in case.param_space
     assert selected.test.cmd_args.model_dump().get("fixed_array") == {"none_array": [None], "list_order": [1, 2]}.get(
@@ -860,7 +863,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         history.record(
             test_run=selected,
             action_space=case.param_space,
-            action={"ngpus": 2} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
+            action={"ngpus": 2} | ({"payload": nested_action} if change.startswith("nested_") else {}),
             reward=1.0,
             observation={"default": 1.0},
             system=slurm_system,
@@ -877,7 +880,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
     else:
         history.append(
             step=1,
-            action={"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
+            action={"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {}),
             reward=1.0,
             observation=1.0,
         )
@@ -921,8 +924,10 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         for key in path[:-1]:
             target = target[key]
         target[path[-1]] = value
-    elif change == "missing_action":
-        del raw["test_definition"]["cmd_args"]["iters"]
+    elif change in ("missing_action", "omitted_different_default"):
+        del raw["test_definition"]["cmd_args"][
+            {"missing_action": "iters", "omitted_different_default": "nthreads"}[change]
+        ]
     expected = deepcopy(raw["test_definition"])
     dump = selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     dump.write_text(toml.dumps(raw))
@@ -939,6 +944,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         reporter.report_best_dse_config()
         actual = toml.loads(export.read_text())
         assert actual == expected
+        assert change != "minimal" or NCCLTestDefinition.model_validate(actual).cmd_args.nthreads == 1
         if change == "credentials":
             exported = type(selected.test).model_validate(actual)
             projected = exported.model_dump(mode="json", context={"purpose": "trajectory"})
@@ -1207,3 +1213,80 @@ def test_node_only_sweeps_export_selected_workload_and_preserve_resource_evidenc
     details = record.get("run_details", decode_numbers=True)
     assert details["launch"]["num_nodes"] == 4
     assert dump["nnodes"] == 4
+
+
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+@pytest.mark.parametrize("node_only", [False, True], ids=["command", "nodes"])
+def test_every_existing_dse_iteration_exports_and_corrupt_history_propagates(
+    slurm_system: SlurmSystem, archive: str, node_only: bool
+) -> None:
+    from cloudai.configurator import Trajectory, TrajectoryLoadError
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="all-iterations",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="all DSE iterations",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=1 if node_only else [1, 2]),
+            agent_steps=2,
+        ),
+        num_nodes=[2, 4] if node_only else 1,
+        nodes=["node1"],
+        iterations=3,
+    )
+    dimension = "NUM_NODES" if node_only else "ngpus"
+    expected = {}
+    inputs = {}
+    for iteration in (0, 2):
+        directory = slurm_system.output_path / case.name / str(iteration)
+        history = Trajectory(iteration_dir=directory)
+        for step in (1, 2):
+            action = {dimension: step * 2 if node_only else step}
+            selected = case.apply_params_set(action)
+            selected.step = step
+            selected.current_iteration = iteration
+            selected.output_path = directory / str(step)
+            selected.output_path.mkdir(parents=True)
+            dump = TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json")
+            (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(toml.dumps(dump))
+            if archive == "native":
+                history.record(
+                    test_run=selected,
+                    action_space=case.param_space,
+                    action=action,
+                    reward=step,
+                    observation={"default": 1.0},
+                    system=slurm_system,
+                    rewards=RewardOverrides(),
+                    run_output=Run(
+                        path=str(selected.output_path),
+                        jobid=f"iteration-{iteration}-{step}",
+                        status="completed",
+                        step=step,
+                        iteration=iteration,
+                        metrics=[Metric(name="default", value=1.0, unit="unknown")],
+                    ),
+                )
+            else:
+                history.append(step=step, action=action, reward=step, observation=[1.0])
+        expected[directory / f"{case.name}.toml"] = toml.loads(
+            (directory / "2" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).read_text()
+        )["test_definition"]
+        inputs.update({path: path.read_bytes() for path in directory.rglob("*") if path.is_file()})
+    reporter = DSEReporter(
+        slurm_system, TestScenario(name=case.name, test_runs=[case]), slurm_system.output_path, ReportConfig()
+    )
+
+    reporter.report_best_dse_config()
+
+    assert {path: toml.loads(path.read_text()) for path in expected} == expected
+    assert not (slurm_system.output_path / case.name / "1").exists()
+    assert all(path.read_bytes() == content for path, content in inputs.items())
+    corrupt = slurm_system.output_path / case.name / "1"
+    corrupt.mkdir()
+    (corrupt / Trajectory.file_name).write_text("step,action,reward,observation\n1,{},1,[],extra\n")
+    with pytest.raises(TrajectoryLoadError, match="row 2, expected 4 fields, got 5"):
+        reporter.report_best_dse_config()

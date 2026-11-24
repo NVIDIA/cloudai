@@ -197,6 +197,7 @@ def test_dse_summary_skips_only_truly_absent_history(
     [
         ("native", "matching"),
         ("native", "minimal"),
+        ("native", "omitted_different_default"),
         ("native", "command"),
         ("native", "held_action"),
         ("native", "string_action"),
@@ -244,6 +245,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
     from cloudai.core import RewardOverrides
     from cloudai.models.output import Metric, Run
 
+    nested_action = {"x": None, "keep": 1} if archive == "native" and change == "nested_matching" else {"x": 1}
     case = TestRun(
         name="typed-export",
         test=NCCLTestDefinition(
@@ -253,6 +255,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             cmd_args=NCCLCmdArgs.model_validate(
                 {
                     "docker_image_url": "fake://url/nccl",
+                    "nthreads": {"omitted_different_default": 4}.get(change, 1),
                     **(
                         {"fixed_array": {"none_array": [None], "list_order": [1, 2]}[change]}
                         if change in ("none_array", "list_order")
@@ -262,7 +265,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
                     "ngpus": [1, 2],
                     "iters": [10, 20],
                     "payload": (
-                        [{"x": 1}, {"x": 2}]
+                        [nested_action, {"x": 2}]
                         if change.startswith("nested_")
                         else {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]}
                     ),
@@ -304,7 +307,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         )
     iteration = slurm_system.output_path / case.name / "0"
     selected = case.apply_params_set(
-        {"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {})
+        {"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {})
     )
     assert "fixed_array" not in case.param_space
     assert selected.test.cmd_args.model_dump().get("fixed_array") == {"none_array": [None], "list_order": [1, 2]}.get(
@@ -337,7 +340,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         history.record(
             test_run=selected,
             action_space=case.param_space,
-            action={"ngpus": 2} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
+            action={"ngpus": 2} | ({"payload": nested_action} if change.startswith("nested_") else {}),
             reward=1.0,
             observation={"default": 1.0},
             system=slurm_system,
@@ -354,7 +357,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
     else:
         history.append(
             step=1,
-            action={"ngpus": 2, "iters": 10} | ({"payload": {"x": 1}} if change.startswith("nested_") else {}),
+            action={"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {}),
             reward=1.0,
             observation=1.0,
         )
@@ -398,8 +401,10 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         for key in path[:-1]:
             target = target[key]
         target[path[-1]] = value
-    elif change == "missing_action":
-        del raw["test_definition"]["cmd_args"]["iters"]
+    elif change in ("missing_action", "omitted_different_default"):
+        del raw["test_definition"]["cmd_args"][
+            {"missing_action": "iters", "omitted_different_default": "nthreads"}[change]
+        ]
     expected = deepcopy(raw["test_definition"])
     dump = selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     dump.write_text(toml.dumps(raw))
@@ -414,6 +419,7 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
         assert len(summaries) == 1
         actual = toml.loads(summaries[0].best_config_toml)
         assert actual == expected
+        assert change != "minimal" or NCCLTestDefinition.model_validate(actual).cmd_args.nthreads == 1
         assert export.read_bytes() == previous
         if change == "credentials":
             exported = type(selected.test).model_validate(actual)
@@ -520,7 +526,7 @@ def test_best_config_uses_eligible_measurements_without_removing_history(
     before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file() and path != export}
     summaries = build_dse_summaries(slurm_system, slurm_system.output_path, [] if outcome == "no_run" else runs, [case])
     assert export.read_bytes() == previous
-    if outcome == "mixed":
+    if outcome in ("mixed", "no_run"):
         assert len(summaries) == 1
         summary = summaries[0]
         assert toml.loads(summary.best_config_toml)["cmd_args"]["ngpus"] == 1
@@ -635,27 +641,38 @@ def test_parameter_highlights_use_complete_recorded_actions_with_raw_fallback(
 
 @pytest.mark.parametrize("archive", ["legacy", "native"])
 @pytest.mark.parametrize(
-    "rewards,expected_step,node_only",
+    "rewards,expected_step,node_only,layout",
     [
-        pytest.param((9007199254740992, 9007199254740993), 2, False, id="adjacent_native_integers"),
-        pytest.param(("9007199254740992", " 9007199254740993"), 2, False, id="adjacent_integer_strings"),
-        pytest.param((9007199254740993, 9007199254740993), 1, False, id="exact_bigint_tie"),
-        pytest.param((9, "010"), 2, False, id="mixed_integer_string"),
-        pytest.param(("09", "010"), 2, False, id="leading_zero_strings"),
-        pytest.param((9, " 10.5"), 2, False, id="fraction_string"),
-        pytest.param((9.5, 10.5), 2, False, id="native_floats"),
-        pytest.param((10, "010"), 1, False, id="numeric_tie"),
-        pytest.param((1, 2), 2, True, id="node_only"),
-        pytest.param((True, 2), 2, False, id="unusable_boolean_evidence"),
+        pytest.param((9007199254740992, 9007199254740993), 2, False, "complete", id="adjacent_native_integers"),
+        pytest.param(("9007199254740992", " 9007199254740993"), 2, False, "complete", id="adjacent_integer_strings"),
+        pytest.param((9007199254740993, 9007199254740993), 1, False, "complete", id="exact_bigint_tie"),
+        pytest.param((9, "010"), 2, False, "complete", id="mixed_integer_string"),
+        pytest.param(("09", "010"), 2, False, "complete", id="leading_zero_strings"),
+        pytest.param((9, " 10.5"), 2, False, "complete", id="fraction_string"),
+        pytest.param((9.5, 10.5), 2, False, "complete", id="native_floats"),
+        pytest.param((10, "010"), 1, False, "complete", id="numeric_tie"),
+        pytest.param((1, 2), 2, True, "complete", id="node_only"),
+        pytest.param((True, 2), 2, False, "complete", id="unusable_boolean_evidence"),
+        pytest.param(("N/A", 10), 2, False, "complete", id="unusable_reward"),
+        pytest.param(("NaN", 10), 2, False, "complete", id="nan_reward"),
+        pytest.param(("Infinity", 10), 2, False, "complete", id="positive_infinity_reward"),
+        pytest.param(("-Infinity", 10), 2, False, "complete", id="negative_infinity_reward"),
+        pytest.param((1, 2), 2, False, "missing_stdout", id="winner_without_stdout"),
+        pytest.param((1, 2), 2, False, "no_loaded_runs", id="winner_without_loaded_runs"),
+        pytest.param((5, 10, 4), 2, False, "gaps", id="gapped_positive_steps"),
     ],
 )
 def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
     slurm_system: SlurmSystem,
     archive: str,
-    rewards: tuple[int | float | str, int | float | str],
+    rewards: tuple[int | float | str, ...],
     expected_step: int,
     node_only: bool,
+    layout: str,
 ) -> None:
+    import json
+    import math
+
     from cloudai.core import RewardOverrides
     from cloudai.models.output import Metric, Run
 
@@ -665,8 +682,10 @@ def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
             name="nccl",
             description="exact reward summary",
             test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=1 if node_only else [1, 2]),
-            agent_steps=2,
+            cmd_args=NCCLCmdArgs(
+                docker_image_url="fake://url/nccl", ngpus=1 if node_only else list(range(1, len(rewards) + 1))
+            ),
+            agent_steps=len(rewards),
         ),
         num_nodes=[2, 4] if node_only else 1,
         nodes=["node1"],
@@ -678,14 +697,16 @@ def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
     iteration = slurm_system.output_path / case.name / "0"
     history = Trajectory(iteration_dir=iteration)
     runs = []
-    for step, reward in enumerate(rewards, 1):
-        value = step * 2 if node_only else step
+    for ordinal, reward in enumerate(rewards, 1):
+        step = ordinal * 2 - 1 if layout == "gaps" else ordinal - 1 if layout == "zero" else ordinal
+        value = ordinal * 2 if node_only else ordinal
         action = {dimension: value}
         selected = case.apply_params_set(action)
         selected.step = step
         selected.output_path = iteration / str(step)
         selected.output_path.mkdir(parents=True)
-        (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+        if layout != "missing_stdout" or ordinal != expected_step:
+            (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
         job = SlurmJobMetadata(
             job_id=step,
             name=case.name,
@@ -726,21 +747,43 @@ def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
         runs.append(selected)
     records = Trajectory.load(iteration).records()
     original = [(record["reward"], type(record["reward"]), record.metadata) for record in records]
-    getters = [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in records]
+    getters = [
+        (
+            record.get("reward"),
+            type(record.get("reward", decode_numbers=True)),
+            repr(record.get("reward", decode_numbers=True)),
+        )
+        for record in records
+    ]
     before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()}
-    summaries = build_dse_summaries(slurm_system, slurm_system.output_path, runs, [case])
+    summaries = build_dse_summaries(
+        slurm_system, slurm_system.output_path, [] if layout == "no_loaded_runs" else runs, [case]
+    )
     assert len(summaries) == 1
     summary = summaries[0]
     chart = summary.reward_chart_data
     assert chart is not None
     assert chart["best_index"] == expected_step - 1
-    assert all(type(reward) in (int, float) for reward in chart["rewards"])
-    assert chart["rewards"] == [
-        int(reward)
-        if isinstance(reward, str) and reward.strip().isdigit()
-        else (float(reward) if isinstance(reward, str) else reward)
-        for reward in rewards
-    ]
+    expected_rewards = []
+    for reward in rewards:
+        try:
+            numeric = (
+                reward
+                if type(reward) is int
+                else int(reward)
+                if isinstance(reward, str) and reward.strip().isdigit()
+                else float(reward)
+            )
+        except ValueError:
+            numeric = None
+        if numeric is not None and not math.isfinite(numeric):
+            numeric = None
+        expected_rewards.append(numeric)
+    assert all(reward is None or type(reward) in (int, float) for reward in chart["rewards"])
+    assert chart["rewards"] == expected_rewards
+    assert json.loads(json.dumps(chart, allow_nan=False))["rewards"] == expected_rewards
+    if expected_rewards[0] is None:
+        assert "reward_unusable" in records[0].ineligibility_reasons("measurement")
     expected_value = expected_step * 2 if node_only else expected_step
     assert [(row.name, [(value.text, value.is_best) for value in row.values]) for row in summary.parameter_rows] == [
         (dimension, [(str(value), value == expected_value) for value in case.param_space[dimension]])
@@ -753,4 +796,11 @@ def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
     assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()} == before
     reloaded = Trajectory.load(iteration).records()
     assert [(record["reward"], type(record["reward"]), record.metadata) for record in reloaded] == original
-    assert [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in reloaded] == getters
+    assert [
+        (
+            record.get("reward"),
+            type(record.get("reward", decode_numbers=True)),
+            repr(record.get("reward", decode_numbers=True)),
+        )
+        for record in reloaded
+    ] == getters

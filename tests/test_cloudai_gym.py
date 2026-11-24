@@ -347,6 +347,9 @@ def test_cache_identity_includes_held_dimensions_and_preserves_original_measurem
     source = env.trajectory.output_path
     warm_frame = Trajectory.load(source).dataframe
     cached_only = warm_frame.loc[warm_frame["step"] == 5].copy()
+    cached_only = cached_only.drop(columns=["observation"])
+    cached_only["observation.bandwidth"] = None
+    cached_only.at[cached_only.index[0], "observation.bandwidth"] = 20.0
     env.test_run.test.cmd_args.fixed = "changed"
     _, _, _, changed_info = env.step({"x": 2})
     assert changed_info["trajectory"]["run_details"]["resolved_action"] == {"x": 2, "y": 20}
@@ -379,7 +382,8 @@ def test_cache_identity_includes_held_dimensions_and_preserves_original_measurem
     saved_run.current_iteration = 2
     resumed.test_run = saved_run
     resumed.reset()
-    _, _, _, continued_info = resumed.step({"x": 2})
+    continued_observation, _, _, continued_info = resumed.step({"x": 2})
+    assert continued_observation == [20.0]
     assert continued_submitted == []
     continued_record = Trajectory.load(resumed.trajectory.output_path).records()[-1]
     current_details = continued_record.get("run_details", decode_numbers=True)
@@ -739,3 +743,61 @@ def test_recommendations_rank_numeric_rewards_without_changing_recorded_values(
         ("live", expected_step, {"choice": expected_step}),
         ("loaded", expected_step, {"choice": expected_step}),
     ]
+
+
+def test_cached_numeric_text_returns_runtime_float_without_rewriting_recorded_reward(
+    slurm_system: SlurmSystem, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    template = TestRun(
+        name="cached-numeric-text",
+        test=TestDefinition(
+            name="cache",
+            description="cache reward wire",
+            test_template_name="cache",
+            cmd_args=CmdArgs.model_validate({"x": [1, 2]}),
+            agent_metrics=["default"],
+        ),
+        num_nodes=1,
+        nodes=[],
+        step=1,
+    )
+    runner = SlurmRunner(
+        mode="dry-run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="cache", test_runs=[template]),
+        output_path=tmp_path,
+    )
+    env = CloudAIGymEnv(template, runner, RewardOverrides())
+    cached = env.original_test_run.apply_params_set({"x": 1})
+    cached.step = 1
+    cached.output_path = env.iteration_dir / "1"
+    env.trajectory.record(
+        test_run=cached,
+        action_space=template.param_space,
+        action={"x": 1},
+        reward="010",
+        observation={"default": 1.0},
+        system=slurm_system,
+        rewards=env.rewards,
+    )
+
+    def reject_execution() -> None:
+        pytest.fail("an exact cache hit must not execute the runner")
+
+    monkeypatch.setattr(runner, "run", reject_execution)
+    before = {path: path.read_bytes() for path in (env.trajectory.output_path, env.trajectory.metadata_path)}
+    assert env.get_cached_trajectory_result({"x": 1}, {}) is not None
+
+    observation, reward, _, info = env.step({"x": 1})
+
+    assert observation == [1.0]
+    assert type(reward) is float and reward == 10.0
+    assert info["trajectory"]["measurement"]["kind"] == "cached"
+    records = Trajectory.load(env.iteration_dir).records()
+    assert [record["reward"] for record in records] == ["010", 10.0]
+    assert type(records[0]["reward"]) is str and type(records[1]["reward"]) is float
+    assert all(path.read_bytes().startswith(content) for path, content in before.items())
+    assert (
+        records[1].get("measurement", decode_numbers=True)["origin"]
+        == records[0].get("measurement", decode_numbers=True)["origin"]
+    )

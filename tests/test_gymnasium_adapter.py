@@ -104,3 +104,16 @@ def test_serialized_adapter_refuses_expired_identity(real_env: CloudAIGymEnv, se
     assert {path.name: path.read_bytes() for path in real_env.iteration_dir.iterdir() if path.is_file()} == before
     with pytest.raises(RuntimeError, match=r"writer|owned|locked"):
         Trajectory(iteration_dir=real_env.iteration_dir, mode="resume")
+
+
+@pytest.mark.parametrize("candidates", [[True, 1], [1, True], [1, 1.0], [1, 2]])
+def test_native_action_roundtrip_preserves_exact_candidate_type(real_env: CloudAIGymEnv, candidates: list) -> None:
+    real_env.test_run.test.cmd_args = CmdArgs.model_validate({"tuned": candidates})
+    adapter = GymnasiumAdapter(real_env)
+
+    for index, value in enumerate(candidates):
+        encoded = adapter.encode_action({"tuned": value})
+        assert encoded == {"tuned": index}
+        decoded = adapter.decode_action(encoded)
+        assert decoded == {"tuned": value}
+        assert type(decoded["tuned"]) is type(value)
