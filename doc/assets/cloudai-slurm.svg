@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+     Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+     SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="480" viewBox="0 0 1000 480" role="img" aria-labelledby="title description">
+  <title id="title">CloudAI execution on Slurm</title>
+  <desc id="description">CloudAI runs on the login or submit node, reads configuration, and generates an sbatch script. It submits the script to Slurm, which allocates compute nodes. The script launches workloads with srun. Logs and measurements are written to the output directory, where CloudAI reads them to generate reports.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 8 4 0 8Z" fill="var(--accent)"/></marker>
+  </defs>
+  <style>
+    :root { color-scheme: light dark; --ink: #172b21; --muted: #42594c; --accent: #386c10; --line: #98b6a0; --node: #ffffff; --frame: #f1f6ef; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #edf6ed; --muted: #b1cbbd; --accent: #a3d760; --line: #577c61; --node: #24372c; --frame: #1c2a22; }
+    }
+    text { font-family: Arial, Helvetica, sans-serif; fill: var(--ink); }
+    .heading { font-size: 22px; font-weight: 600; }
+    .body { font-size: 19px; fill: var(--muted); }
+    .label { font-size: 17px; fill: var(--accent); }
+    .frame { fill: var(--frame); stroke: var(--line); stroke-width: 1.5; }
+    .node { fill: var(--node); stroke: var(--line); stroke-width: 1.5; }
+    .wire { fill: none; stroke: var(--accent); stroke-width: 2; marker-end: url(#arrow); }
+  </style>
+  <rect x="20" y="24" width="320" height="274" rx="14" class="frame"/>
+  <text x="180" y="59" text-anchor="middle" class="heading">Login / submit node</text>
+  <rect x="42" y="82" width="276" height="90" rx="10" class="node"/>
+  <text x="180" y="113" text-anchor="middle" class="heading">CloudAI</text>
+  <text x="180" y="143" text-anchor="middle" class="body">System + scenario TOML</text>
+  <path d="M180 172V214" class="wire"/>
+  <text x="195" y="199" class="label">generate</text>
+  <rect x="42" y="218" width="276" height="58" rx="10" class="node"/>
+  <text x="180" y="254" text-anchor="middle" class="heading">sbatch script</text>
+
+  <path d="M340 247H398" class="wire"/>
+  <text x="369" y="230" text-anchor="middle" class="label">sbatch</text>
+  <rect x="402" y="201" width="184" height="92" rx="14" class="frame"/>
+  <text x="494" y="237" text-anchor="middle" class="heading">Slurm</text>
+  <text x="494" y="265" text-anchor="middle" class="body">Queue + allocate</text>
+
+  <rect x="656" y="24" width="324" height="274" rx="14" class="frame"/>
+  <path d="M586 247H620V127H674" class="wire"/>
+  <text x="818" y="59" text-anchor="middle" class="heading">Compute nodes</text>
+  <rect x="678" y="82" width="280" height="90" rx="10" class="node"/>
+  <text x="818" y="113" text-anchor="middle" class="heading">Execute script</text>
+  <text x="818" y="143" text-anchor="middle" class="body">srun launches processes</text>
+  <path d="M818 172V214" class="wire"/>
+  <rect x="678" y="218" width="280" height="58" rx="10" class="node"/>
+  <text x="818" y="254" text-anchor="middle" class="heading">Workload</text>
+
+  <path d="M818 298V390H714" class="wire"/>
+  <text x="833" y="352" class="label">write results</text>
+  <rect x="286" y="354" width="424" height="76" rx="12" class="frame"/>
+  <text x="498" y="384" text-anchor="middle" class="heading">Output directory</text>
+  <text x="498" y="413" text-anchor="middle" class="body">Logs · measurements · reports</text>
+  <path d="M286 390H180V298" class="wire"/>
+  <text x="30" y="354" class="label">read + report</text>
+  <text x="498" y="466" text-anchor="middle" class="body">CloudAI monitors the job from the submit node.</text>
+</svg>

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+     Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+     SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="588" viewBox="0 132 1200 588" role="img" aria-labelledby="title description">
+  <title id="title">CloudAI experiment execution workflow</title>
+  <desc id="description">Define workloads, an execution system, and a scenario. Select a fixed configuration, grid search, or a custom agent. Execute workloads and inspect metrics, reports, and saved configurations. Custom agents can use measured feedback to choose subsequent configurations. Public interfaces and the registry support additional workloads, systems and runners, reporters, and agents.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 8 4 0 8Z" fill="var(--accent)"/>
+    </marker>
+    <marker id="muted-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 8 4 0 8Z" fill="var(--feedback)"/>
+    </marker>
+  </defs>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #172b21;
+      --muted: #42594c;
+      --accent: #386c10;
+      --feedback: #557c69;
+      --line: #98b6a0;
+      --node: #ffffff;
+      --input: #f1f6ef;
+      --frame: #f5f8f3;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #edf6ed;
+        --muted: #b1cbbd;
+        --accent: #a3d760;
+        --feedback: #83b49b;
+        --line: #577c61;
+        --node: #24372c;
+        --input: #203127;
+        --frame: #1c2a22;
+      }
+    }
+    text { font-family: Arial, Helvetica, sans-serif; fill: var(--ink); }
+    .label { font-size: 22px; font-weight: 600; }
+    .body { font-size: 19px; fill: var(--muted); }
+    .small { font-size: 17px; fill: var(--muted); }
+    .eyebrow { font-size: 14px; letter-spacing: 2px; fill: var(--accent); font-weight: 600; }
+    .wire { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .extension { fill: var(--node); stroke: var(--line); stroke-width: 1.5; }
+  </style>
+
+  <!-- Inputs share the same configuration model. -->
+  <rect x="40" y="148" width="1120" height="94" rx="14" fill="var(--input)" stroke="var(--line)"/>
+  <text x="62" y="177" class="eyebrow">DEFINE YOUR EXPERIMENT</text>
+  <text x="226.667" y="211" text-anchor="middle" class="body">Workload + settings</text>
+  <text x="600" y="211" text-anchor="middle" class="body">Execution system + resources</text>
+  <text x="973.333" y="211" text-anchor="middle" class="body">Scenario + objective</text>
+  <path d="M413.333 196V220 M786.667 196V220" stroke="var(--line)"/>
+  <path d="M600 242V284" class="wire" marker-end="url(#arrow)"/>
+
+  <!-- Execution and configuration search use the same framework. -->
+  <rect x="40" y="284" width="1120" height="262" rx="20" fill="var(--frame)" stroke="var(--line)"/>
+  <text x="62" y="313" class="eyebrow">CLOUDAI</text>
+  <rect x="62" y="335" width="304" height="128" rx="14" fill="var(--node)" stroke="var(--line)"/>
+  <circle cx="86" cy="361" r="5" fill="var(--accent)"/>
+  <text x="103" y="369" class="label">Select configuration</text>
+  <text x="83" y="403" class="body">Fixed settings or grid search</text>
+  <text x="83" y="431" class="body">Or your optimization agent</text>
+
+  <path d="M366 398H448" class="wire" marker-end="url(#arrow)"/>
+  <text x="407" y="383" text-anchor="middle" class="small">run</text>
+  <rect x="448" y="335" width="304" height="128" rx="14" fill="var(--node)" stroke="var(--line)"/>
+  <circle cx="472" cy="361" r="5" fill="var(--accent)"/>
+  <text x="489" y="369" class="label">Execute workload</text>
+  <text x="469" y="403" class="body">Training · inference</text>
+  <text x="469" y="431" class="body">Communication · storage</text>
+
+  <path d="M752 398H834" class="wire" marker-end="url(#arrow)"/>
+  <text x="793" y="383" text-anchor="middle" class="small">measure</text>
+  <rect x="834" y="335" width="304" height="128" rx="14" fill="var(--node)" stroke="var(--line)"/>
+  <circle cx="858" cy="361" r="5" fill="var(--accent)"/>
+  <text x="875" y="369" class="label">Inspect and reuse</text>
+  <text x="855" y="403" class="body">Metrics + reports</text>
+  <text x="855" y="431" class="body">Saved configurations</text>
+
+  <path d="M986 463V508H214V463" fill="none" stroke="var(--feedback)" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#muted-arrow)"/>
+  <rect x="378" y="491" width="444" height="34" rx="17" fill="var(--frame)"/>
+  <text x="600" y="514" text-anchor="middle" class="body">Custom agents can use measured feedback</text>
+
+  <!-- Extensions connect to the framework as a whole. -->
+  <path d="M600 546V558 M184 574H361 M839 574H1016 M184 574V602 M458 589V602 M742 589V602 M1016 574V602" fill="none" stroke="var(--feedback)" stroke-width="1.5"/>
+  <text x="600" y="579" text-anchor="middle" class="small">Extend through public interfaces + the registry</text>
+  <rect x="62" y="602" width="244" height="56" rx="12" class="extension"/>
+  <text x="184" y="637" text-anchor="middle" class="label">Workloads</text>
+  <rect x="326" y="602" width="264" height="56" rx="12" class="extension"/>
+  <text x="458" y="637" text-anchor="middle" class="label">Systems + runners</text>
+  <rect x="610" y="602" width="264" height="56" rx="12" class="extension"/>
+  <text x="742" y="637" text-anchor="middle" class="label">Reporters</text>
+  <rect x="894" y="602" width="244" height="56" rx="12" class="extension"/>
+  <text x="1016" y="637" text-anchor="middle" class="label">Agents</text>
+  <text x="600" y="693" text-anchor="middle" class="small">Grid search evaluates the defined combinations. Custom agents control selection and stopping.</text>
+</svg>

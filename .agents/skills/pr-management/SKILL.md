@@ -24,13 +24,16 @@ Create PRs as drafts (`gh pr create --draft`). Mark ready only when asked; prese
 
 ## Test plan
 
-- List `CI` as automated coverage in the Test Plan; omit run status from the PR description.
+- Use bullets: `CI` first, then one per distinct manual validation. Omit CI run status.
 - Do not enumerate unit tests, test cases/counts, pytest commands, pre-commit hooks, formatting, lint, type checks, or local environment details already covered by CI. No duplicate checklists elsewhere in description.
 - Add distinctive evidence CI cannot provide: real installation, remote workload, performance measurement. Keep setup, outcome, and relevant measurement concise.
 - More detail only when explicitly requested or specifically required by repository instructions. A Test Plan heading alone does not require commands or check inventories.
 - Reporting rule only: still run required checks.
 
-Example: `CI. Manual Slurm import completed in 34 seconds with a 20-minute limit.`
+Example:
+
+- CI
+- Manual Slurm import completed in 34 seconds with a 20-minute limit.
 
 ## Labels
 

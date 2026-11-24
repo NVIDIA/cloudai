@@ -1,0 +1,64 @@
+<Anchor id="install-cloudai" />
+
+CloudAI officially targets Python 3.14 while remaining compatible with Python 3.10 and newer.
+
+Use uv 0.13.6 or newer to install and run CloudAI. For pip-based installation, use pip 26.2.2 or newer.
+These versions include certificate trust updates for the eMudhra/emSign CA compromise.
+
+```bash
+git clone https://github.com/NVIDIA/cloudai.git
+cd cloudai
+uv run cloudai --help
+```
+
+Continue with [your first experiment](/tutorial). See [Systems](/systems) and
+[Prepare workload prerequisites](/workloads/workloads-requirements-installation) for environment setup.
+
+<Anchor id="pip-based-installation" />
+
+## pip-based Installation
+
+See the preferred Python version in the `.python-version` file and make sure you have it installed
+(For installation, see [install custom python version](/getting-started#install-custom-python-version)). Python 3.10 and newer remain supported.
+Follow these steps:
+
+```bash
+git clone https://github.com/NVIDIA/cloudai.git
+cd cloudai
+python3.14 -m venv venv
+source venv/bin/activate
+python -m pip --version
+```
+
+Before installing CloudAI, ensure this environment has pip 26.2.2 or newer.
+For an older version, follow Python's [hash-verified pip upgrade](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576).
+
+```bash
+python -m pip install -e .
+```
+
+<Note>
+
+When upgrading an existing installation, also update the host's `ca-certificates` package and the
+certificate bundles and installers in existing workload environments and container images.
+Updating CloudAI does not update these environments.
+
+</Note>
+
+<Anchor id="custom-python-version-installation" />
+
+<Anchor id="install-custom-python-version" />
+
+## Custom Python Version Installation
+
+If your system Python version is not supported, you can install a custom version using the [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv venv --seed  # picks the python version from .python-version
+                # --seed installs pip and setuptools
+source .venv/bin/activate
+```
+
+See [CLI reference](/reference/cli) for the command catalog.

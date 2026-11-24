@@ -1,6 +1,18 @@
 <Anchor id="osu" />
 
-This workload (`test_template_name` is `OSUBench`) allows you to execute OSU Micro Benchmarks within the CloudAI framework.
+Measure MPI communication with OSU Micro Benchmarks.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
+This workload (`test_template_name` is `OSUBench`) allows you to execute OSU Micro Benchmarks
+within the CloudAI framework.
 
 <Anchor id="usage-example" />
 
@@ -8,7 +20,7 @@ This workload (`test_template_name` is `OSUBench`) allows you to execute OSU Mic
 
 Test example:
 
-``` toml
+```toml
 name = "osu_example"
 test_template_name = "OSUBench"
 description = "OSU Benchmark example"
@@ -23,7 +35,7 @@ description = "OSU Benchmark example"
 
 Test Scenario example:
 
-``` toml
+```toml
 name = "osu_example"
 
 [[Tests]]
@@ -35,7 +47,7 @@ time_limit = "00:20:00"
 
 Test-in-Scenario example:
 
-``` toml
+```toml
 name = "osu-test"
 
 [[Tests]]
@@ -59,7 +71,12 @@ test_template_name = "OSUBench"
 
 ## Comparison Reports
 
-The OSU comparison v2 report labels the X axis with the measured message sizes in bytes. Sizes are displayed at equally spaced positions, including zero-byte messages, rather than using default logarithmic ticks. When runs measure different size ranges, charts and tables use the sorted union of measured sizes. Missing measurements appear as chart gaps and `n/a` table cells.
+The OSU comparison v2 report labels the X axis with the measured message sizes
+in bytes. Sizes are displayed at equally spaced positions, including zero-byte
+messages, rather than using default logarithmic ticks.
+When runs measure different size ranges, charts and tables use the sorted union
+of measured sizes. Missing measurements appear as chart gaps and `n/a` table
+cells.
 
 <Anchor id="api-documentation" />
 

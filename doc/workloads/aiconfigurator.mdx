@@ -1,6 +1,18 @@
 <Anchor id="aiconfigurator" />
 
-AIConfigurator workload (`test_template_name` is `Aiconfigurator`) runs the AIConfigurator predictor using the installed `aiconfigurator` Python package. It is a **Standalone** workload (no Slurm/Kubernetes/RunAI required).
+Estimate inference configurations with AIConfigurator before allocating hardware for measurements.
+
+Check [compatibility](/reference/workload-support) and prepare [your execution environment](/guides/environment).
+Use the example below as the starting point; supply its workload-specific inputs before execution.
+
+Inspect execution status and measurements using [Read results and generate reports](/reporting).
+
+<Anchor id="adapt-the-workload" />
+
+## Adapt the workload
+
+AIConfigurator workload (`test_template_name` is `Aiconfigurator`) runs the AIConfigurator predictor using the installed
+`aiconfigurator` Python package. It is a **Standalone** workload.
 
 <Anchor id="outputs" />
 
@@ -18,7 +30,7 @@ Each test run produces:
 
 Test TOML example (Disaggregated mode):
 
-``` toml
+```toml
 name = "aiconfigurator_disagg_demo"
 description = "Example AIConfigurator disaggregated predictor"
 test_template_name = "Aiconfigurator"
@@ -50,7 +62,7 @@ osl = 500
 
 Test TOML example (Aggregated/IFB mode):
 
-``` toml
+```toml
 name = "aiconfigurator_agg_demo"
 description = "Example AIConfigurator aggregated predictor"
 test_template_name = "Aiconfigurator"
@@ -75,7 +87,7 @@ osl = 500
 
 ## Running
 
-``` bash
+```bash
 uv run cloudai run --system-config conf/common/system/standalone_system.toml \
    --tests-dir conf/experimental/aiconfigurator/test \
    --test-scenario conf/experimental/aiconfigurator/test_scenario/aiconfigurator_disagg.toml
