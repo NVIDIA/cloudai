@@ -193,8 +193,10 @@ A directory or explicit CSV path is accepted. Every history requires `step`,
 Malformed rows, duplicate fields, reserved core-domain overlaps and conflicting
 metadata raise `TrajectoryLoadError` without returning a partial history.
 `trial.source` and `trial.row` identify CSV provenance. Loading never changes files
-or takes writer ownership. `missing_ok=True` returns an empty history only when
-all history artifacts are absent; partial or corrupt histories still raise.
+or takes writer ownership. When all history artifacts are absent,
+`missing_ok=True` permits loading an empty history. A valid initialized history
+with zero recorded rows also loads as empty without that flag. Partial or corrupt
+histories still raise.
 
 ### Open or Continue a History
 

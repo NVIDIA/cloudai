@@ -18,6 +18,7 @@ import contextlib
 import logging
 import tarfile
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -242,19 +243,27 @@ class DSEReporter(Reporter):
         return Path(__file__).parent / "util"
 
     def generate(self) -> None:
-        self.load_test_runs()
+        histories: dict[Path, Trajectory] = {}
+        for test_run in self.test_scenario.test_runs:
+            if not test_run.is_dse_job:
+                continue
+            for iteration in range(test_run.iterations):
+                iteration_dir = self.results_root / test_run.name / str(iteration)
+                histories[iteration_dir] = Trajectory.load(
+                    iteration_dir / Trajectory.file_name, missing_ok=True, recovery="recorded"
+                )
 
         dse_cases = build_dse_summaries(
             system=self.system,
             results_root=self.results_root,
             loaded_test_runs=self.trs,
             test_cases=self.test_scenario.test_runs,
+            histories=histories,
         )
 
+        self.report_best_dse_config(histories=histories)
         if not dse_cases:
             return
-
-        self.report_best_dse_config()
 
         jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir), autoescape=True)
         template = jinja_env.get_template("dse-report.jinja2")
@@ -266,7 +275,7 @@ class DSEReporter(Reporter):
 
         logging.info(f"Generated scenario report at {report_path}")
 
-    def report_best_dse_config(self):
+    def report_best_dse_config(self, *, histories: Mapping[Path, Trajectory] | None = None):
         """Persist the highest-reward configuration for each DSE test case iteration."""
         for tr, iteration in (
             (test_run, iteration)
@@ -275,7 +284,11 @@ class DSEReporter(Reporter):
             for iteration in range(test_run.iterations)
         ):
             tr_root = self.results_root / tr.name / str(iteration)
-            trajectory = Trajectory.load(tr_root, missing_ok=True, recovery="recorded")
+            trajectory = (
+                Trajectory.load(tr_root / Trajectory.file_name, missing_ok=True, recovery="recorded")
+                if histories is None
+                else histories[tr_root]
+            )
             if not trajectory:
                 logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)
                 continue
@@ -300,17 +313,16 @@ class DSEReporter(Reporter):
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
                 continue
 
-            with best_step_details.open() as f:
-                try:
+            try:
+                with best_step_details.open() as f:
                     raw_dump = toml.load(f)
-                    trd = TestRunDetails.model_validate(
-                        raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
-                    )
-                except TrajectoryLoadError:
-                    raise
-                except Exception as exc:
-                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
-                    continue
+            except (OSError, ValueError) as error:
+                raise TrajectoryLoadError(
+                    best_record.source, "cannot read selected export dump", step=best_record.step
+                ) from error
+            trd = TestRunDetails.model_validate(
+                raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+            )
 
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)

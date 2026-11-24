@@ -117,3 +117,15 @@ def test_native_action_roundtrip_preserves_exact_candidate_type(real_env: CloudA
         decoded = adapter.decode_action(encoded)
         assert decoded == {"tuned": value}
         assert type(decoded["tuned"]) is type(value)
+
+
+def test_native_nan_candidate_roundtrips_by_identity_without_merging_distinct_values(real_env: CloudAIGymEnv) -> None:
+    nan = float("nan")
+    real_env.test_run.test.cmd_args = CmdArgs.model_validate({"tuned": [nan, 1.0]})
+    adapter = GymnasiumAdapter(real_env)
+    decoded = adapter.decode_action({"tuned": 0})
+    assert decoded["tuned"] is nan
+    assert adapter.encode_action(decoded) == {"tuned": 0}
+    assert adapter.encode_action(adapter.decode_action({"tuned": 1})) == {"tuned": 1}
+    with pytest.raises(ValueError):
+        adapter.encode_action({"tuned": float("nan")})

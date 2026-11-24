@@ -23,6 +23,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ModelWrapValidatorHandler,
     ValidationError,
     ValidationInfo,
     field_serializer,
@@ -310,6 +311,7 @@ class TestRunDetails(BaseModel):
     @field_validator("test_definition", mode="before")
     @classmethod
     def load_tdef(cls, value: Any | None, info: ValidationInfo) -> TestDefinition | None:
+        del info
         if value is None:
             return None
         if isinstance(value, TestDefinition):
@@ -320,8 +322,15 @@ class TestRunDetails(BaseModel):
             definition = workload_cls.model_validate(value)
         else:
             raise ValueError(f"Invalid test definition: {value}")
+        return definition
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _validate_recorded_dump(
+        cls, value: Any, handler: ModelWrapValidatorHandler[Self], info: ValidationInfo
+    ) -> Self:
         if not isinstance(info.context, dict) or "trajectory_record" not in info.context:
-            return definition
+            return handler(value)
 
         import json
         from copy import deepcopy
@@ -337,6 +346,10 @@ class TestRunDetails(BaseModel):
 
         record = info.context["trajectory_record"]
         try:
+            validated = handler(value)
+            definition = validated.test_definition
+            if not isinstance(definition, TestDefinition):
+                raise ValueError("selected export dump requires a test definition")
             details = record.get("run_details", {}, decode_numbers=True)
             projection = {
                 "purpose": "trajectory",
@@ -404,20 +417,18 @@ class TestRunDetails(BaseModel):
                 and "output_path" in supplied
                 and Path(identity["output_path"]).is_absolute() != Path(supplied["output_path"]).is_absolute()
             ):
-                identity.pop("output_path")
+                identity["output_path"] = str(Path(identity["output_path"]).resolve())
+                supplied["output_path"] = str(Path(supplied["output_path"]).resolve())
             identity = {name: _export_comparison_view(value) for name, value in identity.items()}
-            _merge_recorded_values(
-                identity,
-                {name: _export_comparison_view(supplied[name]) for name in identity if name in supplied},
-                identity,
-                record,
-                typed=True,
-            )
+            supplied_identity = {name: _export_comparison_view(supplied[name]) for name in identity if name in supplied}
+            if "nodes" in identity and "nodes" not in supplied_identity:
+                supplied_identity["nodes"] = _export_comparison_view(validated.nodes)
+            _merge_recorded_values(identity, supplied_identity, identity, record, typed=True)
         except (TypeError, ValueError, KeyError) as error:
             raise TrajectoryLoadError(
                 record.source, "selected export dump conflicts with recorded configuration", step=record.step
             ) from error
-        return definition
+        return validated
 
     @classmethod
     def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:

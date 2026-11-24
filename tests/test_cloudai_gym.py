@@ -801,3 +801,21 @@ def test_cached_numeric_text_returns_runtime_float_without_rewriting_recorded_re
         records[1].get("measurement", decode_numbers=True)["origin"]
         == records[0].get("measurement", decode_numbers=True)["origin"]
     )
+
+
+@pytest.mark.parametrize("execution_env", [("runner_failure", 0)], indirect=True)
+def test_cache_reruns_a_failed_native_context_instead_of_reusing_its_measurement(execution_env) -> None:
+    env, submitted, measured, _, _ = execution_env
+    env.step({"choice": 1})
+    before = {path: path.read_bytes() for path in (env.trajectory.output_path, env.trajectory.metadata_path)}
+    assert len(submitted) == 1
+    assert env.trajectory.records()[0].ineligibility_reasons("measurement")
+    assert env.get_cached_trajectory_result({"choice": 1}, {"ball_speed": 3}) is None
+
+    _, _, _, info = env.step({"choice": 1})
+
+    assert len(submitted) == 2 and len(measured) == 4
+    assert info["trajectory"]["measurement"]["kind"] == "fresh"
+    assert info["trajectory"]["evaluation_failure"]["runner"] is True
+    assert len(env.trajectory) == 2
+    assert all(path.read_bytes().startswith(content) for path, content in before.items())

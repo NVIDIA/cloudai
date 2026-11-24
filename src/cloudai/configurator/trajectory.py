@@ -129,7 +129,7 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
             raise ValueError(f"unsupported trajectory purpose: {purpose!r}")
         if purpose == "learning" and current is None:
             raise ValueError("learning eligibility requires current configuration")
-        action = self["action"]
+        action = self.get("action")
         reasons = []
         details = self.get("run_details", {}, decode_numbers=True)
         resolved = details.get("resolved_action", action) if isinstance(details, Mapping) else action
@@ -139,7 +139,7 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
             reasons.append("action_unusable")
         if purpose != "reference" and (not isinstance(resolved, Mapping) or not _finite_record_value(resolved)):
             reasons.append("action_unusable")
-        environment = self.get("env_params", {}, decode_numbers=True)
+        environment = self.get("env_params", {}, decode_numbers=self.get("record_format_version") == "1")
         if purpose != "reference" and (not isinstance(environment, Mapping) or not _finite_record_value(environment)):
             reasons.append("environment_incompatible")
         if purpose != "decision":
@@ -764,7 +764,8 @@ class Trajectory:
         metrics = {}
         for index, name in enumerate(test_run.test.agent_metrics):
             value = observation_values.get(name)
-            status = "failed" if name in failed_metrics else "observed"
+            status = "observed" if name in observation_values else "unavailable"
+            status = "failed" if name in failed_metrics else status
             status = "nonfinite" if isinstance(value, float) and not math.isfinite(value) else status
             unit = units.get(name, "unknown")
             if cached_result is not None:
@@ -1234,7 +1235,9 @@ class Trajectory:
             for variant, versioned in variants
             if (position := self._find_position(variant, versioned)) is not None
         ]
-        if not positions:
+        if not positions or (
+            test_run is not None and _record_outcome_reasons(self._record_at(min(positions)), reference=False)
+        ):
             logging.debug("No matching trajectory row found for %s.", values)
             return None
         record = self._rows[min(positions)]
@@ -1382,6 +1385,8 @@ def _set_domain(
         if any(not part for part in parts):
             raise TrajectoryLoadError(path, f"empty metadata path component: {name}", step=step)
 
+    if format_version == "1" and parts[0] == "env_params" and len(parts) > 1 and domains.get("env_params") == {}:
+        raise TrajectoryLoadError(path, f"conflicting domain path: {name}", step=step)
     current = domains
     for part in parts[:-1]:
         if part not in current:
@@ -1497,7 +1502,10 @@ def _serialize_metadata(row: pd.Series, path: Path) -> pd.Series | None:
                 continue
             if field.startswith("env_params."):
                 _validate_environment(metadata[field])
-                metadata[field] = json.dumps(metadata[field], allow_nan=False, separators=(",", ":"))
+                encoded = json.dumps(metadata[field], allow_nan=False, separators=(",", ":"))
+                if not values_match_exact(metadata[field], json.loads(encoded)):
+                    raise ValueError("versioned environment values must retain their types through JSON")
+                metadata[field] = encoded
             _set_domain(domains, field, metadata[field], path, row["step"], format_version="1")
     return metadata
 
@@ -1917,20 +1925,14 @@ def _finite_record_value(value: Any) -> bool:
 def _record_outcome_reasons(record: TrajectoryRecord, *, reference: bool) -> tuple[str, ...]:
     reasons = []
     try:
-        reward = float(record["reward"])
-        usable = not isinstance(record["reward"], bool) and math.isfinite(reward)
+        reward = float(record.get("reward"))
+        usable = not isinstance(record.get("reward"), bool) and math.isfinite(reward)
     except (TypeError, ValueError, OverflowError):
         reward, usable = None, False
     if not usable:
         reasons.append("reward_unusable")
     if reference:
         return tuple(reasons)
-    if (
-        "observation" not in record
-        or (isinstance(record["observation"], str) and record["observation"].startswith("[truncated"))
-        or not _finite_record_value(record["observation"])
-    ):
-        reasons.append("observation_unusable")
     failure = record.get("evaluation_failure", decode_numbers=True)
     measurement = record.get("measurement", {}, decode_numbers=True)
     measurement = measurement if isinstance(measurement, Mapping) else {}
@@ -2022,9 +2024,22 @@ def _record_outcome_reasons(record: TrajectoryRecord, *, reference: bool) -> tup
             for metric in (metrics.values() if isinstance(metrics, Mapping) else ())
         )
     )
+    metrics = metrics if isinstance(metrics, Mapping) else {}
+    observation = record.get("observation")
+    agent_metrics = details.get("agent_metrics") if isinstance(details, Mapping) else None
+    observation_count = (
+        len(observation) if isinstance(observation, (list, tuple, Mapping)) else int(observation is not None)
+    )
+    if (
+        "observation" not in record
+        or (isinstance(observation, str) and observation.startswith("[truncated"))
+        or not _finite_record_value(observation)
+        or (isinstance(agent_metrics, list) and agent_metrics and observation_count < len(agent_metrics))
+        or any(isinstance(metric, Mapping) and metric.get("status") == "unavailable" for metric in metrics.values())
+    ):
+        reasons.append("observation_unusable")
     if record.get("record_context_version") == "1" and malformed:
         return (*reasons, "measurement_schema_incompatible")
-    metrics = metrics if isinstance(metrics, Mapping) else {}
     failed = (
         any(failure_fields.get(name) is True for name in ("constraint", "runner", "metric", "nonfinite"))
         or (isinstance(indices, list) and bool(indices) and all(type(index) is int and index >= 0 for index in indices))

@@ -2939,6 +2939,7 @@ def test_record_orders_mapping_observations_by_declared_metrics_and_refuses_key_
         "missing": {"bandwidth": 100.0},
         "extra": {"bandwidth": 100.0, "latency": 2.0, "extra": 9.0},
     }[shape]
+    observation_items = list(observation.items())
     writer = Trajectory(iteration_dir=tmp_path)
     before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
     arguments: dict[str, Any] = {
@@ -2975,7 +2976,7 @@ def test_record_orders_mapping_observations_by_declared_metrics_and_refuses_key_
         assert record["observation"] == [100.0, 2.0]
         assert record.get("run_details", decode_numbers=True)["agent_metrics"] == ["bandwidth", "latency"]
         assert record.ineligibility_reasons("learning", current=eligibility_context) == ()
-    assert observation == arguments["observation"]
+    assert list(observation.items()) == observation_items
 
 
 @pytest.mark.parametrize("observation", [None, "[truncated observation]", "[truncated after 1000 characters]", [1.0]])
@@ -3032,7 +3033,8 @@ def test_concurrent_large_csv_loads_restore_process_field_limit(
             writer.writerow([1, {"x": 1}, 10, [1.0], "x" * 200000])
     reader = csv.reader
     first_inside, second_started, second_inside, first_finished = Event(), Event(), Event(), Event()
-    original_limit = csv.field_size_limit()
+    ambient_limit = csv.field_size_limit()
+    baseline_limit = 64
 
     def scheduled_reader(*args, **kwargs):
         if current_thread().name.endswith("_0"):
@@ -3054,6 +3056,7 @@ def test_concurrent_large_csv_loads_restore_process_field_limit(
                 first_finished.set()
 
     try:
+        csv.field_size_limit(baseline_limit)
         with monkeypatch.context() as scheduling:
             scheduling.setattr(csv, "reader", scheduled_reader)
             with ThreadPoolExecutor(max_workers=2, thread_name_prefix="trajectory-reader") as pool:
@@ -3062,9 +3065,9 @@ def test_concurrent_large_csv_loads_restore_process_field_limit(
                 second = pool.submit(load, 1)
                 assert first.result(timeout=10) == [1]
                 assert second.result(timeout=10) == [1]
-        assert csv.field_size_limit() == original_limit
+        assert csv.field_size_limit() == baseline_limit
     finally:
-        csv.field_size_limit(original_limit)
+        csv.field_size_limit(ambient_limit)
 
 
 @pytest.mark.parametrize("partial_tail", [False, True], ids=["complete-unpublished-row", "partial-unpublished-row"])
@@ -3168,3 +3171,187 @@ def test_old_python310_adopted_quoted_carriage_return_keeps_valid_marker_and_ret
     resumed.append(step=1, action={}, reward=1, observation=[1.0], note="left\rright")
     assert {name: (tmp_path / name).read_bytes() for name in expected} == expected
     assert {path.name: path.read_bytes() for path in reference.iterdir()} == expected
+
+
+@pytest.mark.parametrize("missing", ["action", "reward", None])
+def test_incomplete_warm_records_report_unusable_fields_without_key_errors(tmp_path: Path, missing) -> None:
+    row = {"step": 1, "action.x": 1, "reward": 3.0, "observation": [1.0]}
+    if missing is not None:
+        row.pop("action.x" if missing == "action" else "reward")
+    history = Trajectory(iteration_dir=tmp_path, dataframe=pd.DataFrame.from_records([row]).astype(object))
+    record = history.records()[0]
+    before = dict(record)
+    for purpose in ("reference", "measurement"):
+        reasons = record.ineligibility_reasons(purpose)
+        assert f"{missing}_unusable" in reasons if missing is not None else reasons == ()
+    assert dict(record) == before
+
+
+@pytest.mark.parametrize("versioned", [False, True])
+def test_opaque_nan_environment_labels_keep_measurement_eligibility_after_recovery(tmp_path: Path, versioned) -> None:
+    import math
+
+    history = Trajectory(iteration_dir=tmp_path)
+    history.append(
+        step=1,
+        action={"x": 1},
+        reward=3.0,
+        observation=[1.0],
+        env_params={"label": "nan"},
+        **({"record_format_version": "1"} if versioned else {}),
+    )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    plain = Trajectory.load(tmp_path).records()[0]
+    recovered = Trajectory.load(tmp_path, recovery="recorded").records()[0]
+    for record in (plain, recovered):
+        assert record.get("env_params") == {"label": (json.dumps("nan") if versioned or record is recovered else "nan")}
+        assert record.ineligibility_reasons("measurement") == ()
+    typed = plain.get("env_params", decode_numbers=True)["label"]
+    assert typed == "nan" if versioned else math.isnan(typed)
+    assert recovered.get("env_params", decode_numbers=True)["label"] == "nan"
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize(
+    "archive,observation",
+    [
+        pytest.param("native", [], id="native-empty"),
+        pytest.param("native", [10.0], id="native-short"),
+        pytest.param("native", [10.0, 20.0], id="native-complete"),
+        pytest.param("old-observed", [], id="old-empty"),
+        pytest.param("old-observed", [10.0], id="old-short"),
+        pytest.param("old-observed", [10.0, 20.0], id="old-complete"),
+        pytest.param("legacy-unknown", [10.0], id="legacy-unknown-schema"),
+    ],
+)
+def test_recorded_metric_availability_excludes_incomplete_measurements(
+    tmp_path: Path, eligibility_context, archive, observation
+) -> None:
+    original, system, rewards = eligibility_context
+    original.test.agent_metrics = ["bandwidth", "latency"]
+    history = Trajectory(iteration_dir=tmp_path / "native")
+    if archive == "legacy-unknown":
+        history.append(step=1, action={"x": 1}, reward=10.0, observation=observation)
+        records = [history.records()[0], Trajectory.load(history.output_path).records()[0]]
+    else:
+        selected = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+        selected.step = 1
+        live = history.record(
+            test_run=selected,
+            action_space=original.param_space,
+            action={"x": 1},
+            reward=10.0,
+            observation=observation,
+            system=system,
+            rewards=rewards,
+        )
+        if archive == "old-observed":
+            directory = tmp_path / "old-observed"
+            directory.mkdir()
+            (directory / Trajectory.file_name).write_bytes(history.output_path.read_bytes())
+            with history.metadata_path.open(newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            measurement = json.loads(rows[0]["measurement"])
+            for metric in measurement["metrics"].values():
+                metric["status"] = "observed"
+            rows[0]["measurement"] = json.dumps(measurement)
+            with (directory / Trajectory.metadata_file_name).open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+                writer.writeheader()
+                writer.writerows(rows)
+            records = [Trajectory.load(directory).records()[0]]
+        else:
+            records = [live, Trajectory.load(history.output_path).records()[0]]
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    incomplete = archive != "legacy-unknown" and len(observation) != 2
+    for record in records:
+        assert record["observation"] == observation
+        assert record.ineligibility_reasons("reference") == ()
+        assert record.ineligibility_reasons("decision") == ()
+        if archive == "native":
+            statuses = [
+                metric["status"] for metric in record.get("measurement", decode_numbers=True)["metrics"].values()
+            ]
+            assert statuses == ["observed"] * len(observation) + ["unavailable"] * (2 - len(observation))
+        assert ("observation_unusable" in record.ineligibility_reasons("measurement")) is incomplete
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("order", ["root-first", "child-first", "root-only", "child-only"])
+def test_versioned_empty_environment_root_cannot_coexist_with_child_paths(tmp_path: Path, order) -> None:
+    columns = {
+        "root-first": [("env_params.[]", "{}"), ('env_params.["x"]', "1")],
+        "child-first": [('env_params.["x"]', "1"), ("env_params.[]", "{}")],
+        "root-only": [("env_params.[]", "{}")],
+        "child-only": [('env_params.["x"]', "1")],
+    }[order]
+    (tmp_path / Trajectory.file_name).write_text("step,action,reward,observation\n1,{'x': 1},3,[1.0]\n")
+    with (tmp_path / Trajectory.metadata_file_name).open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "record_format_version", *(name for name, value in columns)])
+        writer.writerow([1, "1", *(value for name, value in columns)])
+    before = {path: path.read_bytes() for path in tmp_path.iterdir()}
+    if order in ("root-first", "child-first"):
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(tmp_path)
+    else:
+        record = Trajectory.load(tmp_path).records()[0]
+        assert record.get("env_params", decode_numbers=True) == ({} if order == "root-only" else {"x": 1})
+    assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("kind", ["tuple", "nested-tuple", "list", "legacy-tuple"])
+def test_versioned_environment_publication_preserves_lookup_value_types(tmp_path: Path, kind) -> None:
+    history = Trajectory(iteration_dir=tmp_path)
+    if kind == "legacy-tuple":
+        history.append(step=1, action={"x": 1}, reward=3.0, observation=[1.0], env_params={"shape": (1, 2)})
+        assert len(history) == len(Trajectory.load(tmp_path)) == 1
+        return
+    history.append(
+        step=1, action={"x": 1}, reward=3.0, observation=[1.0], record_format_version="1", env_params={"shape": [1, 2]}
+    )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    if kind in ("tuple", "nested-tuple"):
+        shape = (1, 2) if kind == "tuple" else [(1, 2)]
+        with pytest.raises(ValueError):
+            history.append(
+                step=2,
+                action={"x": 1},
+                reward=3.0,
+                observation=[1.0],
+                record_format_version="1",
+                env_params={"shape": shape},
+            )
+        assert len(history) == 1
+        assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+    for candidate in (history, Trajectory.load(tmp_path)):
+        result = candidate.find(env_params={"shape": [1, 2]})
+        assert result is not None and result["step"] == 1
+        assert candidate.find(env_params={"shape": (1, 2)}) is None
+
+
+def test_context_lookup_rejects_failed_first_match_without_changing_generic_find(
+    tmp_path: Path, eligibility_context
+) -> None:
+    original, system, rewards = eligibility_context
+    history = Trajectory(iteration_dir=tmp_path)
+    for step, reward, failure in ((1, -7.0, "failed first"), (2, 9.0, None)):
+        selected = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+        selected.step = step
+        history.record(
+            test_run=selected,
+            action_space=original.param_space,
+            action={"x": 1},
+            reward=reward,
+            observation=[1.0],
+            system=system,
+            rewards=rewards,
+            execution_error=failure,
+        )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    generic = history.find(action={"x": 1})
+    assert generic is not None and generic["step"] == 1
+    candidate = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+    assert history.find(candidate, original.param_space, system, rewards, action={"x": 1}) is None
+    assert [record["reward"] for record in history.records()] == [-7.0, 9.0]
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before

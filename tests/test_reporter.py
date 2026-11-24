@@ -52,6 +52,7 @@ from cloudai.systems.slurm.slurm_metadata import (
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+from tests.conftest import selected_dump_cases
 
 
 class TestLoadTestTuns:
@@ -717,231 +718,35 @@ def test_dse_reporter(
 @pytest.mark.parametrize(
     "archive,change",
     [
-        ("native", "matching"),
-        ("native", "minimal"),
-        ("native", "omitted_different_default"),
-        ("native", "command"),
-        ("native", "held_action"),
-        ("native", "string_action"),
-        ("native", "float_action"),
-        ("native", "bool_action"),
-        ("native", "static"),
-        ("native", "resource"),
-        ("native", "bool_resource"),
-        ("native", "nodes"),
-        ("native", "name"),
-        ("native", "iteration"),
-        ("native", "step"),
-        ("native", "bool_step"),
-        ("native", "output_path"),
-        ("native", "missing_action"),
-        ("legacy", "matching"),
-        ("legacy", "minimal"),
-        ("legacy", "command"),
-        ("native", "credentials"),
-        ("legacy", "credentials"),
-        ("native", "bool_static"),
-        ("native", "none_static"),
-        ("native", "float_resource"),
-        ("native", "string_resource"),
-        ("native", "float_step"),
-        ("native", "string_step"),
-        ("native", "date"),
-        ("native", "none_array"),
-        ("native", "list_order"),
-        ("native", "nested_matching"),
-        ("native", "nested_extra"),
-        ("native", "nested_missing"),
-        ("legacy", "nested_matching"),
-        ("legacy", "nested_extra"),
-        ("legacy", "nested_missing"),
+        *selected_dump_cases(),
+        ("native", "unknown_template-generate"),
+        ("native", "missing_template-generate"),
+        ("native", "invalid_argument-generate"),
+        ("native", "missing_definition-generate"),
+        ("native", "relative_equivalent-generate"),
+        ("native", "relative_unrelated-generate"),
+        ("native", "omitted_nodes_nonempty-generate"),
+        ("native", "omitted_nodes_empty-generate"),
+        ("native", "malformed_toml-generate"),
+        ("native", "read_error-generate"),
     ],
 )
 def test_best_config_export_verifies_recorded_settings_without_inventing_defaults(
-    slurm_system: SlurmSystem, archive: str, change: str
+    slurm_system: SlurmSystem, archive: str, change: str, selected_dump_case
 ) -> None:
-    from copy import deepcopy
-    from datetime import date
-
     from cloudai.configurator import Trajectory, TrajectoryLoadError
-    from cloudai.core import RewardOverrides, TestScenario
-    from cloudai.models.output import Metric, Run
+    from cloudai.core import TestScenario
     from cloudai.models.scenario import ReportConfig
 
-    nested_action = {"x": None, "keep": 1} if archive == "native" and change == "nested_matching" else {"x": 1}
-    case = TestRun(
-        name="typed-export",
-        test=NCCLTestDefinition(
-            name="nccl",
-            description="typed export",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs.model_validate(
-                {
-                    "docker_image_url": "fake://url/nccl",
-                    "nthreads": {"omitted_different_default": 4}.get(change, 1),
-                    **(
-                        {"fixed_array": {"none_array": [None], "list_order": [1, 2]}[change]}
-                        if change in ("none_array", "list_order")
-                        else {}
-                    ),
-                    **({"date_alias": date(2026, 1, 2)} if change == "date" else {}),
-                    "ngpus": [1, 2],
-                    "iters": [10, 20],
-                    "payload": (
-                        [nested_action, {"x": 2}]
-                        if change.startswith("nested_")
-                        else {"label": "0001", "enabled": True, "missing": None, "a.b": ["001", "true"]}
-                    ),
-                }
-            ),
-            dse_excluded_args=([] if change.startswith("nested_") else ["cmd_args.payload"])
-            + (["cmd_args.fixed_array"] if change in ("none_array", "list_order") else []),
-            agent_steps=1,
-            extra_env_vars={"FIXED": "0001"},
-        ),
-        num_nodes=1,
-        nodes=["node1"],
-        iterations=1,
+    use_generate = change.endswith("-generate")
+    selected, case, iteration, expected, dump, export, previous, before, read_attempts, change, valid = (
+        selected_dump_case(archive, change)
     )
-    if change == "credentials":
-        from cloudai.core import GitRepo
-        from cloudai.workloads.megatron_bridge.megatron_bridge import (
-            MegatronBridgeCmdArgs,
-            MegatronBridgeTestDefinition,
-        )
-
-        case.test = MegatronBridgeTestDefinition(
-            name="bridge",
-            description="credential export",
-            test_template_name="MegatronBridge",
-            cmd_args=MegatronBridgeCmdArgs.model_validate(
-                {
-                    "ngpus": [1, 2],
-                    "iters": [10, 20],
-                    "hf_token": "synthetic-export-hf",
-                    "wandb_key": "synthetic-export-wandb",
-                    "alias": "synthetic-export-hf:synthetic-export-wandb",
-                    "model_family_name": "qwen3",
-                    "model_recipe_name": "30b_a3b",
-                }
-            ),
-            git_repos=[GitRepo(url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", commit="r0.2.0")],
-            agent_steps=1,
-        )
-    iteration = slurm_system.output_path / case.name / "0"
-    selected = case.apply_params_set(
-        {"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {})
-    )
-    assert "fixed_array" not in case.param_space
-    assert selected.test.cmd_args.model_dump().get("fixed_array") == {"none_array": [None], "list_order": [1, 2]}.get(
-        change
-    )
-    selected.step = 1
-    selected.output_path = iteration / "1"
-    selected.output_path.mkdir(parents=True)
-    (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
-    (selected.output_path / "cloudai_megatron_bridge_launcher.log").write_text(
-        "Step Time : 1.0 s GPU utilization: 2.0 TFLOP/s/GPU"
-    )
-    (selected.output_path / "cloudai_megatron_bridge_evaluation.exitcode").write_text("0")
-    job = SlurmJobMetadata(
-        job_id=1,
-        name=case.name,
-        state="COMPLETED",
-        start_time="2026-01-01T00:00:00",
-        end_time="2026-01-01T00:01:00",
-        elapsed_time_sec=60,
-        exit_code="0:0",
-        srun_cmd="srun test",
-        test_cmd="test",
-        job_root=selected.output_path,
-        job_steps=[],
-    )
-    (selected.output_path / "slurm-job.toml").write_text(toml.dumps(job.model_dump(mode="json")))
-    history = Trajectory(iteration_dir=iteration)
-    if archive == "native":
-        history.record(
-            test_run=selected,
-            action_space=case.param_space,
-            action={"ngpus": 2} | ({"payload": nested_action} if change.startswith("nested_") else {}),
-            reward=1.0,
-            observation={"default": 1.0},
-            system=slurm_system,
-            rewards=RewardOverrides(),
-            run_output=Run(
-                path=str(selected.output_path),
-                jobid="export",
-                status="completed",
-                step=1,
-                iteration=0,
-                metrics=[Metric(name="default", value=1.0, unit="unknown")],
-            ),
-        )
-    else:
-        history.append(
-            step=1,
-            action={"ngpus": 2, "iters": 10} | ({"payload": nested_action} if change.startswith("nested_") else {}),
-            reward=1.0,
-            observation=1.0,
-        )
-    raw = toml.loads(toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump()))
-    if change == "minimal":
-        raw["test_definition"] = {
-            key: raw["test_definition"][key] for key in ("name", "description", "test_template_name", "cmd_args")
-        }
-        raw["test_definition"]["cmd_args"] = {
-            key: raw["test_definition"]["cmd_args"][key] for key in ("docker_image_url", "ngpus", "iters", "payload")
-        }
-    updates = {
-        "nested_extra": (("test_definition", "cmd_args", "payload", "y"), 2),
-        "nested_missing": (("test_definition", "cmd_args", "payload"), {}),
-        "none_array": (("test_definition", "cmd_args", "fixed_array"), []),
-        "list_order": (("test_definition", "cmd_args", "fixed_array"), [2, 1]),
-        "command": (("test_definition", "cmd_args", "ngpus"), 1),
-        "held_action": (("test_definition", "cmd_args", "iters"), 999),
-        "string_action": (("test_definition", "cmd_args", "iters"), "10"),
-        "float_action": (("test_definition", "cmd_args", "iters"), 10.0),
-        "bool_action": (("test_definition", "cmd_args", "iters"), True),
-        "static": (("test_definition", "extra_env_vars", "FIXED"), "changed"),
-        "resource": (("nnodes",), 2),
-        "bool_resource": (("nnodes",), True),
-        "nodes": (("nodes",), ["other-node"]),
-        "name": (("name",), "other-run"),
-        "iteration": (("current_iteration",), 1),
-        "step": (("step",), 2),
-        "bool_step": (("step",), True),
-        "output_path": (("output_path",), str(iteration / "other" / "1")),
-        "bool_static": (("test_definition", "cmd_args", "payload", "enabled"), 1),
-        "none_static": (("test_definition", "cmd_args", "payload", "missing"), "not-none"),
-        "float_resource": (("nnodes",), 1.0),
-        "string_resource": (("nnodes",), "1"),
-        "float_step": (("step",), 1.0),
-        "string_step": (("step",), "1"),
-    }
-    if change in updates:
-        path, value = updates[change]
-        target = raw
-        for key in path[:-1]:
-            target = target[key]
-        target[path[-1]] = value
-    elif change in ("missing_action", "omitted_different_default"):
-        del raw["test_definition"]["cmd_args"][
-            {"missing_action": "iters", "omitted_different_default": "nthreads"}[change]
-        ]
-    expected = deepcopy(raw["test_definition"])
-    dump = selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
-    dump.write_text(toml.dumps(raw))
-    export = iteration / f"{case.name}.toml"
-    previous = b'preserve = "existing export"\n'
-    export.write_bytes(previous)
-    before = {
-        path: path.read_bytes() for path in (history.output_path, history.output_path.with_name("metadata.csv"), dump)
-    }
-    if change in ("matching", "minimal", "credentials", "date", "nested_matching"):
+    if valid:
         reporter = DSEReporter(
             slurm_system, TestScenario(name="export", test_runs=[case]), slurm_system.output_path, ReportConfig()
         )
-        reporter.report_best_dse_config()
+        (reporter.generate if use_generate else reporter.report_best_dse_config)()
         actual = toml.loads(export.read_text())
         assert actual == expected
         assert change != "minimal" or NCCLTestDefinition.model_validate(actual).cmd_args.nthreads == 1
@@ -962,8 +767,9 @@ def test_best_config_export_verifies_recorded_settings_without_inventing_default
             reporter = DSEReporter(
                 slurm_system, TestScenario(name="export", test_runs=[case]), slurm_system.output_path, ReportConfig()
             )
-            reporter.report_best_dse_config()
+            (reporter.generate if use_generate else reporter.report_best_dse_config)()
         assert export.read_bytes() == previous
+    assert change != "read_error" or read_attempts == [dump]
     assert all(path.read_bytes() == original for path, original in before.items())
 
 
@@ -1290,3 +1096,185 @@ def test_every_existing_dse_iteration_exports_and_corrupt_history_propagates(
     (corrupt / Trajectory.file_name).write_text("step,action,reward,observation\n1,{},1,[],extra\n")
     with pytest.raises(TrajectoryLoadError, match="row 2, expected 4 fields, got 5"):
         reporter.report_best_dse_config()
+
+
+@pytest.fixture
+def recorded_dse_case(slurm_system: SlurmSystem):
+    from cloudai.configurator import Trajectory
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    def create(archive="native", timing=True, rewards=(2, 1)):
+        case = TestRun(
+            name="coherent-recording",
+            test=NCCLTestDefinition(
+                name="nccl",
+                description="coherent recording",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://nccl", ngpus=[1, 2]),
+                agent_steps=3,
+            ),
+            num_nodes=1,
+            nodes=["node1"],
+            iterations=2,
+        )
+        iteration = slurm_system.output_path / case.name / "0"
+        history = Trajectory(iteration_dir=iteration)
+
+        def commit(step: int, ngpus: int, reward: int):
+            selected = case.apply_params_set({"ngpus": ngpus})
+            selected.step = step
+            selected.output_path = iteration / str(step)
+            selected.output_path.mkdir(parents=True)
+            (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+            (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+                toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+            )
+            if timing:
+                _write_slurm_job(selected.output_path, 60)
+            if archive == "native":
+                history.record(
+                    test_run=selected,
+                    action_space=case.param_space,
+                    action={"ngpus": ngpus},
+                    reward=reward,
+                    observation={"default": 1.0},
+                    system=slurm_system,
+                    rewards=RewardOverrides(),
+                    run_output=Run(
+                        path=str(selected.output_path),
+                        jobid=f"coherent-{step}",
+                        status="completed",
+                        step=step,
+                        iteration=0,
+                        metrics=[Metric(name="default", value=1.0, unit="unknown")],
+                    ),
+                )
+            else:
+                history.append(step=step, action={"ngpus": ngpus}, reward=reward, observation=[1.0])
+            return selected
+
+        runs = [commit(step, step, reward) for step, reward in enumerate(rewards, 1)]
+        return case, history, runs, commit
+
+    return create
+
+
+@pytest.mark.parametrize("archive", ["native", "legacy"])
+def test_generate_exports_valid_history_without_timing_metadata(
+    slurm_system: SlurmSystem, recorded_dse_case, archive: str
+) -> None:
+    case, history, runs, _ = recorded_dse_case(archive=archive, timing=False)
+    before = {path: path.read_bytes() for path in history.output_path.parent.rglob("*") if path.is_file()}
+    assert build_dse_summaries(slurm_system, slurm_system.output_path, runs, [case]) == []
+    DSEReporter(
+        slurm_system, TestScenario(name="without-timing", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    ).generate()
+    export = history.output_path.parent / f"{case.name}.toml"
+    assert export.is_file()
+    assert toml.loads(export.read_text())["cmd_args"]["ngpus"] == 1
+    assert not (slurm_system.output_path / "without-timing-dse-report.html").exists()
+    assert all(path.read_bytes() == data for path, data in before.items())
+
+
+def test_generate_uses_one_readonly_snapshot_per_configured_iteration(
+    slurm_system: SlurmSystem, recorded_dse_case, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cloudai.reporter as reporter_module
+    from cloudai.configurator import Trajectory
+
+    case, history, _, commit = recorded_dse_case()
+    actual_load = Trajectory.load
+    actual_summaries = build_dse_summaries
+    snapshots = []
+    summaries = []
+
+    def interleaved_load(path, **kwargs):
+        loaded = actual_load(path, **kwargs)
+        snapshots.append((Path(path), [record.step for record in loaded.records()]))
+        with pytest.raises(RuntimeError):
+            loaded.append(step=99, action={"ngpus": 1}, reward=99, observation=[1.0])
+        if len(snapshots) == 1:
+            commit(3, 2, 9)
+        return loaded
+
+    def capture_summaries(*args, **kwargs):
+        result = actual_summaries(*args, **kwargs)
+        summaries.extend(result)
+        return result
+
+    monkeypatch.setattr(Trajectory, "load", staticmethod(interleaved_load))
+    monkeypatch.setattr(reporter_module, "build_dse_summaries", capture_summaries)
+    reporter = DSEReporter(
+        slurm_system, TestScenario(name="coherent", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    )
+    reporter.generate()
+    export = history.output_path.parent / f"{case.name}.toml"
+    assert len(summaries) == 1
+    assert toml.loads(summaries[0].best_config_toml)["cmd_args"]["ngpus"] == 1
+    assert toml.loads(export.read_text())["cmd_args"]["ngpus"] == 1
+    assert snapshots == [
+        (slurm_system.output_path / case.name / "0" / Trajectory.file_name, [1, 2]),
+        (slurm_system.output_path / case.name / "1" / Trajectory.file_name, []),
+    ]
+    assert (slurm_system.output_path / "coherent-dse-report.html").is_file()
+    assert [record.step for record in actual_load(history.output_path.parent).records()] == [1, 2, 3]
+    reporter.report_best_dse_config()
+    assert toml.loads(export.read_text())["cmd_args"]["ngpus"] == 2
+
+
+def test_summary_parameter_projection_work_is_independent_of_record_count(
+    slurm_system: SlurmSystem, recorded_dse_case, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cloudai.reporter as reporter_module
+
+    case, _, _runs, _ = recorded_dse_case()
+    actual_param_space = TestRun.param_space.fget
+    assert actual_param_space is not None
+    reads = []
+
+    def counted_param_space(test_run: TestRun):
+        if test_run is case:
+            reads.append(test_run.name)
+        return actual_param_space(test_run)
+
+    monkeypatch.setattr(TestRun, "param_space", property(counted_param_space))
+    summaries = []
+
+    def capture_summaries(*args, **kwargs):
+        result = build_dse_summaries(*args, **kwargs)
+        summaries.extend(result)
+        return result
+
+    monkeypatch.setattr(reporter_module, "build_dse_summaries", capture_summaries)
+    DSEReporter(
+        slurm_system, TestScenario(name="projection", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    ).generate()
+    assert len(summaries) == 1
+    assert [row.name for row in summaries[0].parameter_rows] == ["ngpus"]
+    assert len(reads) <= 3
+
+
+def test_summary_retains_exact_selection_for_adjacent_large_integers(
+    slurm_system: SlurmSystem, recorded_dse_case, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cloudai.reporter as reporter_module
+
+    case, _, _runs, _ = recorded_dse_case(rewards=(2**53, 2**53 + 1))
+    summaries = []
+
+    def capture_summaries(*args, **kwargs):
+        result = build_dse_summaries(*args, **kwargs)
+        summaries.extend(result)
+        return result
+
+    monkeypatch.setattr(reporter_module, "build_dse_summaries", capture_summaries)
+    DSEReporter(
+        slurm_system, TestScenario(name="projection", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    ).generate()
+    assert len(summaries) == 1
+    chart = summaries[0].reward_chart_data
+    assert chart is not None
+    assert chart["rewards"] == [2**53, 2**53 + 1]
+    assert chart["best_index"] == 1
+    assert toml.loads(summaries[0].best_config_toml)["cmd_args"]["ngpus"] == 2

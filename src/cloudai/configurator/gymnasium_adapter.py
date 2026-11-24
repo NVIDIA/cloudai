@@ -201,7 +201,11 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
     def _encode_discrete(self, name: str, value: Any) -> int:
         values = self._discrete_params[name]
         try:
-            return next(index for index, candidate in enumerate(values) if values_match_exact(candidate, value))
+            return next(
+                index
+                for index, candidate in enumerate(values)
+                if candidate is value or values_match_exact(candidate, value)
+            )
         except StopIteration:
             raise ValueError(f"Value {value!r} for '{name}' is not a candidate; expected one of {values}") from None
 
