@@ -101,7 +101,13 @@ def extract_nccl_data(stdout_path: Path) -> Tuple[List[List[str]], str, int, int
 class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrategy):
     """Strategy for generating performance reports from NCCL test outputs."""
 
-    metrics: ClassVar[list[str]] = ["default", "latency-in-place", "latency-out-of-place"]
+    metrics: ClassVar[list[str]] = [
+        "default",
+        "latency-in-place",
+        "latency-out-of-place",
+        "max-busbw-in-place",
+        "max-busbw-out-of-place",
+    ]
 
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
@@ -202,6 +208,18 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         df: pd.DataFrame = self._extract_data()
         if df.empty:
             return METRIC_ERROR
+
+        bandwidth_metrics = {
+            "max-busbw-in-place": "In-place",
+            "max-busbw-out-of-place": "Out-of-place",
+        }
+        if metric in bandwidth_metrics:
+            placement = bandwidth_metrics[metric]
+            data = df[f"Busbw (GB/s) {placement}"].astype(float)
+            wrong = lazy.pd.to_numeric(df[f"#Wrong {placement}"], errors="coerce")
+            if not (wrong == 0).all() or not lazy.np.isfinite(data).all() or (data < 0).any():
+                return METRIC_ERROR
+            return float(data.max())
 
         metric_to_field = {
             "default": "Time (us) In-place",

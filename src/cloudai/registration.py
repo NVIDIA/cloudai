@@ -131,6 +131,7 @@ def register_all():
         NcclTestPerformanceReportGenerationStrategy,
         NcclTestRunAIJsonGenStrategy,
         NcclTestSlurmCommandGenStrategy,
+        NcclTestStandaloneMPICommandGenStrategy,
     )
     from cloudai.workloads.nemo_launcher import (
         NeMoLauncherGradingStrategy,
@@ -239,6 +240,7 @@ def register_all():
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(StandaloneSystem, NCCLTestDefinition, NcclTestStandaloneMPICommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, DDLBTestDefinition, DDLBTestSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(
         SlurmSystem, MegatronBridgeTestDefinition, MegatronBridgeSlurmCommandGenStrategy

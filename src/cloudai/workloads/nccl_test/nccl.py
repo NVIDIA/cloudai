@@ -16,6 +16,8 @@
 
 from typing import Literal, Optional, Union, cast
 
+from pydantic import BaseModel, ConfigDict, PositiveInt, model_validator
+
 import cloudai.metrics
 from cloudai.core import DockerImage, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -24,7 +26,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class NCCLCmdArgs(CmdArgs):
     """NCCL test command arguments."""
 
-    docker_image_url: str
+    docker_image_url: str = ""
     subtest_name: Union[
         Literal[
             "all_reduce_perf_mpi",
@@ -107,11 +109,31 @@ class NCCLCmdArgs(CmdArgs):
     min_busbw: Optional[float] = None
 
 
+class StandaloneMPIConfig(BaseModel):
+    """Launch settings for a preinstalled MPI-enabled nccl-tests tree."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    launcher: str = "mpirun"
+    binary_dir: str
+    ranks_per_node: PositiveInt
+    launcher_args: list[str] = []
+
+
 class NCCLTestDefinition(TestDefinition):
     """Test object for NCCL."""
 
     cmd_args: NCCLCmdArgs
+    standalone_mpi: StandaloneMPIConfig | None = None
     _docker_image: Optional[DockerImage] = None
+
+    @model_validator(mode="after")
+    def check_execution_mode(self) -> "NCCLTestDefinition":
+        if (self.standalone_mpi and self.cmd_args.docker_image_url) or (
+            not self.standalone_mpi and "docker_image_url" not in self.cmd_args.model_fields_set
+        ):
+            raise ValueError("Configure either cmd_args.docker_image_url or standalone_mpi, not both.")
+        return self
 
     @property
     def extra_args_str(self) -> str:
@@ -122,12 +144,16 @@ class NCCLTestDefinition(TestDefinition):
 
     @property
     def docker_image(self) -> DockerImage:
+        if self.standalone_mpi:
+            raise ValueError("standalone_mpi requires the standalone scheduler.")
         if not self._docker_image:
             self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
         return self._docker_image
 
     @property
     def installables(self) -> list[Installable]:
+        if self.standalone_mpi:
+            return [self.predictor] if self.predictor else []
         return [self.docker_image, self.predictor] if self.predictor else [self.docker_image]
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

@@ -22,6 +22,7 @@ from .performance_report_generation_strategy import NcclTestPerformanceReportGen
 from .prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from .runai_json_gen_strategy import NcclTestRunAIJsonGenStrategy
 from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from .standalone_command_gen_strategy import NcclTestStandaloneMPICommandGenStrategy
 
 __all__ = [
     "ComparisonReportConfig",
@@ -34,4 +35,5 @@ __all__ = [
     "NcclTestPredictionReportGenerationStrategy",
     "NcclTestRunAIJsonGenStrategy",
     "NcclTestSlurmCommandGenStrategy",
+    "NcclTestStandaloneMPICommandGenStrategy",
 ]

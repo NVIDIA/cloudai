@@ -50,6 +50,36 @@ Test-in-Scenario example:
      subtest_name = "all_reduce_perf_mpi"
      iters = 100
 
+Standalone MPI
+--------------
+
+With a standalone system, load the site's HPC-X environment before invoking
+CloudAI. Use this test configuration instead of specifying a container:
+
+.. code-block:: toml
+
+   name = "nccl_mpi"
+   description = "Bare-metal MPI bandwidth benchmark"
+   test_template_name = "NcclTest"
+
+   [standalone_mpi]
+   launcher = "mpirun"
+   binary_dir = "/shared/nccl-tests/build"
+   ranks_per_node = 4
+   launcher_args = ["--bind-to", "none"]
+
+   [cmd_args]
+   subtest_name = "all_reduce_perf"
+   ngpus = 1
+
+Set the system's ``scheduler = "standalone"``. In the scenario's ``[[Tests]]``
+entry, set ``test_name = "nccl_mpi"``, ``num_nodes = 2`` and, for example,
+``nodes = ["worker01", "worker02"]``. Use already assigned hosts: CloudAI
+does not reserve them. All hosts must have access to the MPI-enabled binary
+named by ``subtest_name`` and compatible libraries. Global and per-trial
+environment settings are forwarded to MPI ranks. DSE uses the same NCCL
+stdout and metric extraction as the containerized workload.
+
 API Documentation
 ---------------------------------
 
