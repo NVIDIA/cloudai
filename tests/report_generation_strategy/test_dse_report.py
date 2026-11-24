@@ -158,6 +158,8 @@ def test_dse_summary_uses_the_record_observation_formatter(
 def test_dse_summary_skips_only_truly_absent_history(
     slurm_system: SlurmSystem, scalar_observation_case: tuple[TestRun, TestRun], history: str
 ) -> None:
+    from cloudai.configurator import TrajectoryLoadError
+
     case, completed = scalar_observation_case
     iteration = completed.output_path.parent
     if history in ("absent", "metadata-only"):
@@ -181,7 +183,7 @@ def test_dse_summary_skips_only_truly_absent_history(
             == []
         )
     else:
-        with pytest.raises(RuntimeError, match=r"trajectory|metadata|commit"):
+        with pytest.raises(TrajectoryLoadError, match=r"trajectory|metadata|commit"):
             build_dse_summaries(
                 system=slurm_system,
                 results_root=slurm_system.output_path,
@@ -629,3 +631,126 @@ def test_parameter_highlights_use_complete_recorded_actions_with_raw_fallback(
         ("ngpus", [("1", False), ("2", True)]),
         ("label", [("001", True), ("002", False)]),
     ]
+
+
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+@pytest.mark.parametrize(
+    "rewards,expected_step,node_only",
+    [
+        pytest.param((9007199254740992, 9007199254740993), 2, False, id="adjacent_native_integers"),
+        pytest.param(("9007199254740992", " 9007199254740993"), 2, False, id="adjacent_integer_strings"),
+        pytest.param((9007199254740993, 9007199254740993), 1, False, id="exact_bigint_tie"),
+        pytest.param((9, "010"), 2, False, id="mixed_integer_string"),
+        pytest.param(("09", "010"), 2, False, id="leading_zero_strings"),
+        pytest.param((9, " 10.5"), 2, False, id="fraction_string"),
+        pytest.param((9.5, 10.5), 2, False, id="native_floats"),
+        pytest.param((10, "010"), 1, False, id="numeric_tie"),
+        pytest.param((1, 2), 2, True, id="node_only"),
+        pytest.param((True, 2), 2, False, id="unusable_boolean_evidence"),
+    ],
+)
+def test_summary_ranks_exact_rewards_and_highlights_selected_resources(
+    slurm_system: SlurmSystem,
+    archive: str,
+    rewards: tuple[int | float | str, int | float | str],
+    expected_step: int,
+    node_only: bool,
+) -> None:
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="exact-summary",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="exact reward summary",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=1 if node_only else [1, 2]),
+            agent_steps=2,
+        ),
+        num_nodes=[2, 4] if node_only else 1,
+        nodes=["node1"],
+    )
+    dimension = "NUM_NODES" if node_only else "ngpus"
+    assert list(case.param_space) == [dimension]
+    assert case.is_dse_job
+    assert case.test.is_dse_job is not node_only
+    iteration = slurm_system.output_path / case.name / "0"
+    history = Trajectory(iteration_dir=iteration)
+    runs = []
+    for step, reward in enumerate(rewards, 1):
+        value = step * 2 if node_only else step
+        action = {dimension: value}
+        selected = case.apply_params_set(action)
+        selected.step = step
+        selected.output_path = iteration / str(step)
+        selected.output_path.mkdir(parents=True)
+        (selected.output_path / "stdout.txt").write_text("# Out of bounds values# Avg bus bandwidth")
+        job = SlurmJobMetadata(
+            job_id=step,
+            name=case.name,
+            state="COMPLETED",
+            start_time="2026-01-01T00:00:00",
+            end_time="2026-01-01T00:01:00",
+            elapsed_time_sec=60,
+            exit_code="0:0",
+            srun_cmd="srun test",
+            test_cmd="test",
+            job_root=selected.output_path,
+            job_steps=[],
+        )
+        (selected.output_path / "slurm-job.toml").write_text(toml.dumps(job.model_dump(mode="json")))
+        (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+        )
+        if archive == "native":
+            history.record(
+                test_run=selected,
+                action_space=case.param_space,
+                action=action,
+                reward=reward,
+                observation={"default": 1.0},
+                system=slurm_system,
+                rewards=RewardOverrides(),
+                run_output=Run(
+                    path=str(selected.output_path),
+                    jobid=f"summary-{step}",
+                    status="completed",
+                    step=step,
+                    iteration=0,
+                    metrics=[Metric(name="default", value=1.0, unit="unknown")],
+                ),
+            )
+        else:
+            history.append(step=step, action=action, reward=reward, observation=[1.0])
+        runs.append(selected)
+    records = Trajectory.load(iteration).records()
+    original = [(record["reward"], type(record["reward"]), record.metadata) for record in records]
+    getters = [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in records]
+    before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()}
+    summaries = build_dse_summaries(slurm_system, slurm_system.output_path, runs, [case])
+    assert len(summaries) == 1
+    summary = summaries[0]
+    chart = summary.reward_chart_data
+    assert chart is not None
+    assert chart["best_index"] == expected_step - 1
+    assert all(type(reward) in (int, float) for reward in chart["rewards"])
+    assert chart["rewards"] == [
+        int(reward)
+        if isinstance(reward, str) and reward.strip().isdigit()
+        else (float(reward) if isinstance(reward, str) else reward)
+        for reward in rewards
+    ]
+    expected_value = expected_step * 2 if node_only else expected_step
+    assert [(row.name, [(value.text, value.is_best) for value in row.values]) for row in summary.parameter_rows] == [
+        (dimension, [(str(value), value == expected_value) for value in case.param_space[dimension]])
+    ]
+    actual = toml.loads(summary.best_config_toml)
+    assert actual["cmd_args"]["ngpus"] == (1 if node_only else expected_step)
+    assert set(actual) <= NCCLTestDefinition.model_fields.keys() | {"cmd_args"}
+    dump = toml.loads((runs[expected_step - 1].output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).read_text())
+    assert dump["nnodes"] == (expected_value if node_only else 1)
+    assert {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()} == before
+    reloaded = Trajectory.load(iteration).records()
+    assert [(record["reward"], type(record["reward"]), record.metadata) for record in reloaded] == original
+    assert [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in reloaded] == getters

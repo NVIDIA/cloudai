@@ -247,11 +247,20 @@ def _build_trajectory_steps(
         if not isinstance(action, dict):
             action = {}
 
+        reward = record["reward"]
+        if isinstance(reward, str):
+            try:
+                reward = int(reward)
+            except ValueError:
+                reward = float(reward)
+        elif not isinstance(reward, int) or isinstance(reward, bool):
+            reward = float(reward)
+
         step_run = runs_by_step.get(step_no)
         steps.append(
             TrajectoryStep(
                 step=step_no,
-                reward=float(record["reward"]),
+                reward=reward,
                 observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),

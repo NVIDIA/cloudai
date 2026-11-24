@@ -1138,3 +1138,72 @@ def test_best_config_ranks_numeric_rewards_without_changing_recorded_values(
     assert [type(record["reward"]) for record in reloaded] == [type(reward) for reward in rewards]
     actual = toml.loads((iteration / f"{case.name}.toml").read_text())
     assert actual["cmd_args"]["ngpus"] == expected_step
+
+
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+def test_node_only_sweeps_export_selected_workload_and_preserve_resource_evidence(
+    slurm_system: SlurmSystem, archive: str
+) -> None:
+    from cloudai.configurator import Trajectory
+    from cloudai.core import RewardOverrides
+    from cloudai.models.output import Metric, Run
+
+    case = TestRun(
+        name="node-only",
+        test=NCCLTestDefinition(
+            name="nccl",
+            description="node-only sweep",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl", ngpus=1),
+            agent_steps=2,
+        ),
+        num_nodes=[2, 4],
+        nodes=["node1"],
+    )
+    assert case.is_dse_job and not case.test.is_dse_job
+    assert case.param_space == {"NUM_NODES": [2, 4]}
+    iteration = slurm_system.output_path / case.name / "0"
+    history = Trajectory(iteration_dir=iteration)
+    for step, nnodes in enumerate((2, 4), 1):
+        selected = case.apply_params_set({"NUM_NODES": nnodes})
+        selected.step = step
+        selected.output_path = iteration / str(step)
+        selected.output_path.mkdir(parents=True)
+        (selected.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps(TestRunDetails.from_test_run(selected, "", "").model_dump(mode="json"))
+        )
+        if archive == "native":
+            history.record(
+                test_run=selected,
+                action_space=case.param_space,
+                action={"NUM_NODES": nnodes},
+                reward=step,
+                observation={"default": 1.0},
+                system=slurm_system,
+                rewards=RewardOverrides(),
+                run_output=Run(
+                    path=str(selected.output_path),
+                    jobid=f"nodes-{step}",
+                    status="completed",
+                    step=step,
+                    iteration=0,
+                    metrics=[Metric(name="default", value=1.0, unit="unknown")],
+                ),
+            )
+        else:
+            history.append(step=step, action={"NUM_NODES": nnodes}, reward=step, observation=[1.0])
+    before = {path: path.read_bytes() for path in iteration.rglob("*") if path.is_file()}
+    reporter = DSEReporter(
+        slurm_system, TestScenario(name="node-only", test_runs=[case]), slurm_system.output_path, ReportConfig()
+    )
+    reporter.report_best_dse_config()
+    exported = toml.loads((iteration / f"{case.name}.toml").read_text())
+    dump = toml.loads((iteration / "2" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).read_text())
+    assert exported == dump["test_definition"]
+    assert NCCLTestDefinition.model_validate(exported).cmd_args.ngpus == 1
+    assert all(path.read_bytes() == content for path, content in before.items())
+    record = Trajectory.load(iteration, recovery="recorded").records()[1]
+    assert record.get("action", decode_numbers=True) == {"NUM_NODES": 4}
+    details = record.get("run_details", decode_numbers=True)
+    assert details["launch"]["num_nodes"] == 4
+    assert dump["nnodes"] == 4
