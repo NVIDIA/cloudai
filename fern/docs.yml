@@ -22,5 +22,5 @@ versions:
     availability: stable
   - display-name: dev
     slug: dev
-    ref: db31b773cb3ac3d0249b182b77ab07386cf2fc29
+    ref: a46b791f5cfd73cf238e34976c1a5d7da1aeb295
     availability: beta
