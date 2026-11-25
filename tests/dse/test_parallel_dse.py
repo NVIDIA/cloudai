@@ -97,7 +97,7 @@ def test_trials_over_at_their_first_check_cost_no_waiting(
 
     results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3, 4)], start=1))
 
-    assert [result["status"] for result in results] == ["completed"] * 4
+    assert [result.status for result in results] == ["completed"] * 4
     assert sleeps == []
 
 
@@ -106,8 +106,8 @@ def test_trajectory_is_in_completion_order_and_results_in_proposal_order(system:
 
     results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3)], start=1))
 
-    assert [result["step"] for result in results] == [1, 2, 3]
-    assert [result["value"] for result in results] == [1.0, 2.0, 3.0]
+    assert [result.step for result in results] == [1, 2, 3]
+    assert [result.reward for result in results] == [1.0, 2.0, 3.0]
     assert list(env.trajectory.dataframe["step"]) == [3, 2, 1]
 
 
@@ -155,8 +155,8 @@ def test_failed_job_and_missing_metric_both_fail_the_trial(system: ScriptedSyste
 
     results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3, 4)], start=1))
 
-    assert [result["status"] for result in results] == ["failed", "failed", "failed", "completed"]
-    assert [result["value"] for result in results] == [-1.0, 2.0, -1.0, 4.0]
+    assert [result.status for result in results] == ["failed", "failed", "failed", "completed"]
+    assert [result.reward for result in results] == [-1.0, 2.0, -1.0, 4.0]
 
 
 def test_missing_metric_log_identifies_the_trial_metric_and_output(
@@ -166,9 +166,9 @@ def test_missing_metric_log_identifies_the_trial_metric_and_output(
 
     results = env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
 
-    assert results[0]["status"] == "failed"
+    assert results[0].status == "failed"
     assert "Step 1 has missing or failed metrics ['default']" in caplog.text
-    assert str(results[0]["output_path"]) in caplog.text
+    assert str(results[0].output_path) in caplog.text
 
 
 def test_trial_that_cannot_be_prepared_fails_alone(system: ScriptedSystem, caplog: pytest.LogCaptureFixture) -> None:
@@ -212,8 +212,8 @@ def test_trial_keeps_running_when_its_submission_fails_after_the_job_started(sys
 
     results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 3)], start=1))
 
-    assert [result["status"] for result in results] == ["completed"] * 3
-    assert [result["value"] for result in results] == [1.0, 2.0, 3.0]
+    assert [result.status for result in results] == ["completed"] * 3
+    assert [result.reward for result in results] == [1.0, 2.0, 3.0]
     assert system.events == [
         ("submit", 1),
         ("submit", 2),
@@ -285,14 +285,14 @@ def test_results_report_every_proposal_in_order(system: ScriptedSystem) -> None:
 
     results = env.evaluate_batch([(10, {"x": 1}), (11, {"x": 2}), (12, {"x": 3}), (13, {"x": 1})])
 
-    assert [result["trial_index"] for result in results] == [10, 11, 12, 13]
-    assert [result["status"] for result in results] == ["completed", "rejected", "failed", "cached"]
-    assert [result["step"] for result in results] == [1, None, 2, 3]
-    assert [result["value"] for result in results] == [1.0, -1.0, -1.0, 1.0]
-    assert [result["observation"] for result in results] == [[1.0], [-1.0], [-1.0], [1.0]]
-    assert [result["done"] for result in results] == [False, True, False, False]
+    assert [result.trial_index for result in results] == [10, 11, 12, 13]
+    assert [result.status for result in results] == ["completed", "rejected", "failed", "cached"]
+    assert [result.step for result in results] == [1, None, 2, 3]
+    assert [result.reward for result in results] == [1.0, -1.0, -1.0, 1.0]
+    assert [result.observation for result in results] == [[1.0], [-1.0], [-1.0], [1.0]]
+    assert [result.done for result in results] == [False, True, False, False]
     trial_root = env.runner.scenario_root / "probe" / "0"
-    assert [result["output_path"] for result in results] == [trial_root / "1", None, trial_root / "2", trial_root / "1"]
+    assert [result.output_path for result in results] == [trial_root / "1", None, trial_root / "2", trial_root / "1"]
     assert env.test_run.step == 3
     assert env.test_run.output_path == trial_root / "1"
     assert env.upcoming_trial == 4
@@ -313,11 +313,11 @@ def test_proposal_identical_to_a_running_trial_shares_its_result(system: Scripte
 
     results = env.evaluate_batch(enumerate([{"x": 1}, {"x": 1}, {"x": 2}, {"x": 2}, {"x": 1}], start=1))
 
-    assert [result["status"] for result in results] == ["completed", "cached", "failed", "cached", "cached"]
-    assert [result["value"] for result in results] == [1.0, 1.0, -1.0, -1.0, 1.0]
-    assert [result["step"] for result in results] == [1, 2, 3, 4, 5]
+    assert [result.status for result in results] == ["completed", "cached", "failed", "cached", "cached"]
+    assert [result.reward for result in results] == [1.0, 1.0, -1.0, -1.0, 1.0]
+    assert [result.step for result in results] == [1, 2, 3, 4, 5]
     trial_root = env.runner.scenario_root / "probe" / "0"
-    assert [result["output_path"] for result in results] == [trial_root / str(step) for step in (1, 1, 3, 3, 1)]
+    assert [result.output_path for result in results] == [trial_root / str(step) for step in (1, 1, 3, 3, 1)]
     assert started_together(system.events) == [[1, 3]]
 
 
@@ -327,9 +327,46 @@ def test_duplicate_of_a_running_trial_resets_the_rejection_counter(system: Scrip
 
     results = env.evaluate_batch(enumerate([{"x": x} for x in (1, 2, 1, 2, 3)], start=1))
 
-    assert [result["status"] for result in results] == ["completed", "rejected", "cached", "rejected", "completed"]
-    assert [result["step"] for result in results] == [1, None, 2, None, 3]
+    assert [result.status for result in results] == ["completed", "rejected", "cached", "rejected", "completed"]
+    assert [result.step for result in results] == [1, None, 2, None, 3]
     assert env.upcoming_trial == 4
+
+
+def test_sharing_results_preserves_the_execution_run_and_independent_feedback(system: ScriptedSystem) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=3)
+    executions: list[TestRun] = []
+    system.on_submit(executions.append)
+
+    trials = env.evaluate_batch([(10, {"x": 1}), (11, {"x": 1}), (12, {"x": 2})])
+
+    assert [run.step for run in executions] == [1, 3]
+    assert [run.output_path.name for run in executions] == ["1", "3"]
+    assert [trial.trial_index for trial in trials] == [10, 11, 12]
+    assert trials[0].output_path == trials[1].output_path == executions[0].output_path
+    trials[1].observation[0] = 99.0
+    assert trials[0].observation == [1.0]
+    assert list(env.trajectory.dataframe["observation.default"]) == [1.0, 1.0, 2.0]
+
+
+def test_metric_read_error_keeps_earlier_results_from_the_same_poll(
+    system: ScriptedSystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = probe_env(system, x=[1, 2], max_parallelism=2)
+    get_observation = env.get_observation
+
+    def read_metrics(test_run: TestRun | None = None) -> dict:
+        if test_run is not None and test_run.step == 2:
+            raise RuntimeError("metric reader failed")
+        return get_observation(test_run)
+
+    monkeypatch.setattr(env, "get_observation", read_metrics)
+
+    with pytest.raises(RuntimeError, match="metric reader failed"):
+        env.evaluate_batch([(1, {"x": 1}), (2, {"x": 2})])
+
+    assert list(env.trajectory.dataframe["step"]) == [1]
+    assert env.runner.shutting_down
+    assert env.runner.jobs == []
 
 
 def test_agent_may_reuse_its_action_object(system: ScriptedSystem) -> None:
@@ -343,8 +380,8 @@ def test_agent_may_reuse_its_action_object(system: ScriptedSystem) -> None:
 
     results = env.evaluate_batch(proposals())
 
-    assert [result["action"] for result in results] == [{"x": 1}, {"x": 2}, {"x": 3}]
-    assert [result["value"] for result in results] == [1.0, 2.0, 3.0]
+    assert [result.action for result in results] == [{"x": 1}, {"x": 2}, {"x": 3}]
+    assert [result.reward for result in results] == [1.0, 2.0, 3.0]
     assert started_together(system.events) == [[1, 2, 3]]
 
 
@@ -408,8 +445,8 @@ def test_skipped_step_consumes_a_trial_number(system: ScriptedSystem) -> None:
 
     results = env.evaluate_batch(enumerate([{"x": 1}, {"x": 2}, {"x": 2}, {"x": 3}], start=1), max_steps=3)
 
-    assert [result["status"] for result in results] == ["completed", "rejected", "rejected", "completed"]
-    assert [result["step"] for result in results] == [1, None, None, 3]
+    assert [result.status for result in results] == ["completed", "rejected", "rejected", "completed"]
+    assert [result.step for result in results] == [1, None, None, 3]
     assert env.evaluate_batch([(5, {"x": 1})], max_steps=3) == []
 
 
@@ -464,7 +501,7 @@ def test_env_params_are_sampled_per_trial_whatever_the_parallelism(tmp_path: Pat
         runner = dse_runner(system, ScriptedRunner, test_run)
         env = CloudAIGymEnv(test_run, runner.runner, rewards=RewardOverrides(), max_parallelism=parallelism)
         results = env.evaluate_batch((proposal_id, {"x": x}) for proposal_id, x in proposals)
-        return [{"step": r["step"], "status": r["status"], "env_params": r["env_params"]} for r in results]
+        return [{"step": r.step, "status": r.status, "env_params": r.env_params} for r in results]
 
     serial = sweep(tmp_path / "serial", 1)
 

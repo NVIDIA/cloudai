@@ -350,7 +350,7 @@ def test_failed_workload_consumes_sweep_step(
 
     results = env.evaluate_batch([(1, env.first_sweep)])
 
-    assert [result["status"] for result in results] == ["failed"]
+    assert [result.status for result in results] == ["failed"]
     assert env.upcoming_trial == 2
     assert env.test_run.step == 1
 

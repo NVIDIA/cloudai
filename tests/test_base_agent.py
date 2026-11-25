@@ -22,7 +22,7 @@ import pytest
 from pydantic import ValidationError
 
 from cloudai.configurator import BaseGym
-from cloudai.core import BaseAgent, BaseAgentConfig, EvaluationResult, Proposal
+from cloudai.core import BaseAgent, BaseAgentConfig, Proposal, Trial
 
 
 class _FakeEnv:
@@ -31,12 +31,12 @@ class _FakeEnv:
     def __init__(self) -> None:
         self._progress = 0
         self.batches = 0
-        self.results: list[EvaluationResult] = []
+        self.results: list[Trial] = []
 
     def reset(self) -> tuple[list[float], dict[str, Any]]:
         return [0.0], {}
 
-    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: int | None = None) -> list[EvaluationResult]:
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: int | None = None) -> list[Trial]:
         self.batches += 1
         if max_steps is not None and self._progress >= max_steps:
             return []
@@ -44,17 +44,16 @@ class _FakeEnv:
         self.results.extend(results)
         return results
 
-    def _evaluate(self, proposal: Proposal) -> EvaluationResult:
+    def _evaluate(self, proposal: Proposal) -> Trial:
         raise NotImplementedError
 
-    def _result(self, proposal: Proposal, value: float, rejected: bool = False) -> EvaluationResult:
+    def _result(self, proposal: Proposal, value: float, rejected: bool = False) -> Trial:
         trial_index, action = proposal
-        return EvaluationResult(
+        return Trial(
             trial_index=trial_index,
             action=action,
-            value=value,
+            reward=value,
             observation=[value],
-            done=rejected,
             status="rejected" if rejected else "completed",
             step=None if rejected else self._progress,
             output_path=None,
@@ -69,7 +68,7 @@ class _SequenceEnv(_FakeEnv):
         super().__init__()
         self.rewards = iter(rewards)
 
-    def _evaluate(self, proposal: Proposal) -> EvaluationResult:
+    def _evaluate(self, proposal: Proposal) -> Trial:
         reward = next(self.rewards)
         if reward is None:
             return self._result(proposal, -1.0, rejected=True)
@@ -86,7 +85,7 @@ class _RejectingEnv(_FakeEnv):
         self.rejection_limit = rejection_limit
         self.skipped_steps = 0
 
-    def _evaluate(self, proposal: Proposal) -> EvaluationResult:
+    def _evaluate(self, proposal: Proposal) -> Trial:
         self._consecutive_rejections += 1
         if self._consecutive_rejections >= self.rejection_limit:
             self._progress += 1
@@ -142,7 +141,7 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
     assert [feedback["observation"] for feedback in agent.updates] == [[-1.0], [2.0], [3.0]]
     assert [feedback["prev_observation"] for feedback in agent.updates] == [[0.0], [-1.0], [2.0]]
     assert agent.updates == [
-        {**result, "prev_observation": feedback["prev_observation"]}
+        {**result.as_feedback(), "prev_observation": feedback["prev_observation"]}
         for result, feedback in zip(env.results, agent.updates, strict=True)
     ]
 
@@ -239,3 +238,10 @@ def test_max_parallelism_must_be_positive() -> None:
     assert BaseAgentConfig().max_parallelism == 1
     with pytest.raises(ValidationError):
         BaseAgentConfig(max_parallelism=0)
+
+
+def test_pending_trial_cannot_be_sent_to_an_agent() -> None:
+    trial = Trial(trial_index=1, action={"candidate": 1})
+
+    with pytest.raises(ValueError, match="pending trial"):
+        trial.as_feedback()

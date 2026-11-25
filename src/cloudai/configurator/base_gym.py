@@ -16,35 +16,57 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple, TypedDict
+from typing import Any, Dict, Literal, Optional, Tuple
 
 Proposal = tuple[int, dict[str, Any]]
 """Agent proposal: the agent's own proposal identity and the action, as returned by ``select_action``."""
 
 
-class EvaluationResult(TypedDict):
+@dataclass
+class Trial:
     """
-    Outcome of one consumed proposal; passed to ``BaseAgent.update_policy`` as feedback.
+    One agent proposal, its sampled environment, and the outcome of evaluating it.
 
-    A plain dict at runtime, so agents that read the legacy feedback keys keep working.
+    The environment creates a pending trial and fills its outcome once, without creating a
+    separate result object. Only finished trials are returned by ``evaluate_batch``. A trial
+    need not launch a job: it may be rejected or reuse another trial's output.
     """
 
     trial_index: int
     """Proposal identity chosen by the agent (first item of the proposal)."""
     action: dict[str, Any]
-    value: float
-    """Reward."""
-    observation: list
-    done: bool
-    """Legacy flag: ``True`` only for constraint-rejected proposals."""
-    status: Literal["completed", "failed", "cached", "rejected"]
-    step: Optional[int]
+    env_params: dict[str, Any] = field(default_factory=dict)
+    step: int | None = None
     """Environment trial number (``TestRun.step``); ``None`` when the proposal was rejected."""
-    output_path: Optional[Path]
-    """Trial output directory; ``None`` when nothing was executed for this proposal."""
-    env_params: dict[str, Any]
-    """Environment parameters sampled for this trial; empty when none are declared."""
+    status: Literal["pending", "completed", "failed", "cached", "rejected"] = "pending"
+    observation: list = field(default_factory=list)
+    reward: float = 0.0
+    """Observation and reward are populated when the trial finishes."""
+    output_path: Path | None = None
+    """Source of the result, including reused output; ``None`` for rejected proposals."""
+
+    @property
+    def done(self) -> bool:
+        """Legacy step flag: constraint rejection, rather than sweep completion."""
+        return self.status == "rejected"
+
+    def as_feedback(self) -> dict[str, Any]:
+        """Project a finished trial into the existing agent feedback dictionary."""
+        if self.status == "pending":
+            raise ValueError("Cannot provide feedback for a pending trial")
+        return {
+            "trial_index": self.trial_index,
+            "action": self.action,
+            "value": self.reward,
+            "observation": self.observation,
+            "done": self.done,
+            "status": self.status,
+            "step": self.step,
+            "output_path": self.output_path,
+            "env_params": self.env_params,
+        }
 
 
 class BaseGym(ABC):
@@ -114,7 +136,7 @@ class BaseGym(ABC):
         """
         pass
 
-    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[EvaluationResult]:
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[Trial]:
         """
         Evaluate agent proposals and return one result per consumed proposal, in proposal order.
 
@@ -130,7 +152,7 @@ class BaseGym(ABC):
             proposals: Proposals the agent can supply before it needs feedback. May be lazy and unbounded.
             max_steps: Total step allowance for this environment; ``None`` means unlimited.
         """
-        results: list[EvaluationResult] = []
+        results: list[Trial] = []
         pending = iter(proposals)
         while max_steps is None or self._consumed_steps < max_steps:
             proposal = next(pending, None)
@@ -141,12 +163,11 @@ class BaseGym(ABC):
             if not done:
                 self._consumed_steps += 1
             results.append(
-                EvaluationResult(
+                Trial(
                     trial_index=trial_index,
                     action=action,
-                    value=reward,
+                    reward=reward,
                     observation=observation,
-                    done=done,
                     status="rejected" if done else "completed",
                     step=None if done else self._consumed_steps,
                     output_path=None,

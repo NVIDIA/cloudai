@@ -19,72 +19,19 @@ import logging
 import math
 import time
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, JobStatusResult, JobSubmissionError, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_agent import BaseAgentConfig, RewardOverrides
-from .base_gym import BaseGym, EvaluationResult, Proposal
+from .base_gym import BaseGym, Proposal, Trial
 from .env_params import EnvParams, ObsLeafDescriptor
 from .trajectory import Trajectory
 
 if TYPE_CHECKING:
     import pandas as pd
-
-
-@dataclass
-class _Candidate:
-    """One consumed proposal on its way to an ``EvaluationResult``."""
-
-    trial_index: int
-    action: dict[str, Any]
-    env_params: dict[str, Any]
-    test_run: TestRun | None = None
-    """Independent trial snapshot with ``step`` assigned; ``None`` when rejected."""
-    cached: "pd.Series | None" = None
-    """Trajectory row that already answers this proposal."""
-    duplicate_of: "_Candidate | None" = None
-    """Earlier candidate, not recorded yet, that executes the same proposal."""
-    job_status: JobStatusResult | None = None
-    """Set once the trial is over; only for candidates that need execution."""
-    observation: dict[str, Any] | None = None
-    reward: float = 0.0
-    result: EvaluationResult | None = None
-    """Set once the candidate is recorded."""
-
-    @property
-    def step(self) -> int:
-        """Trial number; ``0`` when the proposal was rejected."""
-        return self.test_run.step if self.test_run is not None else 0
-
-    @property
-    def needs_execution(self) -> bool:
-        return self.test_run is not None and self.cached is None and self.duplicate_of is None
-
-    @property
-    def is_finished(self) -> bool:
-        """Whether the candidate can be recorded."""
-        if self.duplicate_of is not None:
-            return self.duplicate_of.result is not None
-        return not self.needs_execution or self.job_status is not None
-
-    def is_same_proposal(self, action: dict[str, Any], env_params: dict[str, Any]) -> bool:
-        return Trajectory.values_match(self.action, action) and Trajectory.values_match(self.env_params, env_params)
-
-
-@dataclass
-class _Batch:
-    """State of one ``evaluate_batch`` call."""
-
-    proposals: Iterator[Proposal]
-    max_steps: Optional[int]
-    candidates: list[_Candidate] = field(default_factory=list)
-    """Every pulled proposal, in proposal order."""
-    waiting: list[_Candidate] = field(default_factory=list)
-    """The candidates that are not recorded yet, in proposal order."""
 
 
 class CloudAIGymEnv(BaseGym):
@@ -227,10 +174,10 @@ class CloudAIGymEnv(BaseGym):
         if not results:
             raise RuntimeError("Cannot evaluate the action: the runner is shutting down.")
         result = results[0]
-        info: dict[str, Any] = {"env_params": result["env_params"]} if self.params is not None else {}
-        return result["observation"], result["value"], result["done"], info
+        info: dict[str, Any] = {"env_params": result.env_params} if self.params is not None else {}
+        return result.observation, result.reward, result.done, info
 
-    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[EvaluationResult]:
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[Trial]:
         """
         Evaluate proposals, keeping up to ``max_parallelism`` trials running.
 
@@ -246,23 +193,34 @@ class CloudAIGymEnv(BaseGym):
         the agent, from checking the running trials, from recording, a job submission error, an
         interrupt) shuts the runner down, which terminates the running trials, and is raised.
         """
-        batch = _Batch(iter(proposals), max_steps)
+        pending = iter(proposals)
+        trials: list[Trial] = []
+        executing: dict[int, Trial] = {}
+        followers: dict[int, list[Trial]] = {}
         try:
-            self._start_trials(batch)
+            self._start_trials(pending, max_steps, trials, executing, followers)
             while self.runner.jobs:
-                self._poll_trials(batch)
+                self._poll_trials(executing, followers)
                 still_running = bool(self.runner.jobs)
-                self._start_trials(batch)  # refill the free slots before waiting
+                self._start_trials(pending, max_steps, trials, executing, followers)
                 if still_running:
                     time.sleep(self.runner.monitor_interval)
         except BaseException:
             self.runner.shutdown()
             raise
-        if self.runner.shutting_down and batch.waiting:
-            logging.info("DSE is cancelled; %s unfinished proposal(s) are not recorded.", len(batch.waiting))
-        return [candidate.result for candidate in batch.candidates if candidate.result is not None]
+        unfinished = sum(trial.status == "pending" for trial in trials)
+        if self.runner.shutting_down and unfinished:
+            logging.info("DSE is cancelled; %s unfinished proposal(s) are not recorded.", unfinished)
+        return [trial for trial in trials if trial.status != "pending"]
 
-    def _start_trials(self, batch: _Batch) -> None:
+    def _start_trials(
+        self,
+        proposals: Iterator[Proposal],
+        max_steps: int | None,
+        trials: list[Trial],
+        executing: dict[int, Trial],
+        followers: dict[int, list[Trial]],
+    ) -> None:
         """
         Pull proposals, in order, until ``max_parallelism`` trials are running.
 
@@ -282,23 +240,31 @@ class CloudAIGymEnv(BaseGym):
         consumed, or the runner is shutting down.
         """
         while len(self.runner.jobs) < self.max_parallelism and not self.runner.shutting_down:
-            if batch.max_steps is not None and self._progress >= batch.max_steps:
+            if max_steps is not None and self._progress >= max_steps:
                 break
-            proposal = next(batch.proposals, None)
+            proposal = next(proposals, None)
             if proposal is None:
                 break
 
             trial_index, action = proposal
             action = copy.deepcopy(action)  # the agent may reuse its dict for the next proposal
-            trial = self.upcoming_trial
-            env_params = self.params.sample(trial) if self.params else {}
+            step = self.upcoming_trial
+            env_params = self.params.sample(step) if self.params else {}
             test_run = self.test_run.apply_params_set(action, env_params=env_params)
-            test_run.step = trial
-            logging.info("Proposal %s for step %s: %s", trial_index, trial, action)
+            test_run.step = step
+            trial = Trial(trial_index, action, env_params=env_params, step=step)
+            trials.append(trial)
+            logging.info("Proposal %s for step %s: %s", trial_index, step, action)
 
             cached = self.get_cached_trajectory_result(action, env_params)
-            running = next(
-                (c for c in batch.waiting if c.needs_execution and c.is_same_proposal(action, env_params)), None
+            owner = next(
+                (
+                    number
+                    for number, running in executing.items()
+                    if Trajectory.values_match(running.action, action)
+                    and Trajectory.values_match(running.env_params, env_params)
+                ),
+                None,
             )
             if cached is not None:
                 logging.info(
@@ -306,154 +272,130 @@ class CloudAIGymEnv(BaseGym):
                     cached["reward"],
                     cached["step"],
                 )
-                candidate = _Candidate(trial_index, action, env_params, test_run, cached)
-            elif running is not None:
-                logging.info("Step %s shares the result of step %s, which is still running.", trial, running.step)
-                candidate = _Candidate(trial_index, action, env_params, test_run, duplicate_of=running)
+                trial.status = "cached"
+                trial.observation = [cached[f"observation.{metric}"] for metric in test_run.test.agent_metrics]
+                trial.reward = float(cached["reward"])
+                trial.output_path = self.iteration_dir / str(cached["step"])
+                self._record(trial, test_run)
+            elif owner is not None:
+                logging.info("Step %s shares the result of step %s, which is still running.", step, owner)
+                followers.setdefault(owner, []).append(trial)
             elif not test_run.test.constraint_check(test_run, self.runner.system):
-                logging.info("Constraint check failed for step %s", trial)
-                candidate = _Candidate(trial_index, action, env_params)
+                logging.info("Constraint check failed for step %s", step)
+                trial.step = None
+                trial.status = "rejected"
+                trial.observation = [-1.0]
+                trial.reward = self.rewards.constraint_failure
+                self._record(trial)
             else:
                 test_run.output_path = self.runner.get_job_output_path(test_run)
-                candidate = _Candidate(trial_index, action, env_params, test_run)
-                self._submit_trial(candidate, test_run)
-            batch.candidates.append(candidate)
-            batch.waiting.append(candidate)
-            self._record_finished(batch)  # so that the next proposal finds it in the trajectory
+                self._submit_trial(trial, test_run, executing)
 
-            if candidate.test_run is None:
+            if trial.step is None:
                 self._consecutive_rejections += 1
                 if self._consecutive_rejections < self.max_consecutive_rejected_proposals:
                     continue
-                logging.info("Skipping DSE step %s after repeated constraint rejections", trial)
+                logging.info("Skipping DSE step %s after repeated constraint rejections", step)
             self._progress += 1
             self._consecutive_rejections = 0
 
-    def _submit_trial(self, candidate: _Candidate, test_run: TestRun) -> None:
+    def _submit_trial(self, trial: Trial, test_run: TestRun, executing: dict[int, Trial]) -> None:
+        """Track a submitted execution, or finish the trial if preparation created no job."""
         error = "the trial was not started"  # e.g. the runner is shutting down
         try:
             self.runner.submit_test(test_run)
         except JobSubmissionError:
             raise
         except Exception as e:
-            logging.error(f"Error running step {candidate.step}: {e}")
+            logging.error(f"Error running step {test_run.step}: {e}")
             error = str(e)
-        if not any(job.test_run is test_run for job in self.runner.jobs):
-            # There is no job to wait for, so the trial is over.
-            candidate.job_status = JobStatusResult(is_successful=False, error_message=error)
-            return
-        logging.info(f"Running step {candidate.step}; {len(self.runner.jobs)} trial(s) in progress")
+        if any(job.test_run is test_run for job in self.runner.jobs):
+            executing[test_run.step] = trial
+            logging.info(f"Running step {test_run.step}; {len(self.runner.jobs)} trial(s) in progress")
+        elif not self.runner.shutting_down:
+            self._complete_trial(trial, test_run, JobStatusResult(is_successful=False, error_message=error))
+            self._record(trial, test_run)
 
-    def _poll_trials(self, batch: _Batch) -> None:
+    def _poll_trials(self, executing: dict[int, Trial], followers: dict[int, list[Trial]]) -> None:
         """
         Check the running trials once and record the ones that finished.
 
         Uses the runner's own polling without its scenario policy: a failed trial does not stop
         the others. An error while checking the jobs is not handled here.
         """
-        running = {candidate.step: candidate for candidate in batch.waiting if candidate.needs_execution}
-        for job, job_status in self.runner.poll_jobs():
-            running[job.test_run.step].job_status = job_status
+        completed = list(self.runner.poll_jobs())
+        ready: list[tuple[Trial, TestRun, JobStatusResult]] = []
+        for job, job_status in completed:
+            trial = executing[job.test_run.step]
             if not job_status.is_successful:
                 if self.runner.shutting_down:
                     logging.info("Step %s stopped during shutdown.", job.test_run.step)
                 else:
                     logging.error(f"Step {job.test_run.step} failed: {job_status.error_message}")
-        self._record_finished(batch)
+            if self.runner.shutting_down:
+                continue
+            ready.append((trial, job.test_run, job_status))
+            for follower in followers.pop(job.test_run.step, []):
+                ready.append((follower, job.test_run, job_status))
 
-    def _record_finished(self, batch: _Batch) -> None:
-        """
-        Record every waiting candidate that is finished, in proposal order.
-
-        Nothing is recorded once the runner is shutting down: a terminated trial cannot be told
-        from a failed one.
-        """
-        if self.runner.shutting_down:
-            return
-        waiting: list[_Candidate] = []
-        for candidate in batch.waiting:
-            if candidate.is_finished:
-                candidate.result = self._record(candidate)
+        # Keep proposal order among outcomes discovered by the same polling pass, recording
+        # each outcome before reading the next one's metrics so an error preserves prior rows.
+        for trial, test_run, job_status in sorted(ready, key=lambda item: item[0].step or 0):
+            if self.runner.shutting_down:
+                break
+            if trial.step == test_run.step:
+                self._complete_trial(trial, test_run, job_status)
             else:
-                waiting.append(candidate)
-        batch.waiting = waiting
+                source = executing[test_run.step]
+                trial.status = "cached"
+                trial.observation = list(source.observation)
+                trial.reward = source.reward
+                trial.output_path = source.output_path
+            self._record(trial, test_run)
+        for job, _ in completed:
+            del executing[job.test_run.step]
 
-    def _record(self, candidate: _Candidate) -> EvaluationResult:
-        """
-        Turn a finished candidate into its result and persist it.
-
-        - Executed: read metrics from its own ``test_run``. Missing metrics are reported as
-          ``rewards.metric_failure``; such a metric or a failed job makes the status ``failed``.
-        - Cached: reuse the reward and observation of the matching trajectory row or of the
-          trial it duplicates.
-        - Rejected: ``rewards.constraint_failure``, observation ``[-1.0]``, ``done=True``.
-
-        Executed and cached candidates get a trajectory row; rejected ones do not.
-        ``self.test_run`` becomes the recorded trial, which is what serial callers read; for a
-        cached one its ``output_path`` is the directory of the trial whose result is reused.
-        """
-        if candidate.test_run is None:
-            return EvaluationResult(
-                trial_index=candidate.trial_index,
-                action=candidate.action,
-                value=self.rewards.constraint_failure,
-                observation=[-1.0],
-                done=True,
-                status="rejected",
-                step=None,
-                output_path=None,
-                env_params=candidate.env_params,
+    def _complete_trial(self, trial: Trial, test_run: TestRun, job_status: JobStatusResult) -> None:
+        """Fill an executed trial's outcome from its own run, without changing the serial view."""
+        observation = self.get_observation(test_run)
+        trial.observation = list(observation.values())
+        trial.reward = self.compute_reward(observation)
+        failed_metrics = [key for key, value in observation.items() if value == self.rewards.metric_failure]
+        if failed_metrics:
+            logging.warning(
+                "Step %s has missing or failed metrics %s in %s.", trial.step, failed_metrics, test_run.output_path
             )
+        trial.status = "failed" if failed_metrics or not job_status.is_successful else "completed"
+        trial.output_path = test_run.output_path
 
-        self.test_run = candidate.test_run
-        status: Literal["completed", "failed", "cached"] = "cached"
-        if candidate.cached is not None:
-            metrics = self.test_run.test.agent_metrics
-            candidate.observation = {metric: candidate.cached[f"observation.{metric}"] for metric in metrics}
-            candidate.reward = float(candidate.cached["reward"])
-            output_path = self.test_run.output_path = self.iteration_dir / str(candidate.cached["step"])
-        elif candidate.duplicate_of is not None and candidate.duplicate_of.test_run is not None:
-            candidate.observation = dict(candidate.duplicate_of.observation or {})
-            candidate.reward = candidate.duplicate_of.reward
-            output_path = self.test_run.output_path = candidate.duplicate_of.test_run.output_path
-        else:
-            candidate.observation = self.get_observation()
-            candidate.reward = self.compute_reward(candidate.observation)
-            has_metric_failure = any(value == self.rewards.metric_failure for value in candidate.observation.values())
-            if has_metric_failure:
-                logging.warning(
-                    "Step %s has missing or failed metrics %s in %s.",
-                    candidate.step,
-                    [key for key, value in candidate.observation.items() if value == self.rewards.metric_failure],
-                    self.test_run.output_path,
-                )
-            job_failed = candidate.job_status is None or not candidate.job_status.is_successful
-            status = "failed" if has_metric_failure or job_failed else "completed"
-            output_path = self.test_run.output_path
+    def _record(self, trial: Trial, test_run: TestRun | None = None) -> None:
+        """Persist a finished trial and publish its run to serial callers; rejections have no row."""
+        if self.runner.shutting_down:
+            trial.status = "pending"
+            return
+        if trial.done:
+            return
+        if test_run is None or trial.step is None or trial.output_path is None:
+            raise ValueError("Recording an accepted trial requires its run, step and output path")
+        if test_run.step != trial.step:
+            test_run = copy.deepcopy(test_run)
+            test_run.step = trial.step
+        test_run.output_path = trial.output_path
+        self.test_run = test_run
+        observation = dict(zip(test_run.test.agent_metrics, trial.observation, strict=True))
 
         self.trajectory.append(
-            step=candidate.step,
-            action=candidate.action,
-            reward=candidate.reward,
-            observation=candidate.observation,
-            env_params=candidate.env_params,
+            step=trial.step,
+            action=trial.action,
+            reward=trial.reward,
+            observation=observation,
+            env_params=trial.env_params,
         )
         logging.info(
             "Step %s: Observation: %s, Reward: %.4f",
-            candidate.step,
-            [round(obs, 4) for obs in candidate.observation.values()],
-            candidate.reward,
-        )
-        return EvaluationResult(
-            trial_index=candidate.trial_index,
-            action=candidate.action,
-            value=candidate.reward,
-            observation=list(candidate.observation.values()),
-            done=False,
-            status=status,
-            step=candidate.step,
-            output_path=output_path,
-            env_params=candidate.env_params,
+            trial.step,
+            [round(obs, 4) for obs in trial.observation],
+            trial.reward,
         )
 
     def render(self, mode: str = "human"):
@@ -487,20 +429,21 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.reward_function(list(observation.values()))
 
-    def get_observation(self) -> dict[str, Any]:
+    def get_observation(self, test_run: TestRun | None = None) -> dict[str, Any]:
         """
         Get the observation from the TestRun object.
 
         Returns:
             Metric values keyed by configured metric name.
         """
-        all_metrics = self.test_run.test.agent_metrics
+        test_run = self.test_run if test_run is None else test_run
+        all_metrics = test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
 
         observation: dict[str, Any] = {}
         for metric in all_metrics:
-            v = self.test_run.get_metric_value(self.runner.system, metric)
+            v = test_run.get_metric_value(self.runner.system, metric)
             if v is METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v

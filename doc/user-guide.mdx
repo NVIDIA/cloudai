@@ -240,6 +240,17 @@ With `max_parallelism` greater than `1`, CloudAI keeps up to that many DSE trial
 
 Custom agents opt in by overriding `BaseAgent.select_batch`, which returns every proposal the agent can make before it needs feedback. It may be a generator, including an endless one: CloudAI pulls proposals only when it has a free slot and stops when the agent's step allowance (`agent_steps` for most agents, the grid size for `grid_search`) is used up. `update_policy` is then called once per proposal, in proposal order, with the same feedback keys as before plus `status` (`completed`, `failed`, `cached` or `rejected`), `step`, `output_path` and `env_params`.
 
+Agents with a custom run loop can call `env.evaluate_batch` directly. Proposals are `(proposal_id, action)` tuples; the ID belongs to the agent and is returned in `Trial.trial_index`. The call returns finished `Trial` objects in proposal order, including rejected and cached proposals. Each trial contains its action, sampled `env_params`, observation, reward, status, sweep step and output path. Rejected trials have no step or output path; cached trials point to the output being reused. The environment keeps execution state in the runner's existing jobs.
+
+```python
+proposals = [(1, {"batch_size": 32}), (2, {"batch_size": 64})]
+trials = self.env.evaluate_batch(proposals, max_steps=self.max_steps)
+for trial in trials:
+    self.update_policy(trial.as_feedback())
+```
+
+The custom loop supplies proposals that can be evaluated before it needs feedback, then updates its policy before proposing the next batch. `max_steps` limits logical sweep progress across calls, rather than the size of each batch. The default `BaseAgent.run` also supplies `prev_observation` in each feedback dictionary. Gym callers continue to use `step` and `reset` through `GymnasiumAdapter`.
+
 <Anchor id="dse-parameter-exclusions" />
 
 ### DSE Parameter Exclusions

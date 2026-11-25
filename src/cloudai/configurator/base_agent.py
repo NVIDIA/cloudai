@@ -178,8 +178,8 @@ class BaseAgent(ABC):
         """
         observation, _ = self.env.reset()
         while results := self.env.evaluate_batch(self.select_batch(observation), max_steps=self.max_steps):
-            for result in results:
-                self.update_policy({**result, "prev_observation": observation})
-            observation = results[-1]["observation"]
+            for trial in results:
+                self.update_policy({**trial.as_feedback(), "prev_observation": observation})
+            observation = results[-1].observation
 
         return 0
