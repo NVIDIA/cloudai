@@ -20,6 +20,8 @@ from .cloudai_gym import CloudAIGymEnv
 from .grid_search import GridSearchAgent
 from .gymnasium_adapter import GymnasiumAdapter
 from .trajectory import Trajectory
+from .trajectory import TrajectoryLoadError as TrajectoryLoadError
+from .trajectory import TrajectoryRecord as TrajectoryRecord
 
 __all__ = [
     "BaseAgent",

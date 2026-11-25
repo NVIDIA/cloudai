@@ -18,10 +18,14 @@
 
 from __future__ import annotations
 
+import ast
 import csv
+import io
 import logging
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Iterator, Mapping, Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +35,55 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
+class TrajectoryLoadError(RuntimeError):  # noqa: D101
+    def __init__(
+        self,
+        path: Path,
+        reason: str,
+        *,
+        row: int | None = None,
+        step: int | None = None,
+    ) -> None:
+        location = f"row {row}, " if row is not None else ""
+        location += f"step {step}, " if step is not None else ""
+        super().__init__(f"Cannot load trajectory {path}: {location}{reason}")
+
+
+class _NonfiniteLiteralNames(ast.NodeTransformer):
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        if node.id in ("nan", "inf"):
+            return ast.copy_location(ast.Constant(float(node.id)), node)
+        return node
+
+
+@dataclass(frozen=True, eq=False)
+class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
+    step: int
+    source: Path
+    _domains: Mapping[str, Any]
+    row: int | None = None
+
+    def __post_init__(self) -> None:  # noqa: D105
+        object.__setattr__(self, "_domains", deepcopy(self._domains))
+
+    def __getitem__(self, key: str) -> Any:  # noqa: D105
+        return self.step if key == "step" else deepcopy(self._domains[key])
+
+    def __iter__(self) -> Iterator[str]:  # noqa: D105
+        yield "step"
+        yield from (name for name in self._domains if name != "step")
+
+    def __len__(self) -> int:  # noqa: D105
+        return len(self._domains) + ("step" not in self._domains)
+
+    def get(self, key: str, default: Any = None, *, decode_numbers: bool = False) -> Any:
+        try:
+            value = self[key]
+        except KeyError:
+            return default
+        return _decode_numbers(value) if decode_numbers else value
+
+
 class Trajectory:
     """An ordered DataFrame of DSE steps persisted as core and metadata CSVs."""
 
@@ -38,6 +91,8 @@ class Trajectory:
     metadata_file_name = "metadata.csv"
     _core_fields = ("step", "action", "reward", "observation")
     _core_domains = frozenset(_core_fields)
+
+    _csv_read_lock = threading.Lock()
 
     def __init__(
         self,
@@ -59,11 +114,167 @@ class Trajectory:
         )
         self._find_index: dict[tuple[str, ...], dict[tuple, list[int]]] = {}
         self._frame_dirty = False
+        self._records: list[TrajectoryRecord | None] = [None] * len(self._rows)
+        self._source_path: Path | None = None
         logging.debug(
             "Initializing Trajectory: entries=%s, columns=%s.",
             len(self),
             list(self._dataframe.columns),
         )
+
+    @classmethod
+    def load(cls, source: str | Path, *, missing_ok: bool = False) -> Trajectory:
+        source = Path(source)
+        path = source / cls.file_name if source.is_dir() else source
+        sidecar = path.parent / cls.metadata_file_name
+        loaded = cls(iteration_dir=path.parent)
+        loaded._source_path = path
+        if missing_ok and not any(candidate.exists() or candidate.is_symlink() for candidate in (path, sidecar)):
+            return loaded
+        columns, rows = _read_csv(path, required=cls._core_fields)
+        metadata_rows = cls._read_metadata(sidecar) if sidecar.exists() or sidecar.is_symlink() else None
+        records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows)
+        loaded._rows = deepcopy(flattened_rows)
+        loaded._records = list(records)
+        loaded._dataframe = lazy.pd.DataFrame(flattened_rows, dtype=object)
+        if not flattened_rows:
+            loaded._dataframe = lazy.pd.DataFrame(columns=columns)
+        return loaded
+
+    @classmethod
+    def _read_metadata(cls, path: Path) -> dict[int, tuple[int, dict[str, str]]]:
+        columns, rows = _read_csv(path, required=("step",))
+        for column in columns:
+            if column != "step" and column.split(".", maxsplit=1)[0] in cls._core_domains:
+                raise TrajectoryLoadError(path, f"metadata overlaps core domain: {column}", row=1)
+
+        entries = {}
+        for row_number, row in rows:
+            step = _read_step(row["step"], path, row_number)
+            if step in entries:
+                raise TrajectoryLoadError(path, "duplicate metadata step", row=row_number, step=step)
+            entries[step] = row_number, row
+
+        return entries
+
+    @classmethod
+    def _load_records(
+        cls,
+        path: Path,
+        rows: list[tuple[int, dict[str, str]]],
+        sidecar: Path,
+        metadata_rows: dict[int, tuple[int, dict[str, str]]] | None,
+    ) -> tuple[list[TrajectoryRecord], list[dict[str, Any]]]:
+        records = []
+        flattened_rows = []
+        previous_step = -1
+        steps = set()
+
+        for row_number, row in rows:
+            step = _read_step(row["step"], path, row_number)
+            if step <= previous_step:
+                raise TrajectoryLoadError(
+                    path,
+                    "steps must be unique and strictly increasing",
+                    row=row_number,
+                    step=step,
+                )
+            previous_step = step
+            steps.add(step)
+
+            record = cls._build_record(
+                path,
+                row_number,
+                row,
+                step=step,
+                sidecar=sidecar,
+                metadata_rows=metadata_rows,
+            )
+            flattened_rows.append(_flatten_record(record))
+            records.append(record)
+
+        unmatched = set(metadata_rows or {}) - steps
+        if unmatched:
+            step = min(unmatched)
+            raise TrajectoryLoadError(
+                sidecar,
+                "metadata step has no trajectory row",
+                row=(metadata_rows or {})[step][0],
+                step=step,
+            )
+
+        return records, flattened_rows
+
+    @classmethod
+    def _build_record(
+        cls,
+        path: Path,
+        row_number: int,
+        row: dict[str, str],
+        *,
+        step: int,
+        sidecar: Path,
+        metadata_rows: dict[int, tuple[int, dict[str, str]]] | None,
+    ) -> TrajectoryRecord:
+        domains = {
+            name: _decode_core_value(row[name], path, row_number, name) for name in cls._core_fields if name != "step"
+        }
+        extra = {name: value for name, value in row.items() if name not in cls._core_fields}
+
+        for name in extra:
+            domain = name.split(".", maxsplit=1)[0]
+            if domain in cls._core_domains:
+                raise TrajectoryLoadError(
+                    path,
+                    f"metadata overlaps core domain: {name}",
+                    row=row_number,
+                    step=step,
+                )
+
+        source_paths = {name: path for name in extra}
+
+        if metadata_rows is not None:
+            if step not in metadata_rows:
+                raise TrajectoryLoadError(sidecar, "missing metadata row for trajectory step", step=step)
+            metadata_row_number, metadata_row = metadata_rows[step]
+            for name, value in metadata_row.items():
+                if name != "step":
+                    if name in extra:
+                        raise TrajectoryLoadError(
+                            sidecar,
+                            f"duplicate metadata field: {name}",
+                            row=metadata_row_number,
+                            step=step,
+                        )
+                    extra[name] = value
+                    source_paths[name] = sidecar
+
+        for name, value in extra.items():
+            _set_domain(domains, name, value, source_paths[name], step)
+
+        return TrajectoryRecord(step, path, domains, row_number)
+
+    def _record_at(self, index: int) -> TrajectoryRecord:
+        row = self._rows[index]
+        record = self._records[index]
+        existing = {} if record is None else record._domains
+        missing = {
+            name: value
+            for name, value in row.items()
+            if name != "step" and name.split(".", maxsplit=1)[0] not in existing
+        }
+        if record is None or missing:
+            domains = dict(existing)
+            for name, value in missing.items():
+                _set_domain(domains, name, value, self.output_path, row["step"])
+            source = self.output_path if record is None else record.source
+            source_row = None if record is None else record.row
+            record = TrajectoryRecord(row["step"], source, domains, source_row)
+            self._records[index] = record
+        return record
+
+    def records(self) -> tuple[TrajectoryRecord, ...]:
+        return deepcopy(tuple(self._record_at(index) for index in range(len(self._rows))))
 
     def __len__(self) -> int:
         """Return the number of trajectory rows."""
@@ -95,12 +306,19 @@ class Trajectory:
         **values: object,
     ) -> pd.Series:
         """Flatten, persist, and store one trajectory row."""
+        if self._source_path is not None:
+            raise RuntimeError("loaded trajectory is read-only")
         self._validate_step(step)
         if self._rows and step <= self._rows[-1]["step"]:
             raise ValueError(f"trajectory steps must increase: last step is {self._rows[-1]['step']}, got {step}")
 
         record: dict[str, object] = {"step": step}
-        domains = {"action": action, "reward": reward, "observation": observation, **values}
+        domains = {
+            "action": action,
+            "reward": reward,
+            "observation": observation,
+            **values,
+        }
         for domain, value in domains.items():
             for field, field_value in _flatten_value(domain, value).items():
                 if field in record:
@@ -134,6 +352,13 @@ class Trajectory:
             _append_csv_row(row_metadata, self.metadata_path)
 
         self._rows.append(record)
+        self._records.append(
+            TrajectoryRecord(
+                step,
+                self.output_path,
+                {"action": action, "reward": reward, "observation": observation},
+            )
+        )
         position = len(self._rows) - 1
         for fields, index in self._find_index.items():
             index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
@@ -310,3 +535,117 @@ def _values_match_exact(left: Any, right: Any) -> bool:
             _values_match_exact(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
         )
     return bool(left == right)
+
+
+def _decode_numbers(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {name: _decode_numbers(child) for name, child in value.items()}
+    if isinstance(value, list):
+        return [_decode_numbers(child) for child in value]
+    if isinstance(value, str):
+        for converter in (int, float):
+            try:
+                return converter(value)
+            except ValueError:
+                continue
+
+    return value
+
+
+def _read_csv(path: Path, *, required: Sequence[str]) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
+    try:
+        with path.open(encoding="utf-8", newline="") as handle:
+            text = handle.read()
+    except (OSError, UnicodeError) as error:
+        raise TrajectoryLoadError(path, f"cannot read artifact: {error}") from error
+
+    if "\x00" in text:
+        raise TrajectoryLoadError(path, "artifact contains a NUL character")
+
+    with Trajectory._csv_read_lock:
+        previous_limit = csv.field_size_limit()
+        csv.field_size_limit(max(previous_limit, len(text)))
+        reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+        try:
+            header = next(reader, None)
+            if not header:
+                raise TrajectoryLoadError(path, "missing CSV header", row=1)
+            if any(not name for name in header) or len(header) != len(set(header)):
+                raise TrajectoryLoadError(path, "CSV header must contain unique nonempty names", row=1)
+            missing = set(required) - set(header)
+            if missing:
+                raise TrajectoryLoadError(path, f"missing required columns: {sorted(missing)}", row=1)
+
+            rows = []
+            for row_number, values in enumerate(reader, start=2):
+                if len(values) != len(header):
+                    raise TrajectoryLoadError(
+                        path,
+                        f"expected {len(header)} fields, got {len(values)}",
+                        row=row_number,
+                    )
+                rows.append((row_number, dict(zip(header, values, strict=True))))
+        except csv.Error as error:
+            raise TrajectoryLoadError(path, f"malformed CSV: {error}", row=reader.line_num) from error
+        finally:
+            csv.field_size_limit(previous_limit)
+
+    return header, rows
+
+
+def _read_step(value: str, path: Path, row: int) -> int:
+    try:
+        step = int(value)
+    except ValueError as error:
+        raise TrajectoryLoadError(path, f"step must be a nonnegative integer, got {value!r}", row=row) from error
+    if step < 0:
+        raise TrajectoryLoadError(
+            path,
+            f"step must be a nonnegative integer, got {value!r}",
+            row=row,
+            step=step,
+        )
+    return step
+
+
+def _decode_core_value(
+    value: str,
+    path: Path,
+    row: int,
+    name: str,
+) -> Any:
+    if name == "observation" and value.startswith("[truncated"):
+        return value
+
+    try:
+        expression = _NonfiniteLiteralNames().visit(ast.parse(value, mode="eval"))
+        return ast.literal_eval(expression)
+    except (ValueError, SyntaxError, TypeError, RecursionError) as error:
+        if not value or value[0] not in "[({\"'":
+            return value
+        raise TrajectoryLoadError(path, f"invalid {name} literal: {error}", row=row) from error
+
+
+def _set_domain(domains: dict[str, Any], name: str, value: Any, path: Path, step: int) -> None:
+    parts = name.split(".")
+    if any(not part for part in parts):
+        raise TrajectoryLoadError(path, f"empty metadata path component: {name}", step=step)
+    current = domains
+    for part in parts[:-1]:
+        if part not in current:
+            current[part] = {}
+        child = current[part]
+        if not isinstance(child, dict):
+            raise TrajectoryLoadError(path, f"conflicting domain path: {name}", step=step)
+        current = child
+
+    if parts[-1] in current:
+        raise TrajectoryLoadError(path, f"duplicate domain path: {name}", step=step)
+    current[parts[-1]] = deepcopy(value)
+
+
+def _flatten_record(record: TrajectoryRecord) -> dict[str, Any]:
+    flattened: dict[str, Any] = {"step": record.step}
+    for name, value in record._domains.items():
+        flattened.update(_flatten_value(name, value))
+    return flattened
