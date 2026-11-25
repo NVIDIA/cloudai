@@ -124,7 +124,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         command = ["python", f"/cloudai_install/{self._run_script().name}", "--factory", recipe_name, "-y"]
 
-        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(
+            self.test_run.nnodes, self.test_run.nodes, exclude_nodes=self.test_run.exclude_nodes or None
+        )
 
         if tdef.cmd_args.trainer.num_nodes is not None and tdef.cmd_args.trainer.num_nodes > num_nodes:
             logging.warning(
