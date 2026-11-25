@@ -24,6 +24,7 @@ from typing_extensions import Self
 
 import cloudai.metrics
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
+from cloudai.models.report import ReportConfig
 from cloudai.models.workload import TestDefinition
 
 
@@ -198,13 +199,6 @@ class TestRunModel(BaseModel):
             agent_config_class = agent_class.get_config_class()
             agent_config_class.model_validate(self.agent_config)
         return self
-
-
-class ReportConfig(BaseModel):
-    """Model for report configuration in test scenario."""
-
-    model_config = ConfigDict(extra="forbid")
-    enable: bool = False
 
 
 class TestScenarioModel(BaseModel):
