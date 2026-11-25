@@ -24,12 +24,11 @@ import subprocess
 import time
 from copy import copy
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
+from typing import ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from cloudai.core import BaseJob, File, Installable, JobFailureError, JobIdRetrievalError, System
-from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
@@ -97,7 +96,6 @@ class SlurmSystem(System):
     slurm_api: Optional[SlurmAPIConfig] = None
 
     data_repository: Optional[DataRepositoryConfig] = None
-    reports: Optional[dict[str, ReportConfig]] = None
 
     group_allocated: set[SlurmNode] = Field(default_factory=set, exclude=True)
 
@@ -117,11 +115,6 @@ class SlurmSystem(System):
         "--container-image",
         "--container-mounts",
     )
-
-    @field_validator("reports", mode="before")
-    @classmethod
-    def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
-        return parse_reports_spec(value)
 
     @field_validator("extra_transient_status_errors")
     @classmethod

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import cloudai.metrics
+from cloudai.models.report import ReportConfig
 
 from .installables import Installable
 
@@ -43,6 +44,14 @@ class System(ABC, BaseModel):
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: float = 1.0
     sol: cloudai.metrics.MetricSOLConfig = Field(default_factory=dict)
+    reports: dict[str, ReportConfig] | None = None
+
+    @field_validator("reports", mode="before")
+    @classmethod
+    def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
+        from cloudai.models.scenario import parse_reports_spec
+
+        return parse_reports_spec(value)
 
     @field_validator("install_path")
     @classmethod

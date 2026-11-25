@@ -25,10 +25,71 @@ import pytest
 from pydantic import ValidationError
 
 from cloudai import TestScenario
-from cloudai.core import Registry
+from cloudai.core import Parser, Registry
+from cloudai.handlers import generate_reports
 from cloudai.s3_reporter import S3UploadConfig, S3UploadReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.object_store import UploadStats
+
+
+@pytest.mark.parametrize("scheduler", ["standalone", "slurm", "lsf", "runai", "kubernetes"])
+@pytest.mark.parametrize("system_enabled", [None, False, True])
+@pytest.mark.parametrize("scenario_enabled", [None, False, True])
+def test_s3_report_configuration_priority(
+    tmp_path: Path, scheduler: str, system_enabled: bool | None, scenario_enabled: bool | None
+) -> None:
+    spec = f'''
+name = "test-system"
+scheduler = "{scheduler}"
+install_path = "{tmp_path / "install"}"
+output_path = "{tmp_path / "results"}"
+'''
+    if scheduler == "slurm":
+        spec += 'default_partition = "p"\n[[partitions]]\nname = "p"\n'
+    elif scheduler == "runai":
+        spec += """
+base_url = "https://example.com"
+user_email = "test@example.com"
+app_id = "test"
+app_secret = "test"
+project_id = "test"
+cluster_id = "test"
+"""
+    elif scheduler == "kubernetes":
+        spec += 'kube_config_path = "unused"\ndefault_namespace = "test"\n'
+    if system_enabled is not None:
+        spec += f"""
+[reports.s3]
+enable = {str(system_enabled).lower()}
+bucket = "system-bucket"
+prefix = "system-prefix"
+"""
+    system_path = tmp_path / "system.toml"
+    system_path.write_text(spec)
+    with patch("cloudai.systems.kubernetes.KubernetesSystem.model_post_init"):
+        system = Parser.parse_system(system_path)
+    scenario = TestScenario(name="test-scenario", test_runs=[])
+    if scenario_enabled is not None:
+        scenario.reports["s3"] = S3UploadConfig(
+            enable=scenario_enabled, bucket="scenario-bucket", prefix="scenario-prefix"
+        )
+
+    with (
+        patch.object(Registry, "ordered_scenario_reports", return_value=[("s3", S3UploadReporter)]),
+        patch.object(S3UploadReporter, "generate", autospec=True) as generate,
+    ):
+        generate_reports(system, scenario, system.output_path)
+
+    enabled = scenario_enabled if scenario_enabled is not None else system_enabled
+    if enabled:
+        generate.assert_called_once()
+        config = generate.call_args.args[0].config
+        source = "scenario" if scenario_enabled is not None else "system"
+        assert isinstance(config, S3UploadConfig)
+        assert config.bucket == f"{source}-bucket"
+        assert config.prefix == f"{source}-prefix"
+    else:
+        generate.assert_not_called()
 
 
 class TestS3UploadReporter:

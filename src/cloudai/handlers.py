@@ -208,7 +208,7 @@ def generate_reports(
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
         if scenario_cfg := test_scenario.reports.get(name):
             cfg = scenario_cfg
-        elif isinstance(system, SlurmSystem) and system.reports and name in system.reports:
+        elif system.reports and name in system.reports:
             cfg = system.reports[name]
         logging.debug(f"Report '{name}' config is: {cfg.model_dump_json(indent=None)}")
 
