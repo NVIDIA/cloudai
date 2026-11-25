@@ -68,6 +68,13 @@ class ExperimentOutput:
         test.runs.append(recorded)
         self._update_test_status(test)
 
+    def find_run(self, test_id: str, path: str) -> cloudai.models.output.Run | None:
+        """Return the recorded run of a test by its output path, if any."""
+        test = next((test for test in self.experiment.tests if test.id == test_id), None)
+        if test is None:
+            return None
+        return next((run for run in test.runs if run.path == path), None)
+
     def update_test(self, test: cloudai.models.output.Test) -> None:
         """Update a test while retaining its previously recorded runs."""
         recorded = test.model_copy(deep=True)

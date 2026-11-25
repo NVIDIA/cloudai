@@ -14,12 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
 
+import cloudai.handlers
 from cloudai.cli import main
+from cloudai.cli.cli import handle_dry_run_and_run
+from cloudai.core import JobSubmissionError
 
 
 @pytest.mark.parametrize("cli", ["-h", "--help"])
@@ -154,3 +159,25 @@ def test_mandatory_path_args(subcommand: str, opt: str, tmp_path: Path):
     result = runner.invoke(main, [subcommand, *[f"{k}={v}" for k, v in opt2path.items()]])
     assert result.exit_code == 2
     assert f"Invalid value for '{opt}'" in result.output and "does not exist" in result.output
+
+
+def test_job_submission_error_fails_the_run(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
+    def cannot_submit(*args, **kwargs):
+        raise JobSubmissionError("test", "sbatch run.sh", "", "sbatch: error", "Failed to submit")
+
+    monkeypatch.setattr(cloudai.handlers, "load_experiment", lambda *args, **kwargs: (MagicMock(), [], MagicMock()))
+    monkeypatch.setattr(cloudai.handlers, "create_experiment_runner", lambda *args, **kwargs: MagicMock())
+    monkeypatch.setattr(cloudai.handlers, "execute_experiment", cannot_submit)
+    args = argparse.Namespace(
+        test_scenario=Path("scenario.toml"),
+        system_config=Path("system.toml"),
+        tests_dir=None,
+        hook_dir=None,
+        output_dir=None,
+        mode="run",
+        single_sbatch=False,
+        enable_cache_without_check=False,
+    )
+
+    assert handle_dry_run_and_run(args) == 1
+    assert "Failed to submit" in caplog.text

@@ -27,7 +27,16 @@ from cloudai.configurator import (
     Trajectory,
 )
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
-from cloudai.core import BaseAgentConfig, BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
+from cloudai.core import (
+    BaseAgentConfig,
+    BaseRunner,
+    JobSubmissionError,
+    RewardOverrides,
+    Runner,
+    System,
+    TestRun,
+    TestScenario,
+)
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
@@ -337,6 +346,24 @@ def test_failed_workload_consumes_sweep_step(
 
     assert env.progress == 1
     assert env.test_run.step == 1
+
+
+def test_job_submission_error_aborts_the_sweep(
+    setup_env: tuple[TestRun, BaseRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_run, runner = setup_env
+    test_run.test.cmd_args.data.global_batch_size = 8
+    env = CloudAIGymEnv(
+        test_run,
+        runner,
+        rewards=RewardOverrides(),
+        max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
+    )
+    error = JobSubmissionError(test_run.name, "sbatch run.sh", "", "sbatch: error", "Failed to submit")
+    monkeypatch.setattr(runner, "run", MagicMock(side_effect=error))
+
+    with pytest.raises(JobSubmissionError):
+        env.step(env.first_sweep)
 
 
 def test_cache_hit_resets_rejection_limit(
