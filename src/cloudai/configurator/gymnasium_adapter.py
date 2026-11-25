@@ -32,9 +32,13 @@ trial. This adapter never mutates either value; contract tests pin that property
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+import os
+import uuid
+import weakref
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 from cloudai.util.lazy_imports import lazy
+from cloudai.util.utils import values_match_exact
 
 from .base_gym import BaseGym
 from .env_params import StructuredObservationProducer
@@ -75,6 +79,8 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
     # shape satisfies pyright's override check, so RUF012's ClassVar suggestion is silenced.
     metadata: dict[str, Any] = {"render_modes": ["human"]}  # noqa: RUF012
 
+    _live_instances: ClassVar[weakref.WeakValueDictionary[str, GymnasiumAdapter]] = weakref.WeakValueDictionary()
+
     def __init__(self, env: BaseGym) -> None:
         np = self._np = lazy.np
         spaces = self._spaces = lazy.gymnasium.spaces
@@ -114,6 +120,22 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
             self.observation_space = spaces.Dict({"observation": metrics_space, "context": context_space})
         else:
             self.observation_space = metrics_space
+
+        self._creator_pid = os.getpid()
+        self._serialization_id = uuid.uuid4().hex
+        self._live_instances[self._serialization_id] = self
+
+    def __reduce__(self) -> tuple[Any, tuple[int, str]]:  # noqa: D105
+        return GymnasiumAdapter._resolve_reference, (self._creator_pid, self._serialization_id)
+
+    @classmethod
+    def _resolve_reference(cls, creator_pid: int, identity: str) -> GymnasiumAdapter:
+        if os.getpid() != creator_pid:
+            raise RuntimeError("serialized GymnasiumAdapter references are valid only in their original process")
+        adapter = cls._live_instances.get(identity)
+        if adapter is None:
+            raise RuntimeError("the original GymnasiumAdapter is no longer alive in this process")
+        return adapter
 
     @staticmethod
     def _structured_obs_descriptors(env: BaseGym) -> Optional[dict[str, Any]]:
@@ -179,8 +201,12 @@ class GymnasiumAdapter(_GymnasiumEnvBase):
     def _encode_discrete(self, name: str, value: Any) -> int:
         values = self._discrete_params[name]
         try:
-            return values.index(value)
-        except ValueError:
+            return next(
+                index
+                for index, candidate in enumerate(values)
+                if candidate is value or values_match_exact(candidate, value)
+            )
+        except StopIteration:
             raise ValueError(f"Value {value!r} for '{name}' is not a candidate; expected one of {values}") from None
 
     def reset(

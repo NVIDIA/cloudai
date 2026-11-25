@@ -16,19 +16,20 @@
 
 from __future__ import annotations
 
-import ast
-import contextlib
 import logging
+import math
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import toml
 
+from cloudai.configurator import Trajectory, TrajectoryLoadError, TrajectoryRecord
 from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
-from cloudai.util.lazy_imports import lazy
 
 from .util import load_system_metadata
 
@@ -82,7 +83,7 @@ class TrajectoryStep:
     """Enriched trajectory step for DSE."""
 
     step: int
-    reward: float
+    reward: float | None
     observation_text: str
     action: dict[str, Any]
     elapsed_time_sec: int | None
@@ -119,21 +120,6 @@ def format_money(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"${value:,.2f}"
-
-
-def _safe_literal_eval(raw: Any, default: Any) -> Any:
-    if isinstance(raw, str):
-        with contextlib.suppress(SyntaxError, ValueError):
-            return ast.literal_eval(raw)
-    return default
-
-
-def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
-    """Load a trajectory CSV as a DataFrame."""
-    trajectory_file = iteration_dir / "trajectory.csv"
-    if not trajectory_file.is_file():
-        return None
-    return trajectory_file, lazy.pd.read_csv(trajectory_file)
 
 
 def _format_scalar(value: Any) -> str:
@@ -201,10 +187,10 @@ def calculate_savings(saved_gpu_hours: float | None, gpu_arch_label: str | None)
 
 
 def get_best_step(steps: list[TrajectoryStep]) -> TrajectoryStep | None:
-    successful_steps = [step for step in steps if step.is_successful]
+    successful_steps = [step for step in steps if step.is_successful and step.reward is not None]
     if not successful_steps:
         return None
-    return max(successful_steps, key=lambda step: step.reward)
+    return max(successful_steps, key=lambda step: cast(float, step.reward))
 
 
 def _build_reward_chart_data(steps: list[TrajectoryStep]) -> dict[str, Any] | None:
@@ -219,7 +205,7 @@ def _build_reward_chart_data(steps: list[TrajectoryStep]) -> dict[str, Any] | No
         "labels": [step.step for step in steps],
         "rewards": [step.reward for step in steps],
         "observations": [step.observation_text for step in steps],
-        "best_index": best_step.step - 1,
+        "best_index": steps.index(best_step),
     }
 
 
@@ -245,37 +231,43 @@ def _build_parameter_rows(param_space: dict[str, list[Any]], best_action: dict[s
 def _build_trajectory_steps(
     iteration_dir: Path,
     test_case: TestRun,
-    test_runs: list[TestRun],
+    records: tuple[TrajectoryRecord, ...],
+    param_space: Mapping[str, Any],
 ) -> list[TrajectoryStep] | None:
-    loaded_trajectory = load_trajectory_dataframe(iteration_dir)
-    if loaded_trajectory is None:
-        logging.warning(f"No trajectory file found for {test_case.name} in {iteration_dir}")
+    if not records:
+        logging.warning(f"No trajectory data found for {test_case.name} at {iteration_dir}")
         return None
 
-    trajectory_file, df = loaded_trajectory
-    if df.empty:
-        logging.warning(f"No trajectory data found for {test_case.name} at {trajectory_file}")
-        return None
-
-    runs_by_step = {test_run.step: test_run for test_run in test_runs}
     steps: list[TrajectoryStep] = []
-    for row in df.to_dict(orient="records"):
-        step_no = int(row["step"])
-        action = _safe_literal_eval(row.get("action"), {})
+    for record in records:
+        step_no = record.step
+        action = record["action"]
+        resolved_action = record.get("run_details", {}, decode_numbers=True).get("resolved_action")
+        if isinstance(resolved_action, dict) and param_space.keys() <= resolved_action.keys():
+            action = {key: resolved_action[key] for key in param_space}
         if not isinstance(action, dict):
             action = {}
-        observation = _safe_literal_eval(row.get("observation"), [])
-        if not isinstance(observation, list):
-            observation = [observation]
-        step_run = runs_by_step.get(step_no)
+
+        reward = record["reward"]
+        try:
+            if isinstance(reward, str):
+                try:
+                    reward = int(reward)
+                except ValueError:
+                    reward = float(reward)
+            elif not isinstance(reward, int) or isinstance(reward, bool):
+                reward = float(reward)
+            reward = None if isinstance(reward, float) and not math.isfinite(reward) else reward
+        except (TypeError, ValueError, OverflowError):
+            reward = None
         steps.append(
             TrajectoryStep(
                 step=step_no,
-                reward=float(row["reward"]),
-                observation_text=", ".join(_format_scalar(value) for value in observation) if observation else "n/a",
+                reward=reward,
+                observation_text=record.format_observation(),
                 action=action,
                 elapsed_time_sec=_step_elapsed_time(iteration_dir / str(step_no)),
-                is_successful=step_run.test.was_run_successful(step_run).is_successful if step_run else False,
+                is_successful=not record.ineligibility_reasons("measurement"),
             )
         )
 
@@ -292,9 +284,11 @@ def _build_iteration_summary(
     test_case: TestRun,
     iteration: int,
     iteration_dir: Path,
-    test_runs: list[TestRun],
+    trajectory: Trajectory,
 ) -> DSECaseIterationSummary | None:
-    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, test_runs)
+    records = trajectory.records()
+    param_space = test_case.param_space
+    trajectory_steps = _build_trajectory_steps(iteration_dir, test_case, records, param_space)
     if not trajectory_steps:
         return None
 
@@ -307,8 +301,17 @@ def _build_iteration_summary(
         logging.warning(f"No test run dump found for best DSE step at {best_step_dump}")
         return None
 
-    with best_step_dump.open() as f:
-        test_run_details = TestRunDetails.model_validate(toml.load(f))
+    best_record = next(record for record in records if record.step == best_step.step)
+    try:
+        with best_step_dump.open() as f:
+            raw_dump = toml.load(f)
+    except (OSError, ValueError) as error:
+        raise TrajectoryLoadError(
+            best_record.source, "cannot read selected export dump", step=best_record.step
+        ) from error
+    test_run_details = TestRunDetails.model_validate(
+        raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+    )
 
     elapsed_times = [step.elapsed_time_sec for step in trajectory_steps if step.elapsed_time_sec is not None]
     if not elapsed_times:
@@ -341,8 +344,8 @@ def _build_iteration_summary(
         observed_runtime=format_duration(total_observed_runtime_sec),
         efficiency_ratio=f"~{format_float(reduction_factor, 1)}x",
         efficiency_steps=f"{len(trajectory_steps):,} / {total_space:,} steps",
-        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump()),
-        parameter_rows=_build_parameter_rows(test_case.param_space, best_step.action),
+        best_config_toml=toml.dumps(test_run_details.test_definition.model_dump(exclude_unset=True)),
+        parameter_rows=_build_parameter_rows(param_space, best_step.action),
         reward_chart_data=_build_reward_chart_data(trajectory_steps),
     )
 
@@ -352,7 +355,10 @@ def build_dse_summaries(
     results_root: Path,
     loaded_test_runs: list[TestRun],
     test_cases: list[TestRun],
+    *,
+    histories: Mapping[Path, Trajectory] | None = None,
 ) -> list[DSECaseIterationSummary]:
+    del loaded_test_runs
     result: list[DSECaseIterationSummary] = []
 
     for test_case in test_cases:
@@ -360,25 +366,20 @@ def build_dse_summaries(
             continue
 
         case_root = results_root / test_case.name
-        if not case_root.is_dir():
-            continue
-
         for iteration in range(test_case.iterations):
-            dse_iteration_runs = [
-                tr for tr in loaded_test_runs if tr.name == test_case.name and tr.current_iteration == iteration
-            ]
-
             iteration_dir = case_root / str(iteration)
-            if not iteration_dir.is_dir():
-                continue
-
+            trajectory = (
+                Trajectory.load(iteration_dir / Trajectory.file_name, missing_ok=True, recovery="recorded")
+                if histories is None
+                else histories[iteration_dir]
+            )
             summary = _build_iteration_summary(
                 system=system,
                 results_root=results_root,
                 test_case=test_case,
                 iteration=iteration,
-                iteration_dir=case_root / str(iteration),
-                test_runs=dse_iteration_runs,
+                iteration_dir=iteration_dir,
+                trajectory=trajectory,
             )
             if summary is not None:
                 result.append(summary)

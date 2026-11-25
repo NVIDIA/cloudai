@@ -18,6 +18,8 @@ import contextlib
 import logging
 import tarfile
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -28,7 +30,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.report_generator.dse_report import build_dse_summaries, load_trajectory_dataframe
+from cloudai.configurator import Trajectory, TrajectoryLoadError
+from cloudai.report_generator.dse_report import build_dse_summaries
 from cloudai.report_generator.util import load_system_metadata
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
@@ -240,19 +243,27 @@ class DSEReporter(Reporter):
         return Path(__file__).parent / "util"
 
     def generate(self) -> None:
-        self.load_test_runs()
+        histories: dict[Path, Trajectory] = {}
+        for test_run in self.test_scenario.test_runs:
+            if not test_run.is_dse_job:
+                continue
+            for iteration in range(test_run.iterations):
+                iteration_dir = self.results_root / test_run.name / str(iteration)
+                histories[iteration_dir] = Trajectory.load(
+                    iteration_dir / Trajectory.file_name, missing_ok=True, recovery="recorded"
+                )
 
         dse_cases = build_dse_summaries(
             system=self.system,
             results_root=self.results_root,
             loaded_test_runs=self.trs,
             test_cases=self.test_scenario.test_runs,
+            histories=histories,
         )
 
+        self.report_best_dse_config(histories=histories)
         if not dse_cases:
             return
-
-        self.report_best_dse_config()
 
         jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.templates_dir), autoescape=True)
         template = jinja_env.get_template("dse-report.jinja2")
@@ -264,36 +275,59 @@ class DSEReporter(Reporter):
 
         logging.info(f"Generated scenario report at {report_path}")
 
-    def report_best_dse_config(self):
+    def report_best_dse_config(self, *, histories: Mapping[Path, Trajectory] | None = None):
         """Persist the highest-reward configuration for each DSE test case iteration."""
-        for tr in self.test_scenario.test_runs:
-            if not tr.test.is_dse_job:
+        for tr, iteration in (
+            (test_run, iteration)
+            for test_run in self.test_scenario.test_runs
+            if test_run.is_dse_job
+            for iteration in range(test_run.iterations)
+        ):
+            tr_root = self.results_root / tr.name / str(iteration)
+            trajectory = (
+                Trajectory.load(tr_root / Trajectory.file_name, missing_ok=True, recovery="recorded")
+                if histories is None
+                else histories[tr_root]
+            )
+            if not trajectory:
+                logging.warning("No trajectory data found for %s in %s", tr.name, tr_root)
                 continue
 
-            tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
-            loaded_trajectory = load_trajectory_dataframe(tr_root)
-            if loaded_trajectory is None:
-                logging.warning("No trajectory file found for %s in %s", tr.name, tr_root)
+            candidates = []
+            for record in (
+                record for record in trajectory.records() if not record.ineligibility_reasons("measurement")
+            ):
+                reward = record["reward"]
+                if isinstance(reward, str):
+                    try:
+                        reward = int(reward)
+                    except ValueError:
+                        reward = float(reward)
+                candidates.append((reward, record))
+            if not candidates:
                 continue
-
-            _, df = loaded_trajectory
-            best_step = df.loc[df["reward"].idxmax()]["step"]
+            best_record = max(candidates, key=lambda candidate: candidate[0])[1]
+            best_step = best_record.step
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             if not best_step_details.is_file():
                 logging.warning("No best step found for %s at %s", tr.name, best_step_details)
                 continue
 
-            with best_step_details.open() as f:
-                try:
-                    trd = TestRunDetails.model_validate(toml.load(f))
-                except Exception as exc:
-                    logging.warning("Failed to validate test run for %s: %s", tr.name, exc, exc_info=True)
-                    continue
+            try:
+                with best_step_details.open() as f:
+                    raw_dump = toml.load(f)
+            except (OSError, ValueError) as error:
+                raise TrajectoryLoadError(
+                    best_record.source, "cannot read selected export dump", step=best_record.step
+                ) from error
+            trd = TestRunDetails.model_validate(
+                raw_dump, context={"trajectory_record": best_record, "recorded_dump": deepcopy(raw_dump)}
+            )
 
             best_config_path = tr_root / f"{tr.name}.toml"
             logging.info("Writing best config for %s to %s", tr.name, best_config_path)
             with best_config_path.open("w") as f:
-                toml.dump(trd.test_definition.model_dump(), f)
+                toml.dump(trd.test_definition.model_dump(exclude_unset=True), f)
 
 
 class TarballReporter(Reporter):

@@ -19,7 +19,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    ValidationError,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import Self
 
 import cloudai.metrics
@@ -259,6 +269,14 @@ class TestScenarioModel(BaseModel):
         return parse_reports_spec(value)
 
 
+def _export_comparison_view(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _export_comparison_view(child) for key, child in value.items() if child is not None}
+    if isinstance(value, list):
+        return [_export_comparison_view(child) for child in value]
+    return value
+
+
 class TestRunDetails(BaseModel):
     """
     Model for test run dump.
@@ -286,17 +304,125 @@ class TestRunDetails(BaseModel):
 
     @field_validator("test_definition", mode="before")
     @classmethod
-    def load_tdef(cls, value: Any | None) -> TestDefinition | None:
+    def load_tdef(cls, value: Any | None, info: ValidationInfo) -> TestDefinition | None:
+        del info
         if value is None:
             return None
         if isinstance(value, TestDefinition):
-            return value
-        if isinstance(value, dict):
+            definition = value
+        elif isinstance(value, dict):
             workload_type = value["test_template_name"]
             workload_cls = Registry().test_definitions_map[workload_type]
-            return workload_cls.model_validate(value)
+            definition = workload_cls.model_validate(value)
+        else:
+            raise ValueError(f"Invalid test definition: {value}")
+        return definition
 
-        raise ValueError(f"Invalid test definition: {value}")
+    @model_validator(mode="wrap")
+    @classmethod
+    def _validate_recorded_dump(
+        cls, value: Any, handler: ModelWrapValidatorHandler[Self], info: ValidationInfo
+    ) -> Self:
+        if not isinstance(info.context, dict) or "trajectory_record" not in info.context:
+            return handler(value)
+
+        import json
+        from copy import deepcopy
+
+        from pydantic import TypeAdapter
+
+        from cloudai.configurator.trajectory import (
+            TrajectoryLoadError,
+            _merge_recorded_values,
+            _record_environment,
+            _resolve_recorded_action,
+        )
+
+        record = info.context["trajectory_record"]
+        try:
+            validated = handler(value)
+            definition = validated.test_definition
+            if not isinstance(definition, TestDefinition):
+                raise ValueError("selected export dump requires a test definition")
+            details = record.get("run_details", {}, decode_numbers=True)
+            projection = {
+                "purpose": "trajectory",
+                "record": {
+                    "supplied": deepcopy(info.context["recorded_dump"]),
+                    "recorded": {
+                        "environment": record.get("env_params", {}, decode_numbers=True),
+                        "action": details.get("resolved_action", record["action"]),
+                        "details": details,
+                    },
+                },
+            }
+            projection["record"] = TypeAdapter(dict[str, Any]).dump_python(projection["record"], mode="json")
+            effective_configuration = definition.model_dump(mode="json", context=projection)
+            supplied = projection["record"]["supplied"]
+            recorded = projection["record"]["recorded"]
+            native = record.get("record_context_version") == "1" and "recovery" not in details
+            action = recorded["action"]
+            resources = {"NUM_NODES": supplied["nnodes"]} if "nnodes" in supplied else {}
+            configuration = supplied["test_definition"]
+            resolved = _resolve_recorded_action(configuration, resources, action, missing_ok=True)
+            action = {name: _export_comparison_view(value) for name, value in action.items()}
+            resolved = {name: _export_comparison_view(value) for name, value in resolved.items()}
+            if native and json.dumps(action, sort_keys=True, allow_nan=False) != json.dumps(
+                resolved, sort_keys=True, allow_nan=False
+            ):
+                raise ValueError("native winning action cannot be verified from selected dump")
+            _merge_recorded_values(action, resolved, action, record, typed=True)
+            environment = _export_comparison_view(
+                _record_environment(deepcopy(effective_configuration if native else configuration), resources, action)
+            )
+            recorded["environment"] = _export_comparison_view(recorded["environment"])
+            merged = _merge_recorded_values(
+                recorded["environment"], environment, recorded["environment"], record, typed=True
+            )
+            if native and json.dumps(merged, sort_keys=True) != json.dumps(recorded["environment"], sort_keys=True):
+                raise ValueError("selected dump introduces unverified native settings")
+            recorded_details = recorded["details"]
+            identity = {
+                key: recorded_details[name]
+                for key, name in {
+                    "name": "run_name",
+                    "current_iteration": "iteration",
+                    "step": "step",
+                    "output_path": "output_path",
+                }.items()
+                if name in recorded_details
+            }
+            identity.update(
+                {
+                    key: recorded_details.get("launch", {})[name]
+                    for key, name in {
+                        "nnodes": "num_nodes",
+                        "nodes": "nodes",
+                        "exclude_nodes": "exclude_nodes",
+                        "pin_nodes": "pin_nodes",
+                        "time_limit": "time_limit",
+                        "extra_srun_args": "extra_srun_args",
+                    }.items()
+                    if name in recorded_details.get("launch", {})
+                }
+            )
+            if (
+                "output_path" in identity
+                and "output_path" in supplied
+                and Path(identity["output_path"]).is_absolute() != Path(supplied["output_path"]).is_absolute()
+            ):
+                identity["output_path"] = str(Path(identity["output_path"]).resolve())
+                supplied["output_path"] = str(Path(supplied["output_path"]).resolve())
+            identity = {name: _export_comparison_view(value) for name, value in identity.items()}
+            supplied_identity = {name: _export_comparison_view(supplied[name]) for name in identity if name in supplied}
+            if "nodes" in identity and "nodes" not in supplied_identity:
+                supplied_identity["nodes"] = _export_comparison_view(validated.nodes)
+            _merge_recorded_values(identity, supplied_identity, identity, record, typed=True)
+        except (TypeError, ValueError, KeyError) as error:
+            raise TrajectoryLoadError(
+                record.source, "selected export dump conflicts with recorded configuration", step=record.step
+            ) from error
+        return validated
 
     @classmethod
     def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:

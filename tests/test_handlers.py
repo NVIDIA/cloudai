@@ -254,11 +254,18 @@ def test_prepare_installation_includes_hook_installables(slurm_system: SlurmSyst
     assert post_repo in installables
 
 
-def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixture):
+def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch):
     base_tr.test.cmd_args.candidate = [1, 1, 2]
     base_tr.test.agent = "grid_search"
     base_tr.test.agent_steps = 3
 
+    metric_queries = []
+
+    def measured_metric(tr: TestRun, _system, metric: str) -> float:
+        metric_queries.append((tr.step, metric))
+        return 1.0
+
+    monkeypatch.setattr(TestRun, "get_metric_value", measured_metric)
     inner_runner = MagicMock()
     inner_runner.system = MagicMock()
     inner_runner.scenario_root = tmp_path / "scenario"
@@ -292,6 +299,7 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     reporter.load_test_runs()
 
     assert inner_runner.run.call_count == 2
+    assert metric_queries == [(1, "default"), (3, "default")]
     assert (trajectory_dir / "1").exists()
     assert not (trajectory_dir / "2").exists()
     assert (trajectory_dir / "3").exists()
@@ -300,9 +308,9 @@ def test_dse_run_cache(base_tr: TestRun, tmp_path, caplog: pytest.LogCaptureFixt
     actual_trajectory = pd.read_csv(trajectory_dir / "trajectory.csv")
     expected_trajectory = pd.DataFrame(
         data=[
-            [1, "{'candidate': 1}", -1.0, "[-1.0]"],
-            [2, "{'candidate': 1}", -1.0, "[-1.0]"],
-            [3, "{'candidate': 2}", -1.0, "[-1.0]"],
+            [1, "{'candidate': 1}", 1.0, "[1.0]"],
+            [2, "{'candidate': 1}", 1.0, "[1.0]"],
+            [3, "{'candidate': 2}", 1.0, "[1.0]"],
         ],
         columns=["step", "action", "reward", "observation"],
     )

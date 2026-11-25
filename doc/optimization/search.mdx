@@ -67,8 +67,9 @@ scenarios. To choose trials using prior feedback, integrate [a custom agent](/ex
 
 <Note>
 
-Before reusing an exported DSE TOML, compare it with the successful selection in `experiment.json`.
-The TOML exporter ranks raw rewards, so a failed measurement can win if its substituted reward is higher.
-Searches that vary only `num_nodes` do not export this TOML.
+DSE reports and best-config exports select eligible measurements by numeric reward, including searches that vary
+only `num_nodes`. The exported TOML contains workload settings. Reuse it with the selected resources from the
+step's `test-run.toml` and the original scenario; `NUM_NODES` is also highlighted in the DSE report.
+See [Read trajectory histories](/reference/agents#reading-dse-trajectories) for recorded context and eligibility.
 
 </Note>
