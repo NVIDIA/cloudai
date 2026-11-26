@@ -143,3 +143,37 @@ metadata raise `TrajectoryLoadError` without returning a partial history.
 or takes writer ownership. When all history artifacts are absent,
 `missing_ok=True` permits loading an empty history. A header-only history also
 loads as empty without that flag. Partial or corrupt histories still raise.
+<Anchor id="writing-dse-trajectories" />
+
+## Writing DSE Trajectories
+
+`Trajectory(iteration_dir=path)` creates a history. A live writer owns that
+history directory; a second writer is refused. Read-only `Trajectory.load`
+remains available while the writer exists.
+
+```python
+from pathlib import Path
+
+from cloudai.configurator import Trajectory
+
+writer = Trajectory(iteration_dir=Path("results/new-history"))
+writer.append(step=1, action={"size": 4}, reward=2, observation=[2])
+print(Trajectory.load(writer.output_path).records()[0].step)
+```
+
+| Constructor mode | Existing history |
+| --- | --- |
+| `"create"` (default) | Refuses initialized files instead of silently continuing. |
+| `"resume"` | Continues a validated committed history after its previous writer releases ownership. |
+| `"adopt"` | Validates a legacy paired or core-only history and establishes a commit marker before continuing. |
+
+Appends publish `trajectory.csv` and `metadata.csv` together through
+`.trajectory.commit.json`. The sidecar exists even when it contains only steps.
+Readers validate the committed prefix; an interrupted unpublished tail is not a
+completed trial. An explicit resumed writer can recover that tail before its
+next append. Retrying the same final step with identical values is idempotent;
+changing those values or appending an older step is refused.
+
+Serialized gym adapters retain their original writer only within the creating
+process. Cross-process reconstruction is refused instead of opening another
+writer for the same history.
