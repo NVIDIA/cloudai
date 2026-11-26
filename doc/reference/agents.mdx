@@ -211,3 +211,23 @@ Megatron Bridge serializer removes its known credentials from recorded
 projections while preserving live configuration and ordinary serialization.
 Use a newly initialized history for the complete recording schema; existing
 histories are not widened in place.
+
+## Recover Historical Context
+
+```python
+history = Trajectory.load(
+    Path("archive/Tests.1/0"), recovery="recorded"
+)
+```
+
+Default loading preserves historical raw data. Opt-in recovery uses only matching
+recorded test-run dumps, filling missing context after checking agreement.
+Missing dumps or unverified identities remain unknown; contradictions refuse the
+history. Current defaults are never substituted. Modern versioned context does
+not read TOML even when this option is selected.
+
+`run_details.recovery` records source identity and step, selected dump path/hash,
+actual historical identity, unknown fields and opaque original context paths.
+Source identity survives copying; historical steps do not become current scheduler
+progress. Type restoration requires original wire agreement. Completeness may
+remain unknown even with a matching dump, and opaque legacy strings stay opaque.
