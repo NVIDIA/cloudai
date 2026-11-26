@@ -30,4 +30,6 @@ __all__ = [
     "GridSearchAgent",
     "GymnasiumAdapter",
     "Trajectory",
+    "TrajectoryLoadError",
+    "TrajectoryRecord",
 ]

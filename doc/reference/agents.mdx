@@ -108,13 +108,64 @@ return type of `ReportGenerationStrategy.get_metric` is `MetricValue` (`float | 
 When branching on success vs failure, use **identity** (`value is METRIC_ERROR`), not equality to `-1.0`, so a legitimate metric of `-1.0` is not
 treated as an error. The gym observation path uses that identity check before applying `agent_config.rewards.metric_failure`.
 
-`experiment.json` uses recorded measurement eligibility and excludes explicit failures. A legacy reward of `-1`
+Selected results use recorded measurement eligibility and exclude explicit failures. A legacy reward of `-1`
 without failure evidence remains ambiguous and is excluded.
 
 
 <Anchor id="reading-dse-trajectories" />
 
 ## Reading DSE Trajectories
+
+`Trajectory` records each submitted DSE trial and loads its history for reports
+and SDK inspection. Recording uses the resolved in-memory test,
+including static settings and sampled values; it does not read back `test-run.toml`.
+
+```mermaid
+flowchart TD
+    I[Resolved in-memory trial] --> T[Trajectory recording]
+    T --> C[Committed CSV pair]
+    T --> F[Live feedback]
+    C --> L[Trajectory.load]
+    L --> R[Reports and history inspection]
+```
+
+### Recorded Configuration
+
+For example, this NCCL test selects `iters` and samples `warmup_iters`:
+
+```toml
+name = "all-gather"
+description = "Set docker_image_url to your NCCL test image."
+test_template_name = "NcclTest"
+
+[cmd_args]
+docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
+subtest_name = "all_gather_perf_mpi"
+iters = [10, 20]
+warmup_iters = [5, 50]
+maxbytes = "4G"
+
+[env_params.warmup_iters]
+weights = [0.25, 0.75]
+```
+
+Selecting `iters=20` and sampling `warmup_iters=50` records the proposal in
+`action`, and `warmup_iters=50`, fixed `maxbytes="4G"` and other resolved workload
+settings in `env_params`. This includes nested command arguments, extra command
+and environment arguments, and fixed node counts. Action dimensions stay separate
+from environment context. A partial proposal's held values are available in
+`run_details.resolved_action`; candidate lists belong to the original search space.
+
+`run_details` also holds launch/backend settings, metric order and reward policy.
+`measurement` and `evaluation_failure` distinguish actual outcomes, unavailable
+metrics and measurement origin. Units remain unknown when no producer supplies
+them. Policy observations retain their existing shape.
+
+Recording applies workload-owned redaction, including Megatron Bridge's known
+token policy. It is not a general secret-discovery filter. Historical recovery
+preserves recorded text and can report redaction or completeness as unknown.
+
+### Load and Inspect
 
 Use `Trajectory.load` to read a DSE history and its adjacent `metadata.csv`:
 
@@ -126,15 +177,18 @@ from cloudai.configurator import Trajectory
 history = Trajectory.load(Path("results/scenario/Tests.1/0"))
 for trial in history.records():
     environment = trial.get("env_params", {}, decode_numbers=True)
-    print(trial.step, trial["action"], environment)
+    details = trial.get("run_details", {}, decode_numbers=True)
+    reasons = trial.ineligibility_reasons("reference")
+    print(trial.step, trial["action"], environment, details, reasons)
 ```
 
-Records are read-only mappings with detached nested values. Indexing and default
-`get` preserve metadata cells as recorded strings. For histories without a declared
-format, `decode_numbers=True` uses heuristic numeric decoding, which can turn
-`"001"` into `1`; it cannot reconstruct unknown original types. Native records
-instead decode their declared JSON fields and preserve numeric-looking strings.
-`history.dataframe` exposes flattened storage columns.
+Records are read-only mappings with detached nested values. Indexing, default
+`get` and `.metadata` preserve stored values. For new versioned records, explicit
+`decode_numbers=True` restores declared environment/context types exactly:
+`"001"` stays a string, and booleans, `None`, containers and literal dotted keys
+retain their types and key names. Other metadata groups remain raw. Legacy numeric
+decoding is heuristic and can turn `"001"` into `1`; it cannot reconstruct unknown
+original types. `history.dataframe` exposes flattened storage columns.
 
 A directory or explicit CSV path is accepted. Every history requires `step`,
 `action`, `reward` and `observation`; a sidecar must match its steps one-to-one.
@@ -174,6 +228,18 @@ Readers validate the committed prefix; an interrupted unpublished tail is not a
 completed trial. An explicit resumed writer can recover that tail before its
 next append. Retrying the same final step with identical values is idempotent;
 changing those values or appending an older step is refused.
+
+Histories with inline auxiliary columns in `trajectory.csv`, including a legacy
+`note` column, are read-only. Neither `adopt` nor `resume` can continue these
+layouts; write subsequent trials to a new history.
+
+Appends must preserve the existing columns, including after adoption; use a new history
+when changing the schema. Caller code owns agent and scheduler progress restoration.
+
+Archive completed directories with their CSV pair and marker together; do not
+hand-edit managed artifacts. Writing requires one serial owner, independent
+regular CSV files without symlinks or hard links, and a local POSIX filesystem with
+reliable locks, file/directory synchronization and atomic same-directory rename.
 
 Serialized gym adapters retain their original writer only within the creating
 process. Cross-process reconstruction is refused instead of opening another
