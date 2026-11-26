@@ -762,10 +762,12 @@ def test_load_accepts_an_extensionless_csv_path(tmp_path: Path) -> None:
     written.append(step=1, action={"ooo": 10}, reward=1.0, observation=[100.0])
     source = written.output_path.rename(tmp_path / "history")
 
-    record = Trajectory.load(source).records()[0]
+    loaded = Trajectory.load(source)
+    record = loaded.records()[0]
 
     assert record.source == source
     assert record["action"] == {"ooo": 10}
+    assert loaded.output_path == source
 
 
 def test_load_rejects_a_history_without_an_observation_column(tmp_path: Path) -> None:
