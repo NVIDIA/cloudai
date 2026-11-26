@@ -20,14 +20,21 @@ from __future__ import annotations
 
 import ast
 import csv
+import hashlib
 import io
+import json
 import logging
+import os
+import stat
+import tempfile
 import threading
+import uuid
+import weakref
 from collections.abc import Iterator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from cloudai.util.lazy_imports import lazy
 
@@ -99,51 +106,56 @@ class Trajectory:
         *,
         iteration_dir: Path,
         dataframe: pd.DataFrame | None = None,
+        mode: Literal["create", "resume", "adopt"] = "create",
     ) -> None:
-        self._iteration_dir = iteration_dir
-        self._dataframe = lazy.pd.DataFrame() if dataframe is None else _copy_dataframe(dataframe)
-        self._validate_dataframe()
-        self._dataframe = self._dataframe.astype(object)
-        # Rows are authoritative; the DataFrame is rebuilt on demand. Appending by
-        # concatenating a one-row frame copies every accumulated row (O(N^2) over a run),
-        # and ``find`` scanning with ``iterrows`` is O(N) per call, so a cached lookup index
-        # is kept alongside. Both are invisible when a trial costs seconds and dominate
-        # once trials are cheap.
-        self._rows: list[dict[str, Any]] = (
-            [dict(record) for _, record in self._dataframe.iterrows()] if len(self._dataframe) else []
-        )
-        self._find_index: dict[tuple[str, ...], dict[tuple, list[int]]] = {}
-        self._frame_dirty = False
-        self._records: list[TrajectoryRecord | None] = [None] * len(self._rows)
-        self._source_path: Path | None = None
-        logging.debug(
-            "Initializing Trajectory: entries=%s, columns=%s.",
-            len(self),
-            list(self._dataframe.columns),
-        )
+        import fcntl
+
+        if mode not in ("create", "resume", "adopt"):
+            raise ValueError(f"unsupported trajectory mode: {mode!r}")
+        if dataframe is not None and mode != "create":
+            raise ValueError("a warm-start dataframe is supported only when creating a history")
+        self._initialize_state(iteration_dir, dataframe)
+        _ensure_durable_directory(self._iteration_dir)
+        descriptor = os.open(self._iteration_dir / ".trajectory.lock", os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            os.close(descriptor)
+            raise RuntimeError(f"trajectory history already has a writer: {self._iteration_dir}") from error
+        self._writer_finalizer = weakref.finalize(self, os.close, descriptor)
+        try:
+            self._open_writer(mode)
+        except BaseException:
+            self._writer_finalizer()
+            self._writer_finalizer = None
+            raise
 
     @classmethod
     def load(cls, source: str | Path, *, missing_ok: bool = False) -> Trajectory:
         source = Path(source)
         path = source / cls.file_name if source.is_dir() else source
-        sidecar = path.parent / cls.metadata_file_name
-        loaded = cls(iteration_dir=path.parent)
-        loaded._source_path = path
-        if missing_ok and not any(candidate.exists() or candidate.is_symlink() for candidate in (path, sidecar)):
-            return loaded
-        columns, rows = _read_csv(path, required=cls._core_fields)
-        metadata_rows = cls._read_metadata(sidecar) if sidecar.exists() or sidecar.is_symlink() else None
-        records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows)
-        loaded._rows = deepcopy(flattened_rows)
-        loaded._records = list(records)
-        loaded._dataframe = lazy.pd.DataFrame(flattened_rows, dtype=object)
-        if not flattened_rows:
-            loaded._dataframe = lazy.pd.DataFrame(columns=columns)
-        return loaded
+        marker = _read_commit(path.parent)
+        try:
+            loaded = cls._load_snapshot(path, marker, missing_ok)
+        except TrajectoryLoadError:
+            if marker is not None:
+                raise
+            marker = _read_commit(path.parent)
+            if marker is None:
+                raise
+        else:
+            if marker is not None:
+                return loaded
+            marker = _read_commit(path.parent)
+            if marker is None:
+                return loaded
+        return cls._load_snapshot(path, marker, missing_ok)
 
     @classmethod
-    def _read_metadata(cls, path: Path) -> dict[int, tuple[int, dict[str, str]]]:
-        columns, rows = _read_csv(path, required=("step",))
+    def _read_metadata(
+        cls, path: Path, *, text: str | None = None
+    ) -> tuple[list[str], dict[int, tuple[int, dict[str, str]]]]:
+        columns, rows = _read_csv(path, required=("step",), text=text)
         for column in columns:
             if column != "step" and column.split(".", maxsplit=1)[0] in cls._core_domains:
                 raise TrajectoryLoadError(path, f"metadata overlaps core domain: {column}", row=1)
@@ -155,7 +167,7 @@ class Trajectory:
                 raise TrajectoryLoadError(path, "duplicate metadata step", row=row_number, step=step)
             entries[step] = row_number, row
 
-        return entries
+        return columns, entries
 
     @classmethod
     def _load_records(
@@ -305,66 +317,39 @@ class Trajectory:
         observation: object,
         **values: object,
     ) -> pd.Series:
-        """Flatten, persist, and store one trajectory row."""
-        if self._source_path is not None:
-            raise RuntimeError("loaded trajectory is read-only")
-        self._validate_step(step)
+        if self._writer_finalizer is None or not self._writer_finalizer.alive:
+            raise RuntimeError("loaded trajectories are read-only; open an explicit resume or adopt writer")
+        self._validate_writer_paths()
+        record, snapshot, core_row, metadata_row = self._prepare_record(step, action, reward, observation, values)
+        core_header, core_bytes = _encode_csv_row(core_row, self._headers.get("trajectory"))
+        metadata_header, metadata_bytes = _encode_csv_row(metadata_row, self._headers.get("metadata"))
+        record_digest = hashlib.sha256(core_bytes + b"\x00" + metadata_bytes).hexdigest()
+        legacy_digest = _legacy_record_digest(
+            tuple(core_row[name] for name in core_header), tuple(metadata_row[name] for name in metadata_header)
+        )
+        if self._reconcile_retry(step, (record_digest, legacy_digest)):
+            return _copy_series(lazy.pd.Series(record, dtype=object))
         if self._rows and step <= self._rows[-1]["step"]:
             raise ValueError(f"trajectory steps must increase: last step is {self._rows[-1]['step']}, got {step}")
-
-        record: dict[str, object] = {"step": step}
-        domains = {
-            "action": action,
-            "reward": reward,
-            "observation": observation,
-            **values,
+        self._recover_tails()
+        publication, payloads, hashes = self._prepare_publication(
+            step, record_digest, (core_header, core_bytes), (metadata_header, metadata_bytes)
+        )
+        self._pending = {
+            "publication": publication,
+            "hashes": hashes,
+            "headers": {"trajectory": core_header, "metadata": metadata_header},
+            "record": record,
+            "snapshot": snapshot,
         }
-        for domain, value in domains.items():
-            for field, field_value in _flatten_value(domain, value).items():
-                if field in record:
-                    raise ValueError(f"trajectory values produce duplicate column: {field}")
-                record[field] = deepcopy(field_value)
-
-        fields = tuple(record)
-        expected_fields = tuple(self._rows[0]) if self._rows else tuple(self._dataframe.columns)
-        if expected_fields and fields != expected_fields:
-            raise ValueError(f"trajectory record fields changed: expected {expected_fields}, got {fields}")
-
-        row = lazy.pd.Series(record, dtype=object)
-        row_trajectory = lazy.pd.Series(
-            {
-                "step": row["step"],
-                "action": action,
-                "reward": reward,
-                "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
-            },
-            dtype=object,
-        )
-        metadata_fields = tuple(
-            field for field in row.index if field == "step" or field.split(".", maxsplit=1)[0] not in self._core_domains
-        )
-        row_metadata = row[list(metadata_fields)] if len(metadata_fields) > 1 else None
-
-        if row_metadata is not None:
-            _validate_csv_header(self.metadata_path, tuple(row_metadata.index))
-        _append_csv_row(row_trajectory, self.output_path)
-        if row_metadata is not None:
-            _append_csv_row(row_metadata, self.metadata_path)
-
-        self._rows.append(record)
-        self._records.append(
-            TrajectoryRecord(
-                step,
-                self.output_path,
-                {"action": action, "reward": reward, "observation": observation},
-            )
-        )
-        position = len(self._rows) - 1
-        for fields, index in self._find_index.items():
-            index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
-        self._frame_dirty = True
+        _append_synced(self.output_path, payloads[0])
+        _append_synced(self.metadata_path, payloads[1])
+        if self._publication is not None and not self._publication["trajectory"]["bytes"]:
+            _sync_directory(self._iteration_dir)
+        _publish_commit(self._iteration_dir, publication)
+        self._accept_pending()
         logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
-        return _copy_series(row)
+        return _copy_series(lazy.pd.Series(record, dtype=object))
 
     def find(self, **values: object) -> pd.Series | None:
         """Return a copy of the first row matching all supplied domain values."""
@@ -377,8 +362,6 @@ class Trajectory:
 
         if not self._rows:
             return None
-        if any(field not in self._rows[0] for field in criteria):
-            return None
 
         # One index per distinct criteria field-set, built on first use. Callers query with a
         # stable set of domains, so this is built once and maintained by ``append``.
@@ -387,7 +370,8 @@ class Trajectory:
         if index is None:
             index = {}
             for position, record in enumerate(self._rows):
-                index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
+                if all(field in record for field in fields):
+                    index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
             self._find_index[fields] = index
 
         # A bucket narrows the scan; it does not prove equality. Distinct values can share a
@@ -441,25 +425,251 @@ class Trajectory:
         if type(step) is not int or step < 1:
             raise ValueError(f"trajectory step must be a positive integer; got {step}")
 
+    def _initialize_state(self, iteration_dir: Path, dataframe: pd.DataFrame | None = None) -> None:
+        self._iteration_dir = Path(iteration_dir)
+        self._dataframe = lazy.pd.DataFrame() if dataframe is None else _copy_dataframe(dataframe)
+        self._validate_dataframe()
+        self._dataframe = self._dataframe.astype(object)
+        self._rows: list[dict[str, Any]] = (
+            [dict(record) for _, record in self._dataframe.iterrows()] if len(self._dataframe) else []
+        )
+        self._find_index: dict[tuple[str, ...], dict[tuple, list[int]]] = {}
+        self._frame_dirty = False
 
-def _append_csv_row(row: pd.Series, path: Path) -> None:
-    """Validate and append one Series to a CSV file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    header = _validate_csv_header(path, tuple(row.index))
-    row.to_frame().T.to_csv(path, mode="a", header=header, index=False)
-    logging.debug("Wrote trajectory row to %s.", path)
+        self._records: list[TrajectoryRecord | None] = [None] * len(self._rows)
+        self._source_path: Path | None = None
 
+        logging.debug(
+            "Initializing Trajectory: entries=%s, columns=%s.",
+            len(self),
+            list(self._dataframe.columns),
+        )
 
-def _validate_csv_header(path: Path, fields: tuple[str, ...]) -> bool:
-    """Validate an existing CSV header and return whether a header must be written."""
-    write_header = not path.exists() or path.stat().st_size == 0
-    if write_header:
-        return True
-    with path.open(newline="") as file:
-        existing_fields = tuple(next(csv.reader(file), ()))
-    if existing_fields != fields:
-        raise ValueError(f"trajectory file fields do not match: expected {fields}, got {existing_fields}")
-    return False
+        self._writer_finalizer: weakref.finalize | None = None
+        self._publication: dict[str, Any] | None = None
+        self._pending: dict[str, Any] | None = None
+        self._headers: dict[str, tuple[str, ...]] = {}
+        self._hashes: dict[str, Any] = {}
+
+    @classmethod
+    def _load_snapshot(cls, path: Path, marker: dict[str, Any] | None, missing_ok: bool) -> Trajectory:
+        sidecar = path.parent / cls.metadata_file_name
+        texts = _committed_texts(path, marker) if marker is not None else None
+        if (marker is not None and marker["trajectory"]["bytes"] == 0) or (
+            marker is None
+            and missing_ok
+            and not any(candidate.exists() or candidate.is_symlink() for candidate in (path, sidecar))
+        ):
+            loaded = cls.__new__(cls)
+            loaded._initialize_state(path.parent)
+            loaded._source_path = path
+            loaded._publication = marker
+            return loaded
+        columns, rows = _read_csv(path, required=cls._core_fields, text=None if texts is None else texts[0])
+        has_metadata = texts is not None or sidecar.exists() or sidecar.is_symlink()
+        if has_metadata:
+            metadata_columns, metadata_rows = cls._read_metadata(sidecar, text=None if texts is None else texts[1])
+            raw_metadata = list(metadata_rows.values())
+        else:
+            metadata_columns = []
+            metadata_rows = None
+            raw_metadata = []
+        records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows)
+        frame = lazy.pd.DataFrame(flattened_rows, dtype=object)
+        if not flattened_rows:
+            frame = lazy.pd.DataFrame(columns=columns)
+        loaded = cls.__new__(cls)
+        loaded._initialize_state(path.parent)
+        loaded._dataframe = _copy_dataframe(frame)
+        loaded._rows = deepcopy(flattened_rows)
+        loaded._source_path = path
+        loaded._records = list(records)
+        loaded._headers["trajectory"] = tuple(columns)
+        if has_metadata:
+            loaded._headers["metadata"] = tuple(metadata_columns)
+        if marker is not None:
+            _validate_committed_records(marker, rows, raw_metadata, path)
+        loaded._publication = marker
+        return loaded
+
+    def _prepare_record(
+        self, step: int, action: object, reward: object, observation: object, values: dict[str, object]
+    ) -> tuple[dict[str, Any], TrajectoryRecord, dict[str, object], dict[str, object]]:
+        self._validate_step(step)
+        record: dict[str, Any] = {"step": step}
+        for domain, value in {"action": action, "reward": reward, "observation": observation, **values}.items():
+            flattened = _flatten_value(domain, value)
+            duplicate = record.keys() & flattened.keys()
+            if duplicate:
+                raise ValueError(f"trajectory values produce duplicate column: {min(duplicate)}")
+            record.update(deepcopy(flattened))
+        if any(name.split(".", maxsplit=1)[0] in self._core_domains for name in values):
+            raise ValueError("metadata overlaps a core trajectory domain")
+        core_row = {
+            "step": step,
+            "action": action,
+            "reward": reward,
+            "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
+        }
+        metadata_row = {
+            name: value
+            for name, value in record.items()
+            if name == "step" or name.split(".", maxsplit=1)[0] not in self._core_domains
+        }
+        serialized_core = {name: _csv_cell(value) for name, value in core_row.items()}
+        serialized_metadata = {name: _csv_cell(value) for name, value in metadata_row.items()}
+        self._build_record(
+            self.output_path,
+            2,
+            serialized_core,
+            step=step,
+            sidecar=self.metadata_path,
+            metadata_rows={step: (2, serialized_metadata)},
+        )
+        snapshot = TrajectoryRecord(
+            step, self.output_path, {"action": action, "reward": reward, "observation": observation}
+        )
+        return record, snapshot, core_row, metadata_row
+
+    def _validate_writer_paths(self) -> None:
+        for path in (self.output_path, self.metadata_path):
+            try:
+                state = path.lstat()
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(state.st_mode) or state.st_nlink != 1:
+                raise TrajectoryLoadError(path, "writer data paths must be regular, nonsymlink, single-link files")
+
+    def _open_writer(self, mode: str) -> None:
+        self._validate_writer_paths()
+        marker = _read_commit(self._iteration_dir)
+        if mode == "create":
+            if marker is not None or any(
+                path.is_symlink() or (path.exists() and path.stat().st_size)
+                for path in (self.output_path, self.metadata_path)
+            ):
+                raise ValueError("history already exists; choose explicit resume or legacy adopt mode")
+            marker = _empty_commit()
+            _publish_commit(self._iteration_dir, marker)
+        else:
+            if (mode == "resume") != (marker is not None):
+                raise ValueError("resume requires a commit marker; adopt requires a markerless legacy history")
+            loaded = type(self).load(self._iteration_dir)
+            columns = loaded._headers.get("trajectory")
+            if columns is not None and set(columns) != set(self._core_fields):
+                raise TrajectoryLoadError(
+                    self.output_path,
+                    f"unsupported writable trajectory columns: {columns!r}; use Trajectory.load for read-only access",
+                )
+            for name in ("_dataframe", "_rows", "_records", "_headers", "_source_path"):
+                setattr(self, name, getattr(loaded, name))
+            if marker is None:
+                marker = self._adopt_legacy()
+        self._publication = marker
+        for name, path in (("trajectory", self.output_path), ("metadata", self.metadata_path)):
+            data = _read_prefix(path, marker[name], marker["history_id"])
+            self._hashes[name] = _history_digest(marker["history_id"], data)
+        self._recover_tails()
+
+    def _adopt_legacy(self) -> dict[str, Any]:
+        if not self.metadata_path.exists():
+            content = _csv_bytes(("step",)) + b"".join(_csv_bytes((row["step"],)) for row in self._rows)
+            _replace_synced(self.metadata_path, content)
+        core_columns, core_rows = _read_csv(self.output_path, required=self._core_fields)
+        metadata_columns, metadata_rows = _read_csv(self.metadata_path, required=("step",))
+        self._headers = {"trajectory": tuple(core_columns), "metadata": tuple(metadata_columns)}
+        marker = _empty_commit()
+        marker["generation"] = len(core_rows)
+        marker["last_step"] = None if not core_rows else int(core_rows[-1][1]["step"])
+        marker["last_record_sha256"] = _last_record_digest(core_rows, metadata_rows)
+        for name, path in (("trajectory", self.output_path), ("metadata", self.metadata_path)):
+            with path.open("rb") as handle:
+                data = handle.read()
+                os.fsync(handle.fileno())
+            marker[name] = {"bytes": len(data), "sha256": _history_digest(marker["history_id"], data).hexdigest()}
+        _sync_directory(self._iteration_dir)
+        _publish_commit(self._iteration_dir, marker)
+        return marker
+
+    def _recover_tails(self) -> None:
+        if self._publication is None:
+            raise RuntimeError("trajectory has no publication boundary")
+        for name, path in (("trajectory", self.output_path), ("metadata", self.metadata_path)):
+            size = self._publication[name]["bytes"]
+            if not path.exists():
+                if size:
+                    raise TrajectoryLoadError(path, "missing committed data")
+                continue
+            actual = path.stat().st_size
+            if actual < size:
+                raise TrajectoryLoadError(path, "committed prefix is shorter than its byte bound")
+            if actual > size:
+                with path.open("r+b") as handle:
+                    handle.truncate(size)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+
+    def _prepare_publication(
+        self,
+        step: int,
+        record_digest: str,
+        core: tuple[tuple[str, ...], bytes],
+        metadata: tuple[tuple[str, ...], bytes],
+    ) -> tuple[dict[str, Any], tuple[bytes, bytes], dict[str, Any]]:
+        if self._publication is None:
+            raise RuntimeError("trajectory has no publication boundary")
+        publication = deepcopy(self._publication)
+        payloads = []
+        hashes = {}
+        for name, path, (header, row) in (
+            ("trajectory", self.output_path, core),
+            ("metadata", self.metadata_path, metadata),
+        ):
+            size = publication[name]["bytes"]
+            prefix = _csv_bytes(header) if not size else _append_separator(path, size)
+            payload = prefix + row
+            digest = self._hashes[name].copy()
+            digest.update(payload)
+            publication[name] = {"bytes": size + len(payload), "sha256": digest.hexdigest()}
+            payloads.append(payload)
+            hashes[name] = digest
+        publication.update(generation=publication["generation"] + 1, last_step=step, last_record_sha256=record_digest)
+        return publication, (payloads[0], payloads[1]), hashes
+
+    def _reconcile_retry(self, step: int, record_digests: tuple[str, str]) -> bool:
+        marker = _read_commit(self._iteration_dir)
+        if marker != self._publication:
+            if self._pending is None or marker != self._pending["publication"]:
+                raise TrajectoryLoadError(
+                    self._iteration_dir / ".trajectory.commit.json", "publication changed unexpectedly"
+                )
+            type(self).load(self._iteration_dir)
+            _sync_directory(self._iteration_dir)
+            self._accept_pending()
+        if marker is not None and step == marker["last_step"]:
+            if marker["last_record_sha256"] not in record_digests:
+                raise ValueError(
+                    "trajectory steps must increase; retry payload differs from the committed record at the same step"
+                )
+            return True
+        return False
+
+    def _accept_pending(self) -> None:
+        if self._pending is None:
+            raise RuntimeError("trajectory has no pending publication")
+        pending = self._pending
+        record = pending["record"]
+        self._publication = pending["publication"]
+        self._hashes = pending["hashes"]
+        self._headers = pending["headers"]
+        self._rows.append(record)
+        position = len(self._rows) - 1
+        for fields, index in self._find_index.items():
+            if all(field in record for field in fields):
+                index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
+        self._frame_dirty = True
+        self._records.append(pending["snapshot"])
+        self._pending = None
 
 
 def _flatten_value(key: str, value: object) -> dict[str, object]:
@@ -552,12 +762,15 @@ def _decode_numbers(value: Any) -> Any:
     return value
 
 
-def _read_csv(path: Path, *, required: Sequence[str]) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
-    try:
-        with path.open(encoding="utf-8", newline="") as handle:
-            text = handle.read()
-    except (OSError, UnicodeError) as error:
-        raise TrajectoryLoadError(path, f"cannot read artifact: {error}") from error
+def _read_csv(
+    path: Path, *, required: Sequence[str], text: str | None = None
+) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
+    if text is None:
+        try:
+            with path.open(encoding="utf-8", newline="") as handle:
+                text = handle.read()
+        except (OSError, UnicodeError) as error:
+            raise TrajectoryLoadError(path, f"cannot read artifact: {error}") from error
 
     if "\x00" in text:
         raise TrajectoryLoadError(path, "artifact contains a NUL character")
@@ -579,11 +792,7 @@ def _read_csv(path: Path, *, required: Sequence[str]) -> tuple[list[str], list[t
             rows = []
             for row_number, values in enumerate(reader, start=2):
                 if len(values) != len(header):
-                    raise TrajectoryLoadError(
-                        path,
-                        f"expected {len(header)} fields, got {len(values)}",
-                        row=row_number,
-                    )
+                    raise TrajectoryLoadError(path, f"expected {len(header)} fields, got {len(values)}", row=row_number)
                 rows.append((row_number, dict(zip(header, values, strict=True))))
         except csv.Error as error:
             raise TrajectoryLoadError(path, f"malformed CSV: {error}", row=reader.line_num) from error
@@ -649,3 +858,232 @@ def _flatten_record(record: TrajectoryRecord) -> dict[str, Any]:
     for name, value in record._domains.items():
         flattened.update(_flatten_value(name, value))
     return flattened
+
+
+def _empty_commit() -> dict[str, Any]:
+    history_id = str(uuid.uuid4())
+    return {
+        "format_version": 1,
+        "history_id": history_id,
+        "generation": 0,
+        "last_step": None,
+        "trajectory": {"bytes": 0, "sha256": _history_digest(history_id).hexdigest()},
+        "metadata": {"bytes": 0, "sha256": _history_digest(history_id).hexdigest()},
+        "last_record_sha256": None,
+    }
+
+
+def _read_commit(directory: Path) -> dict[str, Any] | None:
+    path = directory / ".trajectory.commit.json"
+    if not path.exists() and not path.is_symlink():
+        return None
+    try:
+        marker = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+        _validate_commit(marker)
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
+        raise TrajectoryLoadError(path, f"invalid commit marker: {error}") from error
+    return marker
+
+
+def _valid_digest(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and not set(value).difference("0123456789abcdef")
+
+
+def _validate_commit(marker: Any) -> None:
+    expected = {
+        "format_version",
+        "history_id",
+        "generation",
+        "last_step",
+        "trajectory",
+        "metadata",
+        "last_record_sha256",
+    }
+    if not isinstance(marker, dict) or marker.keys() != expected:
+        raise ValueError("commit marker fields do not match the supported schema")
+    if type(marker["format_version"]) is not int or marker["format_version"] != 1:
+        raise ValueError("unsupported commit format_version")
+    if not isinstance(marker["history_id"], str) or str(uuid.UUID(marker["history_id"])) != marker["history_id"]:
+        raise ValueError("invalid history identity")
+    for name in ("trajectory", "metadata"):
+        prefix = marker[name]
+        if not isinstance(prefix, dict) or prefix.keys() != {"bytes", "sha256"}:
+            raise ValueError(f"invalid {name} prefix specification")
+        if type(prefix["bytes"]) is not int or prefix["bytes"] < 0 or not _valid_digest(prefix["sha256"]):
+            raise ValueError(f"invalid {name} byte bound or checksum")
+    _validate_commit_progress(marker)
+
+
+def _validate_commit_progress(marker: dict[str, Any]) -> None:
+    generation, step = marker["generation"], marker["last_step"]
+    if type(generation) is not int or generation < 0:
+        raise ValueError("invalid commit generation")
+    if generation == 0:
+        if step is not None or marker["last_record_sha256"] is not None:
+            raise ValueError("empty generation has a last record")
+        if bool(marker["trajectory"]["bytes"]) != bool(marker["metadata"]["bytes"]):
+            raise ValueError("empty generation has mismatched CSV boundaries")
+    elif (
+        type(step) is not int
+        or step < 0
+        or not _valid_digest(marker["last_record_sha256"])
+        or not marker["trajectory"]["bytes"]
+        or not marker["metadata"]["bytes"]
+    ):
+        raise ValueError("nonempty generation requires a valid final step and both committed CSVs")
+
+
+def _read_prefix(path: Path, specification: dict[str, Any], history_id: str) -> bytes:
+    size = specification["bytes"]
+    try:
+        if size:
+            with path.open("rb") as handle:
+                if os.fstat(handle.fileno()).st_size < size:
+                    raise TrajectoryLoadError(path, "committed prefix is shorter than its byte bound")
+                data = handle.read(size)
+        else:
+            data = b""
+    except OSError as error:
+        raise TrajectoryLoadError(path, f"cannot read committed prefix: {error}") from error
+    if len(data) != size:
+        raise TrajectoryLoadError(path, "committed prefix is shorter than its byte bound")
+    if _history_digest(history_id, data).hexdigest() != specification["sha256"]:
+        raise TrajectoryLoadError(path, "committed prefix checksum does not match its history marker")
+    return data
+
+
+def _committed_texts(path: Path, marker: dict[str, Any]) -> tuple[str, str]:
+    texts = []
+    for name, artifact in (("trajectory", path), ("metadata", path.parent / Trajectory.metadata_file_name)):
+        data = _read_prefix(artifact, marker[name], marker["history_id"])
+        try:
+            texts.append(data.decode("utf-8"))
+        except UnicodeError as error:
+            raise TrajectoryLoadError(artifact, f"invalid committed text: {error}") from error
+    return texts[0], texts[1]
+
+
+def _validate_committed_records(
+    marker: dict[str, Any],
+    core_rows: list[tuple[int, dict[str, str]]],
+    metadata_rows: list[tuple[int, dict[str, str]]],
+    path: Path,
+) -> None:
+    if len(core_rows) != marker["generation"] or len(metadata_rows) != marker["generation"]:
+        raise TrajectoryLoadError(path, "committed row counts do not match the marker generation")
+    last_step = None if not core_rows else int(core_rows[-1][1]["step"])
+    if last_step != marker["last_step"]:
+        raise TrajectoryLoadError(path, "committed final step does not match the marker")
+    digests = {_last_record_digest(core_rows, metadata_rows)}
+    if core_rows:
+        row = core_rows[-1][1]
+        metadata = next(value for _, value in metadata_rows if int(value["step"]) == int(row["step"]))
+        digests.add(_legacy_record_digest(tuple(row.values()), tuple(metadata.values())))
+    if marker["last_record_sha256"] not in digests:
+        raise TrajectoryLoadError(path, "committed final record does not match the marker")
+
+
+def _last_record_digest(
+    core_rows: list[tuple[int, dict[str, str]]], metadata_rows: list[tuple[int, dict[str, str]]]
+) -> str | None:
+    if not core_rows:
+        return None
+    row = core_rows[-1][1]
+    metadata = next(value for _, value in metadata_rows if int(value["step"]) == int(row["step"]))
+    return hashlib.sha256(_csv_bytes(tuple(row.values())) + b"\x00" + _csv_bytes(tuple(metadata.values()))).hexdigest()
+
+
+def _legacy_record_digest(core: Sequence[object], metadata: Sequence[object]) -> str:
+    rows = []
+    for values in (core, metadata):
+        cells = [_csv_cell(value) for value in values]
+        encoded = [
+            '"' + cell.replace('"', '""') + '"' if any(character in cell for character in ',"\n') else cell
+            for cell in cells
+        ]
+        rows.append((",".join(encoded) + "\n").encode("utf-8"))
+    return hashlib.sha256(rows[0] + b"\x00" + rows[1]).hexdigest()
+
+
+def _csv_cell(value: object) -> str:
+    return "" if value is None else str(value)
+
+
+def _csv_bytes(values: Sequence[object]) -> bytes:
+    cells = [_csv_cell(value) for value in values]
+    if any("\x00" in value for value in cells):
+        raise ValueError("trajectory CSV cells cannot contain NUL characters")
+    output = io.StringIO(newline="")
+    csv.writer(output, lineterminator="\r\n").writerow(cells)
+    return (output.getvalue().removesuffix("\r\n") + "\n").encode("utf-8")
+
+
+def _encode_csv_row(row: dict[str, object], header: tuple[str, ...] | None) -> tuple[tuple[str, ...], bytes]:
+    fields = tuple(row) if header is None else header
+    if set(fields) != set(row):
+        raise ValueError(
+            f"trajectory record fields changed; file fields do not match: expected {fields}, got {tuple(row)}"
+        )
+    return fields, _csv_bytes(tuple(row[name] for name in fields))
+
+
+def _append_separator(path: Path, size: int) -> bytes:
+    with path.open("rb") as handle:
+        handle.seek(size - 1)
+        return b"" if handle.read(1) in (b"\n", b"\r") else b"\n"
+
+
+def _append_synced(path: Path, data: bytes) -> None:
+    with path.open("ab") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _sync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _ensure_durable_directory(directory: Path) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    absolute = directory.absolute()
+    for parent in reversed((absolute, *absolute.parents)):
+        _sync_directory(parent)
+
+
+def _replace_synced(path: Path, data: bytes) -> None:
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        _sync_directory(path.parent)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def _publish_commit(directory: Path, marker: dict[str, Any]) -> None:
+    _validate_commit(marker)
+    _replace_synced(
+        directory / ".trajectory.commit.json",
+        (json.dumps(marker, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
+    )
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result = dict(pairs)
+    if len(result) != len(pairs):
+        raise ValueError("duplicate JSON object key")
+    return result
+
+
+def _history_digest(history_id: str, data: bytes = b"") -> Any:
+    digest = hashlib.sha256(history_id.encode("utf-8") + b"\x00")
+    digest.update(data)
+    return digest

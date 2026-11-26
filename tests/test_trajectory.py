@@ -17,11 +17,16 @@
 from __future__ import annotations
 
 import csv
+import gc
+import hashlib
+import json
 import math
+import os
+import stat
 from ast import literal_eval
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import pytest
@@ -286,26 +291,37 @@ def test_csv_initializes_a_precreated_empty_file(tmp_path: Path) -> None:
     ]
 
 
-def test_csv_reuses_a_matching_header_without_duplication(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "header, row",
+    [
+        ("step,action,reward,observation", "1,{'x': 1},1.0,[2.0]"),
+        ("step,reward,action,observation", "1,1.0,{'x': 1},[2.0]"),
+    ],
+)
+def test_csv_reuses_a_matching_header_without_duplication(tmp_path: Path, header: str, row: str) -> None:
     path = tmp_path / "trajectory.csv"
-    path.write_text("step,action,reward,observation\n")
+    path.write_text(header + "\n")
 
-    Trajectory(iteration_dir=tmp_path).append(step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0})
+    Trajectory(iteration_dir=tmp_path, mode="adopt").append(
+        step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0}
+    )
 
-    assert path.read_text().splitlines() == [
-        "step,action,reward,observation",
-        "1,{'x': 1},1.0,[2.0]",
-    ]
+    assert path.read_text().splitlines() == [header, row]
+    record = Trajectory.load(tmp_path).records()[0]
+    assert record["action"] == {"x": 1}
+    assert record["reward"] == 1.0 and record["observation"] == [2.0]
 
 
 def test_csv_rejects_an_existing_mismatched_header(tmp_path: Path) -> None:
     path = tmp_path / "trajectory.csv"
-    path.write_text("step,reward,action,observation\n")
+    path.write_text("step,unexpected,action,observation\n")
 
-    with pytest.raises(ValueError, match="file fields do not match"):
-        Trajectory(iteration_dir=tmp_path).append(step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0})
+    with pytest.raises(configurator.TrajectoryLoadError, match="missing required columns"):
+        Trajectory(iteration_dir=tmp_path, mode="adopt").append(
+            step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0}
+        )
 
-    assert path.read_text() == "step,reward,action,observation\n"
+    assert path.read_text() == "step,unexpected,action,observation\n"
 
 
 def test_core_only_trajectory_does_not_create_metadata_file(tmp_path: Path) -> None:
@@ -313,13 +329,21 @@ def test_core_only_trajectory_does_not_create_metadata_file(tmp_path: Path) -> N
 
     trajectory.append(step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0})
 
-    assert not trajectory.metadata_path.exists()
+    assert trajectory.metadata_path.read_text().splitlines() == ["step", "1"]
 
 
-def test_metadata_reuses_matching_header_without_duplication(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "header, row",
+    [
+        ("step,env_params.speed,logging.power", "1,100,600.0"),
+        ("step,logging.power,env_params.speed", "1,600.0,100"),
+    ],
+)
+def test_metadata_reuses_matching_header_without_duplication(tmp_path: Path, header: str, row: str) -> None:
     path = tmp_path / "metadata.csv"
-    path.write_text("step,env_params.speed,logging.power\n")
-    trajectory = Trajectory(iteration_dir=tmp_path)
+    path.write_text(header + "\n")
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n")
+    trajectory = Trajectory(iteration_dir=tmp_path, mode="adopt")
 
     trajectory.append(
         step=1,
@@ -330,10 +354,8 @@ def test_metadata_reuses_matching_header_without_duplication(tmp_path: Path) -> 
         logging={"power": 600.0},
     )
 
-    assert path.read_text().splitlines() == [
-        "step,env_params.speed,logging.power",
-        "1,100,600.0",
-    ]
+    assert path.read_text().splitlines() == [header, row]
+    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"power": "600.0"}
 
 
 def test_metadata_initializes_a_precreated_empty_file(tmp_path: Path) -> None:
@@ -354,8 +376,11 @@ def test_metadata_initializes_a_precreated_empty_file(tmp_path: Path) -> None:
 
 def test_metadata_rejects_an_existing_mismatched_header_before_core_write(tmp_path: Path) -> None:
     metadata_path = tmp_path / "metadata.csv"
-    metadata_path.write_text("step,logging.power,env_params.speed\n")
-    trajectory = Trajectory(iteration_dir=tmp_path)
+    metadata_path.write_text("step,logging.power,env_params.other\n")
+    core = tmp_path / "trajectory.csv"
+    core.write_text("step,action,reward,observation\n")
+    trajectory = Trajectory(iteration_dir=tmp_path, mode="adopt")
+    before = {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
 
     with pytest.raises(ValueError, match="file fields do not match"):
         trajectory.append(
@@ -367,7 +392,7 @@ def test_metadata_rejects_an_existing_mismatched_header_before_core_write(tmp_pa
             logging={"power": 600.0},
         )
 
-    assert not trajectory.output_path.exists()
+    assert before == {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
     assert len(trajectory) == 0
 
 
@@ -377,7 +402,7 @@ def test_persistence_failure_does_not_append_to_memory(tmp_path: Path, monkeypat
     def fail_write(*_args: object, **_kwargs: object) -> None:
         raise OSError("write failed")
 
-    monkeypatch.setattr(pd.DataFrame, "to_csv", fail_write)
+    monkeypatch.setattr(os, "fsync", fail_write)
 
     with pytest.raises(OSError, match="write failed"):
         trajectory.append(step=1, action={"x": 1}, reward=1.0, observation={"metric": 2.0})
@@ -988,7 +1013,7 @@ def test_record_rejects_writes_and_returns_detached_nested_values(
 
 
 @pytest.mark.parametrize("source_kind", ["directory", "file"])
-@pytest.mark.parametrize("artifact", ["absent", "metadata-only", "partial", "broken-metadata"])
+@pytest.mark.parametrize("artifact", ["absent", "metadata-only", "partial", "corrupt-marker", "broken-metadata"])
 def test_optional_history_is_empty_only_when_all_artifacts_are_absent(
     tmp_path: Path, source_kind: str, artifact: str
 ) -> None:
@@ -997,6 +1022,8 @@ def test_optional_history_is_empty_only_when_all_artifacts_are_absent(
         (tmp_path / "metadata.csv").write_text("step\n1\n")
     elif artifact == "partial":
         (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,")
+    elif artifact == "corrupt-marker":
+        (tmp_path / ".trajectory.commit.json").write_text("{")
     elif artifact == "broken-metadata":
         (tmp_path / "metadata.csv").symlink_to(tmp_path / "missing.csv")
     before = sorted(path.name for path in tmp_path.iterdir())
@@ -1085,3 +1112,712 @@ def test_supported_legacy_core_values_do_not_require_metadata(tmp_path, action, 
     assert set(record) == {"step", "action", "reward", "observation"}
     assert source.read_bytes() == before
     assert not (tmp_path / "metadata.csv").exists()
+
+
+@pytest.mark.parametrize(
+    ("action", "reward", "observation", "serialized_observation", "next_observation"),
+    [
+        ({}, {"objective": {}}, {}, [], []),
+        (
+            {"cmd_args.ooo_thresh": 20, "nested": {"empty": {}}},
+            {"metrics.score": 1.0, "empty": {}},
+            [100.0],
+            [100.0],
+            [200.0],
+        ),
+    ],
+)
+def test_complete_core_records_survive_loading_and_appending(
+    tmp_path: Path,
+    action: Any,
+    reward: Any,
+    observation: Any,
+    serialized_observation: list[float],
+    next_observation: list[float],
+) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(step=1, action=action, reward=reward, observation=observation)
+    live = trajectory.records()[0]
+
+    assert live["action"] == action
+    assert live["reward"] == reward
+    assert live["observation"] == observation
+    assert live.row is None
+
+    loaded = Trajectory.load(tmp_path)
+    first = loaded.records()[0]
+    assert first["action"] == action
+    assert first["reward"] == reward
+    assert first["observation"] == serialized_observation
+    assert first.row == 2
+
+    output_path = trajectory.output_path
+    del trajectory
+    gc.collect()
+    loaded = Trajectory(iteration_dir=tmp_path, mode="resume")
+    loaded.append(step=2, action=action, reward=reward, observation=next_observation)
+    records = loaded.records()
+    assert [record["action"] for record in records] == [action, action]
+    assert [record["reward"] for record in records] == [reward, reward]
+    assert [record["observation"] for record in records] == [serialized_observation, next_observation]
+    assert [record.row for record in records] == [2, None]
+    assert records[0].source == records[1].source == output_path
+    assert live["action"] == first["action"] == records[0]["action"]
+
+    reloaded = Trajectory.load(tmp_path).records()
+    assert [dict(record) for record in reloaded] == [dict(record) for record in records]
+    assert [record.row for record in reloaded] == [2, 3]
+
+
+@pytest.mark.parametrize(
+    ("action", "reward", "observation"),
+    [
+        (7, {"objective": 1.0}, (1, 2)),
+        ({"ooo": 1}, -1.0, [-1.0]),
+        ({"ooo": 2}, 0.0, 2.0),
+    ],
+)
+def test_load_accepts_writer_supported_domains_without_optional_metadata(
+    tmp_path: Path, action: Any, reward: Any, observation: Any
+) -> None:
+    written = Trajectory(iteration_dir=tmp_path)
+    written.append(step=1, action=action, reward=reward, observation=observation)
+
+    live_record = written.records()[0]
+    record = Trajectory.load(tmp_path).records()[0]
+
+    assert record["action"] == action
+    assert live_record["action"] == record["action"]
+    assert record["reward"] == reward
+    assert live_record["reward"] == record["reward"]
+    assert record["observation"] == observation
+    assert live_record["observation"] == record["observation"]
+    assert set(record) == {"step", "action", "reward", "observation"}
+    assert written.metadata_path.read_text().splitlines() == ["step", "1"]
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / "trajectory.csv").write_bytes(written.output_path.read_bytes())
+    assert dict(Trajectory.load(legacy).records()[0]) == dict(record)
+    assert not (legacy / "metadata.csv").exists()
+
+
+def test_loading_history_remains_readonly_while_writer_owns_it(tmp_path: Path) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[])
+    loaded = Trajectory.load(tmp_path)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+
+    with pytest.raises((ValueError, RuntimeError)):
+        loaded.append(step=2, action={"x": 2}, reward=2.0, observation=[])
+
+    assert [record.step for record in loaded.records()] == [1]
+    assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+
+
+def test_second_writer_cannot_change_an_owned_history(tmp_path: Path) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[])
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+
+    with pytest.raises((OSError, ValueError, RuntimeError)):
+        Trajectory(iteration_dir=tmp_path, mode="resume").append(step=2, action={"x": 2}, reward=2.0, observation=[])
+
+    assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+
+
+@pytest.mark.parametrize("with_metadata", [False, True])
+@pytest.mark.parametrize("reordered", [False, True])
+def test_create_and_explicit_adoption_preserve_legacy_history(
+    tmp_path: Path, with_metadata: bool, reordered: bool
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    metadata = tmp_path / "metadata.csv"
+    core.write_text("step,action,reward,observation\n0,{},-1.0,[]\n3,{},2.0,[]\n")
+    if with_metadata:
+        metadata.write_text("step,env_params.label\n0,failed\n3,succeeded\n")
+    if reordered:
+        core.write_text("observation,reward,action,step\n[],-1.0,{},0\n[],2.0,{},3\n")
+        if with_metadata:
+            metadata.write_text("env_params.label,step\nfailed,0\nsucceeded,3\n")
+    before = {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+    with pytest.raises((OSError, ValueError, RuntimeError)):
+        Trajectory(iteration_dir=tmp_path).append(step=4, action={}, reward=3.0, observation=[])
+    assert before == {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+    with pytest.raises((OSError, ValueError, RuntimeError)):
+        Trajectory(iteration_dir=tmp_path, mode="resume")
+    assert before == {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+    adopted = Trajectory(iteration_dir=tmp_path, mode="adopt")
+    assert [record.step for record in adopted.records()] == [0, 3]
+    assert before == {name: (tmp_path / name).read_bytes() for name in before}
+    extra = {"env_params": {"label": "continued"}} if with_metadata else {}
+    adopted.append(step=4, action={}, reward=3.0, observation=[], **extra)
+    del adopted
+    gc.collect()
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    assert [record.step for record in resumed.records()] == [0, 3, 4]
+    assert [record["reward"] for record in Trajectory.load(tmp_path).records()] == [-1.0, 2.0, 3.0]
+    assert all((tmp_path / name).read_bytes().startswith(content) for name, content in before.items())
+
+
+def test_readers_ignore_unpublished_tails_and_resume_removes_only_those_tails(tmp_path: Path) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    committed = {path.name: path.read_bytes() for path in (owner.output_path, owner.metadata_path)}
+    with owner.output_path.open("a", newline="") as stream:
+        csv.writer(stream).writerow([2, {"x": 2}, 2.0, []])
+    with owner.metadata_path.open("a", newline="") as stream:
+        csv.writer(stream).writerow([2, "unpublished"])
+
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+    del owner
+    gc.collect()
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    assert committed == {path.name: path.read_bytes() for path in (resumed.output_path, resumed.metadata_path)}
+    resumed.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1, 2]
+
+
+@pytest.mark.parametrize("failure_point", ["trajectory", "metadata", "marker", "directory"])
+def test_retry_after_sync_failure_exposes_only_a_committed_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_point: str
+) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    marker = tmp_path / ".trajectory.commit.json"
+    previous_marker = marker.read_bytes() if marker.exists() else None
+    fsync = os.fsync
+    failed = False
+
+    def fail_sync(descriptor: int) -> None:
+        nonlocal failed
+        descriptor_stat = os.fstat(descriptor)
+        identity = descriptor_stat.st_dev, descriptor_stat.st_ino
+        if stat.S_ISDIR(descriptor_stat.st_mode):
+            kind = "directory"
+        elif identity == (owner.output_path.stat().st_dev, owner.output_path.stat().st_ino):
+            kind = "trajectory"
+        elif identity == (owner.metadata_path.stat().st_dev, owner.metadata_path.stat().st_ino):
+            kind = "metadata"
+        else:
+            kind = "marker"
+        published = marker.exists() and marker.read_bytes() != previous_marker
+        if kind == failure_point and not failed and (kind != "directory" or published):
+            failed = True
+            visible = [1, 2] if failure_point == "directory" else [1]
+            assert [record.step for record in Trajectory.load(tmp_path).records()] == visible
+            raise OSError(f"injected {failure_point} sync failure")
+        fsync(descriptor)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(os, "fsync", fail_sync)
+        with pytest.raises(OSError, match=f"injected {failure_point} sync failure"):
+            owner.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+
+    assert failed
+    assert len(owner) == 1
+    visible = [1, 2] if failure_point == "directory" else [1]
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == visible
+    owner.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+    assert len(owner) == 2
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1, 2]
+
+
+def test_publication_failure_after_marker_replace_retries_without_duplicate_steps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    replace = os.replace
+    failed = False
+
+    def replace_then_fail(source: str | Path, destination: str | Path) -> None:
+        nonlocal failed
+        replace(source, destination)
+        if Path(destination).name == ".trajectory.commit.json" and not failed:
+            failed = True
+            raise OSError("injected lost acknowledgement")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(os, "replace", replace_then_fail)
+        with pytest.raises(OSError, match="injected lost acknowledgement"):
+            owner.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+
+    assert failed
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1, 2]
+    committed = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    with pytest.raises((ValueError, RuntimeError)):
+        owner.append(step=2, action={"x": 99}, reward=2.0, observation=[], env_params={"label": "second"})
+    assert committed == {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    retried = owner.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+    assert retried["reward"] == 2.0
+    assert [record.step for record in owner.records()] == [1, 2]
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1, 2]
+
+
+def test_failed_empty_marker_publication_precedes_first_csv_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    replace = os.replace
+    failed = False
+
+    def refuse_empty_marker(source: str | Path, destination: str | Path) -> None:
+        nonlocal failed
+        if Path(destination).name == ".trajectory.commit.json":
+            failed = True
+            for path in tmp_path.glob("*.csv"):
+                with path.open(newline="") as stream:
+                    assert list(csv.DictReader(stream)) == []
+            raise OSError("injected empty marker publication failure")
+        replace(source, destination)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(os, "replace", refuse_empty_marker)
+        with pytest.raises(OSError, match="injected empty marker publication failure"):
+            Trajectory(iteration_dir=tmp_path).append(step=1, action={}, reward=1.0, observation=[])
+
+    assert failed
+    for path in tmp_path.glob("*.csv"):
+        with path.open(newline="") as stream:
+            assert list(csv.DictReader(stream)) == []
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={}, reward=1.0, observation=[])
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        (("format_version",), 99),
+        (("format_version",), True),
+        (("history_id",), "not-a-history-identity"),
+        (("history_id",), "00000000-0000-4000-8000-000000000002"),
+        (("generation",), True),
+        (("generation",), 2),
+        (("last_step",), 2),
+        (("trajectory", "bytes"), -1),
+        (("trajectory", "bytes"), "beyond-eof"),
+        (("trajectory", "bytes"), 2**128),
+        (("trajectory", "sha256"), "0" * 64),
+        (("metadata", "bytes"), 0),
+        (("last_record_sha256",), "0" * 64),
+    ],
+)
+def test_corrupt_commit_markers_never_fall_back_to_unbounded_csv_loading(
+    tmp_path: Path, field: tuple[str, ...], value: Any
+) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    del owner
+    gc.collect()
+    marker_path = tmp_path / ".trajectory.commit.json"
+    marker = json.loads(marker_path.read_text())
+    target = marker
+    for component in field[:-1]:
+        target = target[component]
+    target[field[-1]] = (tmp_path / "trajectory.csv").stat().st_size + 1 if value == "beyond-eof" else value
+    marker_path.write_text(json.dumps(marker))
+    before = {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+    with pytest.raises(configurator.TrajectoryLoadError):
+        Trajectory.load(tmp_path)
+    with pytest.raises((ValueError, configurator.TrajectoryLoadError)):
+        Trajectory(iteration_dir=tmp_path, mode="resume")
+
+    assert before == {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+
+@pytest.mark.parametrize("damage", ["missing-metadata", "short-core", "bounded-partial-row"])
+def test_managed_prefixes_require_all_committed_bytes_and_complete_rows(tmp_path: Path, damage: str) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    del owner
+    gc.collect()
+    marker_path = tmp_path / ".trajectory.commit.json"
+    marker = json.loads(marker_path.read_text())
+    core = tmp_path / "trajectory.csv"
+    if damage == "missing-metadata":
+        (tmp_path / "metadata.csv").unlink()
+    elif damage == "short-core":
+        core.write_bytes(core.read_bytes()[:-1])
+    else:
+        contents = core.read_bytes()
+        prefix = contents[: len(contents.splitlines(keepends=True)[0]) + 3]
+        marker["trajectory"] = {
+            "bytes": len(prefix),
+            "sha256": hashlib.sha256(marker["history_id"].encode() + b"\x00" + prefix).hexdigest(),
+        }
+        marker_path.write_text(json.dumps(marker))
+
+    with pytest.raises(configurator.TrajectoryLoadError):
+        Trajectory.load(tmp_path)
+
+
+@pytest.mark.parametrize("contents", ["{", "{}"])
+def test_malformed_commit_marker_is_an_error_even_when_csvs_are_valid(tmp_path: Path, contents: str) -> None:
+    owner = Trajectory(iteration_dir=tmp_path)
+    owner.append(step=1, action={}, reward=1.0, observation=[])
+    (tmp_path / ".trajectory.commit.json").write_text(contents)
+
+    with pytest.raises(configurator.TrajectoryLoadError):
+        Trajectory.load(tmp_path)
+
+
+@pytest.mark.parametrize("precreate_csvs", [False, True])
+def test_empty_committed_boundary_loads_and_resumes_without_csv_rows(tmp_path: Path, precreate_csvs: bool) -> None:
+    history_id = "00000000-0000-4000-8000-000000000001"
+    empty_hash = hashlib.sha256(history_id.encode() + b"\x00").hexdigest()
+    marker = {
+        "format_version": 1,
+        "history_id": history_id,
+        "generation": 0,
+        "last_step": None,
+        "trajectory": {"bytes": 0, "sha256": empty_hash},
+        "metadata": {"bytes": 0, "sha256": empty_hash},
+        "last_record_sha256": None,
+    }
+    (tmp_path / ".trajectory.commit.json").write_text(json.dumps(marker))
+    if precreate_csvs:
+        (tmp_path / "trajectory.csv").touch()
+        (tmp_path / "metadata.csv").touch()
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    assert Trajectory.load(tmp_path).records() == ()
+    assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    owner = Trajectory(iteration_dir=tmp_path, mode="resume")
+    owner.append(step=1, action={}, reward=-1.0, observation=[float("nan")])
+    record = Trajectory.load(tmp_path).records()[0]
+    assert record.step == 1 and record["reward"] == -1.0
+    assert math.isnan(record["observation"][0])
+
+
+def test_heterogeneous_actions_keep_missing_fields_distinct_from_none_after_reload(tmp_path: Path) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    actions = [{"x": None}, {"y": 2}, {"x": 3, "y": None}]
+    for step, action in zip((1, 2, 5), actions, strict=True):
+        trajectory.append(step=step, action=action, reward=1.0, observation=[], env_params={"label": "same"})
+
+    for history in (trajectory, Trajectory.load(tmp_path)):
+        assert [record["action"] for record in history.records()] == actions
+        x_none = history.find(action={"x": None})
+        y_none = history.find(action={"y": None})
+        assert x_none is not None and x_none["step"] == 1
+        assert y_none is not None and y_none["step"] == 5
+        assert history.find(action={"x": None, "y": None}) is None
+
+
+def test_explicit_adoption_rejects_invalid_legacy_pair_before_creating_a_marker(tmp_path: Path) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{},1.0,[]\n")
+    (tmp_path / "metadata.csv").write_text("step,env_params.label\n2,unmatched\n")
+    before = {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+
+    with pytest.raises(configurator.TrajectoryLoadError):
+        Trajectory(iteration_dir=tmp_path, mode="adopt")
+
+    assert before == {path.name: path.read_bytes() for path in tmp_path.glob("*.csv")}
+    assert not (tmp_path / ".trajectory.commit.json").exists()
+
+
+@pytest.mark.parametrize("inline_column", ["note", "env_params.foo"])
+@pytest.mark.parametrize("with_metadata", [False, True])
+def test_readable_inline_columns_cannot_be_adopted_for_writing(
+    tmp_path: Path, inline_column: str, with_metadata: bool
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    core.write_text(f"step,action,reward,observation,{inline_column}\n1,{{}},1,[],old\n")
+    if with_metadata:
+        (tmp_path / "metadata.csv").write_text("step,env_params.sidecar\n1,retained\n")
+    paths = (core, tmp_path / "metadata.csv", tmp_path / ".trajectory.commit.json")
+    before = {path.name: path.read_bytes() if path.exists() else None for path in paths}
+    loaded = Trajectory.load(tmp_path)
+    assert loaded.dataframe.loc[0, inline_column] == "old"
+    with pytest.raises(RuntimeError, match="read-only"):
+        loaded.append(step=2, action={}, reward=2, observation=[])
+
+    for _ in range(2):
+        with pytest.raises(configurator.TrajectoryLoadError, match="writ") as failure:
+            Trajectory(iteration_dir=tmp_path, mode="adopt")
+        assert str(core) in str(failure.value) and inline_column in str(failure.value)
+        assert {path.name: path.read_bytes() if path.exists() else None for path in paths} == before
+        assert Trajectory.load(tmp_path).dataframe.loc[0, inline_column] == "old"
+
+
+@pytest.mark.parametrize(
+    "inline_column,history_id,core_digest,metadata_digest",
+    [
+        (
+            "note",
+            "cfe58403-ff40-4ec3-a7cc-696214414fe7",
+            "518b072315a7d978200f2d330cce6bf0eaa3cb0b3edfad210c964fd29b07eef7",
+            "e0d2afb5eb392f48233918d897c038d61c4fd180680da8aed997cc457b5dd52f",
+        ),
+        (
+            "env_params.foo",
+            "8ac2dc2e-01cb-49cf-b5f0-cd30fcc181da",
+            "bab28f33aa5dd7029b3689e62eef92c402bc473c9807570862d6e4ce1efec1c1",
+            "00f2b04214b5cf39120ba94b7033d9f1e70681607973053ac1c708f7e3a4f810",
+        ),
+    ],
+)
+def test_old_inline_managed_history_refuses_resume_before_recovering_tails(
+    tmp_path: Path, inline_column: str, history_id: str, core_digest: str, metadata_digest: str
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    core.write_text(f"step,action,reward,observation,{inline_column}\n1,{{}},1,[],old\n")
+    metadata = tmp_path / "metadata.csv"
+    metadata.write_text("step\n1\n")
+    marker = {
+        "format_version": 1,
+        "generation": 1,
+        "history_id": history_id,
+        "last_record_sha256": "0d9d3b9795250568ef6840868ec19c728f63c77ed25e023f8d3dc417af650261",
+        "last_step": 1,
+        "metadata": {"bytes": len(metadata.read_bytes()), "sha256": metadata_digest},
+        "trajectory": {"bytes": len(core.read_bytes()), "sha256": core_digest},
+    }
+    marker_path = tmp_path / ".trajectory.commit.json"
+    marker_path.write_text(json.dumps(marker))
+    with core.open("ab") as stream:
+        stream.write(b"2,{},2,[],unpublished\n")
+    with metadata.open("ab") as stream:
+        stream.write(b"2\n")
+    paths = (core, metadata, marker_path)
+    before = {path.name: path.read_bytes() for path in paths}
+    assert Trajectory.load(tmp_path).dataframe[inline_column].tolist() == ["old"]
+
+    for _ in range(2):
+        with pytest.raises(configurator.TrajectoryLoadError, match="writ") as failure:
+            Trajectory(iteration_dir=tmp_path, mode="resume")
+        assert str(core) in str(failure.value) and inline_column in str(failure.value)
+        assert {path.name: path.read_bytes() for path in paths} == before
+        assert Trajectory.load(tmp_path).dataframe[inline_column].tolist() == ["old"]
+
+
+@pytest.mark.parametrize("mode", ["create", "adopt"])
+def test_initial_publication_syncs_csv_contents_and_names_before_the_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: Literal["create", "adopt"]
+) -> None:
+    core = tmp_path / "trajectory.csv"
+    metadata = tmp_path / "metadata.csv"
+    if mode == "adopt":
+        core.write_text("step,action,reward,observation\n1,{},1.0,[]\n")
+        metadata.write_text("step\n1\n")
+    fsync, replace = os.fsync, os.replace
+    synced = set()
+    checked = False
+
+    def observe_sync(descriptor: int) -> None:
+        fsync(descriptor)
+        descriptor_stat = os.fstat(descriptor)
+        identity = descriptor_stat.st_dev, descriptor_stat.st_ino
+        if identity == (tmp_path.stat().st_dev, tmp_path.stat().st_ino):
+            if {"trajectory.csv", "metadata.csv"} <= synced:
+                synced.add("directory-after-files")
+        else:
+            for path in (core, metadata):
+                if path.exists() and identity == (path.stat().st_dev, path.stat().st_ino):
+                    synced.add(path.name)
+
+    def observe_marker(source: str | Path, destination: str | Path) -> None:
+        nonlocal checked
+        if Path(destination).name == ".trajectory.commit.json" and core.exists() and metadata.exists():
+            checked = True
+            assert {"trajectory.csv", "metadata.csv", "directory-after-files"} <= synced
+        replace(source, destination)
+
+    monkeypatch.setattr(os, "fsync", observe_sync)
+    monkeypatch.setattr(os, "replace", observe_marker)
+    owner = Trajectory(iteration_dir=tmp_path, mode=mode)
+    if mode == "create":
+        owner.append(step=1, action={}, reward=1.0, observation=[])
+    assert checked
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+
+
+def test_initialization_retry_syncs_the_ancestor_left_by_a_failed_directory_sync(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    iteration = tmp_path / "new-parent" / "iteration"
+    ancestor = tmp_path.stat().st_dev, tmp_path.stat().st_ino
+    fsync = os.fsync
+    failed = False
+    retry_synced_ancestor = False
+
+    def fail_ancestor_sync(descriptor: int) -> None:
+        nonlocal failed
+        descriptor_stat = os.fstat(descriptor)
+        if (descriptor_stat.st_dev, descriptor_stat.st_ino) == ancestor and not failed:
+            failed = True
+            raise OSError("injected ancestor entry sync failure")
+        fsync(descriptor)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(os, "fsync", fail_ancestor_sync)
+        with pytest.raises(OSError, match="injected ancestor entry sync failure"):
+            Trajectory(iteration_dir=iteration)
+    assert failed
+
+    def observe_retry_sync(descriptor: int) -> None:
+        nonlocal retry_synced_ancestor
+        fsync(descriptor)
+        descriptor_stat = os.fstat(descriptor)
+        if (descriptor_stat.st_dev, descriptor_stat.st_ino) == ancestor:
+            retry_synced_ancestor = True
+
+    monkeypatch.setattr(os, "fsync", observe_retry_sync)
+    owner = Trajectory(iteration_dir=iteration)
+    owner.append(step=1, action={}, reward=1.0, observation=[])
+    assert retry_synced_ancestor
+    assert [record.step for record in Trajectory.load(iteration).records()] == [1]
+
+
+@pytest.mark.parametrize("mode", ["create", "resume", "adopt"])
+@pytest.mark.parametrize("link_kind", ["symlink", "hardlink", "directory"])
+@pytest.mark.parametrize("artifact", ["trajectory.csv", "metadata.csv"])
+def test_writer_requires_an_independent_regular_csv_pair(
+    tmp_path: Path, mode: Literal["create", "resume", "adopt"], link_kind: str, artifact: str
+) -> None:
+    history = tmp_path / "history"
+    shared = tmp_path / "shared"
+    history.mkdir()
+    shared.mkdir()
+    core = history / "trajectory.csv"
+    metadata = history / "metadata.csv"
+    marker = history / ".trajectory.commit.json"
+    if mode == "resume":
+        owner = Trajectory(iteration_dir=history)
+        owner.append(step=1, action={"x": 1}, reward=1.0, observation=[])
+        del owner
+        gc.collect()
+    elif mode == "adopt":
+        core.write_text("step,action,reward,observation\n1,{'x': 1},1.0,[]\n")
+        metadata.write_text("step\n1\n")
+    else:
+        core.write_bytes(b"")
+        metadata.write_bytes(b"")
+    selected = history / artifact
+    external = shared / artifact
+    selected.rename(external)
+    if link_kind == "symlink":
+        selected.symlink_to(external)
+    elif link_kind == "hardlink":
+        selected.hardlink_to(external)
+    else:
+        selected.mkdir()
+    paths = (core, metadata, marker, external)
+    before = {path: path.read_bytes() if path.is_file() else None for path in paths}
+    if mode != "create" and link_kind != "directory":
+        assert [record.step for record in Trajectory.load(history).records()] == [1]
+
+    with pytest.raises(configurator.TrajectoryLoadError, match=artifact):
+        Trajectory(iteration_dir=history, mode=mode)
+
+    assert {path: path.read_bytes() if path.is_file() else None for path in paths} == before
+    assert selected.is_symlink() == (link_kind == "symlink")
+    assert selected.is_dir() == (link_kind == "directory")
+
+
+@pytest.mark.parametrize("link_kind", ["symlink", "hardlink"])
+def test_late_metadata_alias_refusal_preserves_the_unpublished_core_tail(tmp_path: Path, link_kind: str) -> None:
+    history = tmp_path / "history"
+    owner = Trajectory(iteration_dir=history)
+    owner.append(step=1, action={"x": 1}, reward=1.0, observation=[], env_params={"label": "first"})
+    with owner.output_path.open("a", newline="") as stream:
+        csv.writer(stream).writerow([2, {"x": 2}, 2.0, []])
+    external = tmp_path / "shared-metadata.csv"
+    owner.metadata_path.rename(external)
+    if link_kind == "symlink":
+        owner.metadata_path.symlink_to(external)
+    else:
+        owner.metadata_path.hardlink_to(external)
+    paths = (owner.output_path, owner.metadata_path, history / ".trajectory.commit.json", external)
+    before = {path: path.read_bytes() for path in paths}
+
+    with pytest.raises(configurator.TrajectoryLoadError, match=r"metadata\.csv"):
+        owner.append(step=2, action={"x": 2}, reward=2.0, observation=[], env_params={"label": "second"})
+
+    assert {path: path.read_bytes() for path in paths} == before
+    assert [record.step for record in Trajectory.load(history).records()] == [1]
+
+
+@pytest.mark.parametrize("partial_tail", [False, True], ids=["complete-unpublished-row", "partial-unpublished-row"])
+def test_marker_appearing_after_legacy_precheck_bounds_the_published_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, partial_tail: bool
+) -> None:
+    core = tmp_path / Trajectory.file_name
+    core.write_text("step,action,reward,observation\n1,{'x': 1},10,[1.0]\n")
+    marker = tmp_path / ".trajectory.commit.json"
+    open_path, replace = Path.open, os.replace
+    owners = []
+    started = False
+
+    def interrupt_publication(source, target):
+        if Path(target) == marker and json.loads(Path(source).read_text())["generation"] == 2:
+            raise OSError("unpublished second record")
+        return replace(source, target)
+
+    def start_adoption_at_read(path: Path, *args, **kwargs):
+        nonlocal started
+        if path == core and not started:
+            started = True
+            owner = Trajectory(iteration_dir=tmp_path, mode="adopt")
+            owners.append(owner)
+            with pytest.raises(OSError, match="unpublished second record"):
+                owner.append(step=2, action={"x": 2}, reward=20, observation=[2.0])
+            if partial_tail:
+                content = core.read_bytes()
+                core.write_bytes(content[: content.rfind(b"\n", 0, len(content) - 1) + 1] + b'2,"unfinished')
+        return open_path(path, *args, **kwargs)
+
+    with monkeypatch.context() as scheduling:
+        scheduling.setattr(Path, "open", start_adoption_at_read)
+        scheduling.setattr(os, "replace", interrupt_publication)
+        loaded = Trajectory.load(tmp_path)
+
+    assert started
+    assert [record.step for record in loaded.records()] == [1]
+    assert json.loads(marker.read_text())["last_step"] == 1
+    assert [record.step for record in Trajectory.load(tmp_path).records()] == [1]
+
+
+@pytest.mark.parametrize("label", ["plain", "bare\rreturn", "line\nfeed", "paired\r\nbreak"])
+def test_csv_control_characters_roundtrip_load_resume_and_exact_retry(tmp_path: Path, label: str) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    values: dict[str, Any] = {
+        "step": 1,
+        "action": {"x": 1},
+        "reward": 10,
+        "observation": [1.0],
+        "logging": {"label": label},
+    }
+    writer.append(**values)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"label": label}
+    del writer
+    gc.collect()
+
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    resumed.append(**values)
+
+    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"label": label}
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+def test_old_python310_adopted_quoted_carriage_return_keeps_valid_marker_and_retry_bytes(tmp_path: Path) -> None:
+    import shutil
+
+    reference = Path(__file__).parent / "ref_data" / "trajectory" / "old310-adopt-quoted-cr"
+    expected = {path.name: path.read_bytes() for path in reference.iterdir()}
+    shutil.copytree(reference, tmp_path, dirs_exist_ok=True)
+
+    loaded = Trajectory.load(tmp_path)
+
+    assert [record.step for record in loaded.records()] == [1]
+    assert loaded.records()[0]["note"] == "left\rright"
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    resumed.append(step=1, action={}, reward=1, observation=[1.0], note="left\rright")
+    assert {name: (tmp_path / name).read_bytes() for name in expected} == expected
+    assert {path.name: path.read_bytes() for path in reference.iterdir()} == expected

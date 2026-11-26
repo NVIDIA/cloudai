@@ -556,7 +556,9 @@ def test_get_cached_trajectory_result(
         rewards=RewardOverrides(),
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
-    env.trajectory = Trajectory(iteration_dir=env.iteration_dir, dataframe=pd.DataFrame(entries, dtype=object))
+    env.trajectory = Trajectory(
+        iteration_dir=env.iteration_dir / "cached-history", dataframe=pd.DataFrame(entries, dtype=object)
+    )
 
     actual = env.get_cached_trajectory_result(action, {})
     if actual is None:
@@ -621,7 +623,7 @@ def _seed_cached_entry_with_env_params(
     env: CloudAIGymEnv, action: dict[str, object], env_params: dict[str, object]
 ) -> None:
     """Seed an environment-parameter-aware trajectory with one entry."""
-    trajectory = Trajectory(iteration_dir=env.iteration_dir)
+    trajectory = Trajectory(iteration_dir=env.iteration_dir / "cached-history")
     trajectory.append(
         step=1,
         action=action,
@@ -700,7 +702,7 @@ def test_cache_hit_when_neither_has_env_params(base_tr: TestRun, tmp_path: Path)
     )
     env.test_run.current_iteration = 0
     env.trajectory = Trajectory(
-        iteration_dir=env.iteration_dir,
+        iteration_dir=env.iteration_dir / "cached-history",
         dataframe=pd.DataFrame([_trajectory_row(1, {"x": 10}, 0.5, [100.0])], dtype=object),
     )
     # Note: neither the cached entry nor the trial carries env_params -> existing behavior.
@@ -1053,7 +1055,7 @@ def test_csv_trajectory_has_no_env_params_column_when_not_declared(
     assert env.params is None, "no env_params declared -> no EnvParams object"
     env.trajectory.append(step=1, action={}, reward=1.0, observation={"default": 1.0})
     assert env.trajectory_file_path.read_text().splitlines()[0] == "step,action,reward,observation"
-    assert not env.trajectory.metadata_path.exists()
+    assert env.trajectory.metadata_path.read_text().splitlines() == ["step", "1"]
 
 
 def _dr_env(tmp_path: Path, candidates: list, *, seed: int = 42) -> CloudAIGymEnv:
