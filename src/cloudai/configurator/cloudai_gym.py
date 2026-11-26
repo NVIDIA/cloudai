@@ -18,7 +18,7 @@ import copy
 import logging
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
@@ -76,9 +76,13 @@ class CloudAIGymEnv(BaseGym):
             for row in self.trajectory.dataframe.to_dict(orient="records")
             if math.isfinite(row["reward"])
             and all(
-                math.isfinite(row[f"observation.{metric}"])
-                and row[f"observation.{metric}"] != self.rewards.metric_failure
-                for metric in tr.test.agent_metrics
+                math.isfinite(value) and value != self.rewards.metric_failure
+                for value in (
+                    row["observation"][index]
+                    if isinstance(row.get("observation"), list)
+                    else row[f"observation.{metric}"]
+                    for index, metric in enumerate(tr.test.agent_metrics)
+                )
             )
         ]
         return [
@@ -162,39 +166,30 @@ class CloudAIGymEnv(BaseGym):
         return self.define_observation_space(), info
 
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
-        """
-        Execute one step in the environment.
-
-        Args:
-            action (Any): Action chosen by the agent.
-
-        Returns:
-            Tuple: A tuple containing:
-                - observation (list): Updated system state.
-                - reward (float): Reward for the action taken.
-                - done (bool): Whether the episode is done.
-                - info (dict): Additional info for debugging.
-        """
         trial = self.upcoming_trial
-        # RNG lives in the env: sample here, then apply action + sample so the run and cache key see them.
         sampled_env_params = self.params.sample(trial) if self.params else {}
         info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
         candidate_test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
         candidate_test_run.step = trial
-
         cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
+        failed_metrics: list[str] = []
+        execution_error = None
 
         if cached_result is not None:
             self.test_run = candidate_test_run
+            self.test_run.output_path = self.iteration_dir / str(trial)
             logging.info(
                 "Retrieved cached result from trajectory with reward %s (from step %s). Skipping execution.",
                 cached_result["reward"],
                 cached_result["step"],
             )
-            observation = {
-                metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
-            }
-            reward = cast(float, cached_result["reward"])
+            if "observation" in cached_result:
+                observation = dict(zip(self.test_run.test.agent_metrics, cached_result["observation"], strict=True))
+            else:
+                observation = {
+                    metric: cached_result[f"observation.{metric}"] for metric in self.test_run.test.agent_metrics
+                }
+            reward = float(cached_result["reward"])
         else:
             if not candidate_test_run.test.constraint_check(candidate_test_run, self.runner.system):
                 logging.info("Constraint check failed for step %s", trial)
@@ -204,44 +199,57 @@ class CloudAIGymEnv(BaseGym):
                     self._advance_progress()
                 return [-1.0], self.rewards.constraint_failure, True, info
 
-            self.test_run = candidate_test_run
-
-            new_tr = copy.deepcopy(self.test_run)
-            new_tr.output_path = self.runner.get_job_output_path(new_tr)
-            self.runner.test_scenario.test_runs = [new_tr]
-
+            submitted_test_run = copy.deepcopy(candidate_test_run)
+            submitted_test_run.output_path = self.runner.get_job_output_path(submitted_test_run)
+            self.test_run = submitted_test_run
+            self.runner.test_scenario.test_runs = [submitted_test_run]
             self.runner.shutting_down = False
             self.runner.jobs.clear()
             self.runner.testrun_to_job_map.clear()
-
             try:
                 self.runner.run()
-            except Exception as e:
-                logging.error(f"Error running step {self.test_run.step}: {e}")
-
-            if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
-                self.test_run = self.runner.test_scenario.test_runs[0]
-            else:
-                self.test_run = copy.deepcopy(self.original_test_run)
-                self.test_run.step = new_tr.step
-                self.test_run.output_path = new_tr.output_path
-
-            observation = self.get_observation()
+            except Exception as error:
+                execution_error = f"{type(error).__name__}: {error}"
+                logging.error("Error running step %s: %s", self.test_run.step, error)
+            observation = self.get_observation(failed_metrics=failed_metrics)
             reward = self.compute_reward(observation)
 
-        self.trajectory.append(
-            step=self.test_run.step,
+        output_test = next(
+            (test for test in self.runner.experiment_output.experiment.tests if test.id == self.test_run.name), None
+        )
+        run_output = (
+            next(
+                (
+                    run
+                    for run in reversed(output_test.runs)
+                    if Path(run.path).absolute() == self.test_run.output_path.absolute()
+                    and run.iteration == self.test_run.current_iteration
+                    and run.step == self.test_run.step
+                ),
+                None,
+            )
+            if output_test is not None and cached_result is None
+            else None
+        )
+        record = self.trajectory.record(
+            test_run=self.test_run,
+            action_space=self.original_test_run.param_space,
             action=action,
             reward=reward,
             observation=observation,
-            env_params=sampled_env_params,
+            system=self.runner.system,
+            rewards=self.rewards,
+            failed_metrics=failed_metrics,
+            execution_error=execution_error,
+            cached_result=cached_result,
+            run_output=run_output,
         )
-
+        context = {name: record.get(name, decode_numbers=True) for name in record.metadata}
+        info["trajectory"] = context
         self._advance_progress()
         logging.info(
             "Step %s: Observation: %s, Reward: %.4f", trial, [round(obs, 4) for obs in observation.values()], reward
         )
-
         return list(observation.values()), reward, False, info
 
     def render(self, mode: str = "human"):
@@ -275,23 +283,18 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.reward_function(list(observation.values()))
 
-    def get_observation(self) -> dict[str, Any]:
-        """
-        Get the observation from the TestRun object.
-
-        Returns:
-            Metric values keyed by configured metric name.
-        """
+    def get_observation(self, *, failed_metrics: list[str] | None = None) -> dict[str, Any]:
         all_metrics = self.test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
-
         observation: dict[str, Any] = {}
         for metric in all_metrics:
-            v = self.test_run.get_metric_value(self.runner.system, metric)
-            if v is METRIC_ERROR:
-                v = self.rewards.metric_failure
-            observation[metric] = v
+            value = self.test_run.get_metric_value(self.runner.system, metric)
+            if value is METRIC_ERROR:
+                if failed_metrics is not None:
+                    failed_metrics.append(metric)
+                value = self.rewards.metric_failure
+            observation[metric] = value
         return observation
 
     def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]:

@@ -19,18 +19,20 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import csv
 import hashlib
 import io
 import json
 import logging
+import math
 import os
 import stat
 import tempfile
 import threading
 import uuid
 import weakref
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +41,12 @@ from typing import TYPE_CHECKING, Any, Literal
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     import pandas as pd
+
+    from cloudai.core import RewardOverrides, System, TestRun
+    from cloudai.models.output import Run
 
 
 class TrajectoryLoadError(RuntimeError):  # noqa: D101
@@ -88,7 +95,23 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
             value = self[key]
         except KeyError:
             return default
+
+        if decode_numbers and self._domains.get("record_context_version") == "1":
+            context = _decode_record_context(self._domains, self.source, self.step, field=key)
+            if key in context:
+                return context[key]
+            return (
+                _decode_environment(value)
+                if key == "env_params" and self._domains.get("record_format_version") == "1"
+                else value
+            )
+        if decode_numbers and key == "env_params" and self._domains.get("record_format_version") == "1":
+            return _decode_environment(value)
         return _decode_numbers(value) if decode_numbers else value
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {key: deepcopy(value) for key, value in self._domains.items() if key not in Trajectory._core_domains}
 
 
 class Trajectory:
@@ -236,12 +259,7 @@ class Trajectory:
         for name in extra:
             domain = name.split(".", maxsplit=1)[0]
             if domain in cls._core_domains:
-                raise TrajectoryLoadError(
-                    path,
-                    f"metadata overlaps core domain: {name}",
-                    row=row_number,
-                    step=step,
-                )
+                raise TrajectoryLoadError(path, f"metadata overlaps core domain: {name}", row=row_number, step=step)
 
         source_paths = {name: path for name in extra}
 
@@ -253,16 +271,21 @@ class Trajectory:
                 if name != "step":
                     if name in extra:
                         raise TrajectoryLoadError(
-                            sidecar,
-                            f"duplicate metadata field: {name}",
-                            row=metadata_row_number,
-                            step=step,
+                            sidecar, f"duplicate metadata field: {name}", row=metadata_row_number, step=step
                         )
                     extra[name] = value
                     source_paths[name] = sidecar
 
+        format_version = extra.get("record_format_version")
+        if any(name.startswith("record_format_version.") for name in extra) or (
+            format_version is not None and format_version != "1"
+        ):
+            raise TrajectoryLoadError(
+                path, f"unsupported record_format_version or non-scalar version field: {format_version!r}", step=step
+            )
+        _decode_record_context(extra, path, step)
         for name, value in extra.items():
-            _set_domain(domains, name, value, source_paths[name], step)
+            _set_domain(domains, name, value, source_paths[name], step, format_version=format_version)
 
         return TrajectoryRecord(step, path, domains, row_number)
 
@@ -278,7 +301,10 @@ class Trajectory:
         if record is None or missing:
             domains = dict(existing)
             for name, value in missing.items():
-                _set_domain(domains, name, value, self.output_path, row["step"])
+                format_version = row.get("record_format_version")
+                if format_version == "1" and name.startswith("env_params."):
+                    value = json.dumps(value, allow_nan=False, separators=(",", ":"))
+                _set_domain(domains, name, value, self.output_path, row["step"], format_version=format_version)
             source = self.output_path if record is None else record.source
             source_row = None if record is None else record.row
             record = TrajectoryRecord(row["step"], source, domains, source_row)
@@ -352,42 +378,35 @@ class Trajectory:
         return _copy_series(lazy.pd.Series(record, dtype=object))
 
     def find(self, **values: object) -> pd.Series | None:
-        """Return a copy of the first row matching all supplied domain values."""
         criteria: dict[str, object] = {}
         for domain, value in values.items():
-            for field, field_value in _flatten_value(domain, value).items():
-                if field in criteria:
-                    raise ValueError(f"trajectory values produce duplicate column: {field}")
-                criteria[field] = field_value
-
-        if not self._rows:
-            return None
-
-        # One index per distinct criteria field-set, built on first use. Callers query with a
-        # stable set of domains, so this is built once and maintained by ``append``.
-        fields = tuple(sorted(criteria))
-        index = self._find_index.get(fields)
-        if index is None:
-            index = {}
-            for position, record in enumerate(self._rows):
-                if all(field in record for field in fields):
-                    index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
-            self._find_index[fields] = index
-
-        # A bucket narrows the scan; it does not prove equality. Distinct values can share a
-        # key, so the exact predicate still decides, keeping the pre-index result.
-        bucket = index.get(tuple(_hashable_key(criteria[field]) for field in fields), ())
-        record = next(
-            (
-                candidate
-                for candidate in (self._rows[position] for position in bucket)
-                if all(_values_match_exact(candidate[field], criteria[field]) for field in fields)
-            ),
-            None,
-        )
-        if record is None:
+            if domain == "env_params":
+                continue
+            flattened = _flatten_value(domain, value)
+            duplicate = criteria.keys() & flattened.keys()
+            if duplicate:
+                raise ValueError(f"trajectory values produce duplicate column: {min(duplicate)}")
+            criteria.update(flattened)
+        variants: list[tuple[dict[str, object], bool | None]] = [(criteria, None)]
+        if "env_params" in values and values["env_params"] != {}:
+            environment = values["env_params"]
+            variants = []
+            try:
+                variants.append((criteria | _flatten_value("env_params", environment), False))
+            except ValueError:
+                if not isinstance(environment, Mapping):
+                    raise
+            if isinstance(environment, Mapping):
+                variants.append((criteria | _flatten_environment(environment), True))
+        positions = [
+            position
+            for variant, versioned in variants
+            if (position := self._find_position(variant, versioned)) is not None
+        ]
+        if not positions:
             logging.debug("No matching trajectory row found for %s.", values)
             return None
+        record = self._rows[min(positions)]
         logging.debug("Found matching trajectory row at step %s for %s.", record["step"], values)
         return _copy_series(lazy.pd.Series(record, dtype=object))
 
@@ -496,9 +515,19 @@ class Trajectory:
         self, step: int, action: object, reward: object, observation: object, values: dict[str, object]
     ) -> tuple[dict[str, Any], TrajectoryRecord, dict[str, object], dict[str, object]]:
         self._validate_step(step)
+        format_version = values.get("record_format_version")
+        if format_version is not None and format_version != "1":
+            raise ValueError(f"unsupported record_format_version: {format_version!r}")
+        context_version = values.get("record_context_version")
+        if context_version is not None and context_version != "1":
+            raise ValueError(f"unsupported record_context_version: {context_version!r}")
         record: dict[str, Any] = {"step": step}
         for domain, value in {"action": action, "reward": reward, "observation": observation, **values}.items():
-            flattened = _flatten_value(domain, value)
+            flattened = (
+                _flatten_environment(value)
+                if domain == "env_params" and format_version == "1"
+                else _flatten_value(domain, value)
+            )
             duplicate = record.keys() & flattened.keys()
             if duplicate:
                 raise ValueError(f"trajectory values produce duplicate column: {min(duplicate)}")
@@ -511,14 +540,22 @@ class Trajectory:
             "reward": reward,
             "observation": list(observation.values()) if isinstance(observation, Mapping) else observation,
         }
-        metadata_row = {
-            name: value
-            for name, value in record.items()
-            if name == "step" or name.split(".", maxsplit=1)[0] not in self._core_domains
-        }
+        metadata_record = dict(record)
+        if format_version == "1" and "env_params" in values:
+            metadata_record = {name: value for name, value in record.items() if not name.startswith("env_params.")}
+            metadata_record.update(_flatten_environment(values["env_params"], expand_mappings=False))
+            header = self._headers.get("metadata")
+            if header is not None and {
+                name for name in metadata_record if name == "step" or name.split(".", 1)[0] not in self._core_domains
+            } != set(header):
+                metadata_record = record
+        metadata = _serialize_metadata(lazy.pd.Series(metadata_record, dtype=object), self.metadata_path)
+        metadata_row: dict[str, object] = (
+            {"step": step} if metadata is None else {str(name): value for name, value in metadata.items()}
+        )
         serialized_core = {name: _csv_cell(value) for name, value in core_row.items()}
         serialized_metadata = {name: _csv_cell(value) for name, value in metadata_row.items()}
-        self._build_record(
+        validated = self._build_record(
             self.output_path,
             2,
             serialized_core,
@@ -527,7 +564,14 @@ class Trajectory:
             metadata_rows={step: (2, serialized_metadata)},
         )
         snapshot = TrajectoryRecord(
-            step, self.output_path, {"action": action, "reward": reward, "observation": observation}
+            step,
+            self.output_path,
+            (
+                {"env_params": validated._domains["env_params"]}
+                if format_version == "1" and "env_params" in validated._domains
+                else {}
+            )
+            | {"action": action, "reward": reward, "observation": observation},
         )
         return record, snapshot, core_row, metadata_row
 
@@ -670,6 +714,131 @@ class Trajectory:
         self._frame_dirty = True
         self._records.append(pending["snapshot"])
         self._pending = None
+
+    def record(
+        self,
+        *,
+        test_run: TestRun,
+        action_space: Mapping[str, Any],
+        action: object,
+        reward: object,
+        observation: object,
+        system: System,
+        rewards: RewardOverrides,
+        failed_metrics: Sequence[str] = (),
+        execution_error: str | None = None,
+        cached_result: pd.Series | None = None,
+        run_output: Run | None = None,
+    ) -> TrajectoryRecord:
+        if isinstance(observation, Mapping):
+            if set(observation) != set(test_run.test.agent_metrics):
+                raise ValueError("observation keys must match agent_metrics exactly")
+            observation = [observation[name] for name in test_run.test.agent_metrics]
+        cached_measurement = (
+            _decode_record_context(dict(cached_result), self.output_path, test_run.step, field="measurement").get(
+                "measurement", {}
+            )
+            if cached_result is not None
+            else {}
+        )
+        units = (
+            {metric.name: metric.unit or "unknown" for metric in run_output.metrics} if run_output is not None else {}
+        )
+        if cached_result is None:
+            with contextlib.suppress(Exception):
+                units.update(
+                    {
+                        entry.metric.key: entry.metric.unit or "unknown"
+                        for entry in test_run.test.metric_observations(system, test_run)
+                        if units.get(entry.metric.key, "unknown") == "unknown"
+                    }
+                )
+        observation_values = (
+            dict(zip(test_run.test.agent_metrics, observation, strict=False))
+            if isinstance(observation, Sequence)
+            else {}
+        )
+        metrics = {}
+        for index, name in enumerate(test_run.test.agent_metrics):
+            value = observation_values.get(name)
+            status = "observed" if name in observation_values else "unavailable"
+            status = "failed" if name in failed_metrics else status
+            status = "nonfinite" if isinstance(value, float) and not math.isfinite(value) else status
+            unit = units.get(name, "unknown")
+            if cached_result is not None:
+                cached_metric = cached_measurement.get("metrics", {}).get(str(index), {})
+                status = cached_metric.get("status", "unknown")
+                unit = cached_metric.get("unit", "unknown")
+            metrics[str(index)] = {"name": name, "unit": unit, "status": status}
+        execution_status = run_output.status if run_output is not None else "unknown"
+        outcome = "success" if execution_status == "completed" else "unknown"
+        if (isinstance(reward, float) and not math.isfinite(reward)) or any(
+            metric["status"] == "nonfinite" for metric in metrics.values()
+        ):
+            outcome = "nonfinite"
+        outcome = "metric_failure" if failed_metrics else outcome
+        if execution_error is not None or execution_status in {"failed", "cancelled"}:
+            outcome = "runner_failure"
+        origin = {
+            "history_id": self._publication["history_id"] if self._publication is not None else "unknown",
+            "run_name": test_run.name,
+            "iteration": test_run.current_iteration,
+            "step": test_run.step,
+            "output_path": str(test_run.output_path),
+            "trajectory": str(self.output_path),
+            "jobid": run_output.jobid if run_output is not None else "unknown",
+        }
+        if cached_result is not None:
+            origin = {name: cached_measurement.get("origin", {}).get(name, "unknown") for name in origin}
+            outcome = cached_measurement.get("outcome", "unknown")
+            execution_error = cached_measurement.get("runner_error", "unknown")
+            execution_status = cached_measurement.get("execution_status", "unknown")
+        measurement = {
+            "kind": "fresh" if cached_result is None else "cached",
+            "outcome": outcome,
+            "runner_error": execution_error or "",
+            "execution_status": execution_status,
+            "origin": origin,
+            "metrics": metrics,
+        }
+        context = _record_context(
+            test_run,
+            action_space,
+            action=action,
+            system=system,
+            rewards=rewards,
+            measurement=measurement,
+            history_id=self._publication["history_id"] if self._publication is not None else "unknown",
+        )
+        for name in ("run_details", "measurement", "evaluation_failure"):
+            context[name] = json.dumps(context[name], sort_keys=True, allow_nan=False, separators=(",", ":"))
+        context["record_context_version"] = "1"
+        self.append(
+            step=test_run.step,
+            action=context.pop("action"),
+            reward=reward,
+            observation=observation,
+            **context,
+        )
+        return deepcopy(self._record_at(len(self._rows) - 1))
+
+    def _find_position(self, criteria: dict[str, object], versioned: bool | None) -> int | None:
+        fields = tuple(sorted(criteria))
+        index = self._find_index.get(fields)
+        if index is None:
+            index = {}
+            for position, record in enumerate(self._rows):
+                if all(field in record for field in fields):
+                    index.setdefault(tuple(_hashable_key(record[field]) for field in fields), []).append(position)
+            self._find_index[fields] = index
+        bucket = index.get(tuple(_hashable_key(criteria[field]) for field in fields), ())
+        for position in bucket:
+            candidate = self._rows[position]
+            if versioned is not None and (candidate.get("record_format_version") == "1") != versioned:
+                continue
+            if all(_values_match_exact(candidate[field], criteria[field]) for field in fields):
+                return position
+        return None
 
 
 def _flatten_value(key: str, value: object) -> dict[str, object]:
@@ -835,10 +1004,18 @@ def _decode_core_value(
         raise TrajectoryLoadError(path, f"invalid {name} literal: {error}", row=row) from error
 
 
-def _set_domain(domains: dict[str, Any], name: str, value: Any, path: Path, step: int) -> None:
-    parts = name.split(".")
-    if any(not part for part in parts):
-        raise TrajectoryLoadError(path, f"empty metadata path component: {name}", step=step)
+def _set_domain(
+    domains: dict[str, Any], name: str, value: Any, path: Path, step: int, *, format_version: Any = None
+) -> None:
+    if format_version == "1" and (name == "env_params" or name.startswith("env_params.")):
+        parts, value = _decode_environment_field(name, value, path, step)
+    else:
+        parts = name.split(".")
+        if any(not part for part in parts):
+            raise TrajectoryLoadError(path, f"empty metadata path component: {name}", step=step)
+
+    if format_version == "1" and parts[0] == "env_params" and len(parts) > 1 and domains.get("env_params") == {}:
+        raise TrajectoryLoadError(path, f"conflicting domain path: {name}", step=step)
     current = domains
     for part in parts[:-1]:
         if part not in current:
@@ -856,7 +1033,10 @@ def _set_domain(domains: dict[str, Any], name: str, value: Any, path: Path, step
 def _flatten_record(record: TrajectoryRecord) -> dict[str, Any]:
     flattened: dict[str, Any] = {"step": record.step}
     for name, value in record._domains.items():
-        flattened.update(_flatten_value(name, value))
+        if name == "env_params" and record.get("record_format_version") == "1":
+            flattened.update(_flatten_environment(record.get("env_params", decode_numbers=True)))
+        else:
+            flattened.update(_flatten_value(name, value))
     return flattened
 
 
@@ -1087,3 +1267,281 @@ def _history_digest(history_id: str, data: bytes = b"") -> Any:
     digest = hashlib.sha256(history_id.encode("utf-8") + b"\x00")
     digest.update(data)
     return digest
+
+
+def _record_context(
+    test_run: TestRun | None,
+    action_space: Mapping[str, Any] | None,
+    *,
+    action: object,
+    system: System | None,
+    rewards: RewardOverrides | None,
+    measurement: dict[str, Any],
+    history_id: str,
+) -> dict[str, Any]:
+    from pydantic import TypeAdapter
+
+    if test_run is None or action_space is None or system is None or rewards is None:
+        raise ValueError("test_run, action_space, system and rewards must be supplied together")
+
+    environment = _record_environment(
+        test_run.test.model_dump(mode="python"), {"NUM_NODES": test_run.num_nodes}, action_space
+    )
+    _validate_environment(environment)
+    launch_fields = {
+        "name",
+        "scheduler",
+        "global_env_vars",
+        "default_partition",
+        "account",
+        "distribution",
+        "mpi",
+        "gpus_per_node",
+        "ntasks_per_node",
+        "extra_srun_args",
+        "extra_sbatch_args",
+        "container_mount_home",
+        "default_namespace",
+        "use_host_network",
+        "project_name",
+        "default_queue",
+        "app",
+        "os_version",
+        "project_id",
+        "cluster_id",
+    }
+    backend = system.model_dump(mode="python", include=launch_fields)
+    backend["type"] = f"{type(system).__module__}.{type(system).__qualname__}"
+    launch = {
+        "num_nodes": test_run.num_nodes,
+        "nodes": test_run.nodes,
+        "exclude_nodes": test_run.exclude_nodes,
+        "pin_nodes": test_run.pin_nodes,
+        "time_limit": test_run.time_limit,
+        "extra_srun_args": test_run.extra_srun_args,
+        "system": backend,
+    }
+    record = {
+        "action": action,
+        "run_details": {
+            "history_id": history_id,
+            "run_name": test_run.name,
+            "iteration": test_run.current_iteration,
+            "step": test_run.step,
+            "output_path": str(test_run.output_path),
+            "agent_metrics": test_run.test.agent_metrics,
+            "reward_function": test_run.test.agent_reward_function,
+            "evaluation_policy": {
+                name: {"nonfinite": repr(value)} if isinstance(value, float) and not math.isfinite(value) else value
+                for name, value in rewards.model_dump(mode="python").items()
+            },
+            "launch": launch,
+        },
+        "measurement": measurement,
+        "evaluation_failure": (
+            {
+                "constraint": False,
+                "metric_indices": [
+                    int(index)
+                    for index, metric in measurement.get("metrics", {}).items()
+                    if metric["status"] in {"failed", "nonfinite"}
+                ],
+                "runner": measurement.get("outcome") == "runner_failure",
+            }
+            if measurement.get("outcome") in {"runner_failure", "metric_failure", "nonfinite"}
+            else None
+        ),
+    }
+    _validate_environment(record)
+    recording_context = {
+        "purpose": "trajectory",
+        "record": TypeAdapter(dict[str, Any]).dump_python(record, mode="json"),
+    }
+    configuration = test_run.test.model_dump(mode="json", context=recording_context)
+    record = recording_context["record"]
+    _validate_environment(record)
+    resolved_action = _resolve_recorded_action(
+        configuration, {"NUM_NODES": record["run_details"]["launch"]["num_nodes"]}, action_space
+    )
+    record["run_details"]["resolved_action"] = resolved_action
+    environment = _record_environment(configuration, {"NUM_NODES": test_run.num_nodes}, action_space)
+    _validate_environment(environment)
+    identity = {
+        "action": resolved_action,
+        "env_params": environment,
+        "launch": record["run_details"]["launch"],
+        "agent_metrics": record["run_details"]["agent_metrics"],
+        "reward_function": record["run_details"]["reward_function"],
+        "evaluation_policy": record["run_details"]["evaluation_policy"],
+    }
+    encoded = json.dumps(identity, sort_keys=True, allow_nan=False, separators=(",", ":"))
+    return {
+        **record,
+        "env_params": environment,
+        "configuration_id": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+        "record_format_version": "1",
+    }
+
+
+def _flatten_environment(value: object, path: tuple[str, ...] = (), *, expand_mappings: bool = True) -> dict[str, Any]:
+    if not path and not isinstance(value, Mapping):
+        raise TypeError("versioned env_params must be a mapping")
+    if isinstance(value, Mapping) and value and (not path or expand_mappings):
+        flattened = {}
+        for key, child in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"environment mapping keys must be strings: {key!r}")
+            flattened.update(_flatten_environment(child, (*path, key), expand_mappings=expand_mappings))
+        return flattened
+    return {f"env_params.{json.dumps(path, separators=(',', ':'))}": deepcopy(value)}
+
+
+def _decode_environment(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {name: _decode_environment(child) for name, child in value.items()}
+    return json.loads(value)
+
+
+def _serialize_metadata(row: pd.Series, path: Path) -> pd.Series | None:
+    fields = [
+        field
+        for field in row.index
+        if field == "step" or field.split(".", maxsplit=1)[0] not in Trajectory._core_domains
+    ]
+    if len(fields) == 1:
+        return None
+    metadata = row[fields].copy()
+    if row.get("record_format_version") == "1":
+        domains = {}
+        for field in fields:
+            if field == "step":
+                continue
+            if field.startswith("env_params."):
+                _validate_environment(metadata[field])
+                encoded = json.dumps(metadata[field], allow_nan=False, separators=(",", ":"))
+                if not _values_match_exact(metadata[field], json.loads(encoded)):
+                    raise ValueError("versioned environment values must retain their types through JSON")
+                metadata[field] = encoded
+            _set_domain(domains, field, metadata[field], path, row["step"], format_version="1")
+    return metadata
+
+
+def _validate_environment(value: Any) -> None:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"environment mapping keys must be strings: {key!r}")
+            _validate_environment(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            _validate_environment(child)
+    elif isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("environment values must be finite")
+
+
+def _decode_environment_field(name: str, value: Any, path: Path, step: int) -> tuple[list[str], Any]:
+
+    try:
+        environment_path = json.loads(name[len("env_params.") :])
+        if not isinstance(environment_path, list) or any(not isinstance(part, str) for part in environment_path):
+            raise ValueError("environment path must be a JSON array of strings")
+        decoded = json.loads(value, object_pairs_hook=_unique_json_object)
+        json.dumps(decoded, allow_nan=False)
+        if not environment_path:
+            if decoded != {}:
+                raise ValueError("the root environment cell must contain an empty mapping")
+            value = {}
+    except (ValueError, TypeError) as error:
+        raise TrajectoryLoadError(path, f"invalid versioned environment field {name!r}: {error}", step=step) from error
+    return ["env_params", *environment_path], value
+
+
+def _decode_record_context(
+    values: Mapping[str, Any], path: Path, step: int, *, field: str | None = None
+) -> dict[str, Any]:
+    if any(name.startswith("record_context_version.") for name in values):
+        raise TrajectoryLoadError(path, "record_context_version must be a scalar version", step=step)
+    version = values.get("record_context_version")
+    if version is None:
+        return {}
+    if version != "1":
+        raise TrajectoryLoadError(path, f"unsupported record_context_version: {version!r}", step=step)
+    required = {"run_details", "measurement", "evaluation_failure"}
+    missing = required.difference(values)
+    if missing:
+        raise TrajectoryLoadError(path, f"missing record context cells: {sorted(missing)}", step=step)
+    decoded = {}
+    for name in required if field is None else required.intersection({field}):
+        try:
+            value = json.loads(values[name], object_pairs_hook=_unique_json_object)
+            _validate_environment(value)
+            if not isinstance(value, dict) and not (name == "evaluation_failure" and value is None):
+                raise TypeError("context cell must contain an object or nullable evaluation_failure")
+        except (TypeError, ValueError) as error:
+            raise TrajectoryLoadError(path, f"invalid {name} context cell: {error}", step=step) from error
+        decoded[name] = value
+    return decoded
+
+
+def _record_environment(
+    configuration: dict[str, Any], resources: Mapping[str, Any], action_space: Mapping[str, Any]
+) -> dict[str, Any]:
+    environment = configuration.pop("cmd_args", {})
+    if not isinstance(environment, dict):
+        raise TypeError("recorded cmd_args must be a mapping")
+    reserved = {"test_definition", "extra_env_vars", "extra_cmd_args"} | (
+        {"NUM_NODES"} if "NUM_NODES" not in action_space else set()
+    )
+    conflicts = reserved.intersection(environment)
+    if conflicts:
+        raise ValueError(f"cmd_args contains reserved trajectory environment keys: {sorted(conflicts)}")
+    for name in (name for name in action_space if name != "NUM_NODES" and not name.startswith("extra_env_vars.")):
+        parts = name.split(".")
+        target = environment
+        for part in parts[:-1]:
+            target = target.get(part, {}) if isinstance(target, dict) else {}
+        if isinstance(target, dict):
+            target.pop(parts[-1], None)
+    extras = {name: configuration.pop(name) for name in ("extra_env_vars", "extra_cmd_args") if name in configuration}
+    extra_environment = extras.get("extra_env_vars", {})
+    if not isinstance(extra_environment, dict):
+        raise TypeError("recorded extra_env_vars must be a mapping")
+    for name in (name for name in action_space if name.startswith("extra_env_vars.")):
+        extra_environment.pop(name[len("extra_env_vars.") :], None)
+    environment.update(extras)
+    environment.update(
+        {"NUM_NODES": resources["NUM_NODES"]} if "NUM_NODES" not in action_space and "NUM_NODES" in resources else {}
+    )
+    controls = {
+        "name",
+        "description",
+        "agent",
+        "agent_steps",
+        "agent_config",
+        "agent_metrics",
+        "agent_observation",
+        "agent_reward_function",
+        "training_report",
+        "env_params",
+        "dse_excluded_args",
+    }
+    configuration = {name: value for name, value in configuration.items() if name not in controls}
+    environment.update({"test_definition": configuration} if configuration else {})
+    return environment
+
+
+def _resolve_recorded_action(
+    configuration: Mapping[str, Any], resources: Mapping[str, Any], action_space: Mapping[str, Any]
+) -> dict[str, Any]:
+    resolved = {}
+    for name in action_space:
+        if name == "NUM_NODES":
+            value = resources["NUM_NODES"]
+        elif name.startswith("extra_env_vars."):
+            value = configuration["extra_env_vars"][name[len("extra_env_vars.") :]]
+        else:
+            value = configuration["cmd_args"]
+            for part in name.split("."):
+                value = value[part]
+        resolved[name] = value
+    return resolved

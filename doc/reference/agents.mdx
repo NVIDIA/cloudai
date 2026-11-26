@@ -130,10 +130,11 @@ for trial in history.records():
 ```
 
 Records are read-only mappings with detached nested values. Indexing and default
-`get` preserve metadata cells as recorded strings. Explicit `decode_numbers=True`
-uses heuristic numeric decoding, which can turn `"001"` into `1`; it cannot
-reconstruct unknown original types. `history.dataframe` exposes flattened storage
-columns.
+`get` preserve metadata cells as recorded strings. For histories without a declared
+format, `decode_numbers=True` uses heuristic numeric decoding, which can turn
+`"001"` into `1`; it cannot reconstruct unknown original types. Native records
+instead decode their declared JSON fields and preserve numeric-looking strings.
+`history.dataframe` exposes flattened storage columns.
 
 A directory or explicit CSV path is accepted. Every history requires `step`,
 `action`, `reward` and `observation`; a sidecar must match its steps one-to-one.
@@ -177,3 +178,36 @@ changing those values or appending an older step is refused.
 Serialized gym adapters retain their original writer only within the creating
 process. Cross-process reconstruction is refused instead of opening another
 writer for the same history.
+
+<Anchor id="recorded-trial-context" />
+
+## Recorded Trial Context
+
+The gym and Slurm DSE paths record resolved workload defaults and fixed command
+and environment settings directly from memory. Each trial also carries its
+resolved action, launch resources, reward and observation declarations, and
+measurement origin and outcome. Recording a new trial does not read a test-run
+TOML back into memory.
+
+```python
+from pathlib import Path
+
+from cloudai.configurator import Trajectory
+
+history = Trajectory.load(Path("results/scenario/Tests.1/0"))
+trial = history.records()[0]
+details = trial.get("run_details", decode_numbers=True)
+measurement = trial.get("measurement", decode_numbers=True)
+print(details["resolved_action"], measurement["outcome"])
+```
+
+`trial.metadata` provides the recorded metadata domains. Default access preserves
+raw cells; declared decoding returns structured values without changing stored
+bytes. A metric mapping must contain exactly the declared metric names and is
+recorded in their declaration order without mutating the supplied mapping.
+
+Credential handling belongs to each workload's recording serializer. The
+Megatron Bridge serializer removes its known credentials from recorded
+projections while preserving live configuration and ordinary serialization.
+Use a newly initialized history for the complete recording schema; existing
+histories are not widened in place.

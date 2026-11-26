@@ -18,9 +18,16 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import List, Optional, Union, cast
+from typing import Any, List, Optional, Union, cast
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import (
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    field_validator,
+    model_serializer,
+)
 
 from cloudai.core import DockerImage, File, GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -637,6 +644,38 @@ class MegatronBridgeTestDefinition(TestDefinition):
             return JobStatusResult(is_successful=False, error_message="\n".join(log_data.splitlines()[-40:]))
 
         return JobStatusResult(is_successful=True)
+
+    @model_serializer(mode="wrap")
+    def _serialize_trajectory_configuration(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> dict[str, Any]:
+        configuration = handler(self)
+        if not isinstance(info.context, dict) or info.context.get("purpose") != "trajectory":
+            return configuration
+        tokens = {token for token in (self.cmd_args.hf_token, self.cmd_args.wandb_key) if token}
+        if not tokens:
+            return configuration
+
+        pattern = re.compile(
+            "|".join(re.escape(token) for token in sorted({HF_TOKEN_REDACTION, *tokens}, key=len, reverse=True))
+        )
+
+        def redact(value: Any) -> Any:
+            if isinstance(value, dict):
+                projected = {}
+                for key, child in value.items():
+                    projected_key = redact(key)
+                    if projected_key in projected:
+                        raise ValueError("trajectory projection mapping-key collision")
+                    projected[projected_key] = redact(child)
+                return projected
+            if isinstance(value, list):
+                return [redact(child) for child in value]
+            return pattern.sub(lambda match: HF_TOKEN_REDACTION, value) if isinstance(value, str) else value
+
+        if "record" in info.context:
+            info.context["record"] = redact(info.context["record"])
+        return redact(configuration)
 
 
 def find_mbridge_log(output_path: Path) -> Path | None:
