@@ -212,6 +212,38 @@ def test_run_experiment_rejects_single_sbatch_for_standalone(
 
 
 @pytest.mark.parametrize("api_function", [cloudai.api.run_experiment, cloudai.api.validate_scenario])
+def test_api_rejects_test_unsupported_by_system_before_starting_jobs(
+    system_config: pathlib.Path,
+    scenario_config: pathlib.Path,
+    standalone_system: StandaloneSystem,
+    monkeypatch: pytest.MonkeyPatch,
+    api_function: collections.abc.Callable,
+) -> None:
+    scenario = toml.loads(scenario_config.read_text())
+    scenario["Tests"].append(
+        {
+            "id": "ucc",
+            "name": "ucc",
+            "description": "Not supported on standalone",
+            "test_template_name": "UCCTest",
+            "cmd_args": {"docker_image_url": "nvcr.io#nvidia/pytorch:24.02-py3"},
+        }
+    )
+    scenario_config.write_text(toml.dumps(scenario))
+    submitted = []
+    monkeypatch.setattr(StandaloneRunner, "_submit_test", lambda self, tr: submitted.append(tr.name))
+
+    with pytest.raises(cloudai.core.TestScenarioParsingError) as exc_info:
+        api_function(scenario_config, system_config)
+
+    assert str(exc_info.value) == (
+        f"Test 'ucc' (UCCTestDefinition) is not supported on system '{standalone_system.name}' (StandaloneSystem)."
+    )
+    assert submitted == []
+    assert not standalone_system.output_path.exists()
+
+
+@pytest.mark.parametrize("api_function", [cloudai.api.run_experiment, cloudai.api.validate_scenario])
 def test_api_rejects_invalid_scenario(
     system_config: pathlib.Path,
     scenario_config: pathlib.Path,

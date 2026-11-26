@@ -36,6 +36,7 @@ from cloudai.core import (
     Registry,
     RewardOverrides,
     Runner,
+    System,
     TestDependency,
     TestRun,
     TestScenario,
@@ -46,6 +47,7 @@ from cloudai.handlers import (
     handle_dse_job,
     prepare_installation,
     validate_domain_randomization_active,
+    validate_system_support,
     verify_system_configs,
     verify_test_configs,
     verify_test_scenarios,
@@ -55,6 +57,8 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.test_parser import TestParser
+from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -760,6 +764,42 @@ def test_validate_domain_randomization_active_allows_non_dse_without_env_params(
     assert base_tr.is_dse_job is False  # precondition: not DSE, but also no env_params declared
     assert not base_tr.test.env_params
     validate_domain_randomization_active(TestScenario(name="s", test_runs=[base_tr]))  # no exception == pass
+
+
+def _test_run(test: TestDefinition, system: System) -> TestRun:
+    return TestRun(name=test.name, test=test, num_nodes=1, nodes=[], output_path=system.output_path / test.name)
+
+
+def _sleep() -> SleepTestDefinition:
+    return SleepTestDefinition(name="sleep", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs())
+
+
+def _ucc() -> UCCTestDefinition:
+    return UCCTestDefinition(
+        name="ucc",
+        description="d",
+        test_template_name="UCCTest",
+        cmd_args=UCCCmdArgs(docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3"),
+    )
+
+
+@pytest.mark.parametrize("system_fixture", ["slurm_system", "standalone_system", "k8s_system"])
+def test_validate_system_support_allows_supported_tests(system_fixture: str, request: pytest.FixtureRequest) -> None:
+    system = request.getfixturevalue(system_fixture)
+    validate_system_support(system, TestScenario(name="s", test_runs=[_test_run(_sleep(), system)]))
+
+
+@pytest.mark.parametrize("system_fixture", ["standalone_system", "k8s_system"])
+def test_validate_system_support_rejects_unsupported_tests(system_fixture: str, request: pytest.FixtureRequest) -> None:
+    system = request.getfixturevalue(system_fixture)
+    scenario = TestScenario(name="s", test_runs=[_test_run(_sleep(), system), _test_run(_ucc(), system)])
+
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        validate_system_support(system, scenario)
+
+    assert str(exc_info.value) == (
+        f"Test 'ucc' (UCCTestDefinition) is not supported on system '{system.name}' ({type(system).__name__})."
+    )
 
 
 def test_verify_test_scenarios_rejects_env_params_without_dse(
