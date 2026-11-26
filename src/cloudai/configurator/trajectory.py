@@ -154,12 +154,16 @@ class Trajectory:
             raise
 
     @classmethod
-    def load(cls, source: str | Path, *, missing_ok: bool = False) -> Trajectory:
+    def load(
+        cls, source: str | Path, *, missing_ok: bool = False, recovery: Literal["recorded"] | None = None
+    ) -> Trajectory:
+        if recovery not in (None, "recorded"):
+            raise ValueError(f"unsupported trajectory recovery policy: {recovery!r}")
         source = Path(source)
         path = source / cls.file_name if source.is_dir() else source
         marker = _read_commit(path.parent)
         try:
-            loaded = cls._load_snapshot(path, marker, missing_ok)
+            loaded = cls._load_snapshot(path, marker, missing_ok, recovery)
         except TrajectoryLoadError:
             if marker is not None:
                 raise
@@ -172,13 +176,13 @@ class Trajectory:
             marker = _read_commit(path.parent)
             if marker is None:
                 return loaded
-        return cls._load_snapshot(path, marker, missing_ok)
+        return cls._load_snapshot(path, marker, missing_ok, recovery)
 
     @classmethod
     def _read_metadata(
         cls, path: Path, *, text: str | None = None
-    ) -> tuple[list[str], dict[int, tuple[int, dict[str, str]]]]:
-        columns, rows = _read_csv(path, required=("step",), text=text)
+    ) -> tuple[list[str], dict[int, tuple[int, dict[str, str]]], str]:
+        columns, rows, text = _read_csv(path, required=("step",), text=text)
         for column in columns:
             if column != "step" and column.split(".", maxsplit=1)[0] in cls._core_domains:
                 raise TrajectoryLoadError(path, f"metadata overlaps core domain: {column}", row=1)
@@ -190,7 +194,7 @@ class Trajectory:
                 raise TrajectoryLoadError(path, "duplicate metadata step", row=row_number, step=step)
             entries[step] = row_number, row
 
-        return columns, entries
+        return columns, entries, text
 
     @classmethod
     def _load_records(
@@ -471,7 +475,9 @@ class Trajectory:
         self._hashes: dict[str, Any] = {}
 
     @classmethod
-    def _load_snapshot(cls, path: Path, marker: dict[str, Any] | None, missing_ok: bool) -> Trajectory:
+    def _load_snapshot(
+        cls, path: Path, marker: dict[str, Any] | None, missing_ok: bool, recovery: Literal["recorded"] | None
+    ) -> Trajectory:
         sidecar = path.parent / cls.metadata_file_name
         texts = _committed_texts(path, marker) if marker is not None else None
         if (marker is not None and marker["trajectory"]["bytes"] == 0) or (
@@ -484,15 +490,18 @@ class Trajectory:
             loaded._source_path = path
             loaded._publication = marker
             return loaded
-        columns, rows = _read_csv(path, required=cls._core_fields, text=None if texts is None else texts[0])
+        columns, rows, core_text = _read_csv(path, required=cls._core_fields, text=None if texts is None else texts[0])
         has_metadata = texts is not None or sidecar.exists() or sidecar.is_symlink()
         if has_metadata:
-            metadata_columns, metadata_rows = cls._read_metadata(sidecar, text=None if texts is None else texts[1])
+            metadata_columns, metadata_rows, sidecar_text = cls._read_metadata(
+                sidecar, text=None if texts is None else texts[1]
+            )
             raw_metadata = list(metadata_rows.values())
         else:
             metadata_columns = []
             metadata_rows = None
             raw_metadata = []
+            sidecar_text = ""
         records, flattened_rows = cls._load_records(path, rows, sidecar, metadata_rows)
         frame = lazy.pd.DataFrame(flattened_rows, dtype=object)
         if not flattened_rows:
@@ -509,6 +518,23 @@ class Trajectory:
         if marker is not None:
             _validate_committed_records(marker, rows, raw_metadata, path)
         loaded._publication = marker
+        if recovery == "recorded" and any(record.get("record_context_version") != "1" for record in records):
+            source_id = (
+                marker["history_id"]
+                if marker is not None
+                else hashlib.sha256(core_text.encode("utf-8") + b"\x00" + sidecar_text.encode("utf-8")).hexdigest()
+            )
+            source_kind = "history_uuid" if marker is not None else "sha256"
+            records = [
+                record
+                if record.get("record_context_version") == "1"
+                else _recover_recorded_record(record, source_id, source_kind)
+                for record in records
+            ]
+            loaded._records = list(records)
+            loaded._rows = [_flatten_record(record) for record in records]
+            loaded._dataframe = lazy.pd.DataFrame(loaded._rows, dtype=object)
+
         return loaded
 
     def _prepare_record(
@@ -619,8 +645,8 @@ class Trajectory:
         if not self.metadata_path.exists():
             content = _csv_bytes(("step",)) + b"".join(_csv_bytes((row["step"],)) for row in self._rows)
             _replace_synced(self.metadata_path, content)
-        core_columns, core_rows = _read_csv(self.output_path, required=self._core_fields)
-        metadata_columns, metadata_rows = _read_csv(self.metadata_path, required=("step",))
+        core_columns, core_rows, _ = _read_csv(self.output_path, required=self._core_fields)
+        metadata_columns, metadata_rows, _ = _read_csv(self.metadata_path, required=("step",))
         self._headers = {"trajectory": tuple(core_columns), "metadata": tuple(metadata_columns)}
         marker = _empty_commit()
         marker["generation"] = len(core_rows)
@@ -933,7 +959,7 @@ def _decode_numbers(value: Any) -> Any:
 
 def _read_csv(
     path: Path, *, required: Sequence[str], text: str | None = None
-) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
+) -> tuple[list[str], list[tuple[int, dict[str, str]]], str]:
     if text is None:
         try:
             with path.open(encoding="utf-8", newline="") as handle:
@@ -968,7 +994,7 @@ def _read_csv(
         finally:
             csv.field_size_limit(previous_limit)
 
-    return header, rows
+    return header, rows, text
 
 
 def _read_step(value: str, path: Path, row: int) -> int:
@@ -1531,17 +1557,331 @@ def _record_environment(
 
 
 def _resolve_recorded_action(
-    configuration: Mapping[str, Any], resources: Mapping[str, Any], action_space: Mapping[str, Any]
+    configuration: Mapping[str, Any],
+    resources: Mapping[str, Any],
+    action_space: Mapping[str, Any],
+    *,
+    missing_ok: bool = False,
 ) -> dict[str, Any]:
     resolved = {}
     for name in action_space:
-        if name == "NUM_NODES":
-            value = resources["NUM_NODES"]
-        elif name.startswith("extra_env_vars."):
-            value = configuration["extra_env_vars"][name[len("extra_env_vars.") :]]
-        else:
-            value = configuration["cmd_args"]
-            for part in name.split("."):
-                value = value[part]
+        try:
+            if name == "NUM_NODES":
+                value = resources["NUM_NODES"]
+            elif name.startswith("extra_env_vars."):
+                value = configuration["extra_env_vars"][name[len("extra_env_vars.") :]]
+            else:
+                value = configuration["cmd_args"]
+                if missing_ok and "." in name and name in value:
+                    raise ValueError("ambiguous historical dotted action path")
+                for part in name.split("."):
+                    value = value[part]
+        except (KeyError, TypeError):
+            if missing_ok:
+                continue
+            raise
         resolved[name] = value
     return resolved
+
+
+def _recover_recorded_record(record: TrajectoryRecord, source_id: str, source_kind: str) -> TrajectoryRecord:
+    import toml
+
+    from cloudai.core import CommandGenStrategy
+
+    relative = (
+        Path(str(record.step)) / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+        if record.step
+        else Path(CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME)
+    )
+    dump_path = record.source.parent / relative
+    try:
+        values = record.metadata
+        contexts = {
+            name: deepcopy(values.get(name, {})) for name in ("run_details", "measurement", "evaluation_failure")
+        }
+        legacy = record.get("record_format_version") != "1"
+        environment = record.get("env_params", {}, decode_numbers=not legacy)
+        if any(not isinstance(value, dict) for value in contexts.values()) or not isinstance(environment, dict):
+            raise ValueError("scalar reserved context cannot be normalized")
+        if "recovery" in contexts["run_details"]:
+            raise ValueError("reserved recovery provenance collision")
+        data = {}
+        dump = {
+            "relative_path": relative.as_posix(),
+            "sha256": None,
+            "status": "absent",
+            "reason": "historical_dump_absent",
+        }
+        if dump_path.exists() or dump_path.is_symlink():
+            content = dump_path.read_bytes()
+            data = toml.loads(content.decode("utf-8"))
+            if "step" in data and (type(data["step"]) is not int or data["step"] != record.step):
+                raise ValueError("historical dump step conflict or invalid integer identity")
+            dump = {
+                "relative_path": relative.as_posix(),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "status": "matched" if "step" in data else "unverified_identity",
+                "reason": None if "step" in data else "historical_dump_step_missing",
+            }
+        evidence = data if dump["status"] == "matched" else {}
+        configuration = evidence.get("test_definition", {})
+        if not isinstance(configuration, dict):
+            raise ValueError("historical test_definition must be a mapping")
+        resources = {"NUM_NODES": evidence["nnodes"]} if "nnodes" in evidence else {}
+        semantic_evidence = {
+            name: evidence[name]
+            for name in (
+                "test_definition",
+                "nnodes",
+                "nodes",
+                "name",
+                "current_iteration",
+                "output_path",
+                "exclude_nodes",
+                "pin_nodes",
+                "time_limit",
+                "extra_srun_args",
+            )
+            if name in evidence
+        }
+        semantic_evidence.update(
+            {
+                name: configuration[name]
+                for name in ("agent_metrics", "agent_observation", "agent_reward_function")
+                if name in configuration
+            }
+        )
+        _merge_recorded_values(values, semantic_evidence, values, record)
+        action = record["action"] if isinstance(record["action"], Mapping) else {}
+        resolved = _resolve_recorded_action(configuration, resources, action, missing_ok=True)
+        if any(not _values_match_exact(action[name], value) for name, value in resolved.items()):
+            raise ValueError("recorded action conflicts with historical configuration")
+        supplied = _record_environment(deepcopy(configuration), resources, action)
+        _validate_environment(supplied)
+        original_env = values.get("env_params", {})
+        original_paths = (
+            {tuple(json.loads(name.split(".", 1)[1])) for name in _flatten_environment(original_env)}
+            if "env_params" in values and isinstance(original_env, dict)
+            else set()
+        )
+        supplied_paths = (
+            {tuple(json.loads(name.split(".", 1)[1])) for name in _flatten_environment(supplied)} if supplied else set()
+        )
+        if legacy and any(
+            ".".join(left) == ".".join(right) and left != right for left in original_paths for right in supplied_paths
+        ):
+            raise ValueError("ambiguous legacy dotted environment path conflicts with historical literal path")
+        ambiguous = set(original_paths) if legacy else set()
+        environment = _merge_recorded_values(
+            environment,
+            supplied,
+            original_env if legacy else environment,
+            record,
+            restore_types=True,
+            typed=not legacy,
+            ambiguous=ambiguous,
+        )
+        details = {
+            name: evidence[key]
+            for name, key in {
+                "run_name": "name",
+                "iteration": "current_iteration",
+                "step": "step",
+                "output_path": "output_path",
+            }.items()
+            if key in evidence
+        }
+        launch = {
+            name: evidence[key]
+            for name, key in {
+                "num_nodes": "nnodes",
+                "nodes": "nodes",
+                "exclude_nodes": "exclude_nodes",
+                "pin_nodes": "pin_nodes",
+                "time_limit": "time_limit",
+                "extra_srun_args": "extra_srun_args",
+            }.items()
+            if key in evidence
+        }
+        details.update({"launch": launch} if launch else {})
+        details.update(
+            {
+                name: configuration[key]
+                for name, key in {
+                    "agent_metrics": "agent_metrics",
+                    "agent_observation": "agent_observation",
+                    "reward_function": "agent_reward_function",
+                }.items()
+                if key in configuration
+            }
+        )
+        details.update({"evaluation_policy": evidence["evaluation_policy"]} if "evaluation_policy" in evidence else {})
+        details.update(
+            {"agent_reward_function": configuration["agent_reward_function"]}
+            if "agent_reward_function" in contexts["run_details"] and "agent_reward_function" in configuration
+            else {}
+        )
+        run_details = _merge_recorded_values(contexts["run_details"], details, contexts["run_details"], record)
+        measurement = {
+            "kind": "unknown",
+            "outcome": "unknown",
+            "execution_status": "unknown",
+            "origin": {"status": "unknown", "reason": "historical_measurement_origin_not_recorded"},
+        } | contexts["measurement"]
+        failure = (
+            contexts["evaluation_failure"]
+            if "evaluation_failure" in values
+            else {"status": "unknown", "reason": "historical_failure_evidence_not_recorded"}
+        )
+        unknowns = {
+            "action_space": "original_declaration_unverified",
+            "measurement": "historical_measurement_evidence_incomplete",
+        }
+        unknowns.update(
+            {
+                name: "historical_schema_field_not_recorded"
+                for name in ("agent_metrics", "agent_observation", "reward_function")
+                if name not in run_details
+            }
+        )
+        unknowns.update(
+            {"schema": "historical_observation_schema_incomplete"}
+            if "agent_metrics" not in run_details or "agent_observation" not in run_details
+            else {}
+        )
+        unknowns.update(
+            {"evaluation_policy": "historical_actual_policy_not_recorded"}
+            if "evaluation_policy" not in run_details
+            else {}
+        )
+        unknowns.update(
+            {"run_identity": "historical_identity_incomplete"}
+            if any(name not in run_details for name in ("run_name", "iteration", "step", "output_path"))
+            else {}
+        )
+        unknowns.update(
+            {"env_params": "historical_environment_not_recorded"}
+            if not environment
+            else {"env_params": "historical_environment_completeness_unknown"}
+        )
+        recorded_launch = run_details.get("launch", {})
+        unknowns.update(
+            {
+                f"launch.{name}": "historical_launch_field_not_recorded"
+                for name in (
+                    "num_nodes",
+                    "nodes",
+                    "exclude_nodes",
+                    "pin_nodes",
+                    "time_limit",
+                    "extra_srun_args",
+                    "system",
+                )
+                if not isinstance(recorded_launch, dict) or name not in recorded_launch
+            }
+        )
+        run_details["recovery"] = {
+            "policy": "recorded",
+            "opaque_context_paths": [
+                json.loads(name.split(".", 1)[1])
+                for group in ("measurement", "evaluation_failure")
+                if group in values
+                for name in _flatten_environment(values[group], (group,))
+            ],
+            "source_id": source_id,
+            "source_id_kind": source_kind,
+            "source_step": record.step,
+            "dump": dump,
+            "historical_identity": {
+                name: data[name] for name in ("name", "current_iteration", "step", "output_path") if name in data
+            },
+            "context_completeness": {
+                "status": "unknown",
+                "reason": "historical_serialization_may_redact_or_omit_fields",
+            },
+            "unknowns": unknowns,
+            "ambiguous_env_paths": [list(path) for path in sorted(ambiguous)],
+            "recorded_env_paths": [list(path) for path in sorted(supplied_paths)],
+        }
+        domains = {
+            name: deepcopy(value)
+            for name, value in record._domains.items()
+            if name
+            not in {
+                "env_params",
+                "record_format_version",
+                "record_context_version",
+                "run_details",
+                "measurement",
+                "evaluation_failure",
+            }
+        }
+        domains.update({"record_format_version": "1", "record_context_version": "1"})
+        for name, value in _flatten_environment(environment).items():
+            _set_domain(
+                domains,
+                name,
+                json.dumps(value, allow_nan=False, separators=(",", ":")),
+                record.source,
+                record.step,
+                format_version="1",
+            )
+        domains.update(
+            {
+                name: json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":"))
+                for name, value in {
+                    "run_details": run_details,
+                    "measurement": measurement,
+                    "evaluation_failure": failure,
+                }.items()
+            }
+        )
+        _decode_record_context(domains, record.source, record.step)
+        return TrajectoryRecord(record.step, record.source, domains, record.row)
+    except (OSError, UnicodeError, TypeError, ValueError) as error:
+        raise TrajectoryLoadError(
+            record.source, f"historical recovery failed at {relative.as_posix()}: {error}", step=record.step
+        ) from error
+
+
+def _merge_recorded_values(
+    existing: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+    original: Mapping[str, Any],
+    record: TrajectoryRecord,
+    *,
+    restore_types: bool = False,
+    typed: bool = False,
+    ambiguous: set[tuple[str, ...]] | None = None,
+    prefix: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    merged = deepcopy(dict(existing))
+    for name, value in evidence.items():
+        path = (*prefix, name)
+        if name not in merged:
+            merged[name] = deepcopy(value)
+            continue
+        prior = original[name]
+        if isinstance(prior, Mapping) and isinstance(value, Mapping):
+            merged[name] = _merge_recorded_values(
+                merged[name],
+                value,
+                prior,
+                record,
+                restore_types=restore_types,
+                typed=typed,
+                ambiguous=ambiguous,
+                prefix=path,
+            )
+            continue
+        agrees = _values_match_exact(prior, value) if typed else _values_match_exact(prior, _csv_cell(value))
+        if not agrees:
+            raise TrajectoryLoadError(
+                record.source, f"recorded context conflicts with historical value at {'.'.join(path)}", step=record.step
+            )
+        if restore_types:
+            merged[name] = deepcopy(value)
+            if ambiguous is not None:
+                ambiguous.discard(path)
+    return merged

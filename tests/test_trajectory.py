@@ -1266,6 +1266,18 @@ def test_create_and_explicit_adoption_preserve_legacy_history(
     assert [record.step for record in resumed.records()] == [0, 3, 4]
     assert [record["reward"] for record in Trajectory.load(tmp_path).records()] == [-1.0, 2.0, 3.0]
     before_recovery = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    recovered = Trajectory.load(tmp_path, recovery="recorded").records()
+    assert [record.step for record in recovered] == [0, 3, 4]
+    assert all(
+        record.get("run_details", decode_numbers=True)["recovery"]["source_id_kind"] == "history_uuid"
+        for record in recovered
+    )
+    marker_identity = json.loads((tmp_path / ".trajectory.commit.json").read_text())["history_id"]
+    assert all(
+        record.get("run_details", decode_numbers=True)["recovery"]["source_id"] == marker_identity
+        for record in recovered
+    )
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before_recovery
     assert all((tmp_path / name).read_bytes().startswith(content) for name, content in before.items())
     from cloudai.core import TestDefinition
 
@@ -1909,26 +1921,27 @@ def test_resolved_context_round_trips_types_literal_paths_and_raw_metadata(
 
 
 @pytest.mark.parametrize(
-    "version, fields",
+    "version, fields, recovery",
     [
-        pytest.param("99", {'env_params.["value"]': "1"}, id="99-fields0-None"),
-        pytest.param("", {'env_params.["value"]': "1"}, id="-fields1-None"),
-        pytest.param("1", {"env_params.not-an-array": "1"}, id="1-fields2-None"),
-        pytest.param("1", {"env_params.[]": "1"}, id="1-fields3-None"),
-        pytest.param("1", {"env_params.[1]": "1"}, id="1-fields4-None"),
-        pytest.param("1", {'env_params.["value"]': "not-json"}, id="1-fields5-None"),
-        pytest.param("1", {'env_params.["value"]': "NaN"}, id="1-fields6-None"),
-        pytest.param("1", {'env_params.["value"]': "Infinity"}, id="1-fields7-None"),
-        pytest.param("1", {'env_params.["value"]': "1e999"}, id="1-fields8-None"),
-        pytest.param("1", {'env_params.["value"]': '{"a":1,"a":2}'}, id="1-fields9-None"),
-        pytest.param("1", {'env_params.["value"]': "1", "execution..ticket": "invalid"}, id="1-fields10-None"),
-        pytest.param("1", {'env_params.["value"]': "1", 'env_params.[ "value" ]': "2"}, id="1-fields11-None"),
-        pytest.param("1", {'env_params.["value"]': "1", 'env_params.["value","child"]': "2"}, id="1-fields12-None"),
-        pytest.param(None, {"record_format_version.part": "1", "env_params.literal": "001"}, id="None-fields13-None"),
+        ("99", {'env_params.["value"]': "1"}, None),
+        ("", {'env_params.["value"]': "1"}, None),
+        ("1", {"env_params.not-an-array": "1"}, None),
+        ("1", {"env_params.[]": "1"}, None),
+        ("1", {"env_params.[1]": "1"}, None),
+        ("1", {'env_params.["value"]': "not-json"}, None),
+        ("1", {'env_params.["value"]': "NaN"}, None),
+        ("1", {'env_params.["value"]': "Infinity"}, None),
+        ("1", {'env_params.["value"]': "1e999"}, None),
+        ("1", {'env_params.["value"]': '{"a":1,"a":2}'}, None),
+        ("1", {'env_params.["value"]': "1", "execution..ticket": "invalid"}, None),
+        ("1", {'env_params.["value"]': "1", 'env_params.[ "value" ]': "2"}, None),
+        ("1", {'env_params.["value"]': "1", 'env_params.["value","child"]': "2"}, None),
+        (None, {"record_format_version.part": "1", "env_params.literal": "001"}, None),
+        (None, {"record_format_version.part": "1", "env_params.literal": "001"}, "recorded"),
     ],
 )
 def test_loading_rejects_unknown_or_ambiguous_context_encoding(
-    tmp_path: Path, version: str | None, fields: dict[str, str]
+    tmp_path: Path, version: str | None, fields: dict[str, str], recovery: Literal["recorded"] | None
 ) -> None:
     (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{},1.0,[]\n")
     controls = {"record_format_version": version} if version is not None else {}
@@ -1938,7 +1951,7 @@ def test_loading_rejects_unknown_or_ambiguous_context_encoding(
         writer.writerow({"step": 1, **controls, **fields})
     before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
     with pytest.raises(TrajectoryLoadError):
-        Trajectory.load(tmp_path)
+        Trajectory.load(tmp_path, recovery=recovery)
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
 
 
@@ -2543,3 +2556,451 @@ def test_versioned_environment_publication_preserves_lookup_value_types(tmp_path
         result = candidate.find(env_params={"shape": [1, 2]})
         assert result is not None and result["step"] == 1
         assert candidate.find(env_params={"shape": (1, 2)}) is None
+
+
+@pytest.fixture
+def legacy_recorded_history(tmp_path: Path) -> Path:
+    import toml
+
+    from cloudai.core import CommandGenStrategy
+
+    root = tmp_path / "history"
+    root.mkdir()
+    with (root / "trajectory.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "action", "reward", "observation"])
+        writer.writerows((step, {"x": 1}, 2.0, [0.003]) for step in (0, 2, 7))
+    with (root / "metadata.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(
+            [
+                "step",
+                "env_params.label",
+                "env_params.enabled",
+                "env_params.items",
+                "env_params.empty",
+                "run_details.label",
+                "source_row",
+                "legacy_json",
+            ]
+        )
+        writer.writerows((step, "001", True, ["001", "true"], [], "001", "001", '{"x":1}') for step in (0, 2, 7))
+    recorded = {
+        "name": "historical-name",
+        "current_iteration": 9,
+        "step": 0,
+        "output_path": "/historical/path/that/is/not/a/lookup/location",
+        "nnodes": 2,
+        "test_definition": {
+            "cmd_args": {
+                "x": 1,
+                "label": "001",
+                "enabled": True,
+                "items": ["001", "true"],
+                "empty": [],
+                "nested.value": "literal",
+                "nested": {"value": "inside", "empty": {}},
+                "redacted_label": "<REDACTED>",
+                "drop_rate": 0.0,
+            },
+            "agent_metrics": ["bus_bw"],
+            "agent_observation": ["drop_rate"],
+            "agent_reward_function": "identity",
+            "agent_config": {"rewards": {"metric_failure": -7}},
+        },
+    }
+    (root / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(toml.dumps(recorded))
+    unverified = root / "7"
+    unverified.mkdir()
+    (unverified / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+        toml.dumps({"name": "unverified", "test_definition": {"cmd_args": {"label": "not-trusted"}}})
+    )
+    return root
+
+
+@pytest.mark.parametrize(
+    ("history", "dump_state"),
+    [
+        ("legacy", "matched"),
+        ("legacy", "absent"),
+        ("legacy", "malformed"),
+        ("modern", "matched"),
+        ("modern", "absent"),
+        ("modern", "malformed"),
+        ("typed-environment", "matched"),
+        ("scalar-action", "absent"),
+    ],
+)
+def test_recorded_recovery_preserves_default_and_modern_histories(
+    tmp_path: Path, slurm_system, history: str, dump_state: str
+) -> None:
+    import toml
+
+    from cloudai.core import CommandGenStrategy, TestDefinition
+
+    root = tmp_path / "history"
+    root.mkdir()
+    action = 42 if history == "scalar-action" else {"x": 1}
+    if history == "modern":
+        definition = TestDefinition(
+            name="modern", description="modern", test_template_name="modern", cmd_args=CmdArgs.model_validate({"x": 1})
+        )
+        run = TestRun(name="modern", test=definition, num_nodes=1, nodes=[], step=1)
+        writer = Trajectory(iteration_dir=root)
+        writer.record(
+            test_run=run,
+            system=slurm_system,
+            rewards=RewardOverrides(),
+            action_space={"x": [1, 2]},
+            action=action,
+            reward=1.0,
+            observation=[],
+        )
+    elif history in {"typed-environment", "scalar-action"}:
+        writer = Trajectory(iteration_dir=root)
+        metadata = (
+            {"record_format_version": "1", "env_params": {"fixed": True}} if history == "typed-environment" else {}
+        )
+        writer.append(step=1, action=action, reward=1.0, observation=[], **metadata)
+    else:
+        (root / "trajectory.csv").write_text("step,action,reward,observation\n1,{'x': 1},1.0,[]\n")
+    dump = root / "1" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+    if dump_state != "absent":
+        dump.parent.mkdir(exist_ok=True)
+        recorded_args = {"x": 1, "fixed": True} if history == "typed-environment" else {"x": 1}
+        dump.write_text(
+            "[malformed"
+            if dump_state == "malformed"
+            else toml.dumps({"step": 1, "test_definition": {"cmd_args": recorded_args}})
+        )
+    before = {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    raw = Trajectory.load(root).records()[0]
+    assert raw["action"] == action
+    assert raw["reward"] == 1.0 and raw["observation"] == []
+    if history == "typed-environment":
+        assert raw.get("env_params", decode_numbers=True)["fixed"] is True
+    if history == "modern":
+        recovered = Trajectory.load(root, recovery="recorded").records()[0]
+        assert dict(recovered) == dict(raw) and recovered.metadata == raw.metadata
+        assert "recovery" not in recovered.get("run_details", decode_numbers=True)
+    elif dump_state == "malformed":
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(root, recovery="recorded")
+    else:
+        recovered = Trajectory.load(root, recovery="recorded").records()[0]
+        expected_environment = {"fixed": True} if history == "typed-environment" else {}
+        assert recovered.get("env_params", decode_numbers=True) == expected_environment
+        assert (recovered["action"], recovered["reward"], recovered["observation"]) == (
+            raw["action"],
+            raw["reward"],
+            raw["observation"],
+        )
+        details = recovered.get("run_details", decode_numbers=True)
+        if not expected_environment:
+            assert isinstance(details["recovery"]["unknowns"]["env_params"], str)
+        else:
+            assert recovered.get("env_params", decode_numbers=True)["fixed"] is True
+        assert type(recovered["action"]) is type(raw["action"])
+        assert recovered.get("configuration_id") is None
+    assert {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()} == before
+
+
+def test_recorded_recovery_uses_only_matching_historical_evidence(
+    legacy_recorded_history: Path, tmp_path: Path
+) -> None:
+    import shutil
+
+    from cloudai.core import CommandGenStrategy
+
+    root = legacy_recorded_history
+    before = {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    raw = Trajectory.load(root).records()
+    recovered_history = Trajectory.load(root, recovery="recorded")
+    records = recovered_history.records()
+    invalid_options: dict[str, Any] = {"recovery": "unsupported"}
+    with pytest.raises(ValueError):
+        Trajectory.load(root, **invalid_options)
+    with pytest.raises(RuntimeError, match="read-only"):
+        recovered_history.append(step=8, action={}, reward=0.0, observation=[])
+    assert [record.step for record in records] == [0, 2, 7]
+    assert [(record["action"], record["reward"], record["observation"]) for record in records] == [
+        (record["action"], record["reward"], record["observation"]) for record in raw
+    ]
+    assert records[0].get("env_params", decode_numbers=True) == {
+        "label": "001",
+        "enabled": True,
+        "items": ["001", "true"],
+        "empty": [],
+        "nested.value": "literal",
+        "nested": {"value": "inside", "empty": {}},
+        "redacted_label": "<REDACTED>",
+        "NUM_NODES": 2,
+        "drop_rate": 0.0,
+    }
+    details = records[0].get("run_details", decode_numbers=True)
+    assert details["agent_metrics"] == ["bus_bw"] and details["agent_observation"] == ["drop_rate"]
+    assert details["reward_function"] == "identity"
+    assert details["launch"]["num_nodes"] == 2 and "nodes" not in details["launch"]
+    assert "evaluation_policy" not in details
+    recovery = details["recovery"]
+    assert recovery["policy"] == "recorded" and recovery["source_id_kind"] == "sha256"
+    assert recovery["historical_identity"] == {
+        "name": "historical-name",
+        "current_iteration": 9,
+        "step": 0,
+        "output_path": "/historical/path/that/is/not/a/lookup/location",
+    }
+    assert recovery["context_completeness"] == {
+        "status": "unknown",
+        "reason": "historical_serialization_may_redact_or_omit_fields",
+    }
+    assert recovery["unknowns"]["action_space"] == "original_declaration_unverified"
+    assert recovery["unknowns"]["evaluation_policy"] == "historical_actual_policy_not_recorded"
+    assert recovery["ambiguous_env_paths"] == []
+    assert all(
+        path in recovery["recorded_env_paths"]
+        for path in [["label"], ["nested.value"], ["nested", "value"], ["nested", "empty"]]
+    )
+    assert len(recovery["source_id"]) == 64
+    assert (
+        recovery["source_id"] == hashlib.sha256(before["trajectory.csv"] + b"\x00" + before["metadata.csv"]).hexdigest()
+    )
+    dump_name = CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+    for record, status, reason, relative in zip(
+        records,
+        ["matched", "absent", "unverified_identity"],
+        [None, "historical_dump_absent", "historical_dump_step_missing"],
+        [dump_name, f"2/{dump_name}", f"7/{dump_name}"],
+        strict=True,
+    ):
+        assert record["source_row"] == "001" and record["legacy_json"] == '{"x":1}'
+        assert record.get("run_details", decode_numbers=True)["label"] == "001"
+        current = record.get("run_details", decode_numbers=True)["recovery"]
+        assert current["source_id"] == recovery["source_id"] and current["source_step"] == record.step
+        assert current["dump"]["status"] == status and current["dump"]["reason"] == reason
+        assert current["dump"]["relative_path"] == relative
+        assert current["dump"]["sha256"] == (
+            hashlib.sha256((root / relative).read_bytes()).hexdigest() if status != "absent" else None
+        )
+        measurement = record.get("measurement", decode_numbers=True)
+        assert measurement["kind"] == measurement["outcome"] == measurement["execution_status"] == "unknown"
+        assert measurement["origin"] == {"status": "unknown", "reason": "historical_measurement_origin_not_recorded"}
+        assert record.get("evaluation_failure", decode_numbers=True) == {
+            "status": "unknown",
+            "reason": "historical_failure_evidence_not_recorded",
+        }
+        assert record.get("configuration_id") is None
+        assert record.source == root / "trajectory.csv"
+    for record, original in zip(records[1:], raw[1:], strict=True):
+        assert record.get("env_params", decode_numbers=True) == original["env_params"]
+        assert ["label"] in record.get("run_details", decode_numbers=True)["recovery"]["ambiguous_env_paths"]
+    copied = tmp_path / "copied"
+    shutil.copytree(root, copied)
+    relocated = Trajectory.load(copied, recovery="recorded").records()
+    assert [record.get("run_details", decode_numbers=True)["recovery"]["source_id"] for record in relocated] == [
+        recovery["source_id"]
+    ] * 3
+    assert all(record.source == copied / "trajectory.csv" for record in relocated)
+    assert {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()} == before
+
+    opaque_history = tmp_path / "opaque-failure-history"
+    writer = Trajectory(iteration_dir=opaque_history)
+    writer.append(
+        step=1,
+        action={"x": 1},
+        reward=10,
+        observation=[1.0],
+        evaluation_failure={"constraint": False, "metric_indices": []},
+    )
+    before_opaque = {path: path.read_bytes() for path in opaque_history.rglob("*") if path.is_file()}
+    record = Trajectory.load(opaque_history, recovery="recorded").records()[0]
+    paths = record.get("run_details", decode_numbers=True)["recovery"]["opaque_context_paths"]
+    assert {tuple(path) for path in paths} == {
+        ("evaluation_failure", "constraint"),
+        ("evaluation_failure", "metric_indices"),
+    }
+    assert record.get("evaluation_failure", decode_numbers=True) == {
+        "constraint": "False",
+        "metric_indices": "[]",
+    }
+    assert {path: path.read_bytes() for path in opaque_history.rglob("*") if path.is_file()} == before_opaque
+
+
+@pytest.mark.parametrize(
+    ("dump_patch", "metadata_patch", "malformed", "expect_conflict"),
+    [
+        ({"test_definition": {"cmd_args": {"x": 2}}}, {}, False, True),
+        ({"test_definition": {"cmd_args": {"label": "different"}}}, {}, False, True),
+        (
+            {"test_definition": {"agent_metrics": ["different"]}},
+            {"run_details.agent_metrics": "['bus_bw']"},
+            False,
+            True,
+        ),
+        (
+            {"test_definition": {"agent_observation": ["different"]}},
+            {"run_details.agent_observation": "['drop_rate']"},
+            False,
+            True,
+        ),
+        (
+            {"test_definition": {"agent_reward_function": "negative"}},
+            {"run_details.reward_function": "identity"},
+            False,
+            True,
+        ),
+        ({"step": 8}, {}, False, True),
+        ({"step": False}, {}, False, True),
+        ({}, {}, True, True),
+        ({}, {"run_details": "{'unversioned': 'json-like'}"}, False, True),
+        ({}, {"run_details.recovery.source_step": "7"}, False, True),
+        ({}, {"agent_metrics": "['different']"}, False, True),
+        ({}, {"agent_observation": "['different']"}, False, True),
+        ({}, {"agent_reward_function": "negative"}, False, True),
+        ({}, {"test_definition.cmd_args.label": "different"}, False, True),
+        ({}, {"nnodes": "3"}, False, True),
+        ({}, {"name": "different"}, False, True),
+        ({}, {"current_iteration": "8"}, False, True),
+        (
+            {},
+            {
+                "agent_metrics": "['bus_bw']",
+                "agent_observation": "['drop_rate']",
+                "agent_reward_function": "identity",
+                "test_definition.cmd_args.label": "001",
+                "nnodes": "2",
+                "name": "historical-name",
+                "current_iteration": "9",
+            },
+            False,
+            False,
+        ),
+        ({}, {"env_params.nested.value": "inside"}, False, True),
+    ],
+)
+def test_recorded_recovery_conflicts_before_import(
+    legacy_recorded_history: Path, dump_patch: dict, metadata_patch: dict, malformed: bool, expect_conflict: bool
+) -> None:
+
+    import toml
+
+    from cloudai.core import CommandGenStrategy
+
+    root = legacy_recorded_history
+    dump_name = CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
+    recorded = toml.loads((root / dump_name).read_text())
+    recorded["step"] = 7
+    for key, value in dump_patch.items():
+        if key == "test_definition":
+            for field, child in value.items():
+                if field == "cmd_args":
+                    recorded[key][field].update(child)
+                else:
+                    recorded[key][field] = child
+        else:
+            recorded[key] = value
+    selected_dump = root / dump_name if dump_patch.get("step") is False else root / "7" / dump_name
+    selected_dump.write_text("[malformed" if malformed else toml.dumps(recorded))
+    sidecar = root / "metadata.csv"
+    with sidecar.open(newline="") as stream:
+        reader = csv.DictReader(stream)
+        fields, rows = list(reader.fieldnames or []), list(reader)
+    for name, value in metadata_patch.items():
+        if name == "run_details":
+            fields = [field for field in fields if not field.startswith("run_details.")]
+            rows = [{key: child for key, child in row.items() if key in fields} for row in rows]
+        fields.append(name)
+        for row in rows:
+            row[name] = value
+    with sidecar.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    before = {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    raw = Trajectory.load(root).records()
+    assert len(raw) == 3
+    if expect_conflict:
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(root, recovery="recorded")
+    else:
+        recovered = Trajectory.load(root, recovery="recorded").records()
+        assert len(recovered) == 3
+        assert [
+            {
+                name: record[name]
+                for name in (
+                    "agent_metrics",
+                    "agent_observation",
+                    "agent_reward_function",
+                    "test_definition",
+                    "nnodes",
+                    "name",
+                    "current_iteration",
+                )
+            }
+            for record in recovered
+        ] == [
+            {
+                "agent_metrics": "['bus_bw']",
+                "agent_observation": "['drop_rate']",
+                "agent_reward_function": "identity",
+                "test_definition": {"cmd_args": {"label": "001"}},
+                "nnodes": "2",
+                "name": "historical-name",
+                "current_iteration": "9",
+            }
+        ] * 3
+    assert [record.step for record in raw] == [0, 2, 7]
+    assert {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("value", ["001", "nan", "inf", "False", "[]"])
+@pytest.mark.parametrize("dump", ["absent", "unverified"])
+def test_recorded_recovery_preserves_uncorroborated_legacy_environment_cells(
+    tmp_path: Path, value: str, dump: str
+) -> None:
+    import toml
+
+    from cloudai.core import CommandGenStrategy
+
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(step=1, action={"x": 1}, reward=10, observation=[1.0], env_params={"label": value})
+    if dump == "unverified":
+        archive = tmp_path / "1"
+        archive.mkdir()
+        (archive / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME).write_text(
+            toml.dumps({"name": "unverified", "test_definition": {"cmd_args": {"label": "not-trusted"}}})
+        )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    original = Trajectory.load(tmp_path).records()[0]
+
+    recovered = Trajectory.load(tmp_path, recovery="recorded").records()[0]
+
+    assert original["env_params"] == {"label": value}
+    assert recovered.get("env_params", decode_numbers=True) == {"label": value}
+    assert recovered["action"] == original["action"]
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("versioned", [False, True])
+def test_opaque_nan_environment_labels_keep_measurement_eligibility_after_recovery(tmp_path: Path, versioned) -> None:
+    import math
+
+    history = Trajectory(iteration_dir=tmp_path)
+    history.append(
+        step=1,
+        action={"x": 1},
+        reward=3.0,
+        observation=[1.0],
+        env_params={"label": "nan"},
+        **({"record_format_version": "1"} if versioned else {}),
+    )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    plain = Trajectory.load(tmp_path).records()[0]
+    recovered = Trajectory.load(tmp_path, recovery="recorded").records()[0]
+    for record in (plain, recovered):
+        assert record.get("env_params") == {"label": (json.dumps("nan") if versioned or record is recovered else "nan")}
+    typed = plain.get("env_params", decode_numbers=True)["label"]
+    assert typed == "nan" if versioned else math.isnan(typed)
+    assert recovered.get("env_params", decode_numbers=True)["label"] == "nan"
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
