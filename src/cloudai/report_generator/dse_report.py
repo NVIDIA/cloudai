@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import io
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,7 @@ from typing import Any
 
 import toml
 
+from cloudai.configurator.trajectory import Trajectory
 from cloudai.core import CommandGenStrategy, System, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmJobMetadata
@@ -129,11 +131,23 @@ def _safe_literal_eval(raw: Any, default: Any) -> Any:
 
 
 def load_trajectory_dataframe(iteration_dir: Path) -> tuple[Path, Any] | None:
-    """Load a trajectory CSV as a DataFrame."""
     trajectory_file = iteration_dir / "trajectory.csv"
+    history = Trajectory.load(trajectory_file, missing_ok=True)
     if not trajectory_file.is_file():
         return None
-    return trajectory_file, lazy.pd.read_csv(trajectory_file)
+    frame = lazy.pd.DataFrame(
+        [
+            {
+                "step": record.step,
+                "action": record["action"],
+                "reward": record.get("reward", decode_numbers=True),
+                "observation": record["observation"],
+            }
+            for record in history.records()
+        ],
+        columns=("step", "action", "reward", "observation"),
+    )
+    return trajectory_file, lazy.pd.read_csv(io.StringIO(frame.to_csv(index=False)))
 
 
 def _format_scalar(value: Any) -> str:
