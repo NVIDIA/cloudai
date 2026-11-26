@@ -301,7 +301,7 @@ class Trajectory:
     @property
     def output_path(self) -> Path:
         """Return the trajectory CSV path."""
-        return self._iteration_dir / self.file_name
+        return self._source_path if self._source_path is not None else self._iteration_dir / self.file_name
 
     @property
     def metadata_path(self) -> Path:
