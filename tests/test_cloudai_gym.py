@@ -377,3 +377,452 @@ def test_cached_numeric_text_returns_runtime_float_without_rewriting_recorded_re
     observation, reward, _, info = env.step({"x": 1})
     assert observation == [1.0] and type(reward) is float and reward == 10.0
     assert info["trajectory"]["measurement"]["kind"] == "cached"
+
+
+@pytest.mark.parametrize("execution_env", [("success", 2)], indirect=True)
+def test_reset_preserves_the_requested_iteration_and_recording_location(execution_env) -> None:
+    env, submitted, _, _, iteration = execution_env
+    source = env.trajectory.output_path
+    env.reset()
+    assert env.test_run.current_iteration == iteration == 2
+    env.step({"choice": 2})
+    record = Trajectory.load(source).records()[0]
+    assert record.source.parent == source.parent == env.iteration_dir
+    assert submitted[0].current_iteration == 2
+    assert record.get("run_details", decode_numbers=True)["iteration"] == 2
+
+
+def test_cache_identity_includes_held_dimensions_and_preserves_original_measurement_origin(
+    tmp_path: Path, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import copy
+
+    from cloudai.models.output import Metric, Run
+
+    definition = TestDefinition(
+        name="cache",
+        description="cache",
+        test_template_name="cache",
+        cmd_args=CmdArgs.model_validate({"x": [1, 2], "y": [10, 20], "fixed": "001"}),
+        agent_metrics=["bandwidth"],
+        agent_reward_function="identity",
+        agent_steps=10,
+    )
+    template = TestRun(name="cache", test=definition, num_nodes=1, nodes=[])
+    runner = SlurmRunner(
+        mode="dry-run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="cache", test_runs=[template]),
+        output_path=tmp_path / "original",
+    )
+    submitted: list[TestRun] = []
+
+    def execute() -> None:
+        current = runner.test_scenario.test_runs[0]
+        submitted.append(current)
+        current.output_path.mkdir(parents=True, exist_ok=True)
+        runner.experiment_output.update_run(
+            current.name,
+            Run(
+                path=str(current.output_path),
+                jobid=f"job-{current.step}",
+                iteration=current.current_iteration,
+                step=current.step,
+                status="completed",
+                metrics=[Metric(name="bandwidth", value=float(current.test.cmd_args.y), unit="GB/s")],
+            ),
+        )
+
+    monkeypatch.setattr(runner, "run", execute)
+    monkeypatch.setattr(TestRun, "get_metric_value", lambda run, system, metric: float(run.test.cmd_args.y))
+    env = CloudAIGymEnv(template, runner, RewardOverrides())
+    env.reset()
+    proposals = ({"x": 1, "y": 10}, {"x": 2}, {"x": 1, "y": 20}, {"x": 2})
+    results = [env.step(action) for action in proposals]
+    observations = [result[0] for result in results]
+    assert observations == [[10.0], [10.0], [20.0], [20.0]]
+    assert len(submitted) == 4
+    resolved_actions = [{"x": 1, "y": 10}, {"x": 2, "y": 10}, {"x": 1, "y": 20}, {"x": 2, "y": 20}]
+    source_records = Trajectory.load(env.trajectory.output_path).records()
+    for result, record, proposal, resolved_action in zip(
+        results, source_records, proposals, resolved_actions, strict=True
+    ):
+        assert result[3]["trajectory"]["run_details"]["resolved_action"] == resolved_action
+        assert record.get("run_details", decode_numbers=True)["resolved_action"] == resolved_action
+        assert record["action"] == proposal
+        assert record.get("env_params", decode_numbers=True)["fixed"] == "001"
+    _, _, _, cached_info = env.step({"x": 2})
+    assert cached_info["trajectory"]["run_details"]["resolved_action"] == {"x": 2, "y": 20}
+    assert len(submitted) == 4
+    assert cached_info["trajectory"]["measurement"]["kind"] == "cached"
+    original_measurement = cached_info["trajectory"]["measurement"]["origin"]
+    assert original_measurement["step"] == 4
+    assert cached_info["trajectory"]["run_details"]["step"] == 5
+    saved_run = copy.deepcopy(env.test_run)
+    source = env.trajectory.output_path
+    warm_frame = Trajectory.load(source).dataframe
+    cached_only = warm_frame.loc[warm_frame["step"] == 5].copy()
+    cached_only = cached_only.drop(columns=["observation"])
+    cached_only["observation.bandwidth"] = None
+    cached_only.at[cached_only.index[0], "observation.bandwidth"] = 20.0
+    env.test_run.test.cmd_args.fixed = "changed"
+    _, _, _, changed_info = env.step({"x": 2})
+    assert changed_info["trajectory"]["run_details"]["resolved_action"] == {"x": 2, "y": 20}
+    assert len(submitted) == 5
+    assert changed_info["trajectory"]["measurement"]["kind"] == "fresh"
+    assert changed_info["trajectory"]["configuration_id"] != cached_info["trajectory"]["configuration_id"]
+
+    continued = TestRun(
+        name="continued", test=copy.deepcopy(definition), num_nodes=1, nodes=[], current_iteration=2, step=5
+    )
+    continued_runner = SlurmRunner(
+        mode="dry-run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="continued", test_runs=[continued]),
+        output_path=tmp_path / "continued",
+    )
+    continued_submitted: list[TestRun] = []
+
+    def execute_continued() -> None:
+        continued_submitted.append(continued_runner.test_scenario.test_runs[0])
+        continued_submitted[-1].output_path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(continued_runner, "run", execute_continued)
+    monkeypatch.setattr(
+        "cloudai.configurator.cloudai_gym.Trajectory",
+        lambda *, iteration_dir: Trajectory(iteration_dir=iteration_dir, dataframe=cached_only),
+    )
+    resumed = CloudAIGymEnv(continued, continued_runner, RewardOverrides())
+    saved_run.name = "continued"
+    saved_run.current_iteration = 2
+    resumed.test_run = saved_run
+    resumed.reset()
+    continued_observation, _, _, continued_info = resumed.step({"x": 2})
+    assert continued_observation == [20.0]
+    assert continued_submitted == []
+    continued_record = Trajectory.load(resumed.trajectory.output_path).records()[-1]
+    current_details = continued_record.get("run_details", decode_numbers=True)
+    assert current_details["resolved_action"] == {"x": 2, "y": 20}
+    assert continued_record["action"] == {"x": 2}
+    assert continued_info["trajectory"]["run_details"] == current_details
+    measurement = continued_record.get("measurement", decode_numbers=True)
+    assert (current_details["run_name"], current_details["iteration"], current_details["step"]) == ("continued", 2, 6)
+    assert measurement["kind"] == "cached"
+    assert measurement["origin"] == original_measurement
+    assert current_details["history_id"] != original_measurement["history_id"]
+    assert continued_info["trajectory"]["measurement"] == measurement
+
+    from cloudai.core import BaseAgentConfig
+
+    monkeypatch.setattr("cloudai.configurator.cloudai_gym.Trajectory", Trajectory)
+    monkeypatch.setattr(TestRun, "get_metric_value", lambda run, system, metric: METRIC_ERROR)
+    failure_run = TestRun(name="reward-first", test=copy.deepcopy(definition), num_nodes=1, nodes=[])
+    failure_runner = SlurmRunner(
+        mode="dry-run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="reward-first", test_runs=[failure_run]),
+        output_path=tmp_path / "reward-first",
+    )
+
+    def execute_failure() -> None:
+        current = failure_runner.test_scenario.test_runs[0]
+        current.output_path.mkdir(parents=True, exist_ok=True)
+        failure_runner.experiment_output.update_run(
+            current.name,
+            Run(
+                path=str(current.output_path),
+                jobid="reward-first",
+                iteration=current.current_iteration,
+                step=current.step,
+                status="completed",
+                metrics=[],
+            ),
+        )
+
+    monkeypatch.setattr(failure_runner, "run", execute_failure)
+    first_rewards = BaseAgentConfig(rewards=RewardOverrides(metric_failure=-7.0)).rewards
+    first_failure_env = CloudAIGymEnv(failure_run, failure_runner, first_rewards)
+    _, first_reward, _, first_failure_info = first_failure_env.step({"x": 1, "y": 10})
+    assert first_reward == -7.0
+    failure_frame = Trajectory.load(first_failure_env.trajectory.output_path).dataframe
+    different_run = TestRun(name="reward-second", test=copy.deepcopy(definition), num_nodes=1, nodes=[], step=1)
+    different_runner = SlurmRunner(
+        mode="dry-run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="reward-second", test_runs=[different_run]),
+        output_path=tmp_path / "reward-second",
+    )
+    different_submissions: list[TestRun] = []
+
+    def execute_different() -> None:
+        current = different_runner.test_scenario.test_runs[0]
+        different_submissions.append(current)
+        current.output_path.mkdir(parents=True, exist_ok=True)
+        different_runner.experiment_output.update_run(
+            current.name,
+            Run(
+                path=str(current.output_path),
+                jobid="reward-second",
+                iteration=current.current_iteration,
+                step=current.step,
+                status="completed",
+                metrics=[],
+            ),
+        )
+
+    monkeypatch.setattr(different_runner, "run", execute_different)
+    monkeypatch.setattr(
+        "cloudai.configurator.cloudai_gym.Trajectory",
+        lambda *, iteration_dir: Trajectory(iteration_dir=iteration_dir, dataframe=failure_frame),
+    )
+    different_rewards = BaseAgentConfig(rewards=RewardOverrides(metric_failure=-17.0)).rewards
+    different_env = CloudAIGymEnv(different_run, different_runner, different_rewards)
+    _, different_reward, _, different_info = different_env.step({"x": 1, "y": 10})
+    assert different_reward == -17.0
+    assert len(different_submissions) == 1
+    assert different_info["trajectory"]["measurement"]["kind"] == "fresh"
+    assert different_info["trajectory"]["configuration_id"] != first_failure_info["trajectory"]["configuration_id"]
+
+
+@pytest.mark.parametrize(
+    "execution_env,expected_best",
+    [
+        (("success", 0), 1),
+        (("legitimate_minus_one", 0), 1),
+        (("metric_failure", 0), None),
+        (("runner_failure", 0), None),
+        (("reported_runner_failure", 0), None),
+        (("completed_then_runner_failure", 0), None),
+    ],
+    indirect=["execution_env"],
+)
+def test_recommendations_use_measurement_eligibility_and_keep_completed_run_guard(execution_env, expected_best) -> None:
+    env, submitted, _, outcome, _ = execution_env
+    env.reset()
+    env.step({"choice": 2})
+    env.update_output()
+    test_output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    assert test_output.dse is not None
+    assert test_output.dse.best_step == expected_best
+    records = Trajectory.load(env.trajectory.output_path).records()
+    assert len(records) == 1
+    measurements = [record for record in records if not record.ineligibility_reasons("measurement")]
+    assert bool(measurements) is (expected_best is not None)
+    assert not records[0].ineligibility_reasons("decision")
+    if expected_best is not None:
+        assert test_output.dse.best_config == {"choice": 2}
+        env.step({"choice": 2})
+        env.update_output()
+        assert len(submitted) == 1
+        records = Trajectory.load(env.trajectory.output_path).records()
+        first = records[0].get("measurement", decode_numbers=True)
+        cached = records[1].get("measurement", decode_numbers=True)
+        assert cached["kind"] == "cached" and cached["origin"] == first["origin"]
+        assert test_output.dse.best_step == 1
+        assert sum(not record.ineligibility_reasons("measurement") for record in records) == 2
+    elif outcome == "completed_then_runner_failure":
+        assert test_output.runs[0].status == "completed"
+        assert records[0].get("measurement", decode_numbers=True)["outcome"] == "runner_failure"
+
+
+@pytest.mark.parametrize("execution_env", [("success", 0)], indirect=True)
+@pytest.mark.parametrize(
+    "proposal",
+    ["partial", "complete", "legacy_complete", "unversioned_full", "unversioned_incomplete", "declared_incomplete"],
+)
+def test_recommendations_keep_resolved_held_dimensions_and_rank_order(
+    execution_env: tuple[CloudAIGymEnv, list[TestRun], list[TestRun], str, int],
+    monkeypatch: pytest.MonkeyPatch,
+    proposal: str,
+) -> None:
+    import json
+    from copy import deepcopy
+
+    from cloudai.models.output import Metric, Run
+
+    env, submitted, _, _, _ = execution_env
+    env.original_test_run.test.cmd_args = CmdArgs.model_validate({"choice": [1, 2], "held": ["001", "002"]})
+    env.test_run.test.cmd_args = deepcopy(env.original_test_run.test.cmd_args)
+    monkeypatch.setattr(TestRun, "get_metric_value", lambda self, system, name: 9.0 if len(submitted) > 1 else 1.0)
+    env.reset()
+    first = {"choice": 1, "held": "001"}
+    winning = {"choice": 2, "held": "001"}
+    if proposal not in ("partial", "complete"):
+        for step, action, reward in ((1, first, 1.0), (2, winning, 9.0)):
+            context = {}
+            if proposal in ("unversioned_full", "unversioned_incomplete"):
+                context["run_details"] = {
+                    "resolved_action": action if proposal == "unversioned_full" else {"choice": action["choice"]}
+                }
+            elif proposal == "declared_incomplete":
+                seed = Trajectory(iteration_dir=env.trajectory.output_path.parent.parent / "seed" / str(step))
+                selected = env.original_test_run.apply_params_set(action)
+                selected.step = step
+                native = seed.record(
+                    test_run=selected,
+                    action_space=env.original_test_run.param_space,
+                    action=action,
+                    reward=reward,
+                    observation={"custom_metric": reward, "bandwidth": reward},
+                    system=env.runner.system,
+                    rewards=RewardOverrides(),
+                    run_output=Run(
+                        path=str(selected.output_path),
+                        jobid=f"seed-{step}",
+                        status="completed",
+                        step=step,
+                        iteration=0,
+                        metrics=[
+                            Metric(name="custom_metric", value=reward, unit="unknown"),
+                            Metric(name="bandwidth", value=reward, unit="GB/s"),
+                        ],
+                    ),
+                )
+                details = native.get("run_details", decode_numbers=True)
+                details["resolved_action"] = {"choice": action["choice"]}
+                context.update(
+                    record_context_version="1",
+                    run_details=json.dumps(details),
+                    measurement=native["measurement"],
+                    evaluation_failure=native["evaluation_failure"],
+                )
+            env.trajectory.append(step=step, action=action, reward=reward, observation=[reward, reward], **context)
+            env.runner.experiment_output.update_run(
+                "resolved",
+                Run(
+                    path=str(env.trajectory.output_path.parent / str(step)),
+                    jobid=f"legacy-{step}",
+                    status="completed",
+                    step=step,
+                    iteration=0,
+                    metrics=[Metric(name="custom_metric", value=reward, unit="unknown")],
+                ),
+            )
+    else:
+        env.step(first)
+        env.step({"choice": 2} if proposal == "partial" else winning)
+    env.update_output()
+    output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    assert output.dse is not None
+    assert output.dse.best_config is not None
+    assert output.dse.best_config == winning
+    assert output.dse.best_step == 2
+    assert type(output.dse.best_config["held"]) is str
+    records = Trajectory.load(env.trajectory.output_path).records()
+    assert len(records) == 2
+    if proposal in ("partial", "complete"):
+        assert not any(record.ineligibility_reasons("measurement") for record in records)
+        assert records[1].get("run_details", decode_numbers=True)["resolved_action"] == winning
+        env.step(winning)
+        env.update_output()
+        assert len(submitted) == 2
+        assert output.dse.best_step == 2 and output.dse.best_config == winning
+        records = Trajectory.load(env.trajectory.output_path).records()
+        assert (
+            records[2].get("measurement", decode_numbers=True)["origin"]
+            == records[1].get("measurement", decode_numbers=True)["origin"]
+        )
+
+
+@pytest.mark.parametrize("execution_env", [("success", 0)], indirect=True)
+@pytest.mark.parametrize("archive", ["legacy", "native"])
+@pytest.mark.parametrize(
+    "rewards,expected_step",
+    [
+        pytest.param((9, "010"), 2, id="mixed_leading_zero"),
+        pytest.param((9, " 10"), 2, id="mixed_whitespace"),
+        pytest.param(("09", "010"), 2, id="lexical_strings"),
+        pytest.param((9007199254740992, 9007199254740993), 2, id="native_bigints"),
+        pytest.param((10, 10), 1, id="native_tie"),
+        pytest.param((10, "010"), 1, id="mixed_numeric_tie"),
+        pytest.param((9, " 10.5"), 2, id="whitespace_fraction"),
+        pytest.param((9007199254740992, " 9007199254740993"), 2, id="mixed_bigint_string"),
+    ],
+)
+def test_recommendations_rank_numeric_rewards_without_changing_recorded_values(
+    execution_env: tuple[CloudAIGymEnv, list[TestRun], list[TestRun], str, int],
+    archive: str,
+    rewards: tuple[int | str, int | str],
+    expected_step: int,
+) -> None:
+    from cloudai.models.output import Metric, Run
+
+    env, _, _, _, _ = execution_env
+    env.reset()
+    writer = env.trajectory
+    for step, reward in enumerate(rewards, 1):
+        selected = env.original_test_run.apply_params_set({"choice": step}, env_params={"ball_speed": 3})
+        selected.step = step
+        selected.output_path = writer.output_path.parent / str(step)
+        output = Run(
+            path=str(selected.output_path),
+            jobid=f"rank-{step}",
+            status="completed",
+            step=step,
+            iteration=0,
+            metrics=[
+                Metric(name="custom_metric", value=1.0, unit="unknown"),
+                Metric(name="bandwidth", value=2.5, unit="GB/s"),
+            ],
+        )
+        if archive == "native":
+            writer.record(
+                test_run=selected,
+                action_space=env.original_test_run.param_space,
+                action={"choice": step},
+                reward=reward,
+                observation={"custom_metric": 1.0, "bandwidth": 2.5},
+                system=env.runner.system,
+                rewards=RewardOverrides(),
+                run_output=output,
+            )
+        else:
+            writer.append(step=step, action={"choice": step}, reward=reward, observation=[1.0, 2.5])
+        env.runner.experiment_output.update_run("resolved", output)
+    loaded = Trajectory.load(writer.output_path)
+    before = {path: path.read_bytes() for path in writer.output_path.parent.iterdir() if path.is_file()}
+    test_output = next(test for test in env.runner.experiment_output.experiment.tests if test.id == "resolved")
+    outcomes = []
+    for name, history in (("live", writer), ("loaded", loaded)):
+        records = history.records()
+        assert [record["reward"] for record in records] == list(rewards)
+        assert [type(record["reward"]) for record in records] == [type(reward) for reward in rewards]
+        assert not any(record.ineligibility_reasons("measurement") for record in records)
+        getters = [(record.get("reward"), record.get("reward", decode_numbers=True)) for record in records]
+        test_output.dse = None
+        env.trajectory = history
+        env.update_output()
+        outcomes.append(
+            (
+                name,
+                None if test_output.dse is None else test_output.dse.best_step,
+                None if test_output.dse is None else test_output.dse.best_config,
+            )
+        )
+        assert [
+            (record.get("reward"), record.get("reward", decode_numbers=True)) for record in history.records()
+        ] == getters
+        assert [type(record["reward"]) for record in history.records()] == [type(reward) for reward in rewards]
+    assert {path: path.read_bytes() for path in writer.output_path.parent.iterdir() if path.is_file()} == before
+    assert outcomes == [
+        ("live", expected_step, {"choice": expected_step}),
+        ("loaded", expected_step, {"choice": expected_step}),
+    ]
+
+
+@pytest.mark.parametrize("execution_env", [("runner_failure", 0)], indirect=True)
+def test_cache_reruns_a_failed_native_context_instead_of_reusing_its_measurement(execution_env) -> None:
+    env, submitted, measured, _, _ = execution_env
+    env.step({"choice": 1})
+    before = {path: path.read_bytes() for path in (env.trajectory.output_path, env.trajectory.metadata_path)}
+    assert len(submitted) == 1
+    assert env.trajectory.records()[0].ineligibility_reasons("measurement")
+    assert env.get_cached_trajectory_result({"choice": 1}, {"ball_speed": 3}) is None
+
+    _, _, _, info = env.step({"choice": 1})
+
+    assert len(submitted) == 2 and len(measured) == 4
+    assert info["trajectory"]["measurement"]["kind"] == "fresh"
+    assert info["trajectory"]["evaluation_failure"]["runner"] is True
+    assert len(env.trajectory) == 2
+    assert all(path.read_bytes().startswith(content) for path, content in before.items())
