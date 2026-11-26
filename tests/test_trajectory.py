@@ -32,7 +32,8 @@ import pandas as pd
 import pytest
 
 import cloudai.configurator as configurator
-from cloudai.configurator import Trajectory
+from cloudai.configurator import Trajectory, TrajectoryLoadError, TrajectoryRecord
+from cloudai.core import CmdArgs, RewardOverrides, TestRun
 
 
 def test_append_flattens_domains_into_dataframe_columns(tmp_path: Path) -> None:
@@ -355,7 +356,7 @@ def test_metadata_reuses_matching_header_without_duplication(tmp_path: Path, hea
     )
 
     assert path.read_text().splitlines() == [header, row]
-    assert Trajectory.load(tmp_path).records()[0]["logging"] == {"power": "600.0"}
+    assert Trajectory.load(tmp_path).records()[0].metadata["logging"] == {"power": "600.0"}
 
 
 def test_metadata_initializes_a_precreated_empty_file(tmp_path: Path) -> None:
@@ -557,7 +558,7 @@ def test_load_reconstructs_complete_trials_from_the_real_writer(tmp_path: Path) 
         "drop_rate": "0.003",
         "network": {"port": "100"},
     }
-    assert records[0]["execution"] == {"ticket": "T-1"}
+    assert records[0].metadata["execution"] == {"ticket": "T-1"}
     assert records[0].source == written.output_path
     assert "observation.bus_bw" not in loaded.dataframe.columns
 
@@ -587,7 +588,7 @@ def test_load_preserves_source_metadata_until_an_explicit_projection(tmp_path: P
     assert loaded.records()[0]["env_params"] == {"label": "001", "msg_size": "1024", "drop_rate": "0.003"}
     assert loaded.records()[0].get("env_params") == loaded.records()[0]["env_params"]
     assert loaded.records()[0].get("source_row") == {"label": "001"}
-    assert loaded.records()[0]["source_row"] == {"label": "001"}
+    assert loaded.records()[0].metadata["source_row"] == {"label": "001"}
 
 
 def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> None:
@@ -598,7 +599,7 @@ def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> 
     record = loaded.records()[0]
 
     record["action"]["values"].append(3)
-    record["execution"]["ticket"] = "changed"
+    record.metadata["execution"]["ticket"] = "changed"
 
     flat = loaded.dataframe
     values: object = flat.at[0, "action.values"]
@@ -609,7 +610,7 @@ def test_loaded_views_and_records_do_not_share_mutable_state(tmp_path: Path) -> 
     serialized.loc[0, "reward"] = 9.0
 
     assert loaded.records()[0]["action"] == {"values": [1, 2]}
-    assert loaded.records()[0]["execution"] == {"ticket": "T-1"}
+    assert loaded.records()[0].metadata["execution"] == {"ticket": "T-1"}
 
     assert loaded.dataframe.loc[0, "action.values"] == [1, 2]
     assert loaded.dataframe.loc[0, "reward"] == 1.0
@@ -837,7 +838,7 @@ def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path
 
         assert loaded.records()[0]["action"] == {"payload": payload}
         assert loaded.records()[0]["observation"] == [payload]
-        assert loaded.records()[0]["logging"] == {"payload": payload}
+        assert loaded.records()[0].metadata["logging"] == {"payload": payload}
         assert loaded.dataframe["step"].tolist() == [record.step for record in loaded.records()]
         assert csv.field_size_limit() == 4096
 
@@ -846,7 +847,7 @@ def test_load_accepts_large_writer_fields_and_restores_csv_reader_state(tmp_path
         (markerless / Trajectory.file_name).write_bytes(written.output_path.read_bytes())
         (markerless / Trajectory.metadata_file_name).write_text(f'step,logging.payload\n1,"{payload}",extra\n')
 
-        with pytest.raises(configurator.TrajectoryLoadError, match="row 2, expected 2 fields, got 3"):
+        with pytest.raises(TrajectoryLoadError, match="row 2, expected 2 fields, got 3"):
             Trajectory.load(markerless)
 
         assert csv.field_size_limit() == 4096
@@ -932,7 +933,9 @@ def test_load_preserves_zero_based_legacy_history_and_metadata_identity(tmp_path
 
 
 @pytest.fixture(params=[False, True], ids=["live", "loaded"])
-def readonly_record(request: pytest.FixtureRequest, tmp_path: Path):
+def readonly_record(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> tuple[TrajectoryRecord, MappingProxyType[str, Any]]:
     expected = {
         "step": 1,
         "action": {"values": ["1", "2.5", "auto"], "label": "001"},
@@ -942,20 +945,18 @@ def readonly_record(request: pytest.FixtureRequest, tmp_path: Path):
         "execution": {"ticket": "T-1"},
         "source": {"archive": "prior"},
     }
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    trajectory.append(**expected)
+    if request.param:
+        trajectory = Trajectory.load(tmp_path)
 
-    def create():
-        trajectory = Trajectory(iteration_dir=tmp_path)
-        trajectory.append(**expected)
-        if request.param:
-            trajectory = Trajectory.load(tmp_path)
-
-        return trajectory.records()[0], MappingProxyType(expected)
-
-    return create
+    return trajectory.records()[0], MappingProxyType(expected)
 
 
-def test_record_reads_match_a_readonly_dictionary(readonly_record, tmp_path: Path) -> None:
-    record, expected = readonly_record()
+def test_record_reads_match_a_readonly_dictionary(
+    readonly_record: tuple[TrajectoryRecord, MappingProxyType[str, Any]], tmp_path: Path
+) -> None:
+    record, expected = readonly_record
 
     assert record.source == tmp_path / "trajectory.csv"
     assert record["source"] == {"archive": "prior"}
@@ -988,9 +989,9 @@ def test_record_reads_match_a_readonly_dictionary(readonly_record, tmp_path: Pat
 
 
 def test_record_rejects_writes_and_returns_detached_nested_values(
-    readonly_record,
+    readonly_record: tuple[TrajectoryRecord, MappingProxyType[str, Any]],
 ) -> None:
-    record, expected = readonly_record()
+    record, expected = readonly_record
     writable: Any = record
 
     with pytest.raises(TypeError):
@@ -1012,6 +1013,8 @@ def test_record_rejects_writes_and_returns_detached_nested_values(
         assert isinstance(detached, dict)
         detached["values"].append(3)
         assert record == expected
+    record.metadata["execution"]["ticket"] = "changed"
+    assert record == expected
 
 
 @pytest.mark.parametrize("source_kind", ["directory", "file"])
@@ -1194,7 +1197,7 @@ def test_load_accepts_writer_supported_domains_without_optional_metadata(
     assert live_record["reward"] == record["reward"]
     assert record["observation"] == observation
     assert live_record["observation"] == record["observation"]
-    assert set(record) == {"step", "action", "reward", "observation"}
+    assert record.metadata == {}
     assert written.metadata_path.read_text().splitlines() == ["step", "1"]
     legacy = tmp_path / "legacy"
     legacy.mkdir()
@@ -1231,7 +1234,7 @@ def test_second_writer_cannot_change_an_owned_history(tmp_path: Path) -> None:
 @pytest.mark.parametrize("with_metadata", [False, True])
 @pytest.mark.parametrize("reordered", [False, True])
 def test_create_and_explicit_adoption_preserve_legacy_history(
-    tmp_path: Path, with_metadata: bool, reordered: bool
+    tmp_path: Path, slurm_system, with_metadata: bool, reordered: bool
 ) -> None:
     core = tmp_path / "trajectory.csv"
     metadata = tmp_path / "metadata.csv"
@@ -1262,7 +1265,28 @@ def test_create_and_explicit_adoption_preserve_legacy_history(
     resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
     assert [record.step for record in resumed.records()] == [0, 3, 4]
     assert [record["reward"] for record in Trajectory.load(tmp_path).records()] == [-1.0, 2.0, 3.0]
+    before_recovery = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
     assert all((tmp_path / name).read_bytes().startswith(content) for name, content in before.items())
+    from cloudai.core import TestDefinition
+
+    run = TestRun(
+        name="current",
+        test=TestDefinition(name="current", description="current", test_template_name="current", cmd_args=CmdArgs()),
+        num_nodes=1,
+        nodes=[],
+        step=5,
+    )
+    with pytest.raises((ValueError, TrajectoryLoadError)):
+        resumed.record(
+            test_run=run,
+            system=slurm_system,
+            rewards=RewardOverrides(),
+            action_space={},
+            action={},
+            reward=4.0,
+            observation=[],
+        )
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before_recovery
 
 
 def test_readers_ignore_unpublished_tails_and_resume_removes_only_those_tails(tmp_path: Path) -> None:
@@ -1823,3 +1847,699 @@ def test_old_python310_adopted_quoted_carriage_return_keeps_valid_marker_and_ret
     resumed.append(step=1, action={}, reward=1, observation=[1.0], note="left\rright")
     assert {name: (tmp_path / name).read_bytes() for name in expected} == expected
     assert {path.name: path.read_bytes() for path in reference.iterdir()} == expected
+
+
+def test_resolved_context_round_trips_types_literal_paths_and_raw_metadata(
+    base_tr: TestRun, tmp_path: Path, slurm_system
+) -> None:
+    payload = {
+        "numeric_string": "001",
+        "bool_string": "true",
+        "null_string": "null",
+        "list_string": "[]",
+        "number": 1,
+        "boolean": True,
+        "null": None,
+        "empty_mapping": {},
+        "empty_list": [],
+        "mixed": ["001", 1, True, None, {}],
+        "nested": {"a.b": "literal", "a": {"b": "nested"}},
+    }
+    base_tr.test.cmd_args = CmdArgs.model_validate({"tuned": [1, 2], "payload": payload})
+    base_tr.test.dse_excluded_args = ["cmd_args.payload"]
+    action_space = base_tr.param_space
+    resolved = base_tr.apply_params_set({"tuned": 2})
+    resolved.step = 1
+    written = Trajectory(iteration_dir=tmp_path)
+
+    written.record(
+        test_run=resolved,
+        action_space=action_space,
+        action={"tuned": 2},
+        reward=1.0,
+        observation=[2.0],
+        system=slurm_system,
+        rewards=RewardOverrides(),
+    )
+
+    for record in (written.records()[0], Trajectory.load(tmp_path).records()[0]):
+        context = record.get("env_params", decode_numbers=True)
+        assert context["test_definition"] == resolved.test.model_dump(
+            mode="json", include={"test_template_name", "extra_container_mounts", "git_repos", "nsys", "predictor"}
+        )
+        assert context["payload"] == payload
+        assert {key: type(value) for key, value in context["payload"].items()} == {
+            key: type(value) for key, value in payload.items()
+        }
+        assert [type(value) for value in context["payload"]["mixed"]] == [str, int, bool, type(None), dict]
+        assert "tuned" not in context
+        raw = record["env_params"]
+        cell = raw["payload"]
+        assert cell == json.dumps(payload, allow_nan=False, separators=(",", ":"))
+        decoded_cell = json.loads(cell)
+        assert decoded_cell["numeric_string"] == "001"
+        assert decoded_cell["boolean"] is True and decoded_cell["null"] is None
+        assert decoded_cell["empty_mapping"] == {} and decoded_cell["empty_list"] == []
+        assert decoded_cell["nested"] == {"a.b": "literal", "a": {"b": "nested"}}
+        assert record.metadata["env_params"] == record["env_params"] == record.get("env_params")
+        context["payload"]["mixed"].append("changed")
+        raw["payload"] = "changed"
+        assert record.get("env_params", decode_numbers=True)["payload"] == payload
+        assert record["env_params"]["payload"] == cell
+
+
+@pytest.mark.parametrize(
+    "version, fields",
+    [
+        pytest.param("99", {'env_params.["value"]': "1"}, id="99-fields0-None"),
+        pytest.param("", {'env_params.["value"]': "1"}, id="-fields1-None"),
+        pytest.param("1", {"env_params.not-an-array": "1"}, id="1-fields2-None"),
+        pytest.param("1", {"env_params.[]": "1"}, id="1-fields3-None"),
+        pytest.param("1", {"env_params.[1]": "1"}, id="1-fields4-None"),
+        pytest.param("1", {'env_params.["value"]': "not-json"}, id="1-fields5-None"),
+        pytest.param("1", {'env_params.["value"]': "NaN"}, id="1-fields6-None"),
+        pytest.param("1", {'env_params.["value"]': "Infinity"}, id="1-fields7-None"),
+        pytest.param("1", {'env_params.["value"]': "1e999"}, id="1-fields8-None"),
+        pytest.param("1", {'env_params.["value"]': '{"a":1,"a":2}'}, id="1-fields9-None"),
+        pytest.param("1", {'env_params.["value"]': "1", "execution..ticket": "invalid"}, id="1-fields10-None"),
+        pytest.param("1", {'env_params.["value"]': "1", 'env_params.[ "value" ]': "2"}, id="1-fields11-None"),
+        pytest.param("1", {'env_params.["value"]': "1", 'env_params.["value","child"]': "2"}, id="1-fields12-None"),
+        pytest.param(None, {"record_format_version.part": "1", "env_params.literal": "001"}, id="None-fields13-None"),
+    ],
+)
+def test_loading_rejects_unknown_or_ambiguous_context_encoding(
+    tmp_path: Path, version: str | None, fields: dict[str, str]
+) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{},1.0,[]\n")
+    controls = {"record_format_version": version} if version is not None else {}
+    with (tmp_path / "metadata.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=["step", *controls, *fields])
+        writer.writeheader()
+        writer.writerow({"step": 1, **controls, **fields})
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    with pytest.raises(TrajectoryLoadError):
+        Trajectory.load(tmp_path)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("unsupported", [float("nan"), float("inf"), object()])
+def test_invalid_resolved_context_changes_neither_csv(
+    base_tr: TestRun, tmp_path: Path, unsupported: object, slurm_system
+) -> None:
+    base_tr.test.cmd_args = CmdArgs.model_validate({"payload": unsupported})
+    base_tr.step = 1
+    trajectory = Trajectory(iteration_dir=tmp_path)
+
+    with pytest.raises((TypeError, ValueError)):
+        trajectory.record(
+            test_run=base_tr,
+            action_space={},
+            action={},
+            reward=1.0,
+            observation=[],
+            system=slurm_system,
+            rewards=RewardOverrides(),
+        )
+
+    assert not trajectory.output_path.exists()
+    assert not trajectory.metadata_path.exists()
+    assert len(trajectory) == 0
+
+
+@pytest.mark.parametrize("reserved", ["extra_env_vars", "extra_cmd_args", "NUM_NODES", "test_definition"])
+def test_resolved_context_refuses_reserved_command_names_before_publication(
+    base_tr: TestRun, tmp_path: Path, reserved: str, slurm_system
+) -> None:
+    base_tr.test.cmd_args = CmdArgs(**{reserved: "workload-value"})
+    base_tr.step = 1
+    trajectory = Trajectory(iteration_dir=tmp_path)
+
+    with pytest.raises(ValueError):
+        trajectory.record(
+            test_run=base_tr,
+            action_space={},
+            action={},
+            reward=1.0,
+            observation=[],
+            system=slurm_system,
+            rewards=RewardOverrides(),
+        )
+
+    assert not trajectory.output_path.exists()
+    assert not trajectory.metadata_path.exists()
+
+
+@pytest.mark.parametrize("metadata", [{"parent": "value", "parent.child": "conflict"}, {"parent..child": "empty"}])
+def test_complete_record_validation_precedes_both_csv_writes(tmp_path: Path, metadata: dict[str, str]) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+
+    with pytest.raises((ValueError, TrajectoryLoadError)):
+        trajectory.append(step=1, action={"x": 1}, reward=1.0, observation=[], details=metadata)
+
+    assert before == {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.suffix == ".csv"}
+    assert len(trajectory) == 0
+
+
+@pytest.mark.parametrize("legacy_message, first_matching_step", [(10, 2), (20, 1)])
+def test_warm_legacy_cache_and_versioned_records_share_earliest_exact_lookup(
+    tmp_path: Path, legacy_message: int, first_matching_step: int, base_tr: TestRun, slurm_system
+) -> None:
+    dataframe = pd.DataFrame(
+        [{"step": 1, "action.x": 1, "reward": 1.0, "observation.metric": 1.0, "env_params.message": legacy_message}],
+        dtype=object,
+    )
+    trajectory = Trajectory(iteration_dir=tmp_path, dataframe=dataframe)
+    trajectory.append(
+        step=2,
+        action={"x": 1},
+        reward=2.0,
+        observation={"metric": 2.0},
+        env_params={"message": 20},
+        record_format_version="1",
+    )
+
+    found = trajectory.find(action={"x": 1}, env_params={"message": 20})
+    assert found is not None and found["step"] == first_matching_step
+    loaded = Trajectory.load(tmp_path)
+    found = loaded.find(action={"x": 1}, env_params={"message": 20})
+    assert found is not None and found["step"] == 2
+    assert [record.step for record in loaded.records()] == [2]
+    cached_writer = Trajectory(iteration_dir=tmp_path / "cached", dataframe=dataframe)
+    cached = cached_writer.find(action={"x": 1}, env_params={"message": legacy_message})
+    assert cached is not None and cached["step"] == 1
+    before = cached.copy(deep=True)
+    base_tr.test.cmd_args = CmdArgs.model_validate({"x": [1, 2], "message": legacy_message})
+    base_tr.test.agent_metrics = ["metric"]
+    resolved = base_tr.apply_params_set({"x": 1})
+    resolved.step = 2
+    native = cached_writer.record(
+        test_run=resolved,
+        action_space=base_tr.param_space,
+        action={"x": 1},
+        reward=cached["reward"],
+        observation=[cached["observation.metric"]],
+        system=slurm_system,
+        rewards=RewardOverrides(),
+        cached_result=cached,
+    )
+    for candidate in (native, Trajectory.load(cached_writer.output_path).records()[0]):
+        measurement = candidate.get("measurement", decode_numbers=True)
+        assert measurement["kind"] == "cached"
+        assert measurement["outcome"] == measurement["execution_status"] == "unknown"
+        assert set(measurement["origin"].values()) == {"unknown"}
+    assert cached.equals(before)
+
+
+@pytest.mark.parametrize(
+    "reward,observation", [(float("nan"), [1.0]), (1.0, [float("inf")]), (float("-inf"), [float("nan"), float("-inf")])]
+)
+def test_record_preserves_nonfinite_measurements_outside_the_strict_context_codec(
+    tmp_path: Path, reward, observation
+) -> None:
+    from cloudai.core import TestDefinition
+    from cloudai.systems.standalone import StandaloneSystem
+
+    test = TestDefinition(
+        name="nonfinite",
+        description="nonfinite",
+        test_template_name="nonfinite",
+        cmd_args=CmdArgs.model_validate({"choice": 2, "fixed": "001"}),
+    )
+    run = TestRun(name="nonfinite", test=test, num_nodes=1, nodes=[], step=1)
+    system = StandaloneSystem(name="nonfinite", install_path=tmp_path / "install", output_path=tmp_path / "output")
+    writer = Trajectory(iteration_dir=tmp_path / "history")
+    record = writer.record(
+        test_run=run,
+        system=system,
+        action_space={"choice": [1, 2]},
+        action={"choice": 2},
+        reward=reward,
+        observation=observation,
+        rewards=RewardOverrides(),
+    )
+    assert isinstance(record, TrajectoryRecord)
+    reloaded = Trajectory.load(writer.output_path).records()[0]
+    assert math.isnan(reloaded["reward"]) if math.isnan(reward) else reloaded["reward"] == reward
+    assert all(
+        math.isnan(actual) if math.isnan(expected) else actual == expected
+        for actual, expected in zip(reloaded["observation"], observation, strict=True)
+    )
+    assert reloaded.get("env_params", decode_numbers=True)["fixed"] == "001"
+
+
+@pytest.mark.parametrize(
+    ("control", "version"),
+    [("record_context_version", "999"), ("record_context_version", 1), ("record_format_version.part", "1")],
+)
+def test_unknown_context_codec_is_refused_before_either_csv_is_written(
+    tmp_path: Path, control: str, version: str | int
+) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    values: dict[str, object] = {control: version}
+    if control == "record_context_version":
+        values.update({"run_details": "{}", "measurement": "{}", "evaluation_failure": "null"})
+    else:
+        values["env_params"] = {"literal": "001"}
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+    with pytest.raises((ValueError, TrajectoryLoadError)):
+        writer.append(step=1, action={"x": 1}, reward=1.0, observation=[], **values)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("domain", ["test_run", "action_space", "system", "rewards", "context"])
+def test_generic_find_retains_metadata_names_used_by_recording_context(tmp_path: Path, domain: str) -> None:
+    trajectory = Trajectory(iteration_dir=tmp_path)
+    ordinary = {"kind": "ordinary-metadata"}
+    trajectory.append(step=1, action={}, reward=1.0, observation=[], **{domain: ordinary})
+
+    found = trajectory.find(**{domain: ordinary})
+
+    assert found is not None
+    assert found["step"] == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        (None, None),
+        ("record_context_version", "999"),
+        ("evaluation_failure", None),
+        ("measurement", "{"),
+        ("run_details", '{"a":1,"a":2}'),
+        ("measurement", '{"a":NaN}'),
+        ("run_details", "[]"),
+        ("record_context_version.extra", "1"),
+        ("run_details.extra", "{}"),
+    ],
+)
+def test_declared_context_cells_preserve_raw_views_and_refuse_malformed_archives(
+    tmp_path: Path, slurm_system, field: str | None, replacement: str | None
+) -> None:
+    from cloudai.core import TestDefinition
+
+    test = TestDefinition(
+        name="codec", description="codec", test_template_name="codec", cmd_args=CmdArgs.model_validate({"fixed": "001"})
+    )
+    run = TestRun(name="codec", test=test, num_nodes=1, nodes=[], step=1)
+    writer = Trajectory(iteration_dir=tmp_path / "source")
+    original = writer.record(
+        test_run=run,
+        system=slurm_system,
+        action_space={},
+        action={},
+        reward=1.0,
+        observation=[],
+        rewards=RewardOverrides(),
+    )
+    archive = tmp_path / "archive"
+    archive.mkdir()
+    (archive / "trajectory.csv").write_bytes(writer.output_path.read_bytes())
+    sidecar = archive / "metadata.csv"
+    with writer.metadata_path.open(newline="") as stream:
+        reader = csv.DictReader(stream)
+        fields = list(reader.fieldnames or [])
+        rows = list(reader)
+    fields.append("source_row")
+    rows[0]["source_row"] = "001"
+    if field is not None:
+        if replacement is None:
+            fields.remove(field)
+            rows[0].pop(field)
+        else:
+            if field not in fields:
+                fields.append(field)
+            rows[0][field] = replacement
+    with sidecar.open("w", newline="") as stream:
+        csv_writer = csv.DictWriter(stream, fieldnames=fields)
+        csv_writer.writeheader()
+        csv_writer.writerows(rows)
+    before = {path.name: path.read_bytes() for path in archive.iterdir()}
+
+    if field is None:
+        record = Trajectory.load(archive).records()[0]
+        assert isinstance(record.get("run_details", decode_numbers=True), dict)
+        assert isinstance(record.get("measurement", decode_numbers=True), dict)
+        assert record.get("evaluation_failure", decode_numbers=True) is None
+        for domain in ("run_details", "measurement", "evaluation_failure"):
+            assert isinstance(record[domain], str)
+            assert record.get(domain) == record.metadata[domain] == record[domain]
+            assert record.get(domain, decode_numbers=True) == original.get(domain, decode_numbers=True)
+        assert record.get("source_row", decode_numbers=True) == "001"
+    else:
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(archive)
+    assert {path.name: path.read_bytes() for path in archive.iterdir()} == before
+
+
+@pytest.mark.parametrize(
+    ("run_unit", "fallback_unit", "expected_unit"),
+    [
+        ("GB/s", "", "GB/s"),
+        ("GB/s", "unknown", "GB/s"),
+        ("GB/s", "MiB/s", "GB/s"),
+        ("", "ms", "ms"),
+        ("unknown", "ms", "ms"),
+        (None, "ms", "ms"),
+        (None, "", "unknown"),
+    ],
+)
+def test_record_retains_observed_units_before_fallback_and_cache(
+    base_tr: TestRun,
+    tmp_path: Path,
+    slurm_system,
+    monkeypatch: pytest.MonkeyPatch,
+    run_unit,
+    fallback_unit,
+    expected_unit,
+) -> None:
+    from cloudai.core import TestDefinition
+    from cloudai.metrics import MetricDefinition, MetricObservation, OptimizationDirection
+    from cloudai.models.output import Metric, Run
+
+    base_tr.test.cmd_args = CmdArgs()
+    base_tr.test.agent_metrics = ["default"]
+    base_tr.step = 1
+    fallback = [
+        MetricObservation(
+            MetricDefinition("default", "Default", fallback_unit, OptimizationDirection.MAXIMIZE), 2.0, {}
+        )
+    ]
+    monkeypatch.setattr(TestDefinition, "metric_observations", lambda self, system, tr: fallback)
+    actual = Run(
+        path=str(base_tr.output_path),
+        jobid="units",
+        status="completed",
+        step=1,
+        iteration=base_tr.current_iteration,
+        metrics=[] if run_unit is None else [Metric(name="default", value=2.0, unit=run_unit)],
+    )
+    writer = Trajectory(iteration_dir=tmp_path)
+    first = writer.record(
+        test_run=base_tr,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+        run_output=actual,
+    )
+    assert first.get("measurement", decode_numbers=True)["metrics"]["0"]["unit"] == expected_unit
+    origin = first.get("measurement", decode_numbers=True)["origin"]
+    cached = writer.find(action={})
+    assert cached is not None
+    fallback[0] = MetricObservation(
+        MetricDefinition("default", "Default", "changed-fallback", OptimizationDirection.MAXIMIZE), 2.0, {}
+    )
+    base_tr.step = 2
+    writer.record(
+        test_run=base_tr,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+        cached_result=cached,
+    )
+    for history in (writer, Trajectory.load(tmp_path)):
+        measurements = [record.get("measurement", decode_numbers=True) for record in history.records()]
+        assert [measurement["metrics"]["0"]["unit"] for measurement in measurements] == [expected_unit, expected_unit]
+        assert measurements[1]["kind"] == "cached" and measurements[1]["origin"] == origin
+
+
+def test_record_keeps_stable_wire_cells_across_supported_sampled_value_shapes(
+    base_tr: TestRun, tmp_path: Path, slurm_system
+) -> None:
+    from cloudai.configurator.env_params import EnvParams, EnvParamSpec
+
+    candidates = [
+        {"left": 1},
+        {"right": 2},
+        {},
+        [],
+        "0001",
+        {"a.b": {"literal": "true", "enabled": True, "missing": None, "items": ["001", 1, False]}},
+    ]
+    base_tr.test.cmd_args = CmdArgs.model_validate({"noise": candidates, "fixed": "001"})
+    base_tr.test.env_params = {"noise": EnvParamSpec()}
+    parameters = EnvParams.from_test(base_tr.test)
+    assert parameters is not None and not base_tr.param_space
+    selected = {}
+    for trial in range(1, 129):
+        sample = parameters.sample(trial)
+        selected.setdefault(json.dumps(sample, sort_keys=True), (trial, sample))
+        if len(selected) == len(candidates):
+            break
+    assert len(selected) == len(candidates)
+    writer = Trajectory(iteration_dir=tmp_path)
+    expected = sorted(selected.values())
+    live = []
+    for trial, sample in expected:
+        submitted = base_tr.apply_params_set({}, env_params=sample)
+        submitted.step = trial
+        live.append(
+            writer.record(
+                test_run=submitted,
+                action_space={},
+                action={},
+                reward=1.0,
+                observation={"default": 1.0},
+                system=slurm_system,
+                rewards=RewardOverrides(),
+            )
+        )
+    with writer.metadata_path.open(newline="") as stream:
+        header = next(csv.reader(stream))
+    assert 'env_params.["noise"]' in header
+    assert not any(name.startswith('env_params.["noise",') for name in header)
+    loaded = Trajectory.load(tmp_path)
+    for actual, reloaded, (trial, sample) in zip(live, loaded.records(), expected, strict=True):
+        assert actual.metadata == reloaded.metadata
+        assert isinstance(actual["env_params"]["noise"], str)
+        assert json.loads(actual["env_params"]["noise"]) == sample["noise"]
+        for record in (actual, reloaded):
+            assert json.dumps(record.get("env_params", decode_numbers=True)["noise"], sort_keys=True) == json.dumps(
+                sample["noise"], sort_keys=True
+            )
+            assert record.get("env_params", decode_numbers=True)["fixed"] == "001"
+        for history in (writer, loaded):
+            found = history.find(action={}, env_params=sample)
+            assert found is not None and found["step"] == trial
+    original = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    del writer
+    gc.collect()
+    resumed = Trajectory(iteration_dir=tmp_path, mode="resume")
+    trial, sample = expected[0]
+    submitted = base_tr.apply_params_set({}, env_params=sample)
+    submitted.step = expected[-1][0] + 1
+    resumed.record(
+        test_run=submitted,
+        action_space={},
+        action={},
+        reward=2.0,
+        observation={"default": 2.0},
+        system=slurm_system,
+        rewards=RewardOverrides(),
+    )
+    assert all(
+        (tmp_path / name).read_bytes().startswith(data) for name, data in original.items() if name.endswith(".csv")
+    )
+    found = Trajectory.load(tmp_path).find(action={}, env_params=sample)
+    assert found is not None and found["step"] == trial
+
+
+@pytest.mark.parametrize("mode", ["adopt", "resume"])
+def test_versioned_old_nested_headers_continue_only_when_the_original_schema_matches(tmp_path: Path, mode: str) -> None:
+    (tmp_path / "trajectory.csv").write_text("step,action,reward,observation\n1,{},1.0,[]\n")
+    with (tmp_path / "metadata.csv").open("w", newline="") as stream:
+        csv.writer(stream).writerows([["step", 'env_params.["sample","left"]', "record_format_version"], [1, "1", "1"]])
+    writer = Trajectory(iteration_dir=tmp_path, mode="adopt")
+    if mode == "resume":
+        del writer
+        gc.collect()
+        writer = Trajectory(iteration_dir=tmp_path, mode="resume")
+    prefix = {name: (tmp_path / name).read_bytes() for name in ("trajectory.csv", "metadata.csv")}
+    writer.append(
+        step=2, action={}, reward=2.0, observation=[], env_params={"sample": {"left": 2}}, record_format_version="1"
+    )
+    loaded = Trajectory.load(tmp_path)
+    assert loaded.records()[1]["env_params"]["sample"] == {"left": "2"}
+    assert loaded.records()[1].get("env_params", decode_numbers=True)["sample"] == {"left": 2}
+    assert all((tmp_path / name).read_bytes().startswith(data) for name, data in prefix.items())
+    for history in (writer, loaded):
+        found = history.find(action={}, env_params={"sample": {"left": 2}})
+        assert found is not None and found["step"] == 2
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    with pytest.raises(ValueError, match=r"fields|schema"):
+        writer.append(
+            step=3,
+            action={},
+            reward=3.0,
+            observation=[],
+            env_params={"sample": {"right": 3}},
+            record_format_version="1",
+        )
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.mark.parametrize("env_codec,context_codec", [(False, False), (True, False), (False, True), (True, True)])
+@pytest.mark.parametrize("value", [1, True, "001"], ids=["integer", "boolean", "literal"])
+def test_environment_codec_preserves_other_live_raw_domains(
+    tmp_path: Path, env_codec: bool, context_codec: bool, value: object
+) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    versions: dict[str, object] = {}
+    if env_codec:
+        versions.update(record_format_version="1", env_params={"fixed": {"number": 1, "flag": True, "label": "001"}})
+    if context_codec:
+        versions.update(record_context_version="1", run_details="{}", measurement="{}", evaluation_failure="null")
+    writer.append(step=1, action={"choice": 1}, reward=1.0, observation=[1.0], execution={"literal": value}, **versions)
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    live = writer.records()[0]
+    loaded = Trajectory.load(tmp_path).records()[0]
+    for record, expected in ((live, value), (loaded, str(value))):
+        assert record["execution"] == record.get("execution") == record.metadata["execution"] == {"literal": expected}
+        assert type(record["execution"]["literal"]) is type(expected)
+        decoded = record.get("execution", decode_numbers=True)["literal"]
+        explicit = expected if context_codec else 1 if expected == "001" else expected
+        if not context_codec and isinstance(expected, str) and expected == "1":
+            explicit = 1
+        assert decoded == explicit and type(decoded) is type(explicit)
+        if env_codec:
+            assert record.get("env_params", decode_numbers=True) == {
+                "fixed": {"number": 1, "flag": True, "label": "001"}
+            }
+            assert record["env_params"] == {
+                "fixed": json.dumps({"number": 1, "flag": True, "label": "001"}, separators=(",", ":"))
+            }
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
+@pytest.fixture
+def eligibility_context(tmp_path: Path):
+    from cloudai.configurator.env_params import EnvParamSpec
+    from cloudai.core import TestDefinition
+    from cloudai.systems.standalone import StandaloneSystem
+
+    test = TestDefinition(
+        name="eligibility",
+        description="eligibility",
+        test_template_name="eligibility",
+        cmd_args=CmdArgs.model_validate({"x": [1, 2], "y": [10, 20], "fixed": "001", "drop": [0.0, 0.1]}),
+        env_params={"drop": EnvParamSpec(weights=[0.5, 0.5])},
+        agent_metrics=["bandwidth"],
+        agent_reward_function="identity",
+    )
+    run = TestRun(name="eligibility", test=test, num_nodes=1, nodes=[], output_path=tmp_path / "run")
+    system = StandaloneSystem(name="eligibility", install_path=tmp_path / "install", output_path=tmp_path / "output")
+    return run, system, RewardOverrides()
+
+
+@pytest.mark.parametrize("shape", ["ordered", "reversed", "missing", "extra"])
+def test_record_orders_mapping_observations_by_declared_metrics_and_refuses_key_mismatch(
+    tmp_path: Path, eligibility_context, shape: str
+) -> None:
+    from cloudai.models.output import Metric, Run
+
+    case, system, rewards = eligibility_context
+    case.test.agent_metrics = ["bandwidth", "latency"]
+    selected = case.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+    selected.step = 1
+    observation = {
+        "ordered": {"bandwidth": 100.0, "latency": 2.0},
+        "reversed": {"latency": 2.0, "bandwidth": 100.0},
+        "missing": {"bandwidth": 100.0},
+        "extra": {"bandwidth": 100.0, "latency": 2.0, "extra": 9.0},
+    }[shape]
+    observation_items = list(observation.items())
+    writer = Trajectory(iteration_dir=tmp_path)
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    arguments: dict[str, Any] = {
+        "test_run": selected,
+        "action_space": case.param_space,
+        "action": {"x": 1},
+        "reward": 10,
+        "observation": observation,
+        "system": system,
+        "rewards": rewards,
+        "run_output": Run(
+            path=str(selected.output_path),
+            jobid="metric-order",
+            status="completed",
+            step=1,
+            iteration=0,
+            metrics=[
+                Metric(name="bandwidth", value=100, unit="unknown"),
+                Metric(name="latency", value=2, unit="unknown"),
+            ],
+        ),
+    }
+    if shape in ("missing", "extra"):
+        with pytest.raises(ValueError):
+            writer.record(**arguments)
+        assert len(writer) == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+        return
+
+    live = writer.record(**arguments)
+    reloaded = Trajectory.load(tmp_path).records()[0]
+
+    for record in (live, reloaded):
+        assert record["observation"] == [100.0, 2.0]
+        assert record.get("run_details", decode_numbers=True)["agent_metrics"] == ["bandwidth", "latency"]
+    assert list(observation.items()) == observation_items
+
+
+@pytest.mark.parametrize("order", ["root-first", "child-first", "root-only", "child-only"])
+def test_versioned_empty_environment_root_cannot_coexist_with_child_paths(tmp_path: Path, order) -> None:
+    columns = {
+        "root-first": [("env_params.[]", "{}"), ('env_params.["x"]', "1")],
+        "child-first": [('env_params.["x"]', "1"), ("env_params.[]", "{}")],
+        "root-only": [("env_params.[]", "{}")],
+        "child-only": [('env_params.["x"]', "1")],
+    }[order]
+    (tmp_path / Trajectory.file_name).write_text("step,action,reward,observation\n1,{'x': 1},3,[1.0]\n")
+    with (tmp_path / Trajectory.metadata_file_name).open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["step", "record_format_version", *(name for name, value in columns)])
+        writer.writerow([1, "1", *(value for name, value in columns)])
+    before = {path: path.read_bytes() for path in tmp_path.iterdir()}
+    if order in ("root-first", "child-first"):
+        with pytest.raises(TrajectoryLoadError):
+            Trajectory.load(tmp_path)
+    else:
+        record = Trajectory.load(tmp_path).records()[0]
+        assert record.get("env_params", decode_numbers=True) == ({} if order == "root-only" else {"x": 1})
+    assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("kind", ["tuple", "nested-tuple", "list", "legacy-tuple"])
+def test_versioned_environment_publication_preserves_lookup_value_types(tmp_path: Path, kind) -> None:
+    history = Trajectory(iteration_dir=tmp_path)
+    if kind == "legacy-tuple":
+        history.append(step=1, action={"x": 1}, reward=3.0, observation=[1.0], env_params={"shape": (1, 2)})
+        assert len(history) == len(Trajectory.load(tmp_path)) == 1
+        return
+    history.append(
+        step=1, action={"x": 1}, reward=3.0, observation=[1.0], record_format_version="1", env_params={"shape": [1, 2]}
+    )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    if kind in ("tuple", "nested-tuple"):
+        shape = (1, 2) if kind == "tuple" else [(1, 2)]
+        with pytest.raises(ValueError):
+            history.append(
+                step=2,
+                action={"x": 1},
+                reward=3.0,
+                observation=[1.0],
+                record_format_version="1",
+                env_params={"shape": shape},
+            )
+        assert len(history) == 1
+        assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+    for candidate in (history, Trajectory.load(tmp_path)):
+        result = candidate.find(env_params={"shape": [1, 2]})
+        assert result is not None and result["step"] == 1
+        assert candidate.find(env_params={"shape": (1, 2)}) is None
