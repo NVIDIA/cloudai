@@ -108,8 +108,8 @@ return type of `ReportGenerationStrategy.get_metric` is `MetricValue` (`float | 
 When branching on success vs failure, use **identity** (`value is METRIC_ERROR`), not equality to `-1.0`, so a legitimate metric of `-1.0` is not
 treated as an error. The gym observation path uses that identity check before applying `agent_config.rewards.metric_failure`.
 
-Choose a `metric_failure` value outside the valid metric range: the selected-result filter in `experiment.json`
-excludes observations equal to that value, including otherwise valid measurements.
+`experiment.json` uses recorded measurement eligibility and excludes explicit failures. A legacy reward of `-1`
+without failure evidence remains ambiguous and is excluded.
 
 
 <Anchor id="reading-dse-trajectories" />
@@ -211,3 +211,27 @@ Megatron Bridge serializer removes its known credentials from recorded
 projections while preserving live configuration and ordinary serialization.
 Use a newly initialized history for the complete recording schema; existing
 histories are not widened in place.
+
+## Choose Usable Evidence
+
+`trial.ineligibility_reasons(purpose)` returns reason codes; an empty tuple means
+eligible for that purpose:
+
+| Purpose | Meaning |
+|---|---|
+| `reference` | Retain representable finite-reward evidence, including failures and unknown context. |
+| `decision` | Count valid proposals, including failed or cached decisions. |
+| `measurement` | Use numeric outcomes without explicit failure, nonfinite evidence or ambiguous legacy `-1`. |
+| `learning` | Require usable measurements and compatibility with a supplied current configuration. |
+
+For learning, pass `current=(original_test_run, system, rewards)`. Compatibility
+checks full actual action values, static/launch/reward settings, metric schema and
+positive-probability randomized support. Unknown recovered context does not qualify.
+Consumers log reasons and skip individual ineligible records while preserving the
+source. Legitimate explicit nonfailure `-1` and other finite negatives remain usable;
+a failure penalty is not inferred from its numeric value. Legacy step 0 stays in
+storage but is skipped by these eligibility checks; positive step gaps remain unchanged.
+
+Cache identity covers the safe full configuration and actual reward policy.
+A cached row counts as a new decision while retaining its original measurement
+origin; it is not a fresh independent measurement.

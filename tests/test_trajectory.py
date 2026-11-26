@@ -131,6 +131,9 @@ def test_find_returns_none_for_unknown_columns(tmp_path: Path) -> None:
 
     assert trajectory.find(env_params={"speed": 2}) is None
 
+    trajectory.append(step=2, action={"x": 2}, reward=2.0, observation={"metric": 2.0})
+    assert trajectory.find(env_params={"speed": 2}) is None
+
 
 def test_find_separates_values_that_share_an_index_key(tmp_path: Path) -> None:
     """A nested mapping key of 1 and of "1" are different values and must not collide."""
@@ -2489,6 +2492,7 @@ def test_record_orders_mapping_observations_by_declared_metrics_and_refuses_key_
     for record in (live, reloaded):
         assert record["observation"] == [100.0, 2.0]
         assert record.get("run_details", decode_numbers=True)["agent_metrics"] == ["bandwidth", "latency"]
+        assert record.ineligibility_reasons("learning", current=eligibility_context) == ()
     assert list(observation.items()) == observation_items
 
 
@@ -2543,3 +2547,448 @@ def test_versioned_environment_publication_preserves_lookup_value_types(tmp_path
         result = candidate.find(env_params={"shape": [1, 2]})
         assert result is not None and result["step"] == 1
         assert candidate.find(env_params={"shape": (1, 2)}) is None
+
+
+@pytest.mark.parametrize(
+    "case,blocked",
+    [
+        ("minus-one", {}),
+        ("negative", {}),
+        ("metric-failure", {"measurement": "explicit_failure", "learning": "explicit_failure"}),
+        ("runner-failure", {"measurement": "explicit_failure", "learning": "explicit_failure"}),
+        (
+            "nan-reward",
+            {"reference": "reward_unusable", "measurement": "reward_unusable", "learning": "reward_unusable"},
+        ),
+        ("nonfinite-observation", {"measurement": "observation_unusable", "learning": "observation_unusable"}),
+        ("legacy-minus-one", {"measurement": "legacy_failure_ambiguous", "learning": "legacy_failure_ambiguous"}),
+        ("legacy-negative", {"learning": "context_unavailable"}),
+        (
+            "step-zero",
+            {purpose: "historical_step_zero" for purpose in ("reference", "measurement", "decision", "learning")},
+        ),
+        (
+            "scalar-action",
+            {purpose: "action_unusable" for purpose in ("reference", "measurement", "decision", "learning")},
+        ),
+        (
+            "nonfinite-action",
+            {purpose: "action_unusable" for purpose in ("reference", "measurement", "decision", "learning")},
+        ),
+        ("legacy-empty-failure", {"learning": "context_unavailable"}),
+        (
+            "malformed-outcome",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+        (
+            "malformed-execution-status",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+        (
+            "malformed-metric-status",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+        (
+            "malformed-native-indices",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+        (
+            "legacy-native-status",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+        ("legacy-known-failure", {"measurement": "explicit_failure", "learning": "explicit_failure"}),
+        (
+            "malformed-native-boolean",
+            {"measurement": "measurement_schema_incompatible", "learning": "measurement_schema_incompatible"},
+        ),
+    ],
+)
+def test_record_eligibility_preserves_evidence_for_distinct_consumer_roles(
+    tmp_path: Path, eligibility_context, case, blocked
+):
+    from cloudai.models.output import Metric, Run
+
+    original, system, rewards = eligibility_context
+    trajectory: Trajectory | None = None
+    invalid_purpose: Any = "unsupported"
+    if (case.startswith("legacy") and case != "legacy-native-status") or case in (
+        "step-zero",
+        "scalar-action",
+        "nonfinite-action",
+    ):
+        path = tmp_path / "legacy.csv"
+        action = (
+            42 if case == "scalar-action" else {"x": float("inf")} if case == "nonfinite-action" else {"x": 1, "y": 10}
+        )
+        reward = -2.0 if case == "legacy-native-status" else (-1.0 if case == "legacy-minus-one" else -2.0)
+        with path.open("w", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["step", "action", "reward", "observation"])
+            writer.writerow([0 if case == "step-zero" else 7, action, reward, [1.0]])
+        opaque_fields = "step,evaluation_failure.metric_indices,evaluation_failure.constraint\n7,[],False\n"
+        metadata_fields = {
+            "legacy-empty-failure": opaque_fields,
+            "legacy-native-status": opaque_fields,
+            "legacy-known-failure": "step,measurement.outcome,measurement.metrics.0.status\n7,runner_failure,failed\n",
+        }
+        if case in metadata_fields:
+            (tmp_path / Trajectory.metadata_file_name).write_text(metadata_fields[case])
+            expected_failure = ("explicit_failure",) if case == "legacy-known-failure" else ()
+            assert Trajectory.load(path).records()[0].ineligibility_reasons("measurement") == expected_failure
+        record = Trajectory.load(path).records()[0]
+    else:
+        resolved = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+        resolved.step = 7
+        reward = float("nan") if case == "nan-reward" else -2.0 if case == "negative" else -1.0
+        observation = [float("inf")] if case == "nonfinite-observation" else [1.0]
+        output = Run(
+            path=str(resolved.output_path),
+            jobid="job",
+            status="completed",
+            metrics=[Metric(name="bandwidth", value=1.0, unit="GB/s")],
+        )
+        trajectory = Trajectory(iteration_dir=tmp_path / "history")
+        record = trajectory.record(
+            test_run=resolved,
+            action_space=original.param_space,
+            action={"x": 1},
+            reward=reward,
+            observation=observation,
+            system=system,
+            rewards=rewards,
+            run_output=output,
+            failed_metrics=["bandwidth"] if case == "metric-failure" else [],
+            execution_error="runner failed" if case == "runner-failure" else None,
+        )
+        loaded = Trajectory.load(trajectory.output_path).records()[0]
+        assert loaded.get("run_details", decode_numbers=True)["resolved_action"] == {"x": 1, "y": 10}
+        assert loaded["action"] == {"x": 1}
+        assert record.get("measurement", decode_numbers=True) == loaded.get("measurement", decode_numbers=True)
+        record = loaded
+    if case.startswith("malformed-"):
+        assert trajectory is not None
+        archive = tmp_path / "malformed"
+        archive.mkdir()
+        (archive / Trajectory.file_name).write_bytes(trajectory.output_path.read_bytes())
+        with trajectory.metadata_path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        measurement = json.loads(rows[0]["measurement"])
+        if case == "malformed-outcome":
+            measurement["outcome"] = []
+        elif case == "malformed-execution-status":
+            measurement["execution_status"] = []
+        elif case == "malformed-metric-status":
+            measurement["metrics"]["0"]["status"] = []
+        else:
+            rows[0]["evaluation_failure"] = json.dumps(
+                {"malformed-native-boolean": {"constraint": "True"}}.get(case, {"metric_indices": "[]"})
+            )
+        rows[0]["measurement"] = json.dumps(measurement)
+        with (archive / Trajectory.metadata_file_name).open("w", newline="") as stream:
+            csv_writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+            csv_writer.writeheader()
+            csv_writer.writerows(rows)
+        record = Trajectory.load(archive).records()[0]
+    if case == "legacy-native-status":
+        archive = tmp_path / "native-status"
+        archive.mkdir()
+        with (archive / Trajectory.file_name).open("w", newline="") as stream:
+            archive_writer = csv.writer(stream)
+            archive_writer.writerow(["step", "action", "reward", "observation"])
+            archive_writer.writerow([record.step, record["action"], record["reward"], record["observation"]])
+        measurement = record.get("measurement", decode_numbers=True)
+        measurement["execution_status"] = []
+        with (archive / Trajectory.metadata_file_name).open("w", newline="") as stream:
+            archive_writer = csv.writer(stream)
+            archive_writer.writerow(
+                ["step", "record_context_version", "run_details", "measurement", "evaluation_failure"]
+            )
+            archive_writer.writerow(
+                [
+                    record.step,
+                    "1",
+                    json.dumps(record.get("run_details", decode_numbers=True)),
+                    json.dumps(measurement),
+                    json.dumps(record.get("evaluation_failure", decode_numbers=True)),
+                ]
+            )
+        record = Trajectory.load(archive).records()[0]
+    source_before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    before = dict(record)
+    for purpose in ("reference", "measurement", "decision", "learning"):
+        reasons = record.ineligibility_reasons(purpose, current=eligibility_context if purpose == "learning" else None)
+        assert isinstance(reasons, tuple)
+        assert blocked[purpose] in reasons if purpose in blocked else reasons == ()
+    assert dict(record) == before
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == source_before
+    assert record.step == (0 if case == "step-zero" else 7)
+    with pytest.raises(ValueError):
+        record.ineligibility_reasons(invalid_purpose)
+    with pytest.raises(ValueError):
+        record.ineligibility_reasons("learning")
+
+
+@pytest.mark.parametrize(
+    "change,reason",
+    [
+        ("same", None),
+        ("allowed-dr", None),
+        ("fixed", "configuration_incompatible"),
+        ("zero-weight-dr", "environment_incompatible"),
+        ("held-value", "action_incompatible"),
+        ("boolean-value", "action_incompatible"),
+        ("metric-order", "measurement_schema_incompatible"),
+        ("reward-policy", "configuration_incompatible"),
+        ("launch", "configuration_incompatible"),
+        ("malformed-metric", "measurement_schema_incompatible"),
+    ],
+)
+def test_learning_eligibility_checks_actual_values_full_context_and_supported_regimes(
+    tmp_path: Path, eligibility_context, change, reason
+):
+    from copy import deepcopy
+
+    from cloudai.models.output import Metric, Run
+
+    original, system, rewards = eligibility_context
+    resolved = original.apply_params_set({"x": 1, "y": 10, "drop": 0.1})
+    resolved.step = 3
+    writer = Trajectory(iteration_dir=tmp_path / "history")
+    record = writer.record(
+        test_run=resolved,
+        action_space=original.param_space,
+        action={"x": 1},
+        reward=-1.0,
+        observation=[1.0],
+        system=system,
+        rewards=rewards,
+        run_output=Run(
+            path=str(resolved.output_path),
+            jobid="job",
+            status="completed",
+            metrics=[Metric(name="bandwidth", value=1.0, unit="GB/s")],
+        ),
+    )
+    record_path = writer.output_path
+    if change == "malformed-metric":
+        archive = tmp_path / "archive"
+        archive.mkdir()
+        record_path = archive / Trajectory.file_name
+        record_path.write_bytes(writer.output_path.read_bytes())
+        with writer.metadata_path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        cell = json.loads(rows[0]["measurement"])
+        cell["metrics"] = {"0": "unusable"}
+        rows[0]["measurement"] = json.dumps(cell)
+        with (archive / Trajectory.metadata_file_name).open("w", newline="") as stream:
+            csv_writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+            csv_writer.writeheader()
+            csv_writer.writerows(rows)
+        record = Trajectory.load(record_path).records()[0]
+    current = deepcopy(original)
+    current_system = deepcopy(system)
+    current_rewards = deepcopy(rewards)
+    if change == "fixed":
+        current.test.cmd_args.fixed = "different"
+    elif change in ("allowed-dr", "zero-weight-dr"):
+        current.test.env_params["drop"].weights = {"allowed-dr": [0.0, 1.0], "zero-weight-dr": [1.0, 0.0]}[change]
+    elif change == "held-value":
+        current.test.cmd_args.y = [20, 30]
+    elif change == "boolean-value":
+        current.test.cmd_args.x = [True, 2]
+    elif change == "metric-order":
+        current.test.agent_metrics = ["other", "bandwidth"]
+    elif change == "reward-policy":
+        current_rewards.metric_failure = -17.0
+    elif change == "launch":
+        current.num_nodes = 2
+    current.step = 99
+    for candidate in (record, Trajectory.load(record_path).records()[0]):
+        reasons = candidate.ineligibility_reasons("learning", current=(current, current_system, current_rewards))
+        assert reason in reasons if reason else reasons == ()
+        assert candidate.ineligibility_reasons("reference") == ()
+        assert candidate["action"] == {"x": 1}
+    assert current.step == 99
+
+
+@pytest.mark.parametrize("observation", [None, "[truncated observation]", "[truncated after 1000 characters]", [1.0]])
+def test_missing_or_truncated_observation_excludes_measurements_but_preserves_decisions(
+    tmp_path: Path, eligibility_context, observation
+) -> None:
+    row = {"step": 1, "action": {"x": 1}, "reward": 10}
+    if observation is not None:
+        row["observation"] = observation
+    history = Trajectory(iteration_dir=tmp_path, dataframe=pd.DataFrame([row]))
+    record = history.records()[0]
+    before = dict(record)
+
+    assert record.ineligibility_reasons("reference") == ()
+    assert record.ineligibility_reasons("decision") == ()
+    for purpose in ("measurement", "learning"):
+        reasons = record.ineligibility_reasons(purpose, current=eligibility_context if purpose == "learning" else None)
+        assert ("observation_unusable" in reasons) is (observation != [1.0])
+    assert dict(record) == before
+
+    if observation is None:
+        explicit = Trajectory(
+            iteration_dir=tmp_path / "present-none",
+            dataframe=pd.DataFrame([{**row, "observation": None}], dtype=object),
+        )
+        record = explicit.records()[0]
+        before = dict(record)
+        assert "observation" in record and record["observation"] is None
+        for purpose in ("reference", "decision"):
+            assert record.ineligibility_reasons(purpose) == ()
+        for purpose in ("measurement", "learning"):
+            reasons = record.ineligibility_reasons(
+                purpose, current=eligibility_context if purpose == "learning" else None
+            )
+            assert "observation_unusable" in reasons
+        assert dict(record) == before
+
+
+@pytest.mark.parametrize("field", ["constraint", "runner", "metric", "nonfinite"])
+@pytest.mark.parametrize("failed", [False, True])
+def test_legacy_boolean_failure_fields_keep_measurement_policy_in_live_and_loaded_records(
+    tmp_path: Path, field: str, failed: bool
+) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(step=1, action={"x": 1}, reward=10, observation=[1.0], evaluation_failure={field: failed})
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    live = writer.records()[0]
+    assert ("explicit_failure" in live.ineligibility_reasons("measurement")) is failed
+
+    record = Trajectory.load(tmp_path).records()[0]
+    assert record.get("evaluation_failure", decode_numbers=True)[field] == str(failed)
+    assert ("explicit_failure" in record.ineligibility_reasons("measurement")) is failed
+    assert record.ineligibility_reasons("reference") == ()
+    assert record.ineligibility_reasons("decision") == ()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("indices", [[], [0], [-1], [True], "not a list"])
+def test_legacy_metric_failure_indices_preserve_raw_cells_and_consumer_policy(tmp_path: Path, indices) -> None:
+    writer = Trajectory(iteration_dir=tmp_path)
+    writer.append(
+        step=1,
+        action={"x": 1},
+        reward=10,
+        observation=[1.0],
+        evaluation_failure={"constraint": False, "metric_indices": indices},
+    )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    expected = indices == [0] and all(type(index) is int for index in indices)
+    assert ("explicit_failure" in writer.records()[0].ineligibility_reasons("measurement")) is expected
+
+    record = Trajectory.load(tmp_path).records()[0]
+    assert record.get("evaluation_failure", decode_numbers=True)["metric_indices"] == str(indices)
+    assert ("explicit_failure" in record.ineligibility_reasons("measurement")) is expected
+    assert record.ineligibility_reasons("reference") == ()
+    assert record.ineligibility_reasons("decision") == ()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+@pytest.mark.parametrize("missing", ["action", "reward", None])
+def test_incomplete_warm_records_report_unusable_fields_without_key_errors(tmp_path: Path, missing) -> None:
+    row = {"step": 1, "action.x": 1, "reward": 3.0, "observation": [1.0]}
+    if missing is not None:
+        row.pop("action.x" if missing == "action" else "reward")
+    history = Trajectory(iteration_dir=tmp_path, dataframe=pd.DataFrame.from_records([row]).astype(object))
+    record = history.records()[0]
+    before = dict(record)
+    for purpose in ("reference", "measurement"):
+        reasons = record.ineligibility_reasons(purpose)
+        assert f"{missing}_unusable" in reasons if missing is not None else reasons == ()
+    assert dict(record) == before
+
+
+@pytest.mark.parametrize(
+    "archive,observation",
+    [
+        pytest.param("native", [], id="native-empty"),
+        pytest.param("native", [10.0], id="native-short"),
+        pytest.param("native", [10.0, 20.0], id="native-complete"),
+        pytest.param("old-observed", [], id="old-empty"),
+        pytest.param("old-observed", [10.0], id="old-short"),
+        pytest.param("old-observed", [10.0, 20.0], id="old-complete"),
+        pytest.param("legacy-unknown", [10.0], id="legacy-unknown-schema"),
+    ],
+)
+def test_recorded_metric_availability_excludes_incomplete_measurements(
+    tmp_path: Path, eligibility_context, archive, observation
+) -> None:
+    original, system, rewards = eligibility_context
+    original.test.agent_metrics = ["bandwidth", "latency"]
+    history = Trajectory(iteration_dir=tmp_path / "native")
+    if archive == "legacy-unknown":
+        history.append(step=1, action={"x": 1}, reward=10.0, observation=observation)
+        records = [history.records()[0], Trajectory.load(history.output_path).records()[0]]
+    else:
+        selected = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+        selected.step = 1
+        live = history.record(
+            test_run=selected,
+            action_space=original.param_space,
+            action={"x": 1},
+            reward=10.0,
+            observation=observation,
+            system=system,
+            rewards=rewards,
+        )
+        if archive == "old-observed":
+            directory = tmp_path / "old-observed"
+            directory.mkdir()
+            (directory / Trajectory.file_name).write_bytes(history.output_path.read_bytes())
+            with history.metadata_path.open(newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            measurement = json.loads(rows[0]["measurement"])
+            for metric in measurement["metrics"].values():
+                metric["status"] = "observed"
+            rows[0]["measurement"] = json.dumps(measurement)
+            with (directory / Trajectory.metadata_file_name).open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+                writer.writeheader()
+                writer.writerows(rows)
+            records = [Trajectory.load(directory).records()[0]]
+        else:
+            records = [live, Trajectory.load(history.output_path).records()[0]]
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    incomplete = archive != "legacy-unknown" and len(observation) != 2
+    for record in records:
+        assert record["observation"] == observation
+        assert record.ineligibility_reasons("reference") == ()
+        assert record.ineligibility_reasons("decision") == ()
+        if archive == "native":
+            statuses = [
+                metric["status"] for metric in record.get("measurement", decode_numbers=True)["metrics"].values()
+            ]
+            assert statuses == ["observed"] * len(observation) + ["unavailable"] * (2 - len(observation))
+        assert ("observation_unusable" in record.ineligibility_reasons("measurement")) is incomplete
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+
+
+def test_context_lookup_rejects_failed_first_match_without_changing_generic_find(
+    tmp_path: Path, eligibility_context
+) -> None:
+    original, system, rewards = eligibility_context
+    history = Trajectory(iteration_dir=tmp_path)
+    for step, reward, failure in ((1, -7.0, "failed first"), (2, 9.0, None)):
+        selected = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+        selected.step = step
+        history.record(
+            test_run=selected,
+            action_space=original.param_space,
+            action={"x": 1},
+            reward=reward,
+            observation=[1.0],
+            system=system,
+            rewards=rewards,
+            execution_error=failure,
+        )
+    before = {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    generic = history.find(action={"x": 1})
+    assert generic is not None and generic["step"] == 1
+    candidate = original.apply_params_set({"x": 1, "y": 10, "drop": 0.0})
+    assert history.find(candidate, original.param_space, system, rewards, action={"x": 1}) is None
+    assert [record["reward"] for record in history.records()] == [-7.0, 9.0]
+    assert {path: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
