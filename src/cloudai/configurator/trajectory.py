@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from cloudai.util.lazy_imports import lazy
+from cloudai.util.utils import values_match_exact as _values_match_exact
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -980,20 +981,6 @@ def _hashable_key(value: Any) -> Any:
         # the sets {1} and {1.0}, and a split is unrecoverable where a shared bucket is not.
         return (type_name,)
     return (type_name, value)
-
-
-def _values_match_exact(left: Any, right: Any) -> bool:
-    if type(left) is not type(right):
-        return False
-    if isinstance(left, Mapping):
-        if set(left) != set(right):
-            return False
-        return all(_values_match_exact(left[key], right[key]) for key in left)
-    if isinstance(left, Sequence) and not isinstance(left, (str, bytes)):
-        return len(left) == len(right) and all(
-            _values_match_exact(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
-        )
-    return bool(left == right)
 
 
 def _decode_numbers(value: Any) -> Any:

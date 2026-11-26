@@ -105,3 +105,41 @@ def test_serialized_adapter_refuses_expired_identity(real_env: CloudAIGymEnv, se
     assert {path.name: path.read_bytes() for path in real_env.iteration_dir.iterdir() if path.is_file()} == before
     with pytest.raises(RuntimeError, match=r"writer|owned|locked"):
         Trajectory(iteration_dir=real_env.iteration_dir, mode="resume")
+
+
+@pytest.mark.parametrize(
+    "candidates",
+    [[True, 1], [1, True], [1, 1.0], [1, 2], [[True], [1]], [(1,), [1]], [{"nested": [True]}, {"nested": [1]}]],
+)
+def test_native_action_roundtrip_preserves_exact_candidate_type(real_env: CloudAIGymEnv, candidates: list) -> None:
+    real_env.test_run.test.cmd_args = CmdArgs.model_validate({"tuned": candidates})
+    adapter = GymnasiumAdapter(real_env)
+
+    for index, value in enumerate(candidates):
+        encoded = adapter.encode_action({"tuned": value})
+        assert encoded == {"tuned": index}
+        decoded = adapter.decode_action(encoded)
+        assert decoded == {"tuned": value}
+        assert type(decoded["tuned"]) is type(value)
+
+
+def test_native_nan_candidate_roundtrips_by_identity_without_merging_distinct_values(real_env: CloudAIGymEnv) -> None:
+    nan = float("nan")
+    real_env.test_run.test.cmd_args = CmdArgs.model_validate({"tuned": [nan, 1.0]})
+    adapter = GymnasiumAdapter(real_env)
+    decoded = adapter.decode_action({"tuned": 0})
+    assert decoded["tuned"] is nan
+    assert adapter.encode_action(decoded) == {"tuned": 0}
+    assert adapter.encode_action(adapter.decode_action({"tuned": 1})) == {"tuned": 1}
+    with pytest.raises(ValueError):
+        adapter.encode_action({"tuned": float("nan")})
+
+
+def test_exact_duplicate_candidates_keep_first_index_and_absent_values_raise(real_env: CloudAIGymEnv) -> None:
+    real_env.test_run.test.cmd_args = CmdArgs.model_validate({"tuned": [{"nested": [1]}, {"nested": [1]}]})
+    adapter = GymnasiumAdapter(real_env)
+    assert adapter.encode_action({"tuned": {"nested": [1]}}) == {"tuned": 0}
+    with pytest.raises(ValueError):
+        adapter.encode_action({"tuned": {"nested": [True]}})
+    with pytest.raises(ValueError):
+        adapter.encode_action({"tuned": {"nested": [2]}})
