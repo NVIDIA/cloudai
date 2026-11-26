@@ -16,7 +16,6 @@
 
 import copy
 import logging
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
@@ -69,26 +68,37 @@ class CloudAIGymEnv(BaseGym):
         super().__init__()
 
     def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
-        """Return valid trial steps and configurations in descending reward order."""
         tr = self.original_test_run
+        eligible_records = {
+            record.step: record
+            for record in self.trajectory.records()
+            if not record.ineligibility_reasons("measurement")
+        }
         candidates = [
-            row
-            for row in self.trajectory.dataframe.to_dict(orient="records")
-            if math.isfinite(row["reward"])
-            and all(
-                math.isfinite(value) and value != self.rewards.metric_failure
-                for value in (
-                    row["observation"][index]
-                    if isinstance(row.get("observation"), list)
-                    else row[f"observation.{metric}"]
-                    for index, metric in enumerate(tr.test.agent_metrics)
-                )
+            row for row in self.trajectory.dataframe.to_dict(orient="records") if row["step"] in eligible_records
+        ]
+        for row in candidates:
+            if isinstance(row["reward"], str):
+                try:
+                    row["reward"] = int(row["reward"])
+                except ValueError:
+                    row["reward"] = float(row["reward"])
+        ranked = []
+        for row in sorted(candidates, key=lambda row: row["reward"], reverse=True):
+            record = eligible_records[row["step"]]
+            details = (
+                record.get("run_details", {}, decode_numbers=True)
+                if record.get("record_context_version") == "1"
+                else {}
             )
-        ]
-        return [
-            (int(row["step"]), {key: row[f"action.{key}"] for key in tr.param_space})
-            for row in sorted(candidates, key=lambda row: row["reward"], reverse=True)
-        ]
+            resolved_action = details.get("resolved_action") if isinstance(details, dict) else None
+            action = (
+                {key: resolved_action[key] for key in tr.param_space}
+                if isinstance(resolved_action, dict) and tr.param_space.keys() <= resolved_action.keys()
+                else {key: row[f"action.{key}"] for key in tr.param_space}
+            )
+            ranked.append((int(row["step"]), action))
+        return ranked
 
     def update_output(self) -> None:
         """Publish the DSE recommendation without interrupting execution on output errors."""
@@ -159,7 +169,6 @@ class CloudAIGymEnv(BaseGym):
         del options
         if seed is not None:
             lazy.np.random.seed(seed)
-        self.test_run.current_iteration = 0
         info: dict[str, Any] = {}
         if self.params is not None:
             info["env_params"] = self.params.sample(self.upcoming_trial)
@@ -171,7 +180,7 @@ class CloudAIGymEnv(BaseGym):
         info: dict[str, Any] = {"env_params": sampled_env_params} if self.params is not None else {}
         candidate_test_run = self.test_run.apply_params_set(action, env_params=sampled_env_params)
         candidate_test_run.step = trial
-        cached_result = self.get_cached_trajectory_result(action, sampled_env_params)
+        cached_result = self.get_cached_trajectory_result(action, sampled_env_params, test_run=candidate_test_run)
         failed_metrics: list[str] = []
         execution_error = None
 
@@ -324,6 +333,10 @@ class CloudAIGymEnv(BaseGym):
     def trajectory_file_path(self) -> Path:
         return self.trajectory.output_path
 
-    def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> "pd.Series | None":
-        """Return the first trajectory row matching the action and environment parameters."""
-        return self.trajectory.find(action=action, env_params=env_params)
+    def get_cached_trajectory_result(
+        self, action: Any, env_params: dict[str, Any], *, test_run: TestRun | None = None
+    ) -> "pd.Series | None":
+        candidate = self.test_run.apply_params_set(action, env_params=env_params) if test_run is None else test_run
+        return self.trajectory.find(
+            candidate, self.original_test_run.param_space, self.runner.system, self.rewards, action=action
+        )

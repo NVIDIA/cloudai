@@ -88,5 +88,7 @@ def test_completed_dse_uses_the_shared_recorder_for_full_context(
             None if completion == "completed" else {"constraint": False, "metric_indices": [], "runner": True}
         )
         assert row["reward"] > 0
+        assert row.ineligibility_reasons("reference") == ()
+        assert ("explicit_failure" in row.ineligibility_reasons("measurement")) == (completion == "failed")
         assert measurement["origin"]["history_id"] == details["history_id"]
         assert measurement["metrics"] == {"0": {"name": "bandwidth", "unit": "GB/s", "status": "observed"}}

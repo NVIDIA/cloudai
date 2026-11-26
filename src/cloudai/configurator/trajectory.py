@@ -113,6 +113,35 @@ class TrajectoryRecord(Mapping[str, Any]):  # noqa: D101
     def metadata(self) -> dict[str, Any]:
         return {key: deepcopy(value) for key, value in self._domains.items() if key not in Trajectory._core_domains}
 
+    def ineligibility_reasons(
+        self,
+        purpose: Literal["reference", "measurement", "decision", "learning"],
+        *,
+        current: tuple[TestRun, System, RewardOverrides] | None = None,
+    ) -> tuple[str, ...]:
+        if purpose not in {"reference", "measurement", "decision", "learning"}:
+            raise ValueError(f"unsupported trajectory purpose: {purpose!r}")
+        if purpose == "learning" and current is None:
+            raise ValueError("learning eligibility requires current configuration")
+        action = self.get("action")
+        reasons = []
+        details = self.get("run_details", {}, decode_numbers=True)
+        resolved = details.get("resolved_action", action) if isinstance(details, Mapping) else action
+        if self.step == 0:
+            reasons.append("historical_step_zero")
+        if not isinstance(action, Mapping) or not _finite_record_value(action):
+            reasons.append("action_unusable")
+        if purpose != "reference" and (not isinstance(resolved, Mapping) or not _finite_record_value(resolved)):
+            reasons.append("action_unusable")
+        environment = self.get("env_params", {}, decode_numbers=self.get("record_format_version") == "1")
+        if purpose != "reference" and (not isinstance(environment, Mapping) or not _finite_record_value(environment)):
+            reasons.append("environment_incompatible")
+        if purpose != "decision":
+            reasons.extend(_record_outcome_reasons(self, reference=purpose == "reference"))
+        if current is not None and purpose in {"decision", "learning"}:
+            reasons.extend(_target_configuration_reasons(self, current, learning=purpose == "learning"))
+        return tuple(dict.fromkeys(reasons))
+
 
 class Trajectory:
     """An ordered DataFrame of DSE steps persisted as core and metadata CSVs."""
@@ -377,7 +406,30 @@ class Trajectory:
         logging.debug("Appended trajectory row for step %s (total rows: %s).", step, len(self))
         return _copy_series(lazy.pd.Series(record, dtype=object))
 
-    def find(self, **values: object) -> pd.Series | None:
+    def find(
+        self,
+        test_run: TestRun | None = None,
+        action_space: Mapping[str, Any] | None = None,
+        system: System | None = None,
+        rewards: RewardOverrides | None = None,
+        /,
+        **values: object,
+    ) -> pd.Series | None:
+        if any(value is not None for value in (test_run, action_space, system, rewards)):
+            context = _record_context(
+                test_run,
+                action_space,
+                action=values.get("action"),
+                system=system,
+                rewards=rewards,
+                measurement={},
+                history_id=self._publication["history_id"] if self._publication is not None else "unknown",
+            )
+            values = {name: value for name, value in values.items() if name not in {"action", "env_params"}} | {
+                "configuration_id": context["configuration_id"],
+                "record_context_version": "1",
+                "record_format_version": "1",
+            }
         criteria: dict[str, object] = {}
         for domain, value in values.items():
             if domain == "env_params":
@@ -403,7 +455,9 @@ class Trajectory:
             for variant, versioned in variants
             if (position := self._find_position(variant, versioned)) is not None
         ]
-        if not positions:
+        if not positions or (
+            test_run is not None and _record_outcome_reasons(self._record_at(min(positions)), reference=False)
+        ):
             logging.debug("No matching trajectory row found for %s.", values)
             return None
         record = self._rows[min(positions)]
@@ -1545,3 +1599,250 @@ def _resolve_recorded_action(
                 value = value[part]
         resolved[name] = value
     return resolved
+
+
+def _finite_record_value(value: Any) -> bool:
+    try:
+        _validate_environment(value)
+        json.dumps(value, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return True
+
+
+def _record_outcome_reasons(record: TrajectoryRecord, *, reference: bool) -> tuple[str, ...]:
+    reasons = []
+    try:
+        reward = float(record.get("reward"))
+        usable = not isinstance(record.get("reward"), bool) and math.isfinite(reward)
+    except (TypeError, ValueError, OverflowError):
+        reward, usable = None, False
+    if not usable:
+        reasons.append("reward_unusable")
+    if reference:
+        return tuple(reasons)
+    failure = record.get("evaluation_failure", decode_numbers=True)
+    measurement = record.get("measurement", {}, decode_numbers=True)
+    measurement = measurement if isinstance(measurement, Mapping) else {}
+    failure_fields = failure if isinstance(failure, Mapping) else {}
+    details = record.get("run_details", {}, decode_numbers=True)
+    recovery = details.get("recovery", {}) if isinstance(details, Mapping) else {}
+    paths = recovery.get("opaque_context_paths", []) if isinstance(recovery, Mapping) else []
+    opaque = (
+        {tuple(path) for path in paths if isinstance(path, list) and all(isinstance(part, str) for part in path)}
+        if isinstance(paths, list)
+        else set()
+    )
+    failure_fields = {
+        name: value == "True"
+        if (
+            name in ("constraint", "runner", "metric", "nonfinite")
+            and isinstance(value, str)
+            and value in ("True", "False")
+            and (record.get("record_context_version") != "1" or ("evaluation_failure", name) in opaque)
+        )
+        else value
+        for name, value in failure_fields.items()
+    }
+    serialized_indices = failure_fields.get("metric_indices")
+    if isinstance(serialized_indices, str) and (
+        record.get("record_context_version") != "1" or ("evaluation_failure", "metric_indices") in opaque
+    ):
+        with contextlib.suppress(ValueError, SyntaxError):
+            recovered_indices = ast.literal_eval(serialized_indices)
+            if isinstance(recovered_indices, list) and all(
+                type(index) is int and index >= 0 for index in recovered_indices
+            ):
+                failure_fields["metric_indices"] = recovered_indices
+    failure_fields = {
+        name: value
+        for name, value in failure_fields.items()
+        if not (
+            ("evaluation_failure", name) in opaque
+            and (
+                (name in ("constraint", "runner", "metric", "nonfinite") and type(value) is not bool)
+                or (
+                    name == "metric_indices"
+                    and (not isinstance(value, list) or not all(type(index) is int and index >= 0 for index in value))
+                )
+            )
+        )
+    }
+    metrics = measurement.get("metrics", {})
+    metrics = {} if ("measurement", "metrics") in opaque and not isinstance(metrics, Mapping) else metrics
+    metrics = (
+        {
+            index: {
+                name: value
+                for name, value in metric.items()
+                if not (
+                    name in ("name", "unit", "status")
+                    and ("measurement", "metrics", index, name) in opaque
+                    and type(value) is not str
+                )
+            }
+            if isinstance(metric, Mapping)
+            else metric
+            for index, metric in metrics.items()
+            if not (("measurement", "metrics", index) in opaque and not isinstance(metric, Mapping))
+        }
+        if isinstance(metrics, Mapping)
+        else metrics
+    )
+    indices = failure_fields.get("metric_indices")
+    malformed = (
+        not isinstance(metrics, Mapping)
+        or any(
+            type(measurement[name]) is not str
+            for name in ("outcome", "execution_status", "kind")
+            if name in measurement
+        )
+        or any(
+            type(failure_fields[name]) is not bool
+            for name in ("constraint", "runner", "metric", "nonfinite")
+            if name in failure_fields
+        )
+        or (
+            "metric_indices" in failure_fields
+            and (not isinstance(indices, list) or not all(type(index) is int and index >= 0 for index in indices))
+        )
+        or any(
+            not isinstance(metric, Mapping)
+            or any(type(metric[name]) is not str for name in ("name", "unit", "status") if name in metric)
+            for metric in (metrics.values() if isinstance(metrics, Mapping) else ())
+        )
+    )
+    metrics = metrics if isinstance(metrics, Mapping) else {}
+    observation = record.get("observation")
+    agent_metrics = details.get("agent_metrics") if isinstance(details, Mapping) else None
+    observation_count = (
+        len(observation) if isinstance(observation, (list, tuple, Mapping)) else int(observation is not None)
+    )
+    if (
+        "observation" not in record
+        or observation is None
+        or (isinstance(observation, str) and observation.startswith("[truncated"))
+        or not _finite_record_value(observation)
+        or (isinstance(agent_metrics, list) and agent_metrics and observation_count < len(agent_metrics))
+        or any(isinstance(metric, Mapping) and metric.get("status") == "unavailable" for metric in metrics.values())
+    ):
+        reasons.append("observation_unusable")
+    if record.get("record_context_version") == "1" and malformed:
+        return (*reasons, "measurement_schema_incompatible")
+    failed = (
+        any(failure_fields.get(name) is True for name in ("constraint", "runner", "metric", "nonfinite"))
+        or (isinstance(indices, list) and bool(indices) and all(type(index) is int and index >= 0 for index in indices))
+        or measurement.get("outcome")
+        in ("runner_failure", "metric_failure", "constraint_failure", "nonfinite", "failed")
+        or measurement.get("execution_status") in ("failed", "cancelled")
+        or any(
+            isinstance(metric, Mapping) and metric.get("status") in ("failed", "nonfinite")
+            for metric in metrics.values()
+        )
+    )
+    if failed:
+        reasons.append("explicit_failure")
+    disambiguated = ("evaluation_failure" in record and failure is None) or measurement.get("outcome") == "success"
+    if reward == -1 and not failed and not disambiguated:
+        reasons.append("legacy_failure_ambiguous")
+    return tuple(reasons)
+
+
+def _target_configuration_reasons(
+    record: TrajectoryRecord, current: tuple[TestRun, System, RewardOverrides], *, learning: bool
+) -> tuple[str, ...]:
+    from cloudai.configurator.env_params import EnvParams
+
+    original, system, rewards = current
+    details = record.get("run_details", {}, decode_numbers=True)
+    required = {"resolved_action", "agent_metrics", "reward_function", "evaluation_policy", "launch"}
+    if (
+        record.get("record_context_version") != "1"
+        or not isinstance(details, Mapping)
+        or not required.issubset(details)
+        or "recovery" in details
+    ):
+        return ("context_unavailable",)
+    resolved = details["resolved_action"]
+    proposal = record["action"]
+    space = original.param_space
+    if (
+        not isinstance(resolved, dict)
+        or not isinstance(proposal, Mapping)
+        or set(resolved) != set(space)
+        or any(
+            name not in resolved or not _values_match_exact(value, resolved[name]) for name, value in proposal.items()
+        )
+        or any(
+            not any(_values_match_exact(value, candidate) for candidate in space[name])
+            for name, value in resolved.items()
+        )
+    ):
+        return ("action_incompatible",)
+    environment = record.get("env_params", {}, decode_numbers=True)
+    parameters = EnvParams.from_test(original.test)
+    sampled = {} if parameters is None else parameters.params
+    if not isinstance(environment, Mapping) or set(sampled) != set(original.test.env_params):
+        return ("environment_incompatible",)
+    regime = {}
+    for name, parameter in sampled.items():
+        support = [
+            value
+            for index, value in enumerate(parameter.candidates)
+            if parameter.weights is None or parameter.weights[index] > 0
+        ]
+        if name not in environment or not any(_values_match_exact(environment[name], value) for value in support):
+            return ("environment_incompatible",)
+        regime[name] = environment[name]
+    try:
+        submitted = original.apply_params_set(resolved, env_params=regime)
+        expected = _record_context(
+            submitted, space, action=proposal, system=system, rewards=rewards, measurement={}, history_id="unknown"
+        )
+    except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+        return ("configuration_incompatible",)
+    expected_details = expected["run_details"]
+    schema_matches = _values_match_exact(details["agent_metrics"], expected_details["agent_metrics"])
+    measurement_matches = True
+    if learning:
+        measurement = record.get("measurement", {}, decode_numbers=True)
+        metrics = measurement.get("metrics", {}) if isinstance(measurement, Mapping) else {}
+        known_units = {}
+        with contextlib.suppress(Exception):
+            known_units = {
+                item.metric.key: item.metric.unit
+                for item in submitted.test.metric_observations(system, submitted)
+                if item.metric.unit
+            }
+        observations = record["observation"]
+        measurement_matches = (
+            isinstance(metrics, Mapping)
+            and isinstance(observations, list)
+            and len(metrics) == len(expected_details["agent_metrics"])
+            and len(observations) == len(expected_details["agent_metrics"])
+            and all(type(value) in (int, float) and math.isfinite(value) for value in observations)
+            and all(
+                isinstance(metrics.get(str(index)), Mapping)
+                and type(metrics[str(index)].get("name")) is str
+                and metrics[str(index)].get("name") == name
+                and metrics[str(index)].get("status") == "observed"
+                and type(metrics[str(index)].get("unit")) is str
+                and (name not in known_units or metrics[str(index)]["unit"] in ("unknown", known_units[name]))
+                for index, name in enumerate(expected_details["agent_metrics"])
+            )
+        )
+    return tuple(
+        reason
+        for reason, fails in (
+            (
+                "configuration_incompatible",
+                not _values_match_exact(environment, expected["env_params"])
+                or any(
+                    not _values_match_exact(details[name], expected_details[name])
+                    for name in ("launch", "reward_function", "evaluation_policy")
+                ),
+            ),
+            ("measurement_schema_incompatible", not schema_matches or (learning and not measurement_matches)),
+        )
+        if fails
+    )
