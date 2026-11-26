@@ -22,6 +22,7 @@ from cloudai.core import CommandGenStrategy, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.standalone import StandaloneSystem
 from cloudai.workloads.sleep import SleepCmdArgs, SleepStandaloneCommandGenStrategy, SleepTestDefinition
+from cloudai.workloads.sleep.sleep import EXIT_CODE_FILE_NAME
 
 
 def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_system: StandaloneSystem) -> None:
@@ -36,10 +37,13 @@ def test_gen_exec_command_writes_test_run_details(tmp_path: Path, standalone_sys
     strategy = SleepStandaloneCommandGenStrategy(standalone_system, tr)
     command = strategy.gen_exec_command()
 
-    assert command == "sleep 60"
+    assert command == (
+        f"sleep 60 > {tr.output_path / 'stdout.txt'} 2> {tr.output_path / 'stderr.txt'}; "
+        f"echo $? > {tr.output_path / EXIT_CODE_FILE_NAME}"
+    )
 
     dump_path = tr.output_path / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
     assert dump_path.is_file()
     details = TestRunDetails.model_validate(toml.load(dump_path))
     assert details.test_cmd == "sleep 60"
-    assert details.full_cmd == "sleep 60"
+    assert details.full_cmd == command
