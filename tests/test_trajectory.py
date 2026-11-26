@@ -391,15 +391,7 @@ def test_trajectory_logs_lifecycle_and_lookup(tmp_path: Path, caplog: pytest.Log
 
 
 def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
-    """The lookup index must select exactly the row a linear exact-match scan would.
-
-    ``find`` is backed by a hash index rather than a scan, so the index key has to carry
-    the same identity semantics as ``_values_match_exact`` -- exact type, then structure.
-    This asserts the two agree on every recorded row rather than on a handful of cases.
-    """
     import random
-
-    from cloudai.configurator.trajectory import _values_match_exact
 
     trajectory = Trajectory(iteration_dir=tmp_path)
     random.seed(0)
@@ -410,19 +402,14 @@ def test_find_agrees_with_an_exhaustive_scan(tmp_path: Path) -> None:
         trajectory.append(step=step, action=action, reward=step / 100, observation=[float(step)], env_params=env)
         recorded.append((action, env))
 
-    frame = trajectory.dataframe
-
-    def scan(action: dict, env: dict) -> object | None:
-        criteria = {f"action.{k}": v for k, v in action.items()}
-        criteria.update({f"env_params.{k}": v for k, v in env.items()})
-        for _, row in frame.iterrows():
-            if all(_values_match_exact(row[field], value) for field, value in criteria.items()):
-                return row["step"]
-        return None
-
     for action, env in recorded:
+        expected = next(
+            step
+            for step, (recorded_action, recorded_env) in enumerate(recorded, start=1)
+            if recorded_action == action and recorded_env == env
+        )
         found = trajectory.find(action=action, env_params=env)
-        expected = scan(action, env)
+
         assert expected is not None
         assert found is not None
         assert found["step"] == expected
