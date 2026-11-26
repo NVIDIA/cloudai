@@ -30,6 +30,7 @@ from cloudai.configurator import (
 from cloudai.configurator.env_params import EnvParamSpec, ObsLeafDescriptor
 from cloudai.core import BaseAgentConfig, BaseRunner, RewardOverrides, Runner, System, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.systems.standalone import StandaloneRunner, StandaloneSystem
 from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
     Data,
@@ -158,11 +159,18 @@ def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
         ),
     ],
 )
-def test_compute_reward(reward_function, test_cases, base_tr: TestRun):
+def test_compute_reward(
+    reward_function, test_cases, base_tr: TestRun, tmp_path: Path, standalone_system: StandaloneSystem
+):
     base_tr.test.agent_reward_function = reward_function
     env = CloudAIGymEnv(
         test_run=base_tr,
-        runner=MagicMock(),
+        runner=StandaloneRunner(
+            mode="dry-run",
+            system=standalone_system,
+            test_scenario=TestScenario(name="reward", test_runs=[base_tr]),
+            output_path=tmp_path / "scenario",
+        ),
         rewards=RewardOverrides(),
         max_consecutive_rejected_proposals=BaseAgentConfig().max_consecutive_rejected_proposals,
     )
