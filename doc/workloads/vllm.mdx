@@ -101,6 +101,21 @@ model = "/models/custom"
 
 The mounted directory must contain a model, configuration, and tokenizer supported by vLLM.
 
+<Anchor id="json-serve-arguments" />
+
+## JSON Serve Arguments
+
+For `vllm serve` options that take a JSON value, such as `--speculative-config` or `--compilation-config`, set the argument to a TOML table. CloudAI passes it to `vllm serve` as quoted JSON.
+
+**test.toml (speculative decoding)**
+
+``` toml
+[cmd_args.decode.speculative_config]
+method = "ngram"
+num_speculative_tokens = 3
+prompt_lookup_max = 4
+```
+
 <Anchor id="semantic-validation" />
 
 ## Semantic Validation
