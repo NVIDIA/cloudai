@@ -215,7 +215,7 @@ affecting execution.
 ## General Flow
 
 - All reports should be registered via `Registry()` (`.add_report()` or `.add_scenario_report()`)
-- Scenario reports are configurable via system config (Slurm-only for now) and scenario config
+- Scenario reports are configurable via system config and scenario config
 - Configuration in a scenario config has the highest priority. Next, system config is checked. Then it defaults to report config from the registry
 - Finally, the report is generated (or not) according to this final config
 
@@ -231,7 +231,7 @@ Only scenario-level reports can be configured.
 
 </Note>
 
-Enabling or disabling a report needs to be done in the system configuration:
+Enable, disable, or configure a report in the system TOML or scenario TOML:
 
 ```toml
 [reports]
