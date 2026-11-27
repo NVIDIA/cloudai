@@ -7,6 +7,8 @@ description: Write, edit, or review CloudAI documentation, including Fern pages,
 
 ## Writing
 
+For a new guide, landing page, or substantial rewrite, read [the editorial guide](references/writing.md).
+
 - Write for the intended reader, not the PR reviewer. User docs explain how to use CloudAI;
   implementation and packaging details belong only where they help the reader's task.
 - Describe behavior in the revision being documented. Keep PR stages, roadmap promises and proof-of-concept
