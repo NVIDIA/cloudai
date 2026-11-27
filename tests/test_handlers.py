@@ -56,7 +56,9 @@ from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
+from cloudai.systems.standalone import StandaloneSystem
 from cloudai.test_parser import TestParser
+from cloudai.workloads.dynamo_mocker import DynamoMockerCmdArgs, DynamoMockerTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
@@ -800,6 +802,33 @@ def test_validate_system_support_rejects_unsupported_tests(system_fixture: str, 
     assert str(exc_info.value) == (
         f"Test 'ucc' (UCCTestDefinition) is not supported on system '{system.name}' ({type(system).__name__})."
     )
+
+
+def _sleep_with_mocker_hook(system: System) -> TestScenario:
+    mocker = DynamoMockerTestDefinition(
+        name="mocker", description="d", test_template_name="DynamoMockerTest", cmd_args=DynamoMockerCmdArgs()
+    )
+    hook = TestScenario(name="mocker_hook", test_runs=[_test_run(mocker, system)])
+    sleep_runs = [_test_run(_sleep(), system) for _ in range(2)]
+    for tr in sleep_runs:
+        tr.pre_test = hook
+    return TestScenario(name="s", test_runs=sleep_runs)
+
+
+def test_validate_system_support_rejects_unsupported_slurm_hook_tests(slurm_system: SlurmSystem) -> None:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
+        validate_system_support(slurm_system, _sleep_with_mocker_hook(slurm_system))
+
+    assert str(exc_info.value) == (
+        f"Test 'mocker' in hook 'mocker_hook' (DynamoMockerTestDefinition) is not supported on system "
+        f"'{slurm_system.name}' (SlurmSystem)."
+    )
+
+
+def test_validate_system_support_ignores_hooks_on_schedulers_that_skip_them(
+    standalone_system: StandaloneSystem,
+) -> None:
+    validate_system_support(standalone_system, _sleep_with_mocker_hook(standalone_system))
 
 
 def test_verify_test_scenarios_rejects_env_params_without_dse(
