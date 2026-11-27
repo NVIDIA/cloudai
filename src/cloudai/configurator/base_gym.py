@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 import dataclasses
 import pathlib
+from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import Any, Dict, Literal, Optional, Tuple
 
@@ -63,7 +63,7 @@ class Trial:
         }
 
 
-class BaseGym(abc.ABC):
+class BaseGym(ABC):
     """Base class for CloudAI Gym environments."""
 
     _consumed_steps: int = 0
@@ -73,7 +73,7 @@ class BaseGym(abc.ABC):
         self.action_space = self.define_action_space()
         self.observation_space = self.define_observation_space()
 
-    @abc.abstractmethod
+    @abstractmethod
     def define_action_space(self) -> Dict[str, Any]:
         """
         Define the action space for the environment.
@@ -83,7 +83,7 @@ class BaseGym(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def define_observation_space(self) -> list:
         """
         Define the observation space for the environment.
@@ -93,7 +93,7 @@ class BaseGym(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def reset(
         self,
         seed: Optional[int] = None,
@@ -113,7 +113,7 @@ class BaseGym(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
@@ -156,7 +156,7 @@ class BaseGym(abc.ABC):
             )
         return results
 
-    @abc.abstractmethod
+    @abstractmethod
     def render(self, mode: str = "human"):
         """
         Render the current state of the environment.
@@ -166,7 +166,7 @@ class BaseGym(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def seed(self, seed: Optional[int] = None):
         """
         Set the seed for the environment's random number generator.

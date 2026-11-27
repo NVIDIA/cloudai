@@ -14,53 +14,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
+from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import Any, Dict, Literal
 
-import pydantic
+from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.configurator import base_gym
+from .base_gym import BaseGym, Proposal
 
 
-class RewardOverrides(pydantic.BaseModel):
+class RewardOverrides(BaseModel):
     """Optional reward and observation overrides for the agent."""
 
-    model_config = pydantic.ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid")
 
-    constraint_failure: float = pydantic.Field(
+    constraint_failure: float = Field(
         default=-1.0,
         description="Reward when a constraint check fails.",
     )
-    metric_failure: float = pydantic.Field(
+    metric_failure: float = Field(
         default=-1.0,
         description="Observation value when a metric is missing or failed.",
     )
 
 
-class BaseAgentConfig(pydantic.BaseModel):
+class BaseAgentConfig(BaseModel):
     """Base config class for all agents in the CloudAI framework."""
 
-    model_config = pydantic.ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid")
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
-    max_consecutive_rejected_proposals: int = pydantic.Field(
+    max_consecutive_rejected_proposals: int = Field(
         default=16,
         description="Maximum constraint-rejected proposals before the environment skips the current DSE step.",
     )
-    max_parallelism: int = pydantic.Field(
+    max_parallelism: int = Field(
         default=1,
         ge=1,
         description="Maximum number of DSE trials CloudAI keeps outstanding at the same time.",
     )
-    rewards: RewardOverrides = pydantic.Field(
+    rewards: RewardOverrides = Field(
         default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
     )
 
 
-class BaseAgent(abc.ABC):
+class BaseAgent(ABC):
     """
     Base class for all agents in the CloudAI framework.
 
@@ -73,7 +73,7 @@ class BaseAgent(abc.ABC):
     # than silently ignored.
     supports_variable_environment: bool = False
 
-    def __init__(self, env: base_gym.BaseGym, config: BaseAgentConfig):
+    def __init__(self, env: BaseGym, config: BaseAgentConfig):
         """
         Initialize the agent with the environment.
 
@@ -88,11 +88,11 @@ class BaseAgent(abc.ABC):
         self.max_steps = 0
 
     @staticmethod
-    @abc.abstractmethod
+    @abstractmethod
     def get_config_class() -> type[BaseAgentConfig]:
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def configure(self, config: dict[str, Any]) -> None:
         """
         Configure the agent with additional settings.
@@ -102,7 +102,7 @@ class BaseAgent(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]] | None:
         """
         Select an action from the action space.
@@ -118,7 +118,7 @@ class BaseAgent(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def update_policy(self, _feedback: Dict[str, Any]) -> None:
         """
         Update the agent state based on feedback from the environment.
@@ -128,7 +128,7 @@ class BaseAgent(abc.ABC):
         """
         pass
 
-    def select_batch(self, observation: list[float] | None = None) -> Iterable[base_gym.Proposal]:
+    def select_batch(self, observation: list[float] | None = None) -> Iterable[Proposal]:
         """Yield proposals that can be chosen without intervening feedback."""
         proposal = self.select_action(observation=observation)
         if proposal is not None:

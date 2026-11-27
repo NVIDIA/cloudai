@@ -17,21 +17,25 @@
 import copy
 import logging
 import math
-import pathlib
 import time
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from cloudai import core
-from cloudai.configurator import base_agent, base_gym, trajectory
-from cloudai.configurator import env_params as env_params_lib
-from cloudai.util import lazy_imports
+from cloudai.core import METRIC_ERROR, BaseRunner, JobSubmissionError, Registry, TestRun
+from cloudai.util.lazy_imports import lazy
+
+from .base_agent import BaseAgentConfig, RewardOverrides
+from .base_gym import BaseGym, Proposal, Trial
+from .env_params import EnvParams, ObsLeafDescriptor
+from .trajectory import Trajectory
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class CloudAIGymEnv(base_gym.BaseGym):
+class CloudAIGymEnv(BaseGym):
     """
     Custom Gym environment for CloudAI integration.
 
@@ -40,10 +44,10 @@ class CloudAIGymEnv(base_gym.BaseGym):
 
     def __init__(
         self,
-        test_run: core.TestRun,
-        runner: core.BaseRunner,
-        rewards: base_agent.RewardOverrides,
-        max_consecutive_rejected_proposals: int = base_agent.BaseAgentConfig().max_consecutive_rejected_proposals,
+        test_run: TestRun,
+        runner: BaseRunner,
+        rewards: RewardOverrides,
+        max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
         max_parallelism: int = 1,
     ):
         self.test_run = test_run
@@ -55,9 +59,9 @@ class CloudAIGymEnv(base_gym.BaseGym):
         self.max_parallelism = max_parallelism
         self._progress = test_run.step
         self._consecutive_rejections = 0
-        self.reward_function = core.Registry().get_reward_function(test_run.test.agent_reward_function)
-        self.params: env_params_lib.EnvParams | None = env_params_lib.EnvParams.from_test(test_run.test)
-        self.trajectory = trajectory.Trajectory(iteration_dir=self.iteration_dir)
+        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
+        self.params: EnvParams | None = EnvParams.from_test(test_run.test)
+        self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
 
     def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
@@ -129,7 +133,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
         """
         del options
         if seed is not None:
-            lazy_imports.lazy.np.random.seed(seed)
+            lazy.np.random.seed(seed)
         info: dict[str, Any] = {}
         if self.params is not None:
             info["env_params"] = self.params.sample(self.upcoming_trial)
@@ -143,14 +147,12 @@ class CloudAIGymEnv(base_gym.BaseGym):
         info: dict[str, Any] = {"env_params": result.env_params} if self.params is not None else {}
         return result.observation, result.reward, result.done, info
 
-    def evaluate_batch(
-        self, proposals: Iterable[base_gym.Proposal], max_steps: Optional[int] = None
-    ) -> list[base_gym.Trial]:
+    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[Trial]:
         """Preserve proposal order for agent feedback despite out-of-order completion."""
         pending = iter(proposals)
-        trials: list[base_gym.Trial] = []
-        executing: dict[int, base_gym.Trial] = {}
-        followers: dict[int, list[base_gym.Trial]] = {}
+        trials: list[Trial] = []
+        executing: dict[int, Trial] = {}
+        followers: dict[int, list[Trial]] = {}
         try:
             self._start_trials(pending, max_steps, trials, executing, followers)
             while self.runner.jobs:
@@ -169,11 +171,11 @@ class CloudAIGymEnv(base_gym.BaseGym):
 
     def _start_trials(
         self,
-        proposals: Iterator[base_gym.Proposal],
+        proposals: Iterator[Proposal],
         max_steps: int | None,
-        trials: list[base_gym.Trial],
-        executing: dict[int, base_gym.Trial],
-        followers: dict[int, list[base_gym.Trial]],
+        trials: list[Trial],
+        executing: dict[int, Trial],
+        followers: dict[int, list[Trial]],
     ) -> None:
         while len(self.runner.jobs) < self.max_parallelism and not self.runner.shutting_down:
             if max_steps is not None and self._progress >= max_steps:
@@ -188,7 +190,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
             env_params = self.params.sample(step) if self.params else {}
             test_run = self.test_run.apply_params_set(action, env_params=env_params)
             test_run.step = step
-            trial = base_gym.Trial(trial_index, action, env_params=env_params, step=step)
+            trial = Trial(trial_index, action, env_params=env_params, step=step)
             trials.append(trial)
             logging.info("Proposal %s for step %s: %s", trial_index, step, action)
 
@@ -197,8 +199,8 @@ class CloudAIGymEnv(base_gym.BaseGym):
                 (
                     number
                     for number, running in executing.items()
-                    if trajectory.Trajectory.values_match(running.action, action)
-                    and trajectory.Trajectory.values_match(running.env_params, env_params)
+                    if Trajectory.values_match(running.action, action)
+                    and Trajectory.values_match(running.env_params, env_params)
                 ),
                 None,
             )
@@ -235,13 +237,11 @@ class CloudAIGymEnv(base_gym.BaseGym):
             self._progress += 1
             self._consecutive_rejections = 0
 
-    def _submit_trial(
-        self, trial: base_gym.Trial, test_run: core.TestRun, executing: dict[int, base_gym.Trial]
-    ) -> None:
+    def _submit_trial(self, trial: Trial, test_run: TestRun, executing: dict[int, Trial]) -> None:
         error = "the trial was not started"  # e.g. the runner is shutting down
         try:
             self.runner.submit_test(test_run)
-        except core.JobSubmissionError:
+        except JobSubmissionError:
             raise
         except Exception as e:
             logging.error(f"Error running step {test_run.step}: {e}")
@@ -253,10 +253,10 @@ class CloudAIGymEnv(base_gym.BaseGym):
             self._complete_trial(trial, test_run, core.JobStatusResult(is_successful=False, error_message=error))
             self._record(trial, test_run)
 
-    def _poll_trials(self, executing: dict[int, base_gym.Trial], followers: dict[int, list[base_gym.Trial]]) -> None:
+    def _poll_trials(self, executing: dict[int, Trial], followers: dict[int, list[Trial]]) -> None:
         """Bypass scenario fail-fast handling so trial failures stay isolated."""
         completed = list(self.runner.poll_jobs())
-        ready: list[tuple[base_gym.Trial, core.TestRun, core.JobStatusResult]] = []
+        ready: list[tuple[Trial, TestRun, core.JobStatusResult]] = []
         for job, job_status in completed:
             trial = executing[job.test_run.step]
             if not job_status.is_successful:
@@ -287,7 +287,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
         for job, _ in completed:
             del executing[job.test_run.step]
 
-    def _complete_trial(self, trial: base_gym.Trial, test_run: core.TestRun, job_status: core.JobStatusResult) -> None:
+    def _complete_trial(self, trial: Trial, test_run: TestRun, job_status: core.JobStatusResult) -> None:
         """Read metrics from the completed run, not the serial caller's current run."""
         observation = self.get_observation(test_run)
         trial.observation = list(observation.values())
@@ -300,7 +300,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
         trial.status = "failed" if failed_metrics or not job_status.is_successful else "completed"
         trial.output_path = test_run.output_path
 
-    def _record(self, trial: base_gym.Trial, test_run: core.TestRun | None = None) -> None:
+    def _record(self, trial: Trial, test_run: TestRun | None = None) -> None:
         """Update the serial view for callers that inspect env.test_run after stepping."""
         if self.runner.shutting_down:
             trial.status = "pending"
@@ -347,7 +347,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
             seed (Optional[int]): Seed for the environment's random number generator.
         """
         if seed is not None:
-            lazy_imports.lazy.np.random.seed(seed)
+            lazy.np.random.seed(seed)
 
     def compute_reward(self, observation: dict[str, Any]) -> float:
         """
@@ -361,7 +361,7 @@ class CloudAIGymEnv(base_gym.BaseGym):
         """
         return self.reward_function(list(observation.values()))
 
-    def get_observation(self, test_run: core.TestRun | None = None) -> dict[str, Any]:
+    def get_observation(self, test_run: TestRun | None = None) -> dict[str, Any]:
         test_run = self.test_run if test_run is None else test_run
         all_metrics = test_run.test.agent_metrics
         if not all_metrics:
@@ -370,12 +370,12 @@ class CloudAIGymEnv(base_gym.BaseGym):
         observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = test_run.get_metric_value(self.runner.system, metric)
-            if v is core.METRIC_ERROR:
+            if v is METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v
         return observation
 
-    def structured_observation_descriptors(self) -> Optional[Dict[str, env_params_lib.ObsLeafDescriptor]]:
+    def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]:
         """
         Per-leaf descriptors for the env_param regime, or ``None`` when none are declared.
 
@@ -394,12 +394,12 @@ class CloudAIGymEnv(base_gym.BaseGym):
         return self.params.encode(env_params) if self.params is not None else {}
 
     @property
-    def iteration_dir(self) -> pathlib.Path:
+    def iteration_dir(self) -> Path:
         """Per-iteration output directory containing the trajectory output."""
         return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}"
 
     @property
-    def trajectory_file_path(self) -> pathlib.Path:
+    def trajectory_file_path(self) -> Path:
         return self.trajectory.output_path
 
     def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> "pd.Series | None":

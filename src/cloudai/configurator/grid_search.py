@@ -18,17 +18,20 @@ import itertools
 from collections.abc import Iterator
 from typing import Any, Dict, List, Tuple
 
-from cloudai.configurator import base_agent, base_gym, cloudai_gym
+from cloudai.configurator import base_gym
+
+from .base_agent import BaseAgent, BaseAgentConfig
+from .cloudai_gym import CloudAIGymEnv
 
 
-class GridSearchAgent(base_agent.BaseAgent):
+class GridSearchAgent(BaseAgent):
     """
     Agent implementing a grid search over the action space.
 
     Iterates through all possible parameter combinations.
     """
 
-    def __init__(self, env: cloudai_gym.CloudAIGymEnv, config: base_agent.BaseAgentConfig):
+    def __init__(self, env: CloudAIGymEnv, config: BaseAgentConfig):
         """
         Initialize the GridSearchAgent with the TestRun object.
 
@@ -44,8 +47,8 @@ class GridSearchAgent(base_agent.BaseAgent):
         self.configure(self.action_space)
 
     @staticmethod
-    def get_config_class() -> type[base_agent.BaseAgentConfig]:
-        return base_agent.BaseAgentConfig
+    def get_config_class() -> type[BaseAgentConfig]:
+        return BaseAgentConfig
 
     def configure(self, config: Dict[str, Any]) -> None:
         """
