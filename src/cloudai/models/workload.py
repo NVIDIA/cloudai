@@ -259,6 +259,20 @@ class TestDefinition(BaseModel, ABC):
             return any(TestDefinition._annotation_admits_scalar(arg) for arg in get_args(annotation))
         return annotation in (int, float, str, bool)
 
+    @staticmethod
+    def _annotation_accepts_scalar(value: Any, annotation: Any) -> bool:
+        """Return whether a scalar value satisfies a scalar alternative in an annotation."""
+        if annotation is Any:
+            return True
+        origin = get_origin(annotation)
+        if origin is Annotated:
+            return TestDefinition._annotation_accepts_scalar(value, get_args(annotation)[0])
+        if origin is Literal:
+            return any(type(value) is type(candidate) and value == candidate for candidate in get_args(annotation))
+        if origin in (Union, UnionType):
+            return any(TestDefinition._annotation_accepts_scalar(value, arg) for arg in get_args(annotation))
+        return annotation in (int, float, str, bool) and isinstance(value, annotation)
+
     def _canonicalize_sweep_value(
         self,
         value: Any,
@@ -292,7 +306,7 @@ class TestDefinition(BaseModel, ABC):
                     value_annotation,
                     nested_path,
                     cmd_args=cmd_args,
-                    untyped_extra=untyped_extra or annotation is Any,
+                    untyped_extra=untyped_extra or value_annotation is Any,
                 )
             return value
 
@@ -300,7 +314,7 @@ class TestDefinition(BaseModel, ABC):
             isinstance(value, list)
             and len(value) == 1
             and self._is_scalar_sweep_value(value[0])
-            and (untyped_extra or self._annotation_admits_scalar(annotation))
+            and (untyped_extra or self._annotation_accepts_scalar(value[0], annotation))
         ):
             return value[0]
 

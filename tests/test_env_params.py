@@ -33,10 +33,10 @@ from __future__ import annotations
 
 import dataclasses
 import random
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from cloudai.configurator.env_params import (
     CategoricalEncoding,
@@ -82,6 +82,18 @@ class EnvVarTestDefinition(TestDefinition):
     """Minimal concrete TestDefinition wrapping ``EnvVarCmdArgs``."""
 
     cmd_args: EnvVarCmdArgs = EnvVarCmdArgs()
+
+
+class CanonicalizationReviewCmdArgs(CmdArgs):
+    """Fields covering scalar unions and nested untyped mapping values."""
+
+    mode_or_values: Union[Literal["auto"], List[int]] = "auto"
+    count: Union[int, List[int]] = 1
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class CanonicalizationReviewTestDefinition(TestDefinition):
+    cmd_args: CanonicalizationReviewCmdArgs = CanonicalizationReviewCmdArgs()
 
 
 def _tdef(env_params: dict, **cmd_args_overrides) -> EnvVarTestDefinition:
@@ -386,6 +398,20 @@ def test_singleton_values_in_extra_fields_and_extra_env_vars_are_canonicalized()
     assert tdef.cmd_args.model_dump()["custom_dim"] == 5
     assert tdef.extra_env_vars == {"EXTRA_DIM": "one"}
     assert tdef.is_dse_job is False
+
+
+def test_singleton_lists_only_collapse_when_the_value_matches_a_scalar_alternative() -> None:
+    tdef = CanonicalizationReviewTestDefinition(
+        name="review",
+        description="review",
+        test_template_name="review_template",
+        cmd_args=CanonicalizationReviewCmdArgs(mode_or_values=[2], count=[3], options={"width": [1]}),
+    )
+
+    assert tdef.cmd_args.mode_or_values == [2]
+    assert tdef.cmd_args.count == 3
+    assert tdef.cmd_args.options == {"width": 1}
+    assert tdef.is_dse_job is True
 
 
 def test_singleton_gpu_id_is_canonicalized() -> None:
