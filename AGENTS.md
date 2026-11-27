@@ -18,7 +18,7 @@
 
 ## Contribution
 
-- Use `cloudai-code-contribution` for features, fixes, and refactors.
+- Use `cloudai-code-contribution` for features, fixes, refactors, and adding or revising regression tests.
 - Use `cloudai-pr-review` for code reviews and review-comment triage.
 - Do not commit, push, open or modify pull requests, or run remote jobs unless explicitly asked to do so.
 - Follow PR requirements in `CONTRIBUTING.md` and use `.github/PULL_REQUEST_TEMPLATE.md`.

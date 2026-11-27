@@ -1,6 +1,6 @@
 ---
 name: cloudai-code-contribution
-description: Implement a feature, bug fix, or refactor affecting CloudAI behavior or interfaces.
+description: Implement a feature, bug fix, or refactor affecting CloudAI behavior or interfaces, or add or revise regression tests.
 ---
 
 # Code contribution
