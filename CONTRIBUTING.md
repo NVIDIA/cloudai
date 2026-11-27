@@ -13,8 +13,9 @@ Contributors looking to add features or fixes are encouraged to reach out to the
 Adhering to coding standards is crucial for maintaining the quality of the CloudAI codebase. Here are the guidelines you should follow:
 
 - **Code Formatting and Style:**
-  - Follow PEP 8 standards for coding style, emphasizing readability and proper documentation.
-  - Use four spaces for indentation and maintain line length under 79 characters.
+  - Follow PEP 8 and prefer the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) where the repository leaves a choice. Match the surrounding code.
+  - Use four spaces and the line length configured by Ruff in `pyproject.toml` (120 characters).
+  - Prefer absolute imports. Use `from x import y` for unwieldy qualified names and follow established relative imports. Avoid `assert` in production code.
   - All Python codes should have the license header. There should be a single blank line after the header if it is an import line. If there are no import statements and a class definition appears directly, there should be two blank lines.
   - There should be two blank lines between class definitions.
   - Use Google style for docstrings to ensure consistency and readability.
@@ -76,6 +77,7 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
   ```
 
 ### Pull Request (PR) Creation
+- Keep the diff focused on the requested behavior. Put unrelated formatting, renames, and cleanup in a separate change.
 - Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
 - Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
 - Keep the summary focused on the resulting behavior. In the test plan, passing CI is sufficient for routine automated checks; omit duplicate test inventories, commands, and output. Briefly describe distinctive manual experiments and their results, plus any material coverage gaps or failures. Include reproduction details when needed to assess the change.
