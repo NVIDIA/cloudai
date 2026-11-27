@@ -25,8 +25,10 @@
 
 ## Contribution
 
+- Use `cloudai-code-contribution` for features, fixes, and refactors. State the test plan before editing.
+- Use `cloudai-pr-review` for code reviews and review-comment triage.
 - Do not commit, push, open or modify pull requests, or run remote jobs unless explicitly asked to do so.
 - Follow PR requirements in `CONTRIBUTING.md` and use `.github/PULL_REQUEST_TEMPLATE.md`.
 - Use `.agents/skills/pr-management/SKILL.md` for PR creation/updates and after every push to a branch with an open PR.
-- Keep public configs reusable (no internal resources). Never commit credentials, private artifacts, or internal
-  hostnames.
+- Use public examples and resources in configs, docs, fixtures, PR text, and screenshots. Keep credentials,
+  private artifacts, and internal hostnames out of contributions.
