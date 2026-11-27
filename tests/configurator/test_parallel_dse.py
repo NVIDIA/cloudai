@@ -26,9 +26,8 @@ import pytest
 from cloudai.configurator.env_params import EnvParams, EnvParamSpec
 from cloudai.core import CloudAIGymEnv, JobSubmissionError, RewardOverrides, Runner, TestRun
 from cloudai.handlers import handle_dse_job
-
-from .conftest import ProbeAgent
-from .probe import (
+from tests.configurator.probe import (
+    ProbeAgent,
     ScriptedRunner,
     ScriptedSystem,
     dse_runner,

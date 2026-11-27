@@ -43,14 +43,17 @@ import csv
 import json
 import shlex
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 from pydantic import Field, PrivateAttr
 
 from cloudai.core import (
     METRIC_ERROR,
+    BaseAgent,
+    BaseAgentConfig,
     BaseJob,
     BaseRunner,
     CommandGenStrategy,
@@ -58,6 +61,7 @@ from cloudai.core import (
     JobStatusResult,
     JobSubmissionError,
     MetricValue,
+    Proposal,
     ReportGenerationStrategy,
     Runner,
     System,
@@ -318,3 +322,62 @@ def probe_timing(output_path: Path) -> tuple[float, float]:
     """Return when the process of a real probe trial started and finished."""
     timing = json.loads((output_path / TIMING_FILE).read_text())
     return timing["start"], timing["finish"]
+
+
+class ProbeAgent(BaseAgent):
+    """Base of the test agents: cycles through ``x`` and records everything it is told."""
+
+    created: ClassVar[list[ProbeAgent]] = []
+
+    def __init__(self, env: Any, config: BaseAgentConfig) -> None:
+        super().__init__(env, config)
+        self.max_steps = env.max_steps
+        self.xs: list[int] = env.define_action_space()["x"]
+        self.proposed = 0
+        self.log: list[tuple[str, int]] = []
+        self.updates: list[dict[str, Any]] = []
+        ProbeAgent.created.append(self)
+
+    @staticmethod
+    def get_config_class() -> type[BaseAgentConfig]:
+        return BaseAgentConfig
+
+    def configure(self, config: dict[str, Any]) -> None:
+        del config
+
+    def propose(self) -> Proposal:
+        self.proposed += 1
+        self.log.append(("propose", self.proposed))
+        return self.proposed, {"x": self.xs[(self.proposed - 1) % len(self.xs)]}
+
+    def select_action(self, observation: list[float] | None = None) -> Proposal | None:
+        del observation
+        return self.propose()
+
+    def update_policy(self, _feedback: dict[str, Any]) -> None:
+        self.log.append(("update", _feedback["trial_index"]))
+        self.updates.append(_feedback)
+
+
+class SerialAgent(ProbeAgent):
+    """Proposes one action at a time, like every agent written before batches existed."""
+
+
+class StreamAgent(ProbeAgent):
+    """Needs no feedback: an endless stream of proposals, bounded only by the step allowance."""
+
+    supports_variable_environment = True
+
+    def select_batch(self, observation: list[float] | None = None) -> Iterator[Proposal]:
+        del observation
+        while True:
+            yield self.propose()
+
+
+class GenerationAgent(ProbeAgent):
+    """Proposes three actions at a time and needs their feedback before the next three."""
+
+    def select_batch(self, observation: list[float] | None = None) -> Iterator[Proposal]:
+        del observation
+        for _ in range(3):
+            yield self.propose()

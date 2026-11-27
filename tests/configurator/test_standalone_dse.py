@@ -29,8 +29,7 @@ import cloudai.handlers
 from cloudai.cli.cli import handle_dry_run_and_run
 from cloudai.handlers import handle_dse_job
 from cloudai.systems.standalone import StandaloneJob, StandaloneRunner, StandaloneSystem
-
-from .probe import dse_runner, probe_test_run, probe_timing, read_trajectory
+from tests.configurator.probe import dse_runner, probe_test_run, probe_timing, read_trajectory
 
 
 @pytest.fixture
