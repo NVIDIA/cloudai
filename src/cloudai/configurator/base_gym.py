@@ -25,29 +25,21 @@ Proposal = tuple[int, dict[str, Any]]
 
 
 @dataclasses.dataclass
-class Trial:
-    """One agent proposal and sampled environment, with its eventual evaluation outcome."""
-
+class Trial:  # noqa: D101
     trial_index: int
-    """Proposal identity chosen by the agent (first item of the proposal)."""
     action: dict[str, Any]
     env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
     step: int | None = None
-    """Environment trial number (``TestRun.step``); ``None`` when the proposal was rejected."""
     status: Literal["pending", "completed", "failed", "cached", "rejected"] = "pending"
     observation: list = dataclasses.field(default_factory=list)
     reward: float = 0.0
-    """Observation and reward are populated when the trial finishes."""
     output_path: pathlib.Path | None = None
-    """Source of the result, including reused output; ``None`` for rejected proposals."""
 
     @property
     def done(self) -> bool:
-        """Legacy step flag: constraint rejection, rather than sweep completion."""
         return self.status == "rejected"
 
     def as_feedback(self) -> dict[str, Any]:
-        """Preserve the feedback keys expected by existing agent policies."""
         if self.status == "pending":
             raise ValueError("Cannot provide feedback for a pending trial")
         return {
