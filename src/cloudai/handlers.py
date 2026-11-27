@@ -241,7 +241,27 @@ def load_experiment(
     if scenario is None:
         raise TestScenarioParsingError("A test scenario is required.")
     validate_domain_randomization_active(scenario)
+    validate_system_support(system, scenario)
     return system, tests, scenario
+
+
+def validate_system_support(system: System, scenario: TestScenario) -> None:
+    """Reject scenarios with tests the system cannot run, before any job is started."""
+    registry = Registry()
+    supported = registry.command_gen_strategies_map.keys() | registry.json_gen_strategies_map.keys()
+    runs = [(f"Test '{tr.name}'", tr) for tr in scenario.test_runs]
+    if system.scheduler.lower() == "slurm":  # other schedulers skip hooks
+        for tr in scenario.test_runs:
+            for hook in (tr.pre_test, tr.post_test):
+                if hook is not None:
+                    runs.extend((f"Test '{hook_tr.name}' in hook '{hook.name}'", hook_tr) for hook_tr in hook.test_runs)
+    unsupported = [
+        f"{label} ({type(tr.test).__name__}) is not supported on system '{system.name}' ({type(system).__name__})."
+        for label, tr in runs
+        if (type(system), type(tr.test)) not in supported
+    ]
+    if unsupported:
+        raise TestScenarioParsingError("\n".join(dict.fromkeys(unsupported)))
 
 
 def create_experiment_runner(
