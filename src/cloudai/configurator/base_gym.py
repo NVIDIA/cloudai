@@ -58,10 +58,9 @@ class Trial:  # noqa: D101
 class BaseGym(ABC):
     """Base class for CloudAI Gym environments."""
 
-    _consumed_steps: int = 0
-
     def __init__(self):
         """Initialize the CloudAIGym environment."""
+        self._consumed_steps = 0
         self.action_space = self.define_action_space()
         self.observation_space = self.define_observation_space()
 
