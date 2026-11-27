@@ -14,37 +14,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+import abc
+import dataclasses
+import pathlib
 from collections.abc import Iterable
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Tuple
 
 Proposal = tuple[int, dict[str, Any]]
 """Agent proposal: the agent's own proposal identity and the action, as returned by ``select_action``."""
 
 
-@dataclass
+@dataclasses.dataclass
 class Trial:
-    """
-    One agent proposal, its sampled environment, and the outcome of evaluating it.
-
-    The environment creates a pending trial and fills its outcome once, without creating a
-    separate result object. Only finished trials are returned by ``evaluate_batch``. A trial
-    need not launch a job: it may be rejected or reuse another trial's output.
-    """
+    """One agent proposal and sampled environment, with its eventual evaluation outcome."""
 
     trial_index: int
     """Proposal identity chosen by the agent (first item of the proposal)."""
     action: dict[str, Any]
-    env_params: dict[str, Any] = field(default_factory=dict)
+    env_params: dict[str, Any] = dataclasses.field(default_factory=dict)
     step: int | None = None
     """Environment trial number (``TestRun.step``); ``None`` when the proposal was rejected."""
     status: Literal["pending", "completed", "failed", "cached", "rejected"] = "pending"
-    observation: list = field(default_factory=list)
+    observation: list = dataclasses.field(default_factory=list)
     reward: float = 0.0
     """Observation and reward are populated when the trial finishes."""
-    output_path: Path | None = None
+    output_path: pathlib.Path | None = None
     """Source of the result, including reused output; ``None`` for rejected proposals."""
 
     @property
@@ -53,7 +47,7 @@ class Trial:
         return self.status == "rejected"
 
     def as_feedback(self) -> dict[str, Any]:
-        """Project a finished trial into the existing agent feedback dictionary."""
+        """Preserve the feedback keys expected by existing agent policies."""
         if self.status == "pending":
             raise ValueError("Cannot provide feedback for a pending trial")
         return {
@@ -69,7 +63,7 @@ class Trial:
         }
 
 
-class BaseGym(ABC):
+class BaseGym(abc.ABC):
     """Base class for CloudAI Gym environments."""
 
     _consumed_steps: int = 0
@@ -79,7 +73,7 @@ class BaseGym(ABC):
         self.action_space = self.define_action_space()
         self.observation_space = self.define_observation_space()
 
-    @abstractmethod
+    @abc.abstractmethod
     def define_action_space(self) -> Dict[str, Any]:
         """
         Define the action space for the environment.
@@ -89,7 +83,7 @@ class BaseGym(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def define_observation_space(self) -> list:
         """
         Define the observation space for the environment.
@@ -99,7 +93,7 @@ class BaseGym(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def reset(
         self,
         seed: Optional[int] = None,
@@ -119,7 +113,7 @@ class BaseGym(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
@@ -137,21 +131,7 @@ class BaseGym(ABC):
         pass
 
     def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[Trial]:
-        """
-        Evaluate agent proposals and return one result per consumed proposal, in proposal order.
-
-        The environment owns the sweep bookkeeping: it pulls proposals lazily, resolves cached and
-        constraint-rejected ones without running anything, and stops pulling once ``max_steps``
-        steps were consumed over the lifetime of the environment. An empty list means the sweep is
-        over: either ``proposals`` was empty or the step allowance is exhausted.
-
-        Default: one ``step`` per proposal, where a step that returns ``done`` is a rejected
-        proposal and consumes nothing.
-
-        Args:
-            proposals: Proposals the agent can supply before it needs feedback. May be lazy and unbounded.
-            max_steps: Total step allowance for this environment; ``None`` means unlimited.
-        """
+        """Support step-only environments with serial batch evaluation."""
         results: list[Trial] = []
         pending = iter(proposals)
         while max_steps is None or self._consumed_steps < max_steps:
@@ -176,7 +156,7 @@ class BaseGym(ABC):
             )
         return results
 
-    @abstractmethod
+    @abc.abstractmethod
     def render(self, mode: str = "human"):
         """
         Render the current state of the environment.
@@ -186,7 +166,7 @@ class BaseGym(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def seed(self, seed: Optional[int] = None):
         """
         Set the seed for the environment's random number generator.

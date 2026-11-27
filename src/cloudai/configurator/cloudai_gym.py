@@ -17,24 +17,21 @@
 import copy
 import logging
 import math
+import pathlib
 import time
 from collections.abc import Iterable, Iterator
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
-from cloudai.core import METRIC_ERROR, BaseRunner, JobStatusResult, JobSubmissionError, Registry, TestRun
-from cloudai.util.lazy_imports import lazy
-
-from .base_agent import BaseAgentConfig, RewardOverrides
-from .base_gym import BaseGym, Proposal, Trial
-from .env_params import EnvParams, ObsLeafDescriptor
-from .trajectory import Trajectory
+from cloudai import core
+from cloudai.configurator import base_agent, base_gym, trajectory
+from cloudai.configurator import env_params as env_params_lib
+from cloudai.util import lazy_imports
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class CloudAIGymEnv(BaseGym):
+class CloudAIGymEnv(base_gym.BaseGym):
     """
     Custom Gym environment for CloudAI integration.
 
@@ -43,22 +40,12 @@ class CloudAIGymEnv(BaseGym):
 
     def __init__(
         self,
-        test_run: TestRun,
-        runner: BaseRunner,
-        rewards: RewardOverrides,
-        max_consecutive_rejected_proposals: int = BaseAgentConfig().max_consecutive_rejected_proposals,
+        test_run: core.TestRun,
+        runner: core.BaseRunner,
+        rewards: base_agent.RewardOverrides,
+        max_consecutive_rejected_proposals: int = base_agent.BaseAgentConfig().max_consecutive_rejected_proposals,
         max_parallelism: int = 1,
     ):
-        """
-        Initialize the Gym environment using the TestRun object.
-
-        Args:
-            test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            runner (BaseRunner): The runner object to execute jobs.
-            rewards: Reward / observation overrides from agent config.
-            max_consecutive_rejected_proposals: Rejections allowed before consuming the current sweep step.
-            max_parallelism: Maximum number of trials kept outstanding at the same time.
-        """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
@@ -68,13 +55,12 @@ class CloudAIGymEnv(BaseGym):
         self.max_parallelism = max_parallelism
         self._progress = test_run.step
         self._consecutive_rejections = 0
-        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
-        self.params: EnvParams | None = EnvParams.from_test(test_run.test)
-        self.trajectory = Trajectory(iteration_dir=self.iteration_dir)
+        self.reward_function = core.Registry().get_reward_function(test_run.test.agent_reward_function)
+        self.params: env_params_lib.EnvParams | None = env_params_lib.EnvParams.from_test(test_run.test)
+        self.trajectory = trajectory.Trajectory(iteration_dir=self.iteration_dir)
         super().__init__()
 
     def _ranked_dse_candidates(self) -> list[tuple[int, dict[str, str | int | float]]]:
-        """Return valid trial steps and configurations in descending reward order, equal rewards by step."""
         tr = self.original_test_run
         candidates = [
             row
@@ -103,14 +89,7 @@ class CloudAIGymEnv(BaseGym):
 
     @property
     def upcoming_trial(self) -> int:
-        """
-        Index of the next trial the environment will assign.
-
-        Executed, cached, failed, and skipped steps consume an index. ``TestRun.step`` is assigned
-        this index only for accepted proposals, so rejected proposals below the retry limit do not
-        consume a trial number. ``reset`` peeks at the same next value to report the regime the
-        next accepted proposal will get.
-        """
+        """Retries reuse a trial number so environment sampling stays stable."""
         return self._progress + 1
 
     def define_action_space(self) -> Dict[str, list[Any]]:
@@ -150,26 +129,13 @@ class CloudAIGymEnv(BaseGym):
         """
         del options
         if seed is not None:
-            lazy.np.random.seed(seed)
+            lazy_imports.lazy.np.random.seed(seed)
         info: dict[str, Any] = {}
         if self.params is not None:
             info["env_params"] = self.params.sample(self.upcoming_trial)
         return self.define_observation_space(), info
 
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
-        """
-        Execute one step in the environment: a one-proposal ``evaluate_batch``.
-
-        Args:
-            action (Any): Action chosen by the agent.
-
-        Returns:
-            Tuple: A tuple containing:
-                - observation (list): Updated system state.
-                - reward (float): Reward for the action taken.
-                - done (bool): ``True`` when the action was rejected by the constraint check.
-                - info (dict): Additional info for debugging.
-        """
         results = self.evaluate_batch([(self.upcoming_trial, action)])
         if not results:
             raise RuntimeError("Cannot evaluate the action: the runner is shutting down.")
@@ -177,26 +143,14 @@ class CloudAIGymEnv(BaseGym):
         info: dict[str, Any] = {"env_params": result.env_params} if self.params is not None else {}
         return result.observation, result.reward, result.done, info
 
-    def evaluate_batch(self, proposals: Iterable[Proposal], max_steps: Optional[int] = None) -> list[Trial]:
-        """
-        Evaluate proposals, keeping up to ``max_parallelism`` trials running.
-
-        A proposal is pulled from ``proposals`` as soon as a slot is free, so a slow trial holds
-        its own slot and not the others. Trials are recorded as they finish: the trajectory is in
-        completion order, the returned results are in proposal order. A proposal identical to a
-        trial that is still running shares that trial's result.
-
-        The runner's scenario is left as it is and a runner shutdown is never reset here: a
-        cancelled sweep stops, and the proposals that were not recorded by then get no result.
-
-        A trial that cannot be prepared fails alone and the sweep goes on. Any other error (from
-        the agent, from checking the running trials, from recording, a job submission error, an
-        interrupt) shuts the runner down, which terminates the running trials, and is raised.
-        """
+    def evaluate_batch(
+        self, proposals: Iterable[base_gym.Proposal], max_steps: Optional[int] = None
+    ) -> list[base_gym.Trial]:
+        """Preserve proposal order for agent feedback despite out-of-order completion."""
         pending = iter(proposals)
-        trials: list[Trial] = []
-        executing: dict[int, Trial] = {}
-        followers: dict[int, list[Trial]] = {}
+        trials: list[base_gym.Trial] = []
+        executing: dict[int, base_gym.Trial] = {}
+        followers: dict[int, list[base_gym.Trial]] = {}
         try:
             self._start_trials(pending, max_steps, trials, executing, followers)
             while self.runner.jobs:
@@ -215,30 +169,12 @@ class CloudAIGymEnv(BaseGym):
 
     def _start_trials(
         self,
-        proposals: Iterator[Proposal],
+        proposals: Iterator[base_gym.Proposal],
         max_steps: int | None,
-        trials: list[Trial],
-        executing: dict[int, Trial],
-        followers: dict[int, list[Trial]],
+        trials: list[base_gym.Trial],
+        executing: dict[int, base_gym.Trial],
+        followers: dict[int, list[base_gym.Trial]],
     ) -> None:
-        """
-        Pull proposals, in order, until ``max_parallelism`` trials are running.
-
-        For every pulled proposal:
-
-        - The trial number is the next free one. Environment parameters are sampled for that
-          number and are part of the cache key.
-        - Cached: a trajectory row, or a trial that is still running, matches the action and
-          environment parameters. Consumes a step and a trial number, takes no execution slot.
-        - Rejected: ``constraint_check`` fails. Consumes nothing, unless it is the
-          ``max_consecutive_rejected_proposals``-th rejection in a row, which consumes one step.
-          Any accepted proposal resets that counter.
-        - Otherwise the trial is submitted and takes an execution slot. A trial that cannot be
-          prepared for submission fails alone; a job submission error is raised.
-
-        Pulling stops when every slot is taken, ``proposals`` ends, ``max_steps`` steps are
-        consumed, or the runner is shutting down.
-        """
         while len(self.runner.jobs) < self.max_parallelism and not self.runner.shutting_down:
             if max_steps is not None and self._progress >= max_steps:
                 break
@@ -252,7 +188,7 @@ class CloudAIGymEnv(BaseGym):
             env_params = self.params.sample(step) if self.params else {}
             test_run = self.test_run.apply_params_set(action, env_params=env_params)
             test_run.step = step
-            trial = Trial(trial_index, action, env_params=env_params, step=step)
+            trial = base_gym.Trial(trial_index, action, env_params=env_params, step=step)
             trials.append(trial)
             logging.info("Proposal %s for step %s: %s", trial_index, step, action)
 
@@ -261,8 +197,8 @@ class CloudAIGymEnv(BaseGym):
                 (
                     number
                     for number, running in executing.items()
-                    if Trajectory.values_match(running.action, action)
-                    and Trajectory.values_match(running.env_params, env_params)
+                    if trajectory.Trajectory.values_match(running.action, action)
+                    and trajectory.Trajectory.values_match(running.env_params, env_params)
                 ),
                 None,
             )
@@ -299,12 +235,13 @@ class CloudAIGymEnv(BaseGym):
             self._progress += 1
             self._consecutive_rejections = 0
 
-    def _submit_trial(self, trial: Trial, test_run: TestRun, executing: dict[int, Trial]) -> None:
-        """Track a submitted execution, or finish the trial if preparation created no job."""
+    def _submit_trial(
+        self, trial: base_gym.Trial, test_run: core.TestRun, executing: dict[int, base_gym.Trial]
+    ) -> None:
         error = "the trial was not started"  # e.g. the runner is shutting down
         try:
             self.runner.submit_test(test_run)
-        except JobSubmissionError:
+        except core.JobSubmissionError:
             raise
         except Exception as e:
             logging.error(f"Error running step {test_run.step}: {e}")
@@ -313,18 +250,13 @@ class CloudAIGymEnv(BaseGym):
             executing[test_run.step] = trial
             logging.info(f"Running step {test_run.step}; {len(self.runner.jobs)} trial(s) in progress")
         elif not self.runner.shutting_down:
-            self._complete_trial(trial, test_run, JobStatusResult(is_successful=False, error_message=error))
+            self._complete_trial(trial, test_run, core.JobStatusResult(is_successful=False, error_message=error))
             self._record(trial, test_run)
 
-    def _poll_trials(self, executing: dict[int, Trial], followers: dict[int, list[Trial]]) -> None:
-        """
-        Check the running trials once and record the ones that finished.
-
-        Uses the runner's own polling without its scenario policy: a failed trial does not stop
-        the others. An error while checking the jobs is not handled here.
-        """
+    def _poll_trials(self, executing: dict[int, base_gym.Trial], followers: dict[int, list[base_gym.Trial]]) -> None:
+        """Bypass scenario fail-fast handling so trial failures stay isolated."""
         completed = list(self.runner.poll_jobs())
-        ready: list[tuple[Trial, TestRun, JobStatusResult]] = []
+        ready: list[tuple[base_gym.Trial, core.TestRun, core.JobStatusResult]] = []
         for job, job_status in completed:
             trial = executing[job.test_run.step]
             if not job_status.is_successful:
@@ -355,8 +287,8 @@ class CloudAIGymEnv(BaseGym):
         for job, _ in completed:
             del executing[job.test_run.step]
 
-    def _complete_trial(self, trial: Trial, test_run: TestRun, job_status: JobStatusResult) -> None:
-        """Fill an executed trial's outcome from its own run, without changing the serial view."""
+    def _complete_trial(self, trial: base_gym.Trial, test_run: core.TestRun, job_status: core.JobStatusResult) -> None:
+        """Read metrics from the completed run, not the serial caller's current run."""
         observation = self.get_observation(test_run)
         trial.observation = list(observation.values())
         trial.reward = self.compute_reward(observation)
@@ -368,8 +300,8 @@ class CloudAIGymEnv(BaseGym):
         trial.status = "failed" if failed_metrics or not job_status.is_successful else "completed"
         trial.output_path = test_run.output_path
 
-    def _record(self, trial: Trial, test_run: TestRun | None = None) -> None:
-        """Persist a finished trial and publish its run to serial callers; rejections have no row."""
+    def _record(self, trial: base_gym.Trial, test_run: core.TestRun | None = None) -> None:
+        """Update the serial view for callers that inspect env.test_run after stepping."""
         if self.runner.shutting_down:
             trial.status = "pending"
             return
@@ -415,7 +347,7 @@ class CloudAIGymEnv(BaseGym):
             seed (Optional[int]): Seed for the environment's random number generator.
         """
         if seed is not None:
-            lazy.np.random.seed(seed)
+            lazy_imports.lazy.np.random.seed(seed)
 
     def compute_reward(self, observation: dict[str, Any]) -> float:
         """
@@ -429,13 +361,7 @@ class CloudAIGymEnv(BaseGym):
         """
         return self.reward_function(list(observation.values()))
 
-    def get_observation(self, test_run: TestRun | None = None) -> dict[str, Any]:
-        """
-        Get the observation from the TestRun object.
-
-        Returns:
-            Metric values keyed by configured metric name.
-        """
+    def get_observation(self, test_run: core.TestRun | None = None) -> dict[str, Any]:
         test_run = self.test_run if test_run is None else test_run
         all_metrics = test_run.test.agent_metrics
         if not all_metrics:
@@ -444,12 +370,12 @@ class CloudAIGymEnv(BaseGym):
         observation: dict[str, Any] = {}
         for metric in all_metrics:
             v = test_run.get_metric_value(self.runner.system, metric)
-            if v is METRIC_ERROR:
+            if v is core.METRIC_ERROR:
                 v = self.rewards.metric_failure
             observation[metric] = v
         return observation
 
-    def structured_observation_descriptors(self) -> Optional[Dict[str, ObsLeafDescriptor]]:
+    def structured_observation_descriptors(self) -> Optional[Dict[str, env_params_lib.ObsLeafDescriptor]]:
         """
         Per-leaf descriptors for the env_param regime, or ``None`` when none are declared.
 
@@ -468,12 +394,12 @@ class CloudAIGymEnv(BaseGym):
         return self.params.encode(env_params) if self.params is not None else {}
 
     @property
-    def iteration_dir(self) -> Path:
+    def iteration_dir(self) -> pathlib.Path:
         """Per-iteration output directory containing the trajectory output."""
         return self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}"
 
     @property
-    def trajectory_file_path(self) -> Path:
+    def trajectory_file_path(self) -> pathlib.Path:
         return self.trajectory.output_path
 
     def get_cached_trajectory_result(self, action: Any, env_params: dict[str, Any]) -> "pd.Series | None":

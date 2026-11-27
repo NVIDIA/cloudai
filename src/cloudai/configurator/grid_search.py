@@ -18,19 +18,17 @@ import itertools
 from collections.abc import Iterator
 from typing import Any, Dict, List, Tuple
 
-from .base_agent import BaseAgent, BaseAgentConfig
-from .base_gym import Proposal
-from .cloudai_gym import CloudAIGymEnv
+from cloudai.configurator import base_agent, base_gym, cloudai_gym
 
 
-class GridSearchAgent(BaseAgent):
+class GridSearchAgent(base_agent.BaseAgent):
     """
     Agent implementing a grid search over the action space.
 
     Iterates through all possible parameter combinations.
     """
 
-    def __init__(self, env: CloudAIGymEnv, config: BaseAgentConfig):
+    def __init__(self, env: cloudai_gym.CloudAIGymEnv, config: base_agent.BaseAgentConfig):
         """
         Initialize the GridSearchAgent with the TestRun object.
 
@@ -46,8 +44,8 @@ class GridSearchAgent(BaseAgent):
         self.configure(self.action_space)
 
     @staticmethod
-    def get_config_class() -> type[BaseAgentConfig]:
-        return BaseAgentConfig
+    def get_config_class() -> type[base_agent.BaseAgentConfig]:
+        return base_agent.BaseAgentConfig
 
     def configure(self, config: Dict[str, Any]) -> None:
         """
@@ -91,7 +89,7 @@ class GridSearchAgent(BaseAgent):
         step = self.index
         return step, action
 
-    def select_batch(self, observation: list[float] | None = None) -> Iterator[Proposal]:
+    def select_batch(self, observation: list[float] | None = None) -> Iterator[base_gym.Proposal]:
         """Yield every remaining grid combination; grid search never needs feedback."""
         while (proposal := self.select_action(observation)) is not None:
             yield proposal

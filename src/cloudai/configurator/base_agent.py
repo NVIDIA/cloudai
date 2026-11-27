@@ -14,53 +14,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+import abc
 from collections.abc import Iterable
 from typing import Any, Dict, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+import pydantic
 
-from .base_gym import BaseGym, Proposal
+from cloudai.configurator import base_gym
 
 
-class RewardOverrides(BaseModel):
+class RewardOverrides(pydantic.BaseModel):
     """Optional reward and observation overrides for the agent."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid")
 
-    constraint_failure: float = Field(
+    constraint_failure: float = pydantic.Field(
         default=-1.0,
         description="Reward when a constraint check fails.",
     )
-    metric_failure: float = Field(
+    metric_failure: float = pydantic.Field(
         default=-1.0,
         description="Observation value when a metric is missing or failed.",
     )
 
 
-class BaseAgentConfig(BaseModel):
+class BaseAgentConfig(pydantic.BaseModel):
     """Base config class for all agents in the CloudAI framework."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid")
 
     random_seed: int = 42
     start_action: Literal["random", "first"] = "random"
-    max_consecutive_rejected_proposals: int = Field(
+    max_consecutive_rejected_proposals: int = pydantic.Field(
         default=16,
         description="Maximum constraint-rejected proposals before the environment skips the current DSE step.",
     )
-    max_parallelism: int = Field(
+    max_parallelism: int = pydantic.Field(
         default=1,
         ge=1,
         description="Maximum number of DSE trials CloudAI keeps outstanding at the same time.",
     )
-    rewards: RewardOverrides = Field(
+    rewards: RewardOverrides = pydantic.Field(
         default_factory=RewardOverrides,
         description="Reward and observation overrides for the agent.",
     )
 
 
-class BaseAgent(ABC):
+class BaseAgent(abc.ABC):
     """
     Base class for all agents in the CloudAI framework.
 
@@ -73,7 +73,7 @@ class BaseAgent(ABC):
     # than silently ignored.
     supports_variable_environment: bool = False
 
-    def __init__(self, env: BaseGym, config: BaseAgentConfig):
+    def __init__(self, env: base_gym.BaseGym, config: BaseAgentConfig):
         """
         Initialize the agent with the environment.
 
@@ -88,11 +88,11 @@ class BaseAgent(ABC):
         self.max_steps = 0
 
     @staticmethod
-    @abstractmethod
+    @abc.abstractmethod
     def get_config_class() -> type[BaseAgentConfig]:
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def configure(self, config: dict[str, Any]) -> None:
         """
         Configure the agent with additional settings.
@@ -102,7 +102,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def select_action(self, observation: list[float] | None = None) -> tuple[int, dict[str, Any]] | None:
         """
         Select an action from the action space.
@@ -118,7 +118,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def update_policy(self, _feedback: Dict[str, Any]) -> None:
         """
         Update the agent state based on feedback from the environment.
@@ -128,54 +128,13 @@ class BaseAgent(ABC):
         """
         pass
 
-    def select_batch(self, observation: list[float] | None = None) -> Iterable[Proposal]:
-        """
-        Propose every action the agent can supply before it needs feedback.
-
-        The environment pulls proposals lazily and keeps at most ``max_parallelism`` of them
-        running. It also stops pulling once the step allowance is exhausted, so agents whose
-        proposals do not depend on feedback may return an unbounded generator. Constraint-rejected
-        and cached proposals take no execution slot; the environment simply pulls the next one.
-
-        Default: a single proposal from ``select_action``, which keeps existing agents serial. It
-        is produced lazily, so ``select_action`` is not called once the step allowance is exhausted.
-
-        Args:
-            observation: Latest observation, as for ``select_action``.
-
-        Returns:
-            Proposals as ``(proposal identity, action)``; empty to signal termination of the agent loop.
-        """
+    def select_batch(self, observation: list[float] | None = None) -> Iterable[base_gym.Proposal]:
+        """Yield proposals that can be chosen without intervening feedback."""
         proposal = self.select_action(observation=observation)
         if proposal is not None:
             yield proposal
 
     def run(self) -> int:
-        """
-        Orchestrate this agent's exploration over ``self.env``.
-
-        Default: a batch loop (``select_batch`` → ``env.evaluate_batch`` →
-        ``update_policy`` per result). The environment owns the sweep
-        bookkeeping: the step allowance, constraint retries and skipped steps.
-        Agents that drive their own training loop override this method.
-
-        Failure contract (``handle_dse_job`` consumes the result via
-        ``err |= agent.run()``):
-
-        - Return a non-zero code for *recoverable* failures (e.g. a workload run
-          that failed but should not abort the rest of the sweep). The code is
-          accumulated and the next ``TestRun`` still executes. Workload-level
-          failures are already surfaced this way: ``CloudAIGymEnv`` maps a
-          failed metric to ``rewards.metric_failure`` rather than raising, and
-          agents with their own training loop should likewise catch training
-          errors and return a non-zero code.
-        - Raise for *unexpected* failures (framework/agent bugs). Exceptions
-          propagate out of ``handle_dse_job`` and hard-fail the job so the bug
-          is surfaced instead of masked as a penalizing reward.
-
-        Returns:
-            int: Process-style return code (``0`` success, non-zero recoverable failure).
-        """
         observation, _ = self.env.reset()
         while results := self.env.evaluate_batch(self.select_batch(observation), max_steps=self.max_steps):
             for trial in results:
