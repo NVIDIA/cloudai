@@ -32,7 +32,6 @@ from cloudai.configurator.env_params import validate_domain_randomization_active
 from cloudai.core import (
     BaseAgent,
     BaseInstaller,
-    BaseRunner,
     CloudAIGymEnv,
     Installable,
     JobSubmissionError,
@@ -135,19 +134,6 @@ def _parallel_dse_error(test_run: TestRun, system: System, max_parallelism: int)
     return None
 
 
-def _dse_iterations(runner: BaseRunner) -> collections.abc.Iterator[TestRun]:
-    """Repeat each search with independent agent state, numbering and trajectory/cache."""
-    for tr in runner.test_scenario.test_runs:
-        for iteration in range(tr.current_iteration, tr.iterations):
-            if runner.shutting_down:
-                return
-            test_run = copy.deepcopy(tr)
-            test_run.current_iteration = iteration
-            if iteration != tr.current_iteration:
-                test_run.step = 0
-            yield test_run
-
-
 def handle_dse_job(runner: Runner) -> int:
     registry = Registry()
 
@@ -161,7 +147,10 @@ def handle_dse_job(runner: Runner) -> int:
 
     err = 0
     try:
-        for test_run in _dse_iterations(runner.runner):
+        for tr in runner.runner.test_scenario.test_runs:
+            if runner.runner.shutting_down:
+                break
+            test_run = copy.deepcopy(tr)
             agent_type = test_run.test.agent
             if not registry.has_agent(agent_type):
                 logging.error(
@@ -209,12 +198,8 @@ def handle_dse_job(runner: Runner) -> int:
         _record_run_failure(runner.runner.scenario_root, exc)
         raise
 
-    if runner.runner.shutting_down:
-        logging.info("DSE is cancelled.")
-        return 1
-
-    logging.info("All jobs are complete.")
-    return err
+    logging.info("DSE is cancelled." if runner.runner.shutting_down else "All jobs are complete.")
+    return 1 if runner.runner.shutting_down else err
 
 
 def _record_run_failure(result_dir: Path, error: BaseException) -> None:

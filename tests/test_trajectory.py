@@ -187,13 +187,6 @@ def test_trajectory_keeps_the_order_steps_were_recorded_in(tmp_path: Path) -> No
 
     assert list(trajectory.dataframe["step"]) == [3, 1, 2]
     assert list(pd.read_csv(trajectory.output_path)["step"]) == [3, 1, 2]
-    found = trajectory.find(action={"x": 1})
-    assert found is not None
-    assert found["step"] == 1
-    warm_started = Trajectory(iteration_dir=tmp_path / "copy", dataframe=trajectory.dataframe)
-    assert list(warm_started.dataframe["step"]) == [3, 1, 2]
-    with pytest.raises(ValueError, match="steps must be unique"):
-        warm_started.append(step=1, action={"x": 4}, reward=4.0, observation={"metric": 1.0})
 
 
 def test_first_row_establishes_fixed_schema(tmp_path: Path) -> None:

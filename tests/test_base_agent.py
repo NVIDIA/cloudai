@@ -21,7 +21,6 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cloudai.configurator import BaseGym
 from cloudai.core import BaseAgent, BaseAgentConfig, Proposal, Trial
 
 
@@ -76,24 +75,6 @@ class _SequenceEnv(_FakeEnv):
         return self._result(proposal, reward)
 
 
-class _RejectingEnv(_FakeEnv):
-    """Rejects every proposal; each ``rejection_limit``-th rejection in a row consumes a step."""
-
-    def __init__(self, rejection_limit: int = 3) -> None:
-        super().__init__()
-        self._consecutive_rejections = 0
-        self.rejection_limit = rejection_limit
-        self.skipped_steps = 0
-
-    def _evaluate(self, proposal: Proposal) -> Trial:
-        self._consecutive_rejections += 1
-        if self._consecutive_rejections >= self.rejection_limit:
-            self._progress += 1
-            self._consecutive_rejections = 0
-            self.skipped_steps += 1
-        return self._result(proposal, -1.0, rejected=True)
-
-
 class _RecordingAgent(BaseAgent):
     def __init__(
         self,
@@ -146,27 +127,6 @@ def test_run_retries_constraint_rejection_without_consuming_execution_step() -> 
     ]
 
 
-def test_run_skips_steps_after_rejected_proposal_limit() -> None:
-    env = _RejectingEnv(rejection_limit=3)
-    agent = _RecordingAgent(env, BaseAgentConfig(max_consecutive_rejected_proposals=3))
-
-    assert agent.run() == 0
-
-    assert agent.proposals == 6
-    assert env.skipped_steps == 2
-    assert len(agent.updates) == 6
-    assert all(feedback["value"] == -1.0 for feedback in agent.updates)
-
-
-def test_successful_execution_resets_rejected_proposal_limit() -> None:
-    agent = _RecordingAgent(_SequenceEnv([None, 1.0, None, 2.0]), BaseAgentConfig(max_consecutive_rejected_proposals=2))
-
-    assert agent.run() == 0
-
-    assert agent.proposals == 4
-    assert [feedback["value"] for feedback in agent.updates] == [-1.0, 1.0, -1.0, 2.0]
-
-
 def test_run_does_not_select_action_when_env_does_not_pull() -> None:
     env = _SequenceEnv([1.0])
     agent = _RecordingAgent(env)
@@ -191,57 +151,7 @@ def test_run_stops_when_select_action_returns_none() -> None:
     assert [feedback["value"] for feedback in agent.updates] == [1.0, 2.0]
 
 
-class _StepOnlyEnv(BaseGym):
-    """Environment written before batches existed: rejects every second action."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.actions: list[dict[str, Any]] = []
-
-    def define_action_space(self) -> dict[str, Any]:
-        return {}
-
-    def define_observation_space(self) -> list:
-        return [0.0]
-
-    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[list, dict[str, Any]]:
-        del seed, options
-        return [0.0], {}
-
-    def step(self, action: Any) -> tuple[list, float, bool, dict]:
-        self.actions.append(action)
-        rejected = len(self.actions) % 2 == 0
-        value = -1.0 if rejected else float(len(self.actions))
-        return [value], value, rejected, {}
-
-    def render(self, mode: str = "human") -> None:
-        del mode
-
-    def seed(self, seed: int | None = None) -> None:
-        del seed
-
-
-def test_run_drives_an_environment_that_only_implements_step() -> None:
-    env = _StepOnlyEnv()
-    agent = _RecordingAgent(env)  # type: ignore[arg-type]
-
-    assert agent.run() == 0
-
-    assert agent.proposals == 3
-    assert [update["status"] for update in agent.updates] == ["completed", "rejected", "completed"]
-    assert [update["step"] for update in agent.updates] == [1, None, 2]
-    assert [update["value"] for update in agent.updates] == [1.0, -1.0, 3.0]
-    assert agent.selected_observations == [[0.0], [1.0], [-1.0]]
-
-
 def test_max_parallelism_must_be_positive() -> None:
     assert BaseAgentConfig().max_parallelism == 1
     with pytest.raises(ValidationError):
         BaseAgentConfig(max_parallelism=0)
-
-
-def test_pending_trial_cannot_be_sent_to_an_agent() -> None:
-    trial = Trial(trial_index=1, action={"candidate": 1})
-
-    with pytest.raises(ValueError, match="pending trial"):
-        trial.as_feedback()

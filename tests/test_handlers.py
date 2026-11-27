@@ -42,6 +42,7 @@ from cloudai.core import (
     TestScenarioParsingError,
 )
 from cloudai.handlers import (
+    _parallel_dse_error,
     execute_experiment,
     handle_dse_job,
     prepare_installation,
@@ -55,13 +56,6 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.reporter import StatusReporter, TarballReporter
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.test_parser import TestParser
-
-
-@pytest.fixture
-def dse_tr(dse_tr: TestRun) -> TestRun:
-    """Use one search for handler dispatch tests; repetition is covered by the DSE integration tests."""
-    dse_tr.iterations = 1
-    return dse_tr
 
 
 class StubAgentConfig(BaseAgentConfig):
@@ -787,3 +781,20 @@ def test_verify_test_scenarios_allows_env_params_with_dse(
     good = TestScenario(name="s", test_runs=[dse_tr])
     monkeypatch.setattr(Parser, "parse_test_scenario", lambda *a, **k: good)
     assert verify_test_scenarios([Path("dummy.toml")], [], [], []) == 0
+
+
+@pytest.mark.parametrize(
+    ("scheduler", "parallelism", "pin_nodes", "error"),
+    [
+        ("slurm", 2, True, "pin_nodes"),
+        ("kubernetes", 2, False, "not isolated"),
+        ("slurm", 1, True, None),
+        ("kubernetes", 1, False, None),
+        ("slurm", 2, False, None),
+    ],
+)
+def test_parallel_dse_configuration(scheduler, parallelism, pin_nodes, error, base_tr, slurm_system):
+    slurm_system.scheduler = scheduler
+    base_tr.pin_nodes = pin_nodes
+    message = _parallel_dse_error(base_tr, slurm_system, parallelism)
+    assert (message is None) if error is None else (message is not None and error in message)

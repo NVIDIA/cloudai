@@ -186,7 +186,7 @@ For ordinary scenarios, `cloudai run` returns a nonzero exit code when a job fai
 
 For DSE workloads, you can pass agent configuration via `agent_config` in the scenario.
 
-`iterations` repeats the entire DSE search. Each iteration creates a fresh agent, starts trial numbering at 1, and has its own trajectory and cache under `<test>/<iteration>/`. `agent_steps` applies separately to each search. The experiment's DSE recommendation reflects the most recent search; per-iteration reports retain each search's results.
+DSE cases run one search; `iterations` is ignored.
 
 `BaseAgentConfig` includes:
 
