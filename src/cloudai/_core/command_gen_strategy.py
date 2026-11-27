@@ -26,6 +26,15 @@ class CommandGenStrategy(ABC):
     TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
 
     def __init__(self, system: System, test_run: TestRun) -> None:
+        unresolved_params = list(test_run.param_space)
+        if isinstance(test_run.num_nodes, list):
+            unresolved_params.append("num_nodes")
+        if unresolved_params:
+            raise ValueError(
+                "Command generation requires all DSE parameters to be resolved; "
+                f"unresolved parameters: {', '.join(unresolved_params)}"
+            )
+
         self.system = system
         self.test_run = test_run
         self._final_env_vars: dict[str, str | list[str]] = {}

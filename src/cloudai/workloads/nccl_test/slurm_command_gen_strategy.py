@@ -35,12 +35,6 @@ _ALLTOALLV_SKIP_CLI = {
 }
 
 
-def _nccl_cmd_scalar(value: object) -> object:
-    if isinstance(value, list):
-        return value[0] if value else value
-    return value
-
-
 def _nccl_matrix_path_under_deepep_output(dep_out: Path) -> Path | None:
     """DeepEP writes nccl_matrix.txt under the dependency test output or a timestamped benchmark subdir."""
     direct = dep_out / "nccl_matrix.txt"
@@ -119,15 +113,15 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts: List[str] = [
             _NCCL_TESTS_ALLTOALLV_PERF,
             "-b",
-            str(_nccl_cmd_scalar(a.minbytes)),
+            str(a.minbytes),
             "-e",
-            str(_nccl_cmd_scalar(a.maxbytes)),
+            str(a.maxbytes),
             "-g",
-            str(_nccl_cmd_scalar(a.ngpus)),
+            str(a.ngpus),
             "-w",
-            str(_nccl_cmd_scalar(a.warmup_iters)),
+            str(a.warmup_iters),
             "-n",
-            str(_nccl_cmd_scalar(a.iters)),
+            str(a.iters),
         ]
         # Forward the remaining configured NCCL options (e.g. nthreads, stepbytes, op, datatype, root,
         # check, blocking, cudagraph, stepfactor, ...) so TOML-configured settings are not silently dropped.
@@ -137,7 +131,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for field_name in a.model_dump():
             if field_name in already_emitted or field_name in _ALLTOALLV_SKIP_CLI:
                 continue
-            value = _nccl_cmd_scalar(getattr(a, field_name))
+            value = getattr(a, field_name)
             if value is None:
                 continue
             if isinstance(value, bool):
