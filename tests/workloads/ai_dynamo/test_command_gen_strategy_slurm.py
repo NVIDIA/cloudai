@@ -863,6 +863,17 @@ def test_aiperf_phase_roundtrip_does_not_emit_default_report_name(strategy: AIDy
     assert f"{strategy.CONTAINER_MOUNT_OUTPUT}/aiperf_round_2_report.csv" in script
 
 
+def test_single_aiperf_phase_remains_a_list(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
+    td = cast(AIDynamoTestDefinition, strategy.test_run.test)
+    td.cmd_args.aiperf_phases = [AIPerfPhase.model_validate({"name": "round_1"})]
+
+    roundtripped = AIDynamoTestDefinition.model_validate(td.model_dump())
+
+    assert roundtripped.cmd_args.aiperf_phases is not None
+    assert len(roundtripped.cmd_args.aiperf_phases) == 1
+    assert roundtripped.cmd_args.aiperf_phases[0].name == "round_1"
+
+
 def test_single_aiperf_phase_keeps_legacy_artifact_defaults(strategy: AIDynamoSlurmCommandGenStrategy) -> None:
     td = cast(AIDynamoTestDefinition, strategy.test_run.test)
     td.cmd_args.workloads = "aiperf.sh"

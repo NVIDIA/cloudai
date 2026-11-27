@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import dataclasses
 import random
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -55,6 +55,14 @@ class BrickGrid(BaseModel):
     rows: int = 3
 
 
+class NestedSweepArgs(BaseModel):
+    """Nested fields exercise the same scalar/list contract as top-level cmd_args."""
+
+    steps: Union[int, List[int]] = 1
+    allowed_list: Optional[List[int]] = None
+    gpu_ids: Union[str, List[str]] = ""
+
+
 class EnvVarCmdArgs(CmdArgs):
     """cmd_args with top-level, list-capable fields for env_params annotation tests.
 
@@ -67,6 +75,7 @@ class EnvVarCmdArgs(CmdArgs):
     ball_speed: Union[int, List[int]] = 1
     paddle_width: Union[int, List[int]] = 8
     brick_grid: BrickGrid = BrickGrid()
+    nested: NestedSweepArgs = NestedSweepArgs()
 
 
 class EnvVarTestDefinition(TestDefinition):
@@ -328,6 +337,62 @@ def test_env_params_singleton_candidate_list_rejected() -> None:
     ever return that one value, so it is rejected at build time like a scalar annotation."""
     with pytest.raises(ValidationError, match="single-element list is a fixed value"):
         _tdef({"ball_speed": EnvParamSpec()}, ball_speed=[1])
+
+
+def test_singleton_sweep_values_are_canonicalized_without_changing_list_fields() -> None:
+    tdef = _tdef({}, ball_speed=[1], nested={"steps": [2], "allowed_list": [1]})
+
+    assert tdef.cmd_args.ball_speed == 1
+    assert tdef.cmd_args.nested.steps == 2
+    assert tdef.cmd_args.nested.allowed_list == [1]
+    assert tdef.cmd_args.nested.gpu_ids == ""
+    assert tdef.is_dse_job is False  # The declared list-only field is a value, not a sweep dimension.
+    assert TestRun(name="fixed", test=tdef, num_nodes=1, nodes=[]).param_space == {}
+
+
+def test_multi_value_sweeps_and_excluded_singletons_are_preserved() -> None:
+    tdef = _tdef({}, ball_speed=[1, 2], nested={"steps": [3, 4]})
+    excluded = EnvVarTestDefinition(
+        name="breakout",
+        description="breakout",
+        test_template_name="breakout_template",
+        cmd_args=EnvVarCmdArgs(ball_speed=[1]),
+        dse_excluded_args=["cmd_args.ball_speed"],
+    )
+
+    assert tdef.cmd_args.ball_speed == [1, 2]
+    assert tdef.cmd_args.nested.steps == [3, 4]
+    assert tdef.is_dse_job is True
+    assert excluded.cmd_args.ball_speed == [1]
+    assert excluded.is_dse_job is False
+
+
+def test_singleton_num_nodes_sweep_is_canonicalized() -> None:
+    tdef = _tdef({}, ball_speed=[1, 2])
+    single_node_run = TestRun(name="single", test=tdef, num_nodes=[1], nodes=[])
+    multi_node_run = TestRun(name="multi", test=tdef, num_nodes=[1, 2], nodes=[])
+
+    assert single_node_run.num_nodes == 1
+    assert single_node_run.is_dse_job is True  # The cmd_args sweep remains active.
+    assert multi_node_run.num_nodes == [1, 2]
+
+
+def test_singleton_values_in_extra_fields_and_extra_env_vars_are_canonicalized() -> None:
+    tdef = _tdef({}, custom_dim=[5])
+    tdef.extra_env_vars = {"EXTRA_DIM": ["one"]}
+    # Re-validation runs the same parse-time canonicalization as normal config loading.
+    tdef = type(tdef).model_validate(tdef.model_dump())
+
+    assert tdef.cmd_args.model_dump()["custom_dim"] == 5
+    assert tdef.extra_env_vars == {"EXTRA_DIM": "one"}
+    assert tdef.is_dse_job is False
+
+
+def test_singleton_gpu_id_is_canonicalized() -> None:
+    tdef = _tdef({}, nested={"gpu_ids": ["1"]})
+
+    assert tdef.cmd_args.nested.gpu_ids == "1"
+    assert tdef.is_dse_job is False
 
 
 # --- is_dse_job: env-sampled lists are not search dimensions ---

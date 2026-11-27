@@ -103,6 +103,10 @@ class TestRun:
     num_nodes_explicit: bool = False
     pin_nodes: bool = False
 
+    def __post_init__(self) -> None:
+        if isinstance(self.num_nodes, list) and len(self.num_nodes) == 1:
+            self.num_nodes = self.num_nodes[0]
+
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
 
@@ -179,6 +183,7 @@ class TestRun:
                 key: value
                 for key, value in cmd_args_dict.items()
                 if isinstance(value, list)
+                and self.test.is_sweepable_cmd_arg(key)
                 and not self.test.is_dse_excluded_arg(key)
                 and not self.test.is_env_sampled(key)
             },

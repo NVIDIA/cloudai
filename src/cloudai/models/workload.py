@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from types import UnionType
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
@@ -166,7 +168,9 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict, parent_key: str = "", skip_env_params: bool = False) -> bool:
+        def check_dict(
+            d: dict, parent_key: str = "", skip_env_params: bool = False, sweepable_only: bool = False
+        ) -> bool:
             if isinstance(d, dict):
                 for key, value in d.items():
                     path = f"{parent_key}.{key}" if parent_key else key
@@ -174,13 +178,49 @@ class TestDefinition(BaseModel, ABC):
                         continue
                     if skip_env_params and self.is_env_sampled(path):
                         continue
-                    if isinstance(value, list) or (
-                        isinstance(value, dict) and check_dict(value, path, skip_env_params)
-                    ):
+                    if isinstance(value, list) and (not sweepable_only or self.is_sweepable_cmd_arg(path)):
+                        return True
+                    if isinstance(value, dict) and check_dict(value, path, skip_env_params, sweepable_only):
                         return True
             return False
 
-        return check_dict(self.cmd_args_dict, skip_env_params=True) or check_dict(self.extra_env_vars)
+        return check_dict(self.cmd_args_dict, skip_env_params=True, sweepable_only=True) or check_dict(
+            self.extra_env_vars
+        )
+
+    def is_sweepable_cmd_arg(self, path: str) -> bool:
+        """Return whether a cmd_args path can represent either a scalar or sweep list."""
+        value: Any = self.cmd_args
+        annotation: Any = Any
+        for part in path.split("."):
+            if isinstance(value, BaseModel):
+                field = type(value).model_fields.get(part)
+                if field is not None:
+                    annotation = field.annotation
+                    value = getattr(value, part)
+                    continue
+                extra = getattr(value, "__pydantic_extra__", None)
+                if extra is None or part not in extra:
+                    return False
+                annotation = Any
+                value = extra[part]
+                continue
+
+            if isinstance(value, dict):
+                mapping_annotation = annotation
+                origin = get_origin(mapping_annotation)
+                if origin in (Union, UnionType):
+                    mapping_annotation = next(
+                        (arg for arg in get_args(mapping_annotation) if get_origin(arg) is dict or arg is dict), Any
+                    )
+                value_args = get_args(mapping_annotation)
+                annotation = value_args[1] if len(value_args) == 2 else Any
+                value = value.get(part)
+                continue
+
+            return False
+
+        return annotation is Any or self._annotation_admits_scalar(annotation)
 
     @field_validator("dse_excluded_args", mode="before")
     @classmethod
@@ -204,6 +244,104 @@ class TestDefinition(BaseModel, ABC):
             normalized.append(prefix)
 
         return normalized
+
+    @staticmethod
+    def _annotation_admits_scalar(annotation: Any) -> bool:
+        """Return whether an annotation explicitly accepts one of the scalar sweep values."""
+        origin = get_origin(annotation)
+        if origin is Annotated:
+            return TestDefinition._annotation_admits_scalar(get_args(annotation)[0])
+        if origin is Literal:
+            return bool(get_args(annotation)) and all(
+                isinstance(value, (int, float, str, bool)) for value in get_args(annotation)
+            )
+        if origin in (Union, UnionType):
+            return any(TestDefinition._annotation_admits_scalar(arg) for arg in get_args(annotation))
+        return annotation in (int, float, str, bool)
+
+    def _canonicalize_sweep_value(
+        self,
+        value: Any,
+        annotation: Any,
+        path: str,
+        *,
+        cmd_args: bool,
+        untyped_extra: bool = False,
+    ) -> Any:
+        """Collapse singleton scalar candidates, following the declared value type."""
+        if cmd_args and (self.is_env_sampled(path) or self.is_dse_excluded_arg(path)):
+            return value
+
+        if isinstance(value, BaseModel):
+            self._canonicalize_sweep_model(value, path, cmd_args=cmd_args)
+            return value
+
+        if isinstance(value, dict):
+            mapping_annotation = annotation
+            origin = get_origin(mapping_annotation)
+            if origin in (Union, UnionType):
+                mapping_annotation = next(
+                    (arg for arg in get_args(mapping_annotation) if get_origin(arg) is dict or arg is dict), Any
+                )
+            value_args = get_args(mapping_annotation)
+            value_annotation = value_args[1] if len(value_args) == 2 else Any
+            for key, nested_value in list(value.items()):
+                nested_path = f"{path}.{key}" if path else str(key)
+                value[key] = self._canonicalize_sweep_value(
+                    nested_value,
+                    value_annotation,
+                    nested_path,
+                    cmd_args=cmd_args,
+                    untyped_extra=untyped_extra or annotation is Any,
+                )
+            return value
+
+        if (
+            isinstance(value, list)
+            and len(value) == 1
+            and self._is_scalar_sweep_value(value[0])
+            and (untyped_extra or self._annotation_admits_scalar(annotation))
+        ):
+            return value[0]
+
+        return value
+
+    @staticmethod
+    def _is_scalar_sweep_value(value: Any) -> bool:
+        return isinstance(value, (int, float, str, bool))
+
+    def _canonicalize_sweep_model(self, model: BaseModel, parent_path: str, *, cmd_args: bool) -> None:
+        """Walk declared and extra fields in a cmd_args model."""
+        for name, field in type(model).model_fields.items():
+            path = f"{parent_path}.{name}" if parent_path else name
+            value = getattr(model, name)
+            normalized = self._canonicalize_sweep_value(value, field.annotation, path, cmd_args=cmd_args)
+            if normalized is not value:
+                setattr(model, name, normalized)
+
+        extra = getattr(model, "__pydantic_extra__", None)
+        if extra:
+            for name, value in list(extra.items()):
+                path = f"{parent_path}.{name}" if parent_path else name
+                normalized = self._canonicalize_sweep_value(value, Any, path, cmd_args=cmd_args, untyped_extra=True)
+                if normalized is not value:
+                    extra[name] = normalized
+
+    @model_validator(mode="after")
+    def canonicalize_singleton_sweeps(self) -> Self:
+        """Store fixed scalar choices as scalars, leaving multi-value sweeps unchanged."""
+        if isinstance(self.cmd_args, BaseModel):
+            self.cmd_args = self.cmd_args.model_copy(deep=True)
+            self._canonicalize_sweep_model(self.cmd_args, "", cmd_args=True)
+
+        extra_env_field = type(self).model_fields["extra_env_vars"]
+        self.extra_env_vars = self._canonicalize_sweep_value(
+            copy.deepcopy(self.extra_env_vars),
+            extra_env_field.annotation,
+            "",
+            cmd_args=False,
+        )
+        return self
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         return JobStatusResult(is_successful=True)

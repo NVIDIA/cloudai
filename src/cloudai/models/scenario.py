@@ -133,6 +133,13 @@ class TestRunModel(BaseModel):
     agent_reward_function: Optional[str] = None
     agent_config: Optional[dict[str, Any]] = Field(default=None, description="Agent configuration.")
 
+    @field_validator("num_nodes", mode="after")
+    @classmethod
+    def normalize_single_node_sweep(cls, value: int | list[int] | None) -> int | list[int] | None:
+        if isinstance(value, list) and len(value) == 1:
+            return value[0]
+        return value
+
     @field_validator("sol", mode="before")
     @classmethod
     def parse_sol(cls, value: Any) -> float | cloudai.metrics.MetricSOLConfig | None:

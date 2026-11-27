@@ -61,10 +61,7 @@ class NixlEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @property
     def num_processes_per_node(self) -> int:
-        num_processes_per_node = self.tdef.cmd_args.num_processes_per_node
-        if not isinstance(num_processes_per_node, int):
-            raise ValueError("NIXL EP Slurm command generation requires num_processes_per_node to be an integer.")
-        return num_processes_per_node
+        return cast(int, self.tdef.cmd_args.num_processes_per_node)
 
     @property
     def env_vars_path(self) -> Path:

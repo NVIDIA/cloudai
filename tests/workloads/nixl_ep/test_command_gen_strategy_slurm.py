@@ -222,12 +222,10 @@ def test_plan_rejects_non_integer_ranks() -> None:
         )
 
 
-def test_num_processes_per_node_rejects_list(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+def test_command_generation_rejects_unresolved_process_sweep(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nixl_ep_tr.test.cmd_args.num_processes_per_node = [4, 4, 2]
-    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, nixl_ep_tr)
-
-    with pytest.raises(ValueError, match="requires num_processes_per_node to be an integer"):
-        _ = strategy.num_processes_per_node
+    with pytest.raises(ValueError, match="unresolved parameters: num_processes_per_node"):
+        NixlEPSlurmCommandGenStrategy(slurm_system, nixl_ep_tr)
 
 
 def test_build_benchmark_command(nixl_ep_tr: TestRun, slurm_system: SlurmSystem) -> None:
@@ -532,7 +530,7 @@ def test_gen_srun_command_single_node_single_rank_plan(
     assert "--open-mode=append" not in launcher_script
 
 
-def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> None:
+def test_gen_srun_command_rejects_unresolved_process_sweep(slurm_system: SlurmSystem) -> None:
     tdef = NixlEPTestDefinition(
         name="nixl_ep",
         description="NIXL Elastic EP benchmark",
@@ -540,7 +538,7 @@ def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> Non
         cmd_args=NixlEPCmdArgs(
             docker_image_url="docker.io/nvidia/nixl-ep:latest",
             plan=json.dumps([[0, 1, 2, 3]]),
-            num_processes_per_node=[4],
+            num_processes_per_node=[4, 5],
         ),
     )
     test_run = TestRun(
@@ -550,10 +548,8 @@ def test_gen_srun_command_rejects_process_list(slurm_system: SlurmSystem) -> Non
         test=tdef,
         output_path=slurm_system.output_path,
     )
-    strategy = NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
-
-    with pytest.raises(ValueError, match="requires num_processes_per_node to be an integer"):
-        strategy.gen_srun_command()
+    with pytest.raises(ValueError, match="unresolved parameters: num_processes_per_node"):
+        NixlEPSlurmCommandGenStrategy(slurm_system, test_run)
 
 
 def test_single_node_stages_cover_each_plan_phase(nixl_ep: NixlEPTestDefinition, slurm_system: SlurmSystem) -> None:

@@ -149,7 +149,9 @@ class SingleSbatchRunner(SlurmRunner):
 
     def get_global_env_vars(self) -> str:
         vars: list[str] = ["export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"]
-        tr = self.test_scenario.test_runs[0]
+        tr = next(self.all_trs, None)
+        if tr is None:
+            return "\n".join(vars)
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
         for key, value in cmd_gen.final_env_vars.items():
             vars.append(f"export {key}={value}")
@@ -176,6 +178,11 @@ class SingleSbatchRunner(SlurmRunner):
 
     def add_pre_tests(self, pre_tc: TestScenario, base_tr: TestRun) -> str:
         content = []
+        if base_tr.param_space or isinstance(base_tr.num_nodes, list):
+            resolved_tr = next(self.all_trs, None)
+            if resolved_tr is None:
+                return ""
+            base_tr = resolved_tr
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, base_tr))
         content.append(cmd_gen.gen_pre_test(pre_tc, self.scenario_root))
         content.append("if [ $PRE_TEST_SUCCESS -ne 1 ]; then")

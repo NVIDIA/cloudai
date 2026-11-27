@@ -41,10 +41,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
         self.final_env_vars.setdefault("NEMO_LOG_MEMORY_USAGE", "1")
 
-        pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
-        if isinstance(pipeline_model_parallel_size, list):
-            pipeline_model_parallel_size = pipeline_model_parallel_size[0]
-        pipeline_model_parallel_size = int(pipeline_model_parallel_size)
+        pipeline_model_parallel_size = cast(int, tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size)
 
         if pipeline_model_parallel_size > 1:
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")

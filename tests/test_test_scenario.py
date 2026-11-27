@@ -540,6 +540,10 @@ class TestInScenario:
         )
         assert model.tests[0].num_nodes == [1, 2]
 
+    def test_num_nodes_singleton_list_is_scalar(self) -> None:
+        model = TestRunModel(id="1", test_name="nccl", num_nodes=[1])
+        assert model.num_nodes == 1
+
     def test_pin_nodes_rejects_num_nodes_sweep(self) -> None:
         with pytest.raises(ValueError, match="pin_nodes cannot be enabled when num_nodes is swept"):
             TestRunModel(id="1", test_name="nccl", num_nodes=[1, 2], pin_nodes=True)

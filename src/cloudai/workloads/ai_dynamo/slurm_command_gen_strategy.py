@@ -746,11 +746,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.td.cmd_args.dynamo.prefill_worker:
             prefill_n = cast(int, self.td.cmd_args.dynamo.prefill_worker.num_nodes)
             prefill_nodes = self.td.cmd_args.dynamo.prefill_worker.nodes
-        decode_n = self.td.cmd_args.dynamo.decode_worker.num_nodes
+        decode_n = cast(int, self.td.cmd_args.dynamo.decode_worker.num_nodes)
         decode_nodes = self.td.cmd_args.dynamo.decode_worker.nodes
-
-        assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
-        assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
 
         role_total_nodes = prefill_n + decode_n
         role_nodes = self._unique_nodes(
