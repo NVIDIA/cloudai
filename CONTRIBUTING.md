@@ -80,7 +80,8 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
 - Keep the diff focused on the requested behavior. Put unrelated formatting, renames, and cleanup in a separate change.
 - Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
 - Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
-- Keep the summary focused on the resulting behavior. In the test plan, passing CI is sufficient for routine automated checks; omit duplicate test inventories, commands, and output. Briefly describe distinctive manual experiments and their results, plus any material coverage gaps or failures. Include reproduction details when needed to assess the change.
+- Summarize the resulting behavior. List `CI` for routine checks, then give any distinct manual results, material failures, or coverage gaps. Include reproduction details when useful.
+- Apply `compatibility-change` for upgrade-relevant changes to configs, the CLI, integration APIs, or outputs, including changes in behavior for configs that still parse. This label feeds the release changelog. In Additional Notes, identify affected users, describe the old and new behavior, and explain any migration.
 - Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
 - Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
 
